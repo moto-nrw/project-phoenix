@@ -222,6 +222,32 @@ func TestCourseWaitlistsExcludeUnlimitedGroupsFromQueue(t *testing.T) {
 	assert.Empty(t, waitlists[0].Entries, "the explicit AG view keeps its data but no waitlist entries")
 }
 
+func TestCourseWaitlistsIncludeUnlimitedGroupsWithLimitedOfferings(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Angebot", "Grenze")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, "Offene AG")
+	_, err := tc.db.NewRaw(`UPDATE activities.groups SET max_participants = NULL WHERE id = ? AND tenant_id = ?`,
+		group.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	waiting := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Wartet")
+	_, err = tc.db.NewRaw(`UPDATE enrollment.care_offerings SET capacity = 0 WHERE id = ? AND tenant_id = ?`,
+		waiting.courseID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+
+	for _, query := range []string{"", fmt.Sprintf("?activity_group_id=%d", group.ID)} {
+		waitlist := waitlistFor(fetchCourseWaitlists(t, tc, claims, query), group.ID)
+		require.NotNil(t, waitlist, "the offering limit creates a waitlist even without an AG limit")
+		require.NotNil(t, waitlist.ParticipantLimit)
+		assert.Equal(t, 0, *waitlist.ParticipantLimit)
+		require.NotNil(t, waitlist.FreeSlots)
+		assert.Equal(t, 0, *waitlist.FreeSlots)
+		assert.Len(t, waitlist.Entries, 1)
+		assert.False(t, waitlist.SlotFreeForNext)
+	}
+}
+
 func TestCourseWaitlistsUseNextRequestEffectiveDateForCapacity(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)
@@ -243,6 +269,28 @@ func TestCourseWaitlistsUseNextRequestEffectiveDateForCapacity(t *testing.T) {
 	require.NotNil(t, waitlist.FreeSlots)
 	assert.Equal(t, 1, *waitlist.FreeSlots)
 	assert.True(t, waitlist.SlotFreeForNext)
+}
+
+func TestCourseWaitlistsExcludeNextChildFromGroupOccupancy(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Schon", "Dabei")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Fußball-AG", 1)
+	waiting := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Wartet")
+	_, err := tc.db.NewRaw(`INSERT INTO activities.student_enrollments
+		(tenant_id, student_id, activity_group_id, valid_from)
+		VALUES (?, ?, ?, ?)`,
+		testpkg.Tenant(t), waiting.studentID, group.ID, studentsTestToday).Exec(t.Context())
+	require.NoError(t, err)
+
+	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, claims, fmt.Sprintf("?activity_group_id=%d", group.ID)), group.ID)
+	require.NotNil(t, waitlist)
+	assert.Equal(t, 0, waitlist.Participants, "the next child already holds this AG through another offering")
+	require.NotNil(t, waitlist.FreeSlots)
+	assert.Equal(t, 1, *waitlist.FreeSlots)
+	assert.True(t, waitlist.SlotFreeForNext)
+	assert.Equal(t, http.StatusOK, decideCourseRequest(t, tc, claims, waiting.request.ID).Code)
 }
 
 func TestCourseWaitlistsUseCourseOfferingCapacity(t *testing.T) {

@@ -155,5 +155,5 @@ type OfferingChangePlanning interface {
 	// team's waiting lists (#4767). An unknown or non-course id is absent.
 	CourseGroupsByID(ctx context.Context, groupIDs []int64, effectiveOn calendar.Date) ([]CourseGroup, error)
 	LockCourseGroups(ctx context.Context, groupIDs []int64) ([]CourseGroup, error)
-	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error)
+	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error)
 }

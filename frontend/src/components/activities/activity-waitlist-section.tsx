@@ -20,16 +20,19 @@ export function ActivityWaitlistSection({
 }: Readonly<{ activityId: string }>) {
   const { data: session } = useSession();
   const allowed = hasPermission(session, "users:update");
+  const mayReadParticipants = hasPermission(session, "activities:read");
   const swr = useSWRAuth(allowed ? `course-waitlist-${activityId}` : null, () =>
     fetchCourseWaitlists(activityId),
   );
   // Die Namen der Teilnehmenden kommen aus der Kinderliste der Aktivität.
   const participants = useSWRAuth(
-    allowed ? `activity-participants-${activityId}` : null,
+    allowed && mayReadParticipants
+      ? `activity-participants-${activityId}`
+      : null,
     () => getEnrolledStudents(activityId),
   );
-  // Belegung und Namen gehören zusammen: fehlen die Namen, wäre die
-  // dargestellte Warteliste unvollständig und damit irreführend.
+  // Wenn die Teilnehmerliste gelesen wird, darf sie nicht unbemerkt fehlen:
+  // dann wäre die dargestellte Warteliste unvollständig und irreführend.
   const loadError = useSwrLoadError(
     swr.error ?? participants.error,
     swr.error ? "die Warteliste der AG" : "die Teilnehmenden der AG",

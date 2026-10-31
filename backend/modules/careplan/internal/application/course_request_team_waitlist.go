@@ -113,17 +113,22 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 }
 
 // hasVisibleCourseGroup reports whether an in-scope request references the
-// limited, active AG. A group-scoped reviewer may only query those AGs by id;
-// a school-wide reviewer may also inspect an empty AG.
+// active, capacity-limited AG. A group-scoped reviewer may only query those
+// AGs by id; a school-wide reviewer may also inspect an empty AG.
 func (q *teamCourseQueue) hasVisibleCourseGroup(activityGroupID int64) bool {
-	for _, groups := range q.groupsByOffering {
+	for offeringID, groups := range q.groupsByOffering {
 		for _, group := range groups {
-			if group.ID == activityGroupID && group.Active && group.ParticipantLimit != nil {
+			if group.ID == activityGroupID && group.Active && q.groupHasCapacity(offeringID, group) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func (q *teamCourseQueue) groupHasCapacity(offeringID int64, group ports.CourseGroup) bool {
+	offering := q.offeringsByID[offeringID]
+	return group.ParticipantLimit != nil || (offering != nil && offering.Capacity != nil)
 }
 
 func (s *OfferingChanges) loadTeamQueueChildren(
@@ -212,9 +217,9 @@ func (s *OfferingChanges) loadTeamQueueGroups(ctx context.Context, queue *teamCo
 // keeps that one AG.
 func (q *teamCourseQueue) entriesByGroup(activityGroupID int64) map[int64][]careplan.CourseWaitlistEntry {
 	targets := make(map[int64]ports.CourseGroup)
-	for _, groups := range q.groupsByOffering {
+	for offeringID, groups := range q.groupsByOffering {
 		for _, group := range groups {
-			if group.Active && group.ParticipantLimit != nil && (activityGroupID <= 0 || group.ID == activityGroupID) {
+			if group.Active && q.groupHasCapacity(offeringID, group) && (activityGroupID <= 0 || group.ID == activityGroupID) {
 				targets[group.ID] = group
 			}
 		}
@@ -344,7 +349,7 @@ func (s *OfferingChanges) waitlistOccupancy(
 	taken := make(map[int64]int, len(groups))
 	offeringTaken := make(map[int64]map[int64]int, len(groups))
 	for _, window := range waitlistOccupancyWindows(groups, entries, today, queue) {
-		counts, err := s.courseOccupancy(ctx, window.groupIDs, window.from, window.until, 0)
+		counts, err := s.courseOccupancyWithExclusions(ctx, window.groupIDs, window.from, window.until, queue.nextStudentByGroup(window.groupIDs, entries))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -361,6 +366,16 @@ func (s *OfferingChanges) waitlistOccupancy(
 		}
 	}
 	return taken, offeringTaken, nil
+}
+
+func (q *teamCourseQueue) nextStudentByGroup(groupIDs []int64, entries map[int64][]careplan.CourseWaitlistEntry) map[int64]int64 {
+	excluded := make(map[int64]int64, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if groupEntries := entries[groupID]; len(groupEntries) > 0 && groupEntries[0].StudentID > 0 {
+			excluded[groupID] = groupEntries[0].StudentID
+		}
+	}
+	return excluded
 }
 
 // courseWaitlistsFor reads the AGs' names, limits and occupancy and joins

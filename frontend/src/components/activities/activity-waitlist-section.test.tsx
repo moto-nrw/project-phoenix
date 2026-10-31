@@ -61,7 +61,7 @@ const theater: CourseWaitlist = {
 
 describe("ActivityWaitlistSection", () => {
   beforeEach(() => {
-    state.permissions = ["users:update"];
+    state.permissions = ["users:update", "activities:read"];
     state.waitlists = [theater];
     state.error = undefined;
     state.participantError = undefined;
@@ -117,6 +117,22 @@ describe("ActivityWaitlistSection", () => {
     expect(screen.getByTestId("section")).toBeInTheDocument();
     expect(container.textContent).toBe("");
     expect(state.keys.every((key) => key === null)).toBe(true);
+  });
+
+  it("zeigt die Warteliste ohne Recht auf die Teilnehmerliste", () => {
+    state.permissions = ["users:update"];
+
+    render(<ActivityWaitlistSection activityId="70" />);
+
+    expect(
+      screen.getByText(
+        "Für die nächste Anfrage: 8 von 8 Plätzen vergeben · 0 frei",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Emma Klein, Zeynep Çelik"),
+    ).not.toBeInTheDocument();
+    expect(state.keys).not.toContain("activity-participants-70");
   });
 
   it("zeigt keine unvollständige Warteliste, wenn Teilnehmende nicht laden", async () => {

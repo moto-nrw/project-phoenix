@@ -195,10 +195,20 @@ func narrowCourseCapacity(capacity, free, offeringCapacity, offeringFree *int) (
 }
 
 func (s *OfferingChanges) courseOccupancy(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
+	excluded := make(map[int64]int64, len(groupIDs))
+	if excludeStudentID > 0 {
+		for _, groupID := range groupIDs {
+			excluded[groupID] = excludeStudentID
+		}
+	}
+	return s.courseOccupancyWithExclusions(ctx, groupIDs, from, until, excluded)
+}
+
+func (s *OfferingChanges) courseOccupancyWithExclusions(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error) {
 	if !from.Before(until) {
 		until = from.AddDays(1)
 	}
-	counts, err := s.deps.Planning.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
+	counts, err := s.deps.Planning.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludedStudentByGroup)
 	if err != nil {
 		return nil, fmt.Errorf("course request: count course rosters: %w", err)
 	}
