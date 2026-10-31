@@ -127,7 +127,7 @@ func (kind RosterOfferingKind) standsInFor(booking OfferingWeekdayBooking) bool 
 }
 
 // plannedClocks are the Regeltermin's occurrences on date that have the
-// child on them, with TemplatePlannedRoster.Plans' rule: each occurrence is
+// child on them, with TemplateRosterEntry.appliesOn's rule: each occurrence is
 // filled from the period materialization selects for it, so a row pinned to
 // an overlapping period does not count there. A date without a projected
 // occurrence plans nobody.

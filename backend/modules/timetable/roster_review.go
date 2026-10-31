@@ -84,20 +84,11 @@ type TemplateRosterEntry struct {
 	SelectedWeekdays []int
 }
 
-// Plans reports whether the roster puts the child on the template's
+// appliesOn reports whether the row puts the child on the template's
 // occurrence on date, with materialization's rule for enrollment rows
 // (isEnrollmentValidOn). periodID is the period materialization selects for
 // that occurrence; a row pinned to another period, or to any period when
 // periodID is unknown (0), does not apply.
-func (r TemplatePlannedRoster) Plans(studentID int64, date calendar.Date, periodID int64) bool {
-	if slices.Contains(r.TargetStudentIDs, studentID) {
-		return true
-	}
-	return slices.ContainsFunc(r.Entries, func(entry TemplateRosterEntry) bool {
-		return entry.StudentID == studentID && entry.appliesOn(date, periodID)
-	})
-}
-
 func (e TemplateRosterEntry) appliesOn(date calendar.Date, periodID int64) bool {
 	weekday := calendar.ISOWeekday(date)
 	switch {
