@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
 import * as api from "~/lib/parent-api";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
+import { useParentFeatures } from "~/lib/hooks/use-parent-resources";
 import { ApiError } from "~/lib/api-error";
 import { useChildCare } from "./child-care";
 import { useChildMasterData } from "./child-master-data";
@@ -90,5 +92,43 @@ describe("shared parent relationship features", () => {
     await waitFor(() => expect(result.current.master.error).not.toBeNull());
     expect(result.current.master.features).toBeNull();
     expect(result.current.care.features.sick_note_enabled).toBe(false);
+  });
+  it("keeps another child's confirmed features when one relationship lookup fails", async () => {
+    vi.mocked(api.getChildFeatures).mockImplementation(async (id) => {
+      if (id === "42")
+        throw new ApiError("offline", 503, { code: "general.unavailable" });
+      return features;
+    });
+    const linked = [
+      ...children,
+      { student_id: "43", tenant_id: "7" } as api.Child,
+    ];
+    const { result } = renderHook(
+      () => ({
+        features: useParentFeatures(linked),
+        discard: useDiscardRefusedEntity(),
+      }),
+      { wrapper: ParentResourceTestProvider },
+    );
+    await waitFor(() =>
+      expect(result.current.features.data?.["43"]).toEqual(features),
+    );
+    expect(result.current.features.data?.["42"]).toBeUndefined();
+    expect(result.current.features.error).toMatchObject({
+      code: "general.unavailable",
+    });
+    vi.mocked(api.getChildFeatures).mockReturnValue(
+      new Promise(() => undefined),
+    );
+    act(() => {
+      result.current.discard(
+        new ApiError("gone", 403, { code: "care.child_not_linked" }),
+        {
+          codes: ["care.child_not_linked"],
+          matches: (key) => key.startsWith("parent-features-"),
+        },
+      );
+    });
+    expect(result.current.features.data).toBeUndefined();
   });
 });

@@ -236,7 +236,11 @@ export function useChildMasterData(
     show: showFeatureError,
     clear: clearFeatureError,
   } = useApiLoadError();
-  const sharedFailure = sharedFeatures?.error;
+  const sharedFailure =
+    sharedFeatures?.errorsByChild[studentId] ??
+    (sharedFeatures && !sharedFeatures.data?.[studentId]
+      ? sharedFeatures.error
+      : undefined);
   const reloadFeatures = sharedFeatures?.mutate;
   useEffect(() => {
     if (!enabled || !sharedFailure) {

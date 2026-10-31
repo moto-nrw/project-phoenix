@@ -307,6 +307,11 @@ export function useChildCare(studentId: string): ChildCare {
   const childRequests = useChildRequests();
   const sharedFeatures = useSharedParentFeatures();
   const hasSharedFeatures = sharedFeatures !== null;
+  const sharedFeatureError =
+    sharedFeatures?.errorsByChild[studentId] ??
+    (sharedFeatures && !sharedFeatures.data?.[studentId]
+      ? sharedFeatures.error
+      : undefined);
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
@@ -691,9 +696,7 @@ export function useChildCare(studentId: string): ChildCare {
       !hasCurrentStudentData ||
       loading ||
       (!!sharedFeatures && !sharedFeatures.data && !sharedFeatures.error),
-    loadError: hasCurrentStudentData
-      ? (sharedFeatures?.error ?? loadError)
-      : null,
+    loadError: hasCurrentStudentData ? (sharedFeatureError ?? loadError) : null,
     reportSick,
     saveCareException,
     removeCareException,

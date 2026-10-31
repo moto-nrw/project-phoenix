@@ -132,6 +132,11 @@ resources between the shell, start page and child page. Features and today's
 status use the sorted `(tenant_id, student_id)` relationship set in their
 factory key. Each relationship is fetched, including siblings at the same
 school; a school's flags never stand in for another child's permissions.
+A failed lookup hides only that relationship's flags, never a previously
+confirmed stale value; other successful children stay available. Partial
+results are read only through the wrapper's current-error gate (G19). The
+private batch failure is not an `ApiError`, and refusals use the original API
+errors, so discarding cannot restamp partial results into a newer generation.
 The authenticated wrapper adds `parent:-:<account>`: the parents JWT has no
 school, and account-wide lists can span schools. They must not use a tenant,
 school or operator session. News, message lists and the start-page calendar
