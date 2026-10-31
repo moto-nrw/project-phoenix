@@ -33,12 +33,15 @@ import {
  *   cookie. Nothing loads until it answered: the cookie already holds the
  *   other session. PersonalStorageGuard then leaves the page.
  *
- * Another tab only removing the owner (its logout, or a school switch whose
- * new owner binds on the other school's host) is confirmed by a fresh
- * lookup that still shows this tab's account: the cookie still holds it.
- * Readers load again; a revoked session answers them with 401, another
- * school's session with the mismatch path of #5130 (the BFF refuses, the
- * session cache wakes the provider, the new generation resets the cache).
+ * Another tab only removing the owner is a logout or a school switch. A
+ * school switch binds the new owner on the other school's host, whose
+ * storage this tab never sees: a fresh lookup that shows this tab's account
+ * at another school than the page's confirms it. Readers load again and meet
+ * the mismatch path of #5130 (the BFF refuses, the session cache wakes the
+ * provider, the new generation resets the cache). A lookup that still shows
+ * this school is a logout whose signout has not deleted the cookie yet: its
+ * session family is revoked, so a reader loading now would start a competing
+ * logout. The tab waits for the lookup without the account.
  *
  * Mounted once in every portal as a child of the SessionProvider.
  */
@@ -73,12 +76,15 @@ export function SWRScopeBoundary({
     const waiting = pending.current;
     if (waiting) {
       // A render is no confirmation; a lookup confirms the expected account
-      // or, after a mere owner removal, still this tab's account (#5007).
+      // or, after a mere owner removal, this tab's account at another school
+      // (#5007).
       const confirmed =
         accountId === waiting.accountId ||
         (waiting.accountId === null &&
           accountId !== null &&
-          accountId === waiting.shownAccountId);
+          accountId === waiting.shownAccountId &&
+          expectedTenantId != null &&
+          tenantId !== expectedTenantId);
       if (session === waiting.session || !confirmed) return;
       pending.current = null;
       // Clear while still paused: old-key subscribers may not have committed

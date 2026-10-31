@@ -304,6 +304,22 @@ describe("SWR cache scope (#5006)", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps waiting while another tab's logout still leaves this school's cookie", async () => {
+    // A relogin in another tab revokes the session family and removes the
+    // owner before its signout deletes the cookie. A reader loading on that
+    // cookie meets the revoked family and starts a competing logout.
+    const fetcher = accountFetcher();
+    const view = render(<Page fetcher={fetcher} />);
+    expect(await screen.findByText("Daten von A")).toBeInTheDocument();
+
+    act(() => otherTabBinds(null));
+    setSession(signedIn("A"));
+    view.rerender(<Page fetcher={fetcher} />);
+
+    expect(screen.getByTestId("reader-roster")).toHaveTextContent("leer");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps waiting when the lookup after a removed owner shows another account", async () => {
     const fetcher = accountFetcher();
     const view = render(<Page fetcher={fetcher} />);
