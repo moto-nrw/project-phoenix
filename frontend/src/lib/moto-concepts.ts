@@ -4,7 +4,7 @@
 // renders a fixed concept imports that module directly, so its bundle carries
 // only that glyph instead of all of them (about 73 kB, see #5135). The registry
 // pulls in every glyph, so production code imports it only as a type
-// (`MotoConcept`, `MotoConceptKey`); `moto-concepts.test.ts` fails on a runtime
+// (`MotoConcept`); `moto-concepts.test.ts` fails on a runtime
 // import. A choice made at runtime maps to definitions in a local table
 // (see `STAFF_NAV_CONCEPTS` or `TILE_CONCEPT`). The registry itself serves the
 // tests that keep tones unique and keys in sync.
@@ -174,7 +174,7 @@ export const MOTO_CONCEPTS: {
   readonly [K in keyof typeof registry]: MotoConceptDefinition<K>;
 } = registry;
 
-export type MotoConceptKey = keyof typeof MOTO_CONCEPTS;
+type MotoConceptKey = keyof typeof MOTO_CONCEPTS;
 
 /** A concept definition, as the concept components take it. */
 export type MotoConcept = MotoConceptDefinition<MotoConceptKey>;
