@@ -260,7 +260,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Abwesenheiten',
-    pages: { ogs: ['/absences'] },
+    pages: { ogs: ['/absences'], school: ['/fehlzeiten'] },
     events: ['absence_reported', 'absence_request_submitted', 'arrival_exception_changed', 'class_trip_reported'],
   },
   {
@@ -418,6 +418,7 @@ const PARENT_PAGE_NAMES = new Map([
 const SCHOOL_PAGE_NAMES = new Map([
   ['/', 'Start'], ['/login', 'Anmeldung'], ['/klasse', 'Klasse'], ['/aufsichten', 'Aufsichten'],
   ['/tagesinformationen', 'Tagesinformationen'], ['/kalender', 'Kalender'], ['/einstellungen', 'Einstellungen'],
+  ['/fehlzeiten', 'Fehlzeiten'],
 ]);
 
 /** HogQL expression: the page's name, '' when it has none. */
