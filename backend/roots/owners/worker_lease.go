@@ -1,6 +1,8 @@
 package owners
 
 import (
+	"fmt"
+
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -28,3 +30,16 @@ func newWorkerLease(runtime tenant.UnitOfWork) (schedulerPorts.WorkerLease, erro
 
 // workerLeaseName is the lease name Scheduler Runtime gives the Worker.
 const workerLeaseName = schedulerPorts.WorkerLeaseName
+
+// newWorkerRuntime constructs the lease and tenant transactions for the Worker.
+func newWorkerRuntime(unitOfWork tenant.UnitOfWork) (schedulerPorts.WorkerLease, schedulerPorts.TenantRuntime, error) {
+	lease, err := newWorkerLease(unitOfWork)
+	if err != nil {
+		return schedulerPorts.WorkerLease{}, nil, fmt.Errorf("compose worker lease: %w", err)
+	}
+	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(unitOfWork)
+	if err != nil {
+		return schedulerPorts.WorkerLease{}, nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+	}
+	return lease, runtime, nil
+}

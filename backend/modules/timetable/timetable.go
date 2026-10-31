@@ -290,6 +290,7 @@ type TemplateRosterReviewUpdate struct {
 type Capability interface {
 	Query
 	Command
+	WeekProtocolCapability
 }
 
 // Owner is what the Timetable composition hands out: the capability, the

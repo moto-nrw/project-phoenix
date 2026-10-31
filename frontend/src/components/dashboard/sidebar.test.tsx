@@ -2720,6 +2720,30 @@ describe("Sidebar", () => {
       expect(screen.getByText("Heute")).toBeInTheDocument();
     });
 
+    // Wochenprotokolle (#4769): ohne feste Gruppen fehlt die Gruppenseite,
+    // also führt die Planung jede Fachkraft (groups:update) zum Protokoll
+    // der ganzen Schule. Mit festen Gruppen bleibt der Eintrag der Leitung.
+    it("zeigt einer Fachkraft die Wochenprotokolle nur bei offener Betreuung", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "groups:update",
+      );
+
+      const { unmount } = render(<Sidebar />);
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+      expect(screen.queryByText("Wochenprotokolle")).not.toBeInTheDocument();
+      unmount();
+
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+      try {
+        render(<Sidebar />);
+        expect(screen.getByText("Wochenprotokolle")).toBeInTheDocument();
+      } finally {
+        mockUseOpenCareGroupMode.mockReturnValue(false);
+      }
+    });
+
     it("hält Planung, Anmeldungen, Verwaltung und Einstellungen von einer Betreuungsrolle fern", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>

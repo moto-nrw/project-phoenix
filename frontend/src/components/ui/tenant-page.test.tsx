@@ -459,6 +459,28 @@ describe("TenantPage", () => {
     expect(screen.getByText("krank")).toBeInTheDocument();
     expect(screen.getByText("·")).toBeInTheDocument();
   });
+
+  it("zeigt mehrere Werte ohne Label ohne doppelten Schlüssel", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      render(
+        <TenantPageStats
+          items={[
+            { value: "Bären", label: "" },
+            { value: "07.09. bis 13.09.2026", label: "" },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText("Bären")).toBeInTheDocument();
+      expect(screen.getByText("07.09. bis 13.09.2026")).toBeInTheDocument();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
   it("zeigt die Reiter auf jeder Breite als ein Band, nie als Auswahlliste", () => {
     render(
       <TenantPage

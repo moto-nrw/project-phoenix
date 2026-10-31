@@ -311,6 +311,8 @@ interface AdditionalNavItem {
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
   // An array shows the item when ANY listed permission is held.
   requiresPermission?: string | readonly string[];
+  // Bei offener Betreuung öffnet auch dieses Recht den Eintrag (#4769).
+  openCarePermission?: string;
   // All listed permissions are required (matching RequiresAllPermissions).
   requiresAllPermissions?: readonly string[];
   requiresSupervision?: boolean;
@@ -493,6 +495,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     concept: STAFF_NAV_CONCEPTS[page.href],
     requiresAdmin: page.nonAdminPermission === undefined,
     requiresPermission: page.nonAdminPermission,
+    openCarePermission: page.openCarePermission,
   })),
   {
     // Tagesauswertung (#1456): Opt-in über gdpr.attendance_log_enabled
@@ -1032,6 +1035,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.locked) return true;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
+    if (
+      openCareGroupMode &&
+      item.openCarePermission &&
+      hasPermission(session, item.openCarePermission)
+    ) {
+      return true;
+    }
     if (item.requiresAllPermissions) {
       return (
         userIsAdmin ||

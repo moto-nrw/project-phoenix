@@ -135,6 +135,10 @@ export const codes = [
   "timetable.template_weekend",
   "timetable.too_many_dates",
   "timetable.understaffed_still_staffed",
+  "timetable.week_protocol_not_closed",
+  "timetable.week_protocol_not_draft",
+  "timetable.week_protocol_not_found",
+  "timetable.week_protocol_notes_invalid",
   "timetable.window_end_before_start",
   "timetable.window_too_large",
 ] as const;
@@ -275,6 +279,10 @@ export const classes = {
   "timetable.template_weekend": "input",
   "timetable.too_many_dates": "input",
   "timetable.understaffed_still_staffed": "business_rejection",
+  "timetable.week_protocol_not_closed": "business_rejection",
+  "timetable.week_protocol_not_draft": "business_rejection",
+  "timetable.week_protocol_not_found": "business_rejection",
+  "timetable.week_protocol_notes_invalid": "input",
   "timetable.window_end_before_start": "input",
   "timetable.window_too_large": "input",
 } as const;
@@ -418,6 +426,10 @@ export const parameters = {
   "timetable.template_weekend": [],
   "timetable.too_many_dates": ["max"],
   "timetable.understaffed_still_staffed": ["date"],
+  "timetable.week_protocol_not_closed": [],
+  "timetable.week_protocol_not_draft": [],
+  "timetable.week_protocol_not_found": [],
+  "timetable.week_protocol_notes_invalid": [],
   "timetable.window_end_before_start": [],
   "timetable.window_too_large": ["max_days"],
 } as const;

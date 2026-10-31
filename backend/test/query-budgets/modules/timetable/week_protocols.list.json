@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.week_protocols.list",
+  "max": 1,
+  "exact": true,
+  "description": "modules/timetable — the weekly protocols of all groups load in one query, whatever the number of groups (#4769)."
+}
