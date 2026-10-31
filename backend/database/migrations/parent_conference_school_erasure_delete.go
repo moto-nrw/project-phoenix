@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.720 (#4801): the 1.15.719 (#4769) delete with the two Elternsprechtag tables,
-// calendar.parent_conferences and calendar.parent_conference_bookings.
+// 1.15.720 (#4801): the 1.15.719 (#4769) delete with calendar.parent_conferences and
+// calendar.parent_conference_bookings; the key freeze moved to school_erasure_freeze_child_keys.
 func installParentConferenceErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasureDeleteSQL)
 	return err
@@ -18,19 +18,11 @@ const parentConferenceErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sc
  AS $body$
  DECLARE
   v_counts JSONB := '{}'::jsonb;
-  v_child_keys JSONB := '{}'::jsonb;
-  v_keys JSONB;
+  v_child_keys JSONB;
   v_count BIGINT;
  BEGIN
-   -- Freeze indirect keys before their parents disappear.
-   SELECT COALESCE(jsonb_agg(r."role_id"), '[]'::jsonb) INTO v_keys FROM auth.role_permissions AS r WHERE r.role_id IN (SELECT p0.id FROM auth.roles AS p0 WHERE p0.tenant_id = p_school_id);
-   v_child_keys := v_child_keys || jsonb_build_object('auth.role_permissions', v_keys);
-   SELECT COALESCE(jsonb_agg(r."model_id"), '[]'::jsonb) INTO v_keys FROM config.work_time_model_entries AS r WHERE r.model_id IN (SELECT p0.id FROM config.work_time_models AS p0 WHERE p0.tenant_id = p_school_id);
-   v_child_keys := v_child_keys || jsonb_build_object('config.work_time_model_entries', v_keys);
-   SELECT COALESCE(jsonb_agg(r."student_guardian_id"), '[]'::jsonb) INTO v_keys FROM meta.meal_participation_permission_grants AS r WHERE r.student_guardian_id IN (SELECT p0.id FROM users.student_guardian_relationships AS p0 WHERE p0.tenant_id = p_school_id);
-   v_child_keys := v_child_keys || jsonb_build_object('meta.meal_participation_permission_grants', v_keys);
-   SELECT COALESCE(jsonb_agg(r."student_guardian_id"), '[]'::jsonb) INTO v_keys FROM meta.parent_student_consent_permission_grants AS r WHERE r.student_guardian_id IN (SELECT p0.id FROM users.student_guardian_relationships AS p0 WHERE p0.tenant_id = p_school_id);
-   v_child_keys := v_child_keys || jsonb_build_object('meta.parent_student_consent_permission_grants', v_keys);
+   -- Freeze indirect keys before their parents disappear (school_erasure_freeze_child_keys).
+   v_child_keys := platform.school_erasure_freeze_child_keys(p_school_id);
    -- Generated FK/trigger-topological order. School root is last.
    SELECT count(*) INTO v_count FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school_id;

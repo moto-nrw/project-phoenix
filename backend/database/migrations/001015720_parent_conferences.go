@@ -265,6 +265,18 @@ const parentConferenceDataKindsDownSQL = `
 			);
 `
 
+// parentConferenceErasureChildKeysDownSQL drops
+// platform.school_erasure_freeze_child_keys. 1.15.720 moved the start of
+// school_erasure_delete, which freezes the keys of the tables that reach the
+// school only through a parent, into this function, because the delete
+// function's file grew past the 800-line limit (user decision in #5109). The
+// statements, their order, the transaction and the privileges stay the same:
+// the helper runs as its caller inside the erasure transaction and no role
+// may execute it directly, like school_erasure_assert_empty.
+const parentConferenceErasureChildKeysDownSQL = `
+		DROP FUNCTION IF EXISTS platform.school_erasure_freeze_child_keys(BIGINT);
+`
+
 const parentConferencesDownSQL = `
 		UPDATE auth.guardian_student_access
 		SET permissions = permissions - 'parent_portal.conference.book'
@@ -303,10 +315,11 @@ func parentConferencesUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, parentConferenceDataKindsUpSQL); err != nil {
 			return fmt.Errorf("allow the parent conference retention kind: %w", err)
 		}
-		// The school erasure deletes the two tables with the school.
+		// The school erasure deletes the two tables with the school. The key
+		// freeze is installed before the delete function that calls it.
 		for _, step := range []func(context.Context, bun.Tx) error{
 			installParentConferenceErasurePlan, installParentConferenceErasurePreflight, installParentConferenceErasureResidual,
-			installParentConferenceErasureDelete, installParentConferenceErasurePreview,
+			installParentConferenceErasureChildKeys, installParentConferenceErasureDelete, installParentConferenceErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
 				return fmt.Errorf("install the parent conference school erasure: %w", err)
@@ -325,6 +338,10 @@ func parentConferencesDown(ctx context.Context, db *bun.DB) error {
 			if err := step(ctx, tx); err != nil {
 				return fmt.Errorf("restore the school erasure of 1.15.719: %w", err)
 			}
+		}
+		// The 1.15.719 delete freezes the keys itself; nothing calls the helper now.
+		if _, err := tx.ExecContext(ctx, parentConferenceErasureChildKeysDownSQL); err != nil {
+			return fmt.Errorf("drop the school erasure key freeze: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM audit.data_deletions WHERE deletion_type = 'parent_conference_retention'`); err != nil {
 			return fmt.Errorf("drop the parent conference retention log: %w", err)

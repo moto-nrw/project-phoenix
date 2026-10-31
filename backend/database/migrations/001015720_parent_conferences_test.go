@@ -51,6 +51,8 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	for _, entry := range readErasurePlan(t, db) {
 		assert.NotContains(t, entry.Name, "parent_conference")
 	}
+	require.NoError(t, db.NewRaw(`SELECT to_regprocedure('platform.school_erasure_freeze_child_keys(bigint)') IS NOT NULL`).Scan(ctx, &exists))
+	assert.False(t, exists, "the rollback drops the key freeze helper")
 
 	require.NoError(t, parentConferencesUp(ctx, db))
 	names := map[string]bool{}
@@ -59,6 +61,13 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	}
 	assert.True(t, names["calendar.parent_conferences"])
 	assert.True(t, names["calendar.parent_conference_bookings"])
+
+	// Like school_erasure_assert_empty, only the erasure itself calls the
+	// key freeze: no application role may execute it directly.
+	var exposed bool
+	require.NoError(t, db.NewRaw(`SELECT bool_or(has_function_privilege(role, 'platform.school_erasure_freeze_child_keys(bigint)', 'EXECUTE'))
+		FROM unnest(ARRAY['public','phoenix_auth','phoenix_tenant','phoenix_admin','phoenix_demo','phoenix_school_erasure']) AS role`).Scan(ctx, &exposed))
+	assert.False(t, exposed)
 }
 
 func insertParentConference(t *testing.T, db *bun.DB) (int64, int64) {
