@@ -242,7 +242,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered by #4771: accident-report category visibility has permission logic
 // instead of forwarding directly to the access port (-1).
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
-const modulePassthroughOwnerBudgetTotal = 1411
+// Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
+// modules/identityaccess makes it no pass-through any more (-1).
+const modulePassthroughOwnerBudgetTotal = 1410
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -277,7 +279,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 215,
+	"modules/identityaccess": 214,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,

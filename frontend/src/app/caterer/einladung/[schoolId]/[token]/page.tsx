@@ -222,7 +222,12 @@ function AcceptForm({
     );
     let target = catererPath("/caterer");
     try {
-      await loginCaterer(invitation.email, password);
+      const result = await loginCaterer(invitation.email, password);
+      if (result.status === "mfa_required") {
+        // Two-factor sign-in is on (#4497): the code is asked on the login
+        // page, which also sends it.
+        target = catererPath("/caterer/login");
+      }
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {

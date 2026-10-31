@@ -111,7 +111,10 @@ tenant transaction.
    per school (`workflows.catererportal.delivery_export`).
 7. **Password first.** Caterer accounts sign in with e-mail and password,
    like parent accounts. A second factor is a follow-up: the existing MFA is
-   bound to a school's policy, and a caterer has no school.
+   bound to a school's policy, and a caterer has no school. Amended for
+   #4497 (see the addendum): the caterer may switch on a second factor
+   itself. It is voluntary and bound to the caterer's account, not to a
+   school; no school and no Träger can require it.
 
 8. **Only admins decide who supplies the school.** Inviting a caterer,
    revoking an invitation and ending the supply require `admin:*`
@@ -177,3 +180,38 @@ uses: its public contract and ports speak the public Identity & Access and
 Meal Plan contracts, its composition binds the tenant runtime, and its HTTP
 transport renders through `api/common`. It owns no data and widens no
 existing owner.
+
+## Addendum 2026-10-27: the caterer's second factor (#4497)
+
+Point 7 is amended. The caterer's second factor is built like the existing
+one of school accounts and operators; it adds no factor and no recovery path.
+
+1. **Voluntary.** The caterer switches the second factor on in its account
+   (the code mailed to its address) and off again with its current password.
+   No school, no Träger and no cross-tenant policy can require it. A
+   school's `security.mfa_mode` never reaches a caterer session: the session
+   MFA gate treats the scope `caterer` like the Träger scope, outside every
+   school's policy, and requires the proof once the account has the factor.
+2. **The factors of the stock.** The e-mail code (`MFAMethodEmail`), a passkey
+   and the remembered device. No TOTP and no recovery codes (removed in
+   #1308). The challenges carry the scope `caterer` and name no school, so a
+   caterer code is redeemable only on the caterer portal, and the passkey
+   ceremonies name no school, so a school's ceremony never opens the caterer
+   portal and the other way round. A remembered device names no school
+   either (`auth.mfa_trusted_devices.tenant_id` NULL, migration 1.15.688);
+   its lifetime and the lockout policy are the registry defaults.
+3. **Switching on** mints a session proven by the code; every session minted
+   before it ends at its next refresh. Switching off and an operator reset
+   clear the factor, the remembered devices and the sessions' proof; the
+   passkeys stay, as at every reset.
+4. **Recovery.** A moto operator resets the factor after
+   `OperatorAdminDisable`: with a reason, the operator audit and a notice
+   mailed to the caterer, in one administrative unit
+   (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`). School admins cannot reset it,
+   because the caterer supplies several schools.
+5. **Session and portal.** The caterer portal keeps its own scope, cookie
+   and refresh; the session row stays kept at a supplied school as a storage
+   key only, and the wrong-portal checks are unchanged. The authentication
+   events of the second factor name no school and are logged like the
+   Träger's.
+

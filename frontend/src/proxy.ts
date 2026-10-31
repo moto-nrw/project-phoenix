@@ -299,6 +299,7 @@ const OPERATOR_PUBLIC_PATHS = [
   "/unregistered-tags",
   "/billing",
   "/operators",
+  "/caterers",
   "/invite",
 ];
 

@@ -75,3 +75,34 @@ func TestCatererSchoolsQueryBudget(t *testing.T) {
 	assert.Equal(t, len(small), len(large), "the read must not grow a statement per school")
 	testpkg.AssertQueryBudget(t, "modules.identityaccess.caterer_schools.reads", large)
 }
+
+// The operator lists the caterer accounts and their second factor in a
+// fixed number of statements, however many caterers there are (#4497,
+// #2940).
+func TestCatererOperatorListQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	caterers := setupAuthFactory(t, db).Caterers()
+	staff := testpkg.CreateTestAccount(t, db, "caterer-operator-budget")
+	add := func() {
+		school, _ := testpkg.CreateTestTenant(t, db)
+		email := fmt.Sprintf("kueche-operator-%d@example.com", time.Now().UnixNano())
+		acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+		require.NoError(t, err)
+		forgetCaterer(t, db, acceptance)
+	}
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	run := func() []string {
+		counter.Reset()
+		_, err := caterers.ListCaterersForOperator(counter.Context(context.Background()))
+		require.NoError(t, err)
+		return counter.Operation("SELECT")
+	}
+	add()
+	small := run()
+	add()
+	add()
+	large := run()
+	assert.Equal(t, len(small), len(large), "the list must not grow a statement per caterer")
+	testpkg.AssertQueryBudget(t, "modules.identityaccess.caterers.operator_list", large)
+}

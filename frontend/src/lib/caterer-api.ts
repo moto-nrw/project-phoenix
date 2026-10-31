@@ -218,22 +218,115 @@ export async function acceptCatererInvitation(
   });
 }
 
+/** The answer of the caterer login (#4497): a session, or the second step. */
+export type CatererLoginResult =
+  | { status: "authenticated" }
+  | {
+      status: "mfa_required";
+      challengeToken: string;
+      maskedEmail: string;
+      trustedDeviceEnabled: boolean;
+      trustedDeviceDays?: number;
+    };
+
+interface BackendCatererLogin {
+  status?: "authenticated" | "mfa_required";
+  challenge_token?: string;
+  masked_email?: string;
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
+}
+
 /**
- * Signs a caterer in at the backend. The token pair then seeds the caterer
- * NextAuth session; a refusal comes back as an ApiError with its code.
+ * Signs a caterer in. The BFF installs the caterer session itself; the
+ * browser only learns whether a second step follows. A refusal comes back
+ * as an ApiError with its code.
  */
 export async function loginCaterer(
   email: string,
   password: string,
-): Promise<void> {
+): Promise<CatererLoginResult> {
+  // The trusted-device cookie of this browser travels along (same origin),
+  // so a remembered device skips the code.
   const response = await transportFetch("/api/caterer/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "caterer login failed");
   }
+  const { data } = (await response.json()) as { data: BackendCatererLogin };
+  if (data.status === "mfa_required") {
+    return {
+      status: "mfa_required",
+      challengeToken: data.challenge_token ?? "",
+      maskedEmail: data.masked_email ?? "",
+      trustedDeviceEnabled: data.trusted_device_enabled ?? false,
+      trustedDeviceDays: data.trusted_device_days,
+    };
+  }
+  return { status: "authenticated" };
+}
+
+/** The caterer's two-factor sign-in as the account page shows it (#4497). */
+export interface CatererMFAStatus {
+  enabled: boolean;
+  maskedEmail: string;
+}
+
+export async function fetchCatererMFAStatus(): Promise<CatererMFAStatus> {
+  const data = await authFetch<{ enabled: boolean; masked_email?: string }>(
+    "/api/caterer/account/mfa",
+  );
+  return { enabled: data.enabled, maskedEmail: data.masked_email ?? "" };
+}
+
+/** Mails the code that switches two-factor sign-in on. */
+export async function startCatererMFA(): Promise<{
+  challengeToken: string;
+  maskedEmail: string;
+}> {
+  const data = await authFetch<{
+    challenge_token: string;
+    masked_email?: string;
+  }>("/api/caterer/account/mfa/start", { method: "POST", body: {} });
+  return {
+    challengeToken: data.challenge_token,
+    maskedEmail: data.masked_email ?? "",
+  };
+}
+
+/**
+ * Switches two-factor sign-in on with the mailed code. The backend answers
+ * with a new session with the second factor proven, and the BFF installs it,
+ * because the older sessions of the account lose access at their next
+ * renewal. `sessionRenewed` is false when the code was right but the new
+ * session could not be installed.
+ */
+export async function confirmCatererMFA(
+  challengeToken: string,
+  code: string,
+): Promise<{ sessionRenewed: boolean }> {
+  const data = await authFetch<{ session_renewed: boolean }>(
+    "/api/caterer/account/mfa/confirm",
+    {
+      method: "POST",
+      body: { challenge_token: challengeToken, code },
+    },
+  );
+  return { sessionRenewed: data.session_renewed };
+}
+
+/** Switches two-factor sign-in off after checking the current password. */
+export async function disableCatererMFA(
+  currentPassword: string,
+): Promise<void> {
+  await authFetch<unknown>("/api/caterer/account/mfa/disable", {
+    method: "POST",
+    body: { currentPassword },
+  });
 }
 
 export type DeliveryExportFormat = "pdf" | "xlsx" | "csv";
