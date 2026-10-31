@@ -205,6 +205,40 @@ describe("ConnectOfferingModal (#5103)", () => {
     );
   });
 
+  it("keeps every HTML ID unique before, during and after choosing an offering (#5350)", async () => {
+    // Reads the whole document: the open menu is portaled to <body>.
+    const duplicateIds = () => {
+      const counts = new Map<string, number>();
+      for (const element of document.querySelectorAll("[id]")) {
+        counts.set(element.id, (counts.get(element.id) ?? 0) + 1);
+      }
+      return [...counts].filter(([, count]) => count > 1).map(([id]) => id);
+    };
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 3a"
+        deviation={{ ...deviation, ambiguous: true }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    const select = screen.getByRole("button", { name: "Angebote" });
+    expect(select).toHaveTextContent("Angebote wählen");
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
+    expect(duplicateIds()).toEqual([]);
+
+    expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
+      "Ganztag",
+    );
+    expect(duplicateIds()).toEqual([]);
+  });
+
   it("connects Randstunde and Ganztag together and keeps the Ganztag children (#5139)", async () => {
     mockOfferingSources.mockResolvedValue([
       { id: "3", name: "Randstunde", phaseId: "1", phaseName: "2026/27" },

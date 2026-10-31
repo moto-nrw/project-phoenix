@@ -192,4 +192,37 @@ describe("AttendanceCorrectionModal", () => {
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
+  it("keeps every HTML ID unique and names both selects by their labels", () => {
+    // Reads the whole document: the open listbox is portaled to <body>.
+    const duplicateIds = () => {
+      const counts = new Map<string, number>();
+      for (const element of document.querySelectorAll("[id]")) {
+        counts.set(element.id, (counts.get(element.id) ?? 0) + 1);
+      }
+      return [...counts].filter(([, count]) => count > 1).map(([id]) => id);
+    };
+    render(
+      <AttendanceCorrectionModal
+        isOpen
+        onClose={vi.fn()}
+        studentId="student-1"
+        slot={slot}
+        onCorrected={vi.fn()}
+      />,
+    );
+
+    const status = screen.getByRole("combobox", { name: "Anwesenheit" });
+    expect(screen.getByRole("combobox", { name: "Hinweis" })).toBeVisible();
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(status);
+    expect(screen.getByRole("listbox", { name: "Anwesenheit" })).toBeVisible();
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(screen.getByRole("option", { name: "Abwesend" }));
+    expect(
+      screen.getByRole("combobox", { name: "Anwesenheit" }),
+    ).toHaveTextContent("Abwesend");
+    expect(duplicateIds()).toEqual([]);
+  });
 });
