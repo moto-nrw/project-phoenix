@@ -81,7 +81,13 @@ test('worktree mode scans uncommitted and untracked changes as one snapshot comm
   f.git('checkout', '--', 'fixture.txt');
   rmSync(join(f.root, 'untracked.env'));
   assert.equal(f.scan(['worktree', 'base']).status, 0);
-  assert.equal(existsSync(join(f.root, 'scanner-args')), false, 'an unchanged tree needs no scan');
+  assert.equal(existsSync(join(f.root, 'scanner-args')), false, 'no branch commits and no changes need no scan');
+  // A credential committed on the branch and removed again stays in the range.
+  f.commit('TOKEN=committed-then-removed');
+  f.commit('clean');
+  assert.equal(f.scan(['worktree', 'base']).status, 0);
+  const branchRange = f.args().find(arg => arg.startsWith('--log-opts=')).slice('--log-opts='.length);
+  assert.match(f.git('log', '-p', '--format=', branchRange), /committed-then-removed/);
 });
 
 test('missing pinned scanner cannot fall back to another installation', t => {

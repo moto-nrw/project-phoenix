@@ -106,8 +106,9 @@ export async function runSteps(steps, { concurrency, timeoutMs, graceMs = 2000, 
     process.off('SIGTERM', forward);
     escalations.forEach(clearTimeout);
   }
-  if (interrupted) process.exitCode = 130;
-  return steps.map(step => results.find(result => result.name === step.name));
+  const ordered = steps.map(step => results.find(result => result.name === step.name));
+  ordered.interrupted = interrupted;
+  return ordered;
 }
 
 export function summarize(results) {
@@ -123,7 +124,7 @@ function git(root, args, env = process.env) {
 
 // Environment that can change a step's outcome: Go and Node flags, frontend
 // configuration, test database and the repository's own switches.
-const outcomeEnvironment = /^(GO[A-Z]*|CGO_[A-Z_]+|PHX_(?!CACHE_VERIFY_RATE$|CHECK_TIMEOUT_MINUTES$)[A-Z_]+|NEXT_[A-Z_]+|NEXTAUTH_[A-Z_]+|AUTH_[A-Z_]+|API_URL|TENANT_DOMAIN|NODE_OPTIONS|NODE_ENV|TEST_DB_[A-Z_]+|TZ|CI)$/;
+const outcomeEnvironment = /^(GO[A-Z0-9_]*|CGO_[A-Z0-9_]+|PHX_(?!CACHE_VERIFY_RATE$|CHECK_TIMEOUT_MINUTES$)[A-Z_]+|NEXT_[A-Z_]+|NEXTAUTH_[A-Z_]+|AUTH_[A-Z_]+|API_URL|TENANT_DOMAIN|NODE_OPTIONS|NODE_ENV|TEST_DB_[A-Z_]+|TZ|CI)$/;
 
 // Every non-ignored file (untracked included, via a scratch index), the base,
 // local env files, generated types, installed dependencies, the toolchain
@@ -201,6 +202,10 @@ async function main(argv) {
     { name: 'tests', command: ['bash', 'scripts/test-changed.sh', '--fast', base] },
   ], { concurrency, timeoutMs: minutes * 60_000, cwd: root });
   const summary = summarize(results);
+  if (results.interrupted) {
+    console.log(`\n===== interrupted (${results.interrupted}) =====\n${summary}`);
+    return 130;
+  }
   console.log(`\n===== summary =====\n${summary}`);
   const passed = results.every(result => result.status === 'ok');
   // PHX_PREPUSH=skip passes the static step without checking anything.

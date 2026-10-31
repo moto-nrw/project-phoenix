@@ -66,6 +66,9 @@ test('the inputs key follows untracked files and the base, not the order of runs
   assert.notEqual(inputsKey(root, base, { ...env, GOFLAGS: '-p=1' }), withUntracked, 'Go flags change outcomes');
   assert.notEqual(inputsKey(root, base, { ...env, PHX_PREPUSH: 'skip' }), withUntracked, 'a skipped gate is another input');
   assert.equal(inputsKey(root, base, { ...env, PHX_CACHE_VERIFY_RATE: '1' }), withUntracked, 'the sampling rate is no input');
+  for (const name of ['GOAMD64', 'GOARM64', 'GO386']) {
+    assert.notEqual(inputsKey(root, base, { ...env, [name]: 'v3' }), withUntracked, `${name} changes the build`);
+  }
   mkdirSync(join(root, 'frontend/.next/types'), { recursive: true });
   writeFileSync(join(root, '.gitignore'), 'frontend/.next/\n');
   const ignoredBase = inputsKey(root, base, env);
@@ -85,8 +88,7 @@ test('Ctrl-C reaches the running step\'s process group and no further step start
     await new Promise(done => setTimeout(done, 3500));
     assert.equal(existsSync(join(dir, 'survived')), false, 'the interrupted step left a child running');
     assert.equal(existsSync(join(dir, 'started')), false);
-    assert.equal(process.exitCode, 130);
-    process.exitCode = 0;
+    assert.equal(results.interrupted, 'SIGINT');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
