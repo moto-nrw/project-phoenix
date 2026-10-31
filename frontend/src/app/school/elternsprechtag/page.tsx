@@ -7,8 +7,6 @@
 // `?sprechtag=…` in der Adresse, damit der Hinweis zu einer Buchung direkt
 // dorthin führt.
 
-import { schoolPortalKeys } from "~/lib/swr/portal-keys";
-
 import { Suspense, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -59,6 +57,7 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 
 const logger = createLogger({ component: "SchoolParentConferencePage" });
 
