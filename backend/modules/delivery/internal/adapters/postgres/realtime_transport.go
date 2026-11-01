@@ -14,22 +14,81 @@ import (
 
 const realtimeChannel = "moto_realtime_v1"
 
-// NewRealtimePublisher uses the existing pool after the producer has committed.
-// The adapter transports bytes; school and audience validation stay with the hub.
-func NewRealtimePublisher(db *bun.DB, logger *slog.Logger) (func(string) error, error) {
+// RealtimePublisher owns a bounded, lossy queue. After-commit hooks never
+// acquire a pool connection; overflow is logged and polling reconciles loss.
+type RealtimePublisher struct {
+	db     *bun.DB
+	logger *slog.Logger
+	queue  chan string
+	done   chan struct{}
+	mu     sync.RWMutex
+	closed bool
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func NewRealtimePublisher(db *bun.DB, logger *slog.Logger) (*RealtimePublisher, error) {
 	if db == nil || logger == nil {
 		return nil, fmt.Errorf("realtime database and logger are required")
 	}
-	return func(payload string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := pgdriver.Notify(ctx, db, realtimeChannel, payload); err != nil {
-			// Database errors may include statement payloads. Do not log them.
-			logger.Warn("realtime publish failed")
-			return errors.New("realtime publish failed")
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &RealtimePublisher{db: db, logger: logger, queue: make(chan string, 128), done: make(chan struct{}), ctx: ctx, cancel: cancel}
+	go p.run()
+	return p, nil
+}
+
+func (p *RealtimePublisher) Publish(payload string) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.closed {
+		return errors.New("realtime publisher closed")
+	}
+	select {
+	case p.queue <- payload:
 		return nil
-	}, nil
+	default:
+		p.logger.Warn("realtime publish queue full; signal dropped")
+		return errors.New("realtime publish queue full")
+	}
+}
+
+func (p *RealtimePublisher) run() {
+	defer close(p.done)
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case payload := <-p.queue:
+			if err := p.notify(payload); err != nil {
+				p.logger.Warn("realtime publish failed")
+			}
+		}
+	}
+}
+
+func (p *RealtimePublisher) notify(payload string) (err error) {
+	ctx, cancel := context.WithTimeout(p.ctx, 2*time.Second)
+	defer cancel()
+	// pgdriver's ordinary ExecContext interpolates parameters. Prepare on the
+	// underlying sql.DB to use Parse/Bind instead, never SQL payload literals.
+	stmt, err := p.db.DB.PrepareContext(ctx, "SELECT pg_notify($1, $2)")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, stmt.Close()) }()
+	_, err = stmt.ExecContext(ctx, realtimeChannel, payload)
+	return err
+}
+
+func (p *RealtimePublisher) Close() error {
+	p.mu.Lock()
+	if !p.closed {
+		p.closed = true
+		p.cancel()
+	}
+	p.mu.Unlock()
+	<-p.done
+	return nil
 }
 
 // RealtimeSubscription owns only an API's dedicated listener and receive loop.
@@ -51,7 +110,7 @@ func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(strin
 	listener := pgdriver.NewListener(db)
 	if err := listener.Listen(ctx, realtimeChannel); err != nil {
 		_ = listener.Close()
-		return nil, errors.New("realtime listener startup failed")
+		return nil, fmt.Errorf("realtime listener startup failed: %w", err)
 	}
 	done := make(chan struct{})
 	notifications := listener.Channel(pgdriver.WithChannelSize(128))

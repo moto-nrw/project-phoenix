@@ -116,13 +116,19 @@ Transport invariants:
    subscribers of the same school in every API process listening at that time.
 2. Each envelope carries the school ID and its original group, account or
    guardian addressing. Receiving a signal never broadens its audience.
-   Tenant-wide signals remain identity-free. Invalid envelopes are discarded.
+   The unauthenticated channel carries allowlisted invalidations only, with
+   numeric IDs and fixed reasons, never names, notes, text or links. Receivers
+   reconstruct events and ignore unknown content. Tenant-wide producer contracts
+   remain identity-free. Invalid envelopes are discarded.
 3. Delivery is lossy: disconnects, oversized messages and full client buffers
    can lose signals, never redirect them. No replay or durable delivery is
    promised. The existing poll reconcile remains five minutes while SSE is
    connected, otherwise 60 seconds.
 4. Every API has one dedicated listener connection. A standalone Worker only
-   publishes. Listeners reconnect; shutdown closes the listener before the pool.
+   publishes. Local browsers receive immediately, even if NOTIFY fails. A
+   nonblocking queue holds at most 128 outbound signals and logs overflow. Own
+   origin echoes are ignored. Listeners reconnect; shutdown cancels queued
+   publications and closes the listener before the pool.
 5. Existing required database configuration is reused and still fails startup
    when missing. No new environment variable, fallback DSN, table or migration
    is needed. All processes must use the same database and a direct PostgreSQL
@@ -136,3 +142,7 @@ The relay covers the school-scoped Worker producers and school/group/account/
 guardian broadcasts. Legacy unscoped API `BroadcastToAll` calls remain local;
 they cannot safely enter the school-scoped channel without an audience contract. That migration is tracked in
 [#5492](https://github.com/moto-nrw/project-phoenix/issues/5492).
+
+Content-bearing `notification` events stay local until the tenant-bound reload
+path in [#5504](https://github.com/moto-nrw/project-phoenix/issues/5504) is implemented.
+They are never accepted from the unauthenticated channel.

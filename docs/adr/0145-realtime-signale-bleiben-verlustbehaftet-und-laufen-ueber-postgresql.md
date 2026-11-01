@@ -42,3 +42,40 @@ keine Änderung an Tabellen, Ownern, Baseline oder Composition-Inventar.
 
 Betriebsbedingungen und Cutover stehen im
 [Worker-Runbook](../operations/worker-lease-2726.md#realtime-across-processes-5457).
+
+## Kanal als nicht vertrauenswürdiger Invalidierungsauslöser
+
+LISTEN/NOTIFY ist kein authentifizierter Inhaltskanal. Der Umschlag enthält
+Schule, Adressierung, eine zufällige Hub-Instanz-ID, einen erlaubten Event-Typ
+und ausschließlich benötigte numerische Invalidierungs-IDs sowie feste
+Invalidierungsgründe. Empfänger rekonstruieren daraus neue Ereignisse;
+unbekannte Typen und Inhaltsfelder werden nicht übernommen. Freitext,
+Anwesenheitsnotizen, Namen, Statusinhalte und Links werden nie veröffentlicht.
+Die numerischen IDs optimieren nur das Nachladen, sie gewähren keinen Zugriff.
+Alle Nachladeanfragen bleiben an den authentifizierten Tenant gebunden.
+`notification` bleibt lokal, weil Browser seinen Inhalt direkt anzeigen.
+Der sichere Nachladeweg ist [#5504](https://github.com/moto-nrw/project-phoenix/issues/5504).
+
+Der Hub stellt zuerst lokal zu und veröffentlicht zusätzlich über eine
+begrenzte Queue mit 128 Einträgen. Volle Queues und Transportfehler werden
+ohne Payload protokolliert. After-Commit-Hooks warten weder auf den Pool noch
+auf NOTIFY. Listener ignorieren ihre eigene Hub-Instanz-ID. Beim Shutdown
+wird die Queue abgebrochen; auch dieser mögliche Verlust wird durch Polling
+abgeglichen. Ein vorbereitetes Statement mit `pg_notify($1, $2)` verwendet
+echte Protokoll-Bindings, da der installierte Treiber gewöhnliche
+`ExecContext`-Argumente interpoliert. PostgreSQL kann Bind-Werte abhängig von
+seiner Logging-Konfiguration dennoch protokollieren; sie enthalten deshalb
+weiterhin keinerlei Freitext oder angezeigten Inhalt.
+
+Die gemeinsame Lebensdauer von Publisher und Subscription benötigt weitere
+8 reine Konstruktionszeilen. Deliverys Compose-Budget beträgt damit 393 statt
+385, das Gesamtbudget 12790 statt 12782. Policy, Baseline und
+Composition-Inventar bleiben unverändert.
+
+Der Architekturprüfer verfolgt dafür lokal einmalig gebundene vorbereitete
+Standardbibliotheks-Statements bis zu ihrem konstanten SQL-Text und wendet
+dieselben Tabellen-/Owner-Prüfungen wie bei direkter Ausführung an. Dynamisches
+SQL, unbekannte Statement-Parameter, Neuzuweisungen und Adress-Escapes bleiben
+unaufgelöst und schlagen weiterhin fehl. Der Regressionstest umfasst erlaubte
+NOTIFY-/Owner-Abfragen sowie fremde Tabellen und diese unaufgelösten Fälle;
+es entsteht keine Policy-Ausnahme für den Transport.
