@@ -279,3 +279,57 @@ func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 		second, account.ID, organization).Scan(context.Background(), &switches))
 	assert.Equal(t, 2, switches, "the tab switch into the second school is in its audit like the Absprung")
 }
+
+// traegerAccessSession reads the family an access token rests on, as the
+// per-request check sees it.
+func traegerAccessSession(t *testing.T, accessToken string) identityaccess.AccessSession {
+	t.Helper()
+	claims := traegerTokenClaims(t, accessToken)
+	session := identityaccess.AccessSession{AccountID: int64(claims["id"].(float64))}
+	session.FamilyID, _ = claims["family_id"].(string)
+	session.Scope, _ = claims["scope"].(string)
+	return session
+}
+
+// TestTraegerLogoutEndsTheSchoolSessionsOfItsAbsprung pins the Absprung
+// side of #5422: a school session the Träger session opened before its
+// logout ends with it, also when the school switched on within the Träger.
+// The other direction stays: ending the school session leaves the Träger
+// session signed in.
+func TestTraegerLogoutEndsTheSchoolSessionsOfItsAbsprung(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Abmeldung", true)
+	first := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Abmeldung Eins")
+	second := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Abmeldung Zwei")
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	open := func(schoolID int64, proof string) (string, string) {
+		code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, schoolID)
+		require.Equal(t, http.StatusCreated, code, answer.Code)
+		access, refresh, err := identity.RefreshTokenWithAudit(ctx, answer.Data.HandoffToken, proof, "", "")
+		require.NoError(t, err)
+		return access, refresh
+	}
+
+	schoolAccess, schoolRefresh := open(first, "tab-1")
+	require.NoError(t, identity.LogoutWithAudit(ctx, schoolRefresh, "", ""))
+	require.ErrorIs(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, schoolAccess)), identityaccess.ErrInvalidToken)
+	require.NoError(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, traeger.AccessToken)), "ending the school session leaves the Träger session signed in")
+
+	schoolAccess, _ = open(first, "tab-2")
+	switched, _, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, schoolAccess).FamilyID)
+	require.NoError(t, err)
+	require.NoError(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, switched)))
+
+	require.NoError(t, identity.LogoutWithAudit(ctx, traeger.RefreshToken, "", ""))
+
+	require.ErrorIs(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, switched)), identityaccess.ErrInvalidToken,
+		"the school session the Träger session opened ends with its logout")
+	var live int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.tokens WHERE account_id = ? AND expiry > NOW()`, account.ID).Scan(context.Background(), &live))
+	assert.Zero(t, live, "no session of the Träger lineage survives")
+}

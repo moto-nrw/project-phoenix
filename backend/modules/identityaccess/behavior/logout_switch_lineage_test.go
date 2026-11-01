@@ -288,3 +288,63 @@ func assertLogoutAfterAncestorCleanup(t *testing.T, intermediate bool) {
 	require.Error(t, err, "the descendant's refresh token is revoked")
 	require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login remains valid")
 }
+
+// fillSessionCap gives the account further logins at its home school until
+// the tenant portal holds the cap minus free sessions.
+func fillSessionCap(t *testing.T, f switchLineageFixture, free int) []identityaccess.AccessSession {
+	t.Helper()
+	others := make([]identityaccess.AccessSession, 0, 4)
+	for len(liveTokens(t, f.db, f.accountID)) < 5-free {
+		others = append(others, newOtherDeviceSession(t, f))
+	}
+	return others
+}
+
+// TestLogoutAfterSessionCapEvictedTheSwitchSource pins the review finding on
+// #5422: at the session cap a switch evicts its just-retired source family,
+// whose rows a logout with the source's refresh token then no longer finds.
+// That logout must still end the family the switch minted.
+func TestLogoutAfterSessionCapEvictedTheSwitchSource(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-cap-evicted")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	fillSessionCap(t, f, 0)
+	switchedAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	require.Zero(t, familyRowCount(t, f.db, source.FamilyID), "the cap evicted the retired source")
+	switched := accessSessionOf(t, switchedAccess)
+	require.NoError(t, f.module.VerifyAccessSession(ctx, switched))
+	others := liveTokens(t, f.db, f.accountID)
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, switched), identityaccess.ErrInvalidToken, "the switched family ends with the logout")
+	assert.Len(t, liveTokens(t, f.db, f.accountID), len(others)-1, "only the switched family ends; the other logins stay")
+}
+
+// TestLogoutAfterSessionCapEvictedTheSourceOfTwoSwitches covers two tabs
+// that both switched from the same login before it was logged out: the
+// second switch pushes the source out of the cap, and the logout with the
+// source's token still ends both switched families.
+func TestLogoutAfterSessionCapEvictedTheSourceOfTwoSwitches(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-cap-two-switches")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	others := fillSessionCap(t, f, 1)
+	firstAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	secondAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	require.Zero(t, familyRowCount(t, f.db, source.FamilyID), "the second switch pushed the source out of the cap")
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "", ""))
+
+	for name, access := range map[string]string{"first": firstAccess, "second": secondAccess} {
+		require.ErrorIs(t, f.module.VerifyAccessSession(ctx, accessSessionOf(t, access)), identityaccess.ErrInvalidToken, name)
+	}
+	for _, other := range others {
+		require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login keeps its session")
+	}
+}
