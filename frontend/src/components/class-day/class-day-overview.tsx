@@ -15,7 +15,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -227,7 +227,7 @@ function ClassReportLink({
     },
   );
   const discardRefused = useDiscardRefusedEntity();
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Keep the refusal visible, but never reopen the previously loaded roster.
     discardRefused(error, {
       codes: ["general.permission"],

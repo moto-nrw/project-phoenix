@@ -13,7 +13,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -299,7 +299,7 @@ export function ClassDayClass({
   );
 
   const discardRefused = useDiscardRefusedEntity();
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Keep the refusal visible, but never reopen the previously loaded roster.
     discardRefused(error, {
       codes: ["general.permission"],
