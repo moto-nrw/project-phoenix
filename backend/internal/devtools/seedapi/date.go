@@ -37,3 +37,11 @@ func seedBerlinLocation() *time.Location {
 	}
 	return location
 }
+
+func (s seedCareExitsStep) today() seedDate {
+	now := time.Now
+	if s.now != nil {
+		now = s.now
+	}
+	return seedDateAt(now())
+}

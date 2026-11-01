@@ -237,11 +237,7 @@ func (s seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("fixed seeder not available")
 	}
 
-	now := time.Now
-	if s.now != nil {
-		now = s.now
-	}
-	today := seedDateAt(now())
+	today := s.today()
 	// Two children from the tail of the demo cohort, so the exits never
 	// collide with the children the other steps mark sick or check in.
 	plans := []struct {
