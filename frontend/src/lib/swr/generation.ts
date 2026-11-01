@@ -20,6 +20,7 @@
 
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { preload as swrPreload } from "swr";
+import { cache, SWRGlobalState } from "swr/_internal";
 
 const SPECIAL_KEY = /^\$(inf|sub)\$/;
 
@@ -296,10 +297,17 @@ export function lockFetcher<A extends unknown[], T>(
 export function preloadSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
+  discardFailure = false,
 ): Promise<T> {
   const start = startOf(key);
   const request = swrPreload(key, lockFetcher(key, fetcher)) as Promise<T>;
   preloadStarts.set(request, start);
+  if (discardFailure)
+    void request.catch(() => {
+      const preloads = SWRGlobalState.get(cache)?.[3];
+      // Do not remove a replacement from a later generation.
+      if (preloads?.[key] === request) delete preloads[key];
+    });
   return request;
 }
 

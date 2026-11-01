@@ -1,6 +1,7 @@
 // components/students/student-card.tsx
 // Shared student card component used across OGS groups and active supervisions pages
 
+import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import type { ReactNode } from "react";
 import { TILE_CARD_SURFACE } from "~/components/ui/tile-card";
 import {
@@ -239,11 +240,15 @@ export function StudentCard({
       }
     : undefined;
   const hasTapStrip = checkinMode && !selectMode;
+  const dataIntent = useDataPrefetchIntent(
+    checkinMode || selectMode ? null : `/students/${studentId}`,
+  );
 
   return (
     <button
       key={studentId}
       type="button"
+      {...dataIntent}
       onClick={activeHandler}
       disabled={isCheckinPending}
       aria-label={ariaLabel}

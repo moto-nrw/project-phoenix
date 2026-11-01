@@ -186,6 +186,82 @@ interface StudentDetailResponse {
   mySupervisedRooms: string[];
 }
 
+/** Canonical complete detail projection, shared with navigation intent. */
+export async function fetchStudentDetail(
+  studentId: string,
+): Promise<StudentDetailResponse> {
+  // Fetch student data and user context in parallel
+  const [studentResponse, groups, supervisedGroups] = await Promise.all([
+    studentService.getStudent(studentId),
+    // Own groups only refine access hints on the page; without them the
+    // child still loads, just without the "my group" shortcuts.
+    userContextService.getMyEducationalGroups().catch((err) => {
+      logger.debug("fetch_educational_groups_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
+    // Same for supervised rooms: optional context, not the child itself.
+    userContextService.getMySupervisedGroups().catch((err) => {
+      logger.debug("fetch_supervised_groups_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
+  ]);
+
+  interface WrappedResponse {
+    data?: unknown;
+  }
+  const wrappedResponse = studentResponse as WrappedResponse;
+  const rawStudentData = wrappedResponse.data ?? studentResponse;
+
+  const mappedStudent = rawStudentData as Student & {
+    has_full_access?: boolean;
+    has_write_access?: boolean;
+    has_absence_write_access?: boolean;
+    has_sick_excused_write_access?: boolean;
+    group_supervisors?: SupervisorContact[];
+    attendance_log_enabled?: boolean;
+    feedback_enabled?: boolean;
+  };
+
+  const hasAccess = mappedStudent.has_full_access ?? false;
+  const hasWriteAccess = mappedStudent.has_write_access ?? false;
+  // Falls back to the Stammdaten flag so an older backend keeps today's
+  // behavior instead of hiding the Krankmeldung action (#2232).
+  const hasAbsenceWriteAccess =
+    mappedStudent.has_absence_write_access ?? hasWriteAccess;
+  const hasSickExcusedWriteAccess =
+    mappedStudent.has_sick_excused_write_access ?? hasAbsenceWriteAccess;
+  const attendanceLogEnabled = mappedStudent.attendance_log_enabled ?? false;
+  const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
+  const groupSupervisors = mappedStudent.group_supervisors ?? [];
+  const extendedStudent = mapStudentResponse(
+    studentResponse,
+    hasAccess,
+    hasAbsenceWriteAccess,
+  );
+
+  const ogsGroupRoomNames = extractRoomNames(groups);
+  const groupIds = groups.map((group) => group.id);
+  const roomNames = extractRoomNames(supervisedGroups);
+
+  return {
+    student: extendedStudent,
+    hasFullAccess: hasAccess,
+    hasWriteAccess,
+    hasAbsenceWriteAccess,
+    hasSickExcusedWriteAccess,
+    attendanceLogEnabled,
+    feedbackEnabled,
+    supervisors: groupSupervisors,
+    myGroups: groupIds,
+    myGroupRooms: ogsGroupRoomNames,
+    mySupervisedRooms: roomNames,
+  };
+}
+
 /**
  * Custom hook for fetching and managing student detail page data
  * Uses SWR for caching and automatic revalidation via global SSE
@@ -204,79 +280,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     studentId && hasSessionAccess(session)
       ? studentKeys.detail(studentId)
       : null,
-    async () => {
-      // Fetch student data and user context in parallel
-      const [studentResponse, groups, supervisedGroups] = await Promise.all([
-        studentService.getStudent(studentId),
-        // Own groups only refine access hints on the page; without them the
-        // child still loads, just without the "my group" shortcuts.
-        userContextService.getMyEducationalGroups().catch((err) => {
-          logger.debug("fetch_educational_groups_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [];
-        }),
-        // Same for supervised rooms: optional context, not the child itself.
-        userContextService.getMySupervisedGroups().catch((err) => {
-          logger.debug("fetch_supervised_groups_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [];
-        }),
-      ]);
-
-      interface WrappedResponse {
-        data?: unknown;
-      }
-      const wrappedResponse = studentResponse as WrappedResponse;
-      const rawStudentData = wrappedResponse.data ?? studentResponse;
-
-      const mappedStudent = rawStudentData as Student & {
-        has_full_access?: boolean;
-        has_write_access?: boolean;
-        has_absence_write_access?: boolean;
-        has_sick_excused_write_access?: boolean;
-        group_supervisors?: SupervisorContact[];
-        attendance_log_enabled?: boolean;
-        feedback_enabled?: boolean;
-      };
-
-      const hasAccess = mappedStudent.has_full_access ?? false;
-      const hasWriteAccess = mappedStudent.has_write_access ?? false;
-      // Falls back to the Stammdaten flag so an older backend keeps today's
-      // behavior instead of hiding the Krankmeldung action (#2232).
-      const hasAbsenceWriteAccess =
-        mappedStudent.has_absence_write_access ?? hasWriteAccess;
-      const hasSickExcusedWriteAccess =
-        mappedStudent.has_sick_excused_write_access ?? hasAbsenceWriteAccess;
-      const attendanceLogEnabled =
-        mappedStudent.attendance_log_enabled ?? false;
-      const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
-      const groupSupervisors = mappedStudent.group_supervisors ?? [];
-      const extendedStudent = mapStudentResponse(
-        studentResponse,
-        hasAccess,
-        hasAbsenceWriteAccess,
-      );
-
-      const ogsGroupRoomNames = extractRoomNames(groups);
-      const groupIds = groups.map((group) => group.id);
-      const roomNames = extractRoomNames(supervisedGroups);
-
-      return {
-        student: extendedStudent,
-        hasFullAccess: hasAccess,
-        hasWriteAccess,
-        hasAbsenceWriteAccess,
-        hasSickExcusedWriteAccess,
-        attendanceLogEnabled,
-        feedbackEnabled,
-        supervisors: groupSupervisors,
-        myGroups: groupIds,
-        myGroupRooms: ogsGroupRoomNames,
-        mySupervisedRooms: roomNames,
-      };
-    },
+    () => fetchStudentDetail(studentId),
     {
       keepPreviousData: false, // Never carry another child's detail or grants.
       revalidateOnFocus: false, // Handled by global SSE

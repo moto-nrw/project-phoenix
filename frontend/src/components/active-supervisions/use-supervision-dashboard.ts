@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
 import type { FormError } from "~/components/ui/form-error";
@@ -290,6 +291,53 @@ function isNoAccessError(err: unknown): boolean {
  *   values that must survive refetch gaps — e.g. the released rooms of
  *   the navigation — never flicker off.
  */
+export async function fetchSupervisionDashboard(
+  requestedGroupId: string | null,
+): Promise<BFFDashboardResponse> {
+  logger.debug("SWR fetching dashboard data");
+  const start = performance.now();
+
+  const fetchDashboard = async (groupId: string | null) => {
+    const query =
+      groupId && /^[1-9]\d{0,18}$/.test(groupId)
+        ? `?group_id=${encodeURIComponent(groupId)}`
+        : "";
+    // The route reads the session cookie.
+    return transportFetch(`/api/active-supervision-dashboard${query}`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  };
+
+  let response = await fetchDashboard(requestedGroupId);
+  // A stale selection (supervision revoked, session ended) is a backend
+  // 403 — retry once without group_id so the backend resolves the
+  // caller's first supervised session; the selection effects then
+  // re-align from the response.
+  if (!response.ok && response.status === 403 && requestedGroupId) {
+    response = await fetchDashboard(null);
+  }
+
+  if (!response.ok) {
+    // No silent fallback fan-out (#2096): a failed aggregate is an
+    // error, never a partial-empty payload — admins included.
+    throw await apiErrorFromResponse(
+      response,
+      `BFF request failed: ${response.status}`,
+    );
+  }
+
+  const bffData = (await response.json()) as {
+    data: BFFDashboardResponse;
+  };
+
+  logger.debug("SWR fetch complete", {
+    duration_ms: Math.round(performance.now() - start),
+  });
+  return bffData.data;
+}
+
 export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
@@ -318,54 +366,9 @@ export function useSupervisionDashboard(
     mutate: mutateDashboard,
     isLoading: isDashboardLoading,
   } = useSWRAuth<BFFDashboardResponse>(
-    sessionKey
-      ? `active-supervision-dashboard-${refreshKey}-${accountId}`
-      : null,
-    async () => {
-      logger.debug("SWR fetching dashboard data");
-      const start = performance.now();
-
-      const fetchDashboard = async (groupId: string | null) => {
-        const query =
-          groupId && /^[1-9]\d{0,18}$/.test(groupId)
-            ? `?group_id=${encodeURIComponent(groupId)}`
-            : "";
-        // The route reads the session cookie.
-        return transportFetch(`/api/active-supervision-dashboard${query}`, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-      };
-
-      const requestedGroupId = requestedGroupIdRef.current;
-      let response = await fetchDashboard(requestedGroupId);
-      // A stale selection (supervision revoked, session ended) is a backend
-      // 403 — retry once without group_id so the backend resolves the
-      // caller's first supervised session; the selection effects then
-      // re-align from the response.
-      if (!response.ok && response.status === 403 && requestedGroupId) {
-        response = await fetchDashboard(null);
-      }
-
-      if (!response.ok) {
-        // No silent fallback fan-out (#2096): a failed aggregate is an
-        // error, never a partial-empty payload — admins included.
-        throw await apiErrorFromResponse(
-          response,
-          `BFF request failed: ${response.status}`,
-        );
-      }
-
-      const bffData = (await response.json()) as {
-        data: BFFDashboardResponse;
-      };
-
-      logger.debug("SWR fetch complete", {
-        duration_ms: Math.round(performance.now() - start),
-      });
-      return bffData.data;
-    },
+    sessionKey ? dashboardKeys.supervision(accountId, refreshKey) : null,
+    (): Promise<BFFDashboardResponse> =>
+      fetchSupervisionDashboard(requestedGroupIdRef.current),
     {
       keepPreviousData: true,
       // Re-fetch server time without deriving a browser calendar day. Focus

@@ -8,6 +8,10 @@ import {
   type FocusEvent,
   type PointerEvent,
 } from "react";
+import {
+  useDataPrefetchIntent,
+  type PrefetchResource,
+} from "./data-prefetch-intent";
 import type NextLink from "next/link";
 
 /**
@@ -18,8 +22,13 @@ export const HOVER_PREFETCH_DELAY_MS = 80;
 
 type IntentPrefetchProps = Pick<
   ComponentProps<typeof NextLink>,
-  "target" | "prefetch" | "onPointerEnter" | "onPointerLeave" | "onFocus"
-> & { readonly href: string };
+  | "target"
+  | "prefetch"
+  | "onPointerEnter"
+  | "onPointerLeave"
+  | "onFocus"
+  | "onTouchStart"
+> & { readonly href: string; readonly resources?: readonly PrefetchResource[] };
 
 /** Shared intent policy, without portal progress or router dependencies. */
 export function useLinkIntentPrefetch({
@@ -29,6 +38,8 @@ export function useLinkIntentPrefetch({
   onPointerEnter,
   onPointerLeave,
   onFocus,
+  onTouchStart,
+  resources,
 }: IntentPrefetchProps) {
   const [intent, setIntent] = useState({ href, target, prefetch: false });
   const sameDestination = intent.href === href && intent.target === target;
@@ -38,6 +49,11 @@ export function useLinkIntentPrefetch({
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canPrefetch =
     allowed !== false && target !== "_blank" && isInternalPath(href);
+
+  const dataIntent = useDataPrefetchIntent(
+    canPrefetch ? href : null,
+    resources,
+  );
 
   const cancelHover = () => {
     if (hoverTimer.current === null) return;
@@ -55,7 +71,9 @@ export function useLinkIntentPrefetch({
     prefetch: prefetch && canPrefetch,
     onPointerEnter: (event: PointerEvent<HTMLAnchorElement>) => {
       onPointerEnter?.(event);
-      if (prefetch || !canPrefetch) return;
+      if (event.defaultPrevented || !canPrefetch) return;
+      dataIntent.onPointerEnter(event);
+      if (prefetch) return;
       if (event.pointerType === "mouse") {
         cancelHover();
         hoverTimer.current = setTimeout(startPrefetch, HOVER_PREFETCH_DELAY_MS);
@@ -66,10 +84,20 @@ export function useLinkIntentPrefetch({
     onPointerLeave: (event: PointerEvent<HTMLAnchorElement>) => {
       onPointerLeave?.(event);
       cancelHover();
+      dataIntent.onPointerLeave();
+    },
+    onTouchStart: (event: React.TouchEvent<HTMLAnchorElement>) => {
+      onTouchStart?.(event);
+      if (!event.defaultPrevented && canPrefetch) {
+        dataIntent.onTouchStart();
+        startPrefetch();
+      }
     },
     onFocus: (event: FocusEvent<HTMLAnchorElement>) => {
       onFocus?.(event);
+      if (event.defaultPrevented) return;
       startPrefetch();
+      dataIntent.onFocus();
     },
   };
 }

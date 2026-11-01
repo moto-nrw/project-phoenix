@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchStudentSearch } from "~/lib/student-search-resource";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import { rooms as roomKeys } from "~/lib/swr/rooms";
 import { groups as groupKeys } from "~/lib/swr/groups";
 import {
@@ -157,11 +159,7 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
-import {
-  normalizeSearchStudentsGroupId,
-  SEARCH_STUDENTS_KEY_PREFIX,
-  searchStudentsGroupScope,
-} from "~/lib/swr/search-students-key";
+import { normalizeSearchStudentsGroupId } from "~/lib/swr/search-students-key";
 import {
   encodeMultiValueParam,
   normalizeMultiValues,
@@ -170,7 +168,6 @@ import {
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
-import { createLogger } from "~/lib/logger";
 import {
   getStudentAbsence,
   getStudentDayTimes,
@@ -193,7 +190,6 @@ import { useSamePageLinkClick } from "./use-same-page-link-click";
 import { useChildScopeTabs } from "./use-child-scope-tabs";
 import { childrenConcept } from "~/lib/concepts/children";
 
-const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
 const EMPTY_STUDENT_ARRAY: Student[] = [];
 
@@ -355,7 +351,6 @@ const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 // (#2218 review). The bound stops a bad total from looping forever: 20 pages
 // are 20.000 Kinder, far beyond any OGS, and hitting it is logged rather than
 // silently truncating.
-const MAX_STUDENT_SEARCH_PAGES = 20;
 
 // The card skeleton has no end of its own: a request that never answers (weak
 // school Wi-Fi) or a session without a token keeps it up for good, with nothing
@@ -1499,7 +1494,7 @@ function SearchPageContent() {
   );
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
-    "search-student-school-classes",
+    studentKeys.schoolClasses(),
     async () => studentService.getSchoolClasses(),
     { revalidateOnFocus: false },
   );
@@ -1547,7 +1542,21 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${searchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
+  const studentsCacheKey = studentKeys.search({
+    groupIds: selectedGroupIds,
+    search: searchTerm,
+    schoolClasses: selectedSchoolClasses,
+    roomId: effectiveRoomId,
+    dayStatus: dayStatusFilter,
+    date: selectedDate,
+    isToday,
+    photoState: photoConsentFeatureState,
+    bus: busFilter,
+    photoConsent: requestedPhotoConsentFilter,
+    companions: wantsCompanions,
+    years: selectedYears,
+    pickupStatus: pickupStatusFilter,
+  });
 
   // Any change to the result query — the server-side cache key or one of the
   // client-only filters — replaces the visual context a selection was made
@@ -1637,52 +1646,7 @@ function SearchPageContent() {
         view: "slim" as const,
       };
 
-      const result = await studentService.getStudents(filters);
-      const students = [...result.students];
-
-      // Walk the remaining pages when the selection is larger than one page.
-      // The first request stays untouched (no page parameter), so the common
-      // single-page case is byte-identical with before.
-      //
-      // Separate requests only add up to the whole selection because the list
-      // query carries a total order (repositories/users/student.go orders by id
-      // unless a caller asks for something else). Without one, PostgreSQL may
-      // answer two windows out of two different row orders, and children then
-      // appear twice or not at all (#2218 review).
-      const totalPages = result.pagination?.total_pages ?? 1;
-      const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
-      for (let page = 2; page <= lastPage; page++) {
-        const nextPage = await studentService.getStudents({ ...filters, page });
-        students.push(...nextPage.students);
-      }
-      // Past the bound the list is incomplete, and everything downstream — the
-      // count badge, the grouping headers, the export scope — reads exactly the
-      // rows loaded here. Reporting that as a finished result would present a
-      // truncated list as the complete one, so the number the backend counted
-      // travels along and the page says on screen that it is showing a part
-      // (#2218 review). The log line stays for the server-side view.
-      let truncatedTotal: number | null = null;
-      if (totalPages > lastPage) {
-        truncatedTotal = result.pagination?.total_records ?? students.length;
-        logger.warn("student_search_pages_truncated", {
-          total_pages: totalPages,
-          fetched_pages: lastPage,
-        });
-      }
-
-      // Tag the response with the date AND today/planning mode it was fetched
-      // for so date-sensitive rendering can tell a fresh result apart from
-      // keepPreviousData holding the previous request's rows. The mode matters
-      // on top of the date: when a selected future date rolls over to today at
-      // midnight, selectedDate is unchanged but the semantics flip from planning
-      // to live — the stale planning rows must not be shown under live presence
-      // badges and check-in controls (#1939).
-      return {
-        students,
-        requestDate: selectedDate,
-        requestIsToday: isToday,
-        truncatedTotal,
-      };
+      return fetchStudentSearch(filters, selectedDate, isToday);
     },
     {
       // Keep previous data while fetching (prevents loading flash)

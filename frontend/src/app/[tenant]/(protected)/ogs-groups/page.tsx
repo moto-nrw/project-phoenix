@@ -1,5 +1,7 @@
 "use client";
 
+import { groupKeys } from "~/lib/swr/groups-keys";
+
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -461,9 +463,7 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    hasSessionAccess(session)
-      ? `ogs-students-${selectedGroupId ?? "auto"}`
-      : null,
+    hasSessionAccess(session) ? groupKeys.live(selectedGroupId) : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();

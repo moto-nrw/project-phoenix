@@ -31,6 +31,7 @@ import {
   writeSWRSeeds,
 } from "~/lib/swr";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
+import { TenantDataPrefetch } from "~/components/tenant/tenant-data-prefetch";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import { tenantAwarePath } from "~/lib/tenant-path";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -229,7 +230,7 @@ export function TenantProviders({
         <TenantAuthWrapper>
           <ProfileProvider initialProfile={shell?.profile ?? null}>
             <SupervisionProvider initial={shell?.supervision ?? null}>
-              {children}
+              <TenantDataPrefetch>{children}</TenantDataPrefetch>
             </SupervisionProvider>
           </ProfileProvider>
         </TenantAuthWrapper>

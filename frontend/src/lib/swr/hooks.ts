@@ -737,6 +737,7 @@ export function useSWRCacheKey() {
 /** Hover/intent preload, held to the same session and generation as mounted readers. */
 export function useSWRPreload() {
   const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
   useSyncExternalStore(
     subscribeSWRDataGeneration,
     currentSWRDataGeneration,
@@ -744,14 +745,25 @@ export function useSWRPreload() {
   );
   const originatingGeneration = currentSWRGeneration();
   return useCallback(
-    <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
+    <T>(
+      key: string,
+      fetcher: () => Promise<T>,
+      options?: { intent: true },
+    ): Promise<T | undefined> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
       const fullKey = scopedSWRKey(prefix, key);
       if (dataGenerationOf(fullKey) > originatingGeneration)
         return Promise.resolve(undefined);
+      const cached = cache.get(fullKey)?.data as T | undefined;
+      if (
+        options?.intent &&
+        cached !== undefined &&
+        isCurrentSWRValue(fullKey, cached) === true
+      )
+        return Promise.resolve(cached);
       const start = startOf(fullKey);
-      return preloadSWR(fullKey, fetcher).then(
+      return preloadSWR(fullKey, fetcher, options?.intent).then(
         (value) =>
           isStillCurrent(fullKey, start) &&
           isCurrentSWRValue(fullKey, value) !== false
@@ -768,7 +780,7 @@ export function useSWRPreload() {
         },
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, originatingGeneration, cache],
   );
 }
 

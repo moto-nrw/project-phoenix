@@ -1,3 +1,5 @@
+import { encodeMultiValueParam } from "~/lib/multi-value-param";
+import { searchStudentsGroupScope } from "./search-students-key";
 import { previewRow, previewText, type ListPreview } from "./list-preview";
 import { resourceKey } from "./resource-key";
 
@@ -119,6 +121,9 @@ export const messageKeys = {
 } as const;
 
 export const studentKeys = {
+  search: searchKey,
+  requestAccess: (id: string) => `change-request-access:${id}`,
+  schoolClasses: () => "search-student-school-classes",
   statisticsReport: (params: object) =>
     resourceKey("student-statistics-report-", params),
   detail: (id: string) => `student-detail-${encodeURIComponent(id)}`,
@@ -249,3 +254,22 @@ export const traegerKeys = {
     return name ? { id, name } : undefined;
   },
 } as const;
+
+/** Exact list identity shared with intent; preserve the SSE group segment. */
+function searchKey(params: {
+  groupIds: readonly string[];
+  search: string;
+  schoolClasses: readonly string[];
+  roomId: string;
+  dayStatus: string;
+  date: string;
+  isToday: boolean;
+  photoState: string;
+  bus: string;
+  photoConsent: string;
+  companions: boolean;
+  years: readonly string[];
+  pickupStatus: string;
+}): string {
+  return `${"search-students-"}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}`;
+}
