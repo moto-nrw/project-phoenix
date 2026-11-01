@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
+import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
 import type { FormError } from "~/components/ui/form-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
@@ -472,6 +473,13 @@ export function useSupervisionDashboard(
   }, [snapshot]);
 
   const plannedNow = useMemo(() => snapshot?.plannedNow ?? [], [snapshot]);
+
+  // The backend limits this list to five blocks. Reload at their window
+  // boundaries so an ended block frees its slot without waiting for a poll.
+  const reloadPlannedWindow = useCallback(() => {
+    void mutateDashboard();
+  }, [mutateDashboard]);
+  usePlannedWindowRefresh(plannedNow, reloadPlannedWindow);
 
   const currentStaffId = snapshot?.currentStaff?.id;
 
