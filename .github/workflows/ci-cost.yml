@@ -1,0 +1,34 @@
+name: CI cost
+
+# Keeps a sticky comment with the estimated runner cost of all CI runs of a
+# pull request (.github/actions/ci-cost). workflow_run runs the default-branch
+# version with a write token; it reads the API and never checks out PR code.
+on:
+  workflow_run:
+    # The pull_request workflows with jobs that run for minutes, so the comment
+    # refreshes after the last of them. Every pull_request run is counted,
+    # including PR body; only these trigger a refresh.
+    workflows: [CI, Frontend E2E, Perf nightly, PostHog dashboards]
+    types: [completed]
+permissions: {}
+
+concurrency:
+  # Each run recounts all runs of the pull request, so a newer queued run may
+  # replace an older one without losing anything.
+  group: ci-cost-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/ci-cost
+          persist-credentials: false
+      - uses: ./.github/actions/ci-cost
