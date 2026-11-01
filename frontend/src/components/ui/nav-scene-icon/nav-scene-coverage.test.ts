@@ -73,12 +73,19 @@ function glyphsUsedBy(source: string): { glyph: string; via: string }[] {
   return used;
 }
 
-/** Klassen mit eigener Bewegung: `.ns-play .ns-x{animation:…}`. */
-const animatedClasses = new Set(
-  [...SCENES_CSS.matchAll(/\.ns-play\s+\.(ns-[\w-]+)\s*{\s*animation:/g)].map(
-    (match) => match[1],
-  ),
-);
+/**
+ * Klassen mit eigener Bewegung je Szene:
+ * `.ns-play[data-nav-scene="ClockIcon"] .ns-min{animation:…}`.
+ */
+const animatedClasses = new Map<string, Set<string>>();
+for (const [, glyph = "", name = ""] of SCENES_CSS.matchAll(
+  /\.ns-play\[data-nav-scene="(\w+)"\]\s+\.(ns-[\w-]+)\s*{\s*animation:/g,
+)) {
+  animatedClasses.set(
+    glyph,
+    (animatedClasses.get(glyph) ?? new Set()).add(name),
+  );
+}
 const definedKeyframes = new Set(
   [...SCENES_CSS.matchAll(/@keyframes\s+(ns-[\w-]+)/g)].map(
     (match) => match[1],
@@ -114,10 +121,28 @@ describe("Icon-Szenen der Seitenleisten", () => {
           (match[1] ?? "").split(/\s+/),
         ),
       );
-      const moving = [...classes].filter((name) => animatedClasses.has(name));
+      const moving = [...classes].filter((name) =>
+        animatedClasses.get(glyph)?.has(name),
+      );
       expect(moving, `${glyph}: kein Teil mit Animation`).not.toEqual([]);
     },
   );
+
+  it("bindet jede Teil-Regel an ihre Szene", () => {
+    // Gleiche Teilnamen (`ns-draw`, `ns-dot`) kommen in mehreren Szenen vor.
+    // Ohne Glyph im Selektor gewinnt die letzte Regel in allen Szenen.
+    expect(
+      [...SCENES_CSS.matchAll(/(?:^|[\s,}])(\.ns-play\s+\.ns-[\w-]+)/g)].map(
+        (match) => match[1],
+      ),
+    ).toEqual([]);
+    const scoped = new Set(
+      [...SCENES_CSS.matchAll(/\[data-nav-scene="(\w+)"\]/g)].map(
+        (match) => match[1] ?? "",
+      ),
+    );
+    expect([...scoped].filter((glyph) => !NAV_SCENES[glyph])).toEqual([]);
+  });
 
   it("verweist nur auf definierte Keyframes", () => {
     const used = [...SCENES_CSS.matchAll(/animation:\s*(ns-[\w-]+)/g)].map(

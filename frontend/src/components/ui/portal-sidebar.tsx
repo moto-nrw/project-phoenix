@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { NavConceptIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
   PORTAL_ICON_CLASSES,
@@ -85,7 +85,8 @@ export function PortalSidebarLink({
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
         className={portalSidebarRowClasses(active)}
       >
-        <NavConceptIcon
+        <MotoNavIcon
+          scene
           concept={concept}
           active={active}
           className={`${PORTAL_ICON_CLASSES} ${active ? "" : "text-gray-400"}`}

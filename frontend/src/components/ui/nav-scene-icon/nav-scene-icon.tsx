@@ -7,7 +7,6 @@ import {
   MotoDuotoneIcon,
 } from "~/components/ui/moto-duotone-icon";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
-import type { MotoConcept } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 import { NAV_SCENES } from "./nav-scenes";
 
@@ -169,33 +168,5 @@ export function NavSceneFallback({
     >
       {children}
     </span>
-  );
-}
-
-/**
- * `NavSceneIcon` für ein Konzept, mit denselben Props wie `MotoNavIcon`:
- * aktiv in der Farbe des Konzepts, `iconConcept` leiht nur das Glyph.
- */
-export function NavConceptIcon({
-  concept,
-  iconConcept,
-  active,
-  size,
-  className,
-}: Readonly<{
-  concept: MotoConcept;
-  iconConcept?: MotoConcept;
-  active: boolean;
-  size?: number;
-  className?: string;
-}>) {
-  return (
-    <NavSceneIcon
-      icon={(iconConcept ?? concept).icon}
-      tone={concept.tone}
-      active={active}
-      size={size}
-      className={className}
-    />
   );
 }

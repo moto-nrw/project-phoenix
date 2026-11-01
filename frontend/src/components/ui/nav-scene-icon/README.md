@@ -8,7 +8,7 @@ Die Regel dazu für Agenten: `.claude/rules/sidebar-icon-scenes.md`.
 
 | Datei | Inhalt |
 |---|---|
-| `nav-scene-icon.tsx` | `NavSceneIcon` (Phosphor-Glyph), `NavConceptIcon` (Konzept, Props wie `MotoNavIcon`), `NavSceneFallback` (alte Pfad-Icons hüpfen als Ganzes) |
+| `nav-scene-icon.tsx` | `NavSceneIcon` (Phosphor-Glyph), `NavSceneFallback` (alte Pfad-Icons hüpfen als Ganzes). Für ein Konzept: `MotoNavIcon` mit `scene` |
 | `nav-scenes.tsx` | `NAV_SCENES`: je Glyph (`displayName`, z. B. `ClockIcon`) die nachgezeichneten Teile |
 | `src/styles/nav-scenes.css` | die Bewegung je Teil, gleiche `ns-*`-Klassen |
 | `nav-scene-coverage.test.ts` | Wächter: jedes Glyph einer Seitenleiste hat eine Szene, jede Szene bewegt Teile |
@@ -27,13 +27,14 @@ Der Wächter-Test schlägt fehl, sobald eine Seitenleiste (`*sidebar*.tsx`,
    bewegte Teil wird ein eigenes Element mit Klasse `ns-<teil>`. Lege das
    Original daneben und vergleiche bei 20 px.
 3. **Bewegen.** In `nav-scenes.css` je Teil eine Regel
-   `.ns-play .ns-<teil>{animation:ns-<name> <dauer> var(--ns-o) <verzögerung> both}`
-   und die Keyframes. Ende jeder Szene = exakt der Ruhezustand.
+   `.ns-play[data-nav-scene="<Glyph>Icon"] .ns-<teil>{animation:ns-<name> <dauer> var(--ns-o) <verzögerung> both}`
+   und die Keyframes. Jede Regel trägt den Glyph-Namen, auch `transform-origin`:
+   gleiche Teilnamen in zwei Szenen (`ns-draw`, `ns-dot`) überschreiben sich sonst. Ende jeder Szene = exakt der Ruhezustand.
 4. **Prüfen.** `pnpm exec vitest run src/components/ui/nav-scene-icon`, dann im
    laufenden Portal überfahren: startet sofort, läuft zu Ende, kein Sprung am
    Schluss, Masken decken auch auf der aktiven (grauen) Zeile.
 
-Ein Seitenleisten-Icon wird immer über `NavConceptIcon` oder `NavSceneIcon`
+Ein Seitenleisten-Icon wird immer über `MotoNavIcon scene` oder `NavSceneIcon`
 gerendert, nie direkt als Phosphor-Komponente.
 
 ## Maße und Tempo

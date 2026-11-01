@@ -9,7 +9,7 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive } from "./parent-nav-active";
 import type { ParentNavCounts } from "./parent-bottom-nav";
-import { NavConceptIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
@@ -81,7 +81,8 @@ export function ParentSidebar({
           aria-current={active ? "page" : undefined}
           className={portalSidebarRowClasses(active)}
         >
-          <NavConceptIcon
+          <MotoNavIcon
+            scene
             concept={item.concept}
             iconConcept={
               item.key === "children" && childCount !== 1
@@ -147,7 +148,8 @@ export function ParentSidebar({
                   data-active="false"
                   className={portalSidebarRowClasses(false)}
                 >
-                  <NavConceptIcon
+                  <MotoNavIcon
+                    scene
                     concept={helpConcept}
                     active={false}
                     className={`${PORTAL_ICON_CLASSES} text-gray-400`}
@@ -163,7 +165,8 @@ export function ParentSidebar({
                   aria-current={settingsActive ? "page" : undefined}
                   className={portalSidebarRowClasses(settingsActive)}
                 >
-                  <NavConceptIcon
+                  <MotoNavIcon
+                    scene
                     concept={settingsConcept}
                     active={settingsActive}
                     className={`${PORTAL_ICON_CLASSES} ${settingsActive ? "" : "text-gray-400"}`}
@@ -179,7 +182,8 @@ export function ParentSidebar({
                   aria-current={enrollActive ? "page" : undefined}
                   className={portalSidebarRowClasses(enrollActive)}
                 >
-                  <NavConceptIcon
+                  <MotoNavIcon
+                    scene
                     concept={enrollmentsConcept}
                     active={enrollActive}
                     className={`${PORTAL_ICON_CLASSES} ${enrollActive ? "" : "text-gray-400"}`}
@@ -194,7 +198,8 @@ export function ParentSidebar({
                   onClick={() => setLogoutModalOpen(true)}
                   className={`${portalSidebarRowClasses(false)} w-full text-left`}
                 >
-                  <NavConceptIcon
+                  <MotoNavIcon
+                    scene
                     concept={logoutConcept}
                     active={false}
                     className={`${PORTAL_ICON_CLASSES} text-gray-400`}

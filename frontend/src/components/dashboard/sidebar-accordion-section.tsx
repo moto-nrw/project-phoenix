@@ -7,10 +7,8 @@ import {
 } from "~/components/messaging/unread-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import {
-  NavConceptIcon,
-  NavSceneFallback,
-} from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
@@ -119,16 +117,17 @@ export function SidebarAccordionSection({
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
         {variant === "portal" && concept ? (
-          <NavConceptIcon
+          <MotoNavIcon
+            scene
             concept={concept}
             active={showActiveIcon}
             className={`${PORTAL_ICON_CLASSES} ${showActiveIcon ? "" : "text-gray-400"}`}
           />
         ) : conceptDefinition ? (
-          <NavConceptIcon
+          <MotoNavIcon
+            scene
             concept={conceptDefinition}
             active={showActiveIcon}
-            size={20}
             className={SIDEBAR_ICON_CLASSES}
           />
         ) : (
