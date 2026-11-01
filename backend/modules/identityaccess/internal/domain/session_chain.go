@@ -89,12 +89,13 @@ func (i sessionIndex) neighbours(session AccountSession) (linked, ambiguous []Ac
 		linked = append(linked, sameAccount(session, i.bySwitchedFrom[session.FamilyID])...)
 	}
 	if session.SwitchedFromFamilyID != "" {
-		// The origin joins only from its own portal: the Träger session an
-		// Absprung came from outlives the school's logout, while a Träger
-		// logout reaches its Absprung through the descendant link above.
+		// The origin and the families sharing it join only from their own
+		// portal: the Träger session an Absprung came from, which names
+		// itself as its origin, outlives the school's logout, while a Träger
+		// logout reaches its Absprung through the descendant link above. The
+		// shared origin still links siblings after its own rows expired.
 		linked = append(linked, samePortal(session, sameAccount(session, i.byFamily[session.SwitchedFromFamilyID]))...)
-		// The common origin remains a link after its token rows expire.
-		linked = append(linked, sameAccount(session, i.bySwitchedFrom[session.SwitchedFromFamilyID])...)
+		linked = append(linked, samePortal(session, sameAccount(session, i.bySwitchedFrom[session.SwitchedFromFamilyID]))...)
 	}
 	if session.ReplacementTokenHash != nil {
 		candidates := i.byToken[*session.ReplacementTokenHash]
