@@ -182,10 +182,10 @@ for (const scenario of scenarios) {
     }
     it("zeigt sofort den Zwischenstand und übernimmt die Antwort ohne Neuabruf", async () => {
       const { pending, submit } = await setup();
-      const start = performance.now();
       submit();
-      expect(performance.now() - start).toBeLessThan(100);
+      // Assert synchronously while the response is pending, not against runner speed.
       expectOptimistic();
+      expect(scenario.request).toHaveBeenCalledTimes(1);
       await act(async () => {
         pending.resolve(scenario.reply);
       });
