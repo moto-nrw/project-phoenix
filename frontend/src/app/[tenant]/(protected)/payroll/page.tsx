@@ -324,7 +324,7 @@ function ReadinessCard({
   const unnumbered = (rules?.wageTypes ?? []).filter((w) => w.number === "");
   const items: { label: string; ok: boolean; detail: string }[] = [
     {
-      label: "Lohnarten",
+      label: "Feste Lohnarten",
       ok: status.configuredCategories > 0,
       detail: `${status.configuredCategories} von ${status.totalCategories} Kategorien konfiguriert`,
     },
@@ -1071,7 +1071,7 @@ function WageTypesCard({
           rows={[...wageTypes]}
           getRowKey={(wageType) => wageType.id}
           rowHasInteractiveControls
-          caption="Eigene Lohnarten"
+          caption="Bezeichnung, Nummer und Einheit je Lohnart"
         />
       )}
     </SectionCard>
@@ -1285,7 +1285,7 @@ function NightWindowCell({
   };
 
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex flex-wrap items-start gap-2">
       <Input
         aria-label="Nachtarbeit von"
         type="time"
