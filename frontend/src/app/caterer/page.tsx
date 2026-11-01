@@ -187,12 +187,16 @@ export default function CatererOverviewPage() {
     scopedKey: string | null;
     data?: CatererOrderWindow;
   }>({ scopedKey: null });
+  const retries = useRef(new Map<string, number>());
   const guardRequest = useSWRRequestGuard();
   const discardRefused = useDiscardRefusedEntity();
   const response = useSWRAuth<CatererOrderWindow>(
     ordersKey,
     async (): Promise<CatererOrderWindow> => {
       const complete = guardRequest(ordersKey);
+      for (const schoolId of schoolIds) {
+        retries.current.set(schoolId, (retries.current.get(schoolId) ?? 0) + 1);
+      }
       // This reader belongs to the requested key even if the visible period
       // changes before its background requests settle.
       const requestedSnapshot = response.data;
@@ -276,74 +280,72 @@ export default function CatererOverviewPage() {
   const { show: showActionError } = useApiErrorDisplay();
   const invalidate = useInvalidateMatching();
 
-  const runAction = action.run;
-  const retries = useRef(new Map<string, number>());
   const retrySchool = useCallback(
     async (school: CatererSchool) => {
       if (currentWindow.current.scopedKey !== scopedKey) return;
-      const ticket = (retries.current.get(school.id) ?? 0) + 1;
-      retries.current.set(school.id, ticket);
-      const outcome = await runAction({
-        // A refresh has no provisional data, but shares the action's generation guard.
-        optimistic: (current) => current,
-        request: () => fetchCatererOrders(school.id, from, to),
-        refusal: {
-          codes: ["meals.not_supplied"],
-          matches: (key) => catererKeys.containsSchool(key, school.id),
-        },
-        commit: (loaded) => {
-          if (retries.current.get(school.id) !== ticket) return;
-          // Read the latest window only after the GET, so other schools' writes survive.
-          void mutateOrders(
-            (current) =>
-              current
-                ? {
-                    orders: { ...current.orders, [school.id]: loaded },
-                    failures: { ...current.failures, [school.id]: undefined },
-                  }
-                : current,
-            { revalidate: false },
-          );
-        },
-      });
-      if (outcome.status === "discarded") return;
-      if (outcome.status === "failed" && outcome.refused) {
-        // The action cleared this school's cached windows; this is not a reader error.
-        void showActionError(outcome.error, {
-          object: "die Bestellungen",
-          retry: () => void invalidate((key) => key === ordersKey),
-        });
+      let complete: ReturnType<typeof guardRequest>;
+      try {
+        complete = guardRequest(ordersKey);
+      } catch {
+        // A handler from an obsolete session must not start a read.
         return;
       }
-      if (
-        outcome.status === "failed" &&
-        retries.current.get(school.id) === ticket
-      ) {
-        // A background failure keeps the confirmed snapshot and controls.
+      const ticket = (retries.current.get(school.id) ?? 0) + 1;
+      retries.current.set(school.id, ticket);
+      const isCurrent = () =>
+        complete.isCurrent() && retries.current.get(school.id) === ticket;
+      let loaded: CatererOrders;
+      try {
+        loaded = await fetchCatererOrders(school.id, from, to);
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (
+          discardRefused(error, {
+            codes: ["meals.not_supplied"],
+            matches: (key) => catererKeys.containsSchool(key, school.id),
+          })
+        ) {
+          void showActionError(error, {
+            object: "die Bestellungen",
+            retry: () => void invalidate((key) => key === ordersKey),
+          });
+          return;
+        }
         logger.warn("caterer_orders_load_failed", {
           school_id: school.id,
-          error:
-            outcome.error instanceof Error
-              ? outcome.error.message
-              : String(outcome.error),
+          error: error instanceof Error ? error.message : String(error),
         });
         await mutateOrders(
           (current) =>
             current
               ? {
                   ...current,
-                  failures: { ...current.failures, [school.id]: outcome.error },
+                  failures: { ...current.failures, [school.id]: error },
                 }
               : current,
           { revalidate: false },
         );
+        return;
       }
+      if (!isCurrent()) return;
+      // Merge after the GET so parallel reads of other schools survive.
+      await mutateOrders(
+        (current) =>
+          current
+            ? {
+                orders: { ...current.orders, [school.id]: loaded },
+                failures: { ...current.failures, [school.id]: undefined },
+              }
+            : current,
+        { revalidate: false },
+      );
     },
     [
       from,
       to,
       mutateOrders,
-      runAction,
+      guardRequest,
+      discardRefused,
       scopedKey,
       showActionError,
       invalidate,

@@ -154,6 +154,8 @@ request starter at the beginning of the fetcher, before awaiting the request.
 Run synchronous refusal handling through the resulting completion callback. It
 checks the session, scope and request generation even after the user changes
 keys. A stale completion becomes `DiscardedAnswer`, which the existing SWR
-wrapper suppresses. The guard exposes no cache or writer and does not change
+wrapper suppresses. Imperative reads can check the callback’s `isCurrent()`
+before handling either success or failure, without turning a GET into an
+optimistic action. The guard exposes no cache or writer and does not change
 SWR's view-bound `onSuccess` semantics. Keep each refused resource's existing
 factory-key predicate; do not clear other readable schools.

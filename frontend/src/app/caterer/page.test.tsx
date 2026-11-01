@@ -930,6 +930,64 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["success", "refusal"])(
+    "ignores an older school retry after a newer window refresh (%s)",
+    async (result) => {
+      mocks.confirmCatererOrder.mockResolvedValueOnce(undefined);
+      let refresh!: ReturnType<typeof useInvalidateMatching>;
+      function Revalidation() {
+        refresh = useInvalidateMatching();
+        return null;
+      }
+      render(
+        <>
+          <Revalidation />
+          <CatererOverviewPage />
+        </>,
+      );
+      await screen.findByText("Bestellungen für Küche am Markt");
+      fireEvent.click(
+        screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+      );
+      const north = screen
+        .getByRole("heading", { name: "OGS Nord" })
+        .closest("section")!;
+      const older = deferred<ReturnType<typeof week>>();
+      mocks.fetchCatererOrders.mockImplementationOnce(() => older.promise);
+      fireEvent.click(
+        within(north).getAllByRole("button", {
+          name: "Erhalten bestätigen",
+        })[0]!,
+      );
+      await waitFor(() =>
+        expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(3),
+      );
+      mocks.fetchCatererOrders.mockResolvedValueOnce(
+        week([20, 20, 20, 20, 20]),
+      );
+      await act(async () => {
+        await refresh((key) => key.startsWith(catererKeys.family));
+      });
+      const northRow = () =>
+        within(screen.getAllByRole("table")[0]!)
+          .getByText("OGS Nord")
+          .closest("tr")!;
+      expect(within(northRow()).getByText("100")).toBeVisible();
+      await act(async () => {
+        if (result === "success") older.resolve(week([1, 1, 1, 1, 1]));
+        else
+          older.reject(
+            new ApiError("revoked", 403, { code: "meals.not_supplied" }),
+          );
+      });
+      expect(within(northRow()).getByText("100")).toBeVisible();
+      expect(
+        within(north).getAllByRole("button", { name: "Erhalten bestätigen" })
+          .length,
+      ).toBeGreaterThan(0);
+    },
+  );
+
   it("drops confirmed orders when the subsequent refresh refuses school access", async () => {
     mocks.confirmCatererOrder.mockResolvedValueOnce(undefined);
     render(<CatererOverviewPage />);

@@ -752,15 +752,17 @@ export function useSWRRequestGuard() {
       const fullKey = scopedSWRKey(prefix, key);
       if (dataGenerationOf(fullKey) > origin) throw new DiscardedAnswer();
       const started = startOf(fullKey);
-      return (complete: () => void): void => {
-        if (
-          isSWRSessionPending() ||
-          latestPrefix.current !== prefix ||
-          !isStillCurrent(fullKey, started)
-        )
-          throw new DiscardedAnswer();
-        complete();
-      };
+      const isCurrent = () =>
+        !isSWRSessionPending() &&
+        latestPrefix.current === prefix &&
+        isStillCurrent(fullKey, started);
+      return Object.assign(
+        (complete: () => void): void => {
+          if (!isCurrent()) throw new DiscardedAnswer();
+          complete();
+        },
+        { isCurrent },
+      );
     },
     [prefix, origin],
   );
