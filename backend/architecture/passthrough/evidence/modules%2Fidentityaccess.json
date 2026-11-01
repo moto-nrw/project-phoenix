@@ -198,7 +198,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND tenant_id = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ? LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ? LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
       "owner": "modules/identityaccess"
@@ -233,7 +233,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND tenant_id = ? AND revoked_at IS NULL AND expires_at \u003e ?\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
+      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
       "owner": "modules/identityaccess"
@@ -261,7 +261,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) RevokeTenantTrustedDevices(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND tenant_id = ? AND revoked_at IS NULL\", revokedAt, accountID, tenantID).Exec(ctx)\n\treturn err\n}",
+      "evidence": "func (r *AccountMFARecords) RevokeTenantTrustedDevices(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL\", revokedAt, accountID, tenantID).Exec(ctx)\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTenantTrustedDevices",
       "owner": "modules/identityaccess"
@@ -635,13 +635,6 @@
       "evidence": "func (g CapabilityGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {\n\tif g.Capability == nil {\n\t\treturn domain.MFAPolicy{}, nil\n\t}\n\treturn g.Capability.ResolveMFAPolicyInTx(ctx, accountID, tenantID)\n}",
       "form": "guarded-forward-evidence",
       "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicyInTx",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {\n\tif g.Capability == nil {\n\t\treturn \"\", errMFANotComposed\n\t}\n\tchallengeScope := identityaccess.MFAChallengeScopeTenant\n\tswitch scope {\n\tcase domain.ScopeSchool:\n\t\tchallengeScope = identityaccess.MFAChallengeScopeSchool\n\tcase domain.ScopeOrg:\n\t\tchallengeScope = identityaccess.MFAChallengeScopeOrg\n\t}\n\treturn g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
       "owner": "modules/identityaccess"
     },
     {

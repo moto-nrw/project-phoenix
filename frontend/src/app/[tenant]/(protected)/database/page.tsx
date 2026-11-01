@@ -142,6 +142,17 @@ const baseDataSections: DataSection[] = [
     concept: staffConcept,
   },
   {
+    // Die Liste, wer welchen Nachweis hat (#4808). Die Arten stehen als
+    // „Nachweisarten“ bei den Stammdaten-Listen.
+    id: "qualifications",
+    title: "Nachweise",
+    description: "Wer welchen Nachweis hat und wann er abläuft",
+    href: "/database/qualifications",
+    concept: staffConcept,
+    badge: "Listen",
+    cta: "Öffnen",
+  },
+  {
     id: "rooms",
     title: "Räume",
     description: "Räume und Ausstattung verwalten",
@@ -208,6 +219,14 @@ const baseDataSections: DataSection[] = [
     description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
     concept: staffPlanConcept,
+    badge: "Stammdaten",
+  },
+  {
+    id: "qualificationTypes",
+    title: "Nachweisarten",
+    description: "Arten wie Erste Hilfe mit Gültigkeit, Erinnerung und Pflicht",
+    href: "/database/qualification-types",
+    concept: staffConcept,
     badge: "Stammdaten",
   },
   {

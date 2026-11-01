@@ -236,6 +236,8 @@ import type { staffNoticesTopic as authored_staffNoticesTopic } from "./articles
 
 import type { staffPermissionsTopic as authored_staffPermissionsTopic } from "./articles/staff-permissions";
 
+import type { staffQualificationsTopic as authored_staffQualificationsTopic } from "./articles/staff-qualifications";
+
 import type { staffRecordTopic as authored_staffRecordTopic } from "./articles/staff-record";
 
 import type { staffSurveysTopic as authored_staffSurveysTopic } from "./articles/staff-surveys";
@@ -4214,6 +4216,7 @@ export const mealCatererTopic = function mealCatererTopic(): HelpTopic {
       "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
       "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
       "Sein Passwort ändert der Caterer selbst. Er öffnet oben rechts sein Menü und wählt `Konto`. Hat er es vergessen, wählt er bei der Anmeldung `Passwort vergessen?`.",
+      "Im `Konto` kann der Caterer auch die `Zwei-Faktor-Anmeldung` einschalten. Das ist freiwillig. Dann gibt er bei der Anmeldung zusätzlich einen Code aus seiner E-Mail ein. Statt Passwort und Code kann er auch einen Passkey nutzen.",
       "Die Belieferung beenden Sie auf der Karte `Caterer` über das Menü mit den drei Punkten: `Belieferung beenden`. moto fragt vorher nach. Danach sieht der Caterer Ihre Schule nicht mehr, und Sie können einen neuen Caterer einladen.",
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
@@ -4221,6 +4224,7 @@ export const mealCatererTopic = function mealCatererTopic(): HelpTopic {
       "Kam keine E-Mail an? Widerrufen Sie die Einladung unter `Offene Einladungen` im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
       "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
       "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
+      "Kommt Ihr Caterer nicht mehr an den Code für die Zwei-Faktor-Anmeldung? Dann meldet er sich beim moto-Team. Sie als Schule können sie nicht zurücksetzen, weil ein Caterer mehrere Schulen beliefern kann.",
     ],
     related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };
@@ -7563,6 +7567,70 @@ export const staffPermissionsTopic =
   } satisfies typeof authored_staffPermissionsTopic;
 
 /**
+ * Nachweise (#4808): Eintrag im Reiter `Stammdaten` der Personalakte, die
+ * Liste `/database/qualifications`, die Arten unter
+ * `/database/qualification-types` und die Erinnerung vor Ablauf. Sichtbar mit
+ * `staff:stammdaten`; die eigenen Nachweise sieht jede Person im Profil.
+ */
+export const staffQualificationsTopic =
+  function staffQualificationsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadStaffQualifications,
+      title: "Nachweise wie Erste Hilfe im Blick behalten",
+      question: "Wie sehe ich, wessen Nachweis bald abläuft?",
+      summary:
+        "moto zeigt jeden Nachweis mit Ablaufdatum und erinnert vor dem Ablauf.",
+      group: "personal",
+      audience: "lead",
+      icon: "FirstAid",
+      requirements: ["Das Recht, Personaldaten zu pflegen (`Stammdaten`)."],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Einen Nachweis eintragen",
+          steps: [
+            "Öffnen Sie die Personalakte der Person und den Reiter `Stammdaten`.",
+            "Wählen Sie oben `Bearbeiten`.",
+            "Wählen Sie unter `Qualifikationen` den Knopf `Qualifikation hinzufügen`.",
+            "Wählen Sie die `Art`, zum Beispiel `Erste Hilfe am Kind`. Für alles andere wählen Sie `Sonstiges` und tragen einen Namen ein.",
+            "Tragen Sie `Erworben am` ein. moto schlägt `Gültig bis` aus der Gültigkeit der Art vor. Prüfen Sie das Datum.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Alle Nachweise sehen",
+          steps: [
+            "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
+            "Filtern Sie oben nach `Status` oder `Art`.",
+            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+          ],
+        },
+        {
+          title: "Nachweisarten einstellen",
+          steps: [
+            "Öffnen Sie `Datenverwaltung` und danach `Nachweisarten`.",
+            "Wählen Sie eine Art oder legen Sie eine eigene an.",
+            "Stellen Sie `Gültig für (Monate)` und `Erinnerung vor Ablauf (Wochen)` ein.",
+            "Setzen Sie bei Bedarf `Pflicht für alle Mitarbeitenden`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Läuft ein Nachweis bald ab, bekommen alle mit dem Recht `Stammdaten` und die Person selbst eine E-Mail. Am Ablauftag kommt eine zweite. In moto kommt dazu eine Nachricht, wenn sie im Profil eingeschaltet ist.",
+      differences: [
+        "Ein alter Eintrag ohne Art steht als `Sonstiges` da. moto ordnet ihn nicht selbst zu. Wählen Sie die Art im Reiter `Stammdaten` aus.",
+        "Status `Fehlt` heißt: Die Art ist Pflicht, und die Person hat noch keinen Nachweis davon.",
+      ],
+      notes: [
+        "moto speichert nur Art und Datum, keine Inhalte. Beim Führungszeugnis halten Sie so fest, dass Sie es eingesehen haben.",
+        "Ihre eigenen Nachweise sehen alle Mitarbeitenden im `Profil` unter `Meine Nachweise`.",
+      ],
+      related: [HELP_TOPICS.leadStaffRecord],
+    };
+  } satisfies typeof authored_staffQualificationsTopic;
+
+/**
  * `/staff/[id]`, die sieben Reiter der Personalakte. Live geprueft an einer
  * Person mit Daten. Schwerpunkt ist das `Arbeitszeitmodell`: daran rechnet
  * jedes Stundenkonto, und es war in der Hilfe bisher nur eine Fehlerzeile.
@@ -7618,7 +7686,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
     result:
       "Unter `Arbeitszeitmodell` zeigt die `Vorschau` das Wochensoll der nächsten vier Wochen.",
     notes: [
-      "Qualifikationen sind Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, jeweils mit Ablaufdatum.",
+      "Qualifikationen sind Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, jeweils mit Ablaufdatum. Wie moto daran erinnert, steht unter `Nachweise`.",
       "Die Personalnummer braucht die spätere Abrechnung. Ohne sie fehlt die Person dort.",
       "In der `Übersicht` buchen Sie unter `Stundenkonto-Verwaltung` Auszahlung, Freizeitausgleich oder einen Eröffnungssaldo.",
     ],
@@ -7636,6 +7704,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
       HELP_TOPICS.leadPayroll,
+      HELP_TOPICS.leadStaffQualifications,
     ],
   };
 } satisfies typeof authored_staffRecordTopic;
@@ -9853,7 +9922,7 @@ export const traegerHolidayFormTopic =
             "Soll jede Familie antworten oder jedes Kind? Für Fragen zum Kind wählen Sie `Pro Kind abfragen`.",
             "Muss die Frage beantwortet werden? Wählen Sie `Pflichtfrage`.",
             "Geht es um die Gesundheit des Kindes? Wählen Sie `Gesundheitsangabe`.",
-            "Soll die OGS der Ferienwoche die Antwort sehen? Wählen Sie `OGS sieht die Antwort`. Das geht nur ohne `Gesundheitsangabe`.",
+            "Bei neuen Fragen ist `OGS sieht die Antwort` an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten. Bei `Gesundheitsangabe` bleibt es aus.",
             "Mit den Pfeilen ändern Sie die Reihenfolge.",
             "Wählen Sie `Als neue Version speichern`.",
           ],
@@ -9882,14 +9951,14 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
-        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Die OGS sieht dort die Antworten zu `Darf allein nach Hause gehen` und `Darf an Ausflügen teilnehmen`.",
+        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen ohne Gesundheitsangabe sind für die ausrichtende OGS freigegeben.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
         "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
         "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
         "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
         "Die ausrichtende OGS sieht nur Antworten mit `OGS sieht die Antwort`. Sie stehen in ihrer Liste unter `Ferienwochen` und beim Feriengast. Gesundheitsangaben sieht sie nie.",
-        "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Ältere Anmeldungen bleiben ohne Freigabe.",
+        "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Bei älteren Anmeldungen bleibt die bisherige Freigabe unverändert.",
         "Die OGS sieht auch Name und Telefon der zweiten sorgeberechtigten Person, keine E-Mail-Adresse.",
       ],
       troubleshootingDetails: [

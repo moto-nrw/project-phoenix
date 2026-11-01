@@ -14,14 +14,19 @@ import {
   DataFieldSkeleton,
   DataGrid,
 } from "~/components/ui/detail-modal-components";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
+import { staffQualificationKeys } from "~/lib/swr/staff-keys";
 import { useSWRAuth } from "~/lib/swr";
+import { staffQualificationService } from "~/lib/staff-qualification-api";
+import {
+  mergeQualificationEntries,
+  QualificationEntryList,
+} from "~/components/staff/qualification-entry-list";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   staffPayrollNumberService,
@@ -121,6 +126,24 @@ export function StammdatenTab({
     staffStammdatenService.get(staffId),
   );
 
+  // Nachweise mit Status und fehlenden Pflichtnachweisen (#4808); die Arten
+  // braucht nur das Bearbeiten.
+  const {
+    data: qualificationEntries,
+    error: qualificationEntriesError,
+    mutate: mutateQualificationEntries,
+  } = useSWRAuth(
+    canViewSections ? staffQualificationKeys.entries(staffId) : null,
+    () => staffQualificationService.staffEntries(staffId),
+  );
+  const {
+    data: qualificationTypes,
+    error: qualificationTypesError,
+    mutate: mutateQualificationTypes,
+  } = useSWRAuth(canEditSections ? staffQualificationKeys.types() : null, () =>
+    staffQualificationService.listTypes(),
+  );
+
   // Die maskierten Werte werden nur mit staff:financial angefragt: ohne die
   // Berechtigung bleibt der Schlüssel null und es geht keine Anfrage raus.
   const {
@@ -164,6 +187,16 @@ export function StammdatenTab({
     "die Übersicht der Stammdaten",
     mutateStammdaten,
   );
+  const qualificationEntriesLoadError = useSwrLoadError(
+    canViewSections ? qualificationEntriesError : undefined,
+    "die Nachweise",
+    mutateQualificationEntries,
+  );
+  const qualificationTypesLoadError = useSwrLoadError(
+    canEditSections ? qualificationTypesError : undefined,
+    "die Nachweisarten",
+    mutateQualificationTypes,
+  );
   const financialLoadError = useSwrLoadError(
     canViewFinancial ? financialError : undefined,
     "die Anzeige der Bank- und Steuerdaten",
@@ -178,9 +211,15 @@ export function StammdatenTab({
     return <LoadErrorAlert error={stammdatenLoadError} />;
   }
 
-  const today = berlinToday;
   const editing = draft !== null;
   const sectionsEditable = canEditSections && Boolean(stammdaten);
+  // Die gespeicherten Zeilen mit dem Status der Nachweise; solange der noch
+  // lädt, gilt nur „abgelaufen“ nach dem Berliner Tag (#4808).
+  const qualificationList = mergeQualificationEntries(
+    stammdaten?.qualifikationen ?? [],
+    qualificationEntries,
+    berlinToday,
+  );
   const payrollEditable = canManagePayroll && !payrollLoading;
   const financialEditable = canViewFinancial && !financialError;
   const canStartEditing =
@@ -297,7 +336,9 @@ export function StammdatenTab({
         draft.lastName.trim() !== "" &&
         birthdayValid &&
         weeklyHoursValid(draft.weeklyHours) &&
-        draft.qualifikationen.every((row) => row.name.trim() !== ""))) &&
+        draft.qualifikationen.every(
+          (row) => row.typeId !== "" || row.name.trim() !== "",
+        ))) &&
       (!payrollEditable || personnelNumberValid(draft.personnelNumber)));
 
   const handleSave = async () => {
@@ -443,6 +484,7 @@ export function StammdatenTab({
     setSaving(false);
 
     void mutateStammdaten();
+    void mutateQualificationEntries();
     void mutatePayroll();
     void mutateFinancial();
     setRevealed(null);
@@ -647,51 +689,36 @@ export function StammdatenTab({
           <SectionCard
             collapsible
             title="Qualifikationen"
-            description="Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, mit Ablaufdatum."
+            description="Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, mit Ablaufdatum."
           >
-            {editing && draft && sectionsEditable ? (
-              <QualifikationenFields draft={draft} onChange={patchDraft} />
+            {qualificationEntriesError ? (
+              <LoadErrorAlert error={qualificationEntriesLoadError} />
+            ) : editing && qualificationTypesError ? (
+              <LoadErrorAlert error={qualificationTypesLoadError} />
+            ) : editing && draft && sectionsEditable ? (
+              qualificationTypes === undefined ? (
+                <DataGrid>
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                </DataGrid>
+              ) : (
+                <QualifikationenFields
+                  draft={draft}
+                  onChange={patchDraft}
+                  types={qualificationTypes}
+                />
+              )
             ) : !stammdaten ? (
               <DataGrid>
                 <DataFieldSkeleton />
                 <DataFieldSkeleton />
               </DataGrid>
-            ) : stammdaten.qualifikationen.length === 0 ? (
+            ) : qualificationList.length === 0 ? (
               <p className="text-sm text-gray-400">
                 Keine Qualifikationen hinterlegt.
               </p>
             ) : (
-              <ul className="divide-y divide-gray-100">
-                {stammdaten.qualifikationen.map((q, index) => {
-                  const expired = q.expiresOn !== null && q.expiresOn < today;
-                  const meta = [
-                    q.acquiredOn
-                      ? `erworben ${formatDate(q.acquiredOn)}`
-                      : null,
-                    q.expiresOn
-                      ? `gültig bis ${formatDate(q.expiresOn)}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ");
-                  return (
-                    <li
-                      key={q.id ?? `${q.name}-${index}`}
-                      className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800">
-                          {q.name}
-                        </p>
-                        {meta && (
-                          <p className="mt-0.5 text-xs text-gray-500">{meta}</p>
-                        )}
-                      </div>
-                      {expired && <StatusBadge label="Abgelaufen" tone="red" />}
-                    </li>
-                  );
-                })}
-              </ul>
+              <QualificationEntryList entries={qualificationList} />
             )}
           </SectionCard>
         </>

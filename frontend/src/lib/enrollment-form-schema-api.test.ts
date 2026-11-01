@@ -127,6 +127,7 @@ describe("blankField", () => {
     expect(field.applies_to_child).toBe(false);
     expect(field.key).toBe("");
     expect(field.label).toBe("");
+    expect(field).not.toHaveProperty("share_with_host");
   });
 
   it("each call returns a fresh object (no shared reference)", () => {

@@ -25,7 +25,7 @@ import (
 // its production bootstrap. Each accepts only the module under test.
 func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, work WorkforceTestModule, identity identityaccess.Owner, appEnv string, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
 	capabilities := owners.NewWorkforceAdminCapabilities(svc.Users, work.StaffAdmin, work.TimeTracking)
-	admin := newStaffAdminResource(capabilities, work.SickReports, nil, nil, nil, work.PayrollDispatch, db, logger)
+	admin := newStaffAdminResource(capabilities, work.SickReports, nil, nil, nil, work.PayrollDispatch, svc.Users.StaffRows(), db, logger)
 	resource, err := newStaffResource(module, svc.PeopleDirectory, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)

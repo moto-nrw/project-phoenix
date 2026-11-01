@@ -37,13 +37,15 @@ type GroupTargetBody struct {
 }
 
 type CreateGroupThreadRequest struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
 	GroupTargetBody
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
 type GroupMessageRequest struct {
-	Body string `json:"body"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	Body            string `json:"body"`
 }
 
 type GroupThreadResponse struct {
@@ -80,10 +82,11 @@ func toGroupReaders(thread communication.ParentGroupThread, familyCount int) Gro
 }
 
 type GroupMessageResponse struct {
-	ID         string    `json:"id"`
-	SenderName string    `json:"sender_name"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"created_at"`
+	ClientMessageID string    `json:"client_message_id,omitempty"`
+	ID              string    `json:"id"`
+	SenderName      string    `json:"sender_name"`
+	Body            string    `json:"body"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type GroupChildResponse struct {
@@ -148,14 +151,19 @@ func (rs *Resource) createGroupThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	detail, err := rs.Groups.CreateParentGroupThread(r.Context(), communication.ParentGroupThreadInput{
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+		return
+	}
+
+	detail, err := rs.Groups.CreateParentGroupThread(communication.WithMessageSendID(r.Context(), req.ClientMessageID), communication.ParentGroupThreadInput{
 		Target: target, Title: req.Title, Body: req.Body,
 	})
 	if err != nil {
 		renderGroupThreadError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toGroupThreadDetail(detail), "Group thread created")
+	common.Respond(w, r, http.StatusCreated, toGroupThreadDetail(detail, messageViewer(r)), "Group thread created")
 }
 
 func (rs *Resource) getGroupThread(w http.ResponseWriter, r *http.Request) {
@@ -168,7 +176,7 @@ func (rs *Resource) getGroupThread(w http.ResponseWriter, r *http.Request) {
 		renderGroupThreadError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toGroupThreadDetail(detail), "Group thread retrieved")
+	common.Respond(w, r, http.StatusOK, toGroupThreadDetail(detail, messageViewer(r)), "Group thread retrieved")
 }
 
 func (rs *Resource) postGroupMessage(w http.ResponseWriter, r *http.Request) {
@@ -181,12 +189,17 @@ func (rs *Resource) postGroupMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	detail, err := rs.Groups.PostParentGroupMessage(r.Context(), threadID, req.Body)
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+		return
+	}
+
+	detail, err := rs.Groups.PostParentGroupMessage(communication.WithMessageSendID(r.Context(), req.ClientMessageID), threadID, req.Body)
 	if err != nil {
 		renderGroupThreadError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toGroupThreadDetail(detail), "Group message sent")
+	common.Respond(w, r, http.StatusCreated, toGroupThreadDetail(detail, messageViewer(r)), "Group message sent")
 }
 
 func (rs *Resource) closeGroupThread(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +212,7 @@ func (rs *Resource) closeGroupThread(w http.ResponseWriter, r *http.Request) {
 		renderGroupThreadError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toGroupThreadDetail(detail), "Group thread closed")
+	common.Respond(w, r, http.StatusOK, toGroupThreadDetail(detail, messageViewer(r)), "Group thread closed")
 }
 
 func parseGroupTarget(body GroupTargetBody) (communication.ParentGroupTarget, error) {
@@ -224,6 +237,10 @@ func parseGroupTarget(body GroupTargetBody) (communication.ParentGroupTarget, er
 }
 
 func renderGroupThreadError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, communication.ErrMessageSendConflict) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict))
+		return
+	}
 	switch {
 	case errors.Is(err, communication.ErrParentGroupThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
@@ -264,12 +281,12 @@ func toGroupChildResponses(children []communication.ParentGroupChild) []GroupChi
 	return out
 }
 
-func toGroupThreadDetail(detail *communication.ParentGroupThreadDetail) GroupThreadDetailResponse {
+func toGroupThreadDetail(detail *communication.ParentGroupThreadDetail, viewer ...int64) GroupThreadDetailResponse {
 	messages := make([]GroupMessageResponse, 0, len(detail.Messages))
 	for _, message := range detail.Messages {
 		messages = append(messages, GroupMessageResponse{
 			ID: strconv.FormatInt(message.ID, 10), SenderName: message.SenderName,
-			Body: message.Body, CreatedAt: message.CreatedAt,
+			ClientMessageID: clientMessageIDForViewer(message.ClientMessageID, message.SenderAccountID, viewer), Body: message.Body, CreatedAt: message.CreatedAt,
 		})
 	}
 	return GroupThreadDetailResponse{

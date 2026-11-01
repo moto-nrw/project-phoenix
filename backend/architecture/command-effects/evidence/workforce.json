@@ -2785,6 +2785,142 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
+      "binding_digest": "50f5c89c2844b667d5ea5fe00c1e674c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
+      "binding_digest": "54734c6dc7153f14c65b440b9014af1b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "binding_digest": "af3ca52fe0f5c0673d0a0fec8e04c932",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "binding_digest": "c6595deffa8ee3f2a3aa59fbf5e0d702",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "binding_digest": "96ade522a01f968fa3ae4787f13fd368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterOptedIn",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "b43f962644cdfb0ab548d559dafef0f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "1fc5ba40b1ac0e33c2422fd34514a80b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "def1ff6b18e51a5e618ca4b6e60fc233",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "bde2a6420898cc93423377192d6e9305",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "927907ade23cb17f1275b1bd0e2fa77e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "binding_digest": "778bf5a1c83ac008bfabdd59818cf436",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "binding_digest": "2630f728d6771e778c462227bd52c511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffContact",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "binding_digest": "b9fee68895de118144de39b69f8210e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.GetStaffContactInfo",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "binding_digest": "69c340b55f04a409d748ffb8e1454c1a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "binding_digest": "66e607f896c679a50ed979828d6922f9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "binding_digest": "07a7964e5d5d93209fd50124dad4187f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "binding_digest": "a4e7474c0f0b1a0dd33c6119ef8a532b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceAccounts",
       "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.Query.AllowanceAccounts",

@@ -97,3 +97,14 @@ func TestThreadViewReadersAndLeadershipOption(t *testing.T) {
 	group := toGroupThreadSummary(parentService.GroupThread{}, "Schule am Berg", nil)
 	assert.Equal(t, ParentSchoolReadersResponse{Kind: "all_staff", Names: []string{}}, group.Readers.School, "a group-thread answer goes to the team")
 }
+
+func TestParentMessageSendKeysArePrivateToTheAuthor(t *testing.T) {
+	t.Parallel()
+	rows := toMessageResponses([]*parentService.ParentMessage{{ID: 1, SenderAccountID: 12, ClientMessageID: "author-key"}}, "OGS")
+	raw, err := json.Marshal(rows[0])
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "client_message_id")
+	messages := []*parentService.ParentMessage{{ID: 1, SenderAccountID: 12, ClientMessageID: "author-key"}}
+	require.Equal(t, "author-key", toThreadView(&parentService.MessageThreadView{Messages: messages}, 12).Messages[0].ClientMessageID)
+	require.Empty(t, toThreadView(&parentService.MessageThreadView{Messages: messages}, 34).Messages[0].ClientMessageID)
+}

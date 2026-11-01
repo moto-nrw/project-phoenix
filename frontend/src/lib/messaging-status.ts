@@ -70,6 +70,7 @@ export interface RequestDiffEntry {
  * "OGS [Schulname]" label.
  */
 export interface ChatMessage {
+  client_message_id?: string;
   readonly id: string;
   readonly sender_kind: MessageSenderKind;
   readonly sender_name: string;

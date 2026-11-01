@@ -13,8 +13,10 @@ import (
 // scopeNeedsMFA selects the sessions the school MFA policy governs. The
 // Träger-Portal is not bound to the MFA mode of any school (ADR 0084): every
 // Träger session needs its second factor (#4651), see requireSessionMFA.
+// Neither is the caterer portal (ADR 0077 point 7): its session row is kept
+// at a supplied school, but no school's mode reaches the caterer.
 func scopeNeedsMFA(scope string) bool {
-	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg
+	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg && scope != domain.PortalScopeCaterer
 }
 
 // requireSessionMFA runs under the policy/account lock at every persistence
@@ -22,7 +24,8 @@ func scopeNeedsMFA(scope string) bool {
 // Parent sessions carry no staff authority and retain their separate policy.
 // A Träger session needs its proof for every role, so a session minted before
 // the duty or one whose proof an MFA reset revoked is refused at mint and at
-// refresh.
+// refresh. A caterer session needs it once the caterer switched its second
+// factor on (#4497): a session minted before that ends at its next refresh.
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -32,6 +35,9 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 			return identityaccess.ErrInvalidToken
 		}
 		return nil
+	}
+	if scope == domain.PortalScopeCaterer {
+		return s.requireCatererSessionMFA(ctx, accountID, verified)
 	}
 	if !scopeNeedsMFA(scope) {
 		return nil
@@ -48,6 +54,25 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		return identityaccess.ErrMFAStatusUnavailable
 	}
 	if policy.RequiredFor(permissions) && !verified {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
+}
+
+// requireCatererSessionMFA reads the caterer's own choice: the enrollment of
+// its account, never a school's mode, on the mint's or the refresh's
+// transaction. A password mint that races the switch-on commits a session
+// without proof; like every session from before the switch-on, it ends at
+// its next refresh, which reads the committed enrollment.
+func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, accountID int64, verified bool) error {
+	if verified {
+		return nil
+	}
+	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
+	if err != nil {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if enrolled {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil

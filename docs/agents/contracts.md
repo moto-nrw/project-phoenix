@@ -631,6 +631,18 @@ Backend paths in this section are relative to `backend/`:
   caterer portal (`workflows/catererportal`) opens each supplied school's
   tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
+- The caterer's second factor (ADR 0077 addendum, #4497) is voluntary and
+  bound to the caterer's account, never to a school's `mfa_mode`. Once it is
+  on, `/caterer/auth/login` answers `mfa_required` with a `caterer`-scope
+  challenge that names no school (unless the browser's `mfa_trust_device`
+  cookie names a remembered device of the account); `/caterer/auth/mfa/verify`
+  and `/caterer/auth/passkeys/login/verify` mint the session with
+  `mfa_verified`, and mint and refresh refuse a caterer session without it.
+  A caterer challenge is refused by every other portal's verify. Switching
+  the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
+  session; older sessions end at their next refresh. Recovery is the
+  operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
+  audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one

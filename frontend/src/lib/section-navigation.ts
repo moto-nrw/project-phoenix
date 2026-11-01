@@ -95,6 +95,9 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   // Verwechslung aus #2826 (ADR 0008).
   { href: "/database/students", label: "Kinderdaten" },
   { href: "/database/personal", label: "Personal" },
+  // „Nachweise“ ist die Liste, wer welchen Nachweis hat; die Arten stehen
+  // als „Nachweisarten“ bei den übrigen Stammdaten-Listen (#4808).
+  { href: "/database/qualifications", label: "Nachweise" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
   // Die kurzen Stammdaten-Listen der Schule (#3114). Sie standen vorher in
@@ -107,6 +110,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/planning-tracks", label: "Planungsspuren" },
   { href: "/database/shift-types", label: "Dienstarten" },
   { href: "/database/absence-types", label: "Abwesenheitsarten" },
+  { href: "/database/qualification-types", label: "Nachweisarten" },
   // „Gruppendaten", nicht „Gruppen": im Tagesbetrieb heißt die Auswahl der
   // Gruppen am laufenden Tag schon „Gruppen" (#4351). Dieselbe Trennung wie
   // bei „Kinderdaten" (#4590).
@@ -156,6 +160,8 @@ export const DATABASE_PAGE_PERMISSIONS: Readonly<
   "/database/planning-tracks": "schedules:manage",
   "/database/shift-types": "time_tracking:manage",
   "/database/absence-types": "time_tracking:manage",
+  "/database/qualifications": "staff:stammdaten",
+  "/database/qualification-types": "staff:stammdaten",
   "/database/groups": "groups:manage",
   "/database/roles": "roles:read",
   "/database/devices": "iot:manage",

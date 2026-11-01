@@ -922,3 +922,33 @@ export interface RecordTraegerErasureOrderRequest {
   confirmed_on: string;
   erase_not_before: string;
 }
+
+/** Wire shape of GET /operator/caterers (#4497): one row per caterer account. */
+export interface BackendOperatorCaterer {
+  // The backend sends the IDs as strings.
+  id: string;
+  account_id: string;
+  name: string;
+  email: string;
+  mfa_enabled: boolean;
+}
+
+export interface OperatorCaterer {
+  id: string;
+  accountId: string;
+  name: string;
+  email: string;
+  mfaEnabled: boolean;
+}
+
+export function mapOperatorCaterer(
+  data: BackendOperatorCaterer,
+): OperatorCaterer {
+  return {
+    id: data.id,
+    accountId: data.account_id,
+    name: data.name,
+    email: data.email,
+    mfaEnabled: data.mfa_enabled,
+  };
+}

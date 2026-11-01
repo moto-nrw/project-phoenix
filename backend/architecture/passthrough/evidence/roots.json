@@ -6113,7 +6113,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*parentportal.GroupThread, error) {\n\tthread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID)\n\tif err != nil {\n\t\treturn nil, parentGroupThreadError(err)\n\t}\n\tvalue := parentGroupThread(*thread)\n\treturn \u0026value, nil\n}",
+      "evidence": "func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64, sendIDs ...string) (*parentportal.GroupThread, error) {\n\tthread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID, sendIDs...)\n\tif err != nil {\n\t\treturn nil, parentGroupThreadError(err)\n\t}\n\tvalue := parentGroupThread(*thread)\n\treturn \u0026value, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentGroupThreads.GroupReplyTarget",
       "owner": "roots"
@@ -6592,6 +6592,20 @@
       "evidence": "func (c pwaUsageCounts) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]deliveryCompose.PWAUsageRow, error) {\n\trows, err := c.provisioning.ListPWAUsage(ctx, window)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]deliveryCompose.PWAUsageRow, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif tenantID \u003c= 0 || row.TenantID == tenantID {\n\t\t\tresult = append(result, deliveryCompose.PWAUsageRow(row))\n\t\t}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/pwaUsageCounts.PWAUsage",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s qualificationStaff) StaffContact(ctx context.Context, staffID int64) (workforce.QualificationStaffMember, error) {\n\trow, err := s.rows.GetStaffContactInfo(ctx, staffID)\n\tif err != nil || row == nil {\n\t\treturn workforce.QualificationStaffMember{StaffID: staffID}, err\n\t}\n\treturn qualificationContact(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/qualificationStaff.StaffContact",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s qualificationStaff) StammdatenManagers(ctx context.Context) ([]workforce.QualificationStaffMember, error) {\n\trows, err := s.rows.ListStaffWithPermission(ctx, permissions.StaffStammdaten)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tmembers := make([]workforce.QualificationStaffMember, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tmembers = append(members, qualificationContact(row))\n\t\t}\n\t}\n\treturn members, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/qualificationStaff.StammdatenManagers",
       "owner": "roots"
     },
     {

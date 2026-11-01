@@ -17,7 +17,11 @@ vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
 import { ApiError } from "~/lib/api-error";
 import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { useSWRAuth } from "./hooks";
-import { useOptimisticAction, type OptimisticOutcome } from "./optimistic";
+import {
+  useOptimisticAction,
+  useMessageSendAttempt,
+  type OptimisticOutcome,
+} from "./optimistic";
 import { resetSWRScope, resumeSWRSession } from "./scope";
 import { SWRScopeBoundary } from "./scope-boundary";
 import { SWRConfig } from "./testing";
@@ -68,6 +72,7 @@ async function flush() {
 
 let reader: SWRResponse<Thread>;
 let action: ReturnType<typeof useOptimisticAction<Thread>>;
+let attempt: ReturnType<typeof useMessageSendAttempt>;
 /** Every list the chat rendered, as `body` or `body:state`. */
 let frames: string[] = [];
 
@@ -89,6 +94,7 @@ function Chat({
     revalidateOnFocus: false,
   });
   action = useOptimisticAction(name, reader.data);
+  attempt = useMessageSendAttempt(name);
   const shown = label(action.data);
   frames.push(shown);
   return <p data-testid="chat">{shown}</p>;
@@ -607,4 +613,238 @@ describe("useOptimisticAction (#5011)", () => {
     expect(screen.getByTestId("chat")).toHaveTextContent(/^a$/);
     expect(screen.getByTestId("inbox-1")).toHaveTextContent("Posteingang");
   });
+});
+
+// A read can confirm the write even when its POST response was lost (#5419).
+describe("message send reconciliation", () => {
+  it.each(["before", "after"] as const)(
+    "starts a new identical send when a read confirms delivery %s rejection",
+    async (timing) => {
+      await mounted(async () => START);
+      const clientMessageId = attempt.begin("b");
+      const response = deferred<Item>();
+      const onConfirmed = vi.fn(() => attempt.complete(clientMessageId));
+      let outcome: Promise<OptimisticOutcome<Item>>;
+      await act(async () => {
+        outcome = action.run({
+          optimistic: (thread, { id }) => ({
+            items: [...thread.items, { id, body: "b" }],
+          }),
+          request: () => response.promise,
+          commit: () => undefined,
+          keepFailed: true,
+          confirmed: (thread) =>
+            thread.items.some((item) => item.id === clientMessageId),
+          onConfirmed,
+        });
+      });
+      const reject = async () => {
+        await act(async () => {
+          response.reject(new TypeError("response lost"));
+          await outcome;
+        });
+      };
+      if (timing === "after") {
+        await reject();
+        expect(screen.getByTestId("chat")).toHaveTextContent("a|b:failed");
+      }
+      await act(async () => {
+        await reader.mutate(
+          { items: [...START.items, { id: clientMessageId, body: "b" }] },
+          { revalidate: false },
+        );
+      });
+      expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+      const next = attempt.begin("b");
+      expect(next).not.toBe(clientMessageId);
+      if (timing === "before") await reject();
+      expect(onConfirmed).toHaveBeenCalledTimes(1);
+      // The late rejection cannot complete a newer identical send.
+      expect(attempt.begin("b")).toBe(next);
+    },
+  );
+
+  it("removes an unconfirmed bubble once the read contains its client id", async () => {
+    await mounted(async () => START);
+    const response = deferred<Item>();
+    let outcome: Promise<OptimisticOutcome<Item>>;
+    await act(async () => {
+      outcome = action.run({
+        optimistic: (thread, { id }) => ({
+          items: [...thread.items, { id, body: "b" }],
+        }),
+        request: () => response.promise,
+        commit: () => undefined,
+        keepFailed: true,
+        confirmed: (thread) =>
+          thread.items.some((item) => item.id === "saved-b"),
+      });
+    });
+    await act(async () => {
+      response.reject(new TypeError("response lost"));
+      await outcome;
+    });
+    expect(screen.getByTestId("chat")).toHaveTextContent("a|b:failed");
+    await act(async () => {
+      await reader.mutate(
+        { items: [...START.items, { id: "saved-b", body: "b" }] },
+        { revalidate: false },
+      );
+    });
+    expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  });
+});
+
+it("keeps an uncertain send id for retries, but not for a new acknowledged send", async () => {
+  await mounted();
+  const first = attempt.begin("Hallo");
+  expect(first).toEqual(expect.any(String));
+  expect(first.length).toBeGreaterThan(0);
+  expect(attempt.begin("Hallo")).toBe(first);
+  expect(attempt.begin("Anderer Text")).not.toBe(first);
+  const retry = attempt.begin("Anderer Text");
+  attempt.complete(first); // A late answer cannot finish the newer attempt.
+  expect(attempt.begin("Anderer Text")).toBe(retry);
+  attempt.complete(retry);
+  expect(attempt.begin("Anderer Text")).not.toBe(retry);
+});
+
+it("does not run a departed view's confirmation callback from another reader", async () => {
+  const fetcher = async () => START;
+  const holder: { mutate?: SWRResponse<Thread>["mutate"] } = {};
+  function ConfirmedView() {
+    const source = useSWRAuth<Thread>("thread-1", fetcher);
+    holder.mutate = source.mutate;
+    const read = useOptimisticAction("thread-1", source.data);
+    return (
+      <p data-testid="confirmed-view">
+        {read.data?.items.map((item) => item.body).join("|") ?? "leer"}
+      </p>
+    );
+  }
+  const view = await mounted(fetcher, <ConfirmedView />);
+  const response = deferred<Item>();
+  const onConfirmed = vi.fn();
+  let outcome: Promise<OptimisticOutcome<Item>>;
+  await act(async () => {
+    outcome = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: () => undefined,
+      keepFailed: true,
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+      onConfirmed,
+    });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent("a|b:pending");
+  view.rerender(
+    <Page>
+      <Chat name="thread-2" fetcher={fetcher} />
+      <ConfirmedView />
+    </Page>,
+  );
+  await flush();
+  await act(async () => {
+    await holder.mutate?.(
+      { items: [...START.items, { id: "saved-b", body: "b" }] },
+      { revalidate: false },
+    );
+  });
+  expect(screen.getByTestId("confirmed-view")).toHaveTextContent(/^a\|b$/);
+  expect(onConfirmed).not.toHaveBeenCalled();
+  await act(async () => {
+    response.reject(new TypeError("response lost"));
+    await outcome;
+  });
+});
+
+it("keeps newer messages when an already read-confirmed POST answers late", async () => {
+  await mounted();
+  const response = deferred<Thread>();
+  const mutate = reader.mutate;
+  const acknowledged = {
+    items: [...START.items, { id: "saved-b", body: "b" }],
+  };
+  let first: Promise<OptimisticOutcome<Thread>>;
+  await act(async () => {
+    first = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: (value) => {
+        void mutate(value, { revalidate: false });
+      },
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+    });
+  });
+  await act(async () => {
+    await mutate(acknowledged, { revalidate: false });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  const newer = {
+    items: [...acknowledged.items, { id: "saved-c", body: "c" }],
+  };
+  await act(async () => {
+    await action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "c" }],
+      }),
+      request: async () => newer,
+      commit: (value) => {
+        void mutate(value, { revalidate: false });
+      },
+    });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b\|c$/);
+  await act(async () => {
+    response.resolve(acknowledged);
+    await first;
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b\|c$/);
+});
+
+it("still discards a refused resource after a read acknowledged the send", async () => {
+  await mounted();
+  const response = deferred<Item>();
+  const refusal = new ApiError("permission revoked", 403, {
+    code: "general.permission",
+  });
+  let outcome!: Promise<OptimisticOutcome<Item>>;
+  await act(async () => {
+    outcome = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: () => undefined,
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+      refusal: {
+        codes: ["general.permission"],
+        matches: (key) => key === "thread-1",
+      },
+    });
+  });
+  await act(async () => {
+    await reader.mutate(
+      { items: [...START.items, { id: "saved-b", body: "b" }] },
+      { revalidate: false },
+    );
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  await act(async () => {
+    response.reject(refusal);
+    await outcome;
+  });
+  expect(await outcome).toEqual({
+    status: "failed",
+    error: refusal,
+    refused: true,
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent("leer");
 });

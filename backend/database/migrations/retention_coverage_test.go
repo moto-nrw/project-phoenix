@@ -382,6 +382,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.staff_notice_acks":                               parent("auth.accounts"),
 	"users.staff_notices":                                   own("nightly retention step staff_notice_retention, StaffNoticeRetention.DeleteExpiredStaffNotices (school window gdpr.staff_message_retention_days after the last valid day or the switch-off; an active open-ended notice stays, #4045)"),
 	"users.staff_offboarding_cleanup":                       own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> DeleteCompletedOffboardingCleanups (30 days after completed_at)"),
+	"users.staff_qualification_types":                       notPersonal("the kinds of proof a school tracks (#4808): names, validity and reminder lead, no person"),
 	"users.staff_qualifications":                            staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"users.staff_school_memberships":                        staffRetention("School Membership EraseNextRetiredStaff erases the records; the tombstone keeps only IDs that records of other people name, the person is anonymized"),
 	"users.student_care_exit_removals":                      own("activate-students job, CareExitEffector.ApplyDueEffects -> discardRemovals -> DiscardCareExitRemovals when the exit takes effect"),

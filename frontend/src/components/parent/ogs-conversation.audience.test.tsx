@@ -136,6 +136,7 @@ describe("OgsConversation readers and audience", () => {
         "Bitte um ein Gespräch",
         undefined,
         "leadership",
+        expect.any(String),
       ),
     );
   });

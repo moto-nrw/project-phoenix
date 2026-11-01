@@ -50,7 +50,9 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 			file, err := renderMealList(renderer, export, format)
 			return catererPortalHTTP.ExportFile(file), err
 		},
-		Resets: portalPasswordResets(identity, identityaccess.PasswordResetScopeCaterer),
+		Resets:       portalPasswordResets(identity, identityaccess.PasswordResetScopeCaterer),
+		SignIn:       caterers,
+		SecondFactor: caterers,
 	})
 	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), common.RequiresPermission(permissions.AdminWildcard), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
 	root.Mount("/caterer", resource.CatererRouter(limiters.authMiddleware(), CatererSessionChain))

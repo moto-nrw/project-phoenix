@@ -1,6 +1,7 @@
 /* styles/globals.css */
 @import "tailwindcss";
 @import "@moto-nrw/design-system/tailwind";
+@import "./nav-scenes.css";
 
 /*
  * `compact` — die Dichte-Stufe kleiner Bildschirme (#2824).

@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { catalogText } from "~/test/error-catalog-text";
@@ -28,7 +35,7 @@ vi.mock("~/lib/parent-url", () => ({
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
-  useMessagesActivity: () => undefined,
+  useMessagesActivity: vi.fn(),
 }));
 
 vi.mock("~/components/parent/child-care", () => ({
@@ -295,4 +302,54 @@ describe("OgsConversation group thread answers", () => {
       1,
     );
   });
+});
+
+describe("OgsConversation send reconciliation", () => {
+  it.each([false, true])(
+    "reconciles the saved guardian send (edited: %s)",
+    async (edited) => {
+      mockGetConversation.mockResolvedValue(thread);
+      mockPostMessage.mockRejectedValueOnce(
+        new ApiError("response lost", 503, { code: "general.unavailable" }),
+      );
+      render(<OgsConversation studentId="42" />);
+      const field = await screen.findByLabelText("Nachricht");
+      fireEvent.change(field, { target: { value: "Danke" } });
+      fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+      await screen.findByText("Nicht gesendet");
+      const key = mockPostMessage.mock.calls[0]?.[4];
+      expect(key).toEqual(expect.any(String));
+      if (edited)
+        fireEvent.change(field, { target: { value: "Neuer Entwurf" } });
+      mockGetConversation.mockResolvedValue({
+        ...thread,
+        messages: [
+          {
+            id: "saved",
+            sender_kind: "guardian",
+            sender_name: "Ich",
+            body: "Danke",
+            kind: "message",
+            created_at: "2026-09-09T10:05:00Z",
+            client_message_id: key,
+          },
+        ],
+      });
+      const refresh = vi
+        .mocked(useMessagesActivity)
+        .mock.calls.at(-1)?.[0].onMatch;
+      expect(refresh).toBeTypeOf("function");
+      await act(async () => {
+        refresh?.();
+      });
+      await waitFor(() => {
+        expect(screen.getAllByText("Danke", { selector: "span" })).toHaveLength(
+          1,
+        );
+        expect(screen.queryByText("Nicht gesendet")).not.toBeInTheDocument();
+      });
+      expect(field).toHaveValue(edited ? "Neuer Entwurf" : "");
+      expect(mockPostMessage).toHaveBeenCalledTimes(1);
+    },
+  );
 });

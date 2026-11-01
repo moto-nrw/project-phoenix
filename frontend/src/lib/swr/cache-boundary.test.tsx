@@ -7,6 +7,7 @@ import {
   READER_OPTION_KEYS,
   useTenantMutate,
 } from "./hooks";
+import { _resetSWRFallbacksForTests } from "./generation";
 import { messageKeys } from "./portal-keys";
 import { roomKeys } from "./rooms-keys";
 import { resetSWRScope, resumeSWRSession, suspendSWRSession } from "./scope";
@@ -34,6 +35,8 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 beforeEach(() => {
+  // Every case starts like a fresh page: no stamp released yet (#5223).
+  _resetSWRFallbacksForTests();
   resetSWRScope({ revalidate: false });
   resumeSWRSession();
 });
@@ -146,7 +149,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   "parent-keys": ["parentKeys"],
   "rooms-keys": ["roomKeys"],
   "groups-keys": ["groupKeys"],
-  "staff-keys": ["staffKeys"],
+  "staff-keys": ["staffKeys", "staffQualificationKeys"],
   "me-keys": ["meKeys"],
   rooms: ["rooms"],
   groups: ["groups"],
@@ -160,7 +163,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "searchStudentsKeyTargetsGroup",
   ],
   "room-derived-caches": ["ROOM_DERIVED_CACHE_KEY_FRAGMENTS"],
-  optimistic: ["useOptimisticAction"],
+  optimistic: ["useMessageSendAttempt", "useOptimisticAction"],
 };
 
 // #5007: outside ~/lib/swr no cache access bypasses the generation lock.
