@@ -15,6 +15,7 @@ import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { createLogger } from "~/lib/logger";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   UNKNOWN_CHILD_TODAY,
@@ -52,6 +53,8 @@ import {
 } from "~/lib/hooks/use-parent-resources";
 
 /** Wie weit nach vorn Termineinladungen fuer "Zu erledigen" gesucht werden. */
+const logger = createLogger({ component: "ParentStartPage" });
+
 const APPOINTMENT_LOOKAHEAD_DAYS = 90;
 
 const TODO_TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
@@ -180,7 +183,22 @@ export function ParentStartPage() {
     firstName: accountProfile.data?.first_name?.trim() ?? "",
   };
   const failure =
-    childrenResource.error ?? featuresResource.error ?? todayResource.error;
+    (!childrenResource.data ? childrenResource.error : undefined) ??
+    (!featuresResource.hasConfirmedData ? featuresResource.error : undefined) ??
+    (!todayResource.hasConfirmedData ? todayResource.error : undefined);
+  const backgroundError =
+    (childrenResource.data ? childrenResource.error : undefined) ??
+    (featuresResource.hasConfirmedData ? featuresResource.error : undefined) ??
+    (todayResource.hasConfirmedData ? todayResource.error : undefined);
+  useEffect(() => {
+    if (backgroundError)
+      logger.warn("parent_start_children_background_refresh_failed", {
+        error:
+          backgroundError instanceof Error
+            ? backgroundError.message
+            : String(backgroundError),
+      });
+  }, [backgroundError]);
   const {
     error: loadError,
     show: showLoadError,
@@ -408,7 +426,23 @@ function StartTodoSection() {
     }),
     [announcements.data, threads.data, calendar.data],
   );
-  const failure = announcements.error ?? threads.error ?? calendar.error;
+  const failure =
+    (!announcements.data ? announcements.error : undefined) ??
+    (!threads.data ? threads.error : undefined) ??
+    (!calendar.data ? calendar.error : undefined);
+  const backgroundError =
+    (announcements.data ? announcements.error : undefined) ??
+    (threads.data ? threads.error : undefined) ??
+    (calendar.data ? calendar.error : undefined);
+  useEffect(() => {
+    if (backgroundError)
+      logger.warn("parent_start_tasks_background_refresh_failed", {
+        error:
+          backgroundError instanceof Error
+            ? backgroundError.message
+            : String(backgroundError),
+      });
+  }, [backgroundError]);
   const loaded =
     (!!announcements.data || !!announcements.error) &&
     (!!threads.data || !!threads.error) &&

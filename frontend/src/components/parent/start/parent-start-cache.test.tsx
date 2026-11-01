@@ -67,6 +67,10 @@ beforeEach(() => {
   state.account = "A";
   vi.clearAllMocks();
   vi.mocked(listAnnouncements).mockResolvedValue([]);
+  vi.mocked(getChildToday).mockResolvedValue({
+    at_ogs: null,
+    state: "unknown",
+  });
   vi.mocked(listMessageThreads).mockResolvedValue([]);
   vi.mocked(fetchParentProfile).mockResolvedValue({
     first_name: "Eltern",
@@ -240,6 +244,28 @@ describe("parent start cache isolation", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(commits.some((text) => text.includes("Alles erledigt"))).toBe(false);
   });
+  it.each([
+    ["parent-child-status-refresh", listMyChildren, "Kind A Test"],
+    ["parent-child-status-refresh", getChildFeatures, "Kind A Test"],
+    ["parent-child-status-refresh", getChildToday, "Kind A Test"],
+    ["parent-news-unread-refresh", listAnnouncements, "Alles erledigt"],
+  ] as const)(
+    "keeps the mounted start content after a failed %s",
+    async (event, request, label) => {
+      await import("~/lib/error-presentation");
+      mount();
+      const content = await screen.findByText(label);
+      vi.mocked(request).mockRejectedValue(
+        new ApiError("offline", 503, { code: "general.unavailable" }),
+      );
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent(event));
+      });
+      await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+      expect(screen.getByText(label)).toBe(content);
+    },
+  );
+
   it.each(["parent-threads-refresh", "parent-messages-unread-refresh"])(
     "revalidates messages without repeating unrelated child requests after %s",
     async (eventName) => {

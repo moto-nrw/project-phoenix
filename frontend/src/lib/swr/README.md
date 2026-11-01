@@ -145,6 +145,11 @@ school, and account-wide lists can span schools. They must not use a tenant,
 school or operator session. News, message lists and the start-page calendar
 also have one factory key per response.
 
+Batch readers expose `hasConfirmedData` for a complete, successful response;
+partial error values are not a confirmed initial response. Pages keep loaded
+content and dialogs mounted after background failures and log those failures.
+The load-error path remains for resources that have never loaded successfully.
+
 Warm mounts use confirmed data immediately. Revalidating readers refresh an
 unmounted resource after an SSE invalidation; only the session-wide children
 list and profile skip mount revalidation. Requests deduplicate for 60 seconds. Focus recovery is throttled to

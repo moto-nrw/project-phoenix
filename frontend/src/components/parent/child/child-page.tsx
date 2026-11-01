@@ -100,7 +100,8 @@ export function ChildPage({
   const loading =
     (!childResource.data && !childResource.error) ||
     (!studentId && children.length > 1 && !statuses.data && !statuses.error);
-  const failed = !!childResource.error;
+  const failed = !childResource.data && !!childResource.error;
+  const hasChildren = childResource.data !== undefined;
   const { error: childError, mutate: reloadChildren } = childResource;
   const {
     error: loadError,
@@ -108,7 +109,14 @@ export function ChildPage({
     clear: clearLoadError,
   } = useApiLoadError();
   useEffect(() => {
-    if (!childError) {
+    if (!childError || hasChildren) {
+      if (childError)
+        logger.warn("parent_children_background_refresh_failed", {
+          error:
+            childError instanceof Error
+              ? childError.message
+              : String(childError),
+        });
       clearLoadError();
       return;
     }
@@ -116,7 +124,14 @@ export function ChildPage({
       object: t("errorObject"),
       retry: () => void reloadChildren(),
     });
-  }, [childError, reloadChildren, clearLoadError, showLoadError, t]);
+  }, [
+    childError,
+    hasChildren,
+    reloadChildren,
+    clearLoadError,
+    showLoadError,
+    t,
+  ]);
 
   const active = useMemo(() => {
     if (children.length === 0) return null;

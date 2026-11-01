@@ -23,6 +23,7 @@ import {
   parentThreadPreviewI18nDescriptor,
 } from "~/lib/messaging-status";
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
+import { createLogger } from "~/lib/logger";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import {
   useParentChildren,
@@ -46,6 +47,7 @@ import { messagesConcept } from "~/lib/concepts/messages";
  */
 
 const EMPTY_CHILDREN: Child[] = [];
+const logger = createLogger({ component: "ParentMessagesPage" });
 
 interface ChildConversation {
   readonly studentId: string;
@@ -161,7 +163,22 @@ export function ParentMessagesPage() {
   const refreshThreads = useCallback(() => {
     void invalidate(parentKeys.isResource);
   }, [invalidate]);
-  const failure = childResource.error ?? threads.error;
+  const failure =
+    (!childResource.data ? childResource.error : undefined) ??
+    (children.length > 1 && !threads.data ? threads.error : undefined);
+  const backgroundError =
+    (childResource.data ? childResource.error : undefined) ??
+    (threads.data ? threads.error : undefined) ??
+    (groups.data ? groups.error : undefined);
+  useEffect(() => {
+    if (backgroundError)
+      logger.warn("parent_messages_background_refresh_failed", {
+        error:
+          backgroundError instanceof Error
+            ? backgroundError.message
+            : String(backgroundError),
+      });
+  }, [backgroundError]);
   useEffect(() => {
     if (!failure) {
       clearLoadError();
@@ -173,7 +190,7 @@ export function ParentMessagesPage() {
     });
   }, [failure, clearLoadError, showLoadError, refreshThreads, t]);
   useEffect(() => {
-    if (!groups.error) {
+    if (!groups.error || groups.data) {
       clearGroupThreadsLoadError();
       return;
     }
@@ -183,6 +200,7 @@ export function ParentMessagesPage() {
     });
   }, [
     groups.error,
+    groups.data,
     clearGroupThreadsLoadError,
     showGroupThreadsLoadError,
     refreshThreads,
@@ -204,7 +222,7 @@ export function ParentMessagesPage() {
     );
   }
 
-  if (error) {
+  if (failure) {
     return (
       <ParentPage>
         <div data-parent-tour="messages">
@@ -242,7 +260,7 @@ export function ParentMessagesPage() {
             <GroupThreadsSection
               threads={groupThreads}
               compact
-              error={groupThreadsError}
+              error={groups.data ? null : groupThreadsError}
             />
           </div>
         )}
@@ -286,7 +304,10 @@ export function ParentMessagesPage() {
           </li>
         ))}
       </ul>
-      <GroupThreadsSection threads={groupThreads} error={groupThreadsError} />
+      <GroupThreadsSection
+        threads={groupThreads}
+        error={groups.data ? null : groupThreadsError}
+      />
     </ParentPage>
   );
 }

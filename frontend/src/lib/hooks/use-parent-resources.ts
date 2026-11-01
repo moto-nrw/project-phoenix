@@ -234,6 +234,7 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
   return {
     ...resource,
     data: resource.error ? batch?.partial : resource.data,
+    hasConfirmedData: resource.data !== undefined,
     error: batch ? Object.values(batch.failures)[0] : resource.error,
     errorsByChild: batch?.failures ?? NO_FEATURE_FAILURES,
   };
@@ -295,6 +296,7 @@ export function useParentToday(children: readonly Child[] | undefined) {
   return {
     ...resource,
     data: resource.error ? batch?.partial : resource.data,
+    hasConfirmedData: resource.data !== undefined,
     error: batch ? Object.values(batch.failures)[0] : resource.error,
   };
 }
