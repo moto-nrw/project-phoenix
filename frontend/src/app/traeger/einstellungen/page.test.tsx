@@ -1,4 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -80,6 +89,60 @@ describe("TraegerSettingsPage", () => {
     mockFetchSchema.mockReset();
     mockSave.mockReset().mockResolvedValue(undefined);
     mockClear.mockReset().mockResolvedValue(undefined);
+  });
+
+  it.each([503, 403])(
+    "keeps loaded content only for recoverable schema refresh errors (%s)",
+    async (status) => {
+      mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+      render(
+        <ToastProvider>
+          <RefreshSchema />
+          <TraegerSettingsPage />
+        </ToastProvider>,
+      );
+      expect(
+        await screen.findByRole("switch", {
+          name: "Neuigkeiten im Elternportal",
+        }),
+      ).toBeInTheDocument();
+      const code =
+        status === 503 ? "general.unavailable" : "general.permission";
+      mockFetchSchema.mockRejectedValue(
+        new ApiError("refused", status, { code }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Refresh schema" }));
+      // Anker: the current schema failure is shown after a complete initial load.
+      expect(
+        await screen.findByText(
+          catalogText(code, "die Liste der Einstellungen"),
+        ),
+      ).toBeInTheDocument();
+      if (status === 503)
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).toBeInTheDocument();
+      else
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).not.toBeInTheDocument();
+    },
+  );
+
+  it("shares one schema request between mounted settings consumers", async () => {
+    mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+    render(
+      <ToastProvider>
+        <TraegerSettingsPage />
+        <TraegerSettingsPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findAllByText(
+        "Vom Träger festgelegt · geändert am 01.09.2026",
+      ),
+    ).toHaveLength(2);
+    expect(mockFetchSchema).toHaveBeenCalledTimes(1);
   });
 
   it("shows each setting with where its value comes from", async () => {
@@ -213,3 +276,29 @@ describe("TraegerSettingsPage", () => {
     expect(screen.queryByText("Fußzeile")).not.toBeInTheDocument();
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));
+
+function RefreshSchema() {
+  const refresh = useTenantMutateMatching([traegerKeys.settings()]);
+  return (
+    <button
+      onClick={() => {
+        void refresh().catch(() => undefined);
+      }}
+    >
+      Refresh schema
+    </button>
+  );
+}

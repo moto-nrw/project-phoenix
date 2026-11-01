@@ -21,6 +21,7 @@ import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registr
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
   AttachmentList,
@@ -34,7 +35,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayContribution,
   type HolidayContribution,
@@ -89,7 +90,11 @@ export default function TraegerHolidayRegistrationPage() {
   const params = useParams<{ id: string; registrationId: string }>();
   const periodId = params?.id ?? "";
   const registrationId = params?.registrationId ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const {
+    data: period,
+    loadError: periodError,
+    error: periodFailure,
+  } = useTraegerHolidayPeriod(periodId);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
   const [contribution, setContribution] = useState<HolidayContribution | null>(
@@ -102,20 +107,21 @@ export default function TraegerHolidayRegistrationPage() {
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
-  const { schools, error: schoolsError } = useTraegerSchools();
+  const {
+    schools,
+    error: schoolsError,
+    fetchError: schoolsFailure,
+  } = useTraegerSchools();
   const registrationLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = registrationLoad;
 
   const load = useCallback(async () => {
     try {
-      const [loadedPeriod, loadedRegistration, loadedContribution] =
-        await Promise.all([
-          fetchHolidayPeriod(periodId),
-          fetchHolidayRegistration(periodId, registrationId),
-          fetchHolidayContribution(periodId, registrationId),
-        ]);
+      const [loadedRegistration, loadedContribution] = await Promise.all([
+        fetchHolidayRegistration(periodId, registrationId),
+        fetchHolidayContribution(periodId, registrationId),
+      ]);
       latestContribution.current++;
-      setPeriod(loadedPeriod);
       setRegistration(loadedRegistration);
       setContribution(loadedContribution);
       setExemption(loadedRegistration.benefitsDeclared);
@@ -183,7 +189,14 @@ export default function TraegerHolidayRegistrationPage() {
     [refreshContribution],
   );
 
-  const loadError = registrationLoad.error ?? schoolsError;
+  const loadError =
+    registrationLoad.error ??
+    metadataLoadError(
+      periodError ?? schoolsError,
+      Boolean(registration && period && schools),
+      periodFailure,
+      schoolsFailure,
+    );
   const names = schoolNames(schools);
   const emergency = (registration?.contacts ?? []).filter(
     (contact) => contact.kind === "emergency",

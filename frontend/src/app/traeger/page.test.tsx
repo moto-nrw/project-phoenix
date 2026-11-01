@@ -1,6 +1,8 @@
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -51,7 +53,10 @@ function renderPage() {
 }
 
 function sessionWith(permissions: string[]) {
-  return { data: { user: { permissions } }, status: "authenticated" };
+  return {
+    data: { user: { id: "A", scope: "org", orgId: 7, permissions } },
+    status: "authenticated",
+  };
 }
 
 import TraegerSchoolsPage from "./page";
@@ -207,3 +212,9 @@ describe("TraegerSchoolsPage", () => {
     open.mockRestore();
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}

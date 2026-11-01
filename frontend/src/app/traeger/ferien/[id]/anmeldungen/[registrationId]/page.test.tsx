@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+import { render as rtlRender, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -309,3 +311,16 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toHaveTextContent("Herunterladen");
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));
