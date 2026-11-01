@@ -3,15 +3,16 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type studentEnrollmentRow struct {
@@ -201,27 +202,48 @@ func (s *Store) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, va
 	return stats.Rows == 1, stats, err
 }
 
-// SetStudentEnrollmentKeptWithoutBooking stores the per-weekday decision of
-// one hand row (#5102); an empty map clears it. Booking-created rows are
-// never written.
-func (s *Store) SetStudentEnrollmentKeptWithoutBooking(ctx context.Context, id int64, kept map[int]string) (domain.OperationStats, error) {
+// SetStudentEnrollmentsKeptWithoutBooking writes the decision of the given
+// ISO weekdays onto the student's hand rows (#5102), key by key inside each
+// row's UPDATE: two decisions on the same row never replace each other's
+// weekdays. A keep takes the later of the stored and the new date; a nil
+// through removes the weekdays. Booking-created rows and other students'
+// rows are never written; the count tells how many rows were.
+func (s *Store) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, weekdays []int, through *string) (int64, domain.OperationStats, error) {
+	var total domain.OperationStats
+	if len(ids) == 0 || len(weekdays) == 0 {
+		return 0, total, nil
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.OperationStats{}, err
+		return 0, total, err
 	}
-	query := db.NewUpdate().Table("activities.student_enrollments")
-	if len(kept) == 0 {
-		query = query.Set("kept_without_booking = NULL")
-	} else {
-		raw, err := json.Marshal(keptDates(kept))
+	scoped := func(query *bun.UpdateQuery) *bun.UpdateQuery {
+		return query.Set("updated_at = NOW()").Where("tenant_id = ?", tenantID).Where("student_id = ?", studentID).
+			Where("id IN (?)", bun.List(ids)).Where("enrollment_request_child_id IS NULL")
+	}
+	keys := make([]string, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		keys = append(keys, strconv.Itoa(weekday))
+	}
+	if through == nil {
+		stats, err := execMeasuredWrite(ctx, scoped(db.NewUpdate().Table("activities.student_enrollments").
+			Set("kept_without_booking = NULLIF(COALESCE(kept_without_booking, '{}'::jsonb) - ?::text[], '{}'::jsonb)", pgdialect.Array(keys))),
+			"clear student enrollments kept without booking")
+		return stats.Rows, stats, err
+	}
+	var rows int64
+	for _, key := range keys {
+		stats, err := execMeasuredWrite(ctx, scoped(db.NewUpdate().Table("activities.student_enrollments").
+			Set(`kept_without_booking = jsonb_set(COALESCE(kept_without_booking, '{}'::jsonb), ARRAY[?::text],
+				to_jsonb(GREATEST(COALESCE(kept_without_booking->>?::text, ''), ?::text)))`, key, key, *through)),
+			"keep student enrollments without booking")
+		total.Add(stats)
 		if err != nil {
-			return domain.OperationStats{}, fmt.Errorf("set student enrollment kept without booking: %w", err)
+			return 0, total, err
 		}
-		query = query.Set("kept_without_booking = ?::jsonb", string(raw))
+		rows = stats.Rows
 	}
-	return execMeasuredWrite(ctx, query.Set("updated_at = NOW()").
-		Where("tenant_id = ?", tenantID).Where("id = ?", id).
-		Where("enrollment_request_child_id IS NULL"), "set student enrollment kept without booking")
+	return rows, total, nil
 }
 
 func keptDates(kept map[int]string) map[int]calendar.Date {

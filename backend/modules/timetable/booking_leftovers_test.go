@@ -1,6 +1,7 @@
 package timetable_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -25,7 +26,7 @@ var (
 )
 
 func leftoverScope() timetable.BookingLeftoverScope {
-	return timetable.BookingLeftoverScope{Tomorrow: leftoverToday.AddDays(1), PeriodID: leftoverPeriod}
+	return timetable.BookingLeftoverScope{Tomorrow: leftoverToday.AddDays(1)}
 }
 
 func leftoverWindow(from, until calendar.Date, ended bool, weekdays ...int) timetable.OfferingBookingWindow {
@@ -43,27 +44,35 @@ func leftoverBooking(offeringID, studentID int64, pickup map[int]string, windows
 func handTemplate(entries ...timetable.TemplateRosterEntry) timetable.BookingLeftoverTemplate {
 	return timetable.BookingLeftoverTemplate{
 		ID: leftoverTemplate, Name: "Hausaufgaben", Kind: timetable.RosterOfferingCare,
-		Schedules: weeklySchedules(1, 2, 3, 4, 5),
-		Roster:    timetable.TemplatePlannedRoster{Entries: entries},
+		Occurrences: weeklyOccurrences(1, 2, 3, 4, 5),
+		Roster:      timetable.TemplatePlannedRoster{Entries: entries},
 	}
 }
 
-// weeklySchedules runs 14:00–16:00 every week on the weekdays.
-func weeklySchedules(weekdays ...int) []timetable.BookingLeftoverSchedule {
-	schedules := make([]timetable.BookingLeftoverSchedule, 0, len(weekdays))
-	for _, weekday := range weekdays {
-		schedules = append(schedules, timetable.BookingLeftoverSchedule{Weekday: weekday, End: "16:00:00"})
-	}
-	return schedules
-}
-
-// endThursdays ends the Thursday schedule on the exclusive day.
-func endThursdays(template *timetable.BookingLeftoverTemplate, until calendar.Date) {
-	for index := range template.Schedules {
-		if template.Schedules[index].Weekday == 4 {
-			template.Schedules[index].ValidUntil = &until
+// weeklyOccurrences are the projected occurrences 14:00–16:00 on the
+// weekdays from tomorrow until the end of the school year, in the period.
+func weeklyOccurrences(weekdays ...int) []timetable.BookingLeftoverOccurrence {
+	var occurrences []timetable.BookingLeftoverOccurrence
+	for day := leftoverToday.AddDays(1); day.Before(phaseEnd); day = day.AddDays(1) {
+		if slices.Contains(weekdays, calendar.ISOWeekday(day)) {
+			occurrences = append(occurrences, timetable.BookingLeftoverOccurrence{Date: day, End: "16:00", PeriodID: leftoverPeriod})
 		}
 	}
+	return occurrences
+}
+
+// dropThursdays removes the projected Thursdays the keep function rejects,
+// as materialization's projection leaves out a closed day, another A/B week
+// or the days after the series ends.
+func dropThursdays(template *timetable.BookingLeftoverTemplate, drop func(calendar.Date) bool) {
+	template.Occurrences = slices.DeleteFunc(template.Occurrences, func(occurrence timetable.BookingLeftoverOccurrence) bool {
+		return calendar.ISOWeekday(occurrence.Date) == 4 && drop(occurrence.Date)
+	})
+}
+
+// endThursdays ends the Thursday occurrences on the exclusive day.
+func endThursdays(template *timetable.BookingLeftoverTemplate, until calendar.Date) {
+	dropThursdays(template, func(date calendar.Date) bool { return !date.Before(until) })
 }
 
 func handRow(studentID int64) timetable.TemplateRosterEntry {
@@ -169,7 +178,7 @@ func TestDetectBookingLeftoversSkipsBookingRowsTargetsAndEndedRows(t *testing.T)
 		"booking row":      handTemplate(booked),
 		"row ended":        handTemplate(ended),
 		"via Klasse":       targeted,
-		"Thursday-free":    {ID: leftoverTemplate, Name: "Mo", Kind: timetable.RosterOfferingCare, Schedules: weeklySchedules(1), Roster: timetable.TemplatePlannedRoster{Entries: []timetable.TemplateRosterEntry{handRow(leftoverChild)}}},
+		"Thursday-free":    {ID: leftoverTemplate, Name: "Mo", Kind: timetable.RosterOfferingCare, Occurrences: weeklyOccurrences(1), Roster: timetable.TemplatePlannedRoster{Entries: []timetable.TemplateRosterEntry{handRow(leftoverChild)}}},
 		"other period pin": handTemplate(timetable.TemplateRosterEntry{StudentID: leftoverChild, CalendarPeriodID: new(int64(9))}),
 	} {
 		leftovers := timetable.DetectBookingLeftovers(leftoverScope(), []timetable.BookingLeftoverTemplate{template},
@@ -221,6 +230,7 @@ func TestDetectBookingLeftoversNeedsAnOccurrenceAfterTheDrop(t *testing.T) {
 		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
 	assert.Empty(t, leftovers, "the last Thursday is 26.11., before the booking ends")
 
+	template = handTemplate(handRow(leftoverChild))
 	endThursdays(&template, calendar.NewDate(2026, 12, 4))
 	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
 		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
@@ -290,16 +300,12 @@ func TestDetectBookingLeftoversStartsWithTheEarliestGap(t *testing.T) {
 // planning period is planned.
 func TestDetectBookingLeftoversFollowsThePlannedDays(t *testing.T) {
 	t.Parallel()
-	// Week B: Thursdays on even weeks since Monday 02.11.2026.
+	// Week B: Thursdays on even weeks since Monday 02.11.2026; the projection
+	// plans no Thursday of week A.
 	anchor := calendar.NewDate(2026, 11, 2)
 	scope := leftoverScope()
-	scope.WeekPatternApplies = func(weekPattern int, date calendar.Date) bool {
-		return weekPattern == 0 || (anchor.DaysUntil(date)/7)%2+1 == weekPattern
-	}
 	weekB := handTemplate(handRow(leftoverChild))
-	for index := range weekB.Schedules {
-		weekB.Schedules[index].WeekPattern = 2
-	}
+	dropThursdays(&weekB, func(date calendar.Date) bool { return (anchor.DaysUntil(date)/7)%2 == 0 })
 	leftovers := timetable.DetectBookingLeftovers(scope,
 		[]timetable.BookingLeftoverTemplate{weekB}, []timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
 	require.Len(t, leftovers, 1)
@@ -331,10 +337,18 @@ func TestDetectBookingLeftoversFollowsThePlannedDays(t *testing.T) {
 	require.Len(t, leftovers, 1)
 	assert.Equal(t, calendar.NewDate(2026, 12, 3), leftovers[0].From)
 
-	// The planning period ends before the next Thursday.
-	short := leftoverScope()
-	short.Until = calendar.NewDate(2026, 11, 5)
-	leftovers = timetable.DetectBookingLeftovers(short,
-		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))}, []timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
+	// No Thursday is planned any more: the period or the series ends.
+	short := handTemplate(handRow(leftoverChild))
+	endThursdays(&short, calendar.NewDate(2026, 11, 5))
+	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{short}, []timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
 	assert.Empty(t, leftovers, "no Thursday is left in the period")
+
+	// A closed Thursday is no occurrence: the gap starts a week later.
+	closed := handTemplate(handRow(leftoverChild))
+	dropThursdays(&closed, func(date calendar.Date) bool { return date == calendar.NewDate(2026, 11, 5) })
+	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{closed}, []timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
+	require.Len(t, leftovers, 1)
+	assert.Equal(t, calendar.NewDate(2026, 11, 12), leftovers[0].From)
 }

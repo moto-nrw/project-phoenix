@@ -12,12 +12,12 @@ package timetablehttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -42,7 +42,7 @@ type bookingLeftoversResponse struct {
 // or inactive period shows no hints. Every read is batched over the
 // period's templates, bookings and children.
 func (rs *Resource) listBookingLeftovers(w http.ResponseWriter, r *http.Request) {
-	if rs.TimetableData == nil || rs.CalendarPeriods == nil || rs.RosterReview == nil || rs.People == nil {
+	if rs.TimetableData == nil || rs.CalendarPeriods == nil || rs.RosterReview == nil || rs.People == nil || rs.MaterializationService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable booking leftovers not wired")))
 		return
 	}
@@ -75,13 +75,7 @@ func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]boo
 		return result, err
 	}
 	until := calendar.Date(period.EndDate)
-	cycle := period.WeekCycle()
-	scope := timetable.BookingLeftoverScope{
-		Tomorrow: rs.todayDate().AddDays(1), PeriodID: periodID, Until: until.AddDays(1),
-		WeekPatternApplies: func(weekPattern int, date calendar.Date) bool {
-			return schoolcalendar.WeekPatternApplies(weekPattern, date.String(), cycle)
-		},
-	}
+	scope := timetable.BookingLeftoverScope{Tomorrow: rs.todayDate().AddDays(1)}
 	if scope.Tomorrow.After(until) {
 		return result, nil
 	}
@@ -139,38 +133,40 @@ func (rs *Resource) bookingLeftoverTemplates(ctx context.Context, periodID int64
 	if err != nil {
 		return nil, err
 	}
+	// The dates materialization plans, by its own per-date rule (#5343):
+	// holidays, closing days, exceptions, A/B weeks and series ends are
+	// already applied.
+	projection, err := rs.MaterializationService.ProjectOccurrences(ctx, ids, window.From, window.Until)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]timetable.BookingLeftoverTemplate, 0, len(templates))
 	for _, template := range templates {
 		result = append(result, timetable.BookingLeftoverTemplate{
 			ID: template.ID, Name: template.Name, Kind: timetable.RosterOfferingKindFor(template.Type, template.ListKind),
-			Schedules: leftoverSchedules(template), Roster: rosters[template.ID],
+			Occurrences: leftoverOccurrences(projection.Dates[template.ID], projection.Times[template.ID]),
+			Roster:      rosters[template.ID],
 		})
 	}
 	return result, nil
 }
 
-// leftoverSchedules hands the rule each schedule with its validity, A/B
-// week and end, the exclusive end capped by the series' last day.
-func leftoverSchedules(template templateResponse) []timetable.BookingLeftoverSchedule {
-	var seriesUntil *calendar.Date
-	if template.EndDate != nil {
-		if last, err := calendar.ParseDate(*template.EndDate); err == nil {
-			seriesUntil = new(last.AddDays(1))
+// leftoverOccurrences pairs each projected date with the latest end of its
+// clock windows and the planning period whose rows fill it.
+func leftoverOccurrences(dates []calendar.Date, times map[calendar.Date][]timetable.OccurrenceClock) []timetable.BookingLeftoverOccurrence {
+	result := make([]timetable.BookingLeftoverOccurrence, 0, len(dates))
+	for _, date := range dates {
+		occurrence := timetable.BookingLeftoverOccurrence{Date: date}
+		latest := -1
+		for _, clock := range times[date] {
+			if clock.EndMinute > latest {
+				latest, occurrence.PeriodID = clock.EndMinute, clock.PeriodID
+			}
 		}
-	}
-	result := make([]timetable.BookingLeftoverSchedule, 0, len(template.Schedules))
-	for _, schedule := range template.Schedules {
-		entry := timetable.BookingLeftoverSchedule{Weekday: schedule.Weekday, WeekPattern: schedule.WeekPattern, End: schedule.EndTime}
-		if from, err := calendar.ParseDate(schedule.ValidFrom); err == nil {
-			entry.ValidFrom = &from
+		if latest >= 0 {
+			occurrence.End = fmt.Sprintf("%02d:%02d", latest/60, latest%60)
 		}
-		if until, err := calendar.ParseDate(schedule.ValidUntil); err == nil {
-			entry.ValidUntil = &until
-		}
-		if seriesUntil != nil && (entry.ValidUntil == nil || seriesUntil.Before(*entry.ValidUntil)) {
-			entry.ValidUntil = seriesUntil
-		}
-		result = append(result, entry)
+		result = append(result, occurrence)
 	}
 	return result
 }

@@ -159,50 +159,27 @@ func (s *Service) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, s
 	})
 }
 
-// keepHandRows writes the merged decision onto each of the student's hand
-// rows and refuses any other row.
+// keepHandRows refuses any id that is not a hand row of the student, then
+// writes the decision of the weekdays only, key by key in the store, so a
+// concurrent decision on another weekday of the same row survives.
 func (s *Service) keepHandRows(ctx context.Context, stats *domain.OperationStats, studentID int64, ids []int64, weekdays []int, through *string) error {
 	rows, queryStats, err := s.store.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{studentID}})
 	stats.Add(queryStats)
 	if err != nil {
 		return err
 	}
-	hand := make(map[int64]timetable.StudentEnrollment, len(rows))
+	hand := make(map[int64]bool, len(rows))
 	for _, row := range rows {
-		if row.EnrollmentRequestChildID == nil {
-			hand[row.ID] = row
-		}
+		hand[row.ID] = row.EnrollmentRequestChildID == nil
 	}
 	for _, id := range ids {
-		row, found := hand[id]
-		if !found {
+		if !hand[id] {
 			return timetable.ErrStudentEnrollmentNotFound
 		}
-		queryStats, err = s.store.SetStudentEnrollmentKeptWithoutBooking(ctx, id, mergeKeptWeekdays(row.KeptWithoutBooking, weekdays, through))
-		stats.Add(queryStats)
-		if err != nil {
-			return err
-		}
 	}
-	return nil
-}
-
-// mergeKeptWeekdays sets the weekdays to the later of their decision and
-// through, or clears them when through is nil; other weekdays stay.
-func mergeKeptWeekdays(current map[int]string, weekdays []int, through *string) map[int]string {
-	result := make(map[int]string, len(current)+len(weekdays))
-	for weekday, date := range current {
-		result[weekday] = date
-	}
-	for _, weekday := range weekdays {
-		switch {
-		case through == nil:
-			delete(result, weekday)
-		case result[weekday] < *through:
-			result[weekday] = *through
-		}
-	}
-	return result
+	_, queryStats, err = s.store.SetStudentEnrollmentsKeptWithoutBooking(ctx, studentID, ids, weekdays, through)
+	stats.Add(queryStats)
+	return err
 }
 
 func (s *Service) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {

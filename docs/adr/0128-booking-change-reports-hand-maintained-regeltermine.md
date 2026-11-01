@@ -166,15 +166,17 @@ by a change or a withdrawal: Care Plan's existing period read
 `OfferingWeekdayBookings`, asked from the period start, marks such a window
 `Ended` when the link's own end, not its phase, bounds it. For every hand
 roster row (no `enrollment_request_child_id`) the rule takes the row's
-first planned day of that weekday from the later of the booking end and
-tomorrow on, as materialization plans it: the row's validity, period and
-weekday scope, the schedule's validity, A/B week and the series' last day,
-within the planning period. On that day the carry rule of the first
-addendum decides with the bookings in force; where a pickup time or the end
-is missing, the day counts as lost when it has fewer offerings on the
-weekday than the day before the booking ended. Of several ended bookings
-of a weekday, the earliest such day without a carrying booking starts the
-report. A child the
+first occurrence of that weekday from the later of the booking end and
+tomorrow on. The occurrences are materialization's own projection
+(`MaterializationCapability.ProjectOccurrences`, as for the offering gaps of
+#5343): holidays, closing days, exceptions, A/B weeks and the series' end
+are already applied, the rule computes no dates of its own. Whether the row
+fills an occurrence is materialization's roster rule (`appliesOn`). On that
+occurrence the carry rule of the first addendum decides with the bookings
+in force; where a pickup time or the end is missing, the day counts as lost
+when it has fewer offerings on the weekday than the day before the booking
+ended. Of several ended bookings of a weekday, the earliest such day
+without a carrying booking starts the report. A child the
 Regeltermin plans through a Klasse, Jahrgang or Gruppe target is left out:
 removing the hand row would not hold, and the deviation hint covers those
 lists. A Regeltermin the deviation hint already shows is left out as well.
@@ -185,12 +187,19 @@ The school's answer is the only stored part. "Entfernen" is
 "Bleibt so" is Timetable's new command `KeepStudentTemplateDays`: it writes
 the latest booking end of the reported days, per ISO weekday, into the new JSONB column
 `activities.student_enrollments.kept_without_booking` of the child's hand
-rows of the series, for example `{"4": "2026-11-02"}`. A decision on or
-after a weekday's booking end hides that weekday's report; a later booking
-end shows it again; other weekdays of the row keep their own decision, also
-on undo. It changes no plan, and a weekday-scoped continuation row of a
-removal keeps the decision of its weekday. Booking-created rows never carry
-it.
+rows of the series, for example `{"4": "2026-11-02"}`: every hand row of
+the series that plans the weekday, so the row of each gap carries it. It
+writes the asked weekdays key by key inside the row's UPDATE, so two
+decisions on the same row never replace each other, and it takes the
+tenant recurrence gate like the commands that rewrite rows. A decision on
+or after a weekday's booking end hides that weekday's report; a later
+booking end shows it again; other weekdays keep their own decision, also on
+undo. It changes no plan. The commands that rewrite hand rows carry the
+decision onto the rows that replace them: saving a series, editing its
+roster from a date, splitting it and the continuation rows of a removal.
+Per student and weekday a decision survives only when every replaced row
+that plans the weekday carried one, with the earliest date, so a rewrite
+never hides more than before. Booking-created rows never carry it.
 
 `RemoveStudentTemplateDays` now starts tomorrow at the earliest, also when
 asked for today: today's occurrences and rows stay as they are. The command

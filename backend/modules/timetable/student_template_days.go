@@ -117,9 +117,9 @@ type StudentTemplateDays interface {
 	// weekdays and rows recording attendance or a hand decision stay. It
 	// takes the tenant recurrence gate. From must not lie in the past.
 	RemoveStudentTemplateDays(ctx context.Context, removal StudentTemplateDaysRemoval) (StudentTemplateDaysRemoved, error)
-	// KeepStudentTemplateDays marks or unmarks the student's hand rows of
-	// the series that plan the weekdays on or after the booking end and
-	// returns how many rows it marked. Plans stay as they
-	// are. ErrGroupNotFound for an unknown series.
+	// KeepStudentTemplateDays marks or unmarks, on exactly these weekdays,
+	// every hand row of the student in the series that plans one of them and
+	// returns how many rows it marked. Plans stay as they are. It takes the
+	// tenant recurrence gate. ErrGroupNotFound for an unknown series.
 	KeepStudentTemplateDays(ctx context.Context, keep StudentTemplateDaysKeep) (int, error)
 }
