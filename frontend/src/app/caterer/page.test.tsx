@@ -409,6 +409,161 @@ describe("CatererOverviewPage (#3873)", () => {
     },
   );
 
+  it.each([
+    "current-session",
+    "account-roundtrip",
+    "data-clear",
+    "request-refresh",
+  ] as const)(
+    "handles a late supply refusal after switching cached periods (%s)",
+    async (scenario) => {
+      let refresh!: ReturnType<typeof useInvalidateMatching>;
+      function Revalidation() {
+        refresh = useInvalidateMatching();
+        return null;
+      }
+      function ReadableWindow() {
+        const { data } = useSWRAuth(
+          catererKeys.orders(["2"], "2026-09-10", "2026-09-10"),
+          async () => ({
+            orders: { "2": week([5, 5, 5, 5, 5]) },
+            failures: {},
+          }),
+        );
+        return (
+          <p>
+            {data
+              ? `Lesbares Fremdfenster: ${data.orders["2"].days[0]!.total}`
+              : "Fremdfenster lädt"}
+          </p>
+        );
+      }
+      const content = () => (
+        <>
+          <Revalidation />
+          <ReadableWindow />
+          <CatererOverviewPage />
+        </>
+      );
+      const view = render(content());
+      await screen.findByText("Bestellungen für Küche am Markt");
+      const row = () =>
+        within(screen.getAllByRole("table")[0]!)
+          .getByText("OGS Nord")
+          .closest("tr")!;
+      expect(within(row()).getByText("50")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+      await waitFor(() =>
+        expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+      );
+      expect(within(row()).getAllByText("10")).toHaveLength(2);
+      fireEvent.click(screen.getByRole("button", { name: "Diese Woche" }));
+      const refusal = deferred<ReturnType<typeof week>>();
+      mocks.fetchCatererOrders.mockReturnValueOnce(refusal.promise);
+      let pending!: Promise<unknown>;
+      act(() => {
+        pending = refresh(
+          (key) =>
+            key === catererKeys.orders(["1", "2"], "2026-09-07", "2026-09-11"),
+        );
+      });
+      await waitFor(() =>
+        expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(6),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+      const freshAmount = scenario === "account-roundtrip" ? "40" : "30";
+      if (scenario !== "current-session") {
+        mocks.fetchCatererOrders.mockImplementation((id: string) =>
+          Promise.resolve(
+            week(id === "1" ? [30, 30, 30, 30, 30] : [7, 7, 7, 7, 7]),
+          ),
+        );
+        if (scenario === "account-roundtrip") {
+          sessionState.data = {
+            user: { id: "caterer-b", scope: "caterer" },
+            expires: "2099-01-01",
+          } as Session;
+          view.rerender(content());
+          await waitFor(() =>
+            expect(within(row()).getAllByText("30")).toHaveLength(2),
+          );
+          mocks.fetchCatererOrders.mockImplementation((id: string) =>
+            Promise.resolve(
+              week(id === "1" ? [40, 40, 40, 40, 40] : [8, 8, 8, 8, 8]),
+            ),
+          );
+          sessionState.data = {
+            user: { id: "caterer", scope: "caterer" },
+            expires: "2099-01-01",
+          } as Session;
+          view.rerender(content());
+        } else if (scenario === "data-clear") {
+          await act(async () => {
+            await refresh((key) => key.startsWith(catererKeys.family), {
+              clear: true,
+            });
+            await refresh(
+              (key) =>
+                key ===
+                catererKeys.orders(["1", "2"], "2026-09-10", "2026-09-10"),
+            );
+          });
+        } else {
+          await act(async () => {
+            await refresh(
+              (key) =>
+                key ===
+                catererKeys.orders(["1", "2"], "2026-09-07", "2026-09-11"),
+            );
+            await refresh(
+              (key) =>
+                key ===
+                catererKeys.orders(["1", "2"], "2026-09-10", "2026-09-10"),
+            );
+          });
+        }
+        await waitFor(() =>
+          expect(within(row()).getAllByText(freshAmount)).toHaveLength(2),
+        );
+      }
+      const expand = screen.getByRole("button", {
+        name: "OGS Nord ausklappen",
+      });
+      fireEvent.click(expand);
+      const button = screen.getAllByRole("button", {
+        name: "Erhalten bestätigen",
+      })[0]!;
+      expect(button).toBeVisible();
+      // Do not let an accidental refetch hide a mistaken discard of fresh data.
+      mocks.fetchCatererOrders.mockImplementation(
+        () => new Promise(() => undefined),
+      );
+      await act(async () => {
+        refusal.reject(
+          new ApiError("no longer supplied", 403, {
+            code: "meals.not_supplied",
+          }),
+        );
+        await pending;
+      });
+      if (scenario === "current-session") {
+        // Anker: ein nur lesbares Fenster der anderen Schule bleibt geladen.
+        expect(screen.getByText("Lesbares Fremdfenster: 5")).toBeVisible();
+        expect(
+          screen.getByText("Bestellungen für Küche am Markt"),
+        ).toBeVisible();
+        expect(
+          screen.queryAllByRole("button", { name: "Erhalten bestätigen" }),
+        ).toHaveLength(0);
+      } else {
+        // Anker: dieselben frisch erlaubten Bestellungen bleiben in der neuen Generation.
+        expect(button).toBeVisible();
+        expect(within(row()).getAllByText(freshAmount)).toHaveLength(2);
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("does not reopen cached orders after another window refused school access", async () => {
     render(<CatererOverviewPage />);
     expect(

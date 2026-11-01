@@ -97,6 +97,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "useSWRAuth",
     "useSWRCacheKey",
     "useSWRPreload",
+    "useSWRRequestGuard",
     "useSWRWithId",
     "useScopedSWRKey",
     "useTenantMutate",

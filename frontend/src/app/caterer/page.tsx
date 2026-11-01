@@ -54,10 +54,10 @@ import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { useSWRAuth, useInvalidateMatching, useSWRCacheKey } from "~/lib/swr";
-import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
+import { useDiscardRefusedEntity, useSWRRequestGuard } from "~/lib/swr/hooks";
 import { catererKeys } from "~/lib/swr/portal-keys";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "CatererOverview" });
 
@@ -187,9 +187,12 @@ export default function CatererOverviewPage() {
     scopedKey: string | null;
     data?: CatererOrderWindow;
   }>({ scopedKey: null });
+  const guardRequest = useSWRRequestGuard();
+  const discardRefused = useDiscardRefusedEntity();
   const response = useSWRAuth<CatererOrderWindow>(
     ordersKey,
     async (): Promise<CatererOrderWindow> => {
+      const complete = guardRequest(ordersKey);
       // This reader belongs to the requested key even if the visible period
       // changes before its background requests settle.
       const requestedSnapshot = response.data;
@@ -217,12 +220,20 @@ export default function CatererOverviewPage() {
             ? null
             : (previous?.orders[schoolId] ?? null);
           failures[schoolId] = result.reason;
+        }
+      });
+      // A supply refusal also applies to other windows while this one is
+      // no longer selected. Never run that effect after a scope/data bump.
+      complete(() => {
+        for (const [schoolId, cause] of Object.entries(failures)) {
           logger.warn("caterer_orders_load_failed", {
             school_id: schoolId,
-            error:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
+            error: cause instanceof Error ? cause.message : String(cause),
+          });
+          discardRefused(cause, {
+            codes: ["meals.not_supplied"],
+            matches: (key) =>
+              catererKeys.containsSchool(key, schoolId) && key !== ordersKey,
           });
         }
       });
@@ -233,20 +244,6 @@ export default function CatererOverviewPage() {
   useLayoutEffect(() => {
     orderSnapshot.current = { scopedKey, data: response.data };
   });
-  const discardRefused = useDiscardRefusedEntity();
-  useLayoutEffect(() => {
-    for (const [schoolId, cause] of Object.entries(
-      response.data?.failures ?? {},
-    )) {
-      // The current window already contains the per-school error, never old orders.
-      // Other cached windows must not reopen data whose access was just refused.
-      discardRefused(cause, {
-        codes: ["meals.not_supplied"],
-        matches: (key) =>
-          catererKeys.containsSchool(key, schoolId) && key !== ordersKey,
-      });
-    }
-  }, [response.data, ordersKey, discardRefused]);
   const currentWindow = useRef({
     scopedKey,
     key: ordersKey,
@@ -263,17 +260,15 @@ export default function CatererOverviewPage() {
   const orders = action.data?.orders ?? {};
   const failures = action.data?.failures ?? {};
   const loading = schoolResponse.isLoading || response.isLoading;
-  const schoolsLoadError = useSwrLoadError(
-    schoolResponse.error,
+  const { error: schoolsLoadError } = useSwrResourceLoadError(
+    [schoolResponse],
     "Ihre Schulen",
     schoolResponse.mutate,
-    schoolResponse.data,
   );
-  const ordersLoadError = useSwrLoadError(
-    response.error,
+  const { error: ordersLoadError } = useSwrResourceLoadError(
+    [response],
     "die Bestellungen",
     response.mutate,
-    response.data,
   );
   const error = schoolsLoadError ?? ordersLoadError;
   const mutateOrders = response.mutate;

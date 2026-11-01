@@ -35,7 +35,7 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import type {
   AbsenceReportStatus,
@@ -282,8 +282,8 @@ function ClassReports({
     [],
   );
   const missing = Object.values(failures);
-  const loadError = useSwrLoadError(
-    missing[0]?.cause,
+  const { error: loadError } = useSwrResourceLoadError(
+    [{ error: missing[0]?.cause }],
     "die Klassenberichte",
     () => Promise.all(missing.map((failure) => failure.retry())),
   );
@@ -474,17 +474,15 @@ export function ClassDayOverview({
   const loading =
     classesLoading ||
     (schoolMode && !weekend && schoolDay === undefined && schoolDayLoading);
-  const classesLoadError = useSwrLoadError(
-    classesError,
+  const { error: classesLoadError } = useSwrResourceLoadError(
+    [{ data: classList, error: classesError }],
     "die Liste Ihrer Klassen",
     reloadClasses,
-    classList,
   );
-  const schoolDayLoadError = useSwrLoadError(
-    schoolMode ? schoolDayError : undefined,
+  const { error: schoolDayLoadError } = useSwrResourceLoadError(
+    [{ data: schoolDay, error: schoolMode ? schoolDayError : undefined }],
     "die Tagesübersicht der Schule",
     reloadSchoolDay,
-    schoolDay,
   );
   const loadError = classesLoadError ?? schoolDayLoadError;
   const hasLoadFailure = Boolean(loadError);

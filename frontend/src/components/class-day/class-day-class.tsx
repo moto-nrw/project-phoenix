@@ -47,7 +47,7 @@ import {
   HOMEWORK_DESCRIPTION_MAX_LENGTH,
   HOMEWORK_SUBJECT_MAX_LENGTH,
 } from "~/lib/homework-feedback";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassDayClasses,
@@ -310,11 +310,10 @@ export function ClassDayClass({
 
   // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).
-  const loadError = useSwrLoadError(
-    error,
+  const { error: loadError } = useSwrResourceLoadError(
+    [{ data: report, error }],
     `die ${schoolClassLabel(schoolClass)}`,
     () => refetchReport(),
-    report,
   );
 
   const rows = useMemo(() => report?.rows ?? [], [report]);
