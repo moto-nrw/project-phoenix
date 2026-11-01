@@ -18,7 +18,7 @@ import { HomeBoard } from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
 import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
-import { SchoolVacationHints } from "~/components/timetable/school-vacation-hints";
+import { SchoolVacationHintsCore } from "~/components/timetable/school-vacation-hints-core";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -528,7 +528,7 @@ function HomeContent() {
       {/* Regeltermine in den nächsten Schulferien (#5345): eine Aufgabe für
           Planende, deshalb fest über dem Brett. */}
       {!editing && timetableEnabled && access.has("schedules:manage") ? (
-        <SchoolVacationHints enabled />
+        <SchoolVacationHintsCore enabled />
       ) : null}
 
       {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die

@@ -76,6 +76,7 @@ import {
   SchoolVacationHints,
   vacationHintMessage,
 } from "./school-vacation-hints";
+import { SchoolVacationHintsCore } from "./school-vacation-hints-core";
 
 const christmas: SchoolVacationHint = {
   name: "Weihnachtsferien",
@@ -169,6 +170,19 @@ describe("SchoolVacationHints (#5345)", () => {
       initialFrom: "2026-10-20",
       initialTo: "2026-10-31",
     });
+  });
+
+  it("links to the bulk cancellation in the Betreuungsplan without a dialog of its own (home)", () => {
+    state.hints = [autumn];
+    render(<SchoolVacationHintsCore enabled />);
+
+    expect(
+      screen.getByRole("link", { name: "Termine absagen: Herbstferien" }),
+    ).toHaveAttribute(
+      "href",
+      "/test-tenant/betreuungsplan?d=2026-10-20&absagen=2026-10-20&absagenBis=2026-10-31",
+    );
+    expect(screen.queryByTestId("bulk-cancel-modal")).not.toBeInTheDocument();
   });
 
   it("confirms planned care for exactly this vacation and reloads the hint", async () => {

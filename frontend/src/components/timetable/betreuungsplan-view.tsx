@@ -206,9 +206,22 @@ const ALLOWED_URL_PARAMS = [
   "verbinden",
   // Zeitraum-ID des verlinkten Regeltermins (#5137).
   "zeitraum",
+  // „Termine absagen“ aus dem Ferienhinweis der Startseite (#5345): Erster
+  // und letzter Tag, mit denen die Sammelabsage öffnet.
+  "absagen",
+  "absagenBis",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
+
+/** Gültiger Zeitraum aus `absagen`/`absagenBis`, sonst `null`. */
+function linkedBulkCancelRange(
+  from: string | null,
+  to: string | null,
+): { from: string; to: string } | null {
+  if (!from || !to || !isValidISODate(from) || !isValidISODate(to)) return null;
+  return from <= to ? { from, to } : null;
+}
 
 // Leerzustand eines gefilterten Plans (#4766): nichts geplant heißt hier
 // „nichts für diese Auswahl“, nicht „nichts in dieser Woche“.
@@ -368,6 +381,12 @@ function TimetablesContent() {
   const [exportOpen, setExportOpen] = useState(false);
   // „Termine im Zeitraum absagen“ (#3594).
   const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
+  // Vom Ferienhinweis der Startseite verlinkt (#5345): die Sammelabsage ist
+  // offen, solange der Zeitraum in der URL steht.
+  const linkedCancelRange = linkedBulkCancelRange(
+    params.absagen,
+    params.absagenBis,
+  );
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
   // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
   // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
@@ -2270,12 +2289,22 @@ function TimetablesContent() {
           dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
       {/* #3594: geplante Termine eines Zeitraums absagen, z. B. Ferien, die
           erst nach der Planung als Schließtag eingetragen wurden. */}
-      {canManageSchedules && bulkCancelOpen && (
+      {canManageSchedules && (bulkCancelOpen || linkedCancelRange) && (
         <BulkCancelAppointmentsModal
           isOpen
-          initialFrom={fetchFromISO < todayISO ? todayISO : fetchFromISO}
-          initialTo={fetchToISO < todayISO ? todayISO : fetchToISO}
-          onClose={() => setBulkCancelOpen(false)}
+          initialFrom={
+            linkedCancelRange?.from ??
+            (fetchFromISO < todayISO ? todayISO : fetchFromISO)
+          }
+          initialTo={
+            linkedCancelRange?.to ??
+            (fetchToISO < todayISO ? todayISO : fetchToISO)
+          }
+          onClose={() => {
+            setBulkCancelOpen(false);
+            if (linkedCancelRange)
+              updateUrlParams({ absagen: null, absagenBis: null });
+          }}
         />
       )}
 
