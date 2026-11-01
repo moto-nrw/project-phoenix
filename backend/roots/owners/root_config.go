@@ -41,6 +41,9 @@ type ServiceConfig struct {
 	VAPIDPrivateKey            string
 	VAPIDSubscriber            string
 	StudentDailyCheckoutTime   string
+	// HealthDataKeys is the key ring the health information of the holiday
+	// registrations is sealed with (#4722): "id:base64key[,id:base64key]".
+	HealthDataKeys string
 }
 
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)

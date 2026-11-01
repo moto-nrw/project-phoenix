@@ -25,10 +25,9 @@ func NewHolidayHostGuestResource(participants *HolidayHostResource, guests capab
 	if participants == nil || guests == nil || requireAssign == nil {
 		panic("enrollment holiday host resource: the participant routes, the holiday guests and the permission are required")
 	}
-	return &HolidayHostResource{
-		participants: participants.participants, schoolNames: participants.schoolNames, requireRead: participants.requireRead,
-		guests: guests, requireAssign: requireAssign,
-	}
+	resource := *participants
+	resource.guests, resource.requireAssign = guests, requireAssign
+	return &resource
 }
 
 type holidayGuestGroupRequest struct {

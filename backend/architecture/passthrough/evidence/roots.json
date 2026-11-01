@@ -5728,9 +5728,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (a holidayParticipantAccessLog) RecordHolidayParticipantAccess(ctx context.Context, access enrollmentOwner.HolidayParticipantAccess) error {\n\tresourceType := auditModels.ResourceTypeHolidayParticipants\n\tmetadata := map[string]any{\"week_id\": access.WeekID, \"participants\": access.Participants}\n\tif access.Format != \"\" {\n\t\tresourceType = auditModels.ResourceTypeHolidayParticipantsExport\n\t\tmetadata[\"format\"] = access.Format\n\t}\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: resourceType, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(), Metadata: metadata})\n}",
+      "evidence": "func (p holidayGuestPeople) SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error {\n\treturn p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{HealthInfoSet: true, HealthInfo: healthInfo})\n}",
       "form": "unclassified-evidence",
-      "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayParticipantAccess",
+      "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a holidayParticipantAccessLog) RecordHolidayStudentHealthAccess(ctx context.Context, access enrollmentOwner.HolidayStudentHealthAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: auditModels.ResourceTypeHolidayStudentHealth, StudentID: \u0026studentID, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(), Metadata: map[string]any{\"week_ids\": access.WeekIDs}})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
       "owner": "roots"
     },
     {

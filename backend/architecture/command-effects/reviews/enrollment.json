@@ -1136,6 +1136,28 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.SetHolidayGuestHealthInfo",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.ApplyEnrollmentProfile (people-directory) through roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo. ADR 0120 addendum (#4722): the holiday guest copy carries the shared health information in the health field of its child; Enrollment writes it through the People Directory's enrollment profile command in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ApplyEnrollmentProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.SetHolidayGuestHealthInfo",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.ApplyEnrollmentProfile (people-directory) through roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo. ADR 0120 addendum (#4722): the holiday guest copy carries the shared health information in the health field of its child; Enrollment writes it through the People Directory's enrollment profile command in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ApplyEnrollmentProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
       "classification": "leaf",
       "effect": "mutation",
@@ -1223,6 +1245,26 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0084 and ADR 0116 addenda (#4722): Enrollment seals and opens the holiday health information with Security Runtime's field cipher, a pure computation over the root's key ring.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal. ADR 0084 and ADR 0116 addenda (#4722): Enrollment seals and opens the holiday health information with Security Runtime's field cipher, a pure computation over the root's key ring.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
       "classification": "query",
       "effect": "query",
@@ -1248,7 +1290,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction, with the number of children whose health information the list showed (#4722); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -1259,7 +1301,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction, with the number of children whose health information the list showed (#4722); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -1270,7 +1312,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction, with the number of children whose health information the list showed (#4722); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -1281,7 +1323,51 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess. ADR 0116 (#4665): every read and export of a participant list appends one data access log entry in the hosting school's tenant transaction, with the number of children whose health information the list showed (#4722); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess. ADR 0116 addendum (#4722): every read of the holiday health information of a child of the hosting school appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess. ADR 0116 addendum (#4722): every read of the holiday health information of a child of the hosting school appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess. ADR 0116 addendum (#4722): every read of the holiday health information of a child of the hosting school appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess. ADR 0116 addendum (#4722): every read of the holiday health information of a child of the hosting school appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -1305,6 +1391,48 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.Schools",
       "target_owner": "traeger-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.FindPerson. ADR 0116 addendum (#4722): the hosting school reads the names and the date of birth of its own child, without a row lock, to match it to the confirmed holiday registrations.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.ReadEnrollmentStudent (people-directory) through roots/owners.holidayStudentIdentities.HolidayStudentIdentity. ADR 0116 addendum (#4722): the hosting school reads the names and the date of birth of its own child in its tenant transaction to match it to the confirmed holiday registrations; the binding asks for no row lock, the target method can take one for other callers (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ReadEnrollmentStudent",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.FindPerson. ADR 0116 addendum (#4722): the hosting school reads the names and the date of birth of its own child, without a row lock, to match it to the confirmed holiday registrations.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.ReadEnrollmentStudent (people-directory) through roots/owners.holidayStudentIdentities.HolidayStudentIdentity. ADR 0116 addendum (#4722): the hosting school reads the names and the date of birth of its own child in its tenant transaction to match it to the confirmed holiday registrations; the binding asks for no row lock, the target method can take one for other callers (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ReadEnrollmentStudent",
+      "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",

@@ -154,6 +154,11 @@ type HolidayRegistrationInput struct {
 	FormVersion         int
 	CustomData          HolidayAnswers
 	LegalAcceptances    map[string]bool
+	// ConsentVersion is the version of the consent texts the parent agreed
+	// to (#4722); 0 when the client does not say. Only
+	// HolidayConsentVersionHostHealth lets the hosting OGS see the health
+	// information.
+	ConsentVersion int
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no

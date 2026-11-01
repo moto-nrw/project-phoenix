@@ -130,6 +130,11 @@ export interface HolidayRegistrationPayload {
   /** The form version the parent answered (#5198). */
   readonly legal_acceptances?: Readonly<Record<string, boolean>>;
   readonly form_version: number;
+  /**
+   * Version of the consent texts the parent agreed to (#4722): 2 names the
+   * hosting OGS as a reader of the health information.
+   */
+  readonly consent_version: number;
   /** Answers to the questions per family, by key (#5198). */
   readonly custom_data: Readonly<Record<string, unknown>>;
 }

@@ -88,7 +88,7 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	require.NoError(t, err)
 	staff, err := NewRFIDTestPeople(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, clock)
+	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, testHealthCipher(), clock)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
 	unit := testpkg.TenantRuntime(t, f.db)
@@ -98,7 +98,7 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), unit)))
 		})
 	})
-	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, accessLog, clock), guests).Router(ProtectedTenantRoutes))
+	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, persons, accessLog, testHealthCipher(), clock), guests).Router(ProtectedTenantRoutes))
 	router.Mount("/api/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 	nord := f.office.schools[0]
 	group := testpkg.CreateTestEducationGroupForTenant(t, f.db, nord, "Feriengruppe").ID

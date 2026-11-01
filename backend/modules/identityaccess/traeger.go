@@ -54,6 +54,9 @@ const (
 	TraegerRightAccountsManage   = "traeger_accounts:manage"
 	TraegerRightAccessLogRead    = "traeger_access_log:read"
 	TraegerRightSchoolSwitch     = "traeger_school:switch"
+	// TraegerRightHealthRead opens the health information of the holiday
+	// registrations (#4722, ADR 0084 section 4 addendum).
+	TraegerRightHealthRead = "traeger_health:read"
 )
 
 // traegerRoleRights is the role table of ADR 0084 section 4.
@@ -61,6 +64,7 @@ var traegerRoleRights = map[string][]string{
 	TraegerRoleAdministration: {
 		TraegerRightOverviewRead, TraegerRightEnrollmentManage, TraegerRightContractsManage, TraegerRightReportsRead,
 		TraegerRightSettingsManage, TraegerRightAccountsManage, TraegerRightAccessLogRead, TraegerRightSchoolSwitch,
+		TraegerRightHealthRead,
 	},
 	TraegerRoleBilling:   {TraegerRightOverviewRead, TraegerRightBillingManage, TraegerRightFinanceExport, TraegerRightReportsRead},
 	TraegerRolePersonnel: {TraegerRightOverviewRead, TraegerRightStaffManage, TraegerRightReportsRead},

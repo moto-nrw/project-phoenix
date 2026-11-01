@@ -196,3 +196,32 @@ Zugriffsschutz und die bestehende Befristung gelten auch für diese Angaben.
 Dieser Dokumentationsnachtrag ändert noch keine Kopie, Lesefunktion oder
 Löschroutine; die bisherigen Gesundheitsfilter bleiben bis zur
 nachgewiesenen Umsetzung wirksam.
+
+## Nachtrag 2026-11-01: Gesundheitsangaben des Feriengasts (#4722)
+
+Mit der Entscheidung des Nutzers vom 01.11.2026 („keine Datensilos“,
+Nachtrag zu ADR 0116) gilt Punkt 4 und der Nachtrag vom 28.10.2026 mit
+dieser Änderung:
+
+- **Gesundheitsfeld.** Die Kopie trägt die Gesundheitsangaben, die die
+  Teilnehmerliste liefert, im Gesundheitsfeld des Kindes (`health_info`),
+  geschrieben über den Enrollment-Befehl des People Directory
+  (`ApplyEnrollmentProfile`, wie die übrige Kopie). Das Team sieht sie dort,
+  wo es alle Kinder sieht: Kinderkarte, Gruppe, Gesundheitsliste. Ein
+  späterer Abgleich schreibt das Feld nur neu, wenn sich die Angaben der
+  Anmeldung ändern, und überschreibt sonst nicht, was das Team einträgt.
+- **Blatt.** `GET /api/holiday-guests/{studentId}` zeigt die Angaben unter
+  „Gesundheit“. Die Kopie hält sie verschlüsselt in
+  `enrollment.holiday_guests.health_data`, gebunden an Schule und Kind.
+- **Ende mit der Woche.** Die Gesundheitsangaben sieht die Schule wie die
+  Teilnehmerliste nur bis zum letzten Tag der Woche (Nachtrag zu ADR 0116).
+  Ab dem Tag danach zeigt das Blatt sie nicht mehr, und der stündliche
+  Abgleich löscht Kopie und Gesundheitsfeld; die sieben Tage nur lesend aus
+  Punkt 5 gelten für Kontakte und Antworten, nicht für Gesundheitsangaben.
+  Eine Stornierung oder Umbuchung beendet den Gast und löscht beides beim
+  nächsten Abgleich.
+- Weiter gilt: keine Einwilligungen, keine E-Mail-Adresse, keine Anschrift.
+  Ohne Einwilligung der Version 2 bekommt der Gast keine Gesundheitsangaben.
+- Die Verschlüsselung des Gesundheitsfelds für alle Kinder der Schule ist
+  nicht Teil dieses Nachtrags; die Kopie hat denselben Schutz wie die
+  eigenen Kinder der Schule.

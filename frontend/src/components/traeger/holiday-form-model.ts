@@ -39,8 +39,8 @@ export function prepareHolidayFieldsForSave(
       // Always sent, false included: the marker tells health questions from
       // the others, also for later readers such as #5202.
       health: Boolean(field.health),
-      // A health question is never shared with the hosting school (#5202).
-      share_with_host: Boolean(field.share_with_host) && !field.health,
+      // A health question can be shared with the hosting school since #4722.
+      share_with_host: Boolean(field.share_with_host),
     };
   });
 }

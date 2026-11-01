@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // =============================================================================
@@ -68,6 +71,24 @@ func TestValidateServeConfig_MissingTurnstileKeysFail(t *testing.T) {
 		require.Error(t, err, missing)
 		assert.Contains(t, err.Error(), missing)
 	}
+}
+
+// The health information of the holiday registrations is sealed with
+// HEALTH_DATA_KEYS (#4722): without a usable key ring the server refuses to
+// start instead of failing at the first registration.
+func TestValidateServeConfig_MissingOrUnusableHealthDataKeysFail(t *testing.T) {
+	t.Parallel()
+	missing := validServeConfig()
+	missing.HealthDataKeys = " "
+	err := validateServeConfig(missing)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HEALTH_DATA_KEYS")
+
+	unusable := validServeConfig()
+	unusable.HealthDataKeys = "k1:" + base64.StdEncoding.EncodeToString([]byte("too short"))
+	err = validateServeConfig(unusable)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HEALTH_DATA_KEYS")
 }
 
 func TestValidateServeConfig_TestEnvAllowsExplicitTestDSN(t *testing.T) {
@@ -261,5 +282,15 @@ func validServeConfig() serveConfig {
 		// Cloudflare's documented always-passing Turnstile test keys.
 		TurnstileSiteKey:   "1x00000000000000000000AA",
 		TurnstileSecretKey: "1x0000000000000000000000000000000AA",
+		HealthDataKeys:     testHealthDataKeys(),
 	}
+}
+
+// testHealthDataKeys is a key ring with one random key (#4722).
+func testHealthDataKeys() string {
+	key := make([]byte, 32)
+	if err := securityruntime.FillRandom(key); err != nil {
+		panic(err)
+	}
+	return "test:" + base64.StdEncoding.EncodeToString(key)
 }

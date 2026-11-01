@@ -408,7 +408,8 @@ const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skippe
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
 // holiday guest for both weeks, with answers to the questions of the
-// period's standard template (#5198). All names are invented.
+// period's standard template (#5198), under the consent texts that share the
+// health information with the hosting OGS (#4722). All names are invented.
 func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[string]any, error) {
 	var envelope struct {
 		Data struct {
@@ -440,14 +441,16 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 				"custom_data": map[string]any{"lebensmittelunvertraeglichkeiten": "Laktose", "tetanus_impfschutz": "ja",
 					"darf_allein_nach_hause": false, "darf_an_ausfluegen_teilnehmen": true}},
 			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
-				"guest_school_name": "Grundschule am See", "bookings": []map[string]any{booking(0, 0), booking(1, 0)},
+				"guest_school_name": "Grundschule am See", "medication": "Asthmaspray bei Bedarf",
+				"bookings": []map[string]any{booking(0, 0), booking(1, 0)},
 				"custom_data": map[string]any{"tetanus_impfschutz": "weiss_nicht", "darf_allein_nach_hause": true,
 					"darf_an_ausfluegen_teilnehmen": true}},
 		},
 		"emergency_contacts": []map[string]any{{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"}},
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
-		"captcha_token": seedTurnstileTestToken,
+		"consent_version": 2,
+		"captcha_token":   seedTurnstileTestToken,
 	}, nil
 }
 

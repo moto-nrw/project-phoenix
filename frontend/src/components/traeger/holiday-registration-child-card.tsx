@@ -51,6 +51,7 @@ export function HolidayRegistrationChildCard({
   registration,
   child,
   health,
+  healthHidden = false,
   names,
   onChanged,
 }: Readonly<{
@@ -58,6 +59,11 @@ export function HolidayRegistrationChildCard({
   registration: HolidayRegistrationDetail;
   child: HolidayRegistrationChild;
   health: HolidayRegistrationHealth | undefined;
+  /**
+   * The parents gave health information, but the account lacks the right
+   * „Gesundheitsangaben sehen“ (#4722): the card says so instead.
+   */
+  healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
   onChanged: (registration: HolidayRegistrationDetail) => void;
 }>) {
@@ -176,7 +182,16 @@ export function HolidayRegistrationChildCard({
 
         <ChildAnswers registration={registration} childId={child.id} />
 
-        {health ? (
+        {healthHidden ? (
+          <InfoSection title="Gesundheit">
+            <InfoText>
+              Gesundheitsangaben sieht nur die Rolle Verwaltung.
+            </InfoText>
+          </InfoSection>
+        ) : null}
+
+        {health &&
+        (health.allergies || health.medication || health.healthNotes) ? (
           <InfoSection title="Gesundheit">
             <DataGrid>
               {health.allergies ? (
