@@ -89,6 +89,8 @@ func (i sessionIndex) neighbours(session AccountSession) (linked, ambiguous []Ac
 	}
 	if session.SwitchedFromFamilyID != "" {
 		linked = append(linked, sameAccount(session, i.byFamily[session.SwitchedFromFamilyID])...)
+		// The common origin remains a link after its token rows expire.
+		linked = append(linked, sameAccount(session, i.bySwitchedFrom[session.SwitchedFromFamilyID])...)
 	}
 	if session.ReplacementTokenHash != nil {
 		candidates := i.byToken[*session.ReplacementTokenHash]

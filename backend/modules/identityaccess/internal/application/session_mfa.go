@@ -149,13 +149,14 @@ func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.Verif
 // adoptSourceFamily checks the family a switch presents: it must still live,
 // and a tenant or school switch inherits its second-factor proof.
 func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID int64, familyID string, session *domain.AccountSession, now time.Time) error {
-	if err := s.requireLiveSourceFamily(ctx, accountID, familyID, now); err != nil {
+	origin, err := s.liveSourceLineage(ctx, accountID, familyID, now)
+	if err != nil {
 		return err
 	}
 	// The link is written under the account lock logout takes: a logout
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
-	session.SwitchedFromFamilyID = familyID
+	session.SwitchedFromFamilyID = origin
 	if familyID == "" || (session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool) {
 		return nil
 	}
@@ -167,23 +168,29 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	return nil
 }
 
-// requireLiveSourceFamily refuses a switch whose presented family is gone
-// (#5194). It runs under the account lock logout takes as well, so a switch
+// liveSourceLineage returns the original login family, refusing a switch
+// whose presented family is gone (#5194). It runs under the account lock
+// logout takes as well, so a switch
 // that started before a logout either commits first or finds the family
 // revoked; it cannot mint a new session out of a revoked one.
-func (s *AccountAuthentication) requireLiveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) error {
+func (s *AccountAuthentication) liveSourceLineage(ctx context.Context, accountID int64, familyID string, now time.Time) (string, error) {
 	if familyID == "" {
-		return nil
+		return "", nil
 	}
 	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return identityaccess.ErrInvalidToken
+		return "", identityaccess.ErrInvalidToken
 	}
 	if err != nil {
-		return fmt.Errorf("inspect source session family: %w", err)
+		return "", fmt.Errorf("inspect source session family: %w", err)
 	}
 	if source.AccountID != accountID || !source.Expiry.After(now) {
-		return identityaccess.ErrInvalidToken
+		return "", identityaccess.ErrInvalidToken
 	}
-	return nil
+	// Keep the root, not the immediate parent: cleanup may remove every
+	// intermediate family while later descendants are still valid.
+	if source.SwitchedFromFamilyID != "" {
+		return source.SwitchedFromFamilyID, nil
+	}
+	return source.FamilyID, nil
 }

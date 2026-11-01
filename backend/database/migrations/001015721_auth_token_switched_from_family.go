@@ -26,8 +26,8 @@ func init() {
 }
 
 // A school switch mints a family of its own and retires the presented one
-// with a grace. switched_from_family_id names that presented family, so a
-// logout of either one revokes every family of the switch lineage (#5422).
+// with a grace. switched_from_family_id retains the original login family,
+// so a logout revokes the lineage even after ancestor rows expire (#5422).
 // Rows from before this migration carry NULL: their switches stay unlinked,
 // as they were, and their source families end with the grace.
 func authTokenSwitchedFromFamilyUp(ctx context.Context, db *bun.DB) error {

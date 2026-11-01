@@ -130,3 +130,22 @@ func TestSessionChainFollowsSwitchLineage(t *testing.T) {
 		t.Fatalf("another login joins nothing: chain = %v", got)
 	}
 }
+
+func TestSessionChainFollowsSwitchLineageWithoutAncestorRows(t *testing.T) {
+	t.Parallel()
+	sessions := []AccountSession{
+		{ID: 1, AccountID: 7, FamilyID: "first", SwitchedFromFamilyID: "cleaned-root"},
+		{ID: 2, AccountID: 7, FamilyID: "second", SwitchedFromFamilyID: "cleaned-root"},
+		{ID: 3, AccountID: 7, FamilyID: "other-login"},
+		{ID: 4, AccountID: 8, FamilyID: "foreign", SwitchedFromFamilyID: "cleaned-root"},
+	}
+	for _, start := range sessions[:2] {
+		chain, err := SessionChain(start, sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chainIDs(chain); fmt.Sprint(got) != "[1 2]" {
+			t.Fatalf("from %d: chain = %v, want [1 2]", start.ID, got)
+		}
+	}
+}

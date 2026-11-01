@@ -440,10 +440,11 @@ logout revokes the whole chain it links into, all reached families
 included, before it reports success. The walk follows only unique links
 (one match, same account, generation ± 1); an ambiguous continuation of the
 own chain fails the logout instead. A school switch (tenant, school portal,
-Träger school) writes the family it was minted from into
-`auth.tokens.switched_from_family_id` under that account lock, and rotation
-carries it on. Logout follows this link in both directions, so every family of
-one login's switch lineage ends together: a switch that commits before the
+Träger school) writes the original login family into
+`auth.tokens.switched_from_family_id` under that account lock. Further switches
+and rotation carry that same origin on. Logout also joins families naming the
+same origin after cleanup removed the origin or intermediate token rows. Every
+family of one login's switch lineage ends together: a switch that commits before the
 logout's lock is revoked with it, one that waits finds its source gone. Other
 logins of the account keep their sessions. Each school records the revocation
 of its own sessions in its own tenant transaction (#5422). A staff-view preview

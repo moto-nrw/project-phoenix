@@ -237,3 +237,54 @@ func TestLogoutAuditsSwitchedFamiliesInTheirOwnSchool(t *testing.T) {
 		assert.Equal(t, 1, logoutEvents, "school %d records the logout revocation of its own session once", tenantID)
 	}
 }
+
+// Cleanup must not sever either a sibling fork or a deeper switch lineage.
+func TestLogoutRevokesSwitchedSiblingAfterSourceCleanup(t *testing.T) {
+	t.Parallel()
+	assertLogoutAfterAncestorCleanup(t, false)
+}
+
+func TestLogoutRevokesSwitchLineageAfterIntermediateCleanup(t *testing.T) {
+	t.Parallel()
+	assertLogoutAfterAncestorCleanup(t, true)
+}
+
+func assertLogoutAfterAncestorCleanup(t *testing.T, intermediate bool) {
+	t.Helper()
+	testpkg.SetupIsolatedTestDB(t)
+	f := newSwitchLineageFixture(t, "logout-cleaned-lineage")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	_, firstRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	siblingAccess, siblingRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	expiredFamilies := []string{source.FamilyID}
+	if intermediate {
+		expiredFamilies = append(expiredFamilies, accessSessionOf(t, siblingAccess).FamilyID)
+		siblingAccess, siblingRefresh, err = f.service.SwitchTenant(ctx, f.accountID,
+			fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, siblingAccess).FamilyID)
+		require.NoError(t, err)
+	}
+	other := newOtherDeviceSession(t, f)
+	_, err = f.db.NewUpdate().TableExpr("auth.tokens").Set("expiry = ?", time.Now().Add(-time.Minute)).
+		Where("account_id = ?", f.accountID).Where("family_id IN (?)", bun.List(expiredFamilies)).Exec(ctx)
+	require.NoError(t, err)
+	for _, tenantID := range []int64{f.homeTenantID, f.targetTenantID} {
+		_, err = f.service.CleanupExpiredTokens(testpkg.TenantContext(tenantID))
+		require.NoError(t, err)
+	}
+	for _, familyID := range expiredFamilies {
+		require.Zero(t, familyRowCount(t, f.db, familyID), "cleanup removed the ancestor")
+	}
+	sibling := accessSessionOf(t, siblingAccess)
+	require.NoError(t, f.module.VerifyAccessSession(ctx, sibling), "the descendant is still live before logout")
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, firstRefresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, sibling), identityaccess.ErrInvalidToken)
+	assert.Zero(t, familyRowCount(t, f.db, sibling.FamilyID))
+	_, _, err = f.service.RefreshToken(ctx, siblingRefresh)
+	require.Error(t, err, "the descendant's refresh token is revoked")
+	require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login remains valid")
+}
