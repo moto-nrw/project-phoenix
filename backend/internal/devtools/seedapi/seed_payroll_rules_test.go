@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -70,6 +71,9 @@ func TestSeedPayrollRulesStep_CreatesWageTypesRulesAndTheMapping(t *testing.T) {
 	assert.Equal(t, "nacht", server.rules[0]["kind"])
 	assert.Equal(t, "1", server.rules[0]["wage_type_id"], "the night rule books onto the night wage type")
 	assert.Equal(t, "2", server.rules[1]["wage_type_id"])
+	assert.Empty(t, server.mapped)
+
+	require.NoError(t, seedPayrollAbsenceTypeMappingStep{}.Run(context.Background(), rt))
 	assert.Equal(t, map[string]string{"40": "4"}, server.mapped, "the Regenerationstag books onto its day wage type")
 	for _, auth := range server.auths {
 		assert.Equal(t, "Bearer tenant-token", auth)
@@ -86,4 +90,31 @@ func TestSeedPayrollRulesStep_KeepsTheWageTypesOfASecondRun(t *testing.T) {
 
 	assert.Equal(t, []string{"Nachtzuschlag"}, server.wageTypes)
 	assert.Empty(t, server.rules)
+	require.NoError(t, seedPayrollAbsenceTypeMappingStep{}.Run(context.Background(), rt))
+	assert.Empty(t, server.mapped)
+}
+
+func TestPayrollRuleMappingWaitsForDeferredTimeTrackingHistory(t *testing.T) {
+	t.Parallel()
+
+	index := func(steps []Step, match func(Step) bool) int {
+		for i, step := range steps {
+			if match(step) {
+				return i
+			}
+		}
+		return -1
+	}
+	isType := func(want Step) func(Step) bool {
+		return func(got Step) bool { return reflect.TypeOf(got) == reflect.TypeOf(want) }
+	}
+
+	complete := fullDemoWorkflow(&Seeder{}).Steps
+	assert.Less(t, index(complete, isType(seedTimeTrackingHistoryStep{})), index(complete, isType(seedPayrollAbsenceTypeMappingStep{})))
+
+	deferred := &Seeder{options: SeedOptions{DeferHistory: true}}
+	opening := fullDemoWorkflow(deferred).Steps
+	assert.NotEqual(t, -1, index(opening, isType(seedPayrollRulesStep{})))
+	assert.Equal(t, -1, index(opening, isType(seedPayrollAbsenceTypeMappingStep{})))
+	assert.Less(t, index(deferredDemoSteps(deferred), isType(seedTimeTrackingHistoryStep{})), index(deferredDemoSteps(deferred), isType(seedPayrollAbsenceTypeMappingStep{})))
 }

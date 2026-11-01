@@ -242,12 +242,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffOnboardingStep{},
 		seedLocalCarePlanAccountStep{seeder: seeder},
 		seedSchoolTeacherStep{seeder: seeder},
-		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
-		// zählt alle, auch Besuch, Admin und Externe (#5032).
-		seedPayrollNumbersStep{},
-		// Eigene Lohnarten und Zuschläge (#4807); bucht den Regenerationstag
-		// der Zeiterfassung auf eine eigene Lohnart.
-		seedPayrollRulesStep{},
+	)
+	steps = appendPayrollRuleSteps(steps, seeder)
+	steps = append(steps,
 		// Nach der Abrechnung: Der geplante Austritt ändert keine Zahl dort
 		// (#4809).
 		seedPlannedStaffExitStep{},
@@ -270,6 +267,16 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
 	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+func appendPayrollRuleSteps(steps []Step, seeder *Seeder) []Step {
+	// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
+	// zählt alle, auch Besuch, Admin und Externe (#5032).
+	steps = append(steps, seedPayrollNumbersStep{}, seedPayrollRulesStep{})
+	if seeder.options.DeferHistory {
+		return steps
+	}
+	return append(steps, seedPayrollAbsenceTypeMappingStep{})
 }
 
 // deferredPastSteps fill the past: the time-tracking history, today's
@@ -300,6 +307,8 @@ func deferredPastSteps() []Step {
 // counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
+		// Bei aufgeschobener Historie existiert der Regenerationstag erst jetzt.
+		seedPayrollAbsenceTypeMappingStep{},
 		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedBookingLeftoverStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		// The meal orders ran before the phase existed; the bookings follow it.
 		seedRegularBookingsStep{},

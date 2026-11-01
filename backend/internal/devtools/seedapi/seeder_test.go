@@ -1036,6 +1036,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// Keeping them here makes its final payroll-status read prove that the
 	// endpoint-specific requests persisted the expected demo numbers.
 	staffPersonnelNumbers := make(map[int64]string)
+	// The payroll-rule mapping reads the wage types after it creates them.
+	// Keep that endpoint state so the mock follows the production API.
+	payrollWageTypes := []map[string]string{}
 	manualStudents := make(map[int64]map[string]any)
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
@@ -1247,9 +1250,22 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		// tracking step created; the school starts without own wage types.
 		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/time-tracking/payroll-rules" {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
-				"wage_types": []any{}, "surcharge_rules": []any{},
+				"wage_types": payrollWageTypes, "surcharge_rules": []any{},
 				"absence_types": []map[string]any{{"id": "9001", "name": "Regenerationstag", "is_active": true, "wage_type_id": nil}},
 			}})
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff/time-tracking/payroll-rules/wage-types" {
+			var body struct {
+				Name string `json:"name"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			payrollWageType := map[string]string{
+				"id":   fmt.Sprint(len(payrollWageTypes) + 1),
+				"name": body.Name,
+			}
+			payrollWageTypes = append(payrollWageTypes, payrollWageType)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]string{"id": payrollWageType["id"]}})
 			return
 		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {

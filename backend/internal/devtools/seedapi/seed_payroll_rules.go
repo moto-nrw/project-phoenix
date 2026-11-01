@@ -77,29 +77,43 @@ func (seedPayrollRulesStep) Run(_ context.Context, rt *Runtime) error {
 			return fmt.Errorf("create %s surcharge rule: %w", rule.kind, err)
 		}
 	}
-	return mapSeedAbsenceType(rt, "Regenerationstag", ids["Regenerationstag"])
+	return nil
 }
 
-// mapSeedAbsenceType books the school's absence type of that name onto the
-// wage type; the time tracking step created it.
-func mapSeedAbsenceType(rt *Runtime, name, wageTypeID string) error {
+// seedPayrollAbsenceTypeMappingStep books the Regenerationstag that time
+// tracking created onto its own day wage type.
+type seedPayrollAbsenceTypeMappingStep struct{}
+
+func (seedPayrollAbsenceTypeMappingStep) Name() string { return "Mapping payroll absence type" }
+
+func (seedPayrollAbsenceTypeMappingStep) Run(_ context.Context, rt *Runtime) error {
 	rules, err := readSeedPayrollRules(rt)
 	if err != nil {
 		return err
 	}
 	for _, absenceType := range rules.AbsenceTypes {
-		if absenceType.Name != name {
+		if absenceType.Name != "Regenerationstag" {
 			continue
+		}
+		var wageTypeID string
+		for _, wageType := range rules.WageTypes {
+			if wageType.Name == "Regenerationstag" {
+				wageTypeID = wageType.ID
+				break
+			}
+		}
+		if wageTypeID == "" {
+			return nil
 		}
 		if _, err := rt.Client.PutWithAuth(rt.TenantAuth, payrollRulesPath+"/absence-types/"+absenceType.ID, map[string]any{
 			"wage_type_id": wageTypeID,
 		}); err != nil {
-			return fmt.Errorf("book absence type %s onto its wage type: %w", name, err)
+			return fmt.Errorf("book absence type Regenerationstag onto its wage type: %w", err)
 		}
-		fmt.Printf("  %d wage types, %d surcharge rules, %s booked\n", len(demoWageTypes), len(demoSurchargeRules), name)
+		fmt.Printf("  Regenerationstag booked onto its wage type\n")
 		return nil
 	}
-	return fmt.Errorf("absence type %s for the payroll rules is missing", name)
+	return fmt.Errorf("absence type Regenerationstag for the payroll rules is missing")
 }
 
 func readSeedPayrollRules(rt *Runtime) (seedPayrollRules, error) {
