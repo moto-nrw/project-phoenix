@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -312,10 +313,15 @@ func TestTemplateOfferingConnectionCoversEveryFutureSegment(t *testing.T) {
 	assert.Equal(t, fixture.split.String(), *preview.Segments[0].ValidUntil)
 	assert.Nil(t, preview.Segments[1].ValidUntil)
 
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 	w = doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/offering-connection", fixture.segmentB), map[string]any{
 		"offering_ids": []int64{rosterReviewOfferingID}, "school_classes": []string{"2c"}, "effective_date": effective.String(),
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	// Open planners and supervision views learn about the rewritten rosters
+	// after the commit (#5017).
+	assert.Equal(t, []string{"template_offering_connection"}, announcer.sources)
 	result := decodeTemplateData[offeringConnectionResponse](t, w)
 	assert.Equal(t, []int64{fixture.segmentA, fixture.segmentB}, result.TemplateIDs)
 	assert.Equal(t, effective.String(), result.EffectiveDate)
@@ -364,6 +370,8 @@ func TestTemplateOfferingConnectionRefusals(t *testing.T) {
 	t.Parallel()
 	s := buildRosterReviewModule(t, &rosterMaintenanceSources{})
 	fixture := s.arrangeTwoSegmentSeries(t)
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 	path := fmt.Sprintf("/templates/%d/offering-connection", fixture.segmentB)
 	for name, body := range map[string]map[string]any{
 		"past date":           {"offering_ids": []int64{rosterReviewOfferingID}, "effective_date": calendar.NewDate(2020, 1, 6).String()},
@@ -384,6 +392,21 @@ func TestTemplateOfferingConnectionRefusals(t *testing.T) {
 		})
 	}
 	assert.Empty(t, s.resyncs, "a refused connection writes nothing")
+	assert.Empty(t, announcer.sources, "a refused connection announces nothing")
+}
+
+// recordingStaffingAnnouncer records the staffing announcements a handler
+// queues; the test router's transaction runs them after its commit.
+type recordingStaffingAnnouncer struct {
+	mu      sync.Mutex
+	sources []string
+}
+
+func (a *recordingStaffingAnnouncer) AnnounceStaffingChanged(_ int64, source string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sources = append(a.sources, source)
+	return nil
 }
 
 // TestTemplateRosterDeviationsQueryBudget keeps the deviation list batched:

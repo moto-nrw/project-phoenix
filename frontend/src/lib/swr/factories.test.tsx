@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSWRConfig } from "swr";
 import { SWRGlobalState } from "swr/_internal";
+import { bumpDataGeneration } from "./generation";
 import { roomKeys } from "./rooms-keys";
 import { groupKeys } from "./groups-keys";
 import { staffKeys } from "./staff-keys";
@@ -277,4 +278,27 @@ describe("shared resource factories", () => {
       messageKeys.messagesInbox(false),
     );
   });
+});
+
+describe("protected current reader snapshots", () => {
+  it.each(["scope", "entity", "pending"] as const)(
+    "blocks retained snapshot reads immediately after %s invalidation",
+    async (boundary) => {
+      const fresh = { id: "7", name: "Aula" };
+      const request = vi.fn(async () => fresh);
+      const { result } = renderHook(() => useSWRAuth(roomKeys.key(), request));
+      await waitFor(() => expect(result.current.data).toEqual(fresh));
+      const retainedRead = result.current.readCurrent;
+      expect(retainedRead?.()).toEqual({ data: fresh, error: undefined });
+      _setSWRCleanupForTests(false);
+      act(() => {
+        if (boundary === "scope") resetSWRScope({ revalidate: false });
+        else if (boundary === "entity")
+          bumpDataGeneration((key) => key.endsWith(roomKeys.key()));
+        else suspendSWRSession();
+        expect(retainedRead?.()).toEqual({ data: undefined, error: undefined });
+      });
+      resumeSWRSession();
+    },
+  );
 });

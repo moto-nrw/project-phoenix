@@ -79,6 +79,7 @@ func (s *service) createActiveGroupLocked(ctx context.Context, group *ports.Acti
 	if err := s.GroupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
 	}
+	s.queueSupervisionRefresh(ctx, group.ID, activeSupervisionReasonActivityStarted)
 
 	return nil
 }
@@ -124,6 +125,7 @@ func (s *service) updateActiveGroupLocked(ctx context.Context, group *ports.Acti
 	if err := s.GroupRepo.Update(ctx, group); err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("update failed: %w", err)}
 	}
+	s.queueSupervisionRefresh(ctx, group.ID, activeSupervisionReasonActivityStarted)
 
 	return nil
 }
@@ -174,6 +176,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	if err := s.GroupRepo.Delete(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("delete failed: %w", err)}
 	}
+	s.queueSupervisionRefresh(ctx, id, activeSupervisionReasonActivityEnded)
 
 	return nil
 }

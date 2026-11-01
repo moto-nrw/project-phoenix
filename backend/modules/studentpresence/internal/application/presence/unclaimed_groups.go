@@ -94,6 +94,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 			source = stampSourceNFC
 		}
 		s.ensureStaffPresence(txCtx, staffID, source)
+		s.queueSupervisionRefresh(txCtx, groupID, activeSupervisionReasonSupervisorsChanged)
 		return nil
 	})
 	if err != nil {

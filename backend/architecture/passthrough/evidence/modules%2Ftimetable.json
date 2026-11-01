@@ -2760,13 +2760,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (a *templateAdministration) UpdateTemplate(ctx context.Context, cmd timetable.UpdateTemplateCommand) error {\n\treturn a.templates.UpdateTemplate(ctx, templateUpdateInput(cmd))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/timetable/internal/application/templateAdministration.UpdateTemplate",
-      "owner": "modules/timetable"
-    },
-    {
-      "build": "production",
       "evidence": "func (d *timetableData) BlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error) {\n\tif d.deps.BlockMetadata == nil {\n\t\treturn map[int64]timetable.BlockDisplayMetadata{}, nil\n\t}\n\treturn d.deps.BlockMetadata.ListBlockDisplayMetadata(ctx, instanceIDs)\n}",
       "form": "guarded-forward-evidence",
       "id": "modules/timetable/internal/application/timetableData.BlockDisplayMetadata",

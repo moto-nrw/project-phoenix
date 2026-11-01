@@ -12,6 +12,16 @@ export const dashboardKeys = {
   analytics: () => "dashboard-analytics",
 } as const;
 
+// „Aktuelle Aufsicht" without groups:read (#4573): the caller's own planned
+// blocks and running sessions. The SSE consumer invalidates the family on
+// supervision, activity and timetable events (#5017).
+export const ownSupervisionKeys = {
+  family: "active-supervisions-own-",
+  day: () => "active-supervisions-own-day",
+  plannedNow: () => "active-supervisions-own-planned-now",
+  sessions: () => "active-supervisions-own-sessions",
+} as const;
+
 // Family prefixes of the shared resource factories, here so the
 // always-mounted SSE invalidator carries no key factory.
 export const SWR_FAMILIES = {

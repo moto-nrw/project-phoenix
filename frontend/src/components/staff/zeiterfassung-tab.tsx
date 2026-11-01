@@ -58,6 +58,7 @@ import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   useInvalidateMatching,
+  useLiveRefreshInterval,
   useSWRAuth,
   useTenantMutateMatching,
 } from "~/lib/swr";
@@ -305,6 +306,9 @@ export function ZeiterfassungTab({
   const accountStartsInFuture =
     accountStartDate !== "" && accountStartDate > todayISO;
   const [showReopenModal, setShowReopenModal] = useState(false);
+  // staff_time_tracking_changed invalidates the Monatskarte; the interval
+  // follows the growing Ist of an open block (#5017).
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
   const invalidate = useInvalidateMatching();
   const refreshAfterBackfill = () =>
     invalidate(
@@ -323,7 +327,7 @@ export function ZeiterfassungTab({
       : null,
     () =>
       staffMonthSummaryService.getMonthSummary(staffId, monthYear, monthNumber),
-    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+    { refreshInterval: isCurrentMonth ? openMonthRefreshMs : 0 },
   );
 
   const retryDailyProjection = useMemo(

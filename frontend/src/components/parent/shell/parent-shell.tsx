@@ -1,8 +1,11 @@
 "use client";
 
 import { parentKeys } from "~/lib/swr/parent-keys";
+import { Fragment, useState } from "react";
+import { useSWRCacheKey } from "~/lib/swr";
+import { ParentPageSkeleton } from "~/components/parent/parent-page";
 
-import { useSWRAuth } from "~/lib/swr";
+import { useParentChildren } from "~/lib/hooks/use-parent-resources";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
@@ -11,7 +14,7 @@ import { Header } from "~/components/dashboard/header";
 import { DemoBanner, isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import { PortalShell } from "~/components/ui/portal-shell";
-import { listMyChildren } from "~/lib/parent-api";
+
 import { ParentBottomNav } from "./parent-bottom-nav";
 import { ParentSidebar } from "./parent-sidebar";
 import { ParentFirstSteps } from "~/components/parent/onboarding/parent-first-steps";
@@ -37,11 +40,30 @@ export function ParentShell({
   const { unreadCount: messagesUnread } =
     useParentMessagesUnread(authenticated);
   const { unreadCount: newsOpen } = useParentNewsUnread(authenticated);
-  const { data: linkedChildren } = useSWRAuth(
-    authenticated ? parentKeys.shellChildren() : null,
-    listMyChildren,
-    { keepPreviousData: false },
-  );
+  const { data: linkedChildren } = useParentChildren(authenticated);
+  const scoped = useSWRCacheKey();
+  const identity = scoped("");
+  const relationships = linkedChildren
+    ? parentKeys.relationshipSet(linkedChildren)
+    : null;
+  const [contentEpoch, setContentEpoch] = useState({
+    identity,
+    relationships,
+    revision: 0,
+  });
+  if (
+    contentEpoch.identity !== identity ||
+    (contentEpoch.relationships !== null &&
+      contentEpoch.relationships !== relationships)
+  ) {
+    setContentEpoch({
+      identity,
+      relationships,
+      revision: contentEpoch.revision + 1,
+    });
+  } else if (relationships !== null && contentEpoch.relationships === null) {
+    setContentEpoch({ ...contentEpoch, relationships });
+  }
   const newsEnabled = useParentNewsEnabled(
     authenticated,
     linkedChildren ?? null,
@@ -102,7 +124,9 @@ export function ParentShell({
             />
           }
         >
-          {children}
+          <Fragment key={`${identity}:${contentEpoch.revision}`}>
+            {identity === null ? <ParentPageSkeleton rows={2} /> : children}
+          </Fragment>
         </PortalShell>
       </MobilePageHelpPortal>
       {authenticated && shellAuth.user?.id && linkedChildren ? (

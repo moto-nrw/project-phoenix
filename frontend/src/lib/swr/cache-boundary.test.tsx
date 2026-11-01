@@ -68,6 +68,8 @@ const PUBLIC_SURFACE: Record<string, () => Promise<object>> = {
 const REVIEWED_EXPORTS: Record<string, string[]> = {
   index: [
     "IsolatedSWRCache",
+    "LIVE_FALLBACK_INTERVAL_MS",
+    "LIVE_RECONCILE_INTERVAL_MS",
     "SWRScopeBoundary",
     "SWRSeedBoundary",
     "authGeneration",
@@ -78,6 +80,9 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "useImmutableSWR",
     "useInvalidateFamily",
     "useInvalidateMatching",
+    "useLiveEventScope",
+    "useLiveRefreshInterval",
+    "usePublishLiveChannel",
     "useSWRAuth",
     "useSWRCacheKey",
     "useSWRPreload",
@@ -132,7 +137,12 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "traegerKeys",
     "weekProtocolKeys",
   ],
-  "shell-keys": ["SWR_FAMILIES", "announcementKeys", "dashboardKeys"],
+  "shell-keys": [
+    "SWR_FAMILIES",
+    "announcementKeys",
+    "dashboardKeys",
+    "ownSupervisionKeys",
+  ],
   "parent-keys": ["parentKeys"],
   "rooms-keys": ["roomKeys"],
   "groups-keys": ["groupKeys"],

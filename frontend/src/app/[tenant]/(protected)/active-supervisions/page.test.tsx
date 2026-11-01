@@ -9,6 +9,8 @@
  */
 import {
   render as rtlRender,
+  renderHook,
+  act,
   screen,
   waitFor,
   cleanup,
@@ -293,6 +295,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,
@@ -307,6 +311,9 @@ import { useSWRAuth } from "~/lib/swr";
 import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
+import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { TEST_CLOCK_TODAY } from "~/test/clock";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -5916,6 +5923,59 @@ describe("overview caller and foreign sessions (#5035)", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("refetches the limited planned list when a block ends", async () => {
+    vi.useFakeTimers();
+    // Five blocks fill the backend limit. The sixth can only appear after
+    // a refetch frees the slot of the first block, which ends at 12:01.
+    const plannedNow: PlannedTimetableInstance[] = Array.from(
+      { length: 5 },
+      (_, index) => ({
+        id: String(index + 1),
+        title: `Block ${index + 1}`,
+        date: TEST_CLOCK_TODAY,
+        startTime: "11:50:00",
+        endTime: index === 0 ? "12:01:00" : "13:00:00",
+        roomId: "r1",
+        roomName: "Atelier",
+        status: "planned",
+        isOverdue: false,
+        minutesUntilStart: -10,
+        expectedStudentsCount: 0,
+        presentStudentsCount: 0,
+        notScheduledStudentsCount: 0,
+        assignedStaffIds: [],
+        isAssigned: false,
+        isPrimary: false,
+        isSubstitute: false,
+        isAbsent: false,
+        rosterPreview: [],
+      }),
+    );
+    mockDashboard({ plannedNow });
+    const { result } = renderHook(
+      () =>
+        useSupervisionDashboard({
+          sessionKey: "account-7",
+          sessionParam: null,
+          roomParam: null,
+        }),
+      { wrapper: ToastProvider },
+    );
+    expect(result.current.plannedNow).toEqual(plannedNow);
+    mockMutate.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+    // The shared timer leaves two seconds for the server clock to pass
+    // the boundary, instead of waiting for the five-minute SSE reconcile.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 
   it("selects and saves the own session instead of the first foreign one", async () => {
