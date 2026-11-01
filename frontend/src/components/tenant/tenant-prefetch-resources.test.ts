@@ -1,7 +1,7 @@
 import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 import { tenantPrefetchResources } from "./tenant-prefetch-resources";
-import { studentKeys, homeLayoutKeys } from "~/lib/swr/portal-keys";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import { groups } from "~/lib/swr/groups";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -17,7 +17,6 @@ function context(permissions: string[], scope = "") {
     groupId: "7",
     groups: ["7"],
     hasSupervision: true,
-    teacherMode: true,
     detailedMode: true,
     photoState: "photos-disabled" as const,
   };
@@ -107,17 +106,15 @@ describe("tenant destination resources", () => {
       }),
     ).toEqual([]);
   });
-  it("shares home layout and the teacher's existing request-access key", async () => {
+  it("keeps the wave's other measured links outside the first destination catalog", async () => {
+    const allowed = context(["users:read", "users:update"]);
     expect(
-      (await tenantPrefetchResources("/home", context([]))).map(
+      (await tenantPrefetchResources("/students/123", allowed)).map(
         (resource) => resource.key,
       ),
-    ).toEqual([homeLayoutKeys.key()]);
-    expect(
-      (
-        await tenantPrefetchResources("/anfragen", context(["users:update"]))
-      ).map((resource) => resource.key),
-    ).toEqual([studentKeys.requestAccess("42")]);
+    ).toEqual([studentKeys.detail("123")]);
+    expect(await tenantPrefetchResources("/home", allowed)).toEqual([]);
+    expect(await tenantPrefetchResources("/anfragen", allowed)).toEqual([]);
   });
   it.each([
     "/traeger/access-log",

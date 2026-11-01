@@ -80,6 +80,7 @@
   "src/components/timetable/use-roster-deviations.ts": 1,
   "src/components/timetable/vertretung-view.tsx": 4,
   "src/lib/hooks/use-account-balance.ts": 2,
+  "src/lib/hooks/use-change-request-access.ts": 1,
   "src/lib/hooks/use-closing-days.ts": 2,
   "src/lib/hooks/use-dienstplan-data.ts": 3,
   "src/lib/hooks/use-enrollments-unread.ts": 1,

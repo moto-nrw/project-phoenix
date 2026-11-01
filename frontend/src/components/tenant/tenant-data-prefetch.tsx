@@ -4,7 +4,6 @@ import { useCallback, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { usePresenceMode, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
-import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { tenantPrefetchResources } from "./tenant-prefetch-resources";
@@ -23,7 +22,6 @@ export function TenantDataPrefetch({
     : photos.enabled
       ? "photos-enabled"
       : "photos-disabled";
-  const mode = useShellAuthSafe()?.mode;
   const memory = useSidebarMemory();
   const supervision = useOptionalSupervision();
   const resourcesFor = useCallback(
@@ -33,14 +31,13 @@ export function TenantDataPrefetch({
         session,
         photoState,
         detailedMode,
-        teacherMode: mode === "teacher",
         slug,
         groupId: memory.read("sidebar-last-group"),
         groups: supervision?.groups.map((group) => group.id) ?? [],
         hasSupervision: supervision?.isSupervising ?? false,
       });
     },
-    [session, slug, mode, photoState, detailedMode, memory, supervision],
+    [session, slug, photoState, detailedMode, memory, supervision],
   );
   return (
     <ResourcePrefetchProvider resourcesFor={resourcesFor}>

@@ -1,6 +1,5 @@
 "use client";
 
-import { studentKeys } from "~/lib/swr/portal-keys";
 import { useSession } from "next-auth/react";
 
 import {
@@ -34,7 +33,7 @@ export function useChangeRequestAccess() {
   const { data, error, isLoading, mutate } =
     useSWRAuth<ParentRequestReviewAccess>(
       needsParentReviewAccess && accountId
-        ? studentKeys.requestAccess(accountId)
+        ? `${CHANGE_REQUEST_ACCESS_SWR_KEY}:${accountId}`
         : null,
       fetchChangeRequestAccess,
       {

@@ -122,7 +122,6 @@ export const messageKeys = {
 
 export const studentKeys = {
   search: searchKey,
-  requestAccess: (id: string) => `change-request-access:${id}`,
   schoolClasses: () => "search-student-school-classes",
   statisticsReport: (params: object) =>
     resourceKey("student-statistics-report-", params),

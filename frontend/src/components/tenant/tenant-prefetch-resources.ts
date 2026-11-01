@@ -2,25 +2,16 @@ import { fetchSupervisionDashboard } from "~/components/active-supervisions/supe
 import { fetchStudentDetail } from "~/lib/student-detail-resource";
 import type { Session } from "next-auth";
 import type { PrefetchResource } from "~/components/ui/data-prefetch-intent";
-import {
-  hasPermission,
-  hasEffectiveAdminScope,
-  canReadSupervisionData,
-} from "~/lib/auth-utils";
+import { hasPermission, canReadSupervisionData } from "~/lib/auth-utils";
 import { canReadStudents } from "~/lib/student-access";
-import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { groups } from "~/lib/swr/groups";
 import { rooms } from "~/lib/swr/rooms";
-import { studentKeys, homeLayoutKeys } from "~/lib/swr/portal-keys";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { fetchStudentSearch } from "~/lib/student-search-resource";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { studentService } from "~/lib/api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
-import { courseWaitlistKeys } from "~/lib/swr/course-waitlist-keys";
-import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
-import { fetchHomeLayout } from "~/lib/home-layout-api";
-import { fetchChangeRequestAccess } from "~/lib/change-requests-api";
 
 /** Explicit opt-in destinations. Never a URL-to-API conversion or an audited read. */
 export async function tenantPrefetchResources(
@@ -31,7 +22,6 @@ export async function tenantPrefetchResources(
     groupId: string | null;
     groups: readonly string[];
     hasSupervision: boolean;
-    teacherMode: boolean;
     detailedMode: boolean;
     photoState: "photos-loading" | "photos-enabled" | "photos-disabled";
   },
@@ -133,26 +123,6 @@ export async function tenantPrefetchResources(
     return [
       { key: studentKeys.detail(id), fetcher: () => fetchStudentDetail(id) },
     ];
-  }
-  if (path === "/home")
-    return [{ key: homeLayoutKeys.key(), fetcher: fetchHomeLayout }];
-  if (path === "/anfragen" && canReviewChangeRequests(session)) {
-    if (hasEffectiveAdminScope(session)) {
-      return [
-        {
-          key: courseWaitlistKeys.all(),
-          fetcher: () => fetchCourseWaitlists(),
-        },
-      ];
-    }
-    // The target checks this access before opening its parent queues.
-    if (context.teacherMode)
-      return [
-        {
-          key: studentKeys.requestAccess(session.user.id),
-          fetcher: fetchChangeRequestAccess,
-        },
-      ];
   }
   return [];
 }
