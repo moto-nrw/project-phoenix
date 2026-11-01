@@ -1618,11 +1618,14 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 			},
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
+		publisher := &refreshRecordingPublisher{}
+		svc.Broadcaster = publisher
 
 		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
+		assert.Empty(t, publisher.refreshes, "a failed close announces nothing")
 		assert.False(t, result.Success)
 		assert.Zero(t, result.VisitsEnded)
 		assert.Zero(t, result.SessionsEnded)
@@ -1642,11 +1645,15 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 			},
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
+		publisher := &refreshRecordingPublisher{}
+		svc.Broadcaster = publisher
 
 		svc.settings = &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.NoError(t, err)
+		// One school-wide refresh for the whole close (#5017).
+		assert.Equal(t, []supervisionRefresh{{reason: activeSupervisionReasonActivityEnded}}, publisher.refreshes)
 		assert.True(t, result.Success)
 		assert.Equal(t, 2, result.VisitsEnded)
 		assert.Equal(t, 1, result.SessionsEnded)

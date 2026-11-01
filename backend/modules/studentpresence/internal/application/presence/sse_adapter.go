@@ -30,7 +30,11 @@ func (s *service) queueSupervisionRefresh(ctx context.Context, activeGroupID int
 		return
 	}
 	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
-	id := strconv.FormatInt(activeGroupID, 10)
+	// 0 names no single session: a school-wide change such as the daily close.
+	id := ""
+	if activeGroupID > 0 {
+		id = strconv.FormatInt(activeGroupID, 10)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.broadcastSupervisionRefresh(broadcastCtx, id, reason, nil)
 	})

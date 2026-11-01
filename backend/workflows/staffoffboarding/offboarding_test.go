@@ -90,6 +90,7 @@ func newFixture(t *testing.T) fixture {
 		AppendAudit:        func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return nil },
 		Cleanup:            func(context.Context, int64) error { return nil },
 		GroupAccessChanged: func(context.Context) {},
+		PlanChanged:        func(context.Context) {},
 		Observe:            func(staffoffboarding.Observation) {},
 	}
 	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people.Owner}
@@ -176,8 +177,14 @@ func TestWorkflowDetectsDriftThenRetiresIdempotently(t *testing.T) {
 	require.NoError(t, err, "drift must be rejected before deleting another owner's rows")
 	preview, err = workflow.Preview(ctx, f.staffID)
 	require.NoError(t, err)
+	planChanges := 0
+	f.deps.PlanChanged = func(context.Context) { planChanges++ }
+	workflow, err = staffoffboarding.New(f.deps)
+	require.NoError(t, err)
 	result, err := workflow.Execute(ctx, f.staffID, preview.Revision)
 	require.NoError(t, err)
+	// The removed shift and block staffing are announced once (#5017).
+	require.Equal(t, 1, planChanges)
 	require.EqualValues(t, 2, result.Membership.ClassAssignments)
 	require.EqualValues(t, 1, result.Workforce.Shifts)
 	require.EqualValues(t, 1, result.Timetable.InstanceAssignments)
@@ -189,6 +196,7 @@ func TestWorkflowDetectsDriftThenRetiresIdempotently(t *testing.T) {
 	result, err = workflow.Execute(ctx, f.staffID, preview.Revision)
 	require.NoError(t, err)
 	require.Equal(t, staffoffboarding.Result{}, result)
+	require.Equal(t, 1, planChanges, "an idempotent retry removes and announces nothing")
 }
 
 func TestWorkflowRequiresAuthorizationBeforeOwnerReads(t *testing.T) {

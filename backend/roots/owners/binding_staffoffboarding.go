@@ -30,7 +30,7 @@ func AuthorizeStaffOffboarding(ctx context.Context, resolveActor func(context.Co
 
 // New constructs only the required owner capabilities.
 // It does not build or retain a service/repository factory.
-func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffoffboarding.Workforce, groupAccessChanged func(context.Context)) (*staffoffboarding.Workflow, error) {
+func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffoffboarding.Workforce, groupAccessChanged, planChanged func(context.Context)) (*staffoffboarding.Workflow, error) {
 	if deps.DB == nil || deps.Access == nil || deps.Membership == nil || deps.Retirement == nil || deps.Timetable == nil || deps.LockSupervision == nil || deps.Authorize == nil || deps.Cleanup == nil ||
 		deps.Audit == nil || deps.StaffDeletionRecord == nil {
 		return nil, errors.New("staff offboarding composition: required dependency is missing")
@@ -58,6 +58,7 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 		},
 		Cleanup:            deps.Cleanup,
 		GroupAccessChanged: groupAccessChanged,
+		PlanChanged:        planChanged,
 		Observe: func(event staffoffboarding.Observation) {
 			logger.Debug("staff offboarding operation",
 				"operation", event.Operation,

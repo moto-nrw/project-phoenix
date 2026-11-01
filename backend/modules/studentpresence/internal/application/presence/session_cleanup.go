@@ -122,7 +122,14 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		if err != nil {
 			return err
 		}
-		return s.endDailySessionsLocked(txCtx, lockedIDs, result)
+		if err := s.endDailySessionsLocked(txCtx, lockedIDs, result); err != nil {
+			return err
+		}
+		if len(lockedIDs) > 0 {
+			// One school-wide refresh for the whole day's close (#5017).
+			s.queueSupervisionRefresh(txCtx, 0, activeSupervisionReasonActivityEnded)
+		}
+		return nil
 	}); err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: err}

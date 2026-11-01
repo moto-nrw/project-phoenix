@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
@@ -49,7 +50,22 @@ func NewStaffOffboardingWorkflow(deps offboardingcompose.Dependencies) (*staffof
 		logger = slog.Default()
 	}
 	events := NewGroupEvents(deps.Broadcaster, logger)
+	staffing := owners.NewStaffingAnnouncer(deps.Broadcaster)
 	return owners.NewStaffOffboarding(deps, work, func(ctx context.Context) {
 		events.QueueGroupAccessChanged(ctx, "staff_offboarding")
+	}, func(ctx context.Context) {
+		staffTimeTrackingNotifier(deps.Broadcaster)(ctx)
+		if staffing == nil {
+			return
+		}
+		tenantID := tenant.FromContext(ctx)
+		tenant.RegisterAfterCommit(ctx, func() {
+			if err := staffing.AnnounceStaffingChanged(tenantID, "staff_offboarding"); err != nil {
+				logger.Warn("SSE staff offboarding staffing broadcast failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+			}
+		})
 	})
 }
