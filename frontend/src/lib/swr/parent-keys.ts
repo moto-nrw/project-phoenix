@@ -16,14 +16,6 @@ function relationships(children: readonly Child[]): string {
  * routes do not carry every portal's factories.
  */
 export const parentKeys = {
-  newsEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-news-enabled"
-      : `parent-news-enabled-${encodeURIComponent(id)}`,
-  mealPlanEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-meal-plan-enabled"
-      : `parent-meal-plan-enabled-${encodeURIComponent(id)}`,
   mealParticipationFamily: (schoolId: string, studentId: string) =>
     `parent-meal-participation-${encodeURIComponent(schoolId)}-${encodeURIComponent(studentId)}-`,
   mealParticipation: (

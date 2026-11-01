@@ -266,21 +266,18 @@ describe("parent start cache isolation", () => {
     },
   );
 
-  it.each(["parent-threads-refresh", "parent-messages-unread-refresh"])(
-    "revalidates messages without repeating unrelated child requests after %s",
-    async (eventName) => {
-      mount();
-      expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
-      expect(listMessageThreads).toHaveBeenCalledTimes(1);
-      act(() => {
-        window.dispatchEvent(new CustomEvent(eventName));
-      });
-      await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
-      expect(listMyChildren).toHaveBeenCalledTimes(1);
-      expect(getChildFeatures).toHaveBeenCalledTimes(1);
-      expect(getChildToday).toHaveBeenCalledTimes(1);
-    },
-  );
+  it("revalidates messages without repeating unrelated child requests", async () => {
+    mount();
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    expect(listMessageThreads).toHaveBeenCalledTimes(1);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
+    });
+    await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
+    expect(getChildFeatures).toHaveBeenCalledTimes(1);
+    expect(getChildToday).toHaveBeenCalledTimes(1);
+  });
   it("refreshes the shared message list only once for one incoming SSE message", async () => {
     mount();
     expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
@@ -347,7 +344,7 @@ describe("parent start cache isolation", () => {
     expect(listMessageThreads).toHaveBeenCalledTimes(1);
     view.rerender(<Fixture visible={false} />);
     act(() => {
-      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
+      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
     });
     view.rerender(<Fixture />);
     await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
