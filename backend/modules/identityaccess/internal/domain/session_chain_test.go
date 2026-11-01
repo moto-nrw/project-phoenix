@@ -93,3 +93,40 @@ func TestSessionChainCollidingToken(t *testing.T) {
 		t.Fatalf("SessionChain() error = %v, want ErrSessionChainAmbiguous", err)
 	}
 }
+
+// TestSessionChainFollowsSwitchLineage pins #5422: a logout reaches every
+// family a switch minted from the chain and the family the chain was
+// switched from, in both directions and transitively, but not another
+// login of the account nor a family of another account that names it.
+func TestSessionChainFollowsSwitchLineage(t *testing.T) {
+	t.Parallel()
+	switched := func(id int64, account int64, family, from string) AccountSession {
+		return AccountSession{ID: id, AccountID: account, TokenHash: fmt.Sprintf("t%d", id), FamilyID: family, SwitchedFromFamilyID: from}
+	}
+	sessions := []AccountSession{
+		switched(1, 7, "login", ""),
+		switched(2, 7, "first", "login"),
+		switched(3, 7, "first", "login"),
+		switched(4, 7, "second", "login"),
+		switched(5, 7, "third", "second"),
+		switched(6, 7, "other-login", ""),
+		switched(7, 8, "foreign", "login"),
+	}
+	lineage := []int64{1, 2, 3, 4, 5}
+	for _, start := range []AccountSession{sessions[0], sessions[1], sessions[4]} {
+		chain, err := SessionChain(start, sessions)
+		if err != nil {
+			t.Fatalf("from %d: %v", start.ID, err)
+		}
+		if got := chainIDs(chain); fmt.Sprint(got) != fmt.Sprint(lineage) {
+			t.Fatalf("from %d: chain = %v, want %v", start.ID, got, lineage)
+		}
+	}
+	chain, err := SessionChain(sessions[5], sessions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chainIDs(chain); fmt.Sprint(got) != "[6]" {
+		t.Fatalf("another login joins nothing: chain = %v", got)
+	}
+}

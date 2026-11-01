@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -486,20 +488,21 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		familyID = uuid.Must(uuid.NewV4()).String()
 	}
 	successor := domain.AccountSession{
-		Token:           domain.SuccessorRefreshToken(predecessor.Token),
-		AccountID:       accountID,
-		TenantID:        tenantID,
-		OrganizationID:  predecessor.OrganizationID,
-		Expiry:          expiry,
-		Mobile:          predecessor.Mobile,
-		Identifier:      predecessor.Identifier,
-		FamilyID:        familyID,
-		FamilyExpiryCap: predecessor.FamilyExpiryCap,
-		Generation:      predecessor.Generation + 1,
-		PortalScope:     domain.PersistedPortalScope(scope),
-		MFAVerified:     predecessor.MFAVerified,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		Token:                domain.SuccessorRefreshToken(predecessor.Token),
+		AccountID:            accountID,
+		TenantID:             tenantID,
+		OrganizationID:       predecessor.OrganizationID,
+		Expiry:               expiry,
+		Mobile:               predecessor.Mobile,
+		Identifier:           predecessor.Identifier,
+		FamilyID:             familyID,
+		SwitchedFromFamilyID: predecessor.SwitchedFromFamilyID,
+		FamilyExpiryCap:      predecessor.FamilyExpiryCap,
+		Generation:           predecessor.Generation + 1,
+		PortalScope:          domain.PersistedPortalScope(scope),
+		MFAVerified:          predecessor.MFAVerified,
+		CreatedAt:            now,
+		UpdatedAt:            now,
 	}
 	created, err := s.sessions.CreateAccountSession(ctx, identityaccess.AccountSession(successor))
 	if err != nil {
@@ -564,8 +567,9 @@ func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Co
 	return nil
 }
 
-// LogoutWithAudit invalidates the presented refresh-token family; other
-// devices and portals keep their sessions. Logout runs in an administrative
+// LogoutWithAudit invalidates the presented refresh-token family with the
+// chain it links into, the families of its school-switch lineage included
+// (#5422); other logins, devices and portals keep their sessions. Logout runs in an administrative
 // transaction because auth.tokens is RLS-guarded and the route carries no
 // tenant.
 func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (err error) {
@@ -606,7 +610,9 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 		return nil
 	})
 	if err == nil && revoked != nil {
-		s.queuePushCleanup(ctx, revoked.AccountID, []domain.AccountSession{*revoked}, "family")
+		// Every revoked family drops its push subscriptions, the families of
+		// the switch lineage included (#5422).
+		s.queuePushCleanup(ctx, revoked.AccountID, append([]domain.AccountSession{*revoked}, sessions...), "family")
 		s.auditLogout(ctx, *revoked, sessions, claims.TenantID, ipAddress, userAgent)
 	}
 	return err
@@ -614,6 +620,9 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 
 // auditLogout appends the audit rows after the family deletion committed;
 // logout must never leave a usable session because the audit store is down.
+// A switch lineage spans schools (#5422): each school's ledger records the
+// revocation of its own sessions in its own tenant transaction, and the
+// school of the presented session records the logout itself.
 func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.AccountSession, sessions []domain.AccountSession, claimTenantID int64, ipAddress, userAgent string) {
 	// A Träger session belongs to no school, and the authentication ledger
 	// is school-scoped (ADR 0084); the Träger audit arrives with #4655.
@@ -630,21 +639,42 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 			slog.String("error", "tenant is required"))
 		return
 	}
-	auditCtx := s.runtime.WithTenantID(ctx, tenantID)
-	err := s.runtime.WithTenantTx(auditCtx, tenantID, func(txCtx context.Context) error {
+	bySchool := sessionsBySchool(sessions, tenantID)
+	for _, schoolID := range slices.Sorted(maps.Keys(bySchool)) {
+		if err := s.auditLogoutAtSchool(ctx, revoked.AccountID, schoolID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent); err != nil {
+			s.logger.Error("failed to audit logout",
+				slog.Int64("account_id", revoked.AccountID),
+				slog.Int64("tenant_id", schoolID),
+				slog.Any("error", err))
+		}
+	}
+}
+
+// sessionsBySchool groups the revoked sessions by school. A session without
+// school belongs to the presented one, which is always present.
+func sessionsBySchool(sessions []domain.AccountSession, presentedTenantID int64) map[int64][]domain.AccountSession {
+	bySchool := map[int64][]domain.AccountSession{presentedTenantID: nil}
+	for _, session := range sessions {
+		schoolID := session.TenantID
+		if schoolID == 0 {
+			schoolID = presentedTenantID
+		}
+		bySchool[schoolID] = append(bySchool[schoolID], session)
+	}
+	return bySchool
+}
+
+func (s *AccountAuthentication) auditLogoutAtSchool(ctx context.Context, accountID, schoolID int64, sessions []domain.AccountSession, presented bool, ipAddress, userAgent string) error {
+	auditCtx := s.runtime.WithTenantID(ctx, schoolID)
+	return s.runtime.WithTenantTx(auditCtx, schoolID, func(txCtx context.Context) error {
 		if err := s.auditRevokedSessions(txCtx, sessions, "logout", ipAddress, userAgent); err != nil {
 			return err
 		}
-		if ipAddress == "" {
+		if !presented || ipAddress == "" {
 			return nil
 		}
-		return s.logAuthEvent(txCtx, revoked.AccountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
+		return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
 	})
-	if err != nil {
-		s.logger.Error("failed to audit logout",
-			slog.Int64("account_id", revoked.AccountID),
-			slog.Any("error", err))
-	}
 }
 
 func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {

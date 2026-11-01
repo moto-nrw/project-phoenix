@@ -152,6 +152,10 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	if err := s.requireLiveSourceFamily(ctx, accountID, familyID, now); err != nil {
 		return err
 	}
+	// The link is written under the account lock logout takes: a logout
+	// that runs after this switch commits finds the new family through it
+	// (#5422); one that ran before left no source family to switch from.
+	session.SwitchedFromFamilyID = familyID
 	if familyID == "" || (session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool) {
 		return nil
 	}
