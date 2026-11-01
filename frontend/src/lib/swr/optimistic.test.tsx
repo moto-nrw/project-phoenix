@@ -760,3 +760,91 @@ it("does not run a departed view's confirmation callback from another reader", a
     await outcome;
   });
 });
+
+it("keeps newer messages when an already read-confirmed POST answers late", async () => {
+  await mounted();
+  const response = deferred<Thread>();
+  const mutate = reader.mutate;
+  const acknowledged = {
+    items: [...START.items, { id: "saved-b", body: "b" }],
+  };
+  let first: Promise<OptimisticOutcome<Thread>>;
+  await act(async () => {
+    first = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: (value) => {
+        void mutate(value, { revalidate: false });
+      },
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+    });
+  });
+  await act(async () => {
+    await mutate(acknowledged, { revalidate: false });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  const newer = {
+    items: [...acknowledged.items, { id: "saved-c", body: "c" }],
+  };
+  await act(async () => {
+    await action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "c" }],
+      }),
+      request: async () => newer,
+      commit: (value) => {
+        void mutate(value, { revalidate: false });
+      },
+    });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b\|c$/);
+  await act(async () => {
+    response.resolve(acknowledged);
+    await first;
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b\|c$/);
+});
+
+it("still discards a refused resource after a read acknowledged the send", async () => {
+  await mounted();
+  const response = deferred<Item>();
+  const refusal = new ApiError("permission revoked", 403, {
+    code: "general.permission",
+  });
+  let outcome!: Promise<OptimisticOutcome<Item>>;
+  await act(async () => {
+    outcome = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: () => undefined,
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+      refusal: {
+        codes: ["general.permission"],
+        matches: (key) => key === "thread-1",
+      },
+    });
+  });
+  await act(async () => {
+    await reader.mutate(
+      { items: [...START.items, { id: "saved-b", body: "b" }] },
+      { revalidate: false },
+    );
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  await act(async () => {
+    response.reject(refusal);
+    await outcome;
+  });
+  expect(await outcome).toEqual({
+    status: "failed",
+    error: refusal,
+    refused: true,
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent("leer");
+});

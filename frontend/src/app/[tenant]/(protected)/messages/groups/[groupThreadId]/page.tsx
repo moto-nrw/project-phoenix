@@ -151,10 +151,15 @@ function GroupMessageContent() {
       },
     });
     if (outcome.status === "done") attempt.complete(clientMessageId);
-    if (outcome.status !== "failed" || !attempt.isActive(clientMessageId))
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
       return;
     failed = true;
-    const mayRestoreDraft = draftRevision.current === sentDraftRevision;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
     setDraft((current) => (mayRestoreDraft && current === "" ? body : current));

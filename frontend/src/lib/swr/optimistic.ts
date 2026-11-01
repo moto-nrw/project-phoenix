@@ -103,7 +103,7 @@ export type OptimisticOutcome<R> =
       /** The server refused the resource; its representations are gone. */
       readonly refused: boolean;
     }
-  /** The generation or scope moved while the request ran: nothing happened. */
+  /** The scope moved or a read already confirmed the write; no commit remains. */
   | { readonly status: "discarded" };
 
 interface Overlay {
@@ -305,6 +305,7 @@ export function useOptimisticAction<T>(
         latestScope.current === scope;
       sequence += 1;
       const id = `optimistic-${sequence}`;
+      let readConfirmed = false;
       const overlay: Overlay = {
         id,
         owner,
@@ -313,6 +314,7 @@ export function useOptimisticAction<T>(
         apply: action.optimistic as Overlay["apply"],
         confirmed: action.confirmed as Overlay["confirmed"],
         onConfirmed: () => {
+          readConfirmed = true;
           if (view?.active && stillCurrent()) action.onConfirmed?.();
         },
       };
@@ -324,11 +326,7 @@ export function useOptimisticAction<T>(
       try {
         result = await action.request();
       } catch (error) {
-        if (
-          !stillCurrent() ||
-          (latestConfirmed.current !== undefined &&
-            action.confirmed?.(latestConfirmed.current))
-        ) {
+        if (!stillCurrent()) {
           drop();
           return { status: "discarded" };
         }
@@ -338,7 +336,13 @@ export function useOptimisticAction<T>(
             codes: action.refusal.codes,
             matches: action.refusal.matches,
           });
-        if (!view?.active) {
+        if (
+          !view?.active ||
+          (!refused &&
+            (readConfirmed ||
+              (latestConfirmed.current !== undefined &&
+                action.confirmed?.(latestConfirmed.current))))
+        ) {
           drop();
           return { status: "discarded" };
         }
@@ -353,7 +357,7 @@ export function useOptimisticAction<T>(
         }
         return { status: "failed", error, refused };
       }
-      if (!stillCurrent()) {
+      if (!stillCurrent() || readConfirmed) {
         drop();
         return { status: "discarded" };
       }

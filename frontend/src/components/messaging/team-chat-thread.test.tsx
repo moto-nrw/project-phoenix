@@ -396,6 +396,58 @@ describe("TeamChatThread optimistic send (#5011)", () => {
     },
   );
 
+  it("honors a resource refusal even after a read confirmed the send", async () => {
+    let rejectSend!: (error: unknown) => void;
+    api.postMessage.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectSend = reject;
+        }),
+    );
+    await typeAndSend("Danke");
+    const key = api.postMessage.mock.calls[0]?.[2];
+    api.fetchThread.mockResolvedValue({
+      ...thread,
+      messages: [
+        ...thread.messages,
+        {
+          id: "m2",
+          sender_account_id: "1",
+          sender_name: "Ich",
+          body: "Danke",
+          created_at: "2026-09-09T10:05:00Z",
+          client_message_id: key,
+        },
+      ],
+    });
+    const refresh = vi
+      .mocked(useMessagesActivity)
+      .mock.calls.at(-1)?.[0].onMatch;
+    expect(refresh).toBeTypeOf("function");
+    await act(async () => {
+      refresh?.();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText("Danke", { selector: "span" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument();
+    });
+    await act(async () => {
+      rejectSend(
+        new ApiError("Forbidden", 403, { code: "general.permission" }),
+      );
+    });
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Unterhaltung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Hallo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Danke")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+  });
+
   it("drops the conversation on a refusal and shows the refusal", async () => {
     api.postMessage.mockRejectedValue(
       new ApiError("Forbidden", 403, { code: "general.permission" }),

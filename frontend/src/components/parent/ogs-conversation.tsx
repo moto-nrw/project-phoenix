@@ -409,10 +409,15 @@ export function OgsConversation({
       nudgeUnreadBadge();
       return;
     }
-    if (outcome.status !== "failed" || !attempt.isActive(clientMessageId))
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
       return;
     failed = true;
-    const mayRestoreDraft = draftRevision.current === sentDraftRevision;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // The text goes back into the field unless a new one is there.
     setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
