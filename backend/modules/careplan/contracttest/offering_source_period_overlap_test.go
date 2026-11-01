@@ -31,6 +31,14 @@ func TestOfferingSourcePeriodOverlap_ReadsCountTheOverlap(t *testing.T) {
 		uniqueSchemaName(t.Name()), overlapPeriodStart, overlapPeriodEnd)
 	offering := createSourceOffering(t, env, "UeberlappLesen", nil)
 	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "overlap-read@example.com", "Ida", 2)
+	// A second child books from 2027-07-10, after the planning period ends:
+	// nothing of that booking falls into the period, so it is not counted.
+	_, lateChildID := submitAndApproveOfferingChild(t, env, offering.ID, "overlap-read-late@example.com", "Lea", 2)
+	_, err := env.db.NewRaw(
+		`UPDATE enrollment.care_offering_bookings SET valid_from = ? WHERE request_child_id = ? AND care_offering_id = ?`,
+		calendar.NewDate(2027, 7, 10), lateChildID, offering.ID,
+	).Exec(ctx)
+	require.NoError(t, err)
 	editor, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
 
@@ -41,10 +49,15 @@ func TestOfferingSourcePeriodOverlap_ReadsCountTheOverlap(t *testing.T) {
 		optionIDs = append(optionIDs, option.ID)
 	}
 	assert.Contains(t, optionIDs, offering.ID, "the picker offers the offering")
+	for _, option := range options {
+		if option.ID == offering.ID {
+			assert.Equal(t, 1, option.TotalCount, "a booking starting after the period end is not counted")
+		}
+	}
 
 	counts, err := testpkg.TenantQuery2(t, ctx, env.db, editor.CombinedOfferingSourceCounts, []int64{offering.ID}, &period.ID)
 	require.NoError(t, err, "the connect preview must not refuse an overlapping phase")
-	assert.Equal(t, 1, counts.TotalCount)
+	assert.Equal(t, 1, counts.TotalCount, "a booking starting after the period end is not counted")
 
 	bookings, err := testpkg.TenantQuery2(t, ctx, env.db, editor.OfferingWeekdayBookings, &period.ID, offeringResyncToday)
 	require.NoError(t, err)

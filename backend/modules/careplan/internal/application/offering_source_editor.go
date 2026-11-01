@@ -42,7 +42,7 @@ func (m *BookingMaterialization) CombinedOfferingSourceCounts(ctx context.Contex
 	}
 	seen := make(map[int64]bool, len(children))
 	for _, child := range children {
-		if seen[child.Link.RequestChildID] {
+		if seen[child.Link.RequestChildID] || !bookedWithinPhase(child.Link, *sources.Phase) {
 			continue
 		}
 		seen[child.Link.RequestChildID] = true
@@ -108,7 +108,14 @@ func (m *BookingMaterialization) ListOfferingSourceOptions(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("offering source options: list approved children: %w", err)
 	}
-	counts := groupOfferingGradeCounts(children)
+	selectedByID := offeringsByID(selected)
+	within := children[:0]
+	for _, child := range children {
+		if offering := selectedByID[child.Link.CareOfferingID]; offering == nil || bookedWithinPhase(child.Link, phases[offering.PhaseID]) {
+			within = append(within, child)
+		}
+	}
+	counts := groupOfferingGradeCounts(within)
 	templates, err := m.deps.Templates.TemplatesSourcedFrom(ctx, offeringIDs)
 	if err != nil {
 		return nil, fmt.Errorf("offering source options: list sourced templates: %w", err)
@@ -215,4 +222,12 @@ func gradeBucket(grade *int16) int {
 		return 0
 	}
 	return int(*grade)
+}
+
+// bookedWithinPhase reports whether a booking starts no later than the
+// phase's last service day. The phase is clipped to the planning period, so a
+// booking starting after the period ends plans nothing there and is not
+// counted, as no resync would plan it.
+func bookedWithinPhase(link careplan.BookedOffering, phase careplan.OfferingPhase) bool {
+	return link.ValidFrom == nil || !link.ValidFrom.After(phase.ServiceEnd)
 }
