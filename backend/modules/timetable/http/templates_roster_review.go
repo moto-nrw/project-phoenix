@@ -572,8 +572,8 @@ type manualRosterResponse struct {
 	ManualRosterConfirmed bool `json:"manual_roster_confirmed"`
 }
 
-// setTemplateManualRoster handles PUT /templates/{id}/manual-roster: "Bleibt
-// von Hand gepflegt" for the whole series, or its undo.
+// setTemplateManualRoster handles PUT /templates/{id}/manual-roster: "Liste
+// so lassen" for the whole series, or its undo.
 func (rs *Resource) setTemplateManualRoster(w http.ResponseWriter, r *http.Request) {
 	id, ok := templateIDFromRequest(w, r)
 	if !ok {
