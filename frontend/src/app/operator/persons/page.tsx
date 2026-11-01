@@ -2,9 +2,9 @@
 
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -31,12 +31,19 @@ function OperatorPersonsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
     organizationsLoadError,
     schoolsLoadError,
   } = useOrgSchoolFilter("/operator/persons");
+
+  const invalidate = useInvalidateMatching();
+  const refreshPersons = useCallback(
+    () => invalidate(operatorProvisioningKeys.personChanges),
+    [invalidate],
+  );
 
   const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
@@ -47,12 +54,12 @@ function OperatorPersonsPageContent() {
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolPersons(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolPersons(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -177,7 +184,7 @@ function OperatorPersonsPageContent() {
           key={selectedSchool.id}
           schoolId={selectedSchool.id}
           schoolName={selectedSchool.name}
-          onMerged={() => mutateSchoolPersons()}
+          onMerged={refreshPersons}
         />
       )}
 
@@ -189,7 +196,9 @@ function OperatorPersonsPageContent() {
             (persons) =>
               persons?.filter((person) => person.id !== deletedPerson.id),
             { revalidate: false },
-          ).then(() => undefined)
+          ).then(async () => {
+            await refreshPersons();
+          })
         }
       />
     </div>
