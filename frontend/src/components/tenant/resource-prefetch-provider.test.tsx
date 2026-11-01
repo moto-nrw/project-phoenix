@@ -257,3 +257,29 @@ it("keeps the normal destination error path when its own load fails too", async 
   expect(screen.getByText("failed")).toBeInTheDocument();
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+it("does not duplicate a destination request that is already in flight", async () => {
+  let finish!: (value: { name: string }) => void;
+  fetcher.mockImplementation(
+    () =>
+      new Promise((done) => {
+        finish = done;
+      }),
+  );
+  render(
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <ResourcePrefetchProvider resourcesFor={resourcesFor}>
+        <NavigationLink href="/rooms">Existing rooms</NavigationLink>
+        <Destination />
+      </ResourcePrefetchProvider>
+    </SWRConfig>,
+  );
+  await advance(0);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  fireEvent.focus(screen.getByRole("link", { name: "Existing rooms" }));
+  await advance(0);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  await act(async () => finish({ name: "existing answer" }));
+  await advance(10);
+  expect(screen.getByText("existing answer")).toBeInTheDocument();
+});

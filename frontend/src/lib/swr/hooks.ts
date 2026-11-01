@@ -778,7 +778,12 @@ export function useSWRPreload() {
       const fullKey = scopedSWRKey(prefix, key);
       if (dataGenerationOf(fullKey) > originatingGeneration)
         return Promise.resolve(undefined);
-      const cached = cache.get(fullKey)?.data as T | undefined;
+      const entry = cache.get(fullKey);
+      // A mounted reader already owns this request; never start a parallel
+      // speculative copy while its answer is still missing.
+      if (options?.intent && entry?.isValidating)
+        return Promise.resolve(undefined);
+      const cached = entry?.data as T | undefined;
       if (
         options?.intent &&
         cached !== undefined &&
