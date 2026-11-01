@@ -3,6 +3,7 @@ package timetracking
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -51,12 +52,24 @@ type StammdatenArbeitsvertragPayload struct {
 	EmploymentType   *string        `json:"employment_type"`
 }
 
-// StammdatenQualificationPayload is one qualification row on the wire.
+// StammdatenQualificationPayload is one qualification row received on the
+// wire. IDs accept legacy JSON numbers as well as decimal strings.
 type StammdatenQualificationPayload struct {
-	ID *int64 `json:"id,omitempty"`
+	ID *common.JSONID `json:"id,omitempty"`
 	// TypeID names the kind of proof (#4808); null is "Sonstiges" with the
 	// free-text name.
-	TypeID     *int64         `json:"type_id"`
+	TypeID     *common.JSONID `json:"type_id"`
+	Name       string         `json:"name"`
+	AcquiredOn *calendar.Date `json:"acquired_on"`
+	ExpiresOn  *calendar.Date `json:"expires_on"`
+}
+
+// StammdatenQualificationResponse is one qualification row returned on the
+// wire. PostgreSQL bigint IDs stay decimal strings so JavaScript never rounds
+// a valid row or qualification-kind ID.
+type StammdatenQualificationResponse struct {
+	ID         *string        `json:"id,omitempty"`
+	TypeID     *string        `json:"type_id"`
 	Name       string         `json:"name"`
 	AcquiredOn *calendar.Date `json:"acquired_on"`
 	ExpiresOn  *calendar.Date `json:"expires_on"`
@@ -64,11 +77,11 @@ type StammdatenQualificationPayload struct {
 
 // StammdatenResponse is the aggregate GET for the non-sensitive sections.
 type StammdatenResponse struct {
-	StaffID         int64                            `json:"staff_id"`
-	Person          StammdatenPersonPayload          `json:"person"`
-	Kontakt         StammdatenKontaktPayload         `json:"kontakt"`
-	Arbeitsvertrag  StammdatenArbeitsvertragPayload  `json:"arbeitsvertrag"`
-	Qualifikationen []StammdatenQualificationPayload `json:"qualifikationen"`
+	StaffID         int64                             `json:"staff_id"`
+	Person          StammdatenPersonPayload           `json:"person"`
+	Kontakt         StammdatenKontaktPayload          `json:"kontakt"`
+	Arbeitsvertrag  StammdatenArbeitsvertragPayload   `json:"arbeitsvertrag"`
+	Qualifikationen []StammdatenQualificationResponse `json:"qualifikationen"`
 }
 
 // StammdatenPersonRequest binds the person section PUT.
@@ -173,7 +186,7 @@ func (rs *StaffAdminResource) getStammdaten(w http.ResponseWriter, r *http.Reque
 func newStammdatenResponse(data *workforce.StaffStammdaten) *StammdatenResponse {
 	resp := &StammdatenResponse{
 		StaffID:         data.Staff.ID,
-		Qualifikationen: make([]StammdatenQualificationPayload, 0, len(data.Qualifications)),
+		Qualifikationen: make([]StammdatenQualificationResponse, 0, len(data.Qualifications)),
 	}
 	resp.Person.FirstName = data.Staff.FirstName
 	resp.Person.LastName = data.Staff.LastName
@@ -194,10 +207,9 @@ func newStammdatenResponse(data *workforce.StaffStammdaten) *StammdatenResponse 
 		resp.Arbeitsvertrag.WeeklyHours = md.WeeklyHours
 	}
 	for _, q := range data.Qualifications {
-		qualID := q.ID
-		resp.Qualifikationen = append(resp.Qualifikationen, StammdatenQualificationPayload{
-			ID:         &qualID,
-			TypeID:     q.TypeID,
+		resp.Qualifikationen = append(resp.Qualifikationen, StammdatenQualificationResponse{
+			ID:         pointerToDecimalID(q.ID),
+			TypeID:     optionalDecimalID(q.TypeID),
 			Name:       q.Name,
 			AcquiredOn: optionalDate(q.AcquiredOn),
 			ExpiresOn:  optionalDate(q.ExpiresOn),
@@ -301,9 +313,18 @@ func (rs *StaffAdminResource) updateStammdatenQualifikationen(w http.ResponseWri
 	rs.runStammdatenUpdate(w, r, func(staffID, changedBy int64) error {
 		inputs := make([]workforce.StammdatenQualificationInput, 0, len(req.Qualifikationen))
 		for _, q := range req.Qualifikationen {
+			var id, typeID *int64
+			if q.ID != nil {
+				value := q.ID.Int64()
+				id = &value
+			}
+			if q.TypeID != nil {
+				value := q.TypeID.Int64()
+				typeID = &value
+			}
 			inputs = append(inputs, workforce.StammdatenQualificationInput{
-				ID:         q.ID,
-				TypeID:     q.TypeID,
+				ID:         id,
+				TypeID:     typeID,
 				Name:       q.Name,
 				AcquiredOn: optionalDateString(q.AcquiredOn),
 				ExpiresOn:  optionalDateString(q.ExpiresOn),
@@ -311,6 +332,20 @@ func (rs *StaffAdminResource) updateStammdatenQualifikationen(w http.ResponseWri
 		}
 		return rs.PersonService.ReplaceStaffQualificationList(r.Context(), staffID, inputs, changedBy, req.Note)
 	})
+}
+
+func pointerToDecimalID(id int64) *string {
+	value := decimalID(id)
+	return &value
+}
+
+func decimalID(id int64) string { return strconv.FormatInt(id, 10) }
+
+func optionalDecimalID(id *int64) *string {
+	if id == nil {
+		return nil
+	}
+	return pointerToDecimalID(*id)
 }
 
 // financialActor pulls the acting account from the JWT for the GDPR access

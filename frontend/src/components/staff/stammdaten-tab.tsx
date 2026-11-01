@@ -203,10 +203,6 @@ export function StammdatenTab({
     return <LoadErrorAlert error={stammdatenLoadError} />;
   }
 
-  if (canViewSections && qualificationEntriesError) {
-    return <LoadErrorAlert error={qualificationEntriesLoadError} />;
-  }
-
   const editing = draft !== null;
   const sectionsEditable = canEditSections && Boolean(stammdaten);
   // Die gespeicherten Zeilen mit dem Status der Nachweise; solange der noch
@@ -687,7 +683,9 @@ export function StammdatenTab({
             title="Qualifikationen"
             description="Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, mit Ablaufdatum."
           >
-            {editing && draft && sectionsEditable ? (
+            {qualificationEntriesError ? (
+              <LoadErrorAlert error={qualificationEntriesLoadError} />
+            ) : editing && draft && sectionsEditable ? (
               <QualifikationenFields
                 draft={draft}
                 onChange={patchDraft}

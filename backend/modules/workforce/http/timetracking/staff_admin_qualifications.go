@@ -19,7 +19,7 @@ import (
 
 // QualificationTypeResponse is one kind of proof on the wire.
 type QualificationTypeResponse struct {
-	ID                int64  `json:"id"`
+	ID                string `json:"id"`
 	StandardKey       string `json:"standard_key,omitempty"`
 	Name              string `json:"name"`
 	ValidityMonths    *int   `json:"validity_months"`
@@ -60,9 +60,9 @@ func (r *QualificationTypeRequest) input() workforce.QualificationTypeInput {
 // QualificationEntryResponse is one qualification with its status; a
 // missing mandatory kind has no qualification_id.
 type QualificationEntryResponse struct {
-	StaffID         int64          `json:"staff_id"`
-	QualificationID *int64         `json:"qualification_id"`
-	TypeID          *int64         `json:"type_id"`
+	StaffID         string         `json:"staff_id"`
+	QualificationID *string        `json:"qualification_id"`
+	TypeID          *string        `json:"type_id"`
 	Name            string         `json:"name"`
 	AcquiredOn      *calendar.Date `json:"acquired_on"`
 	ExpiresOn       *calendar.Date `json:"expires_on"`
@@ -207,14 +207,14 @@ func renderQualificationTypeError(w http.ResponseWriter, r *http.Request, err er
 
 func toQualificationTypeResponse(kind workforce.QualificationType) QualificationTypeResponse {
 	return QualificationTypeResponse{
-		ID: kind.ID, StandardKey: kind.StandardKey, Name: kind.Name, ValidityMonths: kind.ValidityMonths,
+		ID: decimalID(kind.ID), StandardKey: kind.StandardKey, Name: kind.Name, ValidityMonths: kind.ValidityMonths,
 		ReminderLeadWeeks: kind.ReminderLeadWeeks, Mandatory: kind.Mandatory, Archived: kind.Archived,
 	}
 }
 
 func toQualificationEntryResponse(entry workforce.QualificationEntry) QualificationEntryResponse {
 	return QualificationEntryResponse{
-		StaffID: entry.StaffID, QualificationID: entry.QualificationID, TypeID: entry.TypeID, Name: entry.Name,
+		StaffID: decimalID(entry.StaffID), QualificationID: optionalDecimalID(entry.QualificationID), TypeID: optionalDecimalID(entry.TypeID), Name: entry.Name,
 		AcquiredOn: optionalDate(entry.AcquiredOn), ExpiresOn: optionalDate(entry.ExpiresOn),
 		Status: entry.Status, Mandatory: entry.Mandatory,
 	}

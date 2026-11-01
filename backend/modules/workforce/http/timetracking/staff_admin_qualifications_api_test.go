@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
@@ -72,14 +73,14 @@ func TestQualificationsAPI_AssignKindAndReadStatus(t *testing.T) {
 	firstAid := listed.Data[0].ID
 
 	base := fmt.Sprintf("/staff/%d", target.ID)
-	rec = ctx.put(base+"/stammdaten/qualifikationen", fmt.Sprintf(`{"qualifikationen":[{"type_id":%d,"name":"","expires_on":"2020-03-01"}],"note":"Test"}`, firstAid), "staff:stammdaten")
+	rec = ctx.put(base+"/stammdaten/qualifikationen", fmt.Sprintf(`{"qualifikationen":[{"type_id":%q,"name":"","expires_on":"2020-03-01"}],"note":"Test"}`, firstAid), "staff:stammdaten")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = ctx.put(base+"/stammdaten/qualifikationen", `{"qualifikationen":[{"type_id":999999999,"name":""}],"note":"Test"}`, "staff:stammdaten")
 	require.Equal(t, http.StatusBadRequest, rec.Code, "an unknown kind is refused: "+rec.Body.String())
 
 	rec = ctx.get(base+"/stammdaten", "staff:stammdaten")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"type_id":%d`, firstAid))
+	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"type_id":%q`, firstAid))
 	assert.Contains(t, rec.Body.String(), `"name":"Erste Hilfe am Kind"`, "a row of a kind takes the kind's name")
 
 	rec = ctx.get(base+"/qualifications", "users:read")
@@ -92,6 +93,32 @@ func TestQualificationsAPI_AssignKindAndReadStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = ctx.get("/staff/me/qualifications")
 	require.Equal(t, http.StatusOK, rec.Code, "every signed-in person reads their own Nachweise: "+rec.Body.String())
+}
+
+func TestQualificationIDsStayDecimalStringsOnTheWire(t *testing.T) {
+	t.Parallel()
+
+	largeID := int64(9007199254740993)
+	typeID := largeID + 1
+	kindEncoded, err := json.Marshal(toQualificationTypeResponse(workforce.QualificationType{ID: largeID}))
+	require.NoError(t, err)
+	assert.Contains(t, string(kindEncoded), `"id":"9007199254740993"`)
+
+	entry := toQualificationEntryResponse(workforce.QualificationEntry{
+		StaffID:         largeID,
+		QualificationID: &largeID,
+		TypeID:          &typeID,
+	})
+	encoded, err := json.Marshal(entry)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"staff_id":"9007199254740993","qualification_id":"9007199254740993","type_id":"9007199254740994","name":"","acquired_on":null,"expires_on":null,"status":"","mandatory":false}`, string(encoded))
+
+	var request StammdatenQualifikationenRequest
+	require.NoError(t, json.Unmarshal([]byte(`{"qualifikationen":[{"id":"9007199254740993","type_id":"9007199254740994","name":"Erste Hilfe"}]}`), &request))
+	require.NotNil(t, request.Qualifikationen[0].ID)
+	require.NotNil(t, request.Qualifikationen[0].TypeID)
+	assert.Equal(t, largeID, request.Qualifikationen[0].ID.Int64())
+	assert.Equal(t, typeID, request.Qualifikationen[0].TypeID.Int64())
 }
 
 // Rule 15 (#2940): the Nachweise list and the kinds read one batch each,

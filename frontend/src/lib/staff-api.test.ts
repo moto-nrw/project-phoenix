@@ -3213,7 +3213,8 @@ describe("staff-api", () => {
       },
       qualifikationen: [
         {
-          id: 3,
+          id: "9007199254740993",
+          type_id: "9007199254740995",
           name: "Erste-Hilfe-Kurs",
           acquired_on: "2023-03-10",
           expires_on: "2026-03-10",
@@ -3254,8 +3255,8 @@ describe("staff-api", () => {
       // Persisted rows carry an id, a freshly typed one does not.
       expect(result.qualifikationen).toEqual([
         {
-          id: "3",
-          typeId: null,
+          id: "9007199254740993",
+          typeId: "9007199254740995",
           name: "Erste-Hilfe-Kurs",
           acquiredOn: "2023-03-10",
           expiresOn: "2026-03-10",
@@ -3392,8 +3393,8 @@ describe("staff-api", () => {
         "7",
         [
           {
-            id: "3",
-            typeId: "11",
+            id: "9007199254740993",
+            typeId: "9007199254740995",
             name: "",
             acquiredOn: "2023-03-10",
             expiresOn: "2026-03-10",
@@ -3414,8 +3415,8 @@ describe("staff-api", () => {
       expect(JSON.parse(init.body as string)).toEqual({
         qualifikationen: [
           {
-            id: 3,
-            type_id: 11,
+            id: "9007199254740993",
+            type_id: "9007199254740995",
             name: "",
             acquired_on: "2023-03-10",
             expires_on: "2026-03-10",

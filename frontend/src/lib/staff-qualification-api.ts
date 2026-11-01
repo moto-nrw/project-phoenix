@@ -12,7 +12,7 @@ export type QualificationStatus =
   "valid" | "expiring_soon" | "expired" | "missing";
 
 interface BackendQualificationType {
-  id: number | string;
+  id: string;
   standard_key?: string;
   name: string;
   validity_months: number | null;
@@ -43,9 +43,9 @@ export interface QualificationTypeInput {
 }
 
 interface BackendQualificationEntry {
-  staff_id: number | string;
-  qualification_id: number | string | null;
-  type_id: number | string | null;
+  staff_id: string;
+  qualification_id: string | null;
+  type_id: string | null;
   name: string;
   acquired_on: string | null;
   expires_on: string | null;
@@ -75,14 +75,14 @@ export interface QualificationOverviewRow extends QualificationEntry {
   readonly lastName: string;
 }
 
-const optionalId = (value: number | string | null | undefined) =>
+const optionalId = (value: string | null | undefined) =>
   value === null || value === undefined ? null : String(value);
 
 function mapQualificationType(
   data: BackendQualificationType,
 ): QualificationType {
   return {
-    id: String(data.id),
+    id: data.id,
     standardKey: data.standard_key ?? null,
     name: data.name,
     validityMonths: data.validity_months ?? null,
@@ -94,7 +94,7 @@ function mapQualificationType(
 
 function mapEntry(data: BackendQualificationEntry): QualificationEntry {
   return {
-    staffId: String(data.staff_id),
+    staffId: data.staff_id,
     qualificationId: optionalId(data.qualification_id),
     typeId: optionalId(data.type_id),
     name: data.name,

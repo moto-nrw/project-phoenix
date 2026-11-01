@@ -229,6 +229,9 @@ describe("StammdatenTab", () => {
         catalogText("general.unavailable", "die Nachweise"),
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Person")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("Lovelace")).toBeInTheDocument();
     expect(screen.queryByText("Erste Hilfe")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledOnce();

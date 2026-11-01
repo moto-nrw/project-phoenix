@@ -2119,8 +2119,8 @@ interface BackendStammdaten {
     employment_type: string | null;
   };
   qualifikationen: {
-    id?: number;
-    type_id?: number | null;
+    id?: string;
+    type_id?: string | null;
     name: string;
     acquired_on: string | null;
     expires_on: string | null;
@@ -2153,8 +2153,8 @@ function mapStammdatenResponse(data: BackendStammdaten): StaffStammdaten {
       employmentType: data.arbeitsvertrag.employment_type,
     },
     qualifikationen: (data.qualifikationen ?? []).map((q) => ({
-      id: q.id != null ? q.id.toString() : null,
-      typeId: q.type_id != null ? q.type_id.toString() : null,
+      id: q.id ?? null,
+      typeId: q.type_id ?? null,
       name: q.name,
       acquiredOn: q.acquired_on,
       expiresOn: q.expires_on,
@@ -2260,8 +2260,8 @@ class StaffStammdatenService {
   ): Promise<void> {
     await this.putSection(staffId, "qualifikationen", {
       qualifikationen: qualifikationen.map((q) => ({
-        ...(q.id !== null ? { id: Number(q.id) } : {}),
-        type_id: q.typeId !== null ? Number(q.typeId) : null,
+        ...(q.id !== null ? { id: q.id } : {}),
+        type_id: q.typeId,
         name: q.name,
         acquired_on: q.acquiredOn,
         expires_on: q.expiresOn,
