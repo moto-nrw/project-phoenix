@@ -29,7 +29,7 @@ export function TenantDataPrefetch({
     async (href: string) => {
       if (!session || !slug) return [];
       const { tenantPrefetchResources } =
-        await import("~/lib/tenant-prefetch-resources");
+        await import("./tenant-prefetch-resources");
       return tenantPrefetchResources(href, {
         session,
         photoState,

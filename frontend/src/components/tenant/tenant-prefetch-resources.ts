@@ -119,7 +119,7 @@ export async function tenantPrefetchResources(
     !params.has("room")
   ) {
     const { fetchSupervisionDashboard } =
-      await import("~/components/active-supervisions/use-supervision-dashboard");
+      await import("~/components/active-supervisions/supervision-dashboard-resource");
     return [
       {
         key: dashboardKeys.supervision(session.user.id),
@@ -130,7 +130,8 @@ export async function tenantPrefetchResources(
   const student = /^\/students\/([1-9]\d*)$/.exec(path ?? "");
   if (student?.[1] && canReadStudents(session)) {
     const id = student[1];
-    const { fetchStudentDetail } = await import("~/lib/hooks/use-student-data");
+    const { fetchStudentDetail } =
+      await import("~/lib/student-detail-resource");
     return [
       { key: studentKeys.detail(id), fetcher: () => fetchStudentDetail(id) },
     ];
