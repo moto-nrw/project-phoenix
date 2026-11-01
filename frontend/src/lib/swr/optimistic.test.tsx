@@ -608,3 +608,36 @@ describe("useOptimisticAction (#5011)", () => {
     expect(screen.getByTestId("inbox-1")).toHaveTextContent("Posteingang");
   });
 });
+
+// A read can confirm the write even when its POST response was lost (#5419).
+describe("message send reconciliation", () => {
+  it("removes an unconfirmed bubble once the read contains its client id", async () => {
+    await mounted(async () => START);
+    const response = deferred<Item>();
+    let outcome: Promise<OptimisticOutcome<Item>>;
+    await act(async () => {
+      outcome = action.run({
+        optimistic: (thread, { id }) => ({
+          items: [...thread.items, { id, body: "b" }],
+        }),
+        request: () => response.promise,
+        commit: () => undefined,
+        keepFailed: true,
+        confirmed: (thread) =>
+          thread.items.some((item) => item.id === "saved-b"),
+      });
+    });
+    await act(async () => {
+      response.reject(new TypeError("response lost"));
+      await outcome;
+    });
+    expect(screen.getByTestId("chat")).toHaveTextContent("a|b:failed");
+    await act(async () => {
+      await reader.mutate(
+        { items: [...START.items, { id: "saved-b", body: "b" }] },
+        { revalidate: false },
+      );
+    });
+    expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+  });
+});
