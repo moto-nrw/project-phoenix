@@ -19,7 +19,15 @@ import { act, renderHook } from "@testing-library/react";
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     status: "authenticated",
-    data: { user: { token: "test-token", tenantId: 1, roles: ["user"] } },
+    // A signed-in session always names its account; events bind to it.
+    data: {
+      user: {
+        id: "account-1",
+        token: "test-token",
+        tenantId: 1,
+        roles: ["user"],
+      },
+    },
   })),
 }));
 
@@ -177,7 +185,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["admin"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["admin"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -215,7 +228,7 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { tenantId: 1, roles: ["user"] },
+          user: { id: "account-1", tenantId: 1, roles: ["user"] },
           error: "RefreshTokenError",
         } as never,
         update: vi.fn(),
@@ -235,7 +248,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["guardian"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["guardian"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -254,7 +272,7 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1 },
+          user: { id: "account-1", token: "test-token", tenantId: 1 },
         } as never,
         update: vi.fn(),
       });
@@ -273,7 +291,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 42, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 42,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -293,7 +316,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValue({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -311,7 +339,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValue({
         status: "authenticated",
         data: {
-          user: { token: "new-token", tenantId: 2, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "new-token",
+            tenantId: 2,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -326,7 +359,7 @@ describe("useGlobalSSE", () => {
       );
     });
 
-    it("revalidates the supervision dashboard after an SSE reconnect", () => {
+    it("reconciles every SSE-driven cache after an SSE reconnect (#5017)", () => {
       let connectionState: SSEHookState = {
         status: "connected",
         isConnected: true,
@@ -354,12 +387,18 @@ describe("useGlobalSSE", () => {
       };
       rerender();
 
+      // The gap may have swallowed any event: every cache an event keeps
+      // fresh reconciles, caches no event touches stay.
       expect(
         matchedKeys([
           "tenant:active-supervision-dashboard-0-224",
           "tenant:timetable-week-2026-09-01",
+          "tenant:time-tracking-config",
         ]),
-      ).toEqual(["tenant:active-supervision-dashboard-0-224"]);
+      ).toEqual([
+        "tenant:active-supervision-dashboard-0-224",
+        "tenant:timetable-week-2026-09-01",
+      ]);
     });
 
     it("revalidates the supervision dashboard after a reconnect-key change", () => {

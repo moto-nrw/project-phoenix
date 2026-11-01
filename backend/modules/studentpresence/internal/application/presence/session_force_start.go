@@ -67,6 +67,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		if err := s.completeTimetableMirrorsForEndedSessions(txCtx, endedSessionIDs); err != nil {
 			return &ActiveError{Op: opForceStartSession, Err: err}
 		}
+		// The force start ended sessions, moved their visits and opened a
+		// new one; the kiosk path announces none of that on its own.
+		s.queueSupervisionRefresh(txCtx, group.ID, activeSupervisionReasonActivityStarted)
 
 		*newGroup = group
 		return nil

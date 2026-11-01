@@ -2,6 +2,7 @@ package presence_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,7 +61,12 @@ func TestForceStartRejectsASourceCreatedAfterPreparation(t *testing.T) {
 	require.ErrorIs(t, err, studentpresence.ErrSessionConflict)
 	require.Nil(t, created)
 	require.NotZero(t, late)
-	require.Empty(t, broadcaster.Calls())
+	// Only the independent, committed session start announces itself
+	// (#5017); the refused force start announces nothing.
+	for _, call := range broadcaster.Calls() {
+		require.Equal(t, strconv.FormatInt(late, 10), call.Event.ActiveGroupID,
+			"the refused force start must not announce")
+	}
 	originalState, err := svc.GetActiveGroup(ctx, original.ID)
 	require.NoError(t, err)
 	require.Nil(t, originalState.EndTime, "the original source must roll back with the refused force start")
