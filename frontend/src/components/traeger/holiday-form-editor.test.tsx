@@ -271,7 +271,8 @@ describe("HolidayFormEditor (#5198)", () => {
         sort_order: 1,
         applies_to_child: true,
         health: true,
-        share_with_host: false,
+        // A health question keeps the default share since #4722.
+        share_with_host: true,
         visible_when: {
           source: "field",
           field: "geht_allein_nach_hause",
