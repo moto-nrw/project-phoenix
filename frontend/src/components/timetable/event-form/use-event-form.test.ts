@@ -68,7 +68,6 @@ describe("useEventForm offering prefill", () => {
     ).mockResolvedValue([]);
     vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
     vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
-
     const params: UseEventFormParams = {
       isOpen: true,
       onClose: vi.fn(),
@@ -493,6 +492,99 @@ describe("useEventForm submit locking", () => {
 });
 
 describe("useEventForm offering source roster stash", () => {
+  it("clears phase notices across offering-source context changes", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const phaseOutsidePeriod = {
+      phaseId: "41",
+      phaseName: "Schuljahr 2026/27",
+      serviceStart: "2026-08-01",
+      serviceEnd: "2027-07-31",
+      offeringCount: 1,
+      periodStart: "2026-08-01",
+      periodEnd: "2027-07-07",
+    };
+    let resolveNextChoice!: (value: {
+      offerings: [];
+      phasesOutsidePeriod: [];
+    }) => void;
+    const nextChoice = new Promise<{
+      offerings: [];
+      phasesOutsidePeriod: [];
+    }>((resolve) => {
+      resolveNextChoice = resolve;
+    });
+    vi.spyOn(timetableService, "getOfferingSourceChoice")
+      .mockResolvedValueOnce({
+        offerings: [],
+        phasesOutsidePeriod: [phaseOutsidePeriod],
+      })
+      .mockResolvedValueOnce({
+        offerings: [],
+        phasesOutsidePeriod: [
+          {
+            ...phaseOutsidePeriod,
+            phaseId: "42",
+            phaseName: "Nachmeldung",
+          },
+        ],
+      })
+      .mockReturnValueOnce(nextChoice);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: "5",
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "weekly",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.changeTargetGroupType("angebot");
+    });
+    await waitFor(() =>
+      expect(result.current.offeringPhasesOutsidePeriod).toHaveLength(1),
+    );
+
+    act(() => {
+      result.current.changeTargetGroupType("klasse");
+    });
+    expect(result.current.offeringPhasesOutsidePeriod).toEqual([]);
+
+    act(() => {
+      result.current.changeTargetGroupType("angebot");
+    });
+    await waitFor(() =>
+      expect(result.current.offeringPhasesOutsidePeriod).toHaveLength(1),
+    );
+
+    act(() => {
+      result.current.update("calendarPeriodId", "6");
+    });
+
+    expect(result.current.offeringPhasesOutsidePeriod).toEqual([]);
+    await act(async () => {
+      resolveNextChoice({ offerings: [], phasesOutsidePeriod: [] });
+      await nextChoice;
+    });
+  });
+
   it("restores the manual roster when the source is cleared again", async () => {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
     vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);

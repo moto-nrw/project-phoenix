@@ -3439,6 +3439,7 @@ export function useEventForm({
   const wantsOfferingSources =
     expanded && isSeriesFlow && form.targetGroupType === "angebot";
   useEffect(() => {
+    setOfferingPhasesOutsidePeriod([]);
     if (!wantsOfferingSources) return;
     let cancelled = false;
     clearOfferingSourcesError();

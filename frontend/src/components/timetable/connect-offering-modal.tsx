@@ -124,6 +124,7 @@ export function ConnectOfferingModal({
   }, [isOpen, initialKey, clearFormError]);
 
   useEffect(() => {
+    setPhasesOutsidePeriod([]);
     if (!isOpen || !periodId) return;
     let active = true;
     timetableService

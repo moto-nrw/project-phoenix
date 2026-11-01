@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -64,6 +70,16 @@ const preview: OfferingPreview = {
     { templateId: "8", validFrom: "2026-09-01", validUntil: "2026-10-30" },
     { templateId: "9", validFrom: "2026-10-30" },
   ],
+};
+
+const phaseOutsidePeriod = {
+  phaseId: "41",
+  phaseName: "Schuljahr 2026/27",
+  serviceStart: "2026-08-01",
+  serviceEnd: "2027-07-31",
+  offeringCount: 1,
+  periodStart: "2026-08-01",
+  periodEnd: "2027-07-07",
 };
 
 describe("ConnectOfferingModal (#5103)", () => {
@@ -325,17 +341,7 @@ describe("ConnectOfferingModal (#5103)", () => {
   it("explains phases the planning period leaves out of the offering choice", async () => {
     mockOfferingSourceChoice.mockResolvedValue({
       offerings: [],
-      phasesOutsidePeriod: [
-        {
-          phaseId: "41",
-          phaseName: "Schuljahr 2026/27",
-          serviceStart: "2026-08-01",
-          serviceEnd: "2027-07-31",
-          offeringCount: 1,
-          periodStart: "2026-08-01",
-          periodEnd: "2027-07-07",
-        },
-      ],
+      phasesOutsidePeriod: [phaseOutsidePeriod],
     });
 
     render(
@@ -356,5 +362,101 @@ describe("ConnectOfferingModal (#5103)", () => {
     expect(
       screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
     ).toBeInTheDocument();
+  });
+
+  it("clears a phase notice when the template has no planning period", async () => {
+    mockOfferingSourceChoice.mockResolvedValue({
+      offerings: [],
+      phasesOutsidePeriod: [phaseOutsidePeriod],
+    });
+    const { rerender } = render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        periodId="12"
+        deviation={deviation}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByTestId("phases-outside-period-notice"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        deviation={deviation}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    // Anker: der Dialog bleibt ohne Planungszeitraum geöffnet.
+    expect(
+      screen.getByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("phases-outside-period-notice"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears a phase notice while the next planning period loads", async () => {
+    let resolveNextChoice!: (value: {
+      offerings: [];
+      phasesOutsidePeriod: [];
+    }) => void;
+    const nextChoice = new Promise<{
+      offerings: [];
+      phasesOutsidePeriod: [];
+    }>((resolve) => {
+      resolveNextChoice = resolve;
+    });
+    mockOfferingSourceChoice
+      .mockResolvedValueOnce({
+        offerings: [],
+        phasesOutsidePeriod: [phaseOutsidePeriod],
+      })
+      .mockReturnValueOnce(nextChoice);
+    const { rerender } = render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        periodId="12"
+        deviation={deviation}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByTestId("phases-outside-period-notice"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        periodId="13"
+        deviation={deviation}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    // Anker: der Dialog lädt weiterhin Angebote für den neuen Zeitraum.
+    expect(
+      screen.getByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeInTheDocument();
+    expect(mockOfferingSourceChoice).toHaveBeenLastCalledWith("13");
+    expect(
+      screen.queryByTestId("phases-outside-period-notice"),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      resolveNextChoice({ offerings: [], phasesOutsidePeriod: [] });
+      await nextChoice;
+    });
   });
 });
