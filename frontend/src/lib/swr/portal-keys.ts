@@ -144,6 +144,9 @@ export const timetableKeys = {
 // School portal (Lehrkräfte).
 export const schoolPortalKeys = {
   classDayClasses: () => "class-day-my-classes",
+  classDayReport: (schoolClass: string, date: string) =>
+    resourceKey("school-class-day-report-", { schoolClass, date }),
+  schoolDay: (date: string) => `school-day-${date}`,
   parentConferences: () => "school-parent-conferences",
   absenceList: (schoolClass: string, from = "", to = "") =>
     `school-absence-list-${schoolClass}-${from}-${to}`,
@@ -222,4 +225,11 @@ export const traegerKeys = {
     const name = previewText(row?.name);
     return name ? { id, name } : undefined;
   },
+} as const;
+
+/** Caterer sessions span schools; every order response still names its school. */
+export const catererKeys = {
+  schools: () => "caterer-schools",
+  orders: (schoolId: string, from: string, to: string) =>
+    resourceKey("caterer-orders-", { schoolId, from, to }),
 } as const;
