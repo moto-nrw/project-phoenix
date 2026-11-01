@@ -21,6 +21,7 @@ import {
 } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
 import { rosterRunState } from "~/components/active-supervisions/view-model";
 import type { ActiveGroup } from "~/lib/usercontext-helpers";
 import { userContextService } from "~/lib/usercontext-api";
@@ -150,6 +151,13 @@ export function OwnSupervisionView() {
     () => Promise.all([mutateDay(), mutateUpcoming(), mutateOwnSessions()]),
     [mutateDay, mutateUpcoming, mutateOwnSessions],
   );
+  // „Als Nächstes“ follows the clock: reload when the next block enters or
+  // leaves the start window instead of waiting for the reconcile (#5017).
+  const reloadWindow = useCallback(() => {
+    void mutateUpcoming();
+    void mutateDay();
+  }, [mutateUpcoming, mutateDay]);
+  usePlannedWindowRefresh(day.data, reloadWindow);
   // Die Auswahl folgt der Adresse; die Seite merkt sich keinen Block selbst.
   const adoptSession = useCallback(
     (activeGroupId: string) => sessionHref(activeGroupId),
