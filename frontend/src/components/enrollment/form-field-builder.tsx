@@ -807,7 +807,7 @@ export function FieldEditorRow({
                     hint={
                       healthToggle?.checked
                         ? "Nicht bei Gesundheitsangaben. Diese bleiben beim Träger."
-                        : "Die OGS, die die Woche ausrichtet, sieht die Antwort in ihrer Liste und beim Feriengast."
+                        : "Bei neuen Fragen ist das an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten."
                     }
                     disabled={disabled || Boolean(healthToggle?.checked)}
                   />
