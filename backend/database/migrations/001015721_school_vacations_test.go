@@ -43,6 +43,9 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 
+	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
+	// 1.15.721; they go first.
+	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	var exists bool
 	require.NoError(t, db.NewRaw(`SELECT to_regclass('calendar.school_vacations') IS NOT NULL OR to_regclass('calendar.school_vacation_acknowledgements') IS NOT NULL`).Scan(ctx, &exists))

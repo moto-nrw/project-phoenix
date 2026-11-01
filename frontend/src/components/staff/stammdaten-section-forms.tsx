@@ -13,6 +13,10 @@ import type {
   StammdatenPerson,
   StammdatenQualifikation,
 } from "~/lib/staff-api";
+import {
+  suggestExpiry,
+  type QualificationType,
+} from "~/lib/staff-qualification-api";
 
 // Feldgruppen der Stammdaten (#1423). Sie sind reine Eingabeflächen ohne
 // eigenen Speichern-Knopf: der Reiter hat EINEN Bearbeiten-Zustand mit EINEM
@@ -39,6 +43,10 @@ export function emptyToNull(value: string): string | null {
 }
 
 export interface QualificationRow {
+  /** Bestehender Eintrag; null für eine neue Zeile. */
+  id: string | null;
+  /** Nachweisart; "" ist „Sonstiges“ mit eigenem Namen (#4808). */
+  typeId: string;
   name: string;
   acquiredOn: string;
   expiresOn: string;
@@ -100,6 +108,8 @@ export function buildDraft(
     weeklyHours: vertrag.weeklyHours != null ? String(vertrag.weeklyHours) : "",
     employmentType: vertrag.employmentType ?? "",
     qualifikationen: (stammdaten?.qualifikationen ?? []).map((q) => ({
+      id: q.id,
+      typeId: q.typeId ?? "",
       name: q.name,
       acquiredOn: q.acquiredOn ?? "",
       expiresOn: q.expiresOn ?? "",
@@ -160,8 +170,9 @@ export function toQualifikationenPayload(
   draft: StammdatenDraft,
 ): StammdatenQualifikation[] {
   return draft.qualifikationen.map((row) => ({
-    id: null,
-    name: row.name.trim(),
+    id: row.id,
+    typeId: row.typeId === "" ? null : row.typeId,
+    name: row.typeId === "" ? row.name.trim() : "",
     acquiredOn: emptyToNull(row.acquiredOn),
     expiresOn: emptyToNull(row.expiresOn),
   }));
@@ -380,22 +391,63 @@ export function ArbeitsvertragFields({
   );
 }
 
+/** Eine leere Zeile für einen neuen Nachweis, zunächst „Sonstiges“. */
+const emptyQualificationRow = (): QualificationRow => ({
+  id: null,
+  typeId: "",
+  name: "",
+  acquiredOn: "",
+  expiresOn: "",
+});
+
+/**
+ * Wählbare Arten einer Zeile: die angebotenen Arten, dazu die archivierte
+ * Art, die die Zeile schon trägt, und „Sonstiges“ für einen eigenen Namen.
+ */
+function qualificationTypeOptions(
+  types: readonly QualificationType[],
+  current: string,
+) {
+  return [
+    ...types
+      .filter((type) => !type.archived || type.id === current)
+      .map((type) => ({
+        value: type.id,
+        label: type.archived ? `${type.name} (archiviert)` : type.name,
+      })),
+    { value: "", label: "Sonstiges" },
+  ];
+}
+
+const NO_QUALIFICATION_TYPES: readonly QualificationType[] = [];
+
 export function QualifikationenFields({
   draft,
   onChange,
+  types = NO_QUALIFICATION_TYPES,
 }: {
   readonly draft: StammdatenDraft;
   readonly onChange: Patch;
+  /** Nachweisarten der Schule (#4808); leer, solange sie laden. */
+  readonly types?: readonly QualificationType[];
 }) {
   const rows = draft.qualifikationen;
   const setRow = (index: number, patch: Partial<QualificationRow>) => {
     onChange({
-      qualifikationen: rows.map((row, i) =>
-        i === index ? { ...row, ...patch } : row,
-      ),
+      qualifikationen: rows.map((row, i) => {
+        if (i !== index) return row;
+        const next = { ...row, ...patch };
+        const shouldSuggest = "typeId" in patch || "acquiredOn" in patch;
+        if (shouldSuggest && next.expiresOn === "" && next.acquiredOn !== "") {
+          const validity =
+            types.find((type) => type.id === next.typeId)?.validityMonths ??
+            null;
+          next.expiresOn = suggestExpiry(next.acquiredOn, validity) ?? "";
+        }
+        return next;
+      }),
     });
   };
-
   return (
     <div className="space-y-4">
       {rows.length === 0 && (
@@ -410,14 +462,25 @@ export function QualifikationenFields({
           // eslint-disable-next-line react/no-array-index-key
           <div key={index} className="rounded-xl bg-gray-50 p-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
-              <Input
-                controlSize="compact"
-                label="Bezeichnung"
-                name={`stammdaten-qualification-${index}`}
-                value={row.name}
-                onChange={(e) => setRow(index, { name: e.target.value })}
-                placeholder="z. B. Erste-Hilfe-Kurs"
-              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <SelectField
+                  id={`stammdaten-qualification-type-${index}`}
+                  label="Art"
+                  value={row.typeId}
+                  options={qualificationTypeOptions(types, row.typeId)}
+                  onChange={(value) => setRow(index, { typeId: value })}
+                />
+                {row.typeId === "" ? (
+                  <Input
+                    controlSize="compact"
+                    label="Bezeichnung"
+                    name={`stammdaten-qualification-${index}`}
+                    value={row.name}
+                    onChange={(e) => setRow(index, { name: e.target.value })}
+                    placeholder="z. B. Schwimmabzeichen"
+                  />
+                ) : null}
+              </div>
               <div className="flex items-end justify-end">
                 <Button
                   type="button"
@@ -456,12 +519,7 @@ export function QualifikationenFields({
         variant="ghost"
         size="compact"
         onClick={() =>
-          onChange({
-            qualifikationen: [
-              ...rows,
-              { name: "", acquiredOn: "", expiresOn: "" },
-            ],
-          })
+          onChange({ qualifikationen: [...rows, emptyQualificationRow()] })
         }
       >
         <Plus className="mr-1 h-4 w-4" aria-hidden="true" />

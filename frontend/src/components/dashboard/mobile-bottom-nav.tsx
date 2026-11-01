@@ -94,6 +94,7 @@ import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-moda
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";
 import { accountsConcept } from "~/lib/concepts/accounts";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { calendarConcept } from "~/lib/concepts/calendar";
@@ -310,6 +311,7 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
       "/operator/organizations",
       "/operator/schools",
       "/operator/accounts",
+      "/operator/caterers",
       "/operator/devices",
       "/operator/persons",
       "/operator/unregistered-tags",
@@ -376,6 +378,13 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     label: "Konten",
     iconKey: "profile",
     concept: accountsConcept,
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/caterers",
+    label: "Caterer",
+    iconKey: "profile",
+    concept: mealPlanConcept,
     alwaysShow: true,
   },
   {

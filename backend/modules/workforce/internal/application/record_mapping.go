@@ -11,7 +11,7 @@ func qualificationsToDomain(values []workforce.StaffQualification) []domain.Staf
 	}
 	result := make([]domain.StaffQualification, 0, len(values))
 	for _, v := range values {
-		result = append(result, domain.StaffQualification{ID: v.ID, TenantID: v.TenantID, StaffID: v.StaffID, Name: v.Name, AcquiredOn: v.AcquiredOn, ExpiresOn: v.ExpiresOn, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt})
+		result = append(result, domain.StaffQualification{ID: v.ID, TenantID: v.TenantID, StaffID: v.StaffID, TypeID: v.TypeID, Name: v.Name, AcquiredOn: v.AcquiredOn, ExpiresOn: v.ExpiresOn, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt})
 	}
 	return result
 }

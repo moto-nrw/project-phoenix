@@ -14,6 +14,9 @@ GET /api/staff/dashboard-summary -> basis
 GET /api/staff/documents-directory -> personalakte
 GET /api/staff/documents-profile/{id} -> personalakte
 GET /api/staff/financial-profile/{id} -> personalakte
+GET /api/staff/me/qualifications -> basis
+GET /api/staff/qualification-types -> basis
+GET /api/staff/qualifications -> basis
 GET /api/staff/time-tracking/audit-log -> zeiterfassung
 GET /api/staff/time-tracking/export -> zeiterfassung
 GET /api/staff/time-tracking/export/datev-report -> zeiterfassung
@@ -28,6 +31,7 @@ GET /api/staff/{id}/documents -> personalakte
 GET /api/staff/{id}/documents/{documentId}/download -> personalakte
 GET /api/staff/{id}/groups -> basis
 GET /api/staff/{id}/payroll-number -> zeiterfassung
+GET /api/staff/{id}/qualifications -> basis
 GET /api/staff/{id}/schedule -> zeiterfassung
 GET /api/staff/{id}/school-classes -> basis
 GET /api/staff/{id}/stammdaten -> personalakte
@@ -47,6 +51,7 @@ POST /api/staff/absences/{absenceId}/deny -> zeiterfassung
 POST /api/staff/absences/{absenceId}/question -> zeiterfassung
 POST /api/staff/externals -> basis
 POST /api/staff/externals/{id}/invitation -> basis
+POST /api/staff/qualification-types -> basis
 POST /api/staff/time-tracking/export/sftp -> zeiterfassung
 POST /api/staff/time-tracking/month-close -> zeiterfassung
 POST /api/staff/{id}/absences -> zeiterfassung
@@ -60,6 +65,7 @@ POST /api/staff/{id}/time-tracking/opening -> zeiterfassung
 POST /api/staff/{id}/time-tracking/reset -> zeiterfassung
 POST /api/staff/{id}/time-tracking/sessions -> zeiterfassung
 POST /api/staff/{id}/vacation/opening -> zeiterfassung
+PUT /api/staff/qualification-types/{typeId} -> basis
 PUT /api/staff/{id} -> basis
 PUT /api/staff/{id}/payroll-number -> zeiterfassung
 PUT /api/staff/{id}/planned-exit -> basis

@@ -14,6 +14,9 @@ GET /api/staff/dashboard-summary
 GET /api/staff/documents-directory
 GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
+GET /api/staff/me/qualifications
+GET /api/staff/qualification-types
+GET /api/staff/qualifications
 GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/export
 GET /api/staff/time-tracking/export/datev-report
@@ -28,6 +31,7 @@ GET /api/staff/{id}/documents
 GET /api/staff/{id}/documents/{documentId}/download
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/payroll-number
+GET /api/staff/{id}/qualifications
 GET /api/staff/{id}/schedule
 GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
@@ -47,6 +51,7 @@ POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/externals
 POST /api/staff/externals/{id}/invitation
+POST /api/staff/qualification-types
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
@@ -60,6 +65,7 @@ POST /api/staff/{id}/time-tracking/opening
 POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/staff/{id}/vacation/opening
+PUT /api/staff/qualification-types/{typeId}
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/planned-exit

@@ -57,7 +57,7 @@ export function staffRecordTopic(): HelpTopic {
     result:
       "Unter `Arbeitszeitmodell` zeigt die `Vorschau` das Wochensoll der nächsten vier Wochen.",
     notes: [
-      "Qualifikationen sind Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, jeweils mit Ablaufdatum.",
+      "Qualifikationen sind Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, jeweils mit Ablaufdatum. Wie moto daran erinnert, steht unter `Nachweise`.",
       "Die Personalnummer braucht die spätere Abrechnung. Ohne sie fehlt die Person dort.",
       "In der `Übersicht` buchen Sie unter `Stundenkonto-Verwaltung` Auszahlung, Freizeitausgleich oder einen Eröffnungssaldo.",
     ],
@@ -75,6 +75,7 @@ export function staffRecordTopic(): HelpTopic {
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
       HELP_TOPICS.leadPayroll,
+      HELP_TOPICS.leadStaffQualifications,
     ],
   };
 }

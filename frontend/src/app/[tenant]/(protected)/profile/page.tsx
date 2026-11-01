@@ -37,6 +37,7 @@ import { TenantAnalyticsConsentSection } from "~/components/settings/analytics-c
 import { MessageCountSection } from "~/components/settings/message-count-section";
 import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
+import { OwnQualificationsSection } from "~/components/settings/own-qualifications-section";
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
@@ -321,6 +322,9 @@ function ProfileContent() {
           </Button>
         }
       />
+
+      {/* Eigene Nachweise wie Erste Hilfe am Kind, mit Ablauf (#4808). */}
+      <OwnQualificationsSection />
 
       {/* „Was" vor „wo": erst die Themen, dann das Gerät. */}
       <NotificationPreferencesSection />

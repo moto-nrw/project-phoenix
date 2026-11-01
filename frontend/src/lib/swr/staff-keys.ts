@@ -25,3 +25,12 @@ export const staffKeys = {
   teachersKey: () =>
     resourceKey("staff-directory-teachers-", { page: 1, pageSize: 1000 }),
 } as const;
+
+/** Nachweise der Mitarbeitenden (#4808). */
+export const staffQualificationKeys = {
+  types: () => "database-qualification-types",
+  overview: () => "database-qualifications",
+  entries: (staffId: string) =>
+    `staff-qualification-entries-${encodeURIComponent(staffId)}`,
+  own: () => "own-staff-qualifications",
+} as const;

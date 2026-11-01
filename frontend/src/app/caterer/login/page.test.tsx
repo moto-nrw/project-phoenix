@@ -7,10 +7,13 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockLogin, mockSignIn } = vi.hoisted(() => ({
-  mockLogin: vi.fn(),
-  mockSignIn: vi.fn(),
-}));
+const { mockLogin, mockSignIn, mockPasskeyLogin, mockPasskeySupported } =
+  vi.hoisted(() => ({
+    mockLogin: vi.fn(),
+    mockSignIn: vi.fn(),
+    mockPasskeyLogin: vi.fn(),
+    mockPasskeySupported: vi.fn(() => false),
+  }));
 
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
@@ -29,6 +32,12 @@ vi.mock("~/lib/caterer-api", () => ({
 
 vi.mock("~/lib/caterer-url", () => ({
   catererPath: (path: string) => path,
+}));
+
+vi.mock("~/lib/passkey-api", () => ({
+  isPasskeySupported: () => mockPasskeySupported(),
+  isPasskeyCeremonyIncompleteError: () => false,
+  loginWithPasskey: (...args: unknown[]) => mockPasskeyLogin(...args),
 }));
 
 import CatererLoginPage from "./page";
@@ -50,6 +59,8 @@ describe("CatererLoginPage (#4497)", () => {
     window.history.replaceState({}, "", "/login");
     mockLogin.mockReset();
     mockSignIn.mockReset();
+    mockPasskeyLogin.mockReset();
+    mockPasskeySupported.mockReturnValue(false);
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -103,5 +114,20 @@ describe("CatererLoginPage (#4497)", () => {
     // The BFF installed the session; the browser only moves on (#5005).
     await waitFor(() => expect(window.location.pathname).toBe("/caterer"));
     expect(mockSignIn).not.toHaveBeenCalled();
+  });
+
+  it("signs in with a passkey of the caterer portal", async () => {
+    mockPasskeySupported.mockReturnValue(true);
+    mockPasskeyLogin.mockResolvedValue({ status: "authenticated" });
+    render(<CatererLoginPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mit Passkey anmelden" }),
+    );
+
+    // The BFF installed the session; the browser only moves on (#5005).
+    await waitFor(() => expect(window.location.pathname).toBe("/caterer"));
+    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(mockPasskeyLogin).toHaveBeenCalledWith("caterer");
   });
 });

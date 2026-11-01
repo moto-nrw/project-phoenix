@@ -99,6 +99,7 @@ const mainRoutes: Record<string, string> = {
   "/operator/organizations": "Träger",
   "/operator/schools": "Schulen",
   "/operator/accounts": "Konten",
+  "/operator/caterers": "Caterer",
   "/operator/devices": "Geräte",
   "/operator/persons": "Personen",
   "/operator/unregistered-tags": "Unbekannte RFID",

@@ -8,6 +8,7 @@ import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
+import { staffQualificationKeys } from "~/lib/swr/staff-keys";
 import { catalogText } from "~/test/error-catalog-text";
 
 import { StammdatenTab } from "./stammdaten-tab";
@@ -135,6 +136,154 @@ describe("StammdatenTab", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("lädt den Nachweisstatus auch ohne Bearbeitungsrecht", () => {
+    useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === staffQualificationKeys.entries("42")) {
+        return {
+          ...swrResult.current,
+          data: [
+            {
+              staffId: "42",
+              qualificationId: null,
+              typeId: "7",
+              name: "Erweitertes Führungszeugnis",
+              acquiredOn: null,
+              expiresOn: null,
+              mandatory: true,
+              status: "missing",
+            },
+          ],
+        };
+      }
+      if (key?.startsWith("staff-stammdaten-")) {
+        return {
+          ...swrResult.current,
+          data: {
+            person: { firstName: "Ada", lastName: "Lovelace" },
+            kontakt: {},
+            arbeitsvertrag: {},
+            qualifikationen: [],
+          },
+        };
+      }
+      return swrResult.current;
+    });
+
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+      />,
+    );
+
+    expect(screen.getByText("Erweitertes Führungszeugnis")).toBeInTheDocument();
+    expect(screen.getByText("Fehlt")).toBeInTheDocument();
+    expect(useSWRAuth).toHaveBeenCalledWith(
+      staffQualificationKeys.entries("42"),
+      expect.any(Function),
+    );
+    expect(useSWRAuth).not.toHaveBeenCalledWith(
+      staffQualificationKeys.types(),
+      expect.any(Function),
+    );
+  });
+
+  it("zeigt einen Ladefehler für Nachweise statt unvollständiger Stammdaten", async () => {
+    useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === staffQualificationKeys.entries("42")) {
+        return {
+          ...swrResult.current,
+          data: undefined,
+          error: new ApiError("boom", 503, { code: "general.unavailable" }),
+        };
+      }
+      if (key?.startsWith("staff-stammdaten-")) {
+        return {
+          ...swrResult.current,
+          data: {
+            person: { firstName: "Ada", lastName: "Lovelace" },
+            kontakt: {},
+            arbeitsvertrag: {},
+            qualifikationen: [{ name: "Erste Hilfe", acquiredOn: null }],
+          },
+        };
+      }
+      return swrResult.current;
+    });
+
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Nachweise"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Person")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("Lovelace")).toBeInTheDocument();
+    expect(screen.queryByText("Erste Hilfe")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalledOnce();
+  });
+
+  it("zeigt beim Bearbeiten einen Ladefehler für Nachweisarten", async () => {
+    useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === staffQualificationKeys.types()) {
+        return {
+          ...swrResult.current,
+          data: undefined,
+          error: new ApiError("boom", 503, { code: "general.unavailable" }),
+        };
+      }
+      if (key === staffQualificationKeys.entries("42")) {
+        return { ...swrResult.current, data: [] };
+      }
+      if (key?.startsWith("staff-stammdaten-")) {
+        return {
+          ...swrResult.current,
+          data: {
+            person: { firstName: "Ada", lastName: "Lovelace" },
+            kontakt: {},
+            arbeitsvertrag: {},
+            qualifikationen: [
+              { id: "7", typeId: "3", name: "Alte Bezeichnung" },
+            ],
+          },
+        };
+      }
+      return swrResult.current;
+    });
+
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Nachweisarten"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Art")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   it("zeigt einen erfolgreich geladenen Nullwert als nicht gesetzt", () => {
