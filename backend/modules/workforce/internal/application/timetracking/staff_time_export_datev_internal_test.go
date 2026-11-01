@@ -118,6 +118,15 @@ func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 				{PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours}}}},
 			},
 		},
+		{
+			name: "a frozen and current unit may not reuse a wage type number",
+			rows: []MonthExportRow{
+				{PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours}}}},
+				{PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitDays}}}},
+			},
+			want:       ErrPayrollConfigIncomplete,
+			wantDetail: "310",
+		},
 	}
 
 	for _, test := range tests {

@@ -187,11 +187,12 @@ func fixedDatevWageTypeNumbers(categories []PayrollExportCategory) map[string]st
 }
 
 func definedDatevWageTypes(rows []MonthExportRow) []datevWageTypeDefinition {
-	type key struct {
+	type definitionKey struct {
 		id     int64
 		number string
+		unit   string
 	}
-	seen := make(map[key]bool)
+	seen := make(map[definitionKey]bool)
 	var definitions []datevWageTypeDefinition
 	for _, row := range rows {
 		if row.PayrollRules == nil {
@@ -202,10 +203,11 @@ func definedDatevWageTypes(rows []MonthExportRow) []datevWageTypeDefinition {
 				continue
 			}
 			definition := datevWageTypeDefinition{id: wageType.ID, name: wageType.Name, number: wageType.Number}
-			if seen[key{id: definition.id, number: definition.number}] {
+			key := definitionKey{id: definition.id, number: definition.number, unit: wageType.Unit}
+			if seen[key] {
 				continue
 			}
-			seen[key{id: definition.id, number: definition.number}] = true
+			seen[key] = true
 			definitions = append(definitions, definition)
 		}
 	}
