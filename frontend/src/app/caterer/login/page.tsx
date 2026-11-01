@@ -25,6 +25,7 @@ import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
@@ -340,15 +341,17 @@ function LoginForm() {
               </button>
             </div>
             {passkeySupported && (
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="md"
+                className="w-full gap-2"
                 disabled={isSubmitting}
                 onClick={() => void loginWithCatererPasskey()}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
               >
                 <MotoConceptIcon concept={passkeysConcept} size={16} />
                 <span>Mit Passkey anmelden</span>
-              </button>
+              </Button>
             )}
           </form>
         )}
