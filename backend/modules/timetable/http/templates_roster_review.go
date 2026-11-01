@@ -111,8 +111,10 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 		return nil, err
 	}
 	kinds := make(map[int64]timetable.RosterOfferingKind, len(templates))
+	ends := make(map[int64]map[int]string, len(templates))
 	for _, template := range templates {
 		kinds[template.ID] = timetable.RosterOfferingKindFor(template.Type, template.ListKind)
+		ends[template.ID] = templateWeekdayEnds(template.Schedules, today)
 	}
 	for _, templateID := range reviewed {
 		roster, found := rosters[templateID]
@@ -120,11 +122,33 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 			continue
 		}
 		roster.OfferingKind = kinds[templateID]
+		roster.Ends = ends[templateID]
 		if deviation := timetable.DetectRosterDeviation(roster, bookings); deviation != nil {
 			result = append(result, rosterDeviationResponseFrom(templateID, deviation))
 		}
 	}
 	return result, nil
+}
+
+// templateWeekdayEnds names the latest end per ISO weekday of the schedules
+// that still run on or after today; it tells which offerings carry the
+// Regeltermin (#5342).
+func templateWeekdayEnds(schedules []templateScheduleResponse, today calendar.Date) map[int]string {
+	ends := make(map[int]string)
+	latest := make(map[int]int)
+	for _, schedule := range schedules {
+		if schedule.ValidUntil != "" {
+			if until, err := calendar.ParseDate(schedule.ValidUntil); err == nil && !until.After(today) {
+				continue
+			}
+		}
+		end, ok := timetable.ParseOfferingGapClock(schedule.EndTime)
+		if previous, seen := latest[schedule.Weekday]; ok && (!seen || end > previous) {
+			latest[schedule.Weekday] = end
+			ends[schedule.Weekday] = schedule.EndTime
+		}
+	}
+	return ends
 }
 
 // reviewableTemplateIDs keeps the Regeltermine with children whose upkeep is

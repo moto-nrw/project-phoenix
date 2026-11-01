@@ -1,7 +1,7 @@
 // Package timetablehttp — offering suggestion for a Regeltermin that is still
 // being planned (#5104):
 //
-//	GET /api/timetable/offering-sources/suggestion?period_id=…&roster=1:4,5,6
+//	GET /api/timetable/offering-sources/suggestion?period_id=…&roster=1:4,5,6&end_time=12:45
 //	GET /api/timetable/offering-sources/preview?period_id=…&offering_ids=…&roster=…
 //
 // The dialog sends the children it would plan per weekday (`roster`, one
@@ -70,6 +70,7 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 			roster.TargetGradeLevels = append(roster.TargetGradeLevels, int(grade))
 		}
 	}
+	roster.Ends = draftRosterEnds(roster, query.Get("end_time"))
 	listKind := query.Get("list_kind")
 	roster.OfferingKind = timetable.RosterOfferingKindFor(query.Get("type"), &listKind)
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(r.Context(), &periodID, rs.todayDate())
@@ -83,6 +84,19 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 		envelope.Suggestion = &response
 	}
 	common.Respond(w, r, http.StatusOK, envelope, "Offering suggestion retrieved")
+}
+
+// draftRosterEnds applies the planned end ("HH:MM", optional) to every
+// weekday; it tells which offerings carry the Regeltermin (#5342).
+func draftRosterEnds(roster timetable.TemplateFutureRoster, end string) map[int]string {
+	if end == "" {
+		return nil
+	}
+	ends := make(map[int]string, len(roster.Weekdays))
+	for weekday := range roster.Weekdays {
+		ends[weekday] = end
+	}
+	return ends
 }
 
 // withoutTemplate drops the template id a planned Regeltermin does not have.
