@@ -1,0 +1,21 @@
+{
+  ".claude/rules/backend-conventions.md": 33384,
+  ".claude/rules/calendar-dates.md": 8747,
+  ".claude/rules/env-docker-sync.md": 7100,
+  ".claude/rules/error-path.md": 3414,
+  ".claude/rules/frontend-ui-kit.md": 40262,
+  ".claude/rules/guardian-parent-permissions.md": 5602,
+  ".claude/rules/help-guide-sync.md": 10411,
+  ".claude/rules/no-production-requests.md": 1012,
+  ".claude/rules/no-test-modifications.md": 1484,
+  ".claude/rules/security/hardcoded-credentials.md": 2098,
+  ".claude/rules/security/project-security.md": 3141,
+  ".claude/rules/settings-system.md": 18953,
+  ".claude/rules/usage-analytics.md": 11257,
+  ".claude/rules/verstaendlichkeit.md": 5887,
+  "backend/CLAUDE.md": 17836,
+  "CLAUDE.md": 10547,
+  "frontend/AGENTS.md": 1831,
+  "frontend/CLAUDE.md": 8039,
+  "skill-catalog": 16209
+}
