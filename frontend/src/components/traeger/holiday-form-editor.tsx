@@ -23,10 +23,10 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
-// Die Vorschau nennt die Abschnitte wie das Elternformular (#5467).
-import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
+// Die Vorschau nennt die Abschnitte wie das Elternformular (#5467).
+import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import {
   blankField,
   blankInfoField,
