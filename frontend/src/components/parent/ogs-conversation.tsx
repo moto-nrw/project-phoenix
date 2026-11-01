@@ -147,6 +147,7 @@ export function OgsConversation({
     clear: clearLoadError,
   } = useApiLoadError();
   const [draft, setDraft] = useState("");
+  const draftRevision = useRef(0);
   const care = useChildCare(studentId);
   const [today, setToday] = useState<ChildToday>(UNKNOWN_CHILD_TODAY);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
@@ -348,8 +349,18 @@ export function OgsConversation({
     // A new attempt replaces the bubble marked as not sent.
     dismissFailedSend();
     setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
     const outcome = await runSend({
-      onConfirmed: () => attempt.complete(clientMessageId),
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        clearSendError();
+      },
       confirmed: (current) =>
         current.messages.some(
           (message) =>
@@ -398,10 +409,13 @@ export function OgsConversation({
       nudgeUnreadBadge();
       return;
     }
-    if (outcome.status !== "failed") return;
+    if (outcome.status !== "failed" || !attempt.isActive(clientMessageId))
+      return;
+    failed = true;
+    const mayRestoreDraft = draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // The text goes back into the field unless a new one is there.
-    setDraft((current) => (current === "" ? body : current));
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
     logger.warn("ogs_message_send_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -695,7 +709,10 @@ export function OgsConversation({
               ) : null}
               <MessageComposer
                 value={draft}
-                onChange={setDraft}
+                onChange={(value) => {
+                  draftRevision.current += 1;
+                  setDraft(value);
+                }}
                 onSend={() => void handleSend()}
                 sending={sending}
                 placeholder={tm(

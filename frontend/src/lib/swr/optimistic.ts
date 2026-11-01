@@ -299,6 +299,10 @@ export function useOptimisticAction<T>(
       const view = lifetime.current;
       const target = fullKey;
       const generation = origin;
+      const stillCurrent = () =>
+        !isSWRSessionPending() &&
+        dataGenerationOf(target) === generation &&
+        latestScope.current === scope;
       sequence += 1;
       const id = `optimistic-${sequence}`;
       const overlay: Overlay = {
@@ -308,15 +312,13 @@ export function useOptimisticAction<T>(
         state: "pending",
         apply: action.optimistic as Overlay["apply"],
         confirmed: action.confirmed as Overlay["confirmed"],
-        onConfirmed: action.onConfirmed,
+        onConfirmed: () => {
+          if (view?.active && stillCurrent()) action.onConfirmed?.();
+        },
       };
       update(target, (list) => [...list, overlay]);
       const drop = () =>
         update(target, (list) => list.filter((entry) => entry.id !== id));
-      const stillCurrent = () =>
-        !isSWRSessionPending() &&
-        dataGenerationOf(target) === generation &&
-        latestScope.current === scope;
 
       let result: R;
       try {
@@ -392,5 +394,6 @@ export function useMessageSendAttempt(key: string | null) {
   const complete = useCallback((id: string) => {
     if (current.current?.id === id) current.current = null;
   }, []);
-  return { begin, complete };
+  const isActive = useCallback((id: string) => current.current?.id === id, []);
+  return { begin, complete, isActive };
 }

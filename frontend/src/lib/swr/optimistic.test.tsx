@@ -708,3 +708,55 @@ it("keeps an uncertain send id for retries, but not for a new acknowledged send"
   attempt.complete(retry);
   expect(attempt.begin("Anderer Text")).not.toBe(retry);
 });
+
+it("does not run a departed view's confirmation callback from another reader", async () => {
+  const fetcher = async () => START;
+  const holder: { mutate?: SWRResponse<Thread>["mutate"] } = {};
+  function ConfirmedView() {
+    const source = useSWRAuth<Thread>("thread-1", fetcher);
+    holder.mutate = source.mutate;
+    const read = useOptimisticAction("thread-1", source.data);
+    return (
+      <p data-testid="confirmed-view">
+        {read.data?.items.map((item) => item.body).join("|") ?? "leer"}
+      </p>
+    );
+  }
+  const view = await mounted(fetcher, <ConfirmedView />);
+  const response = deferred<Item>();
+  const onConfirmed = vi.fn();
+  let outcome: Promise<OptimisticOutcome<Item>>;
+  await act(async () => {
+    outcome = action.run({
+      optimistic: (current, { id }) => ({
+        items: [...current.items, { id, body: "b" }],
+      }),
+      request: () => response.promise,
+      commit: () => undefined,
+      keepFailed: true,
+      confirmed: (current) =>
+        current.items.some((item) => item.id === "saved-b"),
+      onConfirmed,
+    });
+  });
+  expect(screen.getByTestId("chat")).toHaveTextContent("a|b:pending");
+  view.rerender(
+    <Page>
+      <Chat name="thread-2" fetcher={fetcher} />
+      <ConfirmedView />
+    </Page>,
+  );
+  await flush();
+  await act(async () => {
+    await holder.mutate?.(
+      { items: [...START.items, { id: "saved-b", body: "b" }] },
+      { revalidate: false },
+    );
+  });
+  expect(screen.getByTestId("confirmed-view")).toHaveTextContent(/^a\|b$/);
+  expect(onConfirmed).not.toHaveBeenCalled();
+  await act(async () => {
+    response.reject(new TypeError("response lost"));
+    await outcome;
+  });
+});

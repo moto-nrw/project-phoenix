@@ -309,6 +309,7 @@ function MessageThreadContent() {
   };
 
   const [draft, setDraft] = useState("");
+  const draftRevision = useRef(0);
   const isSending = send.pending;
   // Ein Sendefehler steht direkt über dem Eingabefeld (#2517).
   const sendError = useApiFormError();
@@ -377,8 +378,18 @@ function MessageThreadContent() {
     // a bubble still on its way.
     const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
     setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
     const outcome = await send.run({
-      onConfirmed: () => attempt.complete(clientMessageId),
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        sendError.clear();
+      },
       confirmed: (current) =>
         current.messages.some(
           (message) => message.client_message_id === clientMessageId,
@@ -416,10 +427,13 @@ function MessageThreadContent() {
       },
     });
     if (outcome.status === "done") attempt.complete(clientMessageId);
-    if (outcome.status !== "failed") return;
+    if (outcome.status !== "failed" || !attempt.isActive(clientMessageId))
+      return;
+    failed = true;
+    const mayRestoreDraft = draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
-    setDraft((current) => (current === "" ? body : current));
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
     logger.error("thread_message_send_failed", {
       error: err instanceof Error ? err.message : String(err),
       thread_id: threadId,
@@ -645,7 +659,10 @@ function MessageThreadContent() {
             {messagingEnabled ? (
               <MessageComposer
                 value={draft}
-                onChange={setDraft}
+                onChange={(value) => {
+                  draftRevision.current += 1;
+                  setDraft(value);
+                }}
                 onSend={() => void handleSend()}
                 sending={isSending}
                 disabled={snapshotUnavailable}
