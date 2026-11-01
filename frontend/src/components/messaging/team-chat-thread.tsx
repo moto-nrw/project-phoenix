@@ -288,6 +288,7 @@ export function TeamChatThread({
     send.dismiss();
     setDraft("");
     const outcome = await send.run({
+      onConfirmed: () => attempt.complete(clientMessageId),
       confirmed: (current) =>
         current.messages.some(
           (message) =>

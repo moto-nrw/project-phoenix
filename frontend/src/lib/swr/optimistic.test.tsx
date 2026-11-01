@@ -617,6 +617,53 @@ describe("useOptimisticAction (#5011)", () => {
 
 // A read can confirm the write even when its POST response was lost (#5419).
 describe("message send reconciliation", () => {
+  it.each(["before", "after"] as const)(
+    "starts a new identical send when a read confirms delivery %s rejection",
+    async (timing) => {
+      await mounted(async () => START);
+      const clientMessageId = attempt.begin("b");
+      const response = deferred<Item>();
+      const onConfirmed = vi.fn(() => attempt.complete(clientMessageId));
+      let outcome: Promise<OptimisticOutcome<Item>>;
+      await act(async () => {
+        outcome = action.run({
+          optimistic: (thread, { id }) => ({
+            items: [...thread.items, { id, body: "b" }],
+          }),
+          request: () => response.promise,
+          commit: () => undefined,
+          keepFailed: true,
+          confirmed: (thread) =>
+            thread.items.some((item) => item.id === clientMessageId),
+          onConfirmed,
+        });
+      });
+      const reject = async () => {
+        await act(async () => {
+          response.reject(new TypeError("response lost"));
+          await outcome;
+        });
+      };
+      if (timing === "after") {
+        await reject();
+        expect(screen.getByTestId("chat")).toHaveTextContent("a|b:failed");
+      }
+      await act(async () => {
+        await reader.mutate(
+          { items: [...START.items, { id: clientMessageId, body: "b" }] },
+          { revalidate: false },
+        );
+      });
+      expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+      const next = attempt.begin("b");
+      expect(next).not.toBe(clientMessageId);
+      if (timing === "before") await reject();
+      expect(onConfirmed).toHaveBeenCalledTimes(1);
+      // The late rejection cannot complete a newer identical send.
+      expect(attempt.begin("b")).toBe(next);
+    },
+  );
+
   it("removes an unconfirmed bubble once the read contains its client id", async () => {
     await mounted(async () => START);
     const response = deferred<Item>();

@@ -82,6 +82,8 @@ export interface OptimisticRun<T, R> {
   readonly keepFailed?: boolean;
   /** A read can confirm this write before, or instead of, its response. */
   readonly confirmed?: (data: T) => boolean;
+  /** Runs once when a read confirms this write, even after request failure. */
+  readonly onConfirmed?: () => void;
   /**
    * The resource behind the action. A 401/403/404 with one of `codes` (the
    * refusals of the action's backend route) drops every cached key `matches`
@@ -112,6 +114,7 @@ interface Overlay {
   readonly state: OptimisticState;
   readonly apply: (data: unknown, entry: OptimisticEntry) => unknown;
   readonly confirmed?: (data: unknown) => boolean;
+  readonly onConfirmed?: () => void;
 }
 
 const NONE: readonly Overlay[] = [];
@@ -222,10 +225,14 @@ export function useOptimisticAction<T>(
     latestConfirmed.current = confirmed;
     if (fullKey === null || confirmed === undefined) return;
     const list = overlays.get(fullKey) ?? NONE;
-    if (list.some((entry) => entry.confirmed?.(confirmed))) {
+    const delivered = list.filter(
+      (entry) => isCurrent(fullKey, entry) && entry.confirmed?.(confirmed),
+    );
+    if (delivered.length > 0) {
       update(fullKey, (current) =>
-        current.filter((entry) => !entry.confirmed?.(confirmed)),
+        current.filter((entry) => !delivered.includes(entry)),
       );
+      for (const entry of delivered) entry.onConfirmed?.();
     }
   }, [fullKey, confirmed]);
 
@@ -301,6 +308,7 @@ export function useOptimisticAction<T>(
         state: "pending",
         apply: action.optimistic as Overlay["apply"],
         confirmed: action.confirmed as Overlay["confirmed"],
+        onConfirmed: action.onConfirmed,
       };
       update(target, (list) => [...list, overlay]);
       const drop = () =>

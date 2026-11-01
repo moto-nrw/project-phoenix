@@ -117,6 +117,7 @@ function GroupMessageContent() {
     sendAction.dismiss();
     setDraft("");
     const outcome = await sendAction.run({
+      onConfirmed: () => attempt.complete(clientMessageId),
       confirmed: (current) =>
         current.messages.some(
           (message) => message.client_message_id === clientMessageId,

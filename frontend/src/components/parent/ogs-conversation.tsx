@@ -349,6 +349,7 @@ export function OgsConversation({
     dismissFailedSend();
     setDraft("");
     const outcome = await runSend({
+      onConfirmed: () => attempt.complete(clientMessageId),
       confirmed: (current) =>
         current.messages.some(
           (message) =>

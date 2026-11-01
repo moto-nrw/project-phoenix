@@ -378,6 +378,7 @@ function MessageThreadContent() {
     const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
     setDraft("");
     const outcome = await send.run({
+      onConfirmed: () => attempt.complete(clientMessageId),
       confirmed: (current) =>
         current.messages.some(
           (message) => message.client_message_id === clientMessageId,
