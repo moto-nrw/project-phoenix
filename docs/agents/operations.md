@@ -771,6 +771,21 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 
 ## PR screenshots and QA evidence
 
+Every PR that changes what a user can see must include screenshots of the
+affected surfaces, including text, layout and visible states in all portals,
+the kiosk, e-mails and help. Capture the running local product or rendered
+message. For frontend before/after pairs and viewport requirements, follow
+[the frontend screenshot rules](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
+New surfaces need screenshots of the new state.
+
+Before requesting review or re-review, ensure posted screenshots show the
+current PR state. If follow-up fixes change depicted content, recapture affected
+after screenshots and regenerate their before/after pairs; retain the base-ref
+before captures. Update the existing screenshot comment or description and its
+PR links so superseded after images are not presented as current. Unaffected
+screenshots can be reused. Embed the images in the PR description or link its
+**Screenshots** section to the current screenshot comment.
+
 Upload images and videos with `gh --attach` (gh >= 2.99, pinned in
 `devbox.json`). GitHub hosts them as `https://github.com/user-attachments/assets/...`.
 

@@ -31,8 +31,11 @@ ersetzen keine Begründung. Maßgeblich: backend/CLAUDE.md, „Target architectu
 Konkrete Restrisiken, Sicherheitsfolgen, Breaking Changes, Migrationen oder
 Deploy-/Rollback-Schritte, die Reviewer kennen müssen.
 
-## Screenshots oder Beispiele
-Bei UI-Änderungen die nach Projektregeln erforderlichen Vorher-/Nachher-Belege.
+## Screenshots
+Pflicht bei jeder Änderung, die Nutzer sehen können. Aktuelle Screenshots
+einbetten oder die Screenshot-Serie im PR verlinken. Ändern spätere Fixes deren
+Inhalt, betroffene Aufnahmen und Vorher-/Nachher-Paare erneuern; PR-Belege und
+Links aktuell halten. Details: docs/agents/operations.md, „PR screenshots and QA evidence“.
 
 ## Missverständnis-Check
 Bei user-sichtbaren Änderungen gemäß .claude/rules/verstaendlichkeit.md:
