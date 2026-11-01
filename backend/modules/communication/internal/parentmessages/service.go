@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -431,14 +432,21 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list visible messages: %w", err)
 	}
-	if err := requireHandledBoundary(visibleMessages, handledUpToMessageID); err != nil {
+	accountID := s.accountID(ctx)
+	if err := requireHandledBoundary(visibleMessages, handledUpToMessageID, accountID, deliveryPorts.MessageSendID(ctx)); err != nil {
 		return nil, err
 	}
 
-	accountID := s.accountID(ctx)
 	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
 	if err != nil {
 		return nil, err
+	}
+	if message.SendReplayed {
+		detail, _, readErr := s.markReadAndBuild(ctx, thread)
+		if readErr != nil {
+			return nil, readErr
+		}
+		return detail.Messages, nil
 	}
 	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
@@ -450,7 +458,14 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 // requireHandledBoundary checks that a reply names the newest timeline row the
 // client displayed: the id must be one of the visible messages, and a reply
 // without one is only accepted while the thread holds no guardian activity.
-func requireHandledBoundary(visibleMessages []*ParentMessage, handledUpToMessageID int64) error {
+func requireHandledBoundary(visibleMessages []*ParentMessage, handledUpToMessageID, accountID int64, sendID string) error {
+	// A boundary is needed for a new reply, not for acknowledging a stored send.
+	// Append still validates the exact payload and rejects key reuse conflicts.
+	if sendID != "" && slices.ContainsFunc(visibleMessages, func(message *ParentMessage) bool {
+		return message.SenderAccountID == accountID && message.ClientMessageID == sendID
+	}) {
+		return nil
+	}
 	if handledUpToMessageID > 0 {
 		for _, message := range visibleMessages {
 			if message.ID == handledUpToMessageID {
@@ -490,6 +505,10 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
 	if err != nil {
 		return nil, err
+	}
+	if message.SendReplayed {
+		detail, _, readErr := s.markReadAndBuild(ctx, thread)
+		return detail, readErr
 	}
 	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
@@ -573,6 +592,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*I
 // created_at" rule).
 func (s *Service) appendStaffMessage(ctx context.Context, thread *ParentMessageThread, accountID int64, body string) (*ParentMessage, error) {
 	msg := &ParentMessage{
+		ClientMessageID:  deliveryPorts.MessageSendID(ctx),
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
 		SenderAccountID:  accountID,

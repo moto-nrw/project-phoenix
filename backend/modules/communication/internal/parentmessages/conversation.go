@@ -50,6 +50,9 @@ func AppendMessage(
 	if err := msgRepo.Create(ctx, msg); err != nil {
 		return err
 	}
+	if msg.SendReplayed {
+		return nil
+	}
 	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, msg.Body)
 }
 

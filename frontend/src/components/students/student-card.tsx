@@ -249,7 +249,10 @@ export function StudentCard({
       key={studentId}
       type="button"
       {...dataIntent}
-      onClick={activeHandler}
+      onClick={() => {
+        dataIntent.onClick();
+        activeHandler();
+      }}
       disabled={isCheckinPending}
       aria-label={ariaLabel}
       aria-busy={isCheckinPending}

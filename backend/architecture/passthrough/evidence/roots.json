@@ -6113,7 +6113,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*parentportal.GroupThread, error) {\n\tthread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID)\n\tif err != nil {\n\t\treturn nil, parentGroupThreadError(err)\n\t}\n\tvalue := parentGroupThread(*thread)\n\treturn \u0026value, nil\n}",
+      "evidence": "func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64, sendIDs ...string) (*parentportal.GroupThread, error) {\n\tthread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID, sendIDs...)\n\tif err != nil {\n\t\treturn nil, parentGroupThreadError(err)\n\t}\n\tvalue := parentGroupThread(*thread)\n\treturn \u0026value, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentGroupThreads.GroupReplyTarget",
       "owner": "roots"

@@ -163,7 +163,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "searchStudentsKeyTargetsGroup",
   ],
   "room-derived-caches": ["ROOM_DERIVED_CACHE_KEY_FRAGMENTS"],
-  optimistic: ["useOptimisticAction"],
+  optimistic: ["useMessageSendAttempt", "useOptimisticAction"],
 };
 
 // #5007: outside ~/lib/swr no cache access bypasses the generation lock.

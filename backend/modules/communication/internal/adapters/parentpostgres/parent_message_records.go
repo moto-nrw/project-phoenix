@@ -36,6 +36,7 @@ func (r *messageRepository) Create(ctx context.Context, message *communication.P
 	}
 	// The thread preview is advanced off the row's own DB-stamped created_at, so
 	// the identity and timestamps have to travel back to the caller.
+	message.ClientMessageID, message.SendReplayed = value.ClientMessageID, value.SendReplayed
 	message.ID = value.ID
 	message.CreatedAt = value.CreatedAt
 	message.UpdatedAt = value.UpdatedAt
@@ -106,7 +107,7 @@ func messageValue(message *communication.PortalParentMessage) (*domain.ParentMes
 		ID: message.ID, TenantID: message.TenantID, ThreadID: message.ThreadID,
 		StudentID: message.StudentID, SenderAccountID: message.SenderAccountID,
 		SenderKind: message.SenderKind, SenderName: message.SenderName,
-		StaffNameVisible: message.StaffNameVisible, Body: message.Body, Kind: message.Kind,
+		StaffNameVisible: message.StaffNameVisible, ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body, Kind: message.Kind,
 		EventType: message.EventType, EventActorKind: message.EventActorKind,
 		RequestType: message.RequestType, RequestStatus: message.RequestStatus,
 		Payload: payload, RefTable: message.RefTable, RefID: message.RefID,
@@ -128,12 +129,13 @@ func messageModel(value *domain.ParentMessage) (*communication.PortalParentMessa
 		ThreadID: value.ThreadID, StudentID: value.StudentID,
 		SenderAccountID: value.SenderAccountID, SenderKind: value.SenderKind,
 		SenderName: value.SenderName, StaffNameVisible: value.StaffNameVisible,
-		Body: value.Body, Kind: value.Kind, EventType: value.EventType,
+		ClientMessageID: value.ClientMessageID, SendReplayed: value.SendReplayed, Body: value.Body, Kind: value.Kind, EventType: value.EventType,
 		EventActorKind: value.EventActorKind, RequestType: value.RequestType,
 		RequestStatus: value.RequestStatus, Payload: payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt,
 		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
 	}
+	message.ClientMessageID, message.SendReplayed = value.ClientMessageID, value.SendReplayed
 	message.ID = value.ID
 	message.CreatedAt = value.CreatedAt
 	message.UpdatedAt = value.UpdatedAt

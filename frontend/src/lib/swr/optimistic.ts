@@ -80,6 +80,10 @@ export interface OptimisticRun<T, R> {
    * generation. Off: a failure only rolls back.
    */
   readonly keepFailed?: boolean;
+  /** A read can confirm this write before, or instead of, its response. */
+  readonly confirmed?: (data: T) => boolean;
+  /** Runs once when a read confirms this write, even after request failure. */
+  readonly onConfirmed?: () => void;
   /**
    * The resource behind the action. A 401/403/404 with one of `codes` (the
    * refusals of the action's backend route) drops every cached key `matches`
@@ -99,7 +103,7 @@ export type OptimisticOutcome<R> =
       /** The server refused the resource; its representations are gone. */
       readonly refused: boolean;
     }
-  /** The generation or scope moved while the request ran: nothing happened. */
+  /** The scope moved or a read already confirmed the write; no commit remains. */
   | { readonly status: "discarded" };
 
 interface Overlay {
@@ -109,6 +113,8 @@ interface Overlay {
   readonly generation: number;
   readonly state: OptimisticState;
   readonly apply: (data: unknown, entry: OptimisticEntry) => unknown;
+  readonly confirmed?: (data: unknown) => boolean;
+  readonly onConfirmed?: () => void;
 }
 
 const NONE: readonly Overlay[] = [];
@@ -206,9 +212,29 @@ export function useOptimisticAction<T>(
     () =>
       generation === null
         ? NONE
-        : stored.filter((overlay) => overlay.generation === generation),
-    [generation, stored],
+        : stored.filter(
+            (overlay) =>
+              overlay.generation === generation &&
+              !(confirmed !== undefined && overlay.confirmed?.(confirmed)),
+          ),
+    [generation, stored, confirmed],
   );
+
+  const latestConfirmed = useRef(confirmed);
+  useLayoutEffect(() => {
+    latestConfirmed.current = confirmed;
+    if (fullKey === null || confirmed === undefined) return;
+    const list = overlays.get(fullKey) ?? NONE;
+    const delivered = list.filter(
+      (entry) => isCurrent(fullKey, entry) && entry.confirmed?.(confirmed),
+    );
+    if (delivered.length > 0) {
+      update(fullKey, (current) =>
+        current.filter((entry) => !delivered.includes(entry)),
+      );
+      for (const entry of delivered) entry.onConfirmed?.();
+    }
+  }, [fullKey, confirmed]);
 
   const data = useMemo(
     () =>
@@ -273,22 +299,28 @@ export function useOptimisticAction<T>(
       const view = lifetime.current;
       const target = fullKey;
       const generation = origin;
+      const stillCurrent = () =>
+        !isSWRSessionPending() &&
+        dataGenerationOf(target) === generation &&
+        latestScope.current === scope;
       sequence += 1;
       const id = `optimistic-${sequence}`;
+      let readConfirmed = false;
       const overlay: Overlay = {
         id,
         owner,
         generation,
         state: "pending",
         apply: action.optimistic as Overlay["apply"],
+        confirmed: action.confirmed as Overlay["confirmed"],
+        onConfirmed: () => {
+          readConfirmed = true;
+          if (view?.active && stillCurrent()) action.onConfirmed?.();
+        },
       };
       update(target, (list) => [...list, overlay]);
       const drop = () =>
         update(target, (list) => list.filter((entry) => entry.id !== id));
-      const stillCurrent = () =>
-        !isSWRSessionPending() &&
-        dataGenerationOf(target) === generation &&
-        latestScope.current === scope;
 
       let result: R;
       try {
@@ -304,7 +336,13 @@ export function useOptimisticAction<T>(
             codes: action.refusal.codes,
             matches: action.refusal.matches,
           });
-        if (!view?.active) {
+        if (
+          !view?.active ||
+          (!refused &&
+            (readConfirmed ||
+              (latestConfirmed.current !== undefined &&
+                action.confirmed?.(latestConfirmed.current))))
+        ) {
           drop();
           return { status: "discarded" };
         }
@@ -319,7 +357,7 @@ export function useOptimisticAction<T>(
         }
         return { status: "failed", error, refused };
       }
-      if (!stillCurrent()) {
+      if (!stillCurrent() || readConfirmed) {
         drop();
         return { status: "discarded" };
       }
@@ -335,4 +373,31 @@ export function useOptimisticAction<T>(
   const pending = visible.some((overlay) => overlay.state === "pending");
 
   return { data, run, stateOf, dismiss, pending };
+}
+
+/** One logical send keeps its id after an unknown outcome, within its SWR scope.
+ * A changed draft is a new intent; an acknowledged send ends the attempt.
+ */
+export function useMessageSendAttempt(key: string | null) {
+  const scoped = useSWRCacheKey();
+  const fullKey = key === null ? null : scoped(key);
+  const current = useRef<{
+    scope: string | null;
+    body: string;
+    id: string;
+  } | null>(null);
+  const begin = useCallback(
+    (body: string) => {
+      if (current.current?.scope !== fullKey || current.current.body !== body) {
+        current.current = { scope: fullKey, body, id: crypto.randomUUID() };
+      }
+      return current.current.id;
+    },
+    [fullKey],
+  );
+  const complete = useCallback((id: string) => {
+    if (current.current?.id === id) current.current = null;
+  }, []);
+  const isActive = useCallback((id: string) => current.current?.id === id, []);
+  return { begin, complete, isActive };
 }

@@ -51,6 +51,8 @@ func (t InboxThread) Readers() communication.ParentMessageReaders {
 
 type MessageableGuardian communication.ParentGuardianRecipient
 type ParentMessage struct {
+	ClientMessageID  string         `json:"client_message_id,omitempty"`
+	SendReplayed     bool           `json:"-"`
 	ID               int64          `json:"id"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
