@@ -19,6 +19,14 @@ func (p *PayrollRules) loadState(ctx context.Context) (*payrollRuleState, error)
 	return loadPayrollRuleState(ctx, p.store)
 }
 
+// lockedPayrollRuleState reads all payroll rules from one writer boundary.
+func lockedPayrollRuleState(ctx context.Context, store ports.PayrollRulesStore) (*payrollRuleState, error) {
+	if err := store.LockPayrollRules(ctx); err != nil {
+		return nil, err
+	}
+	return loadPayrollRuleState(ctx, store)
+}
+
 func loadPayrollRuleState(ctx context.Context, store ports.PayrollRulesStore) (*payrollRuleState, error) {
 	state, err := store.ReadPayrollRuleState(ctx)
 	if err != nil {

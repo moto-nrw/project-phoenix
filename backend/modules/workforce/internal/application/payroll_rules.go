@@ -39,10 +39,7 @@ func payrollRuleNotFound(what string) error {
 // Overview lists the active wage types and rules and every school absence
 // type with its mapping.
 func (p *PayrollRules) Overview(ctx context.Context) (*workforce.PayrollRulesOverview, error) {
-	if err := p.store.LockPayrollRules(ctx); err != nil {
-		return nil, err
-	}
-	state, err := p.loadState(ctx)
+	state, err := lockedPayrollRuleState(ctx, p.store)
 	if err != nil {
 		return nil, err
 	}
@@ -62,10 +59,7 @@ func (p *PayrollRules) CurrentPayrollRuleSet(ctx context.Context) (*workforce.Pa
 // Absence types mapped onto an archived wage type keep their category. It
 // writes nothing, so the reader needs no audit.
 func currentPayrollRuleSet(ctx context.Context, store ports.PayrollRulesStore) (*workforce.PayrollRuleSet, error) {
-	if err := store.LockPayrollRules(ctx); err != nil {
-		return nil, err
-	}
-	state, err := loadPayrollRuleState(ctx, store)
+	state, err := lockedPayrollRuleState(ctx, store)
 	if err != nil {
 		return nil, err
 	}
