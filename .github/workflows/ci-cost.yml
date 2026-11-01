@@ -1,7 +1,7 @@
 name: CI cost
 
 # Shows the estimated runner cost of all CI runs of a pull request as the
-# neutral check run "CI-Kosten" (.github/actions/ci-cost). A comment would mail
+# neutral check run "CI cost" (.github/actions/ci-cost). A comment would mail
 # the PR author on every new PR; a check run mails nobody. workflow_run runs the
 # default-branch version with a write token; it reads the API and never checks
 # out PR code.
@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   comment:
+    name: Update CI cost check
     if: github.event.workflow_run.event == 'pull_request'
     permissions:
       actions: read

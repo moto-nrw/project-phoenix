@@ -174,7 +174,7 @@ current.` Do not sync from a local checkout; that puts unmerged state live.
    does not rate staff members.
 3. Run `node --test scripts/posthog-dashboards.test.mjs`. It fails for an
    insight without a deployment filter, with staging, or with a person.
-4. Open the pull request. Its `PostHog dashboards / preview` check fails when PostHog
+4. Open the pull request. Its `PostHog dashboards / Preview` check fails when PostHog
    rejects a query; the job summary lists what the merge will create or
    update. Objects are matched by exact name: a renamed definition creates a
    new one, so delete the old one in PostHog by hand.

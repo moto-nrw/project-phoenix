@@ -1,4 +1,4 @@
-name: Sticky Disk Cleanup
+name: Sticky disk cleanup
 
 # Deletes every Blacksmith sticky disk of this repository once a day (#4034).
 #
