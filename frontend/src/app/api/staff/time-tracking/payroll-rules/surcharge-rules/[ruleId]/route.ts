@@ -10,11 +10,14 @@ interface SurchargeRuleBody {
   wage_type_id: string;
 }
 
-const path = (p: Record<string, unknown>) =>
-  `/api/staff/time-tracking/payroll-rules/surcharge-rules/${requirePathSegmentParam(p, "ruleId")}`;
-
 // Eine Zuschlagsregel ändern (#4807).
-export const PUT = proxyPut<unknown, SurchargeRuleBody>(path);
+export const PUT = proxyPut<unknown, SurchargeRuleBody>(
+  (p) =>
+    `/api/staff/time-tracking/payroll-rules/surcharge-rules/${requirePathSegmentParam(p, "ruleId")}`,
+);
 
 // Eine Zuschlagsregel archivieren.
-export const DELETE = proxyDelete(path);
+export const DELETE = proxyDelete(
+  (p) =>
+    `/api/staff/time-tracking/payroll-rules/surcharge-rules/${requirePathSegmentParam(p, "ruleId")}`,
+);

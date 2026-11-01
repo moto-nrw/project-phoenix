@@ -7,11 +7,14 @@ interface WageTypeBody {
   unit: string;
 }
 
-const path = (p: Record<string, unknown>) =>
-  `/api/staff/time-tracking/payroll-rules/wage-types/${requirePathSegmentParam(p, "wageTypeId")}`;
-
 // Eine eigene Lohnart ändern (#4807).
-export const PUT = proxyPut<unknown, WageTypeBody>(path);
+export const PUT = proxyPut<unknown, WageTypeBody>(
+  (p) =>
+    `/api/staff/time-tracking/payroll-rules/wage-types/${requirePathSegmentParam(p, "wageTypeId")}`,
+);
 
 // Eine eigene Lohnart archivieren; die Zeile bleibt für abgeschlossene Monate.
-export const DELETE = proxyDelete(path);
+export const DELETE = proxyDelete(
+  (p) =>
+    `/api/staff/time-tracking/payroll-rules/wage-types/${requirePathSegmentParam(p, "wageTypeId")}`,
+);
