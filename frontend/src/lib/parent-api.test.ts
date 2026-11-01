@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   listMyChildren,
+  listMyDocuments,
   listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
@@ -1395,6 +1396,46 @@ describe("readable children after a refused write", () => {
         code: "care.guardian_permission_denied",
       });
       expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("keeps child access when the document inbox permission is refused", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(listMyDocuments()).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("reports lost portal access before the daily status falls back to unknown", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(getChildToday("42")).resolves.toEqual(UNKNOWN_CHILD_TODAY);
+      expect(listener).toHaveBeenCalledOnce();
     } finally {
       bindSessionAccount(null);
       window.removeEventListener("parent-access-refused", listener);

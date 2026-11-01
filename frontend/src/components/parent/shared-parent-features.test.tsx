@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
 import * as api from "~/lib/parent-api";
 import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
-import { useParentFeatures } from "~/lib/hooks/use-parent-resources";
+import {
+  useParentFeatures,
+  useParentToday,
+} from "~/lib/hooks/use-parent-resources";
 import { ApiError } from "~/lib/api-error";
 import { useChildCare } from "./child-care";
 import { useChildMasterData } from "./child-master-data";
@@ -130,5 +133,113 @@ describe("shared parent relationship features", () => {
       );
     });
     expect(result.current.features.data).toBeUndefined();
+  });
+});
+
+describe("shared parent daily status", () => {
+  const linked = [
+    ...children,
+    { student_id: "43", tenant_id: "7" } as api.Child,
+  ];
+  const present: api.ChildToday = { at_ogs: true, state: "present" };
+  const left: api.ChildToday = { at_ogs: false, state: "left" };
+  const failure = new ApiError("offline", 503, { code: "general.unavailable" });
+
+  it("keeps successful sibling statuses and exposes cold-load failures", async () => {
+    vi.spyOn(api, "getChildToday").mockImplementation(async (id) => {
+      if (id === "42") throw failure;
+      return present;
+    });
+    const { result } = renderHook(() => useParentToday(linked), {
+      wrapper: ParentResourceTestProvider,
+    });
+    await waitFor(() => expect(result.current.error).toBe(failure));
+    expect(result.current.data).toEqual({
+      "42": api.UNKNOWN_CHILD_TODAY,
+      "43": present,
+    });
+  });
+
+  it("replaces stale attendance only for failed children and clears errors on recovery", async () => {
+    const request = vi.spyOn(api, "getChildToday").mockResolvedValue(present);
+    const { result } = renderHook(() => useParentToday(linked), {
+      wrapper: ParentResourceTestProvider,
+    });
+    await waitFor(() => expect(result.current.data?.["42"]).toEqual(present));
+    request.mockImplementation(async (id) => {
+      if (id === "42") throw failure;
+      return left;
+    });
+    await act(async () => {
+      await result.current.mutate();
+    });
+    expect(result.current.error).toBe(failure);
+    expect(result.current.data).toEqual({
+      "42": api.UNKNOWN_CHILD_TODAY,
+      "43": left,
+    });
+    request.mockResolvedValue(left);
+    await act(async () => {
+      await result.current.mutate();
+    });
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.data).toEqual({ "42": left, "43": left });
+  });
+
+  it("handles a sibling access refusal even when another status request also fails", async () => {
+    const request = vi.spyOn(api, "getChildToday").mockResolvedValue(present);
+    const { result } = renderHook(
+      () => ({
+        today: useParentToday(linked),
+        features: useParentFeatures(linked),
+      }),
+      { wrapper: ParentResourceTestProvider },
+    );
+    await waitFor(() =>
+      expect(result.current.features.data?.["43"]).toEqual(features),
+    );
+    await waitFor(() =>
+      expect(result.current.today.data?.["43"]).toEqual(present),
+    );
+    vi.mocked(api.getChildFeatures).mockReturnValue(
+      new Promise(() => undefined),
+    );
+    request.mockImplementation(async (id) => {
+      if (id === "42") throw failure;
+      throw new ApiError("gone", 403, { code: "care.child_not_linked" });
+    });
+    await act(async () => {
+      await result.current.today.mutate();
+    });
+    expect(result.current.features.data).toBeUndefined();
+    expect(result.current.today.data).toBeUndefined();
+  });
+
+  it("withdraws partial statuses when relationship access is refused", async () => {
+    vi.spyOn(api, "getChildToday").mockImplementation(async (id) => {
+      if (id === "42") throw failure;
+      return present;
+    });
+    const { result } = renderHook(
+      () => ({
+        today: useParentToday(linked),
+        discard: useDiscardRefusedEntity(),
+      }),
+      { wrapper: ParentResourceTestProvider },
+    );
+    await waitFor(() =>
+      expect(result.current.today.data?.["43"]).toEqual(present),
+    );
+    vi.mocked(api.getChildToday).mockReturnValue(new Promise(() => undefined));
+    act(() => {
+      result.current.discard(
+        new ApiError("gone", 403, { code: "care.child_not_linked" }),
+        {
+          codes: ["care.child_not_linked"],
+          matches: (key) => key.startsWith("parent-today-"),
+        },
+      );
+    });
+    expect(result.current.today.data).toBeUndefined();
   });
 });

@@ -7,15 +7,19 @@ export const PARENT_ACCESS_REFUSAL_CODES = [
 ] as const;
 export const PARENT_ACCESS_REFUSED_EVENT = "parent-access-refused";
 
-// Denying a write may leave the child readable (#5425); do not suppress its action error.
+// Action-specific read or write refusals do not prove loss of portal access.
+// Only readers that require parent_portal.access alone may opt in.
 export function isParentAccessRefusal(
   error: unknown,
   method = "GET",
+  checksPortalAccess = false,
 ): error is ApiError {
   return (
     error instanceof ApiError &&
     (error.status === 401 || error.status === 403 || error.status === 404) &&
     (error.code === "care.child_not_linked" ||
-      (method === "GET" && error.code === "care.guardian_permission_denied"))
+      (checksPortalAccess &&
+        method === "GET" &&
+        error.code === "care.guardian_permission_denied"))
   );
 }

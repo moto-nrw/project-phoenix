@@ -513,6 +513,7 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
 async function throwResponseError(
   url: string,
   response: Response,
+  checksPortalAccess = false,
 ): Promise<never> {
   let body: unknown;
   try {
@@ -531,7 +532,7 @@ async function throwResponseError(
     typeof window !== "undefined" &&
     account &&
     account === boundSessionAccount() &&
-    isParentAccessRefusal(error, origin?.method)
+    isParentAccessRefusal(error, origin?.method, checksPortalAccess)
   ) {
     window.dispatchEvent(
       new CustomEvent(PARENT_ACCESS_REFUSED_EVENT, {
@@ -556,12 +557,12 @@ async function throwResponseError(
   throw error;
 }
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, checksPortalAccess = false): Promise<T> {
   const response = await transportFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-  if (!response.ok) await throwResponseError(url, response);
+  if (!response.ok) await throwResponseError(url, response, checksPortalAccess);
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
@@ -865,6 +866,7 @@ export async function getChildFeatures(
 ): Promise<ChildFeatures> {
   return getJson<ChildFeatures>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/features`,
+    true, // This endpoint requires only parent_portal.access.
   );
 }
 
@@ -922,6 +924,7 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
   try {
     return await getJson<ChildToday>(
       `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
+      true, // This endpoint requires only parent_portal.access.
     );
   } catch (err) {
     if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {

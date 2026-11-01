@@ -13,6 +13,8 @@ import {
   getChildToday,
   type Child,
   type ChildFeatures,
+  type ChildToday,
+  UNKNOWN_CHILD_TODAY,
 } from "~/lib/parent-api";
 
 import {
@@ -40,7 +42,8 @@ function useParentRefusal() {
     session?.user.scope === "parent" ? session.user.id : undefined;
   return useCallback(
     (error: unknown, broadcast = true) => {
-      if (!account || !isParentAccessRefusal(error)) return false;
+      // Callers are the portal-access-only readers or already classified signals.
+      if (!account || !isParentAccessRefusal(error, "GET", true)) return false;
       const refused = discard(error, {
         codes: REFUSAL_CODES,
         matches: parentKeys.isResource,
@@ -153,12 +156,12 @@ export function useParentChildren(enabled = true) {
 // Partial responses are visible only through SWR's current-error gate (G19).
 // Deliberately not an ApiError: discarding a refusal must never restamp these
 // partial values into the new data generation as a preserved refusal error.
-class ParentFeaturesFailure extends Error {
+class ParentResourceFailure<T> extends Error {
   constructor(
-    readonly partial: Record<string, ChildFeatures>,
+    readonly partial: Record<string, T>,
     readonly failures: Record<string, unknown>,
   ) {
-    super("Parent feature lookups failed");
+    super("Parent resource lookups failed");
   }
 }
 const NO_FEATURE_FAILURES: Readonly<Record<string, unknown>> = {};
@@ -187,7 +190,7 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
         else failures[child.student_id] = response.reason;
       });
       if (Object.keys(failures).length > 0)
-        throw new ParentFeaturesFailure(partial, failures);
+        throw new ParentResourceFailure(partial, failures);
       return partial;
     },
     {
@@ -195,14 +198,14 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
       onError: (error) => {
         // Only original API errors are refusals; never preserve the batch's data-bearing error.
         const failures =
-          error instanceof ParentFeaturesFailure
+          error instanceof ParentResourceFailure
             ? Object.values(error.failures)
             : [error];
         for (const failure of failures) if (refuse(failure)) break;
       },
       shouldRetryOnError: (error) =>
         !(
-          error instanceof ParentFeaturesFailure &&
+          error instanceof ParentResourceFailure &&
           Object.values(error.failures).some(
             (failure) =>
               failure instanceof ApiError &&
@@ -212,8 +215,8 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
     },
   );
   const batch =
-    resource.error instanceof ParentFeaturesFailure
-      ? resource.error
+    resource.error instanceof ParentResourceFailure
+      ? (resource.error as ParentResourceFailure<ChildFeatures>)
       : undefined;
   return {
     ...resource,
@@ -227,24 +230,58 @@ export function useParentToday(children: readonly Child[] | undefined) {
   const day = useBerlinToday();
   const refuse = useParentRefusal();
   const { data: session } = useSession();
-  return useSWRAuth(
+  const resource = useSWRAuth(
     session?.user.scope === "parent" && children
       ? parentKeys.today(children, day)
       : null,
     async () => {
-      const entries = await Promise.all(
-        (children ?? []).map(
-          async (child) =>
-            [child.student_id, await getChildToday(child.student_id)] as const,
-        ),
+      const list = children ?? [];
+      const responses = await Promise.allSettled(
+        list.map((child) => getChildToday(child.student_id)),
       );
-      return Object.fromEntries(entries);
+      const partial: Record<string, ChildToday> = {};
+      const failures: Record<string, unknown> = {};
+      responses.forEach((response, index) => {
+        const child = list[index];
+        if (!child) return;
+        if (response.status === "fulfilled") {
+          partial[child.student_id] = response.value;
+        } else {
+          partial[child.student_id] = UNKNOWN_CHILD_TODAY;
+          failures[child.student_id] = response.reason;
+        }
+      });
+      if (Object.keys(failures).length > 0)
+        throw new ParentResourceFailure(partial, failures);
+      return partial;
     },
     {
       ...PARENT_RESOURCE_OPTIONS,
       onError: (error) => {
-        refuse(error);
+        const failures =
+          error instanceof ParentResourceFailure
+            ? Object.values(error.failures)
+            : [error];
+        for (const failure of failures) if (refuse(failure)) break;
       },
+      shouldRetryOnError: (error) =>
+        !(
+          error instanceof ParentResourceFailure &&
+          Object.values(error.failures).some(
+            (failure) =>
+              failure instanceof ApiError &&
+              (failure.status === 401 || failure.status === 403),
+          )
+        ),
     },
   );
+  const batch =
+    resource.error instanceof ParentResourceFailure
+      ? (resource.error as ParentResourceFailure<ChildToday>)
+      : undefined;
+  return {
+    ...resource,
+    data: resource.error ? batch?.partial : resource.data,
+    error: batch ? Object.values(batch.failures)[0] : resource.error,
+  };
 }

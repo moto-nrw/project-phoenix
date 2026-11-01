@@ -134,7 +134,9 @@ factory key, together with the Berlin calendar day for date-dependent flags
 and status. Each relationship is fetched, including siblings at the same
 school; a school's flags never stand in for another child's permissions.
 A failed lookup hides only that relationship's flags, never a previously
-confirmed stale value; other successful children stay available. Partial
+confirmed stale value; other successful children stay available. Daily status
+lookups likewise preserve successful siblings, replace only failed children's
+statuses with `UNKNOWN_CHILD_TODAY`, and keep the load error visible. Partial
 results are read only through the wrapper's current-error gate (G19). The
 private batch failure is not an `ApiError`, and refusals use the original API
 errors, so discarding cannot restamp partial results into a newer generation.
@@ -151,11 +153,12 @@ the start-page feeds start independently, then features and day status start
 in parallel as soon as children are known. The child header still reads the
 complete authorized children list, not a new detail preview or permission seed.
 
-The parent API reports `care.child_not_linked` and read-side
-`care.guardian_permission_denied` (401/403/404) to the authenticated bridge.
-A write-side `care.guardian_permission_denied` does not prove loss of child
-access: the existing action rolls back and rechecks its still-readable resource
-(as in #5425).
+The parent API reports `care.child_not_linked` (401/403/404) to the
+authenticated bridge. `care.guardian_permission_denied` triggers eviction only
+for the features and today readers, which check `parent_portal.access` alone.
+Action-specific refusals, including document inbox reads and writes, do not
+prove loss of child access. Reads keep their load errors; write actions roll
+back and recheck their still-readable resource (as in #5425).
 It discards the parent resource family through `useDiscardRefusedEntity`,
 revalidates the children list, and broadcasts only account and refusal code
 to the other tabs. The API captures the originating account before the request;
