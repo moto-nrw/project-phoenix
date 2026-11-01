@@ -300,12 +300,21 @@ export function preloadSWR<T>(
   intent = false,
 ): Promise<T> {
   const start = startOf(key);
+  let request: Promise<T>;
   const load = intent
     ? async () => {
         try {
-          return await fetcher();
+          // SWR registers the promise after invoking this loader. Defer
+          // even synchronous throws until that registration has completed.
+          return await Promise.resolve().then(fetcher);
         } catch (error) {
           const preloads = SWRGlobalState.get(cache)?.[3];
+          if (preloads?.[key] === request) {
+            // Remove an unconsumed failure atomically with the decision not
+            // to retry, before a reader can take the rejecting promise.
+            delete preloads[key];
+            throw error;
+          }
           // SWR deletes an entry when a reader takes its promise. Only that
           // handoff earns one ordinary load, not an unconsumed speculation.
           // Cleanup also deletes entries, but ends the generation first.
@@ -320,7 +329,7 @@ export function preloadSWR<T>(
         }
       }
     : fetcher;
-  const request = swrPreload(key, lockFetcher(key, load)) as Promise<T>;
+  request = swrPreload(key, lockFetcher(key, load)) as Promise<T>;
   preloadStarts.set(request, start);
   if (intent)
     void request.catch(() => {

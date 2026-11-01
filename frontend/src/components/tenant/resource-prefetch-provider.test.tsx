@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState, type ComponentProps } from "react";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
 import { useSWRAuth } from "~/lib/swr";
@@ -244,6 +245,31 @@ describe("locked navigation data intent", () => {
     expect(screen.getByText("page rooms")).toBeInTheDocument();
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+  it.each([0, 1, 2, 3, 4, 5, 6])(
+    "loads normally when navigation races rejection at microtask %s",
+    async (turns) => {
+      let rejectIntent!: (error: Error) => void;
+      fetcher.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectIntent = reject;
+          }),
+      );
+      render(<Harness />);
+      const link = screen.getByRole("link", { name: "Open rooms" });
+      fireEvent.focus(link);
+      await advance(0);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        rejectIntent(new Error("intent failed alongside navigation"));
+        for (let turn = 0; turn < turns; turn++) await Promise.resolve();
+        flushSync(() => fireEvent.click(link));
+      });
+      await advance(10);
+      expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
   it("shows the destination failure if its handoff fallback fails too", async () => {
     let rejectIntent!: (error: Error) => void;
     fetcher
