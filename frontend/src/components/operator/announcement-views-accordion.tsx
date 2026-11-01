@@ -12,12 +12,10 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
-  readonly dismissedCount?: number;
 }
 
 export function AnnouncementViewsAccordion({
   announcementId,
-  dismissedCount,
 }: AnnouncementViewsAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const {
@@ -57,12 +55,7 @@ export function AnnouncementViewsAccordion({
     () => (viewDetails ?? []).filter((detail) => detail.dismissed),
     [viewDetails],
   );
-  const count = stats?.dismissed_count ?? dismissedCount;
-
-  // Only show if there are any confirmations
-  if (dismissedCount === 0) {
-    return null;
-  }
+  const count = stats?.dismissed_count;
 
   return (
     <div
@@ -91,70 +84,66 @@ export function AnnouncementViewsAccordion({
 
       {/* Accordion body */}
       {isOpen && (
-        <div
-          className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-        >
-          <div className="overflow-hidden">
-            <div className="pb-3">
-              {/* Loading state */}
-              {isLoading && (
-                <p className="py-2 text-xs text-gray-400">Laden...</p>
-              )}
+        <div className="overflow-hidden">
+          <div className="pb-3">
+            {/* Loading state */}
+            {isLoading && (
+              <p className="py-2 text-xs text-gray-400">Laden...</p>
+            )}
 
-              {/* Error */}
-              <LoadErrorAlert
-                error={loadError ?? statsLoadError}
-                className="mb-2"
-              />
+            {/* Error */}
+            <LoadErrorAlert
+              error={loadError ?? statsLoadError}
+              className="mb-2"
+            />
 
-              {/* Confirmed users list */}
-              {!isLoading && confirmedUsers.length > 0 && (
-                <div className="space-y-0 divide-y divide-gray-100">
-                  {confirmedUsers.map((detail) => (
-                    <div
-                      key={detail.userId}
-                      className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
-                    >
-                      {/* Initials avatar */}
-                      <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                        {getInitial(detail.userName)}
-                      </div>
+            {/* Confirmed users list */}
+            {!isLoading && confirmedUsers.length > 0 && (
+              <div className="space-y-0 divide-y divide-gray-100">
+                {confirmedUsers.map((detail) => (
+                  <div
+                    key={detail.userId}
+                    className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
+                  >
+                    {/* Initials avatar */}
+                    <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
+                      {getInitial(detail.userName)}
+                    </div>
 
-                      {/* Content */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-sm font-medium text-gray-900">
-                              {detail.userName}
-                            </span>
-                            <time
-                              dateTime={detail.seenAt}
-                              title={new Date(detail.seenAt).toLocaleString(
-                                "de-DE",
-                                { timeZone: "Europe/Berlin" },
-                              )}
-                              className="text-xs text-gray-400"
-                            >
-                              · {getRelativeTime(detail.seenAt)}
-                            </time>
-                          </div>
-                          <Check className="text-moto-green h-4 w-4" />
+                    {/* Content */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-sm font-medium text-gray-900">
+                            {detail.userName}
+                          </span>
+                          <time
+                            dateTime={detail.seenAt}
+                            title={new Date(detail.seenAt).toLocaleString(
+                              "de-DE",
+                              { timeZone: "Europe/Berlin" },
+                            )}
+                            className="text-xs text-gray-400"
+                          >
+                            · {getRelativeTime(detail.seenAt)}
+                          </time>
                         </div>
+                        <Check className="text-moto-green h-4 w-4" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {/* Empty state */}
-              {!isLoading &&
-                viewDetails !== undefined &&
-                confirmedUsers.length === 0 && (
-                  <p className="text-xs text-gray-400">
-                    Noch keine Lesebestätigungen.
-                  </p>
-                )}
-            </div>
+            {/* Empty state */}
+            {!isLoading &&
+              viewDetails !== undefined &&
+              confirmedUsers.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  Noch keine Lesebestätigungen.
+                </p>
+              )}
           </div>
         </div>
       )}

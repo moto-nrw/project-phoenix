@@ -62,6 +62,9 @@ afterEach(() => resumeSWRSession());
 describe("AnnouncementViewsAccordion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: 3,
+    });
     sessionState.data = {
       user: { id: "operator-a", scope: "platform" },
       expires: "2099-01-01",
@@ -69,29 +72,30 @@ describe("AnnouncementViewsAccordion", () => {
     sessionState.status = "authenticated";
   });
 
-  it("does not render when dismissedCount is 0", () => {
-    const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
-    );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("renders accordion header when dismissedCount > 0", () => {
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={5} />,
-    );
-
-    expect(screen.getByText("Lesebestätigungen")).toBeInTheDocument();
-    expect(screen.getByText("(5)")).toBeInTheDocument();
+  it.each([0, 5])("shows count %d only while opened", async (count) => {
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: count,
+    });
+    mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    const toggle = screen.getByRole("button", { name: "Lesebestätigungen" });
+    // Anker: the collapsed card is available without a statistics response.
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).not.toHaveTextContent(/\(\d+\)/);
+    expect(mockOperatorAnnouncementsService.fetchStats).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    expect(await screen.findByText(`(${count})`)).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    // Anker: the same card remains present after closing.
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).not.toHaveTextContent(`(${count})`);
   });
 
   it("toggles accordion on header click", async () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
@@ -110,9 +114,7 @@ describe("AnnouncementViewsAccordion", () => {
       () => new Promise((resolve) => setTimeout(() => resolve([]), 100)),
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -127,9 +129,7 @@ describe("AnnouncementViewsAccordion", () => {
       .mockRejectedValueOnce(new ApiError("Network error", 503))
       .mockResolvedValueOnce([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -167,9 +167,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={2} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -200,9 +198,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -213,18 +209,38 @@ describe("AnnouncementViewsAccordion", () => {
     });
   });
 
-  it("shows empty state when no confirmations", async () => {
+  it("shows an explicit empty state for zero confirmations after opening", async () => {
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: 0,
+    });
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    fireEvent.click(screen.getByRole("button", { name: "Lesebestätigungen" }));
+    expect(
+      await screen.findByText("Noch keine Lesebestätigungen."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("(0)")).toBeInTheDocument();
+  });
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
+  it("stops statistics polling after closing", async () => {
+    vi.useFakeTimers();
+    mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    fireEvent.click(screen.getByRole("button", { name: "Lesebestätigungen" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText("(3)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Lesebestätigungen/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30001);
+    });
+    expect(
+      screen.getByRole("button", { name: "Lesebestätigungen" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(mockOperatorAnnouncementsService.fetchStats).toHaveBeenCalledTimes(
+      1,
     );
-
-    // Component should not render at all
-    const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
-    );
-    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows empty state message when all users not dismissed", async () => {
@@ -241,9 +257,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -259,7 +273,7 @@ describe("AnnouncementViewsAccordion", () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
     const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
+      <AnnouncementViewsAccordion announcementId="42" />,
     );
 
     const button = screen.getByRole("button");
@@ -277,9 +291,7 @@ describe("AnnouncementViewsAccordion", () => {
   it("only loads data once", async () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
 
@@ -319,9 +331,7 @@ describe("AnnouncementViewsAccordion", () => {
           dismissed: true,
         },
       ]);
-      const view = render(
-        <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-      );
+      const view = render(<AnnouncementViewsAccordion announcementId="42" />);
       fireEvent.click(
         screen.getByRole("button", { name: /Lesebestätigungen/ }),
       );
@@ -347,12 +357,7 @@ describe("AnnouncementViewsAccordion", () => {
                 };
           sessionState.status =
             change === "logout" ? "unauthenticated" : "authenticated";
-          view.rerender(
-            <AnnouncementViewsAccordion
-              announcementId="42"
-              dismissedCount={3}
-            />,
-          );
+          view.rerender(<AnnouncementViewsAccordion announcementId="42" />);
         }
       });
       // Anker: the same mounted, expanded accordion remains available.
@@ -381,7 +386,7 @@ describe("AnnouncementViewsAccordion", () => {
     render(
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
       <div onClick={parentClick} role="presentation">
-        <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />
+        <AnnouncementViewsAccordion announcementId="42" />
       </div>,
     );
 
