@@ -80,7 +80,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	if err != nil {
 		return
 	}
-	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
+	hub = realtime.NewHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
 	var (
 		yard             FacilitiesYard

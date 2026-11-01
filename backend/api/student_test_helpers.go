@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -19,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -154,7 +155,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
 	logger := slog.Default()
-	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
+	realtimeHub := realtime.NewHub(logger)
 	studentConsentService := NewStudentConsents(db)
 	if photoBroadcaster == nil {
 		photoBroadcaster = realtimeHub
