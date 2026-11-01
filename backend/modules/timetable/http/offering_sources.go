@@ -21,6 +21,10 @@ import (
 
 type offeringSourcesResponse struct {
 	Offerings []offeringSourceOptionResponse `json:"offerings"`
+	// PhasesOutsidePeriod names the phases whose offerings the choice leaves
+	// out because their service window reaches beyond the calendar period
+	// (#5344); empty without a period.
+	PhasesOutsidePeriod []offeringPhaseOutsidePeriodResponse `json:"phases_outside_period"`
 }
 
 // offeringSourceOptionResponse mirrors timetable.OfferingSourceOption with
@@ -70,7 +74,24 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list offering sources failed", err))
 		return
 	}
-	resp := offeringSourcesResponse{Offerings: make([]offeringSourceOptionResponse, 0, len(options))}
+	outside := []timetableModule.OfferingPhaseOutsidePeriod{}
+	if calendarPeriodID != nil {
+		if outside, err = rs.OfferingSourceOptions.OfferingPhasesOutsidePeriod(r.Context(), *calendarPeriodID); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("list offering sources failed", err))
+			return
+		}
+	}
+	resp := offeringSourcesResponse{
+		Offerings:           offeringSourceOptionResponses(options),
+		PhasesOutsidePeriod: offeringPhasesOutsidePeriodResponse(outside),
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Offering sources retrieved")
+}
+
+// offeringSourceOptionResponses maps the options to the wire shape with
+// string-keyed grade counts.
+func offeringSourceOptionResponses(options []timetableModule.OfferingSourceOption) []offeringSourceOptionResponse {
+	result := make([]offeringSourceOptionResponse, 0, len(options))
 	for _, option := range options {
 		gradeCounts := make(map[string]int, len(option.GradeCounts))
 		for grade, count := range option.GradeCounts {
@@ -89,7 +110,7 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 		if !option.PhaseServiceStart.IsZero() {
 			phaseServiceStart = option.PhaseServiceStart.String()
 		}
-		resp.Offerings = append(resp.Offerings, offeringSourceOptionResponse{
+		result = append(result, offeringSourceOptionResponse{
 			ID:                     option.ID,
 			Name:                   option.Name,
 			PhaseID:                option.PhaseID,
@@ -101,7 +122,7 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 			LegacyLinkedTemplateID: option.LegacyLinkedTemplateID,
 		})
 	}
-	common.Respond(w, r, http.StatusOK, resp, "Offering sources retrieved")
+	return result
 }
 
 // combinedOfferingCountsResponse mirrors

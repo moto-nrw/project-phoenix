@@ -6,6 +6,8 @@
  * mappers in timetable-helpers.ts.
  */
 
+import type { BackendOfferingPhaseOutsidePeriod } from "~/lib/offering-gap";
+
 export type InstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
 /**
@@ -1332,6 +1334,8 @@ interface BackendOfferingSourceOption {
 
 export interface BackendOfferingSourcesResponse {
   offerings: BackendOfferingSourceOption[];
+  /** Phases the calendar period leaves out (#5344). */
+  phases_outside_period?: BackendOfferingPhaseOutsidePeriod[] | null;
 }
 
 /**

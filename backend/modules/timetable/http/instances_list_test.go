@@ -35,7 +35,9 @@ import (
 type stubOfferingSources struct {
 	options  []timetable.OfferingSourceOption
 	bookings []timetable.OfferingWeekdayBooking
-	err      error
+	// outside are the phases the period leaves out (#5344).
+	outside []timetable.OfferingPhaseOutsidePeriod
+	err     error
 	// decisions records the template-gap decisions (#5140) by offering and
 	// planning period, as Care Plan stores them.
 	decisions map[offeringPeriod][]string
@@ -122,6 +124,13 @@ func (s *stubOfferingSources) OfferingWeekdayBookings(
 		bookings[i].TemplateGapAckClasses = s.decided(bookings[i].OfferingID, *periodID)
 	}
 	return bookings, s.err
+}
+
+func (s *stubOfferingSources) OfferingPhasesOutsidePeriod(
+	_ context.Context,
+	_ int64,
+) ([]timetable.OfferingPhaseOutsidePeriod, error) {
+	return s.outside, s.err
 }
 
 type listSetup struct {

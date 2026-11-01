@@ -365,3 +365,44 @@ func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {
 	assert.Equal(t, len(small), len(large))
 	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", large)
 }
+
+// TestOfferingPhasesOutsidePeriodQueryBudget (#5344): the phases a planning
+// period leaves out are read with the setting, the offerings, the phases and
+// the period, flat in the number of offerings. The source phase ends after
+// the period, so it is named with its active offerings.
+func TestOfferingPhasesOutsidePeriodQueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	period := createCareOfferingTestPeriod(t, env.db, "outside-budget",
+		calendar.Date(env.sourcePhase.ServiceStartDate), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+	lister := env.bookings.(careplan.OfferingSourceEditor)
+	counter := testpkg.CaptureQueries(t, env.db)
+	run := func(wantOfferings int) []string {
+		var reads []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			outside, err := lister.OfferingPhasesOutsidePeriod(txCtx, period.ID)
+			reads = counter.Operation("SELECT")
+			require.Len(t, outside, 1)
+			assert.Equal(t, env.sourcePhase.ID, outside[0].Phase.ID)
+			assert.Equal(t, wantOfferings, outside[0].OfferingCount)
+			return err
+		})
+		require.NoError(t, err)
+		return reads
+	}
+	for i := range 3 {
+		createSourceOffering(t, env, fmt.Sprintf("Outside small %d", i), nil)
+	}
+	small := run(3)
+	for i := 3; i < 8; i++ {
+		createSourceOffering(t, env, fmt.Sprintf("Outside large %d", i), nil)
+	}
+	large := run(8)
+
+	t.Logf("query budget: 3 offerings → %d reads, 8 offerings → %d reads", len(small), len(large))
+	assert.Equal(t, len(small), len(large))
+	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_phases_outside_period.reads", large)
+}

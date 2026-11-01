@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { SWRConfig } from "swr";
 import { expect, it, vi } from "vitest";
 
-import type { OfferingGap } from "~/lib/offering-gap";
+import type { OfferingGap, OfferingGapReport } from "~/lib/offering-gap";
 
 const { getGaps, setAcknowledged } = vi.hoisted(() => ({
   getGaps: vi.fn(),
@@ -23,6 +23,7 @@ vi.mock("next-auth/react", () => ({
 }));
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "school",
+  useTenantRoutingModeSafe: () => "path",
 }));
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
@@ -45,12 +46,14 @@ it("removes old hints until the selected period has loaded", async () => {
     newSeriesClasses: [],
     newSeriesPlansCovered: false,
   };
-  let resolveNext!: (gaps: OfferingGap[]) => void;
-  const next = new Promise<OfferingGap[]>((resolve) => {
+  let resolveNext!: (report: OfferingGapReport) => void;
+  const next = new Promise<OfferingGapReport>((resolve) => {
     resolveNext = resolve;
   });
   getGaps.mockImplementation((periodId: string) =>
-    periodId === "5" ? Promise.resolve([oldGap]) : next,
+    periodId === "5"
+      ? Promise.resolve({ gaps: [oldGap], phasesOutsidePeriod: [] })
+      : next,
   );
   const cache = new Map();
   const view = (periodId: string) => (
@@ -58,6 +61,7 @@ it("removes old hints until the selected period has loaded", async () => {
       <OfferingGapHints
         periodId={periodId}
         canManage
+        canManagePhases={false}
         onCreateSeries={vi.fn()}
         templatesVersion={undefined}
       />
@@ -70,7 +74,10 @@ it("removes old hints until the selected period has loaded", async () => {
   expect(screen.queryAllByRole("button")).toHaveLength(0);
 
   await act(async () => {
-    resolveNext([{ ...oldGap, offering: { id: "8", name: "Mittagessen" } }]);
+    resolveNext({
+      gaps: [{ ...oldGap, offering: { id: "8", name: "Mittagessen" } }],
+      phasesOutsidePeriod: [],
+    });
   });
   // Anker: die Hinweise des neu gewählten Zeitraums sind geladen.
   expect(await screen.findByText("„Mittagessen“")).toBeInTheDocument();

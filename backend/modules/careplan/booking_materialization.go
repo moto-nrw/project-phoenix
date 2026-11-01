@@ -108,6 +108,12 @@ type OfferingSourceEditor interface {
 	// after from (#5103). Empty while the school has Betreuungsangebote
 	// switched off. A constant number of reads.
 	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
+	// OfferingPhasesOutsidePeriod lists the phases with active offerings
+	// that overlap the calendar period without lying inside it, so their
+	// offerings are left out of the period's sources and checks (#5344).
+	// Empty while the school has Betreuungsangebote switched off. A constant
+	// number of reads.
+	OfferingPhasesOutsidePeriod(ctx context.Context, calendarPeriodID int64) ([]OfferingPhaseOutsidePeriod, error)
 }
 
 // BookingMaterializer is what an Enrollment decision asks of Care Plan when

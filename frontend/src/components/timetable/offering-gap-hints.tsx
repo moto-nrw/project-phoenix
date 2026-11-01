@@ -16,6 +16,7 @@ import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
+import { PhasesOutsidePeriodNotice } from "~/components/timetable/phases-outside-period-notice";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -46,16 +47,20 @@ const INITIAL_GAP_COUNT = 5;
  * rights only see the open hints. A failed check shows the load error with a
  * retry, never an empty list: no hint must not read as "no gaps". Every
  * reload of the template list reloads the hints too, so a new Regeltermin
- * shows at once.
+ * shows at once. Phases that reach beyond the period are named above the
+ * list, since their offerings are not checked here at all (#5344).
  */
 export function OfferingGapHints({
   periodId,
   canManage,
+  canManagePhases,
   onCreateSeries,
   templatesVersion,
 }: Readonly<{
   periodId: string | undefined;
   canManage: boolean;
+  /** May open the Anmeldephasen to align a phase with the period. */
+  canManagePhases: boolean;
   /** Opens a new Regeltermin fed by the offering of the row. */
   onCreateSeries: (gap: OfferingGap) => void;
   templatesVersion: unknown;
@@ -123,13 +128,16 @@ export function OfferingGapHints({
     [periodId, showActionError, tenantMutate, toast],
   );
 
-  const gaps = data ?? [];
+  const gaps = data?.gaps ?? [];
+  const outside = data?.phasesOutsidePeriod ?? [];
   const open = gaps.filter((gap) => !gap.acknowledged);
   const decided = canManage ? gaps.filter((gap) => gap.acknowledged) : [];
   if (error) {
     return <LoadErrorAlert error={loadError} actionLayout="responsive" />;
   }
-  if (open.length === 0 && decided.length === 0) return null;
+  if (open.length === 0 && decided.length === 0 && outside.length === 0) {
+    return null;
+  }
 
   const hiddenCount = Math.max(0, open.length - INITIAL_GAP_COUNT);
   const visible = expanded ? open : open.slice(0, INITIAL_GAP_COUNT);
@@ -140,6 +148,11 @@ export function OfferingGapHints({
 
   return (
     <div className="flex flex-col gap-3" data-testid="offering-gap-hints">
+      <PhasesOutsidePeriodNotice
+        phases={outside}
+        context="checks"
+        canManagePhases={canManagePhases}
+      />
       {open.length > 0 ? (
         <SectionCard
           title="Angebote ohne Regeltermin"

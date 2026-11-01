@@ -1,6 +1,8 @@
 "use client";
 
+import { PhasesOutsidePeriodNotice } from "~/components/timetable/phases-outside-period-notice";
 import { Alert } from "~/components/ui/alert";
+import type { OfferingPhaseOutsidePeriod } from "~/lib/offering-gap";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import type { FormError } from "~/components/ui/form-error";
@@ -111,6 +113,10 @@ export interface StepPersonalKinderProps {
   addTargetCohort: () => void;
   offeringSources: OfferingSourceOption[] | null;
   offeringSourcesError: FormError | null;
+  /** Phases the period leaves out of the list (#5344). */
+  offeringPhasesOutsidePeriod: readonly OfferingPhaseOutsidePeriod[];
+  /** May open the Anmeldephasen page to align such a phase. */
+  canManageEnrollmentPhases: boolean;
   sourcePhaseLockId: string | null;
   sourceGradeOptions: number[];
   sourceGradeCounts: Record<number, number>;
@@ -191,6 +197,8 @@ export function StepPersonalKinder({
   addTargetCohort,
   offeringSources,
   offeringSourcesError,
+  offeringPhasesOutsidePeriod,
+  canManageEnrollmentPhases,
   sourcePhaseLockId,
   sourceGradeOptions,
   sourceGradeCounts,
@@ -600,6 +608,11 @@ export function StepPersonalKinder({
                   )}
               </Field>
               <LoadErrorAlert error={offeringSourcesError} />
+              <PhasesOutsidePeriodNotice
+                phases={offeringPhasesOutsidePeriod}
+                context="choice"
+                canManagePhases={canManageEnrollmentPhases}
+              />
               {form.sourceCareOfferingIds.length === 0 && (
                 <Alert
                   type="info"

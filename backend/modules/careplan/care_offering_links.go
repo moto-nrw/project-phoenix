@@ -113,6 +113,18 @@ func SchedulesOverlapPhase(schedules []LinkedSchedule, phase OfferingPhase) bool
 	return false
 }
 
+// OfferingPhaseOutsidePeriod is an enrollment phase whose service window
+// overlaps a planning period without lying inside it (#5344). Its active
+// offerings stay out of the period's source choice and booking checks, as
+// ValidatePhaseWithinPeriod demands; the planner names the phase instead of
+// showing an empty list. OfferingCount counts its active offerings; Period
+// is the planning period they are left out of.
+type OfferingPhaseOutsidePeriod struct {
+	Phase         OfferingPhase
+	OfferingCount int
+	Period        LinkedPeriod
+}
+
 // ValidatePhaseWithinPeriod refuses a phase whose service window leaves the
 // template's planning period. A nil period passes.
 func ValidatePhaseWithinPeriod(phase OfferingPhase, period *LinkedPeriod) error {

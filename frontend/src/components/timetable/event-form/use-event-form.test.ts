@@ -26,7 +26,10 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 beforeEach(() => {
   vi.spyOn(planningTrackService, "list").mockResolvedValue([]);
-  vi.spyOn(timetableService, "getOfferingSources").mockResolvedValue([]);
+  vi.spyOn(timetableService, "getOfferingSourceChoice").mockResolvedValue({
+    offerings: [],
+    phasesOutsidePeriod: [],
+  });
   vi.spyOn(timetableService, "getCombinedOfferingCounts").mockResolvedValue({
     totalCount: 0,
     gradeCounts: {},

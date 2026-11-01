@@ -2213,6 +2213,7 @@ function TimetablesContent() {
         canCheckShiftCoverage={canCheckShiftCoverage}
         canManageCategories={canManageCategories}
         canManagePlanningTracks={canManageSchedules}
+        canManageEnrollmentPhases={hasPermission(session, "config:manage")}
         canCreateExternalCaregiver={canCreateExternalCaregiver}
         canGrantExternalView={canGrantExternalView}
         isOpen={eventModalOpen}
@@ -2599,6 +2600,7 @@ function TimetablesContent() {
         <OfferingGapHints
           periodId={templatePeriodID}
           canManage={canManageSchedules}
+          canManagePhases={hasPermission(session, "config:manage")}
           onCreateSeries={openSeriesCreateForGap}
           templatesVersion={templateData}
         />

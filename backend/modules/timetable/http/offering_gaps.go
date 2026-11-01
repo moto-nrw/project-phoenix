@@ -34,6 +34,36 @@ type offeringGapResponse struct {
 
 type offeringGapsResponse struct {
 	Gaps []offeringGapResponse `json:"gaps"`
+	// PhasesOutsidePeriod names the phases whose offerings the check left
+	// out because their service window reaches beyond the period (#5344):
+	// without them an empty list would read as "every booking is covered".
+	PhasesOutsidePeriod []offeringPhaseOutsidePeriodResponse `json:"phases_outside_period"`
+}
+
+type offeringPhaseOutsidePeriodResponse struct {
+	PhaseID       int64  `json:"phase_id"`
+	PhaseName     string `json:"phase_name"`
+	ServiceStart  string `json:"service_start"`
+	ServiceEnd    string `json:"service_end"`
+	OfferingCount int    `json:"offering_count"`
+	PeriodStart   string `json:"period_start"`
+	PeriodEnd     string `json:"period_end"`
+}
+
+func offeringPhasesOutsidePeriodResponse(phases []timetable.OfferingPhaseOutsidePeriod) []offeringPhaseOutsidePeriodResponse {
+	result := make([]offeringPhaseOutsidePeriodResponse, 0, len(phases))
+	for _, phase := range phases {
+		result = append(result, offeringPhaseOutsidePeriodResponse{
+			PhaseID:       phase.PhaseID,
+			PhaseName:     phase.PhaseName,
+			ServiceStart:  phase.ServiceStart.String(),
+			ServiceEnd:    phase.ServiceEnd.String(),
+			OfferingCount: phase.OfferingCount,
+			PeriodStart:   phase.PeriodStart.String(),
+			PeriodEnd:     phase.PeriodEnd.String(),
+		})
+	}
+	return result
 }
 
 // errInactivePlanningPeriod refuses a period the Betreuungsplan does not
@@ -59,9 +89,9 @@ func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required")))
 		return
 	}
-	gaps, err := rs.offeringGaps(r.Context(), *periodID)
+	gaps, outside, err := rs.offeringGaps(r.Context(), *periodID)
 	if errors.Is(err, errInactivePlanningPeriod) {
-		gaps, err = []timetable.OfferingGap{}, nil
+		gaps, outside, err = []timetable.OfferingGap{}, []timetable.OfferingPhaseOutsidePeriod{}, nil
 	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list offering gaps failed", err))
@@ -71,22 +101,39 @@ func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
 	for _, gap := range gaps {
 		result = append(result, offeringGapResponseFrom(gap))
 	}
-	common.Respond(w, r, http.StatusOK, offeringGapsResponse{Gaps: result}, "Offering gaps retrieved")
+	common.Respond(w, r, http.StatusOK, offeringGapsResponse{
+		Gaps:                result,
+		PhasesOutsidePeriod: offeringPhasesOutsidePeriodResponse(outside),
+	}, "Offering gaps retrieved")
 }
 
 // offeringGaps compares the bookings of an active period from today on with
-// the Regeltermine and the Klassentag, date by date (#5140, #5343).
+// the Regeltermine and the Klassentag, date by date (#5140, #5343), and names
+// the phases whose offerings the comparison leaves out (#5344).
 // errInactivePlanningPeriod for an unknown or inactive period. Without the
-// offering side there is nothing to compare.
-func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetable.OfferingGap, error) {
+// offering side, or once the period is over, there is nothing to compare.
+func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetable.OfferingGap, []timetable.OfferingPhaseOutsidePeriod, error) {
+	none := []timetable.OfferingPhaseOutsidePeriod{}
 	period, err := rs.activePlanningPeriod(ctx, periodID)
 	if err != nil || rs.OfferingSourceOptions == nil {
-		return []timetable.OfferingGap{}, err
+		return []timetable.OfferingGap{}, none, err
 	}
 	scope := timetable.OfferingGapScope{From: max(rs.todayDate(), calendar.Date(period.StartDate)), Until: calendar.Date(period.EndDate)}
 	if scope.From.After(scope.Until) {
-		return []timetable.OfferingGap{}, nil
+		return []timetable.OfferingGap{}, none, nil
 	}
+	outside, err := rs.OfferingSourceOptions.OfferingPhasesOutsidePeriod(ctx, periodID)
+	if err != nil {
+		return nil, nil, err
+	}
+	gaps, err := rs.periodOfferingGaps(ctx, period, scope)
+	return gaps, outside, err
+}
+
+// periodOfferingGaps runs the comparison of offeringGaps for a period with
+// days left to plan.
+func (rs *Resource) periodOfferingGaps(ctx context.Context, period schoolcalendar.CalendarPeriod, scope timetable.OfferingGapScope) ([]timetable.OfferingGap, error) {
+	periodID := period.ID
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, scope.From)
 	if err != nil || len(bookings) == 0 {
 		return []timetable.OfferingGap{}, err
@@ -266,7 +313,7 @@ func (rs *Resource) setOfferingGapAck(w http.ResponseWriter, r *http.Request) {
 // openOfferingGapClasses returns the classes of the offering's current gap;
 // ErrOfferingGapNotFound when every booked child has a Regeltermin.
 func (rs *Resource) openOfferingGapClasses(ctx context.Context, periodID, offeringID int64) ([]string, error) {
-	gaps, err := rs.offeringGaps(ctx, periodID)
+	gaps, _, err := rs.offeringGaps(ctx, periodID)
 	if err != nil {
 		return nil, err
 	}

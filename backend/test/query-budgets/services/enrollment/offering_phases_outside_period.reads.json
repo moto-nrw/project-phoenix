@@ -1,0 +1,6 @@
+{
+  "scenario": "services.enrollment.offering_phases_outside_period.reads",
+  "max": 4,
+  "exact": false,
+  "description": "modules/careplan — OfferingPhasesOutsidePeriod (#5344): the\ncare-offerings setting, the offerings, the phases and the planning period.\nFlat in the number of offerings."
+}

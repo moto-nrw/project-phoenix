@@ -65,6 +65,8 @@ function renderStep(
       addTargetCohort={vi.fn()}
       offeringSources={[]}
       offeringSourcesError={null}
+      offeringPhasesOutsidePeriod={[]}
+      canManageEnrollmentPhases={false}
       sourcePhaseLockId={null}
       sourceGradeOptions={[]}
       sourceGradeCounts={{}}
@@ -1032,5 +1034,44 @@ describe("StepPersonalKinder — mehrere Angebote zusammen (#5139)", () => {
     expect(changeSourceOfferings).toHaveBeenCalledWith(["7", "4"]);
     expect(changeSourceFilterMode).toHaveBeenCalledWith("klasse");
     expect(update).toHaveBeenCalledWith("sourceSchoolClasses", ["1a"]);
+  });
+});
+
+// #5344: offerings of a phase reaching beyond the period are missing from the
+// choice; the step names the phase instead of leaving the list unexplained.
+describe("StepPersonalKinder — Anmeldephase außerhalb des Zeitraums", () => {
+  const phase = {
+    phaseId: "41",
+    phaseName: "Schuljahr 2026/27",
+    serviceStart: "2026-08-01",
+    serviceEnd: "2027-07-31",
+    offeringCount: 1,
+    periodStart: "2026-08-01",
+    periodEnd: "2027-07-07",
+  };
+
+  it("names the phase whose offerings the choice leaves out", () => {
+    renderStep({
+      offeringPhasesOutsidePeriod: [phase],
+      canManageEnrollmentPhases: true,
+    });
+    const notice = screen.getByTestId("phases-outside-period-notice");
+    expect(notice).toHaveTextContent(
+      "„Schuljahr 2026/27“ wird hier nicht geprüft",
+    );
+    expect(notice).toHaveTextContent(
+      "Ihr Angebot steht hier deshalb nicht zur Auswahl.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("stays quiet when every phase fits the period", () => {
+    renderStep();
+    expect(screen.getByLabelText("Angebote als Quelle")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("phases-outside-period-notice"),
+    ).not.toBeInTheDocument();
   });
 });

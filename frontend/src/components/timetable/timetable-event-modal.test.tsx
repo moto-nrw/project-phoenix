@@ -108,6 +108,12 @@ vi.mock("~/lib/timetable-api", () => ({
     checkConflicts: mockCheckConflicts,
     checkShiftCoverage: (probe: unknown) => mockCheckShiftCoverage(probe),
     getOfferingSources: mockGetOfferingSources,
+    // The editor reads the list with the phases the period leaves out
+    // (#5344); the list itself still comes from mockGetOfferingSources.
+    getOfferingSourceChoice: async (periodId?: string | null) => ({
+      offerings: await mockGetOfferingSources(periodId),
+      phasesOutsidePeriod: [],
+    }),
     getCombinedOfferingCounts: mockGetCombinedOfferingCounts,
     // A stored series with a source also loads the weekday preview (#5103);
     // its content is covered in step-personal-kinder.test.tsx.

@@ -60,6 +60,8 @@ export function leadRosterDeviationTopic(): HelpTopic {
       // #5138: Passen Angebote gleich gut, wählt die Schule.
       "Nennt der Hinweis Angebote mit „oder“ und keine Zahl? Dann passen mehrere Angebote gleich gut. moto wählt keins vor. Wählen Sie in `Mit Angebot verbinden` unter `Angebote` die passenden aus.",
       "Sie sehen keine Knöpfe am Hinweis? Dann dürfen Sie den Plan nur ansehen.",
+      // #5344: Phase reicht über den Planungszeitraum hinaus.
+      "Steht über den Regelterminen `… wird hier nicht geprüft`? Dann dauert eine Anmeldephase länger als der Planungszeitraum. Ihre Angebote prüft moto in diesem Zeitraum nicht. Sie stehen dort auch nicht als Quelle zur Auswahl. Gehört die Phase zu diesem Zeitraum, gleichen Sie unter `Anmeldephasen` die Daten an. Bei Ferien innerhalb des Schuljahres ist das so gewollt.",
     ],
     related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadEnrollmentSetup],
   };

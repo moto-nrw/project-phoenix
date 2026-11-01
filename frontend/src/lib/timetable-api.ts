@@ -125,9 +125,11 @@ import {
   type RosterDeviation,
 } from "./roster-deviation";
 import {
-  mapOfferingGaps,
+  mapOfferingGapReport,
+  mapPhasesOutsidePeriod,
   type BackendOfferingGapsResponse,
-  type OfferingGap,
+  type OfferingGapReport,
+  type OfferingPhaseOutsidePeriod,
 } from "./offering-gap";
 import {
   draftPreviewQuery,
@@ -302,6 +304,17 @@ class TimetableService {
   async getOfferingSources(
     calendarPeriodId?: string | null,
   ): Promise<OfferingSourceOption[]> {
+    return (await this.getOfferingSourceChoice(calendarPeriodId)).offerings;
+  }
+
+  /**
+   * The same list with the phases a calendar period leaves out because they
+   * reach beyond it (#5344); the Regeltermin editor names them.
+   */
+  async getOfferingSourceChoice(calendarPeriodId?: string | null): Promise<{
+    offerings: OfferingSourceOption[];
+    phasesOutsidePeriod: OfferingPhaseOutsidePeriod[];
+  }> {
     const params = new URLSearchParams();
     if (calendarPeriodId) params.set("calendar_period_id", calendarPeriodId);
     const response = await transportFetch(
@@ -313,7 +326,10 @@ class TimetableService {
       },
     );
     const raw = await unwrap<BackendOfferingSourcesResponse>(response);
-    return mapOfferingSourceOptions(raw);
+    return {
+      offerings: mapOfferingSourceOptions(raw),
+      phasesOutsidePeriod: mapPhasesOutsidePeriod(raw.phases_outside_period),
+    };
   }
 
   /**
@@ -409,9 +425,10 @@ class TimetableService {
 
   /**
    * GET /api/timetable/offering-gaps — offerings whose booked children no
-   * Regeltermin of the period takes over (#5140).
+   * Regeltermin of the period takes over (#5140), and the phases the check
+   * left out because they reach beyond the period (#5344).
    */
-  async getOfferingGaps(periodId: string): Promise<OfferingGap[]> {
+  async getOfferingGaps(periodId: string): Promise<OfferingGapReport> {
     const params = new URLSearchParams({ period_id: periodId });
     const response = await transportFetch(
       `/api/timetable/offering-gaps?${params}`,
@@ -421,7 +438,9 @@ class TimetableService {
         credentials: "include",
       },
     );
-    return mapOfferingGaps(await unwrap<BackendOfferingGapsResponse>(response));
+    return mapOfferingGapReport(
+      await unwrap<BackendOfferingGapsResponse>(response),
+    );
   }
 
   /**

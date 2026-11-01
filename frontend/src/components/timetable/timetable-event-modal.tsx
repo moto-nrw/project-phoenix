@@ -154,6 +154,11 @@ interface TimetableEventModalProps {
   canManageCategories: boolean;
   canManagePlanningTracks?: boolean;
   /**
+   * config:manage, the gate of the Anmeldephasen page: the source choice
+   * links there when a phase reaches beyond the period (#5344).
+   */
+  canManageEnrollmentPhases?: boolean;
+  /**
    * users:create, the gate of POST /api/staff/externals: the step „Personal“
    * may record and invite an external person (#4573).
    */
@@ -194,6 +199,7 @@ export function TimetableEventModal({
   canCheckShiftCoverage,
   canManageCategories,
   canManagePlanningTracks = false,
+  canManageEnrollmentPhases = false,
   canCreateExternalCaregiver = false,
   canGrantExternalView = false,
   closingDayRanges,
@@ -274,6 +280,7 @@ export function TimetableEventModal({
     targetClassOptions,
     offeringSources,
     offeringSourcesError,
+    offeringPhasesOutsidePeriod,
     sourcePhaseLockId,
     sourceGradeOptions,
     sourceGradeCounts,
@@ -733,6 +740,8 @@ export function TimetableEventModal({
                 addTargetCohort={addTargetCohort}
                 offeringSources={offeringSources}
                 offeringSourcesError={offeringSourcesError}
+                offeringPhasesOutsidePeriod={offeringPhasesOutsidePeriod}
+                canManageEnrollmentPhases={canManageEnrollmentPhases}
                 sourcePhaseLockId={sourcePhaseLockId}
                 sourceGradeOptions={sourceGradeOptions}
                 sourceGradeCounts={sourceGradeCounts}

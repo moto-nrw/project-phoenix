@@ -42,6 +42,65 @@ interface BackendOfferingGap {
 
 export interface BackendOfferingGapsResponse {
   gaps?: BackendOfferingGap[] | null;
+  phases_outside_period?: BackendOfferingPhaseOutsidePeriod[] | null;
+}
+
+/**
+ * An enrollment phase whose service window reaches beyond the planning
+ * period (#5344). Its active offerings are left out of the period's source
+ * choice and its booking checks, so the screen names it instead of showing
+ * an empty list that reads as „alles in Ordnung“.
+ */
+export interface OfferingPhaseOutsidePeriod {
+  phaseId: string;
+  phaseName: string;
+  /** Service window of the phase, YYYY-MM-DD. */
+  serviceStart: string;
+  serviceEnd: string;
+  /** Active offerings of the phase the period leaves out. */
+  offeringCount: number;
+  /** The planning period's own dates, YYYY-MM-DD. */
+  periodStart: string;
+  periodEnd: string;
+}
+
+export interface BackendOfferingPhaseOutsidePeriod {
+  phase_id: number;
+  phase_name: string;
+  service_start: string;
+  service_end: string;
+  offering_count: number;
+  period_start: string;
+  period_end: string;
+}
+
+export function mapPhasesOutsidePeriod(
+  raw: BackendOfferingPhaseOutsidePeriod[] | null | undefined,
+): OfferingPhaseOutsidePeriod[] {
+  return (raw ?? []).map((phase) => ({
+    phaseId: String(phase.phase_id),
+    phaseName: phase.phase_name,
+    serviceStart: phase.service_start,
+    serviceEnd: phase.service_end,
+    offeringCount: phase.offering_count,
+    periodStart: phase.period_start,
+    periodEnd: phase.period_end,
+  }));
+}
+
+/** The gap check of a period with the phases it could not check (#5344). */
+export interface OfferingGapReport {
+  gaps: OfferingGap[];
+  phasesOutsidePeriod: OfferingPhaseOutsidePeriod[];
+}
+
+export function mapOfferingGapReport(
+  raw: BackendOfferingGapsResponse,
+): OfferingGapReport {
+  return {
+    gaps: mapOfferingGaps(raw),
+    phasesOutsidePeriod: mapPhasesOutsidePeriod(raw.phases_outside_period),
+  };
 }
 
 export function mapOfferingGaps(

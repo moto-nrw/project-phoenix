@@ -10574,6 +10574,36 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "reason": "Read-only reviewed target (#5344 names the enrollment phases whose active offerings a planning period leaves out because their service window reaches beyond it): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingPhasesOutsidePeriod (care-plan) through api.timetableOfferingSources.OfferingPhasesOutsidePeriod. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "reason": "Read-only reviewed target (#5344 names the enrollment phases whose active offerings a planning period leaves out because their service window reaches beyond it): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingPhasesOutsidePeriod (care-plan) through api.timetableOfferingSources.OfferingPhasesOutsidePeriod. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "reason": "Read-only reviewed target (#5344 names the enrollment phases whose active offerings a planning period leaves out because their service window reaches beyond it): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingPhasesOutsidePeriod (care-plan) through api.timetableOfferingSources.OfferingPhasesOutsidePeriod. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
       "classification": "query",
       "effect": "query",

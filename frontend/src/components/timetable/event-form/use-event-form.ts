@@ -113,6 +113,7 @@ import type {
   UpdateTemplateBody,
   WeekdayAssignmentBody,
 } from "~/lib/timetable-types";
+import type { OfferingPhaseOutsidePeriod } from "~/lib/offering-gap";
 
 export type { CategoryOption, RoomOption } from "./category-option";
 
@@ -3418,6 +3419,10 @@ export function useEventForm({
   const [offeringSources, setOfferingSources] = useState<
     OfferingSourceOption[] | null
   >(null);
+  // Phases the period leaves out because they reach beyond it (#5344): their
+  // offerings are missing from the list, and the step says why.
+  const [offeringPhasesOutsidePeriod, setOfferingPhasesOutsidePeriod] =
+    useState<OfferingPhaseOutsidePeriod[]>([]);
   const offeringSourcesLoad = useApiLoadError();
   const showOfferingSourcesError = offeringSourcesLoad.show;
   const clearOfferingSourcesError = offeringSourcesLoad.clear;
@@ -3438,9 +3443,11 @@ export function useEventForm({
     let cancelled = false;
     clearOfferingSourcesError();
     timetableService
-      .getOfferingSources(form.calendarPeriodId || undefined)
-      .then((options) => {
-        if (!cancelled) setOfferingSources(options);
+      .getOfferingSourceChoice(form.calendarPeriodId || undefined)
+      .then((choice) => {
+        if (cancelled) return;
+        setOfferingSources(choice.offerings);
+        setOfferingPhasesOutsidePeriod(choice.phasesOutsidePeriod);
       })
       .catch((err: unknown) => {
         logger.error("offering_sources_load_failed", {
@@ -3450,6 +3457,7 @@ export function useEventForm({
           // An empty list keeps stored sources removable (they render as
           // "nicht mehr verfügbar"); the alert says why the list is empty.
           setOfferingSources([]);
+          setOfferingPhasesOutsidePeriod([]);
           void showOfferingSourcesError(err, {
             object: "die Liste der Betreuungsangebote",
             retry: () => setOfferingSourcesReload((count) => count + 1),
@@ -4083,6 +4091,7 @@ export function useEventForm({
     targetClassOptions,
     offeringSources,
     offeringSourcesError: offeringSourcesLoad.error,
+    offeringPhasesOutsidePeriod,
     selectedOfferingSources,
     sourcePhaseLockId,
     sourceGradeOptions,

@@ -7,10 +7,14 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OfferingGap } from "~/lib/offering-gap";
+import type {
+  OfferingGap,
+  OfferingPhaseOutsidePeriod,
+} from "~/lib/offering-gap";
 
 const {
   mockGaps,
+  mockOutside,
   mockLoadError,
   mockSetAcknowledged,
   mockMutate,
@@ -18,6 +22,7 @@ const {
   mockShowError,
 } = vi.hoisted(() => ({
   mockGaps: { current: [] as OfferingGap[] },
+  mockOutside: { current: [] as OfferingPhaseOutsidePeriod[] },
   mockLoadError: { current: undefined as unknown },
   mockSetAcknowledged: vi.fn(),
   mockMutate: vi.fn(() => Promise.resolve()),
@@ -31,7 +36,10 @@ vi.mock("~/lib/timetable-api", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => ({
-    data: key === null || mockLoadError.current ? undefined : mockGaps.current,
+    data:
+      key === null || mockLoadError.current
+        ? undefined
+        : { gaps: mockGaps.current, phasesOutsidePeriod: mockOutside.current },
     error: key === null ? undefined : mockLoadError.current,
   }),
   useTenantMutate: () => mockMutate,
@@ -88,22 +96,24 @@ function gapsWithoutCreateAt(count: number, withheldIndex: number) {
   }));
 }
 
-function renderHints(canManage = true) {
+function renderHints(canManage = true, canManagePhases = false) {
   const onCreateSeries = vi.fn();
-  render(
+  const { container } = render(
     <OfferingGapHints
       periodId="5"
       canManage={canManage}
+      canManagePhases={canManagePhases}
       onCreateSeries={onCreateSeries}
       templatesVersion={undefined}
     />,
   );
-  return { onCreateSeries };
+  return { onCreateSeries, container };
 }
 
 describe("OfferingGapHints", () => {
   beforeEach(() => {
     mockGaps.current = [randstunde, mittag];
+    mockOutside.current = [];
     mockLoadError.current = undefined;
     mockSetAcknowledged.mockReset();
     mockToastSuccess.mockClear();
@@ -407,5 +417,78 @@ describe("OfferingGapHints", () => {
     await waitFor(() =>
       expect(mockMutate).toHaveBeenCalledWith("offering-gaps-5"),
     );
+  });
+});
+
+// #5344: a phase reaching beyond the period is not checked at all, so the
+// hints name it; an empty gap list must not read as „alles in Ordnung“.
+describe("OfferingGapHints: phases outside the period", () => {
+  const schoolYear: OfferingPhaseOutsidePeriod = {
+    phaseId: "41",
+    phaseName: "Schuljahr 2026/27",
+    serviceStart: "2026-08-01",
+    serviceEnd: "2027-07-31",
+    offeringCount: 3,
+    periodStart: "2026-08-01",
+    periodEnd: "2027-07-07",
+  };
+
+  beforeEach(() => {
+    mockGaps.current = [];
+    mockOutside.current = [schoolYear];
+    mockLoadError.current = undefined;
+  });
+
+  it("names the phase, both date ranges and the way out", () => {
+    renderHints(true, true);
+    const notice = screen.getByTestId("phases-outside-period-notice");
+    expect(
+      within(notice).getByText("„Schuljahr 2026/27“ wird hier nicht geprüft"),
+    ).toBeInTheDocument();
+    expect(notice).toHaveTextContent(
+      "Die Anmeldephase läuft vom 01.08.2026 bis 31.07.2027, der Planungszeitraum vom 01.08.2026 bis 07.07.2027.",
+    );
+    expect(notice).toHaveTextContent(
+      "Für ihre 3 Angebote zeigt moto hier deshalb keine Hinweise.",
+    );
+    expect(
+      within(notice).getByRole("link", { name: "Anmeldephasen öffnen" }),
+    ).toHaveAttribute("href", "/test-tenant/enrollment-phases");
+  });
+
+  it("offers no link to readers who cannot manage Anmeldephasen", () => {
+    renderHints(true, false);
+    const notice = screen.getByTestId("phases-outside-period-notice");
+    expect(notice).toHaveTextContent(
+      "Dann muss jemand mit Zugriff auf die Anmeldephasen die Daten angleichen.",
+    );
+    expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("lists several phases in one notice", () => {
+    mockOutside.current = [
+      schoolYear,
+      {
+        ...schoolYear,
+        phaseId: "42",
+        phaseName: "Frühbetreuung",
+        offeringCount: 1,
+      },
+    ];
+    renderHints();
+    const notice = screen.getByTestId("phases-outside-period-notice");
+    expect(
+      within(notice).getByText("2 Anmeldephasen werden hier nicht geprüft"),
+    ).toBeInTheDocument();
+    expect(notice).toHaveTextContent(
+      "Sie laufen länger als dieser Planungszeitraum (01.08.2026 bis 07.07.2027).",
+    );
+    expect(within(notice).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows nothing without such a phase", () => {
+    mockOutside.current = [];
+    const { container } = renderHints();
+    expect(container.firstChild).toBeNull();
   });
 });

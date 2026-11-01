@@ -33,6 +33,25 @@ type OfferingSourceSupport interface {
 	// or after from (#5103); empty while Betreuungsangebote are switched
 	// off.
 	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
+	// OfferingPhasesOutsidePeriod lists the enrollment phases with active
+	// offerings that overlap the calendar period without lying inside it
+	// (#5344): their offerings are missing from the period's sources and
+	// checks, and the planner names them; empty while Betreuungsangebote are
+	// switched off.
+	OfferingPhasesOutsidePeriod(ctx context.Context, calendarPeriodID int64) ([]OfferingPhaseOutsidePeriod, error)
+}
+
+// OfferingPhaseOutsidePeriod is an enrollment phase whose service window
+// reaches beyond the planning period (#5344), with the number of its active
+// offerings the period leaves out and the period's own dates.
+type OfferingPhaseOutsidePeriod struct {
+	PhaseID       int64
+	PhaseName     string
+	ServiceStart  calendar.Date
+	ServiceEnd    calendar.Date
+	OfferingCount int
+	PeriodStart   calendar.Date
+	PeriodEnd     calendar.Date
 }
 
 // OfferingTemplateGapDecision stores the school's decision that the booked

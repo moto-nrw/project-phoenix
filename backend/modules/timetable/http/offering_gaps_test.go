@@ -178,6 +178,45 @@ func TestOfferingGapsRefusals(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
 }
 
+// TestOfferingGapsNamePhasesOutsidePeriod (#5344): a phase reaching beyond
+// the period leaves its offerings out of the check, so the list names it next
+// to an empty gap list instead of reading as "every booking is covered". An
+// inactive or ended period names nothing.
+func TestOfferingGapsNamePhasesOutsidePeriod(t *testing.T) {
+	t.Parallel()
+	s := buildOfferingGapsModule(t)
+	period := createTemplateTestPeriodRange(t, s.db, "Gap-Outside", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	outside := timetableModule.OfferingPhaseOutsidePeriod{
+		PhaseID: 41, PhaseName: "Schuljahr", OfferingCount: 3,
+		ServiceStart: rosterReviewMonday.AddDays(-30), ServiceEnd: rosterReviewMonday.AddDays(150),
+		PeriodStart: rosterReviewMonday.AddDays(-30), PeriodEnd: rosterReviewMonday.AddDays(120),
+	}
+	s.sources.outside = []timetableModule.OfferingPhaseOutsidePeriod{outside}
+	list := func(periodID int64) offeringGapsResponse {
+		t.Helper()
+		w := doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/offering-gaps?period_id=%d", periodID), nil)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		return decodeTemplateData[offeringGapsResponse](t, w)
+	}
+
+	got := list(period.ID)
+	assert.Empty(t, got.Gaps, "the phase's bookings are not compared")
+	assert.Equal(t, []offeringPhaseOutsidePeriodResponse{{
+		PhaseID: 41, PhaseName: "Schuljahr", OfferingCount: 3,
+		ServiceStart: outside.ServiceStart.String(), ServiceEnd: outside.ServiceEnd.String(),
+		PeriodStart: outside.PeriodStart.String(), PeriodEnd: outside.PeriodEnd.String(),
+	}}, got.PhasesOutsidePeriod)
+
+	ended := createTemplateTestPeriodRange(t, s.db, "Gap-Ended", rosterReviewMonday.AddDays(-90), rosterReviewMonday.AddDays(-1), 1, nil)
+	assert.Empty(t, list(ended.ID).PhasesOutsidePeriod, "an ended period checks nothing, so it names nothing")
+	inactive := createTemplateTestPeriodRange(t, s.db, "Gap-Inactive", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	_, err := s.db.NewUpdate().TableExpr("schedule.calendar_periods").Set("is_active = false").Where("id = ?", inactive.ID).Exec(s.ctx)
+	require.NoError(t, err)
+	got = list(inactive.ID)
+	assert.NotNil(t, got.PhasesOutsidePeriod)
+	assert.Empty(t, got.PhasesOutsidePeriod, "an inactive period shows no hints")
+}
+
 func TestOfferingGapsQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

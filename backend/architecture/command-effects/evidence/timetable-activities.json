@@ -7993,6 +7993,30 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "binding_digest": "3d3f05195b78683efd65b478828b3a82",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "binding_digest": "4b5fe30215b108ae47cbd2c514e71695",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingPhasesOutsidePeriod",
+      "binding_digest": "c5f143e36e1bcae922f4a35e75068b78",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingPhasesOutsidePeriod",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingPhasesOutsidePeriod",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
       "binding_digest": "36e229e975b235cf41e1181acc848b73",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",

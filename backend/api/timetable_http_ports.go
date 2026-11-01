@@ -325,6 +325,28 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 	return result, nil
 }
 
+// OfferingPhasesOutsidePeriod translates the phases a planning period leaves
+// out into the Timetable vocabulary (#5344).
+func (s timetableOfferingSources) OfferingPhasesOutsidePeriod(ctx context.Context, calendarPeriodID int64) ([]timetable.OfferingPhaseOutsidePeriod, error) {
+	phases, err := s.lister.OfferingPhasesOutsidePeriod(ctx, calendarPeriodID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]timetable.OfferingPhaseOutsidePeriod, 0, len(phases))
+	for _, excluded := range phases {
+		result = append(result, timetable.OfferingPhaseOutsidePeriod{
+			PhaseID:       excluded.Phase.ID,
+			PhaseName:     excluded.Phase.Name,
+			ServiceStart:  excluded.Phase.ServiceStart,
+			ServiceEnd:    excluded.Phase.ServiceEnd,
+			OfferingCount: excluded.OfferingCount,
+			PeriodStart:   excluded.Period.StartDate,
+			PeriodEnd:     excluded.Period.EndDate,
+		})
+	}
+	return result, nil
+}
+
 // OfferingWeekdayBookings translates Care Plan's approved bookings with their
 // weekdays into the Timetable vocabulary (#5103).
 func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]timetable.OfferingWeekdayBooking, error) {
