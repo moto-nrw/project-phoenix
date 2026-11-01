@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,17 +31,17 @@ type HolidayGuestDirectory interface {
 
 // NewHolidayGuests binds the holiday guests (#4666, ADR 0120) to Enrollment,
 // their children to the People Directory and every transfer and sheet read
-// to the school's access log at the Audit Platform. A nil today uses the
-// Berlin calendar day.
-func NewHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, today func() calendar.Date) enrollmentOwner.HolidayGuests {
-	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayGuestCareDays(care, staff),
+// to the school's access log at the Audit Platform; health opens and seals
+// the health information (#4722). A nil today uses the Berlin calendar day.
+func NewHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
+	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayGuestCareDays(care, staff), health,
 		NewHolidayGuestAccessLog(accessLog), today)
 }
 
 // schedulerHolidayGuests binds the Worker's hourly reconciliation to the
 // holiday guests of the school whose tenant transaction the Worker opened.
-func schedulerHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender) schedulerPorts.HolidayGuestReconciliation {
-	guests := NewHolidayGuests(people, care, staff, accessLog, nil)
+func schedulerHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
+	guests := NewHolidayGuests(people, care, staff, accessLog, health, nil)
 	return func(ctx context.Context) error {
 		return guests.ReconcileHolidayGuests(ctx, tenant.FromContext(ctx))
 	}
@@ -119,6 +120,14 @@ func (p holidayGuestPeople) UpdateHolidayGuestChild(ctx context.Context, student
 		return err
 	}
 	return p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{GroupIDSet: true, GroupID: child.GroupID})
+}
+
+// SetHolidayGuestHealthInfo writes the health information of a guest into
+// the health field of its child through the People Directory's enrollment
+// profile command, the one that writes the rest of the copy (#4722); nil
+// clears it.
+func (p holidayGuestPeople) SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error {
+	return p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{HealthInfoSet: true, HealthInfo: healthInfo})
 }
 
 func holidayGuestStudent(personID int64, child enrollmentOwner.HolidayGuestChild) peopledirectory.EnrollmentStudent {
@@ -228,4 +237,37 @@ func holidayGuestClock(value string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("holiday guest care days: clock %q: %w", value, err)
 	}
 	return parsed, nil
+}
+
+// NewHolidayStudentIdentities binds the names and the date of birth of a
+// child of the hosting school (#4722) to the People Directory: the student
+// and its person, read in the school's tenant transaction.
+func NewHolidayStudentIdentities(directory HolidayGuestDirectory) enrollmentOwner.HolidayStudentIdentities {
+	if directory == nil {
+		return nil
+	}
+	return holidayStudentIdentities{directory: directory}
+}
+
+type holidayStudentIdentities struct {
+	directory HolidayGuestDirectory
+}
+
+func (i holidayStudentIdentities) HolidayStudentIdentity(ctx context.Context, studentID int64) (enrollmentOwner.HolidayStudentIdentity, error) {
+	record, err := i.directory.ReadEnrollmentStudent(ctx, studentID, "")
+	if errors.Is(err, peopledirectory.ErrStudentNotFound) {
+		return enrollmentOwner.HolidayStudentIdentity{}, fmt.Errorf("%w: %w", enrollmentOwner.ErrHolidayStudentNotFound, err)
+	}
+	if err != nil {
+		return enrollmentOwner.HolidayStudentIdentity{}, err
+	}
+	person, err := i.directory.FindPerson(ctx, record.PersonID)
+	if err != nil {
+		return enrollmentOwner.HolidayStudentIdentity{}, err
+	}
+	birthDate, err := optionalDate(person.Birthday)
+	if err != nil {
+		return enrollmentOwner.HolidayStudentIdentity{}, err
+	}
+	return enrollmentOwner.HolidayStudentIdentity{FirstName: person.FirstName, LastName: person.LastName, BirthDate: birthDate}, nil
 }

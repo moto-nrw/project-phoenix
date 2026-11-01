@@ -283,7 +283,7 @@ describe("HolidayFormEditor (#5198)", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 
-  it("shares new questions by default but not health answers (#5470)", async () => {
+  it("shares new questions by default, a health question too (#5470, #4722)", async () => {
     const saved = form([]);
     mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
       Promise.resolve({ ...saved, version: 2, fields }),
@@ -301,18 +301,18 @@ describe("HolidayFormEditor (#5198)", () => {
 
     expect(choice(/^OGS sieht die Antwort/)).toBeChecked();
     expect(choice(/^OGS sieht die Antwort/, 1)).toBeChecked();
-    // A health question stays with the Träger: the share goes off and
-    // cannot be chosen, and the row says why.
+    // A health question can be shared too since #4722: the share stays on
+    // and the row says the OGS sees it with the health information.
     fireEvent.click(choice(/^Gesundheitsangabe/, 1));
-    const blocked = choice(/^OGS sieht die Antwort/, 1);
-    expect(blocked).not.toBeChecked();
-    expect(blocked).toBeDisabled();
+    const shared = choice(/^OGS sieht die Antwort/, 1);
+    expect(shared).toBeChecked();
+    expect(shared).toBeEnabled();
     expect(
       screen.getByText(
-        "Nicht bei Gesundheitsangaben. Diese bleiben beim Träger.",
+        "Die OGS, die die Woche ausrichtet, sieht die Antwort bei den Gesundheitsangaben des Kindes. Nur wenn die Eltern zustimmen.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("OGS sieht es")).toBeInTheDocument();
+    expect(screen.getAllByText("OGS sieht es").length).toBeGreaterThan(0);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Als neue Version speichern" }),
@@ -328,7 +328,7 @@ describe("HolidayFormEditor (#5198)", () => {
       })),
     ).toEqual([
       { key: "taschengeld", health: false, share_with_host: true },
-      { key: "forderbedarf", health: true, share_with_host: false },
+      { key: "forderbedarf", health: true, share_with_host: true },
     ]);
   });
 

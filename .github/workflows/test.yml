@@ -548,6 +548,8 @@ jobs:
       # that, which a green CI missed until the demo failed on 2026-10-27.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
+      # The development key ring of .env.example for the holiday health data (#4722).
+      HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000

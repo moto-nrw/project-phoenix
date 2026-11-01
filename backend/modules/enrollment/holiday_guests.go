@@ -71,6 +71,9 @@ type HolidayGuestSheet struct {
 	Emergency       []HolidayGuestContact `json:"emergency_contacts"`
 	Pickup          []HolidayGuestContact `json:"pickup_contacts"`
 	Answers         []HolidayHostAnswer   `json:"answers"`
+	// Health is the health information the Träger shares with the hosting
+	// school (#4722); nil without any.
+	Health *HolidayHostHealth `json:"health"`
 	// ReadOnly is true after the last day of the week: the guest is no
 	// longer cared for and the sheet stays only for questions afterwards.
 	ReadOnly bool `json:"read_only"`
@@ -105,6 +108,11 @@ type HolidayGuestPeople interface {
 	CreateHolidayGuestChild(ctx context.Context, child HolidayGuestChild) (studentID int64, err error)
 	ReadHolidayGuestChild(ctx context.Context, studentID int64) (HolidayGuestChild, error)
 	UpdateHolidayGuestChild(ctx context.Context, studentID int64, child HolidayGuestChild) error
+	// SetHolidayGuestHealthInfo writes the health information of a guest
+	// into the health field of its child, so the team sees it where it sees
+	// every child (#4722, ADR 0120 addendum); nil clears it when the guest's
+	// health information goes.
+	SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error
 }
 
 // HolidayGuestCareDays plans the booked days of a guest in Care Plan, so the
@@ -200,6 +208,10 @@ type HolidayGuestSource struct {
 	Emergency       []HolidayGuestContact
 	Pickup          []HolidayGuestContact
 	Answers         []HolidayHostAnswer
+	// Health is the opened health information of the child (#4722), nil
+	// without any; Sealed carries it from the store to the service.
+	Health *HolidayHostHealth
+	Sealed *HolidaySealedHostHealth
 }
 
 // HolidayGuest is the stored copy of a guest at the hosting school. EndedOn
@@ -222,4 +234,9 @@ type HolidayGuest struct {
 	Emergency       []HolidayGuestContact
 	Pickup          []HolidayGuestContact
 	Answers         []HolidayHostAnswer
+	// Health is the copied health information (#4722), nil without any. The
+	// store keeps it sealed for the school and the child; HealthSealed
+	// carries the stored value between the store and the service.
+	Health       *HolidayHostHealth
+	HealthSealed []byte
 }
