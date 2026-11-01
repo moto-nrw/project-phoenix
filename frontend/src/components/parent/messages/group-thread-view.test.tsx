@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.generated";
@@ -190,4 +196,51 @@ describe("ParentGroupThreadView (#4784)", () => {
       ),
     ).toBeInTheDocument();
   });
+});
+
+it("confirms the retried private answer when the group closed after response loss", async () => {
+  mockedThread.mockResolvedValue(sommerfest);
+  mockedPost.mockRejectedValueOnce(
+    new ApiError("response lost", 503, { code: "general.unavailable" }),
+  );
+  renderView();
+  fireEvent.change(await screen.findByLabelText("Antwort"), {
+    target: { value: "Wir bringen Kuchen" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+  await screen.findByText(catalogText("general.unavailable", "die Antwort"));
+  const key = mockedPost.mock.calls[0]?.[4];
+  expect(key).toEqual(expect.any(String));
+  // The second POST returns the original reply despite the intervening close.
+  mockedPost.mockResolvedValue({
+    messages: [
+      {
+        id: "saved",
+        kind: "message",
+        sender_kind: "guardian",
+        sender_name: "Ich",
+        body: "Wir bringen Kuchen",
+        created_at: "2026-09-09T10:05:00Z",
+        client_message_id: key,
+      },
+    ],
+  } as Awaited<ReturnType<typeof postChildMessage>>);
+  fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+  expect(
+    await screen.findByText("Ihre Antwort ist bei der OGS."),
+  ).toBeInTheDocument();
+  expect(mockedPost.mock.calls[1]?.[4]).toBe(key);
+  expect(
+    screen.getByRole("link", { name: "Zum Chat mit der OGS" }),
+  ).toHaveAttribute("href", "/parents/messages/42");
+  expect(
+    screen.queryByText("Wir bringen Kuchen", { selector: "span" }),
+  ).not.toBeInTheDocument();
+  mockedThread.mockResolvedValue({ ...sommerfest, closed: true });
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  expect(
+    await screen.findByText("Ihre Antwort ist bei der OGS."),
+  ).toBeInTheDocument();
 });

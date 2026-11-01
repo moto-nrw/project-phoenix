@@ -3,7 +3,6 @@ package messaging
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -153,7 +152,7 @@ func (rs *Resource) createGroupThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
 		return
 	}
 
@@ -191,7 +190,7 @@ func (rs *Resource) postGroupMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
 		return
 	}
 
@@ -239,7 +238,7 @@ func parseGroupTarget(body GroupTargetBody) (communication.ParentGroupTarget, er
 
 func renderGroupThreadError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, communication.ErrMessageSendConflict) {
-		common.RenderError(w, r, common.ErrorConflict(err))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict))
 		return
 	}
 	switch {

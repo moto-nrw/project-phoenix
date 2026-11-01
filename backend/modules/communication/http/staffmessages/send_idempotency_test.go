@@ -1,8 +1,10 @@
 package staffmessaging_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
@@ -45,6 +47,7 @@ func TestStaffSendConcurrentRetriesAndAccountScope(t *testing.T) {
 	require.NotEmpty(t, first)
 	conflict := f.do(t, a, http.MethodPost, path, `{"body":"Geändert","client_message_id":"concurrent-send"}`)
 	require.Equal(t, http.StatusConflict, conflict.Code, conflict.Body.String())
+	require.Contains(t, conflict.Body.String(), `"code":"communication.message_send_conflict"`)
 	// Identical opaque keys of a different account do not share a message.
 	other := f.do(t, b, http.MethodPost, path, input)
 	require.Equal(t, http.StatusOK, other.Code, other.Body.String())
@@ -54,6 +57,7 @@ func TestStaffSendConcurrentRetriesAndAccountScope(t *testing.T) {
 	messages := decodeData[staffmessaging.ThreadDetailResponse](t, read.Body.Bytes()).Messages
 	require.Len(t, messages, 2)
 	require.Equal(t, "concurrent-send", messages[0].ClientMessageID)
+	require.Empty(t, messages[1].ClientMessageID, "another author’s key must not be delivered")
 	// The same account in a different school owns an independent namespace.
 	second := setupGroupFixture(t)
 	testpkg.CreateTestStaffForExistingAccountInTenant(t, second.db, second.tenantID, a.id, "Anna", "Zweite Schule")
@@ -68,4 +72,28 @@ func TestStaffSendConcurrentRetriesAndAccountScope(t *testing.T) {
 	require.NotEqual(t, first, decodeData[staffmessaging.MessageResponse](t, sent.Body.Bytes()).ID)
 	forbidden := second.do(t, otherA, http.MethodPost, path, input)
 	require.Equal(t, http.StatusNotFound, forbidden.Code, forbidden.Body.String())
+}
+
+func TestStaffSendKeyByteLimit(t *testing.T) {
+	t.Parallel()
+	f := setupGroupFixture(t)
+	a, b := f.person(t, "Anna", "staff"), f.person(t, "Ben", "staff")
+	opened := f.do(t, a, http.MethodPost, "/threads/open", fmt.Sprintf(`{"account_id":%q}`, b.idString()))
+	require.Equal(t, http.StatusOK, opened.Code)
+	thread := decodeData[staffmessaging.ThreadDetailResponse](t, opened.Body.Bytes())
+	for _, key := range []string{strings.Repeat("x", 128), strings.Repeat("ä", 64), strings.Repeat("x", 129), strings.Repeat("ä", 65)} {
+		payload, err := json.Marshal(map[string]string{"body": "Hallo", "client_message_id": key})
+		require.NoError(t, err)
+		response := f.do(t, a, http.MethodPost, "/threads/"+thread.ThreadID, string(payload))
+		if len(key) <= 128 {
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			continue
+		}
+		require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+		var problem struct {
+			Details map[string]any `json:"details"`
+		}
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
+		require.Equal(t, float64(128), problem.Details["max_bytes"])
+	}
 }

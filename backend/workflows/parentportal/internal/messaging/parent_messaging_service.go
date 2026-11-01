@@ -495,7 +495,7 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 		// conversation. Repeat it here while the group thread is locked: closing
 		// and appending must serialize, otherwise a close between those two
 		// transactions could still admit an answer to a closed thread.
-		if _, err := s.GroupThreads.GroupReplyTarget(txCtx, *groupThreadID, accountID, studentID); err != nil {
+		if _, err := s.GroupThreads.GroupReplyTarget(txCtx, *groupThreadID, accountID, studentID, messageSendID(txCtx)); err != nil {
 			return false, err
 		}
 	}

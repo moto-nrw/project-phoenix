@@ -53,7 +53,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toThreadDetail(detail), "Group created")
+	common.Respond(w, r, http.StatusCreated, toThreadDetail(detail, currentAccountID(r)), "Group created")
 }
 
 func (rs *Resource) renameGroup(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (rs *Resource) renameGroup(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Group renamed")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, currentAccountID(r)), "Group renamed")
 }
 
 func (rs *Resource) addGroupMembers(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func (rs *Resource) addGroupMembers(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Members added")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, currentAccountID(r)), "Members added")
 }
 
 func (rs *Resource) removeGroupMember(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +113,7 @@ func (rs *Resource) removeGroupMember(w http.ResponseWriter, r *http.Request) {
 		common.Respond(w, r, http.StatusOK, nil, "Group left")
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Member removed")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, currentAccountID(r)), "Member removed")
 }
 
 func (rs *Resource) leaveGroup(w http.ResponseWriter, r *http.Request) {

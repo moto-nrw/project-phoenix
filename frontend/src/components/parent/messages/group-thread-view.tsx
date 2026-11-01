@@ -265,16 +265,16 @@ export function ParentGroupThreadView({
           readersLine ? `${t("privacyNote")} ${readersLine}` : t("privacyNote")
         }
       >
-        {thread.closed ? (
-          <div className="space-y-2">
-            <p className="text-sm leading-6 text-gray-600">{t("closedNote")}</p>
-            {chatLink}
-          </div>
-        ) : sentFor ? (
+        {sentFor ? (
           <div className="space-y-2" role="status">
             <p className="text-sm font-semibold text-gray-900">
               {t("sentConfirmation")}
             </p>
+            {chatLink}
+          </div>
+        ) : thread.closed ? (
+          <div className="space-y-2">
+            <p className="text-sm leading-6 text-gray-600">{t("closedNote")}</p>
             {chatLink}
           </div>
         ) : writable === null ? (

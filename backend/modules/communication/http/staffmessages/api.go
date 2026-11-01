@@ -8,7 +8,6 @@ package staffmessaging
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -145,14 +144,14 @@ type RecipientResponse struct {
 	RoleKind string `json:"role_kind"`
 }
 
-func toMessageResponses(messages []communication.StaffMessage) []MessageResponse {
+func toMessageResponses(messages []communication.StaffMessage, viewer ...int64) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
 			ID:              strconv.FormatInt(m.ID, 10),
 			SenderAccountID: strconv.FormatInt(m.SenderAccountID, 10),
 			SenderName:      m.SenderName,
-			ClientMessageID: m.ClientMessageID, Body: m.Body,
+			ClientMessageID: clientMessageIDForViewer(m.ClientMessageID, m.SenderAccountID, viewer), Body: m.Body,
 			CreatedAt:                m.CreatedAt.Format(time.RFC3339),
 			ReadByAccountIDs:         formatIDs(m.ReadByAccountIDs),
 			EligibleReaderAccountIDs: formatIDs(m.EligibleReaderAccountIDs),
@@ -173,10 +172,10 @@ func formatIDs(ids []int64) []string {
 	return out
 }
 
-func toThreadDetail(d *communication.StaffMessageThread) ThreadDetailResponse {
+func toThreadDetail(d *communication.StaffMessageThread, viewer ...int64) ThreadDetailResponse {
 	response := ThreadDetailResponse{
 		ThreadID:  strconv.FormatInt(d.ThreadID, 10),
-		Messages:  toMessageResponses(d.Messages),
+		Messages:  toMessageResponses(d.Messages, viewer...),
 		Kind:      d.Kind,
 		GroupName: d.GroupName,
 		CanManage: d.CanManage,
@@ -281,7 +280,7 @@ func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread opened")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, currentAccountID(r)), "Thread opened")
 }
 
 func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
@@ -294,7 +293,7 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, currentAccountID(r)), "Thread retrieved")
 }
 
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +311,7 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(body.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
 		return
 	}
 
@@ -321,5 +320,12 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		renderStaffMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses([]communication.StaffMessage{*message})[0], "Message sent")
+	common.Respond(w, r, http.StatusOK, toMessageResponses([]communication.StaffMessage{*message}, currentAccountID(r))[0], "Message sent")
+}
+
+func clientMessageIDForViewer(key string, author int64, viewer []int64) string {
+	if len(viewer) > 0 && viewer[0] > 0 && viewer[0] == author {
+		return key
+	}
+	return ""
 }

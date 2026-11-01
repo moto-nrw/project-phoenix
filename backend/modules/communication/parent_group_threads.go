@@ -164,6 +164,6 @@ type PortalGroupThreads interface {
 	PortalListGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) ([]PortalGuardianGroupThread, error)
 	PortalCountUnreadGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) (int, error)
 	PortalReadGroupThread(ctx context.Context, threadID, accountID int64, studentIDs []int64) (*PortalGuardianGroupThreadView, bool, error)
-	PortalGroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*ParentGroupThread, error)
+	PortalGroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64, sendIDs ...string) (*ParentGroupThread, error)
 	PortalGroupThreadTitles(ctx context.Context, threadIDs []int64) (map[int64]string, error)
 }
