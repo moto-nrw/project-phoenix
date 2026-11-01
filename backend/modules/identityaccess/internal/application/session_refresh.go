@@ -641,7 +641,11 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 	}
 	bySchool := sessionsBySchool(sessions, tenantID)
 	for _, schoolID := range slices.Sorted(maps.Keys(bySchool)) {
-		if err := s.auditLogoutAtSchool(ctx, revoked.AccountID, schoolID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent); err != nil {
+		auditCtx := s.runtime.WithTenantID(ctx, schoolID)
+		err := s.runtime.WithTenantTx(auditCtx, schoolID, func(txCtx context.Context) error {
+			return s.auditLogoutAtSchool(txCtx, revoked.AccountID, bySchool[schoolID], schoolID == tenantID, ipAddress, userAgent)
+		})
+		if err != nil {
 			s.logger.Error("failed to audit logout",
 				slog.Int64("account_id", revoked.AccountID),
 				slog.Int64("tenant_id", schoolID),
@@ -664,17 +668,15 @@ func sessionsBySchool(sessions []domain.AccountSession, presentedTenantID int64)
 	return bySchool
 }
 
-func (s *AccountAuthentication) auditLogoutAtSchool(ctx context.Context, accountID, schoolID int64, sessions []domain.AccountSession, presented bool, ipAddress, userAgent string) error {
-	auditCtx := s.runtime.WithTenantID(ctx, schoolID)
-	return s.runtime.WithTenantTx(auditCtx, schoolID, func(txCtx context.Context) error {
-		if err := s.auditRevokedSessions(txCtx, sessions, "logout", ipAddress, userAgent); err != nil {
-			return err
-		}
-		if !presented || ipAddress == "" {
-			return nil
-		}
-		return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
-	})
+// auditLogoutAtSchool writes one school's rows inside its tenant transaction.
+func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accountID int64, sessions []domain.AccountSession, presented bool, ipAddress, userAgent string) error {
+	if err := s.auditRevokedSessions(txCtx, sessions, "logout", ipAddress, userAgent); err != nil {
+		return err
+	}
+	if !presented || ipAddress == "" {
+		return nil
+	}
+	return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
 }
 
 func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
