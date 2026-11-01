@@ -33,6 +33,7 @@ export const operatorProvisioningKeys = {
   orgErasureOrder: (id: string | undefined) =>
     `operator-org-erasure-order-${encodeURIComponent(id ?? "")}`,
   provisioningStats: () => "operator-provisioning-stats",
+  caterers: () => "operator-caterers",
   unregisteredTags: (
     resolved: "all" | "resolved" | "unresolved",
     organizationId: string,

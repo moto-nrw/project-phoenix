@@ -3,7 +3,7 @@
  * of their two-factor sign-in and the reset of it.
  */
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 

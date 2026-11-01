@@ -8,8 +8,10 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorCaterer } from "~/lib/operator/provisioning-helpers";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
@@ -74,7 +76,7 @@ function OperatorCaterersPageContent() {
   const [resetTarget, setResetTarget] = useState<OperatorCaterer | null>(null);
 
   const { data, error, isLoading, mutate } = useSWRAuth(
-    "operator-caterers",
+    operatorProvisioningKeys.caterers(),
     () => operatorProvisioningService.listCaterers(),
     { revalidateOnFocus: false },
   );
@@ -95,7 +97,11 @@ function OperatorCaterersPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Caterer" concept="mealPlan" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Caterer"
+        concept={mealPlanConcept}
+        tabs={tabs}
+      />
 
       <LoadErrorAlert error={loadError} className="mb-4" />
 

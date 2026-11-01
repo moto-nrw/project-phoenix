@@ -116,6 +116,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { accountsConcept } from "~/lib/concepts/accounts";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { calendarConcept } from "~/lib/concepts/calendar";
@@ -420,7 +421,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/caterers",
         label: "Caterer",
         icon: navigationIcons.profile,
-        concept: "mealPlan",
+        concept: mealPlanConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },

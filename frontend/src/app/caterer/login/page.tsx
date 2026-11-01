@@ -29,6 +29,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
@@ -345,7 +346,7 @@ function LoginForm() {
                 onClick={() => void loginWithCatererPasskey()}
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
               >
-                <MotoConceptIcon concept="passkeys" size={16} />
+                <MotoConceptIcon concept={passkeysConcept} size={16} />
                 <span>Mit Passkey anmelden</span>
               </button>
             )}
