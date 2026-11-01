@@ -166,7 +166,11 @@ export default function CatererOverviewPage() {
   const schoolResponse = useSWRAuth(
     enabled ? catererKeys.schools() : null,
     fetchCatererSchools,
-    { keepPreviousData: false, revalidateIfStale: false },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: true,
+      focusThrottleInterval: 60 * 1000,
+    },
   );
   const schools = schoolResponse.data ?? null;
   const schoolIds = schools?.schools.map((school) => school.id) ?? [];

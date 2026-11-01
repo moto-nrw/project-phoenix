@@ -21,7 +21,7 @@ vi.mock("~/lib/caterer-api", () => mocks);
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import CatererOverviewPage from "./page";
-import { setTestClock } from "~/test/clock";
+import { setTestClock, releaseFakeTimers } from "~/test/clock";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -130,6 +130,54 @@ describe("CatererOverviewPage (#3873)", () => {
     ).toBeVisible();
     expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
     expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows cached schools immediately and discovers newly supplied schools on a later visit", async () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<CatererOverviewPage />);
+      await act(async () => vi.advanceTimersByTimeAsync(50));
+      expect(screen.getByText("Bestellungen für Küche am Markt")).toBeVisible();
+      expect(
+        within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+      ).toBeVisible();
+      view.rerender(<div />);
+      await act(async () => vi.advanceTimersByTimeAsync(6000));
+      releaseFakeTimers();
+      const pending = deferred<{
+        catererName: string;
+        schools: { id: string; name: string }[];
+      }>();
+      mocks.fetchCatererSchools.mockReturnValueOnce(pending.promise);
+      view.rerender(<CatererOverviewPage />);
+      expect(screen.getByText("Bestellungen für Küche am Markt")).toBeVisible();
+      expect(
+        within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => {
+        pending.resolve({
+          catererName: "Küche am Markt",
+          schools: [
+            { id: "1", name: "OGS Nord" },
+            { id: "2", name: "OGS Süd" },
+            { id: "3", name: "OGS Ost" },
+          ],
+        });
+      });
+      expect(
+        await screen.findByRole("heading", { name: "OGS Ost" }),
+      ).toBeVisible();
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledWith(
+        "3",
+        "2026-09-07",
+        "2026-09-11",
+      );
+    } finally {
+      if (vi.isFakeTimers()) releaseFakeTimers();
+    }
   });
 
   it("confirms optimistically without a skeleton or school reload, then reads only that school's answer", async () => {
