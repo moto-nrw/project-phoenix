@@ -115,6 +115,7 @@ describe("school report cache", () => {
     "school",
     "logout",
     "other-tab-account",
+    "other-tab-school",
     "other-tab-logout",
   ])(
     "withdraws the loaded report after %s, even when an old response arrives",
@@ -148,7 +149,11 @@ describe("school report cache", () => {
           globalThis.dispatchEvent(
             new StorageEvent("storage", {
               key: "moto:personal-storage-owner",
-              newValue: change.endsWith("logout") ? null : "1:B",
+              newValue: change.endsWith("logout")
+                ? null
+                : change === "other-tab-school"
+                  ? "2:A"
+                  : "1:B",
             }),
           ),
         );
@@ -164,8 +169,17 @@ describe("school report cache", () => {
         await pending;
       });
       expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
-      // An authenticated next account can load its own report, never the old one.
-      signIn("B", change === "school" ? 2 : 1);
+      // A fresh lookup of the old school is not confirmation of its replacement.
+      if (change === "other-tab-school") {
+        signIn();
+        view.rerender(<ClassDayClass schoolClass="4a" {...options} />);
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+        expect(options.fetchClassDay).toHaveBeenCalledTimes(2);
+      }
+      signIn(
+        change === "other-tab-school" ? "A" : "B",
+        change.includes("school") ? 2 : 1,
+      );
       view.rerender(<ClassDayClass schoolClass="4a" {...options} />);
       expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
     },
