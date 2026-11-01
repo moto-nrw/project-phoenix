@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -135,6 +141,70 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.queryByText(/oder dieses Feld pro Kind angezeigt wird/),
     ).not.toBeInTheDocument();
+  });
+
+  it("explains that a lone yes/no question needs another question", () => {
+    renderEditor(form([TEMPLATE[1]!]));
+
+    expect(
+      screen.getByText(
+        "Legen Sie zuerst eine andere Ja/Nein- oder Auswahlfrage mit Fragetext an. Diese Frage kann dann von deren Antwort abhängen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("explains why a family question cannot depend on a child question", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        TEMPLATE[1]!,
+      ]),
+    );
+
+    expect(
+      screen.getByText(
+        "Eine Frage zur Familie kann nicht von einer Frage je Kind abhängen. Legen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie an. Schreiben Sie auch den Fragetext dazu.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("asks for the missing text of a family question even with a child question present", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        { key: "", label: "", type: "boolean", sort_order: 1 },
+        TEMPLATE[1]!,
+      ]),
+    );
+
+    const familyQuestion = within(screen.getAllByRole("article")[0]!);
+    expect(
+      familyQuestion.getByText(
+        "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a condition once the other yes/no question has text", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        { key: "", label: "", type: "boolean", sort_order: 1 },
+      ]),
+    );
+    expect(
+      screen.getByText(/Schreiben Sie zuerst den Fragetext/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(questionInputs()[1]!, {
+      target: { value: "Weitere Angaben nötig?" },
+    });
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Nur unter einer Bedingung anzeigen/,
+      }),
+    ).toBeEnabled();
   });
 
   it("saves questions per child, required, health, condition and order as a new version", async () => {
