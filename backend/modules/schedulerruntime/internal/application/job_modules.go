@@ -67,6 +67,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	"activate-students":         jobScopeBasis,
 	"billing-key-dates":         jobScopeBasis,
 	"analytics-school-names":    jobScopeBasis,
+	// The school vacations (#5345) hold for every school of a state and
+	// feed the vacation hint of the Betreuungsplan.
+	"school-vacation-sync": jobScopeBasis,
 	// The outbox delivers what a producer already enqueued; a producer of a
 	// module that is not booked enqueues nothing.
 	"email-outbox": jobScopeBasis,

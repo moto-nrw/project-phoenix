@@ -31,6 +31,8 @@ GET /api/timetable/periods/
 GET /api/timetable/periods/{id}
 GET /api/timetable/pickup-extensions/
 GET /api/timetable/planning-tracks/
+GET /api/timetable/school-vacation-hints
+GET /api/timetable/school-vacations
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
 GET /api/timetable/templates
@@ -69,6 +71,8 @@ POST /api/timetable/periods/bootstrap
 POST /api/timetable/pickup-extensions/{id}/resolve
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
+POST /api/timetable/school-vacation-hints/acknowledgements
+POST /api/timetable/school-vacations/seed
 POST /api/timetable/shift-coverage
 POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates

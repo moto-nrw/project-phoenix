@@ -28,6 +28,23 @@ vi.mock("~/components/planning/school-holidays-list", () => ({
   SchoolHolidaysList: () => <div data-testid="school-holidays-list" />,
 }));
 
+vi.mock("~/components/planning/school-vacations-list", () => ({
+  SchoolVacationsList: () => <div data-testid="school-vacations-list" />,
+}));
+
+vi.mock("~/components/timetable/school-vacation-hints", () => ({
+  SchoolVacationHints: ({
+    showClosingDaysLink,
+  }: {
+    showClosingDaysLink?: boolean;
+  }) => (
+    <div
+      data-testid="school-vacation-hints"
+      data-closing-days-link={String(showClosingDaysLink)}
+    />
+  ),
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
@@ -78,5 +95,17 @@ describe("CalendarPeriodsPage", () => {
     expect(
       screen.queryByTestId("calendar-periods-editor"),
     ).not.toBeInTheDocument();
+  });
+
+  // #5345: die Schulferien und der Ferienhinweis stehen auf der Seite; der
+  // Hinweis verlinkt nicht auf die Seite, auf der er steht.
+  it("shows the school vacations and the vacation hint without a link to itself", () => {
+    render(<CalendarPeriodsPage />);
+
+    expect(screen.getByTestId("school-vacations-list")).toBeInTheDocument();
+    expect(screen.getByTestId("school-vacation-hints")).toHaveAttribute(
+      "data-closing-days-link",
+      "false",
+    );
   });
 });

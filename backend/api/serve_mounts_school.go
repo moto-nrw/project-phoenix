@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/viper"
 
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+
 	"github.com/go-chi/chi/v5"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
@@ -91,6 +93,20 @@ func mountStaffRoutes(
 	return nil
 }
 
+func schoolVacationHints(
+	db transactionruntime.Database, groups timetableModule.ActivityGroupQuery, days schoolcalendar.Calendar,
+	vacations schoolcalendar.SchoolVacationOwner,
+) (timetableModule.SchoolVacationHintQuery, error) {
+	rows := struct {
+		timetableCompose.PresenceReads
+		timetableModule.ActivityGroupQuery
+	}{
+		PresenceReads:      owners.MustPresenceReads(db),
+		ActivityGroupQuery: groups,
+	}
+	return timetableCompose.NewSchoolVacationHints(rows, days, vacations, nil)
+}
+
 // mountSchoolPortalRoutes serves the school portal ("moto schule", #2207) at
 // the root: public /school/auth/* (login and the school-scope MFA exchange)
 // plus the class-day surface. Token refresh and logout go through the shared
@@ -117,7 +133,17 @@ func mountSchoolPortalRoutes(
 	if err != nil {
 		return err
 	}
-	timetableResource := newTimetableResource(calendar, timetableOwner, materialization, lifecycle, planning, planningTracks, users, schedules,
+	// The vacation hint (#5345) counts Timetable's Regeltermine in the
+	// School Calendar's vacations of the school's federal state.
+	vacations, err := owners.BuildSchoolVacations(settings)
+	if err != nil {
+		return err
+	}
+	vacationHints, err := schoolVacationHints(db, timetableOwner, calendar, vacations)
+	if err != nil {
+		return err
+	}
+	timetableResource := newTimetableResource(calendar, vacations, vacationHints, timetableOwner, materialization, lifecycle, planning, planningTracks, users, schedules,
 		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, classArrivals, logger)
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
@@ -157,7 +183,8 @@ func mountSchoolPortalRoutes(
 // the School Calendar; the conflict detection is the one the instance
 // lifecycle uses.
 func newTimetableResource(
-	calendar schoolcalendar.Calendar, timetableOwner timetableModule.Capability, materialization timetableModule.MaterializationCapability,
+	calendar schoolcalendar.Calendar, vacations timetableAPI.SchoolVacations, vacationHints timetableModule.SchoolVacationHintQuery,
+	timetableOwner timetableModule.Capability, materialization timetableModule.MaterializationCapability,
 	lifecycle owners.TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
 	users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules, caller *owners.CallerRows, settings settingsCompose.SettingsService,
 	careOfferings carePlanModule.CareOfferingCapability, classDay ClassDayViews, planExport planexport.Service,
@@ -168,6 +195,9 @@ func newTimetableResource(
 		CalendarPeriods:         calendar,
 		ClosingDays:             calendar,
 		Holidays:                calendar,
+		SchoolVacations:         vacations,
+		IsLocalSeed:             func(r *http.Request) bool { return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env")) },
+		SchoolVacationHints:     vacationHints,
 		CalendarPeriodUsage:     calendarPeriodUsage{usage: newCalendarPeriodUsage(timetableOwner)},
 		MaterializationService:  materialization,
 		InstanceService:         lifecycle.Instances,

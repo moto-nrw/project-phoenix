@@ -1246,6 +1246,8 @@ export const ERROR_CATALOG = {
         "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.room_occupied":
         "In diesem Raum läuft schon eine andere Gruppe. Bitte wählen Sie einen anderen Raum.",
+      "timetable.school_vacation_not_found":
+        "Diese Ferien gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.series_end_before_start":
         "Die Serie beginnt am {start}. Das Enddatum darf nicht davor liegen.",
       "timetable.series_end_outside_period":

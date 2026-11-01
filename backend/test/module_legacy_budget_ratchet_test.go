@@ -196,7 +196,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // adds exactly 7 LOC.
 // ADR 0141: the payroll dispatch constructor and composition field of
 // modules/workforce/compose add exactly 9 LOC.
-const moduleComposeBudgetTotal = 12741
+// ADR 0144: the school vacation constructor of modules/schoolcalendar/compose
+// (+11) and the vacation hint constructor of modules/timetable/compose (+6).
+const moduleComposeBudgetTotal = 12758
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -255,8 +257,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
-	// Raised by ADR 0142: the Elternsprechtag constructor (+7).
-	"modules/schoolcalendar/compose":        155,
+	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
+	// ADR 0144: the school vacation constructor (+11).
+	"modules/schoolcalendar/compose":        166,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose": 196,
@@ -269,8 +272,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 250,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	// Raised by ADR 0128: the student template days constructor (+5).
-	"modules/timetable/compose":                     1147,
+	// Raised by ADR 0128: the student template days constructor (+5) and by
+	// ADR 0144: the vacation hint constructor (+6).
+	"modules/timetable/compose":                     1153,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
