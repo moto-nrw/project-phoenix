@@ -13,6 +13,9 @@
     "PUT tenant /api/staff/id%2F1/planned-exit",
     "DELETE tenant /api/staff/id%2F1/planned-exit"
   ],
+  "api/staff/[id]/qualifications": [
+    "GET tenant /api/staff/id%2F1/qualifications"
+  ],
   "api/staff/[id]/schedule": [
     "GET tenant /api/staff/id%2F1/schedule",
     "PUT tenant /api/staff/id%2F1/schedule"
@@ -70,6 +73,19 @@
   ],
   "api/staff/financial-profile/[id]": [
     "GET tenant /api/staff/financial-profile/id%2F1"
+  ],
+  "api/staff/me/qualifications": [
+    "GET tenant /api/staff/me/qualifications"
+  ],
+  "api/staff/qualification-types": [
+    "GET tenant /api/staff/qualification-types",
+    "POST tenant /api/staff/qualification-types"
+  ],
+  "api/staff/qualification-types/[typeId]": [
+    "PUT tenant /api/staff/qualification-types/typeId%2F1"
+  ],
+  "api/staff/qualifications": [
+    "GET tenant /api/staff/qualifications"
   ],
   "api/staff/shift-types": [
     "GET tenant /api/shift-types",

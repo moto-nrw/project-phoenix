@@ -62,9 +62,11 @@ type StaffMasterData struct {
 
 // StaffQualification is one qualification row of a staff member (#1423).
 type StaffQualification struct {
-	ID         int64
-	TenantID   int64
-	StaffID    int64
+	ID       int64
+	TenantID int64
+	StaffID  int64
+	// TypeID names the kind of proof (#4808); nil is "Sonstiges".
+	TypeID     *int64
 	Name       string
 	AcquiredOn string
 	ExpiresOn  string

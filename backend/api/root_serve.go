@@ -436,7 +436,7 @@ func composeServeRoot(
 			planExport = owners.BuildPlanExport(env, shifts, workTime, timetableRows, rooms, people, timetableOwner, calendar, renderer)
 			workforce, err = owners.BuildWorkforcePlanning(db, env, hub, workTime, membership, persons, shifts, planExport, side,
 				lifecycle, timetableRows, audit, settings.Service)
-			return
+			return workforce.WithQualificationReminders(err, db, env, notifications, people.Staff, delivery.Enqueuer(), mailFrom, mailIdentity, organizations)
 		},
 		func() (err error) {
 			staffAdmin, err = owners.BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)

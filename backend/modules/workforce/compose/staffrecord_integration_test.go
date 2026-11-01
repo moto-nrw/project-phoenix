@@ -105,6 +105,7 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Qualifikation", "Foreign")
+	other := testpkg.CreateTestStaff(t, db, "Qualifikation", "Other")
 	capability := buildWorkforce(t, db)
 
 	stored, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{
@@ -118,6 +119,9 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	assert.Equal(t, testpkg.Tenant(t), stored[0].TenantID)
 	_, err = capability.ReplaceStaffQualifications(foreignCtx, foreign.ID, []workforce.StaffQualification{{Name: "Fremd"}})
 	require.NoError(t, err)
+	otherRows, err := capability.ReplaceStaffQualifications(ctx, other.ID, []workforce.StaffQualification{{Name: "Fremder Nachweis"}})
+	require.NoError(t, err)
+	require.Len(t, otherRows, 1)
 
 	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
 	require.NoError(t, err)
@@ -128,6 +132,13 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	foreignList, err := capability.ListStaffQualifications(ctx, foreign.ID)
 	require.NoError(t, err)
 	assert.Empty(t, foreignList, "the foreign tenant's rows are invisible")
+
+	_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{ID: otherRows[0].ID, Name: "Unbefugt"}})
+	require.ErrorIs(t, err, workforce.ErrInvalidStaffRecord)
+	assert.EqualError(t, err, "qualification ID does not belong to staff member")
+	listed, err = capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2, "a rejected foreign ID leaves the existing rows untouched")
 
 	_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{
 		{Name: "Fortbildung"}, {Name: "", AcquiredOn: "2025-01-01"},

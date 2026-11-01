@@ -48,6 +48,11 @@ const (
 // (#4809). TestStaffPlannedExitNoticeFollowsTheRight pins it to the registry.
 const permissionUsersDelete = "users:delete"
 
+// permissionStaffStammdaten restates the personnel-record right: the
+// qualification reminders go to whoever maintains the Nachweise (#4808).
+// TestStaffQualificationNoticeFollowsTheRight pins it to the registry.
+const permissionStaffStammdaten = "staff:stammdaten"
+
 // Groups the profile page renders as headings, in this order.
 const (
 	GroupPickup       = "abholung"
@@ -90,6 +95,11 @@ const (
 	// TypeStaffPlannedExit reminds the Leitung of a planned staff exit and
 	// tells it when the exit is blocked (#4809).
 	TypeStaffPlannedExit = contract.NotificationStaffPlannedExit
+
+	// TypeStaffQualificationExpiry reminds the Leitung of a Nachweis that
+	// expires (#4808); TypeStaffQualificationOwnExpiry reminds the person.
+	TypeStaffQualificationExpiry    = contract.NotificationStaffQualificationExpiry
+	TypeStaffQualificationOwnExpiry = contract.NotificationStaffQualificationOwnExpiry
 	// TypeSchoolClassAbsenceReported tells a Lehrkraft or the
 	// Schulverwaltung in moto schule that a child of one of their classes was
 	// reported sick or excused for today (#4792).
@@ -264,6 +274,7 @@ func init() {
 	registerPickupTypes()
 	registerActivityTypes()
 	registerStaffMessageTypes()
+	registerStaffQualificationTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
 	registerSchoolTypes()
@@ -389,6 +400,7 @@ func registerStaffMessageTypes() {
 		DefaultOn:   true,
 		SortOrder:   4,
 	})
+
 }
 
 func registerParentMessageTypes() {
@@ -515,5 +527,30 @@ func registerSchoolTypes() {
 		Group:       GroupAppointments,
 		Portal:      PortalSchool,
 		SortOrder:   1,
+	})
+}
+
+// registerStaffQualificationTypes registers the reminders of #4808.
+func registerStaffQualificationTypes() {
+	// The Leitung's task (#4808): on until switched off, offered to the
+	// holders of staff:stammdaten. The person's own reminder is offered to
+	// everyone and, like the other personal reminders, switched on by them.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffQualificationExpiry,
+		Label:       "Ablaufende Nachweise im Team",
+		Description: "Wenn ein Nachweis wie Erste Hilfe oder Führungszeugnis bald abläuft und am Ablauftag.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		Permission:  permissionStaffStammdaten,
+		DefaultOn:   true,
+		SortOrder:   5,
+	})
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffQualificationOwnExpiry,
+		Label:       "Eigene Nachweise",
+		Description: "Wenn einer Ihrer Nachweise bald abläuft und am Ablauftag. Eine E-Mail bekommen Sie in jedem Fall.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		SortOrder:   6,
 	})
 }

@@ -61,9 +61,11 @@ type WorkerDependencies struct {
 	BookingConsistency      BookingConsistencyAudit
 	HolidayGuests           HolidayGuestReconciliation
 	PlannedStaffExits       PlannedStaffExits
-	WeekProtocols           WeekProtocolEvenings
-	PayrollDispatch         PayrollDispatch
-	MealOrders              MealOrderSettlement
+	// StaffQualificationReminders sends the Nachweis reminders (#4808).
+	StaffQualificationReminders StaffQualificationReminders
+	WeekProtocols               WeekProtocolEvenings
+	PayrollDispatch             PayrollDispatch
+	MealOrders                  MealOrderSettlement
 	// SchoolVacations renews the school vacations of every federal state
 	// (#5345); nil leaves the job out.
 	SchoolVacations           SchoolVacationSync

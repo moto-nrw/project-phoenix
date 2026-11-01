@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.staff_qualification_types.list",
+  "max": 6,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET\n/api/staff/qualification-types (#4808): the tenant-transaction statements,\nONE insert that adds missing standard kinds (a no-op once they exist) and\nONE read of the kinds."
+}

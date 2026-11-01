@@ -37,3 +37,11 @@ func NewPayrollDispatch(db *bun.DB, bound workforce.PayrollDispatchPorts) (workf
 func NewStaffDocumentFileRecovery(documents workforce.StaffDocumentFileCleanups, queue workforce.DocumentCleanupQueue, uploads workforce.StaffDocumentUploads, logger *slog.Logger) (workforce.StaffDocumentFileRecovery, error) {
 	return application.NewStaffDocumentFileRecovery(documents, queue, uploads, logger)
 }
+
+// NewQualifications composes the Nachweise (#4808); a nil now is the wall clock.
+func NewQualifications(db *bun.DB, staff workforce.QualificationStaff, bound workforce.QualificationReminderPorts, now func() time.Time) (*application.Qualifications, error) {
+	if now == nil {
+		now = time.Now
+	}
+	return application.NewQualifications(postgres.New(postgres.DatabaseRuntime(db)), application.Clock{Time: now}, staff, bound)
+}

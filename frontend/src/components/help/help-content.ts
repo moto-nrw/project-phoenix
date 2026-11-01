@@ -145,6 +145,7 @@ function leadTopics(
 
     // --- Personalverwaltung ---
     articles.staffRecordTopic(),
+    articles.staffQualificationsTopic(),
     articles.targetOverrideTopic(),
     articles.staffPermissionsTopic(),
     articles.workTimeReviewTopic(),

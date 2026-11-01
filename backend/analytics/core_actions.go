@@ -330,6 +330,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/staff/{id}/stammdaten/kontakt"}:                                                 notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/person"}:                                                  notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/qualifikationen"}:                                         notCaptured,
+	{http.MethodPost, "/api/staff/qualification-types"}:                                                    notCaptured,
+	{http.MethodPut, "/api/staff/qualification-types/{typeId}"}:                                            notCaptured,
 	{http.MethodPost, "/api/staff/{id}/target-overrides"}:                                                  notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/target-overrides/{overrideId}"}:                                   notCaptured,
 	{http.MethodPost, "/api/staff/{id}/time-tracking/adjustments"}:                                         notCaptured,

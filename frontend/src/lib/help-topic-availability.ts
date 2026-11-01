@@ -189,6 +189,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.leadEnrollmentCleanup]: "lead",
   [HELP_TOPICS.leadInviteStaff]: "lead",
   [HELP_TOPICS.leadStaffRecord]: "lead",
+  [HELP_TOPICS.leadStaffQualifications]: "lead",
   [HELP_TOPICS.leadTargetOverride]: "lead",
   [HELP_TOPICS.leadRemoveStaff]: "lead",
   [HELP_TOPICS.leadStaffPermissions]: "lead",

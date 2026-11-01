@@ -4712,6 +4712,16 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/qualificationStaff.StaffContact",
+      "reason": "Root translation of Workforce's Nachweis staff port onto the People Directory (#4808): maps the staff contact row onto the public member and keeps the staff id when no row comes back; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/qualificationStaff.StammdatenManagers",
+      "reason": "Root translation of Workforce's Nachweis staff port onto the People Directory (#4808): names the staff:stammdaten permission and maps staff rows onto members; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/reminderPushOutbox.Deliver",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

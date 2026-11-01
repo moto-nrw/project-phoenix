@@ -100,12 +100,15 @@ func absenceEmailDependencies(
 // shift-plan-sync entry of its sick-report writes with the #1843 cascade
 // (#4825) and the time-tracking retention sweep (Tranche 0b).
 type WorkforcePlanning struct {
-	Shifts              *workforceCompose.ShiftPlanning
-	StaffShifts         workforceModule.StaffShiftPlanning
-	TimeTracking        *workforceCompose.TimeTracking
-	PayrollDispatch     workforceModule.PayrollDispatch
-	SickReports         WorkforceAbsenceWrites
-	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
+	Shifts          *workforceCompose.ShiftPlanning
+	StaffShifts     workforceModule.StaffShiftPlanning
+	TimeTracking    *workforceCompose.TimeTracking
+	PayrollDispatch workforceModule.PayrollDispatch
+	// QualificationReminders sends the Nachweis reminders (#4808); the
+	// Worker roots compose it once the notifications exist.
+	QualificationReminders workforceModule.QualificationReminders
+	SickReports            WorkforceAbsenceWrites
+	TimeTrackingCleanup    workforceCompose.TimeTrackingCleanupService
 }
 
 // WorkforceAbsenceWrites are the absence writes that may cascade a sick

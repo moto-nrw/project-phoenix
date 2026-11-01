@@ -602,7 +602,8 @@ describe("getParentHelpTopicForPath", () => {
     // 98 seit der Unfallanzeige.
     // 99 seit #4774: Soll und Ist vergleichen.
     // 100 seit #4769: das geteilte Wochenprotokoll.
-    expect(leadTopics).toHaveLength(100);
+    // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
+    expect(leadTopics).toHaveLength(101);
     expect(
       leadTopics.every(
         (topic) =>
