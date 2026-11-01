@@ -232,18 +232,23 @@ function ClassReportLink({
     mutate,
   );
   if (isLoading && !data) return <Skeleton className="h-24 w-full" />;
-  return (
+  const link = (
+    <ClassLink
+      klass={klass}
+      dateISO={dateISO}
+      report={data ? reportLine(data) : null}
+      failed={Boolean(error)}
+      weekend={false}
+      openList={null}
+    />
+  );
+  return error ? (
     <div className="flex flex-col">
-      {error && <LoadErrorAlert error={loadError} className="mb-2" />}
-      <ClassLink
-        klass={klass}
-        dateISO={dateISO}
-        report={data ? reportLine(data) : null}
-        failed={Boolean(error)}
-        weekend={false}
-        openList={null}
-      />
+      <LoadErrorAlert error={loadError} className="mb-2" />
+      {link}
     </div>
+  ) : (
+    link
   );
 }
 

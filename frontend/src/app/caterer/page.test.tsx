@@ -209,6 +209,100 @@ describe("CatererOverviewPage (#3873)", () => {
     );
   });
 
+  it.each(["success", "failure"])(
+    "never resurrects an unconfirmed inactive week after a successful POST and GET %s",
+    async (refresh) => {
+      let confirmed = false;
+      const loaded = (from: string, to: string) => {
+        const data = week([10, 10, 10, 10, 10]);
+        return {
+          ...data,
+          days: data.days
+            .filter((day) => day.date >= from && day.date <= to)
+            .map((day) => ({
+              ...day,
+              status:
+                confirmed && day.orderId === "4" ? "confirmed" : day.status,
+            })),
+        };
+      };
+      mocks.fetchCatererOrders.mockImplementation(
+        (_id: string, from: string, to: string) =>
+          Promise.resolve(loaded(from, to)),
+      );
+      const post = deferred<void>();
+      mocks.confirmCatererOrder.mockImplementation(async () => {
+        await post.promise;
+        confirmed = true;
+      });
+      render(<CatererOverviewPage />);
+      await screen.findByText("Bestellungen für Küche am Markt");
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+      await waitFor(() =>
+        expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+      );
+      const north = screen
+        .getByRole("heading", { name: "OGS Nord" })
+        .closest("section")!;
+      const confirm = within(north).getAllByRole("button", {
+        name: "Erhalten bestätigen",
+      })[0]!;
+      expect(confirm).toBeVisible();
+      if (refresh === "failure")
+        mocks.fetchCatererOrders.mockRejectedValueOnce(
+          new ApiError("down", 503),
+        );
+      fireEvent.click(confirm);
+      await act(async () => post.resolve());
+      expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
+      const next = deferred<ReturnType<typeof loaded>>();
+      mocks.fetchCatererOrders.mockReturnValue(next.promise);
+      fireEvent.click(screen.getByRole("button", { name: "Diese Woche" }));
+      expect(screen.getByText("Wird geladen…")).toBeVisible();
+      await act(async () => next.resolve(loaded("2026-09-07", "2026-09-11")));
+      expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
+      expect(mocks.confirmCatererOrder).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("does not reopen cached orders after another window refused school access", async () => {
+    render(<CatererOverviewPage />);
+    expect(
+      await screen.findByText("Bestellungen für Küche am Markt"),
+    ).toBeVisible();
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    mocks.fetchCatererOrders.mockRejectedValueOnce(
+      new ApiError("revoked", 403, { code: "meals.not_supplied" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+    await waitFor(() =>
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    expect(await within(north).findByRole("alert")).toHaveTextContent(
+      "Sie beliefern diese Schule nicht mehr",
+    );
+    mocks.fetchCatererOrders.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Diese Woche" }));
+    expect(screen.getByText("Wird geladen…")).toBeVisible();
+    expect(
+      within(north).queryByRole("button", { name: "Erhalten bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("rolls back a failed confirmation without removing the loaded orders", async () => {
     const pending = deferred<void>();
     mocks.confirmCatererOrder.mockReturnValueOnce(pending.promise);

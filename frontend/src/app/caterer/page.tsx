@@ -54,6 +54,7 @@ import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { useSWRAuth, useInvalidateMatching, useSWRCacheKey } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { catererKeys } from "~/lib/swr/portal-keys";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -203,10 +204,30 @@ export default function CatererOverviewPage() {
     },
     { keepPreviousData: false },
   );
+  const discardRefused = useDiscardRefusedEntity();
+  useEffect(() => {
+    for (const cause of Object.values(response.data?.failures ?? {})) {
+      // The current window already contains the per-school error, never old orders.
+      // Other cached windows must not reopen data whose access was just refused.
+      discardRefused(cause, {
+        codes: ["meals.not_supplied", "meals.order_not_found"],
+        matches: (key) =>
+          key.startsWith("caterer-orders-") && key !== ordersKey,
+      });
+    }
+  }, [response.data, ordersKey, discardRefused]);
   const scopedKey = useSWRCacheKey()(ordersKey ?? "");
-  const currentKey = useRef(scopedKey);
+  const currentWindow = useRef({
+    scopedKey,
+    key: ordersKey,
+    mutate: response.mutate,
+  });
   useLayoutEffect(() => {
-    currentKey.current = scopedKey;
+    currentWindow.current = {
+      scopedKey,
+      key: ordersKey,
+      mutate: response.mutate,
+    };
   });
   const action = useOptimisticAction(ordersKey, response.data);
   const orders = action.data?.orders ?? {};
@@ -226,7 +247,7 @@ export default function CatererOverviewPage() {
   const retries = useRef(new Map<string, number>());
   const retrySchool = useCallback(
     async (school: CatererSchool) => {
-      if (currentKey.current !== scopedKey) return;
+      if (currentWindow.current.scopedKey !== scopedKey) return;
       const ticket = (retries.current.get(school.id) ?? 0) + 1;
       retries.current.set(school.id, ticket);
       const outcome = await runAction({
@@ -318,9 +339,21 @@ export default function CatererOverviewPage() {
           (current) => (current ? markConfirmed(current) : current),
           { revalidate: false },
         );
-        // Other windows must not later resurrect an unconfirmed order.
+        const visible = currentWindow.current;
+        if (visible.key !== null && visible.key !== ordersKey) {
+          // A period selected while the POST ran stays visible and gets the acknowledged status.
+          void visible.mutate(
+            (current) => (current ? markConfirmed(current) : current),
+            { revalidate: true },
+          );
+        }
+        // Inactive windows have no reader to refresh them: never leave stale action data there.
         void invalidate(
-          (key) => key.startsWith("caterer-orders-") && key !== ordersKey,
+          (key) =>
+            key.startsWith("caterer-orders-") &&
+            key !== ordersKey &&
+            key !== visible.key,
+          { clear: true },
         );
       },
       refusal: {
@@ -333,7 +366,8 @@ export default function CatererOverviewPage() {
       // The session/window no longer owns this action: no toast or reload.
       return;
     }
-    if (currentKey.current === scopedKey) await retrySchool(school);
+    if (currentWindow.current.scopedKey === scopedKey)
+      await retrySchool(school);
   }
 
   async function download(format: DeliveryExportFormat) {
