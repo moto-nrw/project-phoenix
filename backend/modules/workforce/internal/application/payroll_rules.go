@@ -47,6 +47,9 @@ func payrollRuleNotFound(what string) error {
 // Overview lists the active wage types and rules and every school absence
 // type with its mapping.
 func (p *PayrollRules) Overview(ctx context.Context) (*workforce.PayrollRulesOverview, error) {
+	if err := p.store.LockPayrollRules(ctx); err != nil {
+		return nil, err
+	}
 	state, err := p.loadState(ctx)
 	if err != nil {
 		return nil, err

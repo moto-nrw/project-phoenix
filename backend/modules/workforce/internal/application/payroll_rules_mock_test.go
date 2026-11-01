@@ -252,6 +252,16 @@ func TestPayrollRules_CurrentRuleSetLocksBeforeReadingTheRuleState(t *testing.T)
 	assert.Equal(t, 1, store.locks)
 }
 
+func TestPayrollRules_OverviewLocksBeforeReadingTheRuleState(t *testing.T) {
+	t.Parallel()
+	rules, store, _ := newPayrollRulesForTest(t)
+
+	_, err := rules.Overview(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, store.locks)
+}
+
 func jsonID(id int64) string {
 	data, _ := json.Marshal(id)
 	return string(data)
