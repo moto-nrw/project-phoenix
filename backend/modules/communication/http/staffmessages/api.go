@@ -8,6 +8,7 @@ package staffmessaging
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -102,6 +103,7 @@ type InboxThreadResponse struct {
 
 // MessageResponse is one chat message.
 type MessageResponse struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
 	ID              string `json:"id"`
 	SenderAccountID string `json:"sender_account_id"`
 	SenderName      string `json:"sender_name"`
@@ -147,10 +149,10 @@ func toMessageResponses(messages []communication.StaffMessage) []MessageResponse
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
-			ID:                       strconv.FormatInt(m.ID, 10),
-			SenderAccountID:          strconv.FormatInt(m.SenderAccountID, 10),
-			SenderName:               m.SenderName,
-			Body:                     m.Body,
+			ID:              strconv.FormatInt(m.ID, 10),
+			SenderAccountID: strconv.FormatInt(m.SenderAccountID, 10),
+			SenderName:      m.SenderName,
+			ClientMessageID: m.ClientMessageID, Body: m.Body,
 			CreatedAt:                m.CreatedAt.Format(time.RFC3339),
 			ReadByAccountIDs:         formatIDs(m.ReadByAccountIDs),
 			EligibleReaderAccountIDs: formatIDs(m.EligibleReaderAccountIDs),
@@ -301,14 +303,20 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Body string `json:"body"`
+		ClientMessageID string `json:"client_message_id,omitempty"`
+		Body            string `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	message, err := rs.Service.PostStaffMessage(r.Context(), threadID, body.Body)
+	if len(body.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		return
+	}
+
+	message, err := rs.Service.PostStaffMessage(communication.WithMessageSendID(r.Context(), body.ClientMessageID), threadID, body.Body)
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return

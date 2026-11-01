@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
@@ -105,14 +107,20 @@ function GroupMessageContent() {
   const [closing, setClosing] = useState(false);
   const { show: showActionError } = useApiErrorDisplay();
 
+  const attempt = useMessageSendAttempt(messageKeys.groupMessage(threadId));
   const send = async () => {
     const body = draft.trim();
     if (!body || sending || !messagingEnabled) return;
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     sendAction.dismiss();
     setDraft("");
     const outcome = await sendAction.run({
+      confirmed: (current) =>
+        current.messages.some(
+          (message) => message.client_message_id === clientMessageId,
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -120,7 +128,7 @@ function GroupMessageContent() {
           { id, sender_name: "", body, created_at: "" },
         ],
       }),
-      request: () => postGroupMessage(threadId, body),
+      request: () => postGroupMessage(threadId, body, clientMessageId),
       commit: (next) => void mutate(next, { revalidate: false }),
       keepFailed: true,
       refusal: {
@@ -130,6 +138,7 @@ function GroupMessageContent() {
           key === messageKeys.groupMessages(),
       },
     });
+    if (outcome.status === "done") attempt.complete(clientMessageId);
     if (outcome.status !== "failed") return;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.

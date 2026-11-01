@@ -11,6 +11,13 @@ import {
 import { catalogText } from "~/test/error-catalog-text";
 import { ParentGroupThreadView } from "./group-thread-view";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1", scope: "parents" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/parent-url", () => ({
   parentPath: (path: string) => path,
 }));
@@ -120,6 +127,8 @@ describe("ParentGroupThreadView (#4784)", () => {
         "43",
         "Wir bringen Muffins.",
         "9",
+        "team",
+        expect.any(String),
       ),
     );
     expect(

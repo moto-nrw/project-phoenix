@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import {
   useCallback,
   useEffect,
@@ -149,13 +151,24 @@ export function ParentGroupThreadView({
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  const attempt = useMessageSendAttempt(
+    `parent-group-reply:${groupThreadId}:${selected ?? ""}`,
+  );
   const handleSend = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending || !selected) return;
+    const clientMessageId = attempt.begin(body);
     setSending(true);
     clearSendError();
     try {
-      await postChildMessage(selected, body, groupThreadId);
+      await postChildMessage(
+        selected,
+        body,
+        groupThreadId,
+        "team",
+        clientMessageId,
+      );
+      attempt.complete(clientMessageId);
       if (!mountedRef.current) return;
       setDraft("");
       setSentFor(selected);
@@ -175,6 +188,7 @@ export function ParentGroupThreadView({
     sending,
     selected,
     groupThreadId,
+    attempt,
     clearSendError,
     showSendError,
     t,

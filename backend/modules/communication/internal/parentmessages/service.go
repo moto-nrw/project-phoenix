@@ -440,6 +440,13 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	if err != nil {
 		return nil, err
 	}
+	if message.SendReplayed {
+		detail, _, readErr := s.markReadAndBuild(ctx, thread)
+		if readErr != nil {
+			return nil, readErr
+		}
+		return detail.Messages, nil
+	}
 	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
@@ -490,6 +497,10 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
 	if err != nil {
 		return nil, err
+	}
+	if message.SendReplayed {
+		detail, _, readErr := s.markReadAndBuild(ctx, thread)
+		return detail, readErr
 	}
 	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
@@ -573,6 +584,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*I
 // created_at" rule).
 func (s *Service) appendStaffMessage(ctx context.Context, thread *ParentMessageThread, accountID int64, body string) (*ParentMessage, error) {
 	msg := &ParentMessage{
+		ClientMessageID:  deliveryPorts.MessageSendID(ctx),
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
 		SenderAccountID:  accountID,

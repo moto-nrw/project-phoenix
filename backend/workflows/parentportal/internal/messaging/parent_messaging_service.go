@@ -324,8 +324,12 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		GuardianName: senderName,
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view); err != nil {
+		replayed, err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view)
+		if err != nil {
 			return err
+		}
+		if replayed {
+			return nil
 		}
 		captured := child.TenantID
 		capturedThread := conversationRef{ID: view.ThreadID, Audience: audience}
@@ -390,6 +394,7 @@ func (s *Service) requireChildReply(ctx context.Context, child *Child, accountID
 // created_at" rule).
 func (s *Service) appendGuardianMessage(ctx context.Context, thread *ParentMessageThread, accountID int64, senderName, body string, groupThreadID *int64) (*ParentMessage, error) {
 	msg := &ParentMessage{
+		ClientMessageID: messageSendID(ctx),
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
 		SenderAccountID: accountID,
@@ -449,7 +454,7 @@ func (s *Service) broadcastReadReceipt(tenantID, guardianAccountID int64, thread
 	s.Conversations.BroadcastRead(tenantID, guardianAccountID, thread.ID, studentID, thread.Audience)
 }
 
-func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, thread *ParentMessageThread, accountID, studentID, messageID int64, messages []*ParentMessage, view *MessageThreadView) error {
+func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, thread *ParentMessageThread, accountID, studentID, messageID int64, messages []*ParentMessage, view *MessageThreadView, replayed bool) error {
 	// The frontend replaces its thread state with this returned view, so it must
 	// carry the same "OGS hat gelesen" markers GetChildConversation produces —
 	// otherwise existing receipts blink off until the next full GET/SSE refresh.
@@ -472,7 +477,7 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 	}
 	captured := child.TenantID
 	capturedThread := view.ThreadID
-	if s.ParentMessageNotifier != nil {
+	if s.ParentMessageNotifier != nil && !replayed {
 		if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, care.StaffParentMessageReport{
 			TenantID: captured, ThreadID: capturedThread, MessageID: messageID,
 			StudentID: studentID, ActorAccountID: accountID, Leadership: view.Audience == AudienceLeadership,
@@ -483,7 +488,7 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 	return nil
 }
 
-func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, groupThreadID *int64, view *MessageThreadView) error {
+func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, groupThreadID *int64, view *MessageThreadView) (bool, error) {
 	if groupThreadID != nil {
 		// The first group-thread check happens before opening this write
 		// transaction, so it can return a refused answer without creating a
@@ -491,30 +496,30 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 		// and appending must serialize, otherwise a close between those two
 		// transactions could still admit an answer to a closed thread.
 		if _, err := s.GroupThreads.GroupReplyTarget(txCtx, *groupThreadID, accountID, studentID); err != nil {
-			return err
+			return false, err
 		}
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if student.CareEndedOn(s.todayDate()) {
-		return care.ErrChildCareEnded
+		return false, care.ErrChildCareEnded
 	}
 	thread, err := s.guardianConversation(txCtx, child.TenantID, studentID, accountID, view)
 	if err != nil {
-		return err
+		return false, err
 	}
 	message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body, groupThreadID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	view.ThreadID = thread.ID
 	messages, err := s.MessageRepo.ListByThread(txCtx, thread.ID, 0)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return s.finishGuardianReply(txCtx, child, thread, accountID, studentID, message.ID, messages, view)
+	return message.SendReplayed, s.finishGuardianReply(txCtx, child, thread, accountID, studentID, message.ID, messages, view, message.SendReplayed)
 }
 
 func normalizeParentMessageBody(body string) (string, error) {

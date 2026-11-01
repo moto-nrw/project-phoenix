@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import {
   useCallback,
   useEffect,
@@ -336,15 +338,23 @@ export function OgsConversation({
     // view (#5011).
   }, [thread, care.loading, sendError]);
 
+  const attempt = useMessageSendAttempt(conversationKey);
   const { run: runSend, dismiss: dismissFailedSend } = send;
   const handleSend = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending) return;
+    const clientMessageId = attempt.begin(body);
     clearSendError();
     // A new attempt replaces the bubble marked as not sent.
     dismissFailedSend();
     setDraft("");
     const outcome = await runSend({
+      confirmed: (current) =>
+        current.messages.some(
+          (message) =>
+            message.client_message_id === clientMessageId &&
+            message.sender_kind === "guardian",
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -359,7 +369,8 @@ export function OgsConversation({
           },
         ],
       }),
-      request: () => postChildMessage(studentId, body, undefined, audience),
+      request: () =>
+        postChildMessage(studentId, body, undefined, audience, clientMessageId),
       // Claim the token AFTER the POST resolves so this authoritative result
       // wins. A successful send means the thread is loadable, so clear any
       // stale load error left by an earlier failed background refresh. A
@@ -380,6 +391,7 @@ export function OgsConversation({
       },
     });
     if (outcome.status === "done") {
+      attempt.complete(clientMessageId);
       // Sending advances the reader's own cursor (any prior staff messages
       // are now read), so refresh the sidebar badge.
       nudgeUnreadBadge();
@@ -427,6 +439,7 @@ export function OgsConversation({
     runSend,
     dismissFailedSend,
     conversationKey,
+    attempt,
   ]);
   // The retry sends the current draft, not the one of the failed attempt.
   const sendRef = useRef(handleSend);

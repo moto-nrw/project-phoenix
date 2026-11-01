@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import {
@@ -276,14 +278,22 @@ export function TeamChatThread({
     // view (#5011).
   }, [thread, sendError.error]);
 
+  const attempt = useMessageSendAttempt(threadKey);
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || isSending) return;
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     send.dismiss();
     setDraft("");
     const outcome = await send.run({
+      confirmed: (current) =>
+        current.messages.some(
+          (message) =>
+            message.client_message_id === clientMessageId &&
+            message.sender_account_id === myAccountId,
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -297,7 +307,7 @@ export function TeamChatThread({
           },
         ],
       }),
-      request: () => api.postMessage(threadID, body),
+      request: () => api.postMessage(threadID, body, clientMessageId),
       // Revalidate stays as a freshness backstop.
       commit: (sent) =>
         void mutate(
@@ -315,6 +325,7 @@ export function TeamChatThread({
           key.startsWith(messageKeys.teamChatInboxFamily()),
       },
     });
+    if (outcome.status === "done") attempt.complete(clientMessageId);
     if (outcome.status !== "failed") return;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.

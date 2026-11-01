@@ -43,10 +43,13 @@ type ParentGroupThread struct {
 
 // ParentGroupMessage is one OGS message of a group thread.
 type ParentGroupMessage struct {
-	ID         int64
-	SenderName string
-	Body       string
-	CreatedAt  time.Time
+	SenderAccountID int64
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
+	ID              int64
+	SenderName      string
+	Body            string
+	CreatedAt       time.Time
 }
 
 // ParentGroupChildRead is one child a group thread reached and whether one

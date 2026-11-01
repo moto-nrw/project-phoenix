@@ -158,6 +158,7 @@ describe("Neue Gruppennachricht", () => {
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(detail));
     expect(mocks.createGroupThread).toHaveBeenCalledWith({
+      client_message_id: expect.any(String),
       target: { type: "group", id: "6", label: "Gruppe Füchse" },
       title: "Ausflug",
       body: "Am Freitag geht es in den Zoo.",

@@ -3,6 +3,7 @@ package parent
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,21 +20,22 @@ import (
 // the message froze staff-name visibility on at send time (see toMessageResponses
 // and operations.parent_message_staff_name_visible).
 type MessageResponse struct {
-	ID             string                     `json:"id"`
-	SenderKind     string                     `json:"sender_kind"`
-	SenderName     string                     `json:"sender_name"`
-	Body           string                     `json:"body"`
-	CreatedAt      time.Time                  `json:"created_at"`
-	Kind           string                     `json:"kind"`
-	EventType      string                     `json:"event_type,omitempty"`
-	RequestType    string                     `json:"request_type,omitempty"`
-	RequestStatus  string                     `json:"request_status,omitempty"`
-	Payload        map[string]json.RawMessage `json:"payload,omitempty"`
-	RefTable       string                     `json:"ref_table,omitempty"`
-	RefID          string                     `json:"ref_id,omitempty"`
-	AppliedAt      *time.Time                 `json:"applied_at,omitempty"`
-	DecisionReason string                     `json:"decision_reason,omitempty"`
-	ReadByStaff    bool                       `json:"read_by_staff,omitempty"`
+	ClientMessageID string                     `json:"client_message_id,omitempty"`
+	ID              string                     `json:"id"`
+	SenderKind      string                     `json:"sender_kind"`
+	SenderName      string                     `json:"sender_name"`
+	Body            string                     `json:"body"`
+	CreatedAt       time.Time                  `json:"created_at"`
+	Kind            string                     `json:"kind"`
+	EventType       string                     `json:"event_type,omitempty"`
+	RequestType     string                     `json:"request_type,omitempty"`
+	RequestStatus   string                     `json:"request_status,omitempty"`
+	Payload         map[string]json.RawMessage `json:"payload,omitempty"`
+	RefTable        string                     `json:"ref_table,omitempty"`
+	RefID           string                     `json:"ref_id,omitempty"`
+	AppliedAt       *time.Time                 `json:"applied_at,omitempty"`
+	DecisionReason  string                     `json:"decision_reason,omitempty"`
+	ReadByStaff     bool                       `json:"read_by_staff,omitempty"`
 	// GroupThreadID and GroupThreadTitle name the group thread this answer
 	// refers to (#4784).
 	GroupThreadID    string `json:"group_thread_id,omitempty"`
@@ -183,7 +185,8 @@ type ThreadViewResponse struct {
 
 // PostMessageRequest is the wire shape for POST .../children/{studentId}.
 type PostMessageRequest struct {
-	Body string `json:"body"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	Body            string `json:"body"`
 	// GroupThreadID names the group thread this message answers (#4784).
 	GroupThreadID string `json:"group_thread_id,omitempty"`
 	// Audience is "team" (default) or "leadership" (#5200). An answer to a
@@ -241,10 +244,10 @@ func toMessageResponses(messages []*parentService.ParentMessage, counterpart str
 			refID = strconv.FormatInt(*m.RefID, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:               strconv.FormatInt(m.ID, 10),
-			SenderKind:       m.SenderKind,
-			SenderName:       senderName,
-			Body:             m.Body,
+			ID:              strconv.FormatInt(m.ID, 10),
+			SenderKind:      m.SenderKind,
+			SenderName:      senderName,
+			ClientMessageID: m.ClientMessageID, Body: m.Body,
 			CreatedAt:        m.CreatedAt,
 			Kind:             m.Kind,
 			EventType:        m.EventType,
@@ -399,7 +402,16 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID, req.Audience)
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		return
+	}
+
+	view, err := rs.ParentService.PostChildReply(parentService.WithMessageSendID(r.Context(), req.ClientMessageID), accountID, studentID, req.Body, groupThreadID, req.Audience)
+	if errors.Is(err, parentService.ErrMessageSendConflict) {
+		common.RenderError(w, r, common.ErrorConflict(err))
+		return
+	}
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

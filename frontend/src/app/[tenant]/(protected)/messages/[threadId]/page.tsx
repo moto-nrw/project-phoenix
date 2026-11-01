@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import {
@@ -357,6 +359,7 @@ function MessageThreadContent() {
     // view (#5011).
   }, [thread, sendError.error]);
 
+  const attempt = useMessageSendAttempt(messageKeys.messageThread(threadId));
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || isSending || !messagingEnabled) return;
@@ -366,6 +369,7 @@ function MessageThreadContent() {
       );
       return;
     }
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     send.dismiss();
@@ -374,6 +378,10 @@ function MessageThreadContent() {
     const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
     setDraft("");
     const outcome = await send.run({
+      confirmed: (current) =>
+        current.messages.some(
+          (message) => message.client_message_id === clientMessageId,
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -388,7 +396,8 @@ function MessageThreadContent() {
           },
         ],
       }),
-      request: () => postMessage(threadId, body, lastConfirmedId),
+      request: () =>
+        postMessage(threadId, body, lastConfirmedId, clientMessageId),
       // The postMessage response carries the rebuilt "current → requested"
       // diff inline on every still-open request (like the GET path), so the
       // review card keeps its comparison before the revalidate lands.
@@ -405,6 +414,7 @@ function MessageThreadContent() {
           key.startsWith(messageKeys.messagesInboxFamily()),
       },
     });
+    if (outcome.status === "done") attempt.complete(clientMessageId);
     if (outcome.status !== "failed") return;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.

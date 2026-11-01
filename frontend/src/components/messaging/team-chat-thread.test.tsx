@@ -212,7 +212,14 @@ describe("TeamChatThread (#2517)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledTimes(2));
-    expect(api.postMessage).toHaveBeenLastCalledWith("t1", "Bin unterwegs");
+    const firstKey = vi.mocked(api.postMessage).mock.calls[0]?.[2];
+    expect(firstKey).toEqual(expect.any(String));
+    expect(firstKey).not.toBe("");
+    expect(api.postMessage).toHaveBeenLastCalledWith(
+      "t1",
+      "Bin unterwegs",
+      firstKey,
+    );
   });
 });
 

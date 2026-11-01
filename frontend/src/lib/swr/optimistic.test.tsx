@@ -17,7 +17,11 @@ vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
 import { ApiError } from "~/lib/api-error";
 import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { useSWRAuth } from "./hooks";
-import { useOptimisticAction, type OptimisticOutcome } from "./optimistic";
+import {
+  useOptimisticAction,
+  useMessageSendAttempt,
+  type OptimisticOutcome,
+} from "./optimistic";
 import { resetSWRScope, resumeSWRSession } from "./scope";
 import { SWRScopeBoundary } from "./scope-boundary";
 import { SWRConfig } from "./testing";
@@ -68,6 +72,7 @@ async function flush() {
 
 let reader: SWRResponse<Thread>;
 let action: ReturnType<typeof useOptimisticAction<Thread>>;
+let attempt: ReturnType<typeof useMessageSendAttempt>;
 /** Every list the chat rendered, as `body` or `body:state`. */
 let frames: string[] = [];
 
@@ -89,6 +94,7 @@ function Chat({
     revalidateOnFocus: false,
   });
   action = useOptimisticAction(name, reader.data);
+  attempt = useMessageSendAttempt(name);
   const shown = label(action.data);
   frames.push(shown);
   return <p data-testid="chat">{shown}</p>;
@@ -640,4 +646,18 @@ describe("message send reconciliation", () => {
     });
     expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
   });
+});
+
+it("keeps an uncertain send id for retries, but not for a new acknowledged send", async () => {
+  await mounted();
+  const first = attempt.begin("Hallo");
+  expect(first).toEqual(expect.any(String));
+  expect(first.length).toBeGreaterThan(0);
+  expect(attempt.begin("Hallo")).toBe(first);
+  expect(attempt.begin("Anderer Text")).not.toBe(first);
+  const retry = attempt.begin("Anderer Text");
+  attempt.complete(first); // A late answer cannot finish the newer attempt.
+  expect(attempt.begin("Anderer Text")).toBe(retry);
+  attempt.complete(retry);
+  expect(attempt.begin("Anderer Text")).not.toBe(retry);
 });

@@ -7,6 +7,7 @@ package messaging
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -125,23 +126,24 @@ func toReadersResponse(readers communication.ParentMessageReaders) ReadersRespon
 }
 
 type MessageResponse struct {
-	ID             string          `json:"id"`
-	SenderKind     string          `json:"sender_kind"`
-	SenderName     string          `json:"sender_name"`
-	Body           string          `json:"body"`
-	CreatedAt      time.Time       `json:"created_at"`
-	Kind           string          `json:"kind"`
-	EventType      string          `json:"event_type,omitempty"`
-	RequestType    string          `json:"request_type,omitempty"`
-	RequestStatus  string          `json:"request_status,omitempty"`
-	Payload        json.RawMessage `json:"payload,omitempty"`
-	RefTable       string          `json:"ref_table,omitempty"`
-	RefID          string          `json:"ref_id,omitempty"`
-	AppliedAt      *time.Time      `json:"applied_at,omitempty"`
-	AppliedBy      string          `json:"applied_by,omitempty"`
-	DecisionReason string          `json:"decision_reason,omitempty"`
-	ReadByStaff    bool            `json:"read_by_staff,omitempty"`
-	ReadByGuardian bool            `json:"read_by_guardian,omitempty"`
+	ClientMessageID string          `json:"client_message_id,omitempty"`
+	ID              string          `json:"id"`
+	SenderKind      string          `json:"sender_kind"`
+	SenderName      string          `json:"sender_name"`
+	Body            string          `json:"body"`
+	CreatedAt       time.Time       `json:"created_at"`
+	Kind            string          `json:"kind"`
+	EventType       string          `json:"event_type,omitempty"`
+	RequestType     string          `json:"request_type,omitempty"`
+	RequestStatus   string          `json:"request_status,omitempty"`
+	Payload         json.RawMessage `json:"payload,omitempty"`
+	RefTable        string          `json:"ref_table,omitempty"`
+	RefID           string          `json:"ref_id,omitempty"`
+	AppliedAt       *time.Time      `json:"applied_at,omitempty"`
+	AppliedBy       string          `json:"applied_by,omitempty"`
+	DecisionReason  string          `json:"decision_reason,omitempty"`
+	ReadByStaff     bool            `json:"read_by_staff,omitempty"`
+	ReadByGuardian  bool            `json:"read_by_guardian,omitempty"`
 	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
 	// message answers (#4784).
 	GroupThreadID    string `json:"group_thread_id,omitempty"`
@@ -182,6 +184,7 @@ type GuardianResponse struct {
 // StartThreadRequest and OpenThreadRequest take an optional audience,
 // "team" (default) or "leadership" (#5200).
 type StartThreadRequest struct {
+	ClientMessageID   string `json:"client_message_id,omitempty"`
 	StudentID         string `json:"student_id"`
 	GuardianAccountID string `json:"guardian_account_id"`
 	Body              string `json:"body"`
@@ -189,6 +192,7 @@ type StartThreadRequest struct {
 }
 
 type PostMessageRequest struct {
+	ClientMessageID      string `json:"client_message_id,omitempty"`
 	Body                 string `json:"body"`
 	HandledUpToMessageID string `json:"handled_up_to_message_id,omitempty"`
 }
@@ -199,7 +203,7 @@ type OpenThreadRequest struct {
 	Audience          string `json:"audience,omitempty"`
 }
 
-func toMessageResponses(messages []communication.ParentMessage) []MessageResponse {
+func toMessageResponses(messages []communication.ParentMessage, viewer ...int64) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		refID := ""
@@ -211,10 +215,10 @@ func toMessageResponses(messages []communication.ParentMessage) []MessageRespons
 			appliedBy = strconv.FormatInt(*m.AppliedBy, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:               strconv.FormatInt(m.ID, 10),
-			SenderKind:       m.SenderKind,
-			SenderName:       m.SenderName,
-			Body:             m.Body,
+			ID:              strconv.FormatInt(m.ID, 10),
+			SenderKind:      m.SenderKind,
+			SenderName:      m.SenderName,
+			ClientMessageID: clientMessageIDForViewer(m.ClientMessageID, m.SenderAccountID, viewer), Body: m.Body,
 			CreatedAt:        m.CreatedAt,
 			Kind:             m.Kind,
 			EventType:        m.EventType,
@@ -242,7 +246,7 @@ func optionalIDString(id *int64) string {
 	return strconv.FormatInt(*id, 10)
 }
 
-func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {
+func toThreadDetail(d *communication.ParentMessageThread, viewer ...int64) ThreadDetailResponse {
 	return ThreadDetailResponse{
 		ThreadID:         strconv.FormatInt(d.ThreadID, 10),
 		StudentID:        strconv.FormatInt(d.StudentID, 10),
@@ -251,7 +255,7 @@ func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {
 		RelationshipType: d.RelationshipType,
 		Audience:         d.Audience,
 		Readers:          toReadersResponse(d.Readers),
-		Messages:         toMessageResponses(d.Messages),
+		Messages:         toMessageResponses(d.Messages, viewer...),
 	}
 }
 
@@ -324,7 +328,7 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, messageViewer(r)), "Thread retrieved")
 }
 
 // markAllRead marks every conversation the caller sees as unread as read for
@@ -406,12 +410,17 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		handledUpToMessageID = parsed
 	}
-	messages, err := rs.Service.PostParentMessage(r.Context(), threadID, req.Body, handledUpToMessageID)
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		return
+	}
+
+	messages, err := rs.Service.PostParentMessage(communication.WithMessageSendID(r.Context(), req.ClientMessageID), threadID, req.Body, handledUpToMessageID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages), "Message sent")
+	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages, messageViewer(r)), "Message sent")
 }
 
 func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
@@ -430,12 +439,17 @@ func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	detail, err := rs.Service.StartParentMessageThread(r.Context(), studentID, guardianID, req.Body, req.Audience)
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("client_message_id exceeds 128 bytes")))
+		return
+	}
+
+	detail, err := rs.Service.StartParentMessageThread(communication.WithMessageSendID(r.Context(), req.ClientMessageID), studentID, guardianID, req.Body, req.Audience)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toThreadDetail(detail), "Thread created")
+	common.Respond(w, r, http.StatusCreated, toThreadDetail(detail, messageViewer(r)), "Thread created")
 }
 
 func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
@@ -459,7 +473,7 @@ func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Conversation opened")
+	common.Respond(w, r, http.StatusOK, toThreadDetail(detail, messageViewer(r)), "Conversation opened")
 }
 
 func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
@@ -505,6 +519,10 @@ func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string
 
 // renderMessagingError maps service sentinels to HTTP status codes.
 func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, communication.ErrMessageSendConflict) {
+		common.RenderError(w, r, common.ErrorConflict(err))
+		return
+	}
 	switch {
 	case errors.Is(err, communication.ErrParentMessageThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
@@ -527,4 +545,21 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("messaging request failed", err))
 	}
+}
+
+// Only the author receives the opaque key. Another account may legitimately
+// use the same key in its own namespace; that must not confirm this viewer's send.
+func clientMessageIDForViewer(key string, sender int64, viewer []int64) string {
+	if len(viewer) == 0 || viewer[0] <= 0 || viewer[0] != sender {
+		return ""
+	}
+	return key
+}
+
+func messageViewer(r *http.Request) int64 {
+	principal, err := common.CurrentPrincipal(r.Context())
+	if err != nil {
+		return 0
+	}
+	return principal.AccountID()
 }
