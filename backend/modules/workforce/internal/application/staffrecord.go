@@ -290,6 +290,7 @@ func validateQualificationIDs(submitted, live []domain.StaffQualification) error
 	for _, row := range live {
 		liveIDs[row.ID] = struct{}{}
 	}
+	submittedIDs := make(map[int64]struct{}, len(submitted))
 	for _, row := range submitted {
 		if row.ID <= 0 {
 			continue
@@ -297,6 +298,10 @@ func validateQualificationIDs(submitted, live []domain.StaffQualification) error
 		if _, ok := liveIDs[row.ID]; !ok {
 			return invalidStaffRecord("qualification ID does not belong to staff member")
 		}
+		if _, ok := submittedIDs[row.ID]; ok {
+			return invalidStaffRecord("qualification ID appears more than once")
+		}
+		submittedIDs[row.ID] = struct{}{}
 	}
 	return nil
 }

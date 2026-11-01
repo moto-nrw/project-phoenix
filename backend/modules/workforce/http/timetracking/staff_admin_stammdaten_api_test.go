@@ -144,6 +144,32 @@ func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"workforce.stammdaten_invalid"`)
 }
 
+func TestStammdatenAPI_RejectsDuplicateQualificationIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupOverviewAPI(t)
+	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Duplicate-%d", time.Now().UnixNano()))
+	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
+
+	rec := ctx.put(base+"/qualifikationen", `{"qualifikationen":[{"name":"Erste Hilfe"}],"note":"Nachweis"}`, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var listed struct {
+		Data struct {
+			Qualifikationen []struct {
+				ID string `json:"id"`
+			} `json:"qualifikationen"`
+		} `json:"data"`
+	}
+	rec = ctx.get(base, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listed))
+	require.Len(t, listed.Data.Qualifikationen, 1)
+
+	rec = ctx.put(base+"/qualifikationen", fmt.Sprintf(`{"qualifikationen":[{"id":%q,"name":"Erste Hilfe"},{"id":%q,"name":"Erste Hilfe"}],"note":"Nachweis"}`, listed.Data.Qualifikationen[0].ID, listed.Data.Qualifikationen[0].ID), "staff:stammdaten")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "workforce.stammdaten_invalid")
+}
+
 func TestStammdatenAPIUsesTheCurrentQualificationTypeName(t *testing.T) {
 	t.Parallel()
 

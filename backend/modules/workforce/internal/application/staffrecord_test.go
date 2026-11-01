@@ -50,4 +50,5 @@ func TestValidateQualificationIDs(t *testing.T) {
 	assert.NoError(t, validateQualificationIDs([]domain.StaffQualification{{ID: 101, Name: "Erste Hilfe"}}, live))
 	assert.NoError(t, validateQualificationIDs([]domain.StaffQualification{{Name: "Fortbildung"}}, live))
 	assert.ErrorIs(t, validateQualificationIDs([]domain.StaffQualification{{ID: 102, Name: "Fortbildung"}}, live), workforce.ErrInvalidStaffRecord)
+	assert.ErrorIs(t, validateQualificationIDs([]domain.StaffQualification{{ID: 101, Name: "Erste Hilfe"}, {ID: 101, Name: "Erste Hilfe"}}, live), workforce.ErrInvalidStaffRecord)
 }
