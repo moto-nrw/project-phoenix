@@ -26,7 +26,7 @@ export function leadRosterDeviationTopic(): HelpTopic {
     steps: [
       "Öffnen Sie `Betreuungsplan` und wählen Sie oben `Serien`.",
       "Wählen Sie `Zu prüfen`. Dann sehen Sie nur Regeltermine mit dem Hinweis `Weicht von Anmeldungen ab`.",
-      "Lesen Sie den Hinweis. Er nennt die passenden Angebote. Er nennt auch die Kinder, die für keines davon angemeldet sind, mit Wochentag. Bei mehreren Kindern wählen Sie `Namen zeigen`.",
+      "Lesen Sie den Hinweis. Er nennt die passenden Angebote. Er nennt auch die Kinder, die für keines davon angemeldet sind, mit Wochentag. Bei mehreren Kindern klappen Sie die Namen mit dem Pfeil auf.",
       "Wählen Sie `Mit Angebot verbinden`.",
       "Prüfen Sie unter `Angebote` die gewählten Angebote. Sie können weitere Angebote dazu wählen oder abwählen.",
       "Prüfen Sie die Vorschau. Sie zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",

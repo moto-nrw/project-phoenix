@@ -93,14 +93,14 @@ describe("RosterDeviationHint", () => {
       />,
     );
 
-    const toggle = screen.getByRole("button", { name: "Namen zeigen" });
+    const toggle = screen.getByRole("button", { name: "Namen ausklappen" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("Mia Sommer: freitags")).not.toBeVisible();
+    expect(screen.queryByText("Mia Sommer: freitags")).not.toBeInTheDocument();
 
     fireEvent.click(toggle);
 
     expect(
-      screen.getByRole("button", { name: "Namen ausblenden" }),
+      screen.getByRole("button", { name: "Namen einklappen" }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Mia Sommer: freitags")).toBeVisible();
     expect(screen.getByText("Ben Winter: montags und mittwochs")).toBeVisible();
