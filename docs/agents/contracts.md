@@ -439,8 +439,15 @@ family gets 401, a rotated row without family is refused at refresh, and a
 logout revokes the whole chain it links into, all reached families
 included, before it reports success. The walk follows only unique links
 (one match, same account, generation ± 1); an ambiguous continuation of the
-own chain fails the logout instead. A staff-view preview token carries the admin's
-family and ends with the admin's session.
+own chain fails the logout instead. A school switch (tenant, school portal,
+Träger school) writes the family it was minted from into
+`auth.tokens.switched_from_family_id` under that account lock, and rotation
+carries it on. Logout follows this link in both directions, so every family of
+one login's switch lineage ends together: a switch that commits before the
+logout's lock is revoked with it, one that waits finds its source gone. Other
+logins of the account keep their sessions. Each school records the revocation
+of its own sessions in its own tenant transaction (#5422). A staff-view preview
+token carries the admin's family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at
 once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
@@ -555,8 +562,8 @@ just-issued refresh token that lands while the family check had no answer. A
 session cookie the gate cannot decode counts as no session and passes; the
 gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
 environment sets `AUTH_SECRET`. A school switch that committed before the
-logout mints a family of its own, which the logout of the old family does not
-revoke (#5422).
+logout mints a family of its own; it names its source family
+(`switched_from_family_id`), so the logout revokes it too (#5422).
 
 **Session-end barrier** (`frontend/src/lib/session-end-barrier.ts`): an
 optimization of the document that logs out, not a guarantee. Every portal's
