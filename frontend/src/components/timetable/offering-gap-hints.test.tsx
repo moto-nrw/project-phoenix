@@ -481,7 +481,7 @@ describe("OfferingGapHints: phases outside the period", () => {
       within(notice).getByText("2 Anmeldephasen werden hier nicht geprüft"),
     ).toBeInTheDocument();
     expect(notice).toHaveTextContent(
-      "Sie laufen länger als dieser Planungszeitraum (01.08.2026 bis 07.07.2027).",
+      "Sie passen nicht vollständig in diesen Planungszeitraum (01.08.2026 bis 07.07.2027).",
     );
     expect(within(notice).getAllByRole("listitem")).toHaveLength(2);
   });
