@@ -439,6 +439,30 @@ export interface PersonOption {
 }
 
 /**
+ * The children a Klasse, Jahrgang or Gruppe target adds to a children list
+ * (#5103 review). The list holds only the children picked by hand; the
+ * target adds its members to every occurrence. Without this line the list
+ * shows fewer children than the occurrence. Null when nothing is added.
+ */
+export function targetCohortExtraText(
+  cohort: { label: string | null; memberIds: readonly string[] },
+  selectedIds: readonly string[],
+  students: readonly PersonOption[],
+): string | null {
+  if (!cohort.label) return null;
+  const selected = new Set(selectedIds);
+  const members = new Set(cohort.memberIds);
+  const names = students
+    .filter((student) => members.has(student.id) && !selected.has(student.id))
+    .map((student) => student.name)
+    .sort((a, b) => a.localeCompare(b, "de"));
+  if (names.length === 0) return null;
+  return names.length === 1
+    ? `Über ${cohort.label} kommt außerdem: ${names[0]}`
+    : `Über ${cohort.label} kommen außerdem ${names.length} Kinder: ${names.join(", ")}`;
+}
+
+/**
  * One Dienstplan gap as a sentence (#2516). Built from the warning's fields,
  * never from the server's `message`, so the wording stays in this app.
  */

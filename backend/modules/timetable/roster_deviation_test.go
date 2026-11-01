@@ -70,6 +70,12 @@ func TestDetectRosterDeviationSchuleAmBerg(t *testing.T) {
 	// has no booking at all: 1 + 7 children.
 	assert.Equal(t, 8, deviation.UnbookedCount)
 	assert.Equal(t, 1, deviation.MissingCount, "child 2001 is booked on Monday but not planned")
+	// The hint names each child with its weekdays (#5103 review): class[12]
+	// lacks a booking Tuesday to Friday only.
+	require.Len(t, deviation.Unbooked, 8)
+	assert.Equal(t, timetable.RosterDeviationChild{StudentID: class[12], Weekdays: []int{2, 3, 4, 5}}, deviation.Unbooked[0])
+	assert.Equal(t, timetable.RosterDeviationChild{StudentID: class[13], Weekdays: []int{1, 2, 3, 4, 5}}, deviation.Unbooked[1])
+	assert.Equal(t, []timetable.RosterDeviationChild{{StudentID: 2001, Weekdays: []int{1}}}, deviation.Missing)
 	assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
 	assert.False(t, deviation.Ambiguous, "one candidate is a clear suggestion")
 }

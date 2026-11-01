@@ -121,7 +121,7 @@ describe("TemplateList with roster deviations (#5103)", () => {
     ).toEqual(["RDST 1b"]);
   });
 
-  // Bleibt von Hand gepflegt: die Karte sagt es und bietet den Rückweg.
+  // Liste so lassen: die Karte sagt es und bietet den Rückweg.
   it("shows a hand-kept series and lets the planner take it back", () => {
     const onSetManualRoster = vi.fn();
     const kept = { ...template("1", "Mensa"), manualRosterConfirmed: true };
@@ -134,7 +134,7 @@ describe("TemplateList with roster deviations (#5103)", () => {
       .getByRole("heading", { level: 3, name: "Mensa" })
       .closest("article")!;
     expect(
-      within(card).getByText("Sie pflegen die Kinder hier bewusst selbst."),
+      within(card).getByText("Die Kinderliste bleibt bewusst so."),
     ).toBeInTheDocument();
     fireEvent.click(
       within(card).getByRole("button", { name: "Hinweis wieder zeigen" }),
@@ -142,7 +142,7 @@ describe("TemplateList with roster deviations (#5103)", () => {
     expect(onSetManualRoster).toHaveBeenCalledWith(kept, false);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Bleibt von Hand gepflegt" }),
+      screen.getByRole("button", { name: "Liste so lassen" }),
     );
     expect(onSetManualRoster).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "2" }),

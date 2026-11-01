@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   connectionBody,
-  describeRosterDeviation,
   describeSelectionFilter,
   laterSegmentSentence,
   mapOfferingPreview,
   mapRosterDeviations,
   previewQuery,
+  rosterDeviationGroups,
+  rosterDeviationMatch,
   untouchedSegmentSentence,
   type RosterDeviation,
 } from "./roster-deviation";
@@ -22,54 +23,30 @@ const deviation: RosterDeviation = {
   candidates: [{ id: "3", name: "Randstunde" }],
   combinations: [],
   ambiguous: false,
+  unbooked: [],
+  missing: [],
 };
 
-describe("describeRosterDeviation", () => {
-  it("names the matching offering and the children not booked there", () => {
-    expect(describeRosterDeviation(deviation)).toBe(
-      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 8 Kinder sind dort nicht angemeldet",
-    );
+describe("rosterDeviationMatch", () => {
+  it("names the matching offering", () => {
+    expect(rosterDeviationMatch(deviation)).toBe("Passt zu „Randstunde“.");
   });
 
-  it("names every offering of a combined suggestion and counts only children booked in none of them (#5139)", () => {
+  it("names every offering of a combined suggestion (#5139)", () => {
     expect(
-      describeRosterDeviation({
+      rosterDeviationMatch({
         ...deviation,
         offerings: [
           { id: "3", name: "Randstunde" },
           { id: "4", name: "Ganztag" },
         ],
-        unbookedCount: 3,
       }),
-    ).toBe(
-      "Weicht von Anmeldungen ab: passt zu „Randstunde“ und „Ganztag“ · 3 Kinder sind dort nicht angemeldet",
-    );
+    ).toBe("Passt zu „Randstunde“ und „Ganztag“.");
   });
 
-  it("adds missing booked children only when there are some, in singular", () => {
+  it("names every fitting offering when several fit equally (#5138)", () => {
     expect(
-      describeRosterDeviation({
-        ...deviation,
-        unbookedCount: 1,
-        missingCount: 1,
-      }),
-    ).toBe(
-      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 1 Kind ist dort nicht angemeldet · 1 angemeldetes Kind fehlt",
-    );
-    expect(
-      describeRosterDeviation({
-        ...deviation,
-        unbookedCount: 0,
-        missingCount: 2,
-      }),
-    ).toBe(
-      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 2 angemeldete Kinder fehlen",
-    );
-  });
-
-  it("names every fitting offering and no count when several fit equally (#5138)", () => {
-    expect(
-      describeRosterDeviation({
+      rosterDeviationMatch({
         ...deviation,
         candidates: [
           { id: "4", name: "Ganztag" },
@@ -78,21 +55,13 @@ describe("describeRosterDeviation", () => {
         ],
         ambiguous: true,
       }),
-    ).toBe(
-      "Weicht von Anmeldungen ab: passt zu „Ganztag“, „Randstunde“ oder „Spätbetreuung“",
-    );
+    ).toBe("Passt zu „Ganztag“, „Randstunde“ oder „Spätbetreuung“.");
   });
 
-  it("names equal combinations whole and no count (#5139)", () => {
+  it("names equal combinations whole (#5139)", () => {
     expect(
-      describeRosterDeviation({
+      rosterDeviationMatch({
         ...deviation,
-        candidates: [
-          { id: "1", name: "A" },
-          { id: "2", name: "B" },
-          { id: "3", name: "C" },
-          { id: "4", name: "D" },
-        ],
         combinations: [
           [
             { id: "1", name: "A" },
@@ -105,8 +74,112 @@ describe("describeRosterDeviation", () => {
         ],
         ambiguous: true,
       }),
+    ).toBe("Passt zu „A“ und „B“ oder zu „C“ und „D“.");
+  });
+});
+
+describe("rosterDeviationGroups", () => {
+  const combined: RosterDeviation = {
+    ...deviation,
+    offerings: [
+      { id: "3", name: "Randstunde" },
+      { id: "4", name: "Ganztag bis 14.30 Uhr" },
+      { id: "5", name: "Ganztag bis 16 Uhr" },
+    ],
+  };
+
+  it("names one child and its weekday, booked for none of the offerings", () => {
+    expect(
+      rosterDeviationGroups({
+        ...combined,
+        unbookedCount: 1,
+        unbooked: [{ studentId: "9", name: "Mia Sommer", weekdays: [5] }],
+      }),
+    ).toEqual([
+      {
+        sentence:
+          "Mia Sommer ist freitags für keines dieser Angebote angemeldet.",
+        children: [],
+      },
+    ]);
+  });
+
+  it("says „dieses Angebot“ when only one offering fits", () => {
+    expect(
+      rosterDeviationGroups({
+        ...deviation,
+        unbookedCount: 1,
+        unbooked: [{ studentId: "9", name: "Mia Sommer", weekdays: [1, 3] }],
+      })[0]?.sentence,
     ).toBe(
-      "Weicht von Anmeldungen ab: passt zu „A“ und „B“ oder zu „C“ und „D“",
+      "Mia Sommer ist montags und mittwochs nicht für dieses Angebot angemeldet.",
+    );
+  });
+
+  it("counts several children and lists them with their weekdays", () => {
+    expect(
+      rosterDeviationGroups({
+        ...combined,
+        unbookedCount: 2,
+        unbooked: [
+          { studentId: "9", name: "Mia Sommer", weekdays: [5] },
+          { studentId: "8", name: "Ben Winter", weekdays: [1, 2, 3] },
+        ],
+      }),
+    ).toEqual([
+      {
+        sentence: "2 Kinder sind für keines dieser Angebote angemeldet.",
+        children: [
+          { studentId: "9", label: "Mia Sommer: freitags" },
+          {
+            studentId: "8",
+            label: "Ben Winter: montags, dienstags und mittwochs",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps the count when the caller may not read the names", () => {
+    expect(rosterDeviationGroups({ ...combined, unbookedCount: 1 })).toEqual([
+      {
+        sentence: "1 Kind ist für keines dieser Angebote angemeldet.",
+        children: [],
+      },
+    ]);
+  });
+
+  it("names booked children missing from the list", () => {
+    expect(
+      rosterDeviationGroups({
+        ...deviation,
+        unbookedCount: 0,
+        missingCount: 1,
+        missing: [{ studentId: "7", name: "Lea Berg", weekdays: [2] }],
+      }),
+    ).toEqual([
+      {
+        sentence: "Lea Berg ist dienstags angemeldet, fehlt aber in der Liste.",
+        children: [],
+      },
+    ]);
+    expect(
+      rosterDeviationGroups({
+        ...deviation,
+        unbookedCount: 0,
+        missingCount: 2,
+      }),
+    ).toEqual([
+      {
+        sentence: "2 angemeldete Kinder fehlen in der Liste.",
+        children: [],
+      },
+    ]);
+  });
+
+  it("names no children when several offerings fit equally (#5138)", () => {
+    expect(rosterDeviationGroups({ ...deviation, ambiguous: true })).toEqual(
+      [],
     );
   });
 });
@@ -163,6 +236,18 @@ describe("mapRosterDeviations", () => {
       [{ id: "3", name: "Randstunde" }],
       [{ id: "4", name: "Ganztag" }],
     ]);
+    expect(
+      mapRosterDeviations({
+        deviations: [
+          {
+            template_id: 7,
+            unbooked_count: 1,
+            missing_count: 0,
+            unbooked: [{ student_id: 9, name: "Mia Sommer", weekdays: [5] }],
+          },
+        ],
+      })[0]?.unbooked,
+    ).toEqual([{ studentId: "9", name: "Mia Sommer", weekdays: [5] }]);
     expect(mapRosterDeviations({ deviations: null })).toEqual([]);
   });
 });
