@@ -68,7 +68,9 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 	// Roll back the newer erasures before testing the payroll migration alone:
-	// the Elternsprechtag (1.15.720, #4801) extends the weekly protocols'.
+	// the wage types (1.15.721, #4807) extend the Elternsprechtag's, the
+	// Elternsprechtag (1.15.720, #4801) the weekly protocols'.
+	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
 	require.NoError(t, groupWeekProtocolsDown(ctx, db))
 	require.NoError(t, payrollDispatchesUp(ctx, db), "the migration is idempotent")
