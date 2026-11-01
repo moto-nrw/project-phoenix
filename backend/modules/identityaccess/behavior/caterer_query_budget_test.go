@@ -105,5 +105,5 @@ func TestCatererOperatorListQueryBudget(t *testing.T) {
 	add()
 	large := run()
 	assert.Equal(t, len(small), len(large), "the list must not grow a statement per caterer")
-	testpkg.AssertQueryBudget(t, "modules.identityaccess.caterers.operator_list", large)
+	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterers.operator_list", large)
 }
