@@ -501,6 +501,45 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     await waitFor(() => expect(mutateMock).toHaveBeenCalled());
   });
 
+  it("behält eine vorher gespeicherte Feldänderung bei schnellen Änderungen", async () => {
+    const firstSave = deferred<void>();
+    updateWageTypeMock
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValueOnce(undefined);
+    render(<PayrollPage />);
+
+    const [name] = screen.getAllByRole("textbox", {
+      name: "Bezeichnung Nachtzuschlag",
+    });
+    const [number] = screen.getAllByRole("textbox", {
+      name: "Lohnartnummer Nachtzuschlag",
+    });
+    fireEvent.change(name!, { target: { value: "Nacht neu" } });
+    fireEvent.blur(name!);
+
+    await waitFor(() => expect(updateWageTypeMock).toHaveBeenCalledTimes(1));
+    fireEvent.change(number!, { target: { value: "310" } });
+    fireEvent.blur(number!);
+    expect(updateWageTypeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstSave.promise;
+    });
+
+    await waitFor(() => expect(updateWageTypeMock).toHaveBeenCalledTimes(2));
+    expect(updateWageTypeMock).toHaveBeenNthCalledWith(1, "7", {
+      name: "Nacht neu",
+      number: "",
+      unit: "stunden",
+    });
+    expect(updateWageTypeMock).toHaveBeenNthCalledWith(2, "7", {
+      name: "Nacht neu",
+      number: "310",
+      unit: "stunden",
+    });
+  });
+
   it("zeigt einen Fehler beim Speichern über den Karten", async () => {
     updateWageTypeMock.mockRejectedValueOnce(
       new ApiError("conflict", 409, {

@@ -116,23 +116,48 @@ func compareInt64(a, b int64) int {
 	}
 }
 
-// exportWageTypes is every wage type a row of the export books with, in
-// wage type order; a renamed wage type keeps the name of its first row.
-func exportWageTypes(rows []MonthExportRow) []workforce.PayrollWageType {
-	seen := map[int64]bool{}
-	var result []workforce.PayrollWageType
+// exportWageTypeColumn identifies a wage-type column. A renamed wage type
+// keeps the first name, but a changed unit needs a separate column: a closed
+// month can preserve a historical definition while an open one uses the
+// current definition of the same wage type.
+type exportWageTypeColumn struct {
+	WageType workforce.PayrollWageType
+}
+
+func (c exportWageTypeColumn) key() wageTypeColumnKey {
+	return wageTypeColumnKey{ID: c.WageType.ID, Unit: c.WageType.Unit}
+}
+
+type wageTypeColumnKey struct {
+	ID   int64
+	Unit string
+}
+
+func wageTypeColumnKeyFor(wageType workforce.PayrollWageType) wageTypeColumnKey {
+	return wageTypeColumnKey{ID: wageType.ID, Unit: wageType.Unit}
+}
+
+// exportWageTypeColumns is every wage type definition in the export, ordered
+// by wage type. Definitions of one wage type retain their first-row order, so
+// a renamed wage type keeps the name of its first row.
+func exportWageTypeColumns(rows []MonthExportRow) []exportWageTypeColumn {
+	seen := map[wageTypeColumnKey]bool{}
+	var result []exportWageTypeColumn
 	for _, row := range rows {
 		if row.PayrollRules == nil {
 			continue
 		}
 		for _, wageType := range row.PayrollRules.WageTypes {
-			if !seen[wageType.ID] {
-				seen[wageType.ID] = true
-				result = append(result, wageType)
+			key := wageTypeColumnKeyFor(wageType)
+			if !seen[key] {
+				seen[key] = true
+				result = append(result, exportWageTypeColumn{WageType: wageType})
 			}
 		}
 	}
-	slices.SortFunc(result, func(a, b workforce.PayrollWageType) int { return compareInt64(a.ID, b.ID) })
+	slices.SortStableFunc(result, func(a, b exportWageTypeColumn) int {
+		return compareInt64(a.WageType.ID, b.WageType.ID)
+	})
 	return result
 }
 
@@ -183,10 +208,17 @@ func appendDatevWageTypeLines(lines []datevLine, row MonthExportRow) []datevLine
 // unnumberedWageTypes names the wage types of the export without a DATEV
 // number; their lines are missing from the file.
 func unnumberedWageTypes(rows []MonthExportRow) []string {
-	names := []string{}
-	for _, wageType := range exportWageTypes(rows) {
-		if wageType.Number == "" {
-			names = append(names, wageType.Name)
+	seen := map[string]bool{}
+	var names []string
+	for _, row := range rows {
+		if row.PayrollRules == nil {
+			continue
+		}
+		for _, wageType := range row.PayrollRules.WageTypes {
+			if wageType.Number == "" && !seen[wageType.Name] {
+				seen[wageType.Name] = true
+				names = append(names, wageType.Name)
+			}
 		}
 	}
 	return names

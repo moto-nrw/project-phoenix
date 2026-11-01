@@ -1,9 +1,12 @@
 package timetracking
 
 import (
+	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.T) {
@@ -28,6 +31,72 @@ func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.
 	})
 	assert.True(t, ok)
 	assert.Equal(t, 60, minutes)
+}
+
+type datevOverviewStub struct{ rows []MonthExportRow }
+
+func (s datevOverviewStub) GetDashboardSummary(context.Context, string) (*DashboardSummary, error) {
+	return nil, nil
+}
+
+func (s datevOverviewStub) GetTimeTrackingOverview(context.Context, OverviewFilters) (*TimeTrackingOverview, error) {
+	return nil, nil
+}
+
+func (s datevOverviewStub) GetMonthExportRows(context.Context, int, int) ([]MonthExportRow, error) {
+	return s.rows, nil
+}
+
+type payrollConfigurationStub struct{ configuration PayrollExportConfiguration }
+
+func (s payrollConfigurationStub) GetPayrollConfiguration(context.Context) (*PayrollExportConfiguration, error) {
+	return &s.configuration, nil
+}
+
+func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rows []MonthExportRow
+		want error
+	}{
+		{
+			name: "numbered frozen wage type allows a historical export",
+			rows: []MonthExportRow{{
+				PayrollRules: &workforce.PayrollRuleSet{
+					WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Historisch", Number: "310", Unit: workforce.WageTypeUnitHours}},
+				},
+			}},
+		},
+		{
+			name: "unnumbered frozen wage type does not use a current number",
+			rows: []MonthExportRow{{
+				PayrollRules: &workforce.PayrollRuleSet{
+					WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Historisch", Unit: workforce.WageTypeUnitHours}},
+				},
+			}},
+			want: ErrPayrollConfigIncomplete,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			svc := &staffTimeExportService{
+				overview:      datevOverviewStub{rows: test.rows},
+				payrollStatus: payrollConfigurationStub{},
+			}
+
+			_, _, _, err := svc.buildDatev(context.Background(), TimeExportRequest{
+				Year: 2026, Month: 6, Format: ExportFormatDatevLug,
+			})
+			if test.want != nil {
+				require.ErrorIs(t, err, test.want)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 // The DATEV files carry no free text today (personnel numbers, Lohnarten,

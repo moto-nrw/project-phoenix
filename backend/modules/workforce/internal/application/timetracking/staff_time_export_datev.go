@@ -319,34 +319,24 @@ func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, form
 	if format == ExportFormatDatevLodas && !status.LodasHeaderComplete {
 		return nil, fmt.Errorf("%w: Berater- und Mandantennummer fehlen", ErrPayrollConfigIncomplete)
 	}
-	if status.ConfiguredCategories == 0 {
-		numbered, err := s.hasNumberedWageType(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !numbered {
-			return nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
-		}
-	}
 	return status, nil
 }
 
-// hasNumberedWageType reports whether one of the school's own wage types
-// (#4807) has a DATEV number, so a file has lines without a fixed category.
-func (s *staffTimeExportService) hasNumberedWageType(ctx context.Context) (bool, error) {
-	if s.payrollRules == nil {
-		return false, nil
-	}
-	rules, err := s.payrollRules.CurrentPayrollRuleSet(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to load payroll rules: %w", err)
-	}
-	for _, wageType := range rules.WageTypes {
-		if wageType.Number != "" {
-			return true, nil
+// rowsHaveNumberedWageType reports whether the requested export period has an
+// own wage type with a DATEV number. Closed rows carry the rules frozen at
+// their close, so reading current rules here would validate a different file.
+func rowsHaveNumberedWageType(rows []MonthExportRow) bool {
+	for _, row := range rows {
+		if row.PayrollRules == nil {
+			continue
+		}
+		for _, wageType := range row.PayrollRules.WageTypes {
+			if wageType.Number != "" {
+				return true
+			}
 		}
 	}
-	return false, nil
+	return false
 }
 
 // buildDatev computes lines + report for both the download and the report
@@ -362,6 +352,9 @@ func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportR
 	rows, err := s.overview.GetMonthExportRows(ctx, req.Year, req.Month)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	if status.ConfiguredCategories == 0 && !rowsHaveNumberedWageType(rows) {
+		return nil, nil, nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
 	}
 	lines, report := buildDatevLines(rows, status)
 	report.Format = req.Format

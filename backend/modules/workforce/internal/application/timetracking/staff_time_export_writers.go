@@ -102,7 +102,7 @@ func monthExportCells(row MonthExportRow, timeFormat string) []string {
 }
 
 func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
-	wageTypes := exportWageTypes(rows)
+	wageTypes := exportWageTypeColumns(rows)
 	cells := make([][]string, 0, len(rows))
 	for _, row := range rows {
 		cells = append(cells, append(monthExportCells(row, timeFormat), wageTypeCells(row, wageTypes, timeFormat)...))
@@ -110,27 +110,27 @@ func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
 	return writeExportCSV(monthExportHeadersWith(wageTypes), cells, []int{0, 1, 2})
 }
 
-// monthExportHeadersWith appends one column per wage type of the school
-// (#4807); a school without one keeps the header unchanged.
-func monthExportHeadersWith(wageTypes []workforce.PayrollWageType) []string {
+// monthExportHeadersWith appends one column per wage type definition in the
+// export (#4807); a school without one keeps the header unchanged.
+func monthExportHeadersWith(wageTypes []exportWageTypeColumn) []string {
 	headers := slices.Clone(monthExportHeaders)
 	for _, wageType := range wageTypes {
-		headers = append(headers, wageTypeColumnHeader(wageType))
+		headers = append(headers, wageTypeColumnHeader(wageType.WageType))
 	}
 	return headers
 }
 
 // wageTypeCells renders the row's value of each wage type column; a wage
 // type the row does not book stays empty.
-func wageTypeCells(row MonthExportRow, wageTypes []workforce.PayrollWageType, timeFormat string) []string {
-	values := wageTypeValuesByID(row)
+func wageTypeCells(row MonthExportRow, wageTypes []exportWageTypeColumn, timeFormat string) []string {
+	values := wageTypeValuesByColumn(row)
 	cells := make([]string, len(wageTypes))
 	for i, wageType := range wageTypes {
-		value, ok := values[wageType.ID]
+		value, ok := values[wageType.key()]
 		if !ok {
 			continue
 		}
-		switch wageType.Unit {
+		switch wageType.WageType.Unit {
 		case workforce.WageTypeUnitAmount:
 			cells[i] = formatExportCents(value.Cents)
 		case workforce.WageTypeUnitDays:
@@ -144,18 +144,18 @@ func wageTypeCells(row MonthExportRow, wageTypes []workforce.PayrollWageType, ti
 
 // wageTypeXLSXValues are the numeric cells of the wage type columns: hours
 // as decimal hours or "h:mm" text, days and Euro as numbers.
-func wageTypeXLSXValues(row MonthExportRow, wageTypes []workforce.PayrollWageType, timeFormat string) []any {
-	values := wageTypeValuesByID(row)
+func wageTypeXLSXValues(row MonthExportRow, wageTypes []exportWageTypeColumn, timeFormat string) []any {
+	values := wageTypeValuesByColumn(row)
 	cells := stringsToAny(wageTypeCells(row, wageTypes, timeFormat))
 	for i, wageType := range wageTypes {
-		value, ok := values[wageType.ID]
+		value, ok := values[wageType.key()]
 		if !ok {
 			continue
 		}
 		switch {
-		case wageType.Unit == workforce.WageTypeUnitAmount:
+		case wageType.WageType.Unit == workforce.WageTypeUnitAmount:
 			cells[i] = float64(value.Cents) / 100
-		case wageType.Unit == workforce.WageTypeUnitDays:
+		case wageType.WageType.Unit == workforce.WageTypeUnitDays:
 			cells[i] = value.Days
 		case timeFormat == ExportTimeDecimal:
 			cells[i] = float64(value.Minutes) / 60
@@ -164,16 +164,16 @@ func wageTypeXLSXValues(row MonthExportRow, wageTypes []workforce.PayrollWageTyp
 	return cells
 }
 
-func wageTypeValuesByID(row MonthExportRow) map[int64]wageTypeValue {
-	values := map[int64]wageTypeValue{}
+func wageTypeValuesByColumn(row MonthExportRow) map[wageTypeColumnKey]wageTypeValue {
+	values := map[wageTypeColumnKey]wageTypeValue{}
 	for _, value := range rowWageTypeValues(row) {
-		values[value.WageType.ID] = value
+		values[wageTypeColumnKeyFor(value.WageType)] = value
 	}
 	return values
 }
 
 func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackingWorkbookRenderer) ([]byte, error) {
-	wageTypes := exportWageTypes(rows)
+	wageTypes := exportWageTypeColumns(rows)
 	cells := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		values := stringsToAny(monthExportCells(row, timeFormat))
@@ -205,7 +205,7 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackin
 		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22}
 	}
 	for i, wageType := range wageTypes {
-		if wageType.Unit == workforce.WageTypeUnitAmount || (wageType.Unit == workforce.WageTypeUnitHours && timeFormat == ExportTimeDecimal) {
+		if wageType.WageType.Unit == workforce.WageTypeUnitAmount || (wageType.WageType.Unit == workforce.WageTypeUnitHours && timeFormat == ExportTimeDecimal) {
 			decimalColumns = append(decimalColumns, len(monthExportHeaders)+i+1)
 		}
 	}

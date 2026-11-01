@@ -104,7 +104,11 @@ const logger = createLogger({ component: "PayrollPage" });
 type SaveSetting = (key: string, value: PayrollSettingValue) => Promise<void>;
 
 /** Saves one change of the school's own wage types or rules (#4807). */
-type ChangeRules = (object: string, run: () => Promise<void>) => Promise<void>;
+type ChangeRules = (
+  object: string,
+  run: () => Promise<void>,
+  queueKey?: string,
+) => Promise<void>;
 
 const UNIT_OPTIONS = [
   { value: "", label: "Nicht festgelegt" },
@@ -234,22 +238,39 @@ export default function PayrollPage() {
   // beim Speichern einer Einstellung über den Karten, danach gilt wieder der
   // Stand vom Server.
   const changeRulesRef = useRef<ChangeRules>(() => Promise.resolve());
+  const ruleSaveQueues = useRef(new Map<string, Promise<void>>());
   const changeRules = useCallback<ChangeRules>(
-    async (object, run) => {
-      clearSaveError();
-      try {
-        await run();
-      } catch (err: unknown) {
-        logger.error("payroll_rule_save_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        void showSaveError(err, {
-          object,
-          retry: () => void changeRulesRef.current(object, run),
-        });
-      } finally {
-        await mutateRules();
+    async (object, run, queueKey) => {
+      const save = async () => {
+        clearSaveError();
+        try {
+          await run();
+        } catch (err: unknown) {
+          logger.error("payroll_rule_save_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          void showSaveError(err, {
+            object,
+            retry: () => void changeRulesRef.current(object, run, queueKey),
+          });
+        } finally {
+          await mutateRules();
+        }
+      };
+      if (!queueKey) {
+        return save();
       }
+
+      const previous =
+        ruleSaveQueues.current.get(queueKey) ?? Promise.resolve();
+      const next = previous.catch(() => undefined).then(save);
+      ruleSaveQueues.current.set(queueKey, next);
+      void next.finally(() => {
+        if (ruleSaveQueues.current.get(queueKey) === next) {
+          ruleSaveQueues.current.delete(queueKey);
+        }
+      });
+      return next;
     },
     [mutateRules, clearSaveError, showSaveError],
   );
@@ -985,6 +1006,33 @@ function WageTypesCard({
   readonly onCreate: () => void;
   readonly onArchive: (wageType: PayrollWageType) => void;
 }) {
+  // The API accepts the full wage-type object. Keep the last confirmed object
+  // per row so a queued field save builds on the preceding successful save,
+  // rather than on a stale render of another field.
+  const savedWageTypes = useRef(new Map<string, PayrollWageType>());
+  useEffect(() => {
+    savedWageTypes.current = new Map(
+      wageTypes.map((wageType) => [wageType.id, wageType]),
+    );
+  }, [wageTypes]);
+
+  const saveWageType = (
+    wageType: PayrollWageType,
+    changes: Partial<PayrollWageType>,
+  ) => {
+    void onChange(
+      "die Lohnart",
+      async () => {
+        const current = savedWageTypes.current.get(wageType.id) ?? wageType;
+        const updated = { ...current, ...changes };
+        const { id: _, ...input } = updated;
+        await updateWageType(wageType.id, input);
+        savedWageTypes.current.set(wageType.id, updated);
+      },
+      `wage-type:${wageType.id}`,
+    );
+  };
+
   const columns: DataTableColumn<PayrollWageType>[] = [
     {
       key: "name",
@@ -994,7 +1042,7 @@ function WageTypesCard({
         <WageTypeTextCell
           wageType={wageType}
           field="name"
-          onChange={onChange}
+          onSave={saveWageType}
         />
       ),
     },
@@ -1005,7 +1053,7 @@ function WageTypesCard({
         <WageTypeTextCell
           wageType={wageType}
           field="number"
-          onChange={onChange}
+          onSave={saveWageType}
         />
       ),
     },
@@ -1019,13 +1067,7 @@ function WageTypesCard({
           options={WAGE_TYPE_UNIT_OPTIONS}
           onChange={(next) => {
             if (next !== wageType.unit && next in WAGE_TYPE_UNIT_LABELS) {
-              void onChange("die Lohnart", () =>
-                updateWageType(wageType.id, {
-                  name: wageType.name,
-                  number: wageType.number,
-                  unit: next as WageTypeUnit,
-                }),
-              );
+              saveWageType(wageType, { unit: next as WageTypeUnit });
             }
           }}
           triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
@@ -1084,11 +1126,14 @@ function WageTypesCard({
 function WageTypeTextCell({
   wageType,
   field,
-  onChange,
+  onSave,
 }: {
   readonly wageType: PayrollWageType;
   readonly field: "name" | "number";
-  readonly onChange: ChangeRules;
+  readonly onSave: (
+    wageType: PayrollWageType,
+    changes: Partial<PayrollWageType>,
+  ) => void;
 }) {
   const [value, setValue] = useState(wageType[field]);
   useEffect(() => setValue(wageType[field]), [wageType, field]);
@@ -1121,13 +1166,9 @@ function WageTypeTextCell({
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => {
           if (!error && trimmed !== wageType[field]) {
-            void onChange("die Lohnart", () =>
-              updateWageType(wageType.id, {
-                name: wageType.name,
-                number: wageType.number,
-                unit: wageType.unit,
-                [field]: trimmed,
-              }),
+            onSave(
+              wageType,
+              field === "name" ? { name: trimmed } : { number: trimmed },
             );
           }
         }}

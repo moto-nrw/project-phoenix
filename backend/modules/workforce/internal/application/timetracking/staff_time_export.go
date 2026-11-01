@@ -136,14 +136,11 @@ type TimeExportStaffQuery interface {
 }
 
 type staffTimeExportService struct {
-	overview      StaffOverviewService
-	sessions      WorkSessionService
-	staffRepo     TimeExportStaffQuery
-	auditRepo     DataAccessAudit
-	payrollStatus PayrollConfigurationReader
-	// payrollRules tells whether the school's own wage types make a DATEV
-	// file possible without a fixed category (#4807); nil counts none.
-	payrollRules   workforce.PayrollRuleSetReader
+	overview       StaffOverviewService
+	sessions       WorkSessionService
+	staffRepo      TimeExportStaffQuery
+	auditRepo      DataAccessAudit
+	payrollStatus  PayrollConfigurationReader
 	logger         *slog.Logger
 	renderWorkbook TimeTrackingWorkbookRenderer
 
