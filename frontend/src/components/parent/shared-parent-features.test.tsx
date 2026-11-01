@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
 import * as api from "~/lib/parent-api";
@@ -9,6 +9,12 @@ import {
   useParentToday,
 } from "~/lib/hooks/use-parent-resources";
 import { ApiError } from "~/lib/api-error";
+import {
+  clearRateLimitBackoff,
+  rateLimitBlockedError,
+  recordRateLimit,
+} from "~/lib/rate-limit-backoff";
+import { releaseFakeTimers } from "~/test/clock";
 import { useChildCare } from "./child-care";
 import { useChildMasterData } from "./child-master-data";
 import {
@@ -241,5 +247,47 @@ describe("shared parent daily status", () => {
       );
     });
     expect(result.current.today.data).toBeUndefined();
+  });
+});
+
+describe("shared parent rate-limit recovery", () => {
+  afterEach(() => {
+    clearRateLimitBackoff();
+    releaseFakeTimers();
+  });
+
+  it("automatically restores features and daily statuses after the read quota recovers", async () => {
+    vi.useFakeTimers();
+    recordRateLimit("10", "GET");
+    vi.mocked(api.getChildFeatures).mockImplementation(async () => {
+      const blocked = rateLimitBlockedError("GET");
+      if (blocked) throw blocked;
+      return features;
+    });
+    const present: api.ChildToday = { at_ogs: true, state: "present" };
+    vi.spyOn(api, "getChildToday").mockImplementation(async () => {
+      const blocked = rateLimitBlockedError("GET");
+      if (blocked) throw blocked;
+      return present;
+    });
+    const { result } = renderHook(
+      () => ({
+        features: useParentFeatures(children),
+        today: useParentToday(children),
+      }),
+      { wrapper: ParentResourceTestProvider },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.features.error).toMatchObject({ status: 429 });
+    expect(result.current.today.error).toMatchObject({ status: 429 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_050);
+    });
+    expect(result.current.features.data).toEqual({ "42": features });
+    expect(result.current.today.data).toEqual({ "42": present });
+    expect(result.current.features.error).toBeUndefined();
+    expect(result.current.today.error).toBeUndefined();
   });
 });

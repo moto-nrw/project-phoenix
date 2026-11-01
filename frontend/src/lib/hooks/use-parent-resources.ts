@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ApiError } from "~/lib/api-error";
+import { isRateLimitError } from "~/lib/rate-limit-backoff";
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { parentKeys } from "~/lib/swr/parent-keys";
@@ -157,11 +158,18 @@ export function useParentChildren(enabled = true) {
 // Deliberately not an ApiError: discarding a refusal must never restamp these
 // partial values into the new data generation as a preserved refusal error.
 class ParentResourceFailure<T> extends Error {
+  readonly status: 429 | undefined;
+
   constructor(
     readonly partial: Record<string, T>,
     readonly failures: Record<string, unknown>,
   ) {
     super("Parent resource lookups failed");
+    // Keep the shared retry handler on the browser's quota window without
+    // making this data-bearing failure an ApiError that discard may preserve.
+    this.status = Object.values(failures).some(isRateLimitError)
+      ? 429
+      : undefined;
   }
 }
 const NO_FEATURE_FAILURES: Readonly<Record<string, unknown>> = {};
