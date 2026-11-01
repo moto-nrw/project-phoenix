@@ -28,10 +28,38 @@ describe("data prefetch intent", () => {
     fireEvent.touchStart(card, { touches: [point], changedTouches: [point] });
     fireEvent.touchEnd(card, { touches: [], changedTouches: [point] });
     expect(preload).toHaveBeenCalledExactlyOnceWith("/students/42", undefined);
+    act(() => vi.advanceTimersByTime(1));
     fireEvent.mouseDown(card);
     fireEvent.focus(card);
     act(() => vi.advanceTimersByTime(300));
     expect(preload).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the touch guard on click before the fallback expires", () => {
+    vi.useFakeTimers();
+    const { card, preload } = renderCard();
+    const point = { identifier: 1, clientX: 10, clientY: 20 };
+    fireEvent.touchStart(card, { touches: [point], changedTouches: [point] });
+    fireEvent.touchEnd(card, { touches: [], changedTouches: [point] });
+    fireEvent.click(card);
+    fireEvent.focus(card);
+    act(() => vi.advanceTimersByTime(300));
+    expect(preload).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows later keyboard focus when touch produces neither focus nor click", () => {
+    vi.useFakeTimers();
+    const { card, preload } = renderCard();
+    const point = { identifier: 1, clientX: 10, clientY: 20 };
+    fireEvent.touchStart(card, { touches: [point], changedTouches: [point] });
+    fireEvent.touchEnd(card, { touches: [], changedTouches: [point] });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(preload).toHaveBeenCalledTimes(1);
+    fireEvent.focus(card);
+    act(() => vi.advanceTimersByTime(299));
+    expect(preload).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(1));
+    expect(preload).toHaveBeenCalledTimes(2);
   });
 
   it("preloads after 300 ms of keyboard focus without touch", () => {

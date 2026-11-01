@@ -13,6 +13,7 @@ export const DataPrefetchContext = createContext<
 
 const DATA_INTENT_DELAY_MS = 300;
 const TOUCH_MOVE_TOLERANCE_PX = 8;
+const TOUCH_FOCUS_FALLBACK_MS = 1000;
 type TouchPoint = { identifier: number; clientX: number; clientY: number };
 type TouchInput = {
   touches: ArrayLike<TouchPoint>;
@@ -36,13 +37,16 @@ export function useDataPrefetchIntent(
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
   };
+  const resetTouchFocus = () => {
+    if (touchFocusReset.current !== null) clearTimeout(touchFocusReset.current);
+    touchFocusReset.current = null;
+    touchFocus.current = false;
+  };
   useEffect(
     () => () => {
       cancel();
-      if (touchFocusReset.current !== null)
-        clearTimeout(touchFocusReset.current);
+      resetTouchFocus();
       touch.current = null;
-      touchFocus.current = false;
     },
     [href, resources, preload],
   );
@@ -69,8 +73,9 @@ export function useDataPrefetchIntent(
     },
     onBlur: () => {
       cancelTouch();
-      touchFocus.current = false;
+      resetTouchFocus();
     },
+    onClick: resetTouchFocus,
     onTouchStart: (event: TouchInput) => {
       cancel();
       if (touchFocusReset.current !== null)
@@ -101,23 +106,27 @@ export function useDataPrefetchIntent(
       const initial = touch.current;
       const end = event.changedTouches?.[0];
       cancelTouch();
-      // Compatibility mousedown focuses the card after touchend in the same task.
-      touchFocusReset.current = setTimeout(() => {
-        touchFocus.current = false;
-        touchFocusReset.current = null;
-      }, 0);
       if (
-        initial &&
-        end &&
-        event.touches.length === 0 &&
-        initial.identifier === end.identifier &&
-        !moved(initial, end)
-      )
-        start();
+        !initial ||
+        !end ||
+        event.touches.length !== 0 ||
+        initial.identifier !== end.identifier ||
+        moved(initial, end)
+      ) {
+        resetTouchFocus();
+        return;
+      }
+      // Compatibility focus may arrive in a later task after a stationary tap.
+      // Keep the guard until click, with a fallback if neither event arrives.
+      touchFocusReset.current = setTimeout(
+        resetTouchFocus,
+        TOUCH_FOCUS_FALLBACK_MS,
+      );
+      start();
     },
     onTouchCancel: () => {
       cancelTouch();
-      touchFocus.current = false;
+      resetTouchFocus();
     },
   };
 }
