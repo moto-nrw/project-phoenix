@@ -437,17 +437,17 @@ export function QualifikationenFields({
       qualifikationen: rows.map((row, i) => {
         if (i !== index) return row;
         const next = { ...row, ...patch };
-        // Ein leeres „Gültig bis“ schlägt moto aus Erwerb und Gültigkeit vor.
-        const validity =
-          types.find((type) => type.id === next.typeId)?.validityMonths ?? null;
-        if (next.expiresOn === "" && next.acquiredOn !== "") {
+        const shouldSuggest = "typeId" in patch || "acquiredOn" in patch;
+        if (shouldSuggest && next.expiresOn === "" && next.acquiredOn !== "") {
+          const validity =
+            types.find((type) => type.id === next.typeId)?.validityMonths ??
+            null;
           next.expiresOn = suggestExpiry(next.acquiredOn, validity) ?? "";
         }
         return next;
       }),
     });
   };
-
   return (
     <div className="space-y-4">
       {rows.length === 0 && (
