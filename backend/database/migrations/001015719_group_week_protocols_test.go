@@ -21,7 +21,7 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT to_regclass('schedule.group_week_protocols') IS NOT NULL`).Scan(ctx, &found))
 		return found
 	}
-	// The wage types (1.15.722, #4807), the school vacations (1.15.721,
+	// The wage types (1.15.724, #4807), the school vacations (1.15.721,
 	// #5345) and the Elternsprechtag (1.15.720, #4801) extend this erasure;
 	// they go first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))

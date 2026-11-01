@@ -44,7 +44,7 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	insertParentConference(t, db)
 
-	// The wage types (1.15.722, #4807) and the school vacations (1.15.721,
+	// The wage types (1.15.724, #4807) and the school vacations (1.15.721,
 	// #5345) extend this erasure; they go first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.722 (#4807): the 1.15.721 (#5345) residual with the wage types and surcharge rules.
+// 1.15.724 (#4807): the 1.15.721 (#5345) residual with the wage types and surcharge rules.
 func installPayrollWageTypeErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasureResidualSQL)
 	return err

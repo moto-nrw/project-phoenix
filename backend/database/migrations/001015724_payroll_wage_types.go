@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	payrollWageTypesVersion     = "1.15.722"
+	payrollWageTypesVersion     = "1.15.724"
 	payrollWageTypesDescription = "Eigene Lohnarten und Zuschläge für Nacht-, Sonntags- und Feiertagsarbeit im DATEV-Export (#4807)"
 )
 
@@ -18,8 +18,9 @@ func init() {
 		Version:     payrollWageTypesVersion,
 		Description: payrollWageTypesDescription,
 		DependsOn: []string{
-			schoolVacationsVersion,   // the last migration before this one, whose erasure functions this extends
-			staffAbsenceTypesVersion, // the absence types that gain a wage type
+			keptWithoutBookingVersion, // the last migration before this one
+			schoolVacationsVersion,    // whose erasure functions this extends
+			staffAbsenceTypesVersion,  // the absence types that gain a wage type
 		},
 	})
 	Migrations.MustRegister(payrollWageTypesUp, payrollWageTypesDown)
