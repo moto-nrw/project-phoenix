@@ -211,6 +211,32 @@ func TestQualificationOverviewShowsExpiredAndMissingMandatoryProofs(t *testing.T
 	assert.Len(t, own, 3)
 }
 
+func TestQualificationStatusRefusesStaffOutsideTheLiveTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	live := testpkg.CreateTestStaff(t, db, "Nachweis", "Lokal")
+	foreignTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, foreignTenant)
+	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenant, "Nachweis", "Fremd")
+
+	qualifications, err := NewQualifications(db, qualificationStaffFake{members: []workforce.QualificationStaffMember{{StaffID: live.ID}}}, workforce.QualificationReminderPorts{}, nil)
+	require.NoError(t, err)
+	types, err := within(t, ctx, qualifications.ListQualificationTypes)
+	require.NoError(t, err)
+	firstAid := standardType(t, types, "first_aid_child")
+	_, err = withinUpdate(t, ctx, qualifications, firstAid.ID, workforce.QualificationTypeInput{
+		Name: firstAid.Name, ValidityMonths: firstAid.ValidityMonths, ReminderLeadWeeks: firstAid.ReminderLeadWeeks, Mandatory: true,
+	})
+	require.NoError(t, err)
+
+	entries, err := within(t, ctx, func(c context.Context) ([]workforce.QualificationEntry, error) {
+		return qualifications.StaffQualificationStatus(c, foreign.ID)
+	})
+	require.Error(t, err)
+	assert.Nil(t, entries, "a foreign staff ID must not produce missing-proof rows")
+}
+
 func TestQualificationAssignmentKeepsTheFreeTextRow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

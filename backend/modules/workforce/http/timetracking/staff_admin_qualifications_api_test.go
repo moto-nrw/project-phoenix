@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,13 @@ func TestQualificationsAPI_AssignKindAndReadStatus(t *testing.T) {
 	t.Parallel()
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Nachweis", fmt.Sprintf("API-%d", time.Now().UnixNano()))
+	qualifications, err := workforceCompose.NewQualifications(ctx.tc.db, qualificationStaffStub{members: []workforce.QualificationStaffMember{
+		{StaffID: target.ID},
+		{StaffID: ctx.staffID},
+	}}, workforce.QualificationReminderPorts{}, nil)
+	require.NoError(t, err)
+	ctx.tc.resource.qualificationTypes = qualifications
+	ctx.tc.resource.qualifications = qualifications
 
 	rec := ctx.get("/staff/qualification-types", "staff:stammdaten")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -171,10 +179,12 @@ func TestQualificationsAPI_ReadsStayInTheSchool(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis")
 
 	rec = ctx.get(fmt.Sprintf("/staff/%d/qualifications", foreign.ID), "staff:stammdaten")
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis", "another school's staff member shows nothing here")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis", "another school's staff member is not a local qualification subject")
 
 	rec = ctx.get(fmt.Sprintf("/staff/%d/qualifications", foreign.ID), "time_tracking:manage")
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis", "time-tracking managers read the same tenant-scoped status")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+
+	rec = ctx.get("/staff/999999999/qualifications", "staff:stammdaten")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }

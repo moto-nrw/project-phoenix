@@ -74,6 +74,15 @@ func (o *QualificationList) StaffQualificationStatus(ctx context.Context, staffI
 	if staffID <= 0 {
 		return nil, invalidStaffRecord("staff ID is required")
 	}
+	members, err := o.staff.ListStaffMembers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.ContainsFunc(members, func(member workforce.QualificationStaffMember) bool {
+		return member.StaffID == staffID
+	}) {
+		return nil, &domain.RecordNotFoundError{Op: "find live staff"}
+	}
 	types, qualifications, err := o.records.load(ctx, staffID)
 	if err != nil {
 		return nil, mapStaffRecordError(err)

@@ -182,6 +182,10 @@ func (rs *StaffAdminResource) getOwnQualifications(w http.ResponseWriter, r *htt
 func (rs *StaffAdminResource) respondQualificationEntries(w http.ResponseWriter, r *http.Request, staffID int64) {
 	entries, err := rs.qualifications.StaffQualificationStatus(r.Context(), staffID)
 	if err != nil {
+		if common.IsNotFound(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
