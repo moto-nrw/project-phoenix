@@ -54,6 +54,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => mockTenantMutate),
   useTenantMutateMatching: vi.fn(() => vi.fn()),

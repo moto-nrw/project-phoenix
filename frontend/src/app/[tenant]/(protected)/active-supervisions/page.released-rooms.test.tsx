@@ -323,6 +323,8 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,
