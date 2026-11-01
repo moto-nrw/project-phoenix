@@ -31,6 +31,7 @@ export function useDataPrefetchIntent(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touch = useRef<TouchPoint | null>(null);
   const touchFocus = useRef(false);
+  const touchFocusReset = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancel = () => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
@@ -38,6 +39,8 @@ export function useDataPrefetchIntent(
   useEffect(
     () => () => {
       cancel();
+      if (touchFocusReset.current !== null)
+        clearTimeout(touchFocusReset.current);
       touch.current = null;
       touchFocus.current = false;
     },
@@ -70,6 +73,8 @@ export function useDataPrefetchIntent(
     },
     onTouchStart: (event: TouchInput) => {
       cancel();
+      if (touchFocusReset.current !== null)
+        clearTimeout(touchFocusReset.current);
       touchFocus.current = true;
       const point = event.touches?.[0];
       touch.current =
@@ -96,7 +101,11 @@ export function useDataPrefetchIntent(
       const initial = touch.current;
       const end = event.changedTouches?.[0];
       cancelTouch();
-      touchFocus.current = false;
+      // Compatibility mousedown focuses the card after touchend in the same task.
+      touchFocusReset.current = setTimeout(() => {
+        touchFocus.current = false;
+        touchFocusReset.current = null;
+      }, 0);
       if (
         initial &&
         end &&
