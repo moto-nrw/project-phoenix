@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,6 +29,27 @@ type bookingLeftoversSetup struct {
 	*rosterReviewSetup
 	sources *rosterMaintenanceSources
 	period  *templateTestPeriod
+	// announced records the planning wake-ups the commands queue.
+	announced *leftoverAnnouncements
+}
+
+// leftoverAnnouncements records each committed wake-up's source.
+type leftoverAnnouncements struct {
+	mu      sync.Mutex
+	sources []string
+}
+
+func (a *leftoverAnnouncements) AnnounceStaffingChanged(_ int64, source string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sources = append(a.sources, source)
+	return nil
+}
+
+func (a *leftoverAnnouncements) list() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.sources...)
 }
 
 func buildBookingLeftoversModule(t *testing.T, calendars ...timetableModule.NonWorkingDayCalendar) *bookingLeftoversSetup {
@@ -46,12 +69,14 @@ func buildBookingLeftoversModule(t *testing.T, calendars ...timetableModule.NonW
 		nonWorkingDays:             days,
 	}, rosterReviewClock).materialization
 	s.router.Put("/templates/{id}", s.res.updateTemplate)
-	s.res.StudentTemplateDays = RootCompositions.StudentTemplateDays(s.db, func() calendar.Date { return rosterReviewMonday })
+	setup := &bookingLeftoversSetup{rosterReviewSetup: s, sources: sources, announced: &leftoverAnnouncements{}}
+	s.res.StudentTemplateDays = RootCompositions.StudentTemplateDays(s.db, func() calendar.Date { return rosterReviewMonday }, setup.announced)
 	s.router.Get("/templates/booking-leftovers", s.res.listBookingLeftovers)
 	s.router.Put("/templates/{id}/students/{studentId}/kept-days", s.res.setKeptStudentTemplateDays)
 	s.router.Post("/templates/{id}/students/{studentId}/remove-days", s.res.removeStudentTemplateDays)
 	period := createTemplateTestPeriodRange(t, s.db, "Leftover-Period", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
-	return &bookingLeftoversSetup{rosterReviewSetup: s, sources: sources, period: period}
+	setup.period = period
+	return setup
 }
 
 // createHandTemplate creates a care block Monday to Friday 14:00–16:00
@@ -439,4 +464,62 @@ func TestBookingLeftoversKeepCoversEveryRow(t *testing.T) {
 	after := s.listLeftovers(t)
 	require.Len(t, after, 1)
 	assert.True(t, after[0].Kept)
+}
+
+// TestBookingLeftoversAnnounceTheirWrites (quorum review round 4 of #5452):
+// „Bleibt so“, its undo and „Entfernen“ wake the other tabs after commit, so
+// an open home page or Betreuungsplan refetches the hint.
+func TestBookingLeftoversAnnounceTheirWrites(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2k", 1)
+	template := s.createHandTemplate(t, "Hausaufgaben 2k", children)
+	for _, kept := range []bool{true, false} {
+		w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d/students/%d/kept-days", template, children[0]), map[string]any{
+			"weekdays": []int{4}, "booking_ended_on": "2030-03-01", "kept": kept,
+		})
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	}
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, children[0]), map[string]any{
+		"weekdays": []int{4}, "effective_from": rosterReviewMonday.AddDays(1).String(),
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.Equal(t, []string{"student_template_days_keep", "student_template_days_keep", "student_template_days_remove"}, s.announced.list())
+}
+
+// TestBookingLeftoversReadEndsBeforeThePeriod (quorum review round 4 of
+// #5452): a booking that ended before the planning period started still
+// leaves its hand row planned in the period, so the read must ask Care Plan
+// for links that ended before the period start.
+func TestBookingLeftoversReadEndsBeforeThePeriod(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2l", 2)
+	s.createHandTemplate(t, "Hausaufgaben 2l", children)
+	beforePeriod := s.period.StartDate.AddDays(-10)
+	s.sources.bookings = thursdayDroppedBookings(children[0], children[1], beforePeriod)
+
+	require.Len(t, s.listLeftovers(t), 1)
+	require.NotEmpty(t, s.sources.bookingsFrom)
+	earliest := slices.MinFunc(s.sources.bookingsFrom, func(a, b calendar.Date) int { return a.Compare(b) })
+	assert.True(t, earliest.Before(beforePeriod), "bookings are read from %s, the ended link is lost", earliest)
+}
+
+// TestBookingLeftoversProjectALaterPeriod (quorum review round 4 of #5452):
+// a planning period that starts long after tomorrow is projected from its
+// own start; from tomorrow the window would exceed the projection's bound and
+// fail the read.
+func TestBookingLeftoversProjectALaterPeriod(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	later := createTemplateTestPeriodRange(t, s.db, "Leftover-Later", rosterReviewMonday.AddDays(140), rosterReviewMonday.AddDays(480), 1, nil)
+	children := createClassStudents(t, s.db, "2m", 2)
+	body := s.handTemplateBody("Hausaufgaben 2m", children)
+	body["calendar_period_id"] = later.ID
+	w := doTemplateJSON(t, s.router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	s.sources.bookings = thursdayDroppedBookings(children[0], children[1], rosterReviewMonday.AddDays(-3))
+
+	w = doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/booking-leftovers?period_id=%d", later.ID), nil)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 }

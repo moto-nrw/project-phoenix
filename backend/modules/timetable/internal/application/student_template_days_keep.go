@@ -40,6 +40,8 @@ func (s *StudentTemplateDays) KeepStudentTemplateDays(ctx context.Context, keep 
 	if err := s.deps.Enrollments.SetStudentEnrollmentsKeptWithoutBooking(ctx, keep.StudentID, ids, sortedWeekdays(wanted), through); err != nil {
 		return 0, fmt.Errorf("student template days: keep hand rows: %w", err)
 	}
+	// Other tabs refetch the hint (#5102), like after any planning change.
+	announceStaffingChanged(ctx, s.deps.Staffing, s.deps.Logger, "student_template_days_keep")
 	return len(ids), nil
 }
 

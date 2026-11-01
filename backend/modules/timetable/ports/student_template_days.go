@@ -24,6 +24,9 @@ type StudentTemplateDaysDependencies struct {
 	Instances      LegacyInstanceReads
 	Participants   ParticipantRows
 	RecurrenceLock timetable.RecurrenceWriteLock
+	// Staffing wakes the planning caches after a removal or a „Bleibt so“
+	// commits (#5102); nil wakes none.
+	Staffing StaffingAnnouncer
 	// Today bounds the removal: it never rewrites a past day.
 	Today  func() calendar.Date
 	Logger *slog.Logger

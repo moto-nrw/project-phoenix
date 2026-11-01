@@ -196,7 +196,7 @@ var RootCompositions struct {
 	People func(db *bun.DB) (People, error)
 	// StudentTemplateDays removes and keeps a child on hand-maintained
 	// Regeltermine (#5102) over db, with today from the clock.
-	StudentTemplateDays func(db *bun.DB, today func() calendar.Date) timetableModule.StudentTemplateDays
+	StudentTemplateDays func(db *bun.DB, today func() calendar.Date, staffing timetablePorts.StaffingAnnouncer) timetableModule.StudentTemplateDays
 	// RecurrenceLock is the owner's tenant recurrence gate over db.
 	RecurrenceLock func(db *bun.DB) (timetableModule.RecurrenceWriteLock, error)
 	// SessionRecords are Student Presence's live sessions over db.

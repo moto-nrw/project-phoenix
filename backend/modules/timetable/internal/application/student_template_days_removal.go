@@ -54,6 +54,9 @@ func (s *StudentTemplateDays) RemoveStudentTemplateDays(ctx context.Context, rem
 	if result.Occurrences, err = s.leaveOccurrences(ctx, rows, inSeries, wanted, removal); err != nil {
 		return result, err
 	}
+	// The child left the plan: rosters, staffing and the leftover hint of
+	// other tabs refetch (#5102).
+	announceStaffingChanged(ctx, s.deps.Staffing, s.deps.Logger, "student_template_days_remove")
 	s.deps.Logger.Info("removed student from hand-maintained template weekdays",
 		slog.Int64("template_id", removal.TemplateID),
 		slog.Int64("student_id", removal.StudentID),

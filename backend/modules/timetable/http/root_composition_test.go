@@ -61,8 +61,8 @@ func init() {
 			Materialization: module.Materialization,
 		}, nil
 	}
-	root.StudentTemplateDays = func(db *bun.DB, today func() kernelcalendar.Date) timetableModule.StudentTemplateDays {
-		return api.NewStudentTemplateDaysTestModule(testpkg.MustDatabase(db), today)
+	root.StudentTemplateDays = func(db *bun.DB, today func() kernelcalendar.Date, staffing timetablePorts.StaffingAnnouncer) timetableModule.StudentTemplateDays {
+		return api.NewStudentTemplateDaysTestModule(testpkg.MustDatabase(db), today, staffing)
 	}
 	root.Rows = func(db *bun.DB, clocks ...func() time.Time) (timetableAPI.TimetableRows, error) {
 		rows, err := api.NewTimetableHTTPTestRows(testpkg.MustDatabase(db), clocks...)

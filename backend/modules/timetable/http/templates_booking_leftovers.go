@@ -74,16 +74,19 @@ func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]boo
 	if err != nil || rs.OfferingSourceOptions == nil {
 		return result, err
 	}
-	until := calendar.Date(period.EndDate)
 	scope := timetable.BookingLeftoverScope{Tomorrow: rs.todayDate().AddDays(1)}
-	if scope.Tomorrow.After(until) {
+	window, ok := bookingLeftoverWindow(scope.Tomorrow, calendar.Date(period.StartDate), calendar.Date(period.EndDate))
+	if !ok {
 		return result, nil
 	}
-	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, calendar.Date(period.StartDate))
+	// A booking change can end a link before the period starts, inside the
+	// same phase, while a hand row keeps planning the child in the period.
+	bookingsFrom := calendar.Date(period.StartDate).AddDays(-bookingLeftoverLookbackDays)
+	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, bookingsFrom)
 	if err != nil || !anyBookingEnded(bookings) {
 		return result, err
 	}
-	templates, err := rs.bookingLeftoverTemplates(ctx, periodID, &timetable.TemplateScheduleWindow{From: scope.Tomorrow, Until: until})
+	templates, err := rs.bookingLeftoverTemplates(ctx, periodID, &window)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +95,24 @@ func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]boo
 		return result, nil
 	}
 	return rs.namedBookingLeftovers(ctx, leftovers, scope.Tomorrow)
+}
+
+// bookingLeftoverLookbackDays reaches back over a school year: the phases of
+// a planning period's offerings do not start earlier.
+const bookingLeftoverLookbackDays = 366
+
+// bookingLeftoverWindow is the part of the period a removal can still change:
+// from tomorrow, or the period's start when it lies later, to its end, within
+// the bound of materialization's projection. ok is false when no day is left.
+func bookingLeftoverWindow(tomorrow, start, end calendar.Date) (timetable.TemplateScheduleWindow, bool) {
+	from := max(tomorrow, start)
+	if from.After(end) {
+		return timetable.TemplateScheduleWindow{}, false
+	}
+	if last := from.AddDays(timetable.MaxOccurrenceProjectionDays - 1); last.Before(end) {
+		end = last
+	}
+	return timetable.TemplateScheduleWindow{From: from, Until: end}, true
 }
 
 func anyBookingEnded(bookings []timetable.OfferingWeekdayBooking) bool {
