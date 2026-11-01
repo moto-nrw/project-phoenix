@@ -237,6 +237,55 @@ describe("StammdatenTab", () => {
     expect(mutate).toHaveBeenCalledOnce();
   });
 
+  it("zeigt beim Bearbeiten einen Ladefehler für Nachweisarten", async () => {
+    useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === staffQualificationKeys.types()) {
+        return {
+          ...swrResult.current,
+          data: undefined,
+          error: new ApiError("boom", 503, { code: "general.unavailable" }),
+        };
+      }
+      if (key === staffQualificationKeys.entries("42")) {
+        return { ...swrResult.current, data: [] };
+      }
+      if (key?.startsWith("staff-stammdaten-")) {
+        return {
+          ...swrResult.current,
+          data: {
+            person: { firstName: "Ada", lastName: "Lovelace" },
+            kontakt: {},
+            arbeitsvertrag: {},
+            qualifikationen: [
+              { id: "7", typeId: "3", name: "Alte Bezeichnung" },
+            ],
+          },
+        };
+      }
+      return swrResult.current;
+    });
+
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Nachweisarten"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Art")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mutate).toHaveBeenCalledOnce();
+  });
+
   it("zeigt einen erfolgreich geladenen Nullwert als nicht gesetzt", () => {
     swrResult.current = {
       data: null,

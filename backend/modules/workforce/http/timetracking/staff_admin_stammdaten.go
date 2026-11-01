@@ -180,13 +180,22 @@ func (rs *StaffAdminResource) getStammdaten(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, newStammdatenResponse(data), "Stammdaten retrieved successfully")
+	types, err := rs.qualificationTypes.ListQualificationTypes(r.Context())
+	if err != nil {
+		renderQualificationTypeError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, newStammdatenResponse(data, types), "Stammdaten retrieved successfully")
 }
 
-func newStammdatenResponse(data *workforce.StaffStammdaten) *StammdatenResponse {
+func newStammdatenResponse(data *workforce.StaffStammdaten, types []workforce.QualificationType) *StammdatenResponse {
 	resp := &StammdatenResponse{
 		StaffID:         data.Staff.ID,
 		Qualifikationen: make([]StammdatenQualificationResponse, 0, len(data.Qualifications)),
+	}
+	typeNames := make(map[int64]string, len(types))
+	for _, kind := range types {
+		typeNames[kind.ID] = kind.Name
 	}
 	resp.Person.FirstName = data.Staff.FirstName
 	resp.Person.LastName = data.Staff.LastName
@@ -207,10 +216,16 @@ func newStammdatenResponse(data *workforce.StaffStammdaten) *StammdatenResponse 
 		resp.Arbeitsvertrag.WeeklyHours = md.WeeklyHours
 	}
 	for _, q := range data.Qualifications {
+		name := q.Name
+		if q.TypeID != nil {
+			if currentName, ok := typeNames[*q.TypeID]; ok {
+				name = currentName
+			}
+		}
 		resp.Qualifikationen = append(resp.Qualifikationen, StammdatenQualificationResponse{
 			ID:         pointerToDecimalID(q.ID),
 			TypeID:     optionalDecimalID(q.TypeID),
-			Name:       q.Name,
+			Name:       name,
 			AcquiredOn: optionalDate(q.AcquiredOn),
 			ExpiresOn:  optionalDate(q.ExpiresOn),
 		})

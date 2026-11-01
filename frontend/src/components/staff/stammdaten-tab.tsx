@@ -136,9 +136,12 @@ export function StammdatenTab({
     canViewSections ? staffQualificationKeys.entries(staffId) : null,
     () => staffQualificationService.staffEntries(staffId),
   );
-  const { data: qualificationTypes } = useSWRAuth(
-    canEditSections ? staffQualificationKeys.types() : null,
-    () => staffQualificationService.listTypes(),
+  const {
+    data: qualificationTypes,
+    error: qualificationTypesError,
+    mutate: mutateQualificationTypes,
+  } = useSWRAuth(canEditSections ? staffQualificationKeys.types() : null, () =>
+    staffQualificationService.listTypes(),
   );
 
   // Die maskierten Werte werden nur mit staff:financial angefragt: ohne die
@@ -188,6 +191,11 @@ export function StammdatenTab({
     canViewSections ? qualificationEntriesError : undefined,
     "die Nachweise",
     mutateQualificationEntries,
+  );
+  const qualificationTypesLoadError = useSwrLoadError(
+    canEditSections ? qualificationTypesError : undefined,
+    "die Nachweisarten",
+    mutateQualificationTypes,
   );
   const financialLoadError = useSwrLoadError(
     canViewFinancial ? financialError : undefined,
@@ -685,12 +693,21 @@ export function StammdatenTab({
           >
             {qualificationEntriesError ? (
               <LoadErrorAlert error={qualificationEntriesLoadError} />
+            ) : editing && qualificationTypesError ? (
+              <LoadErrorAlert error={qualificationTypesLoadError} />
             ) : editing && draft && sectionsEditable ? (
-              <QualifikationenFields
-                draft={draft}
-                onChange={patchDraft}
-                types={qualificationTypes}
-              />
+              qualificationTypes === undefined ? (
+                <DataGrid>
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                </DataGrid>
+              ) : (
+                <QualifikationenFields
+                  draft={draft}
+                  onChange={patchDraft}
+                  types={qualificationTypes}
+                />
+              )
             ) : !stammdaten ? (
               <DataGrid>
                 <DataFieldSkeleton />
