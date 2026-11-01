@@ -234,6 +234,24 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     expect(invalidatedFamilies).toEqual([]);
   });
 
+  it("does not reconcile the first stream of a new account", () => {
+    const view = renderConnected();
+    session.current = { ...session.current, id: "account-8" };
+    view.rerender();
+    // useSSE replaces the stream for the new account.
+    setStatus("idle");
+    view.rerender();
+    setStatus("connected");
+    view.rerender();
+    act(() => vi.advanceTimersByTime(RECONCILE_MIN_GAP_MS));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(invalidatedFamilies).toEqual([]);
+
+    // A later drop of that stream does reconcile.
+    reconnect(view);
+    expect(invalidatedFamilies).toContain(OWN);
+  });
+
   it("waits until a hidden tab is visible again", () => {
     const view = renderConnected();
     setVisibility("hidden");

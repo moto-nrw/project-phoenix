@@ -1366,14 +1366,10 @@ export function useGlobalSSE(): SSEHookState {
   const hasConnectedRef = useRef(false);
   const missedEventsPossibleRef = useRef(false);
 
-  // A new school or account drops what the previous binding collected. Its
-  // readers load afresh, so the first stream of the binding reconciles
-  // nothing.
+  // A new school or account drops what the previous binding collected.
   useLayoutEffect(() => {
     if (boundScopeRef.current === boundScope) return;
     boundScopeRef.current = boundScope;
-    hasConnectedRef.current = false;
-    missedEventsPossibleRef.current = false;
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
       debounceTimer.current = null;
@@ -1508,12 +1504,23 @@ export function useGlobalSSE(): SSEHookState {
   }, []);
 
   const connectedTenantRef = useRef<number | undefined>(tenantID);
+  const connectedScopeRef = useRef(boundScope);
   const connectedReconnectKeyRef = useRef(reconnectKey);
   useEffect(() => {
     if (connectedTenantRef.current !== tenantID) {
       connectedTenantRef.current = tenantID;
       hasConnectedRef.current = false;
       missedEventsPossibleRef.current = false;
+    }
+    // A new account binds a new stream whose readers load afresh: its first
+    // connection reconciles nothing. The status of this render still
+    // describes the replaced stream.
+    if (connectedScopeRef.current !== boundScope) {
+      connectedScopeRef.current = boundScope;
+      connectedReconnectKeyRef.current = reconnectKey;
+      hasConnectedRef.current = false;
+      missedEventsPossibleRef.current = false;
+      return;
     }
     if (connectedReconnectKeyRef.current !== reconnectKey) {
       connectedReconnectKeyRef.current = reconnectKey;
@@ -1534,7 +1541,7 @@ export function useGlobalSSE(): SSEHookState {
       return;
     }
     if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
-  }, [isAuthenticated, reconnectKey, sseState.status, tenantID]);
+  }, [boundScope, isAuthenticated, reconnectKey, sseState.status, tenantID]);
 
   return sseState;
 }
