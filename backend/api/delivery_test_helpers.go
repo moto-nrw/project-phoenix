@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -104,7 +106,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return DeliveryTestModule{}, err
 	}
 	parentMembers := owners.MustNewMembershipTestRepositories(db)
-	sse, err := deliveryCompose.NewTenantSSEChannel(unit, deliveryCompose.NewRealtimeHub(logger), db.Pool(), parentMembers.StudentGuardian, logger)
+	sse, err := deliveryCompose.NewTenantSSEChannel(unit, realtime.NewHub(logger), db.Pool(), parentMembers.StudentGuardian, logger)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}

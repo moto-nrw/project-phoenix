@@ -196,8 +196,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // adds exactly 7 LOC.
 // ADR 0141: the payroll dispatch constructor and composition field of
 // modules/workforce/compose add exactly 9 LOC.
-// ADR 0144: the process-scoped PostgreSQL realtime constructor adds exactly 32 LOC.
-const moduleComposeBudgetTotal = 12773
+// ADR 0144: the process-scoped PostgreSQL realtime constructor adds 32 LOC and retires the 8-LOC local wrapper.
+const moduleComposeBudgetTotal = 12765
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -219,8 +219,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/communication/composition":  351,
 	"modules/dataimport/compose":         85,
 	"modules/dataimport/compose/imports": 29,
-	// ADR 0144: +32 LOC for the realtime transport constructor.
-	"modules/delivery/compose":                      393,
+	// ADR 0144: +32 LOC for transport, -8 LOC for the retired local wrapper.
+	"modules/delivery/compose":                      385,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).

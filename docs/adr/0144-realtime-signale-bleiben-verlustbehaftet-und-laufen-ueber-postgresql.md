@@ -33,9 +33,10 @@ der bereits schulgebundenen Worker-Produzenten.
 
 Die Konstruktion bleibt gemäß ADR 0068 in Deliverys `compose`-Paket. Der neue
 Konstruktor `NewPostgresRealtimeHub` benötigt genau 32 zusätzliche Zeilen,
-einschließlich Imports und Dokumentation. Nach ADR 0057 Punkt 5 steigt dafür
-das Budget `modules/delivery/compose` von 361 auf 393 und das Gesamtbudget
-von 12741 auf 12773. Bestehende Logik wandert nicht aus der Messung. Diese
+einschließlich Imports und Dokumentation. Der nur noch von Test-Roots genutzte lokale Konstruktor entfällt mit
+8 Zeilen; Test-Roots bauen ihren lokalen Hub direkt. Nach ADR 0057 Punkt 5
+steigt das Budget `modules/delivery/compose` damit netto von 361 auf 385 und
+das Gesamtbudget von 12741 auf 12765. Bestehende Logik wandert nicht aus der Messung. Diese
 Entscheidung erlaubt keine neue Policy-Regel, keine zusätzliche Ausnahme und
 keine Änderung an Tabellen, Ownern, Baseline oder Composition-Inventar.
 

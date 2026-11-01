@@ -5,16 +5,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
-
-func NewRealtimeHub(logger *slog.Logger) *realtime.Hub {
-	return realtime.NewHub(logger, realtime.Observers{
-		Connection: observability.RecordSSEConnection,
-		Broadcast:  observability.RecordSSEBroadcast,
-	})
-}
 
 // QueueStaffTimeTrackingChanged emits the tenant-wide time-tracking
 // invalidation after the surrounding transaction commits. The root binds it

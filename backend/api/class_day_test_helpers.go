@@ -22,7 +22,6 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -105,7 +104,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 		return ClassDayTestModule{}, err
 	}
 	if hub == nil {
-		hub = deliveryCompose.NewRealtimeHub(slog.Default())
+		hub = realtime.NewHub(slog.Default())
 	}
 	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
