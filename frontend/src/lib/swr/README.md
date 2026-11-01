@@ -124,3 +124,23 @@ For a list-known published/expired poll, type and status enable only the
 scoped evaluation request in parallel with the detail. The confirmed detail
 alone renders the evaluation and its actions; the same evaluation key is
 shared with the panel, so mounting it does not repeat the request.
+
+## Operator portal
+
+The backend session scope `platform` maps to `operator:{accountId}`. Operators
+read across schools, so there is no school in that session prefix. A school or
+organization ID belongs to the resource factory key, not to the session scope.
+All-school summaries stay under `schoolSummaries()`; consumers filter after
+reading and never put a cross-school response under a school-specific key.
+
+Use URL `schoolId` for list requests, independently of filter-option loading.
+The organization detail uses `organizationSchoolSummaries(id)` and its audited
+organization-specific endpoint, never the all-school response. The school detail
+loads organization and all-school summaries in parallel; only its ID-dependent
+requests wait for that resolution. Summary invalidation covers both all-school
+and organization-filtered responses. Account/device writes use their factory
+families; person deletion/merging uses `personChanges` to refresh person lists
+and every school/organization counter.
+Announcement statistics and confirmation details run only while expanded.
+The operator auth guard also keys local page/modal state to its confirmed scope
+and hides it while another tab's session change is being confirmed.

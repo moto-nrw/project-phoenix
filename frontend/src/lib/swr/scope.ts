@@ -81,6 +81,8 @@ export function swrScopePrefix(
 ): string | null {
   if (!hasSessionAccess(session) || !session.user.id) return null;
   const { id, scope, tenantId, orgId } = session.user;
+  // Operators read across schools: only their account scopes the session.
+  if (scope === "platform") return `operator:${id}`;
   // The Träger is the isolation boundary here, not one of its schools.
   if (scope === "org") {
     return orgId == null ? null : `traeger:${orgId}:${id}`;
