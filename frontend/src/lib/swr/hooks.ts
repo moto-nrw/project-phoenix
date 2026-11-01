@@ -49,6 +49,7 @@ import {
   requestGenerationOf,
   startOf,
   preloadSWR,
+  type SWRMutationRun,
 } from "./generation";
 import {
   authGeneration,
@@ -167,11 +168,18 @@ function currentResult<V>(
  * stamped since. A run ended by a scope or data bump resolves to undefined.
  */
 function runResult<V>(
-  isCurrent: () => boolean,
+  run: SWRMutationRun,
   result: Promise<V>,
 ): Promise<V | undefined> {
-  return Promise.resolve(result).then((value) =>
-    isCurrent() ? value : undefined,
+  return Promise.resolve(result).then(
+    (value) => {
+      run.done();
+      return run.isCurrent() ? value : undefined;
+    },
+    (error: unknown) => {
+      run.done();
+      throw error;
+    },
   );
 }
 
@@ -310,15 +318,12 @@ function lockBoundMutate<T>(
       );
       return currentResult(key, mutate(key, undefined, clear as never));
     }
-    const [locked, lockedOptions, isCurrent] = lockMutation(
+    const [locked, lockedOptions, run] = lockMutation(
       key,
       args[0],
       mutationOptions(args[1]),
     );
-    return runResult(
-      isCurrent,
-      mutate(key, locked as never, lockedOptions as never),
-    );
+    return runResult(run, mutate(key, locked as never, lockedOptions as never));
   }) as SWRResponse<T>["mutate"];
 }
 
@@ -587,13 +592,13 @@ export function useTenantMutate() {
         return currentResult(cacheKey, swrMutate(cacheKey));
       }
       // A write that settles after the generation moved is not kept.
-      const [locked, lockedOptions, isCurrent] = lockMutation(
+      const [locked, lockedOptions, run] = lockMutation(
         cacheKey,
         data,
         mutationOptions(options),
       );
       return runResult(
-        isCurrent,
+        run,
         swrMutate(cacheKey, locked, lockedOptions as never),
       );
     },

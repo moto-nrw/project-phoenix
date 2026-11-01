@@ -44,9 +44,9 @@ void invalidateFamily(rooms.family);
    mutation, a scope or data bump does. Whether a run still counts is bound
    to the token it took at its start, never to its result equalling a value
    stamped since: a dropped run resolves to `undefined` even when its result
-   equals the fresh value. Only values written into the cache are stamped,
-   and the committed value an optimistic run rolls back to keeps its stamp
-   while that run is pending (#5485). For an action the
+   equals the fresh value. Only values SWR writes into the cache are stamped
+   (an overtaken run's result is not), and the committed value an optimistic
+   run rolls back to keeps its stamp until SWR finished that run (#5485). For an action the
    user should see at once (send, check in, toggle), use
    `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
    expected result is an overlay on the confirmed data per scoped key and

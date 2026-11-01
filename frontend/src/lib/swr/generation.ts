@@ -404,27 +404,45 @@ export function preloadSWR<T>(
   return request;
 }
 
+/** One mutation run under the generation lock (G25). */
+export interface SWRMutationRun {
+  /** The run's start token: whether its key's data generation still holds. */
+  readonly isCurrent: () => boolean;
+  /** Call once SWR's mutate for this run settled: releases its pin. */
+  readonly done: () => void;
+}
+
 /**
  * Puts the data argument of a mutation of `key` under the generation lock.
  *
  * G25: whether the run writes, stamps, rolls back or hands its result to the
  * caller depends only on the token it took at its start (the data generation
  * of its key), never on its result being equal to a value stamped since: two
- * primitives of different runs cannot be told apart by value. Only values
- * the run writes into the cache are stamped (optimistic value, result or
- * populated value, rollback); a result that populates nothing stays out of
- * the four-value history of its key. The returned `isCurrent` is that token.
+ * primitives of different runs cannot be told apart by value. A value is
+ * stamped only where SWR writes it: the optimistic value, the populated
+ * result (only the latest run of a key reaches populateCache), the rollback.
+ * A result SWR never writes (overtaken run, `populateCache: false`) stays out
+ * of the four-value history of its key. The committed primitive an
+ * optimistic run rolls back to keeps its stamp until `done` (#5485).
  */
 export function lockMutation(
   key: string,
   data: unknown,
   options: unknown,
-): [unknown, unknown, () => boolean] {
+): [unknown, unknown, SWRMutationRun] {
   const start = startOf(key);
   const isCurrent = () => isMutationCurrent(key, start);
   const stamp = <V>(value: V): V => {
     if (isCurrent()) stampSWRValue(key, value, start.data);
     return value;
+  };
+  let unpin: (() => void) | undefined;
+  const run: SWRMutationRun = {
+    isCurrent,
+    done: () => {
+      unpin?.();
+      unpin = undefined;
+    },
   };
   if (typeof options === "boolean") options = { revalidate: options };
   const given = (options ?? {}) as {
@@ -432,46 +450,14 @@ export function lockMutation(
     optimisticData?: unknown;
     rollbackOnError?: boolean | ((error: unknown) => boolean);
   };
-  const populate = given.populateCache;
-  // SWR writes the result itself only under its default `populateCache`.
-  const writesResult = populate === undefined || populate === true;
-  // The pin of the committed value, released once the data settled.
-  let unpin: (() => void) | undefined;
-  let settled = false;
-  const finish = () => {
-    settled = true;
-    unpin?.();
-    unpin = undefined;
-  };
-  const settle = (value: unknown): unknown => {
-    if (
-      isObject(value) &&
-      typeof (value as Promise<unknown>).then === "function"
-    ) {
-      const result = (value as Promise<unknown>).then((resolved) =>
-        writesResult ? stamp(resolved) : resolved,
-      );
-      void result.then(finish, finish);
-      return result;
-    }
-    finish();
-    return writesResult ? stamp(value) : value;
-  };
   // A value of an ended generation is no base for a new one: functions of
   // the mutation see nothing in its place, as for an empty entry.
   const base = (value: unknown): unknown =>
     isVisibleSWRValue(key, value) ? value : undefined;
   const locked =
     typeof data === "function"
-      ? (current: unknown) => {
-          try {
-            return settle((data as (c: unknown) => unknown)(base(current)));
-          } catch (error) {
-            finish();
-            throw error;
-          }
-        }
-      : settle(data);
+      ? (current: unknown) => (data as (c: unknown) => unknown)(base(current))
+      : data;
   const optimistic = given.optimisticData;
   const rollback = given.rollbackOnError;
   let committed: unknown;
@@ -484,7 +470,8 @@ export function lockMutation(
           optimisticData: (...args: unknown[]) => {
             // SWR hands the committed value first: the one it rolls back to.
             committed = base(args[0]);
-            if (!settled && isCurrent()) unpin = pinStamp(key, committed);
+            if (unpin === undefined && isCurrent())
+              unpin = pinStamp(key, committed);
             return stamp(
               typeof optimistic === "function"
                 ? (optimistic as (...a: unknown[]) => unknown)(
@@ -506,18 +493,21 @@ export function lockMutation(
           },
         }),
   };
-  if (populate === false) return [locked, withOptimistic, isCurrent];
+  const populate = given.populateCache;
+  if (populate === false) return [locked, withOptimistic, run];
   return [
     locked,
     {
       ...withOptimistic,
       populateCache: (result: unknown, current: unknown) => {
         if (!isCurrent()) return current;
-        return typeof populate === "function"
-          ? stamp(populate(result, base(current)))
-          : result;
+        return stamp(
+          typeof populate === "function"
+            ? populate(result, base(current))
+            : result,
+        );
       },
     },
-    isCurrent,
+    run,
   ];
 }

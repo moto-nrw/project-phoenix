@@ -1487,6 +1487,74 @@ describe.each([
 
     await expectCommitted(name, fetcher);
   });
+
+  it("keeps it until SWR populated the last of overlapping runs", async () => {
+    const name = "student-7-pinned-populate";
+    const fetcher = await committed(name);
+    const pending = Array.from({ length: 5 }, () => deferred<string>());
+    const populate = vi.fn(
+      (result: unknown, current: unknown) =>
+        `${String(current)}+${String(result)}`,
+    );
+    const runs: Promise<unknown>[] = [];
+    act(() => {
+      pending.forEach((answer, i) => {
+        runs.push(
+          responses[name]!.mutate(answer.promise, {
+            optimisticData: `optimistisch-${i}`,
+            populateCache: populate,
+            revalidate: false,
+          }),
+        );
+      });
+    });
+    // The overtaken runs end first; SWR populates only the last one.
+    await act(async () => {
+      pending.slice(0, 4).forEach((answer, i) => answer.resolve(`alt-${i}`));
+      await Promise.all(runs.slice(0, 4));
+    });
+    await act(async () => {
+      pending[4]!.resolve("neu");
+      await runs[4];
+    });
+    await flush();
+
+    expect(populate).toHaveBeenCalledExactlyOnceWith("neu", "stand");
+    expect(screen.getByTestId(name)).toHaveTextContent("stand+neu");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("stamps no result of an overtaken run", async () => {
+    const name = "student-7-overtaken";
+    const fetcher = await committed(name);
+    const pending = Array.from({ length: 5 }, () => deferred<string>());
+    const runs: Promise<unknown>[] = [];
+    act(() => {
+      for (const answer of pending)
+        runs.push(
+          responses[name]!.mutate(answer.promise, { revalidate: false }),
+        );
+    });
+    await act(async () => {
+      pending[4]!.resolve("neu");
+      await runs[4];
+    });
+    // Anker: das Ergebnis des letzten Laufs steht.
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+    await act(async () => {
+      pending.slice(0, 4).forEach((answer, i) => answer.resolve(`alt-${i}`));
+      await Promise.all(runs);
+    });
+    await flush();
+
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+    const update = vi.fn((current: unknown) => `${String(current)}-neu`);
+    await act(async () => {
+      await responses[name]!.mutate(update, { revalidate: false });
+    });
+    expect(update).toHaveBeenCalledWith("neu");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("callback identity across bumps of other keys (#5223)", () => {
