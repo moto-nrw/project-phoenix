@@ -15,7 +15,7 @@ type seedStaffQualificationsStep struct{}
 func (seedStaffQualificationsStep) Name() string { return "Seeding staff qualifications" }
 
 type seededQualificationType struct {
-	ID             int64  `json:"id"`
+	ID             string `json:"id"`
 	StandardKey    string `json:"standard_key"`
 	Name           string `json:"name"`
 	ValidityMonths *int   `json:"validity_months"`
@@ -33,7 +33,7 @@ func (seedStaffQualificationsStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	firstAid, certificate, hygiene := kinds["first_aid_child"], kinds["extended_police_certificate"], kinds["hygiene"]
 	today := todaySeedDate()
-	row := func(kind int64, acquired, expires int) map[string]any {
+	row := func(kind string, acquired, expires int) map[string]any {
 		return map[string]any{"type_id": kind, "name": "", "acquired_on": today.AddDays(acquired).String(), "expires_on": today.AddDays(expires).String()}
 	}
 	lists := [][]map[string]any{
@@ -56,7 +56,7 @@ func (seedStaffQualificationsStep) Run(_ context.Context, rt *Runtime) error {
 
 // seedQualificationKinds reads the standard kinds, marks the certificate of
 // conduct mandatory and adds the school's own hygiene training.
-func seedQualificationKinds(rt *Runtime) (map[string]int64, error) {
+func seedQualificationKinds(rt *Runtime) (map[string]string, error) {
 	body, err := rt.Client.Get("/api/staff/qualification-types")
 	if err != nil {
 		return nil, fmt.Errorf("list qualification types: %w", err)
@@ -67,11 +67,11 @@ func seedQualificationKinds(rt *Runtime) (map[string]int64, error) {
 	if err := json.Unmarshal(body, &listed); err != nil {
 		return nil, fmt.Errorf("decode qualification types: %w", err)
 	}
-	kinds := map[string]int64{}
+	kinds := map[string]string{}
 	for _, kind := range listed.Data {
 		kinds[kind.StandardKey] = kind.ID
 		if kind.StandardKey == "extended_police_certificate" {
-			if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/qualification-types/%d", kind.ID), map[string]any{
+			if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/qualification-types/%s", kind.ID), map[string]any{
 				"name": kind.Name, "validity_months": kind.ValidityMonths, "reminder_lead_weeks": 8, "mandatory": true,
 			}); err != nil {
 				return nil, fmt.Errorf("mark certificate mandatory: %w", err)
@@ -89,7 +89,7 @@ func seedQualificationKinds(rt *Runtime) (map[string]int64, error) {
 		return nil, fmt.Errorf("decode hygiene training: %w", err)
 	}
 	kinds["hygiene"] = hygiene.Data.ID
-	if kinds["first_aid_child"] == 0 || kinds["extended_police_certificate"] == 0 || kinds["hygiene"] == 0 {
+	if kinds["first_aid_child"] == "" || kinds["extended_police_certificate"] == "" || kinds["hygiene"] == "" {
 		return nil, fmt.Errorf("qualification types incomplete")
 	}
 	return kinds, nil
