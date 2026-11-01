@@ -138,11 +138,14 @@ const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
 // Reasons the substitution module puts on active_supervision_changed when the
 // supervisors of a running session change (#2806, #4763): someone was added,
 // handed the supervision over or released it. Both people's sidebars list
-// their supervisions from it.
+// their supervisions from it. Presence names every other supervisor write
+// (claim, add, edit, end, replace) supervisors_changed on its combined
+// refresh (#5017).
 const SUPERVISOR_CHANGE_REASONS: ReadonlySet<string> = new Set([
   "additional_supervisor_assigned",
   "supervision_handed_over",
   "supervision_released",
+  "supervisors_changed",
 ]);
 
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
@@ -807,7 +810,11 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current ||
-      hasPendingDashboardEvent.current;
+      hasPendingDashboardEvent.current ||
+      // The aggregate lists the caller's educational groups; a handover or
+      // Vertretung changes them and announces only group_access_changed
+      // (#5017).
+      hasPendingGroupAccessEvent.current;
     if (
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current
@@ -1068,6 +1075,10 @@ export function useGlobalSSE(): SSEHookState {
         // lists of the person who joined and of the one who left are stale.
         // No child moved, so no attendance event follows.
         hasPendingActivityEvent.current = true;
+      } else if (event.data.reason === "timetable_attendance_updated") {
+        // The operations attendance patch rewrote a block's roster; the own
+        // supervision lists it with its children (#5017).
+        hasPendingRemoteRosterEvent.current = true;
       }
     },
     [collectEduGroupScope],

@@ -163,6 +163,8 @@ func TestPatchInstanceStudent_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
 
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
@@ -172,6 +174,9 @@ func TestPatchInstanceStudent_HappyPath(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	// The block's roster changed: planned_now and the own supervision learn
+	// about it after the commit (#5017).
+	assert.Equal(t, []string{"attendance_patch"}, announcer.sources)
 
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -212,6 +217,8 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 
 	s := buildPatchSetup(t)
 	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, s.instanceID, timetable.InstanceStatusCompleted)
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 
 	router := patchRouter(testpkg.Ctx(t), s.res, s.db)
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
@@ -219,6 +226,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "frozen")
+	assert.Empty(t, announcer.sources, "a refused write announces nothing")
 
 	row, err := s.data.FindBlockParticipant(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)

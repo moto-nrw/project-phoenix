@@ -196,6 +196,9 @@ func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit)
 			return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
+	// A corrected time or ended visit without a move changes the session's
+	// rows and counts; the move above announces itself.
+	s.queueSupervisionRefresh(ctx, visit.ActiveGroupID, activeSupervisionReasonStudentMoved)
 
 	return nil
 }
@@ -411,7 +414,7 @@ func (s *service) deleteVisit(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
 	}
-	_, err := s.SchoolPresence.FindVisit(ctx, id)
+	deleted, err := s.SchoolPresence.FindVisit(ctx, id)
 	if err != nil {
 		if errors.Is(err, studentpresence.ErrVisitNotFound) {
 			return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
@@ -421,6 +424,9 @@ func (s *service) deleteVisit(ctx context.Context, id int64) error {
 
 	if err := s.SchoolPresence.DeleteVisit(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if deleted != nil {
+		s.queueSupervisionRefresh(ctx, deleted.ActiveGroupID, activeSupervisionReasonStudentMoved)
 	}
 
 	return nil

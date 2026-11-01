@@ -424,6 +424,8 @@ func (rs *Resource) connectTemplateOfferingSource(w http.ResponseWriter, r *http
 		renderRosterReviewError(w, r, err)
 		return
 	}
+	// Connecting the offering rewrites the materialized rosters (#5017).
+	rs.broadcastStaffingDeviationChanged(r.Context(), "template_offering_connection")
 	common.Respond(w, r, http.StatusOK, offeringConnectionResponse{
 		TemplateIDs: result.TemplateIDs, EffectiveDate: result.EffectiveDate.String(),
 	}, "Template connected to offering")

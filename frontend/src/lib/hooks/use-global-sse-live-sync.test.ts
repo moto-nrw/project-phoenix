@@ -176,6 +176,28 @@ describe("useGlobalSSE: own supervision family (#5017)", () => {
     },
   );
 
+  it.each([
+    ["dashboard_counts_changed", { reason: "supervisors_changed" }],
+    ["active_supervision_changed", { reason: "timetable_attendance_updated" }],
+  ] satisfies [SSEEvent["type"], SSEEvent["data"]][])(
+    "%s (%o) refreshes the own supervision",
+    (type, data) => {
+      renderConnected();
+      fire(event(type, data));
+      act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
+      expect(invalidatedFamilies).toContain(OWN);
+    },
+  );
+
+  it("group_access_changed refreshes the supervision aggregate", () => {
+    renderConnected();
+    fire(event("group_access_changed"));
+    act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
+    expect(matchedKeys()).toContain(
+      "school-a:account-7:active-supervision-dashboard-0-224",
+    );
+  });
+
   it.each(["staffing_deviation_changed", "instance_cancelled"] as const)(
     "%s refreshes the supervision aggregate with its planned blocks",
     (type) => {
