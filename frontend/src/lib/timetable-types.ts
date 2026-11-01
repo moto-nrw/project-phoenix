@@ -660,7 +660,7 @@ export interface BackendTimetableTemplate {
     BackendTemplateProtectedStudentAssignment[] | null;
   resolved_from_template_id?: number | null;
   roster_maintenance?: BackendTemplateRosterMaintenance | null;
-  /** „Bleibt von Hand gepflegt“ for the whole series (#5103). */
+  /** „Liste so lassen“ for the whole series (#5103). */
   manual_roster_confirmed?: boolean;
 }
 

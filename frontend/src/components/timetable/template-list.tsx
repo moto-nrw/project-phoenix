@@ -26,7 +26,7 @@ interface TemplateListProps {
   /** Abweichungen von den Anmeldungen je Regeltermin-ID (#5103). */
   deviations?: ReadonlyMap<string, RosterDeviation>;
   onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
-  /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
   onSetManualRoster?: (template: TimetableTemplate, confirmed: boolean) => void;
   /** „Zu prüfen“: nur Regeltermine mit erkannter Abweichung. */
   reviewOnly?: boolean;
@@ -109,7 +109,7 @@ export function TemplateList({
       {visible.length === 0 ? (
         <EmptyState
           title="Keine Regeltermine zu prüfen"
-          description="Alle Kinderlisten passen zu den Anmeldungen oder werden bewusst von Hand gepflegt."
+          description="Alle Kinderlisten passen zu den Anmeldungen oder bleiben bewusst so."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -80,7 +80,7 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 	}
 	envelope := offeringSuggestionEnvelope{}
 	if suggestion := timetable.SuggestOfferingSource(roster, bookings); suggestion != nil {
-		response := rosterDeviationResponseFrom(0, suggestion).withoutTemplate()
+		response := rosterDeviationResponseFrom(0, suggestion, nil).withoutTemplate()
 		envelope.Suggestion = &response
 	}
 	common.Respond(w, r, http.StatusOK, envelope, "Offering suggestion retrieved")
@@ -156,7 +156,7 @@ func (rs *Resource) draftOfferingPreview(
 		return offeringPreviewResponse{}, err
 	}
 	changes := timetable.PreviewOfferingSource(roster, filter, bookings)
-	names, err := rs.previewStudentNames(ctx, changes, from)
+	names, err := rs.studentNames(ctx, changedStudentIDs(changes), from)
 	if err != nil {
 		return offeringPreviewResponse{}, err
 	}

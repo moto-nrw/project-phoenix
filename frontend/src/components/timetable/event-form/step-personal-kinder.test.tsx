@@ -422,6 +422,37 @@ describe("StepPersonalKinder — Personal je Wochentag mit Angebot als Quelle (#
   });
 });
 
+describe("StepPersonalKinder — Kinder über die Klasse (#5103 review)", () => {
+  // The Friday list holds the children picked by hand; the Klasse adds the
+  // rest at every occurrence. The form names them so the counts match.
+  it("names the children the Klasse adds beside the list of the day", () => {
+    renderStep({
+      form: {
+        ...emptyForm("2026-09-14", "4"),
+        targetGroupType: "klasse",
+        targetSchoolClasses: ["3b"],
+        weekdays: [1, 5],
+        perWeekdayRoster: true,
+        weekdayRosters: {
+          1: { staffIds: [], primaryStaffId: "", studentIds: ["11", "12"] },
+          5: { staffIds: [], primaryStaffId: "", studentIds: ["11"] },
+        },
+      },
+      students: [
+        { id: "11", name: "Ben Winter", schoolClass: "3b" },
+        { id: "12", name: "Mia Sommer", schoolClass: "3b" },
+      ],
+      targetCohort: { label: "Klasse 3b", memberIds: ["11", "12"] },
+      activeRosterWeekday: 5,
+    });
+
+    expect(screen.getByText("Kinder am Freitag")).toBeInTheDocument();
+    expect(
+      screen.getByText("Über Klasse 3b kommt außerdem: Mia Sommer"),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
   it("renders the stored limit editable in the series flow", () => {
     const { update } = renderStep({

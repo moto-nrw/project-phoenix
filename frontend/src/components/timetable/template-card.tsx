@@ -43,7 +43,7 @@ interface TemplateCardProps {
   /** Erkannte Abweichung von den Anmeldungen (#5103). */
   deviation?: RosterDeviation;
   onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
-  /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
   onSetManualRoster?: (template: TimetableTemplate, confirmed: boolean) => void;
 }
 
