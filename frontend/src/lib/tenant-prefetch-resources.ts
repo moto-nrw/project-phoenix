@@ -30,6 +30,7 @@ export async function tenantPrefetchResources(
     groups: readonly string[];
     hasSupervision: boolean;
     teacherMode: boolean;
+    detailedMode: boolean;
     photoState: "photos-loading" | "photos-enabled" | "photos-disabled";
   },
 ): Promise<readonly PrefetchResource[]> {
@@ -40,7 +41,7 @@ export async function tenantPrefetchResources(
     : pathname;
   const params = new URLSearchParams(query);
   const { session } = context;
-  if (session.user.scope !== "tenant") return [];
+  if (session.user.scope && session.user.scope !== "tenant") return [];
 
   if (path === "/students/search" && canReadStudents(session)) {
     const date = berlinTodayISO();
@@ -111,6 +112,7 @@ export async function tenantPrefetchResources(
   }
   if (
     path === "/active-supervisions" &&
+    context.detailedMode &&
     canReadSupervisionData(session) &&
     context.hasSupervision &&
     !params.has("session") &&

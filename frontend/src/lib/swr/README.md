@@ -154,3 +154,13 @@ Do not preload audited reads, inaccessible resources, or speculative detail
 fields. A failed speculative request must not become the destination's load
 error. Scope changes discard pending answers, including work queued before
 the change. Respect Save-Data and slow connections and bound concurrency.
+
+`preload(key, fetcher, { intent: true })` is the speculative variant of the
+same locked writer. It skips an already current cached response and removes
+only its own failed preload promise, so a later page runs its ordinary loader.
+It never mutates response data directly, bypasses a generation check, or
+removes a replacement promise. General preloads keep their existing contract.
+The protected tenant shell prepares fetcher code beside route code, but starts
+data only after intent. Its queue runs at most three resources concurrently
+and holds at most twelve waiting resources; account/school/generation changes
+invalidate the captured writer even while code is loading or work is queued.
