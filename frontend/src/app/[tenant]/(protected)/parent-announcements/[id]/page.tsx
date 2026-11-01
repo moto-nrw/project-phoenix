@@ -35,7 +35,6 @@ import type { Activity } from "~/lib/activity-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   fetchAnnouncement,
   fetchPollResults,
@@ -47,6 +46,9 @@ import { useSWRAuth, useSWRSeedFrom, useTenantMutate } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { AnnouncementDetailLoadingPage } from "./page-skeleton";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
 
@@ -248,10 +250,10 @@ function AnnouncementDetailPageContent() {
 
   const concept =
     kind === "poll"
-      ? MOTO_CONCEPTS.polls
+      ? pollsConcept
       : kind === "declaration"
-        ? MOTO_CONCEPTS.confirmations
-        : MOTO_CONCEPTS.announcements;
+        ? confirmationsConcept
+        : announcementsConcept;
 
   return (
     <TenantPage

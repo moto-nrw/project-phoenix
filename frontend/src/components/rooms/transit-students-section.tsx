@@ -35,6 +35,7 @@ import {
   useAttendanceWebEnabled,
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
+import { transitConcept } from "~/lib/concepts/transit";
 
 const DETAIL_CARD_CLASS =
   "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
@@ -410,7 +411,7 @@ export function TransitStudentsSection({
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100"
             aria-hidden="true"
           >
-            <MotoConceptIcon concept="transit" size={18} />
+            <MotoConceptIcon concept={transitConcept} size={18} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">

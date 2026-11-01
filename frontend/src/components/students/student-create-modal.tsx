@@ -63,6 +63,8 @@ import {
   type BackendPickupScheduleRequest,
   type PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 const logger = createLogger({ component: "StudentCreateModal" });
 
@@ -679,7 +681,7 @@ export function StudentCreateModal({
                   >
                     <div className="mb-3 flex items-center justify-between md:mb-4">
                       <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                        <MotoConceptIcon concept="groups" size={18} />
+                        <MotoConceptIcon concept={groupsConcept} size={18} />
                         Erziehungsberechtigte
                       </h3>
                       <span className="text-xs text-gray-500">
@@ -777,7 +779,7 @@ export function StudentCreateModal({
                   >
                     <div className="mb-3 flex items-center justify-between md:mb-4">
                       <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                        <MotoConceptIcon concept="careTimes" size={16} />
+                        <MotoConceptIcon concept={careTimesConcept} size={16} />
                         Betreuungszeiten
                       </h3>
                       <span className="text-xs text-gray-500">

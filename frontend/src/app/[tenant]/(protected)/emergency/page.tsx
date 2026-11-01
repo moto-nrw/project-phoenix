@@ -12,6 +12,7 @@ import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
+import { emergencyConcept } from "~/lib/concepts/emergency";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
@@ -65,7 +66,7 @@ export default function EmergencyPage() {
         }
         leading={
           <div className="bg-moto-red/10 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <MotoConceptIcon concept="emergency" size={24} />
+            <MotoConceptIcon concept={emergencyConcept} size={24} />
           </div>
         }
       >

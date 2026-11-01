@@ -70,6 +70,9 @@ import {
   usePickupSignatureStatement,
   useWeekdayList,
 } from "~/components/parent/pickup-permission-fields";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { peopleConcept } from "~/lib/concepts/people";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -369,7 +372,7 @@ export default function GuardiansPanel({
       <ParentSection
         title={t("guardians.contactsTitle")}
         description={t("guardians.contactsDescription")}
-        concept="permissions"
+        concept={permissionsConcept}
         actions={
           <div
             data-parent-tour="child-guardians"
@@ -404,7 +407,7 @@ export default function GuardiansPanel({
         ) : guardians.length === 0 ? (
           <EmptyState
             variant="compact"
-            icon={<MotoConceptIcon concept="people" size={24} />}
+            icon={<MotoConceptIcon concept={peopleConcept} size={24} />}
             title={t("guardians.empty")}
           />
         ) : (
@@ -433,7 +436,7 @@ export default function GuardiansPanel({
       <ParentSection
         title={t("guardians.access.title")}
         description={t("guardians.access.description")}
-        concept="people"
+        concept={peopleConcept}
         actions={
           canInvite ? (
             <Button
@@ -447,7 +450,7 @@ export default function GuardiansPanel({
               }}
             >
               <MotoConceptIcon
-                concept="enrollments"
+                concept={enrollmentsConcept}
                 size={16}
                 className="mr-2"
               />
@@ -468,7 +471,7 @@ export default function GuardiansPanel({
         ) : connectedAccounts.length === 0 ? (
           <EmptyState
             variant="compact"
-            icon={<MotoConceptIcon concept="people" size={24} />}
+            icon={<MotoConceptIcon concept={peopleConcept} size={24} />}
             title={t("guardians.access.empty")}
           />
         ) : (
@@ -893,7 +896,9 @@ function GuardianRow({
               )}
               {g.pickup_notes && (
                 <ContactLine
-                  icon={<MotoConceptIcon concept="permissions" size={16} />}
+                  icon={
+                    <MotoConceptIcon concept={permissionsConcept} size={16} />
+                  }
                   text={g.pickup_notes}
                 />
               )}
@@ -942,7 +947,7 @@ function GuardianRow({
                 className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
-                  <MotoConceptIcon concept="permissions" size={18} />
+                  <MotoConceptIcon concept={permissionsConcept} size={18} />
                 ) : (
                   <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={18} />
                 )}

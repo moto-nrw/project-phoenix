@@ -29,6 +29,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -489,7 +490,9 @@ export function RolloverForm({
         backLabel="Zurück zu den Anmeldephasen"
         stats={statusLine}
         statsLoading={loadingPreview}
-        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        leading={
+          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
+        }
       >
         {form}
       </TenantPage>

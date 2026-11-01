@@ -7,7 +7,7 @@ import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 /**
  * Die feste Seitenleiste eines Portals mit eigener Navigation ab 1024 px:
@@ -59,7 +59,7 @@ type PortalSidebarLinkProps = Omit<
   "children" | "className" | "aria-current" | "target" | "rel"
 > & {
   readonly label: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly active: boolean;
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
   readonly newTab?: boolean;

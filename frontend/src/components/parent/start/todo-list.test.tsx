@@ -3,10 +3,11 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
 import deMessages from "~/i18n/messages/de.generated";
 import { TodoList, type TodoItem } from "./todo-list";
+import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 
 const items: TodoItem[] = Array.from({ length: 6 }, (_, index) => ({
   key: `item-${index + 1}`,
-  concept: "parentMessages",
+  concept: parentMessagesConcept,
   title: `Offener Punkt ${index + 1}`,
   context: "Elternbrief · Demo School",
   href: `/parents/news/${index + 1}`,

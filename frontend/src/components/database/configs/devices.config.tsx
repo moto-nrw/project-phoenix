@@ -19,6 +19,7 @@ import {
   generateDefaultDeviceName,
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 /**
  * Der API-Schlüssel eines Geräts: verborgen, mit zwei Schaltflächen aus dem
@@ -86,7 +87,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     plural: "Geräte",
   },
 
-  concept: "devices",
+  concept: devicesConcept,
 
   backUrl: "/database",
 
@@ -98,7 +99,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: "Geräteinformationen",
-        concept: "devices",
+        concept: devicesConcept,
         columns: 2,
         fields: [
           {

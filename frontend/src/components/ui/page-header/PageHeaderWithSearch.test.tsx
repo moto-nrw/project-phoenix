@@ -7,11 +7,18 @@ import type React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PageHeaderWithSearch } from "./PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "./types";
+import { staffConcept } from "~/lib/concepts/staff";
 
 // Mock sub-components
 vi.mock("./PageHeader", () => ({
-  PageHeader: ({ title, concept }: { title: string; concept?: string }) => (
-    <div data-testid="page-header" data-concept={concept}>
+  PageHeader: ({
+    title,
+    concept,
+  }: {
+    title: string;
+    concept?: { key: string };
+  }) => (
+    <div data-testid="page-header" data-concept={concept?.key}>
       {title}
     </div>
   ),
@@ -128,7 +135,7 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("forwards the concept prop to the title area when set", () => {
-    render(<PageHeaderWithSearch {...baseProps} concept="staff" />);
+    render(<PageHeaderWithSearch {...baseProps} concept={staffConcept} />);
     expect(screen.getByTestId("page-header")).toHaveAttribute(
       "data-concept",
       "staff",

@@ -16,8 +16,9 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import type { RequestReviewAccess } from "~/lib/change-request-list-api";
+import { requestsConcept } from "~/lib/concepts/requests";
 
-const REQUESTS_ICON = <MotoConceptIcon concept="requests" size={40} />;
+const REQUESTS_ICON = <MotoConceptIcon concept={requestsConcept} size={40} />;
 
 export function RequestEmptyState({
   view,

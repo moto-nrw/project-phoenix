@@ -9,11 +9,17 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { ChildFeatures, ChildToday } from "~/lib/parent-api";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { childConversationPath } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { childrenConcept } from "~/lib/concepts/children";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { homeConcept } from "~/lib/concepts/home";
+import { presentConcept } from "~/lib/concepts/present";
+import { unknownConcept } from "~/lib/concepts/unknown";
 
 /**
  * Die Tageskarte eines Kindes. Das Herzstueck der Eltern-App: auf der
@@ -111,8 +117,12 @@ export function ChildDayCard({
   const level1 =
     today.at_ogs === null ? null : today.at_ogs ? t("atOgs") : t("notAtOgs");
   const level2 = explainState(today, t);
-  const stateConcept: MotoConceptKey =
-    today.at_ogs === null ? "unknown" : today.at_ogs ? "present" : "home";
+  const stateConcept: MotoConcept =
+    today.at_ogs === null
+      ? unknownConcept
+      : today.at_ogs
+        ? presentConcept
+        : homeConcept;
 
   return (
     /* @container: die Aktionsreihe richtet sich nach der Breite DIESER Karte,
@@ -150,7 +160,7 @@ export function ChildDayCard({
                 className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50"
               >
                 <MotoConceptIcon
-                  concept="children"
+                  concept={childrenConcept}
                   size={28}
                   aria-hidden="true"
                 />
@@ -345,7 +355,7 @@ function ChildDayActions({
   const withMode = features.pickup_change_mode_enabled === true;
   const pickupActionContent = (
     <>
-      <MotoConceptIcon concept="pickup" size={20} aria-hidden="true" />
+      <MotoConceptIcon concept={pickupConcept} size={20} aria-hidden="true" />
       {display === "compact" ? (
         <span className="min-w-0 text-center leading-5">
           {t(
@@ -371,7 +381,7 @@ function ChildDayActions({
   const messageActionContent = (
     <>
       <MotoConceptIcon
-        concept="parentConversations"
+        concept={parentConversationsConcept}
         size={20}
         aria-hidden="true"
       />

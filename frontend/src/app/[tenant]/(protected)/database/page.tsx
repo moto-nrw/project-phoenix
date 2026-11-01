@@ -16,7 +16,7 @@ import { TileCard } from "~/components/ui/tile-card";
 import { useSWRAuth } from "~/lib/swr";
 import { ChevronRight, Lock } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -27,13 +27,26 @@ import { useTimetableEnabled } from "~/lib/tenant-context";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { exportsConcept } from "~/lib/concepts/exports";
+import { gradeTransitionsConcept } from "~/lib/concepts/gradeTransitions";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { rolesConcept } from "~/lib/concepts/roles";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 interface DataSection {
   id: string;
   title: string;
   description: string;
   href: string;
-  concept: MotoConceptKey;
+  concept: MotoConcept;
   /** Nur sichtbar, solange der Planungsbereich eingeschaltet ist. */
   requiresPlanning?: boolean;
   /** Replaces the entry-count badge for sections that count nothing. */
@@ -119,56 +132,56 @@ const baseDataSections: DataSection[] = [
     title: "Kinderdaten",
     description: "Kinder anlegen, importieren und ihre Daten pflegen",
     href: "/database/students",
-    concept: "children",
+    concept: childrenConcept,
   },
   {
     id: "teachers",
     title: "Personal",
     description: "Personaldaten und Zuordnungen verwalten",
     href: "/database/personal",
-    concept: "staff",
+    concept: staffConcept,
   },
   {
     id: "rooms",
     title: "Räume",
     description: "Räume und Ausstattung verwalten",
     href: "/database/rooms",
-    concept: "rooms",
+    concept: roomsConcept,
   },
   {
     id: "activities",
     title: "Aktivitäten",
     description: "Aktivitäten und Zeitpläne verwalten",
     href: "/database/activities",
-    concept: "activities",
+    concept: activitiesConcept,
   },
   {
     id: "groups",
     title: "Gruppendaten",
     description: "Gruppen und Kombinationen verwalten",
     href: "/database/groups",
-    concept: "groups",
+    concept: groupsConcept,
   },
   {
     id: "roles",
     title: "Rollen",
     description: "Benutzerrollen und Berechtigungen verwalten",
     href: "/database/roles",
-    concept: "roles",
+    concept: rolesConcept,
   },
   {
     id: "devices",
     title: "Geräte",
     description: "Terminals und IoT-Geräte verwalten",
     href: "/database/devices",
-    concept: "devices",
+    concept: devicesConcept,
   },
   {
     id: "permissions",
     title: "Berechtigungen",
     description: "Systemberechtigungen ansehen",
     href: "/database/permissions",
-    concept: "permissions",
+    concept: permissionsConcept,
   },
   {
     // Die kurzen Stammdaten-Listen der Schule (#3114). Sie lagen vorher in
@@ -177,7 +190,7 @@ const baseDataSections: DataSection[] = [
     title: "Terminkategorien",
     description: "Termine und Aktivitäten einordnen, zum Beispiel Essen",
     href: "/database/categories",
-    concept: "activities",
+    concept: activitiesConcept,
     badge: "Stammdaten",
   },
   {
@@ -185,7 +198,7 @@ const baseDataSections: DataSection[] = [
     title: "Planungsspuren",
     description: "Regeltermine im Betreuungsplan farblich bündeln",
     href: "/database/planning-tracks",
-    concept: "carePlan",
+    concept: carePlanConcept,
     requiresPlanning: true,
     badge: "Stammdaten",
   },
@@ -194,7 +207,7 @@ const baseDataSections: DataSection[] = [
     title: "Dienstarten",
     description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
-    concept: "staffPlan",
+    concept: staffPlanConcept,
     badge: "Stammdaten",
   },
   {
@@ -202,7 +215,7 @@ const baseDataSections: DataSection[] = [
     title: "Abwesenheitsarten",
     description: "Eigene Namen für Abwesenheiten der Mitarbeitenden",
     href: "/database/absence-types",
-    concept: "timeTracking",
+    concept: timeTrackingConcept,
     badge: "Stammdaten",
   },
   {
@@ -211,7 +224,7 @@ const baseDataSections: DataSection[] = [
     description:
       "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
     href: "/database/grade-transitions",
-    concept: "gradeTransitions",
+    concept: gradeTransitionsConcept,
     badge: "Schuljahr",
     cta: "Öffnen",
   },
@@ -220,7 +233,7 @@ const baseDataSections: DataSection[] = [
     title: "Exporte",
     description: "Kinder-, Geburtstags-, Notfall- und Raumlisten erstellen",
     href: "/database/exports",
-    concept: "exports",
+    concept: exportsConcept,
     badge: "Listen",
     cta: "Öffnen",
   },
@@ -332,7 +345,7 @@ function DatabaseContent() {
                   ? "Nicht geladen"
                   : `${count} ${entryLabel}`);
             const badgeLoading = section.badge === undefined && countsLoading;
-            const concept = MOTO_CONCEPTS[section.concept];
+            const concept = section.concept;
 
             return (
               <TileCard

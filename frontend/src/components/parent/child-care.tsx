@@ -12,7 +12,7 @@ import {
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { RequiredMark } from "~/components/ui/field-label";
@@ -65,6 +65,8 @@ import {
   PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -2019,7 +2021,7 @@ export type OgsActionKey = "sick" | "pickup";
 // the school's settings.
 export interface OgsAction {
   readonly key: OgsActionKey;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly enabled: boolean;
 }
 
@@ -2035,14 +2037,14 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
   return [
     {
       key: "sick",
-      concept: "sick",
+      concept: sickConcept,
       enabled:
         features.sick_note_enabled ||
         (features.excused_note_enabled ?? features.sick_note_enabled),
     },
     {
       key: "pickup",
-      concept: "pickup",
+      concept: pickupConcept,
       enabled: features.pickup_change_enabled,
     },
   ];

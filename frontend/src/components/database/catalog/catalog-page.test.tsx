@@ -18,6 +18,7 @@ import {
 import type { SectionConfig } from "~/lib/database/types";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
@@ -80,7 +81,7 @@ function buildConfig(overrides: Partial<CatalogConfig<Sorte>> = {}) {
   const reorder = vi.fn().mockResolvedValue(undefined);
 
   const config: CatalogConfig<Sorte> = {
-    concept: "activities",
+    concept: activitiesConcept,
     title: "Kategorien",
     singular: "Kategorie",
     purpose: "Kategorien ordnen Termine ein.",

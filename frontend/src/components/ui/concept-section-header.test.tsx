@@ -4,13 +4,15 @@ import {
   ConceptPageHeader,
   ConceptSectionHeader,
 } from "./concept-section-header";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 describe("ConceptSectionHeader", () => {
   it("renders the shared neutral icon surface and concept tone", () => {
     render(
       <ConceptSectionHeader
         title="Nachrichten mit den Eltern"
-        concept="parentConversations"
+        concept={parentConversationsConcept}
       />,
     );
 
@@ -30,7 +32,7 @@ describe("ConceptSectionHeader", () => {
       <ConceptPageHeader
         title="Nachrichten"
         eyebrow="Austausch mit der OGS"
-        concept="parentConversations"
+        concept={parentConversationsConcept}
       />,
     );
 
@@ -51,7 +53,7 @@ describe("ConceptSectionHeader", () => {
     // eine andere Ebene vorgibt: im Dialog steht der Titel als h3, und
     // Abschnitte mit eigenen Unterkarten brauchen Platz fuer deren h4/h5.
     const { rerender } = render(
-      <ConceptSectionHeader title="Standard" concept="schools" />,
+      <ConceptSectionHeader title="Standard" concept={schoolsConcept} />,
     );
     expect(
       screen.getByRole("heading", { level: 2, name: "Standard" }),
@@ -61,7 +63,7 @@ describe("ConceptSectionHeader", () => {
       rerender(
         <ConceptSectionHeader
           title={`Ebene ${level}`}
-          concept="schools"
+          concept={schoolsConcept}
           level={level}
         />,
       );

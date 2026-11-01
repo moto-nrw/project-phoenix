@@ -15,13 +15,14 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { hasPlannedCareExit } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import { SelectionBulkInviteModal } from "./selection-bulk-invite-modal";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { classTripConcept } from "~/lib/concepts/classTrip";
 
 export type GroupingMode = "class" | "group" | "none";
 
@@ -186,8 +187,8 @@ export function StudentsList({
                 label: "Ankunftszeit bearbeiten",
                 icon: (
                   <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.carePlan.icon}
-                    tone={MOTO_CONCEPTS.carePlan.tone}
+                    icon={carePlanConcept.icon}
+                    tone={carePlanConcept.tone}
                     size={18}
                   />
                 ),
@@ -201,8 +202,8 @@ export function StudentsList({
                 label: "Klassenfahrt planen",
                 icon: (
                   <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.classTrip.icon}
-                    tone={MOTO_CONCEPTS.classTrip.tone}
+                    icon={classTripConcept.icon}
+                    tone={classTripConcept.tone}
                     size={18}
                   />
                 ),

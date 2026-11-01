@@ -91,6 +91,7 @@ import {
 } from "~/lib/school-holidays-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -1067,7 +1068,10 @@ function StaffCalendarPageInner() {
                 <div ref={formRef}>
                   <form className="space-y-5" onSubmit={handleSubmit}>
                     <div className="flex items-center gap-2">
-                      <MotoConceptIcon concept="calendarPeriods" size={20} />
+                      <MotoConceptIcon
+                        concept={calendarPeriodsConcept}
+                        size={20}
+                      />
                       <p className="text-sm text-gray-600">
                         {editingId
                           ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."

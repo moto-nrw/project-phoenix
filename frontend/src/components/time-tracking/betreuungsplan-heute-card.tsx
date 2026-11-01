@@ -28,6 +28,8 @@ import {
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 // Heute geplante Betreuungsplan-Einsätze der eingeloggten Person ("Mein Tag",
 // #1844): Ort (Raum) + Aufgabe (Aktivität) + Zeit, plus die Vertretungsplan-
@@ -120,7 +122,7 @@ export function BetreuungsplanHeuteCard({
     return (
       <InfoCard
         title={title}
-        icon={<MotoConceptIcon concept="carePlan" size={20} />}
+        icon={<MotoConceptIcon concept={carePlanConcept} size={20} />}
       >
         <LoadErrorAlert error={load.error} />
       </InfoCard>
@@ -137,7 +139,7 @@ export function BetreuungsplanHeuteCard({
     return (
       <InfoCard
         title={title}
-        icon={<MotoConceptIcon concept="carePlan" size={20} />}
+        icon={<MotoConceptIcon concept={carePlanConcept} size={20} />}
         actions={
           href ? (
             <Link
@@ -197,7 +199,7 @@ export function BetreuungsplanHeuteCard({
   return (
     <InfoCard
       title={title}
-      icon={<MotoConceptIcon concept="carePlan" size={20} />}
+      icon={<MotoConceptIcon concept={carePlanConcept} size={20} />}
       actions={
         href ? (
           <Link
@@ -317,7 +319,7 @@ function AssignmentRow({
           </p>
           {block.roomName && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
-              <MotoConceptIcon concept="rooms" size={16} />
+              <MotoConceptIcon concept={roomsConcept} size={16} />
               {block.roomName}
             </p>
           )}
