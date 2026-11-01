@@ -377,13 +377,20 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	if err != nil {
 		return err
 	}
+	if err := r.service.capLegacyLineage(ctx, r.claims, &current); err != nil {
+		return err
+	}
 	r.recovered = wasRecovered
 	if r.recovered {
+		// Recovery issues lineage claims too. Keep the legacy deadline on
+		// the persisted head before those claims can bypass the transition.
+		if current.FamilyExpiryCap != nil {
+			if err := r.service.sessions.RetireAccountSessionFamily(ctx, current.AccountID, current.FamilyID, *current.FamilyExpiryCap); err != nil {
+				return err
+			}
+		}
 		r.newSession = current
 	} else {
-		if err := r.service.capLegacyLineage(ctx, r.claims, &current); err != nil {
-			return err
-		}
 		var err error
 		r.newSession, err = r.service.createAndPersistSuccessor(ctx, current, r.account.ID, effectiveTenantID, r.claims.Scope, now)
 		if err != nil {

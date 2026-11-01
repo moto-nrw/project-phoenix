@@ -104,3 +104,53 @@ func TestLegacyFamilyOfASingleSchoolAccountKeepsSliding(t *testing.T) {
 	assert.True(t, head.Expiry.After(deadline.Add(time.Hour)), "a single-school family renews its full lifetime")
 	assert.Nil(t, head.FamilyExpiryCap)
 }
+
+// A rotation committed before deployment can be recovered with its legacy
+// predecessor. Recovery must persist the deadline before adding lineage claims.
+func TestLegacyRefreshRecoveryKeepsItsDeadline(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "legacy-recovery-cap")
+	ctx := testpkg.Ctx(t)
+	family := accessSessionOf(t, f.access).FamilyID
+	legacy := legacyRefreshToken(t, f.refresh)
+	const proof = "legacy-recovery-proof"
+	_, _, err := f.service.RefreshTokenWithAudit(ctx, f.refresh, proof, "", "")
+	require.NoError(t, err)
+	deadline := ageFamily(t, f.db, family, time.Hour)
+
+	service := setupAuthService(t, f.db)
+	_, recovered, err := service.RefreshTokenWithAudit(ctx, legacy, proof, "", "")
+	require.NoError(t, err)
+	head := headOfFamily(t, f.db, family)
+	require.NotNil(t, head.FamilyExpiryCap, "recovery persists the legacy deadline")
+	assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Second)
+	assert.False(t, head.Expiry.After(deadline))
+
+	_, _, err = service.RefreshToken(ctx, recovered)
+	require.NoError(t, err)
+	assert.False(t, headOfFamily(t, f.db, family).Expiry.After(deadline), "claims issued by recovery cannot bypass the deadline")
+}
+
+// A legacy switch descendant is unlinked from its original login. Switching
+// it again must not let it escape the deadline imposed at its first refresh.
+func TestLegacyFamilySwitchKeepsItsDeadline(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "legacy-switch-cap")
+	ctx := testpkg.Ctx(t)
+	family := accessSessionOf(t, f.access).FamilyID
+	deadline := ageFamily(t, f.db, family, time.Hour)
+	_, _, err := f.service.RefreshToken(ctx, legacyRefreshToken(t, f.refresh))
+	require.NoError(t, err)
+
+	access, refresh, err := f.switchToTarget(ctx, family)
+	require.NoError(t, err)
+	switchedFamily := accessSessionOf(t, access).FamilyID
+	head := headOfFamily(t, f.db, switchedFamily)
+	require.NotNil(t, head.FamilyExpiryCap, "a school switch inherits the legacy deadline")
+	assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Second)
+	assert.False(t, head.Expiry.After(deadline), "the new family cannot outlive its legacy source")
+
+	_, _, err = f.service.RefreshToken(ctx, refresh)
+	require.NoError(t, err)
+	assert.False(t, headOfFamily(t, f.db, switchedFamily).Expiry.After(deadline), "rotation of the switched family keeps the deadline")
+}

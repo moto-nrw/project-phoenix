@@ -461,9 +461,11 @@ that may descend from a switch or an Absprung (a Träger school session, or a
 tenant, school or legacy session of an account with two or more school
 mappings of any status or an active Träger membership) does not renew it: the
 successor keeps the current expiry as `family_expiry_cap`, which every later
-rotation inherits. Such a family therefore ends at the latest one refresh
-lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the deploy, and its users sign in
-once more; every other family keeps renewing, so the deploy signs nobody out.
+rotation and school switch inherit. Refresh hand-off recovery persists the
+same deadline before issuing lineage claims. Such a family therefore ends
+at the latest one refresh lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the
+deploy, and its users sign in once more; every other family keeps renewing,
+so the deploy signs nobody out.
 Until then a logout cannot reach such an unlinked family through another family
 of its lineage. Not covered: a mapping row a school erasure deleted before the
 deploy, or a Träger membership ended before it; the sessions at that school

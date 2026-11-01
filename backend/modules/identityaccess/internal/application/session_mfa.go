@@ -149,7 +149,7 @@ func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.Verif
 // adoptSourceFamily checks the family a switch presents: it must still live,
 // and a tenant or school switch inherits its second-factor proof.
 func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID int64, familyID string, session *domain.AccountSession, now time.Time) error {
-	origin, err := s.liveSourceLineage(ctx, accountID, familyID, now)
+	source, err := s.liveSourceFamily(ctx, accountID, familyID, now)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,13 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// The link is written under the account lock logout takes: a logout
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
-	session.SwitchedFromFamilyID = origin
+	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
+	// An unlinked legacy source must not escape its deadline by switching
+	// into a fresh family whose lineage claims skip the legacy transition.
+	session.FamilyExpiryCap = source.FamilyExpiryCap
+	if source.FamilyExpiryCap != nil && source.FamilyExpiryCap.Before(session.Expiry) {
+		session.Expiry = *source.FamilyExpiryCap
+	}
 	if session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool {
 		return nil
 	}
@@ -171,26 +177,32 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	return nil
 }
 
-// liveSourceLineage returns the origin of the presented family's switch
-// lineage, refusing a switch whose presented family is gone (#5194). It runs
+func (s *AccountAuthentication) liveSourceLineage(ctx context.Context, accountID int64, familyID string, now time.Time) (string, error) {
+	source, err := s.liveSourceFamily(ctx, accountID, familyID, now)
+	if err != nil {
+		return "", err
+	}
+	return domain.SwitchLineage(source), nil
+}
+
+// liveSourceFamily returns the presented family's head, refusing a switch
+// whose presented family is gone (#5194). It runs
 // under the account lock logout takes as well, so a switch that started
 // before a logout either commits first or finds the family revoked; it
 // cannot mint a new session out of a revoked one.
-func (s *AccountAuthentication) liveSourceLineage(ctx context.Context, accountID int64, familyID string, now time.Time) (string, error) {
+func (s *AccountAuthentication) liveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) (domain.AccountSession, error) {
 	if familyID == "" {
-		return "", nil
+		return domain.AccountSession{}, nil
 	}
 	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return "", identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
 	if err != nil {
-		return "", fmt.Errorf("inspect source session family: %w", err)
+		return domain.AccountSession{}, fmt.Errorf("inspect source session family: %w", err)
 	}
 	if source.AccountID != accountID || !source.Expiry.After(now) {
-		return "", identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
-	// Keep the root, not the immediate parent: cleanup may remove every
-	// intermediate family while later descendants are still valid.
-	return domain.SwitchLineage(domain.AccountSession(source)), nil
+	return domain.AccountSession(source), nil
 }
