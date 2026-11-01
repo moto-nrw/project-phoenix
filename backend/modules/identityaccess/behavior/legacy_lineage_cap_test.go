@@ -2,6 +2,7 @@ package behavior_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -203,4 +204,30 @@ func TestLegacyFamilyOfASingleSchoolAccountBecomesItsOwnOrigin(t *testing.T) {
 		WHERE family_id = ? AND rotated_at IS NULL ORDER BY generation DESC LIMIT 1`, family).Scan(ctx, &origin))
 	require.NotNil(t, origin)
 	assert.Equal(t, family, *origin)
+}
+
+// TestLegacyDeadlineSurvivesConsecutiveSwitches pins that the transition
+// deadline travels with the lineage: a family switched out of a legacy one
+// is linked, and a further switch out of it must still keep the deadline.
+func TestLegacyDeadlineSurvivesConsecutiveSwitches(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "legacy-switch-twice")
+	ctx := testpkg.Ctx(t)
+	family := accessSessionOf(t, f.access).FamilyID
+	deadline := ageFamily(t, f.db, family, time.Hour)
+
+	firstAccess, _, err := f.switchToTarget(ctx, family)
+	require.NoError(t, err)
+	secondAccess, secondRefresh, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, firstAccess).FamilyID)
+	require.NoError(t, err)
+
+	second := accessSessionOf(t, secondAccess).FamilyID
+	head := headOfFamily(t, f.db, second)
+	require.NotNil(t, head.FamilyExpiryCap, "the second switch keeps the legacy deadline")
+	assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Second)
+	assert.False(t, head.Expiry.After(deadline))
+
+	_, _, err = f.service.RefreshToken(ctx, secondRefresh)
+	require.NoError(t, err)
+	assert.False(t, headOfFamily(t, f.db, second).Expiry.After(deadline), "its rotation keeps the deadline too")
 }
