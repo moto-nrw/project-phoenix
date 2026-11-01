@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, Check, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { databaseConcept } from "~/lib/concepts/database";
 
 interface StatsCardsProps {
   readonly total: number;
@@ -45,7 +46,7 @@ export function StatsCards({
       <StatCard
         title="Gesamt"
         value={total}
-        icon={<MotoConceptIcon concept="database" size={20} />}
+        icon={<MotoConceptIcon concept={databaseConcept} size={20} />}
       />
       <StatCard
         title="Neu"

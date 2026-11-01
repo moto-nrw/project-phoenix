@@ -4,20 +4,18 @@
 // des Trägers gelten. Eine Schule kann abweichen, wo die Einstellung das
 // erlaubt; Schul-Abweichungen ändert nur die Schule selbst.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { SettingsSchema } from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
-  fetchTraegerSettingsSchema,
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
@@ -31,51 +29,14 @@ function hasWritableSetting(schema: SettingsSchema): boolean {
 }
 
 export default function TraegerSettingsPage() {
-  const [schema, setSchema] = useState<SettingsSchema | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: schema,
+    isLoading: loading,
+    loadError,
+    mutate,
+  } = useTraegerSettingsSchema();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
-  const schemaLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = schemaLoad;
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setSchema(await fetchTraegerSettingsSchema());
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_settings_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSchema(null);
-      await showLoadError(err, {
-        object: "die Liste der Einstellungen",
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError]);
-
-  // After a save the schema is read again for the stored value, its date
-  // and DependsOn. A failed refresh keeps the shown values and says so.
-  const refresh = useCallback(async () => {
-    try {
-      setSchema(await fetchTraegerSettingsSchema());
-      clearLoadError();
-    } catch (err) {
-      logger.warn("traeger_settings_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "die Liste der Einstellungen",
-        retry: () => void load(),
-      });
-    }
-  }, [clearLoadError, load, showLoadError]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const refresh = useCallback(() => mutate().catch(() => undefined), [mutate]);
 
   // Save and reset throw the ApiError of a failed request; the field shows
   // it on the shared error path.
@@ -108,17 +69,6 @@ export default function TraegerSettingsPage() {
     .flatMap((tab) => tab.categories)
     .flatMap((category) => category.items)
     .filter((item) => item.source === "traeger").length;
-  // Ein fehlgeschlagenes Nachladen lässt die gezeigten Werte stehen; die
-  // Meldung steht dann über ihnen statt an ihrer Stelle.
-  const error =
-    schemaLoad.error && schema
-      ? {
-          message: schemaLoad.error.message,
-          action: errorAlertActions(schemaLoad.error),
-          keepContent: true,
-        }
-      : schemaLoad.error;
-
   return (
     <TenantPage
       title="Einstellungen"
@@ -150,7 +100,7 @@ export default function TraegerSettingsPage() {
             }
           : undefined
       }
-      error={error}
+      error={loadError}
       loading={loading && !schema}
       empty={
         !loading && schema && tabs.length === 0

@@ -32,6 +32,8 @@ import {
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -389,7 +391,7 @@ export function CarePlanEditorModal({
               {parentAuthored ? (
                 <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
                   <MotoConceptIcon
-                    concept="parents"
+                    concept={parentsConcept}
                     size={18}
                     className="mt-0.5"
                   />
@@ -422,7 +424,7 @@ export function CarePlanEditorModal({
                 />
                 <LegSection
                   label="Abholung"
-                  icon={<MotoConceptIcon concept="pickup" size={18} />}
+                  icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                   regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
                   mode={pickupMode}
                   onModeChange={(mode) => setPickupMode(mode as PickupMode)}
@@ -441,7 +443,7 @@ export function CarePlanEditorModal({
               </div>
               <LegSection
                 label="Abholart"
-                icon={<MotoConceptIcon concept="pickup" size={18} />}
+                icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                 regularLabel={`Regulär: ${formatRegularDeparture(pickupDay, weeklyDepartureModes)}`}
                 mode={departureMode}
                 onModeChange={setDepartureMode}

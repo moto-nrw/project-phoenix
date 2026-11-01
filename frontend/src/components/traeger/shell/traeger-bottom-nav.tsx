@@ -26,6 +26,7 @@ import {
   traegerSettingsNavItemsFor,
   type TraegerNavItem,
 } from "./traeger-nav-items";
+import { moreConcept } from "~/lib/concepts/more";
 
 const PADDING = "px-4";
 const LABEL =
@@ -108,7 +109,7 @@ export function TraegerBottomNav() {
               className={portalBottomNavItemClassName(moreActive, PADDING)}
             >
               <MotoNavIcon
-                concept="more"
+                concept={moreConcept}
                 active={moreActive}
                 className="h-5 w-5 shrink-0"
               />

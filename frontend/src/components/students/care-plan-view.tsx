@@ -49,6 +49,7 @@ import { useSWRAuth } from "~/lib/swr/hooks";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 type ViewMode = "day" | "week";
 
@@ -312,7 +313,7 @@ export function CarePlanView({
         <ConceptSectionHeader
           className="border-b border-gray-100 p-4 sm:p-5"
           title="Betreuungsplan"
-          concept="carePlan"
+          concept={carePlanConcept}
           subtitle={
             viewMode === "day"
               ? formatDate(selectedDate, true)

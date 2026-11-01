@@ -28,6 +28,7 @@ const { owner } = vi.hoisted(() => ({
     id: "account-7",
     scope: "tenant",
     tenantId: 42,
+    orgId: 84,
     slug: "school-a" as string | null,
   },
 }));
@@ -48,6 +49,7 @@ beforeEach(() => {
     id: "account-7",
     scope: "tenant",
     tenantId: 42,
+    orgId: 84,
     slug: "school-a",
   });
 });
@@ -75,7 +77,7 @@ describe("shared resource factories", () => {
   });
 
   it.each(["parent", "org", "platform", "school", "caterer", ""])(
-    "puts school and account in every %s portal key",
+    "puts the portal boundary and account in every %s portal key",
     async (scope) => {
       Object.assign(owner, { scope, slug: null });
       for (const factory of factories) {
@@ -88,7 +90,7 @@ describe("shared resource factories", () => {
           expect(result.current.reader.data).toEqual({ name: scope }),
         );
         expect(result.current.key).toBe(
-          `${scope || "tenant"}:42:account-7:${factory.key()}`,
+          `${scope === "org" ? "traeger:84" : `${scope || "tenant"}:42`}:account-7:${factory.key()}`,
         );
         unmount();
       }

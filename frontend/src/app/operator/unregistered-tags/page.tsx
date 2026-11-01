@@ -26,6 +26,7 @@ import {
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { rfidConcept } from "~/lib/concepts/rfid";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -174,7 +175,7 @@ function OperatorUnregisteredTagsPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Unbekannte RFID"
-        concept="rfid"
+        concept={rfidConcept}
         tabs={tabs}
         filters={filters}
       />

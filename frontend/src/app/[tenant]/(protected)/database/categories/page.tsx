@@ -22,6 +22,7 @@ import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const CACHE_KEY = "database-categories";
 const DEFAULT_COLOR: string = LOCATION_COLORS.GROUP_ROOM;
@@ -80,7 +81,7 @@ function payloadOf(values: Record<string, unknown>) {
 }
 
 const config: CatalogConfig<ActivityCategory> = {
-  concept: "activities",
+  concept: activitiesConcept,
   // „Terminkategorien", nicht „Kategorien": im Portal heißen vier
   // verschiedene Dinge sichtbar „Kategorie" (Raum, Termin, Lohnart,
   // Personal-Dokument), und es gibt eine Terminkategorie „Gruppenraum"

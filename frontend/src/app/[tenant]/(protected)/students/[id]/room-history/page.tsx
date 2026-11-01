@@ -49,6 +49,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
 import { AttendanceExportDialog } from "~/components/students/attendance-export-dialog";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -367,7 +368,9 @@ function HistoryTable({
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
-        leading={<ConceptIconTile concept="changeHistory" variant="section" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="section" />
+        }
         bodyClassName="mt-4 -mx-5 -mb-5"
       >
         {days.length === 0 ? null : (
@@ -815,7 +818,9 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
+        }
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}

@@ -31,6 +31,13 @@ import {
   getWeekdays,
 } from "~/lib/timetable-helpers";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { childrenConcept } from "~/lib/concepts/children";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
+import { peopleConcept } from "~/lib/concepts/people";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -1074,7 +1081,11 @@ function TimeGridEventBlock({
       <div className="truncate text-xs text-gray-600">{eventTime(event)}</div>
       {event.location ? (
         <div className="flex items-center gap-1 text-xs text-gray-500">
-          <MotoConceptIcon concept="rooms" size={12} className="shrink-0" />
+          <MotoConceptIcon
+            concept={roomsConcept}
+            size={12}
+            className="shrink-0"
+          />
           <span className="truncate">{event.location}</span>
         </div>
       ) : null}
@@ -1328,13 +1339,17 @@ function CalendarEventDetail({
 
       <div className="space-y-2 text-sm text-gray-700">
         <div className="flex items-center gap-2">
-          <MotoConceptIcon concept="calendar" size={16} className="shrink-0" />
+          <MotoConceptIcon
+            concept={calendarConcept}
+            size={16}
+            className="shrink-0"
+          />
           <span>{dateLabel}</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
             <MotoConceptIcon
-              concept="careTimes"
+              concept={careTimesConcept}
               size={16}
               className="shrink-0"
             />
@@ -1342,7 +1357,11 @@ function CalendarEventDetail({
           </div>
           {event.location ? (
             <div className="flex items-center gap-2">
-              <MotoConceptIcon concept="rooms" size={16} className="shrink-0" />
+              <MotoConceptIcon
+                concept={roomsConcept}
+                size={16}
+                className="shrink-0"
+              />
               <span>{event.location}</span>
             </div>
           ) : null}
@@ -1350,7 +1369,7 @@ function CalendarEventDetail({
         {subtitle ? (
           <div className="flex items-center gap-2">
             <MotoConceptIcon
-              concept="children"
+              concept={childrenConcept}
               size={16}
               className="shrink-0"
             />
@@ -1407,7 +1426,7 @@ function CalendarEventDetail({
               download
               className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
             >
-              <MotoConceptIcon concept="calendarPeriods" size={16} />
+              <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
               Zum Kalender hinzufügen
             </a>
           ) : null}
@@ -1422,7 +1441,7 @@ function CalendarEventDetail({
                 onClose();
               }}
             >
-              <MotoConceptIcon concept="people" size={16} />
+              <MotoConceptIcon concept={peopleConcept} size={16} />
               Teilnehmer
             </Button>
           ) : null}
@@ -1456,7 +1475,7 @@ function CalendarEventDetail({
                     onClose();
                   }}
                 >
-                  <MotoConceptIcon concept="closingDays" size={16} />
+                  <MotoConceptIcon concept={closingDaysConcept} size={16} />
                   Absagen
                 </Button>
               ) : null}

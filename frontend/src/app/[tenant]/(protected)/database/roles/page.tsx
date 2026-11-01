@@ -17,7 +17,6 @@ import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -39,6 +38,7 @@ import {
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
+import { rolesConcept } from "~/lib/concepts/roles";
 
 const logger = createLogger({ component: "DatabaseRolesPage" });
 
@@ -340,8 +340,8 @@ function RolesPageContent() {
                 : "Legen Sie die erste Rolle an, um Rechte zu vergeben.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.roles.icon}
-                  tone={MOTO_CONCEPTS.roles.tone}
+                  icon={rolesConcept.icon}
+                  tone={rolesConcept.tone}
                   size={48}
                 />
               ),
@@ -402,8 +402,8 @@ function RolesPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.roles.icon}
-                tone={MOTO_CONCEPTS.roles.tone}
+                icon={rolesConcept.icon}
+                tone={rolesConcept.tone}
                 size={20}
               />
             ),

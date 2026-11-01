@@ -30,6 +30,8 @@ import {
 import { localizeNamed } from "~/lib/enrollment-translations";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -228,7 +230,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
           </section>
 
           <PublicInfoCard
-            icon={<MotoConceptIcon concept="calendar" size={22} />}
+            icon={<MotoConceptIcon concept={calendarConcept} size={22} />}
             title={t("oneFormTitle")}
           >
             {t("oneFormText")}
@@ -240,7 +242,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
             {t("emailText")}
           </PublicInfoCard>
           <PublicInfoCard
-            icon={<MotoConceptIcon concept="permissions" size={22} />}
+            icon={<MotoConceptIcon concept={permissionsConcept} size={22} />}
             title={t("reviewTitle")}
           >
             {t("reviewText")}

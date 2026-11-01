@@ -19,7 +19,6 @@ import {
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
@@ -45,6 +44,7 @@ import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { staffConcept } from "~/lib/concepts/staff";
 
 type StaffGroupingMode = "none" | "role";
 
@@ -450,8 +450,8 @@ function TeachersPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.staff.icon}
-                tone={MOTO_CONCEPTS.staff.tone}
+                icon={staffConcept.icon}
+                tone={staffConcept.tone}
                 size={20}
               />
             ),
@@ -497,8 +497,8 @@ function TeachersPageContent() {
             }
             icon={
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.staff.icon}
-                tone={MOTO_CONCEPTS.staff.tone}
+                icon={staffConcept.icon}
+                tone={staffConcept.tone}
                 size={48}
               />
             }

@@ -31,6 +31,8 @@ import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 const logger = createLogger({ component: "HomeNowStrip" });
 
@@ -185,7 +187,7 @@ export function NowStrip({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {presentCount !== undefined && (
               <p className="flex items-center gap-1.5 pr-2 text-sm whitespace-nowrap text-gray-600">
-                <MotoConceptIcon concept="present" size={18} />
+                <MotoConceptIcon concept={presentConcept} size={18} />
                 <span>
                   <span className="font-semibold text-gray-900 tabular-nums">
                     {presentCount}
@@ -267,7 +269,7 @@ function NowText({
             block.roomName ? (
               <Fragment key="room">
                 <MotoConceptIcon
-                  concept="rooms"
+                  concept={roomsConcept}
                   size={14}
                   className="mr-1 inline-block align-[-2px]"
                 />
@@ -303,7 +305,7 @@ function NowText({
             block.roomName ? (
               <Fragment key="room">
                 <MotoConceptIcon
-                  concept="rooms"
+                  concept={roomsConcept}
                   size={14}
                   className="mr-1 inline-block align-[-2px]"
                 />

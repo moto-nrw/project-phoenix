@@ -46,6 +46,7 @@ import {
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
+import { notificationsConcept } from "~/lib/concepts/notifications";
 
 const logger = createLogger({ component: "PushNotificationSection" });
 
@@ -412,7 +413,7 @@ export function PushNotificationSection({
         // Geschwisterkarten auf /profile und /parents/settings sind h3.
         level={3}
         title={t("title")}
-        concept="notifications"
+        concept={notificationsConcept}
         subtitle={headerSubtitle}
         actions={headerActions}
         actionsClassName="ms-auto flex flex-wrap items-center gap-2"

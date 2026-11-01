@@ -61,6 +61,10 @@ import {
   RequestSharingSelector,
 } from "~/components/parent/request-sharing-control";
 import { RequestEditModal } from "~/components/parent/request-edit-modal";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { childrenConcept } from "~/lib/concepts/children";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -359,7 +363,7 @@ function ChildMasterDataContent({
     <ParentSection
       title={t("sections.contact")}
       description={t("editableHint")}
-      concept="accounts"
+      concept={accountsConcept}
       actions={<OgsVisibleBadge />}
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -446,7 +450,7 @@ function ChildMasterDataContent({
       <ParentSection
         title={t("sections.health")}
         description={t("healthDirectHint")}
-        concept="sick"
+        concept={sickConcept}
       >
         <AutoSaveField
           label={t("fields.healthInfo")}
@@ -541,7 +545,7 @@ function IdentitySection({
     <ParentSection
       title={t("sections.child")}
       description={t("identityDescription")}
-      concept="children"
+      concept={childrenConcept}
       actions={
         requestable ? (
           <Button
@@ -881,7 +885,7 @@ function DepartureSection({
     <ParentSection
       title={t("sections.departure", { name: childName })}
       description={t("departureDescription")}
-      concept="pickup"
+      concept={pickupConcept}
       actions={
         requestable && !isEditing ? (
           <Button

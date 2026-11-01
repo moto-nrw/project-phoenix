@@ -26,6 +26,7 @@ import {
   type ParentNavBadgeSource,
   type ParentNavGate,
 } from "./parent-nav-items";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 export interface ParentNavCounts {
   readonly badges: Readonly<Record<ParentNavBadgeSource, number>>;
@@ -189,7 +190,7 @@ export function ParentBottomNav({
                           concept={item.concept}
                           iconConcept={
                             item.key === "children" && childCount !== 1
-                              ? "groups"
+                              ? groupsConcept
                               : undefined
                           }
                           active={active}

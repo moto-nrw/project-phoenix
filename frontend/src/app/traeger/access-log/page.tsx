@@ -30,17 +30,16 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { createLogger } from "~/lib/logger";
 import {
   downloadTraegerAccessLog,
   fetchTraegerAccessLog,
   fetchTraegerAccessLogPeople,
-  fetchTraegerSchools,
   type TraegerAccessKind,
   type TraegerAccessLogEntry,
   type TraegerAccessLogFilter,
   type TraegerAccessLogPerson,
-  type TraegerSchool,
 } from "~/lib/traeger-api";
 
 const logger = createLogger({ component: "TraegerAccessLogPage" });
@@ -146,7 +145,8 @@ export default function TraegerAccessLogPage() {
   const [schoolId, setSchoolId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [kind, setKind] = useState<KindChoice>("all");
-  const [schools, setSchools] = useState<TraegerSchool[]>([]);
+  const { schools: schoolData } = useTraegerSchools();
+  const schools = schoolData ?? [];
   const [people, setPeople] = useState<TraegerAccessLogPerson[]>([]);
   const [entries, setEntries] = useState<TraegerAccessLogEntry[]>([]);
   const [page, setPage] = useState(1);
@@ -172,18 +172,6 @@ export default function TraegerAccessLogPage() {
         : null,
     [from, to, schoolId, accountId, kind],
   );
-
-  useEffect(() => {
-    fetchTraegerSchools()
-      .then(setSchools)
-      .catch((err: unknown) => {
-        // The school filter then offers only "Alle Schulen"; the list
-        // itself still loads and shows its own error.
-        logger.warn("traeger_access_log_schools_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }, []);
 
   useEffect(() => {
     if (!from) return;

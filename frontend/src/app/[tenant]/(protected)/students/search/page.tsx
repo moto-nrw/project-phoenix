@@ -191,6 +191,7 @@ import {
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 import { useSamePageLinkClick } from "./use-same-page-link-click";
 import { useChildScopeTabs } from "./use-child-scope-tabs";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -3288,7 +3289,7 @@ function SearchPageContent() {
           rowsLoaded
             ? {
                 count: filteredStudents.length,
-                icon: <MotoConceptIcon concept="children" size={20} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={20} />,
               }
             : undefined
         }

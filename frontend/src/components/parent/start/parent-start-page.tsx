@@ -35,6 +35,12 @@ import {
 } from "~/lib/personal-calendar-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { pollsConcept } from "~/lib/concepts/polls";
+import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { parentKeys } from "~/lib/swr/parent-keys";
@@ -288,7 +294,7 @@ function StartPickupSummary({ time }: Readonly<{ time: string }>) {
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
-        concept="pickup"
+        concept={pickupConcept}
         size={28}
         className="mt-0.5 shrink-0"
         aria-hidden="true"
@@ -557,12 +563,12 @@ function todoFromAnnouncement(
   return {
     key: `announcement-${item.id}`,
     concept: declaration
-      ? "confirmations"
+      ? confirmationsConcept
       : asPoll
-        ? "polls"
+        ? pollsConcept
         : needsAcknowledgement
-          ? "confirmations"
-          : "parentMessages",
+          ? confirmationsConcept
+          : parentMessagesConcept,
     title: item.title,
     meta: formatTodoTimestamp(item.published_at, locale, t("todo.today")),
     unread: !item.read,
@@ -586,7 +592,7 @@ function todoFromAppointment(
 ): TodoItem {
   return {
     key: `appointment-${event.id}`,
-    concept: "calendar",
+    concept: calendarConcept,
     title: event.title,
     meta: formatAppointmentTimestamp(
       event,
@@ -610,7 +616,7 @@ function todoFromThread(
 ): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
-    concept: "parentConversations",
+    concept: parentConversationsConcept,
     title:
       thread.unread === 1
         ? t("todo.messageTitleOne")

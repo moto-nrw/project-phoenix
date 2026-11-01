@@ -11,6 +11,7 @@ import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 type ReviewFilter = "all" | "review";
 
@@ -66,7 +67,7 @@ export function TemplateList({
         <EmptyState
           icon={
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <MotoConceptIcon concept="carePlan" size={28} />
+              <MotoConceptIcon concept={carePlanConcept} size={28} />
             </span>
           }
           title="Keine Regeltermine in diesem Zeitraum"

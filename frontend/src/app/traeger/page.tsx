@@ -5,21 +5,21 @@
 // wechseln" hat, öffnet eine Schule ohne neue Anmeldung in einem neuen Tab
 // (#4654).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { School } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import {
-  fetchTraegerSchools,
   startTraegerSchoolSession,
   type TraegerSchool,
 } from "~/lib/traeger-api";
+import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { TRAEGER_HANDOFF_OPEN, traegerHandoffUrl } from "~/lib/traeger-handoff";
 
 const logger = createLogger({ component: "TraegerSchoolsPage" });
@@ -72,36 +72,12 @@ async function openSchool(school: TraegerSchool): Promise<void> {
 
 export default function TraegerSchoolsPage() {
   const { data: session } = useSession();
-  const [schools, setSchools] = useState<TraegerSchool[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { schools: schoolData, error: schoolsError } = useTraegerSchools();
+  const schools = schoolData ?? [];
+  const loading = schoolData === null && !schoolsError;
   const [opening, setOpening] = useState<string | null>(null);
-  const schoolsLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = schoolsLoad;
   const openErrors = useApiErrorDisplay();
   const canOpen = hasPermission(session, SCHOOL_SWITCH_RIGHT);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setSchools(await fetchTraegerSchools());
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_schools_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSchools([]);
-      await showLoadError(err, {
-        object: "die Liste der Schulen",
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const open = useCallback(
     async (school: TraegerSchool) => {
@@ -180,7 +156,7 @@ export default function TraegerSchoolsPage() {
         ) : null
       }
       statsLoading={loading}
-      error={schoolsLoad.error}
+      error={schoolsError}
     >
       <DataTable
         columns={columns}
