@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import { useMemo, useState } from "react";
@@ -167,6 +169,7 @@ export function NewGroupMessageModal({
     setTargetId("");
   };
 
+  const attempt = useMessageSendAttempt("group-message-create");
   const submit = async () => {
     if (sending) return;
     const fields: Record<string, string> = {};
@@ -178,6 +181,9 @@ export function NewGroupMessageModal({
       formError.invalid("Bitte füllen Sie alle Felder aus.", fields);
       return;
     }
+    const clientMessageId = attempt.begin(
+      JSON.stringify([type, selected.value, title.trim(), body.trim()]),
+    );
     formError.clear();
     setSending(true);
     try {
@@ -189,7 +195,9 @@ export function NewGroupMessageModal({
         },
         title: title.trim(),
         body: body.trim(),
+        client_message_id: clientMessageId,
       });
+      attempt.complete(clientMessageId);
       onCreated(detail);
     } catch (err) {
       logger.error("group_message_create_failed", {

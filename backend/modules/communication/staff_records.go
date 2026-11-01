@@ -8,6 +8,8 @@ import (
 // StaffMessageRecord and StaffThreadRecord retain all stored conversation data,
 // separate from the HTTP views. Tenant IDs never come from a write selector.
 type StaffMessageRecord struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
 	ID              int64
 	TenantID        int64
 	ThreadID        int64

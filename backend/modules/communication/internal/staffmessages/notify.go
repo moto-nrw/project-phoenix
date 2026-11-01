@@ -13,7 +13,7 @@ import (
 // recipient's devices. Both are side effects of a successful send: never let
 // either fail the send itself.
 func (s *Service) notifyAfterCommit(ctx context.Context, thread *StaffMessageThread, message *StaffMessage, senderAccountID int64) {
-	if thread == nil || message == nil {
+	if thread == nil || message == nil || message.SendReplayed {
 		return
 	}
 	s.broadcastAfterCommit(ctx, thread, senderAccountID)

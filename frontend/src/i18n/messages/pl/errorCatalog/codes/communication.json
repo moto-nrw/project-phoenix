@@ -25,5 +25,6 @@
   "staff_group_name_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "staff_group_members_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "staff_group_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "parent_messaging_disabled": "Szkoła wyłączyła wiadomości dla rodziców. To teraz nie jest możliwe."
+  "parent_messaging_disabled": "Szkoła wyłączyła wiadomości dla rodziców. To teraz nie jest możliwe.",
+  "message_send_conflict": "Ta wiadomość została już wysłana z innymi danymi. Odśwież czat."
 }

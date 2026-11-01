@@ -128,3 +128,39 @@ func TestGroupThreadAnswer_GoesOnlyToTheOGS(t *testing.T) {
 	_, err = portal.PostChildReply(ctx, b.AccountID, b.StudentID, "Zu spät", threadID)
 	require.ErrorIs(t, err, parentService.ErrGroupThreadClosed)
 }
+
+func TestGroupThreadAnswerRetryAfterCloseReturnsStoredMessage(t *testing.T) {
+	t.Parallel()
+	portal, _, db := buildGroupThreadPortal(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	other := testpkg.CreateTestParentGuardianChain(t, db)
+	_, staff := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	staffCtx := context.WithValue(testpkg.Ctx(t), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(staff.ID)})
+	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxPermissions, []string{"admin:*"})
+	var threadID int64
+	require.NoError(t, testpkg.WithinTenantContext(t, staffCtx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+		var err error
+		threadID, err = api.CreateParentGroupClassThreadForTest(ctx, testpkg.NewDatabase(t, db), staff.ID, "1a", "Sommerfest", "Wer bringt Kuchen?")
+		return err
+	}))
+	ctx := parentService.WithMessageSendID(testpkg.WithPackageTenantRuntime(context.Background()), "guardian-group-retry")
+	first, err := portal.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Wir bringen Muffins.", threadID)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTenantContext(t, staffCtx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+		return api.CloseParentGroupThreadForTest(ctx, testpkg.NewDatabase(t, db), staff.ID, threadID)
+	}))
+	retry, err := portal.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Wir bringen Muffins.", threadID)
+	require.NoError(t, err)
+	require.Len(t, retry.Messages, 1)
+	require.Equal(t, first.Messages[0].ID, retry.Messages[0].ID)
+	require.Equal(t, first.Messages[0].CreatedAt, retry.Messages[0].CreatedAt)
+	require.Equal(t, "Sommerfest", retry.Messages[0].GroupThreadTitle)
+	_, err = portal.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Anderer Text", threadID)
+	require.ErrorIs(t, err, parentService.ErrMessageSendConflict)
+	_, err = portal.PostChildReply(parentService.WithMessageSendID(ctx, "new-send-after-close"), chain.AccountID, chain.StudentID, "Wir bringen Muffins.", threadID)
+	require.ErrorIs(t, err, parentService.ErrGroupThreadClosed)
+	_, err = portal.PostChildReply(ctx, other.AccountID, other.StudentID, "Wir bringen Muffins.", threadID)
+	require.ErrorIs(t, err, parentService.ErrGroupThreadClosed)
+	_, err = portal.PostChildReply(ctx, other.AccountID, chain.StudentID, "Wir bringen Muffins.", threadID)
+	require.Error(t, err)
+}

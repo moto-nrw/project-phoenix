@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import {
@@ -307,6 +309,7 @@ function MessageThreadContent() {
   };
 
   const [draft, setDraft] = useState("");
+  const draftRevision = useRef(0);
   const isSending = send.pending;
   // Ein Sendefehler steht direkt über dem Eingabefeld (#2517).
   const sendError = useApiFormError();
@@ -357,6 +360,7 @@ function MessageThreadContent() {
     // view (#5011).
   }, [thread, sendError.error]);
 
+  const attempt = useMessageSendAttempt(messageKeys.messageThread(threadId));
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || isSending || !messagingEnabled) return;
@@ -366,6 +370,7 @@ function MessageThreadContent() {
       );
       return;
     }
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     send.dismiss();
@@ -373,7 +378,22 @@ function MessageThreadContent() {
     // a bubble still on its way.
     const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
     setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
     const outcome = await send.run({
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        sendError.clear();
+      },
+      confirmed: (current) =>
+        current.messages.some(
+          (message) => message.client_message_id === clientMessageId,
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -388,7 +408,8 @@ function MessageThreadContent() {
           },
         ],
       }),
-      request: () => postMessage(threadId, body, lastConfirmedId),
+      request: () =>
+        postMessage(threadId, body, lastConfirmedId, clientMessageId),
       // The postMessage response carries the rebuilt "current → requested"
       // diff inline on every still-open request (like the GET path), so the
       // review card keeps its comparison before the revalidate lands.
@@ -405,10 +426,19 @@ function MessageThreadContent() {
           key.startsWith(messageKeys.messagesInboxFamily()),
       },
     });
-    if (outcome.status !== "failed") return;
+    if (outcome.status === "done") attempt.complete(clientMessageId);
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
+      return;
+    failed = true;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
-    setDraft((current) => (current === "" ? body : current));
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
     logger.error("thread_message_send_failed", {
       error: err instanceof Error ? err.message : String(err),
       thread_id: threadId,
@@ -634,7 +664,10 @@ function MessageThreadContent() {
             {messagingEnabled ? (
               <MessageComposer
                 value={draft}
-                onChange={setDraft}
+                onChange={(value) => {
+                  draftRevision.current += 1;
+                  setDraft(value);
+                }}
                 onSend={() => void handleSend()}
                 sending={isSending}
                 disabled={snapshotUnavailable}

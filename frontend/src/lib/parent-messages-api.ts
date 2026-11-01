@@ -254,11 +254,13 @@ export async function postMessage(
   threadId: string,
   body: string,
   handledUpToMessageId?: string,
+  clientMessageId?: string,
 ): Promise<Message[]> {
   const result = await postEnvelope<Message[]>(
     `/api/messages/threads/${threadId}`,
     {
       body,
+      client_message_id: clientMessageId,
       ...(handledUpToMessageId
         ? { handled_up_to_message_id: handledUpToMessageId }
         : {}),

@@ -7,11 +7,18 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { ApiError } from "~/lib/api-error";
 import type { StaffMessagesApi } from "~/lib/staff-messages-api";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
@@ -212,7 +219,14 @@ describe("TeamChatThread (#2517)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => expect(api.postMessage).toHaveBeenCalledTimes(2));
-    expect(api.postMessage).toHaveBeenLastCalledWith("t1", "Bin unterwegs");
+    const firstKey = vi.mocked(api.postMessage).mock.calls[0]?.[2];
+    expect(firstKey).toEqual(expect.any(String));
+    expect(firstKey).not.toBe("");
+    expect(api.postMessage).toHaveBeenLastCalledWith(
+      "t1",
+      "Bin unterwegs",
+      firstKey,
+    );
   });
 });
 
@@ -304,6 +318,134 @@ describe("TeamChatThread optimistic send (#5011)", () => {
     expect(bubble("Bin unterwegs")).toBeInTheDocument();
     expect(screen.getByLabelText("Nachricht")).toHaveValue("Bin unterwegs");
     expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    "finishes a read-confirmed failed draft without resending it (edited: %s)",
+    async (edited) => {
+      api.postMessage.mockRejectedValueOnce(
+        new ApiError("response lost", 503, { code: "general.unavailable" }),
+      );
+      await typeAndSend("Danke");
+      await screen.findByText("Nicht gesendet");
+      const firstKey = api.postMessage.mock.calls[0]?.[2];
+      expect(firstKey).toEqual(expect.any(String));
+      if (edited) {
+        fireEvent.change(screen.getByLabelText("Nachricht"), {
+          target: { value: "" },
+        });
+        fireEvent.change(screen.getByLabelText("Nachricht"), {
+          target: { value: "Danke" },
+        });
+      }
+      const saved = {
+        id: "m2",
+        sender_account_id: "1",
+        sender_name: "Ich",
+        body: "Danke",
+        created_at: "2026-09-09T10:05:00Z",
+        client_message_id: firstKey,
+      };
+      api.fetchThread.mockResolvedValue({
+        ...thread,
+        messages: [...thread.messages, saved],
+      });
+      const refresh = vi
+        .mocked(useMessagesActivity)
+        .mock.calls.at(-1)?.[0].onMatch;
+      expect(refresh).toBeTypeOf("function");
+      await act(async () => {
+        refresh?.();
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByText("Danke", { selector: "span" }),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Nicht gesendet")).not.toBeInTheDocument();
+      });
+      expect(screen.getByLabelText("Nachricht")).toHaveValue(
+        edited ? "Danke" : "",
+      );
+      expect(
+        screen.getByText("Danke", { selector: "span" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Wiederholen" }),
+      ).not.toBeInTheDocument();
+      if (!edited)
+        fireEvent.change(screen.getByLabelText("Nachricht"), {
+          target: { value: "Danke" },
+        });
+      api.postMessage.mockImplementationOnce(async (_thread, body, key) => {
+        const next = { ...saved, id: "m3", body, client_message_id: key };
+        api.fetchThread.mockResolvedValue({
+          ...thread,
+          messages: [...thread.messages, saved, next],
+        });
+        return next;
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+      await waitFor(() => expect(api.postMessage).toHaveBeenCalledTimes(2));
+      expect(api.postMessage.mock.calls[1]?.[2]).toEqual(expect.any(String));
+      expect(api.postMessage.mock.calls[1]?.[2]).not.toBe(firstKey);
+      await waitFor(() =>
+        expect(screen.getAllByText("Danke", { selector: "span" })).toHaveLength(
+          2,
+        ),
+      );
+    },
+  );
+
+  it("honors a resource refusal even after a read confirmed the send", async () => {
+    let rejectSend!: (error: unknown) => void;
+    api.postMessage.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectSend = reject;
+        }),
+    );
+    await typeAndSend("Danke");
+    const key = api.postMessage.mock.calls[0]?.[2];
+    api.fetchThread.mockResolvedValue({
+      ...thread,
+      messages: [
+        ...thread.messages,
+        {
+          id: "m2",
+          sender_account_id: "1",
+          sender_name: "Ich",
+          body: "Danke",
+          created_at: "2026-09-09T10:05:00Z",
+          client_message_id: key,
+        },
+      ],
+    });
+    const refresh = vi
+      .mocked(useMessagesActivity)
+      .mock.calls.at(-1)?.[0].onMatch;
+    expect(refresh).toBeTypeOf("function");
+    await act(async () => {
+      refresh?.();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText("Danke", { selector: "span" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument();
+    });
+    await act(async () => {
+      rejectSend(
+        new ApiError("Forbidden", 403, { code: "general.permission" }),
+      );
+    });
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Unterhaltung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Hallo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Danke")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
   });
 
   it("drops the conversation on a refusal and shows the refusal", async () => {
