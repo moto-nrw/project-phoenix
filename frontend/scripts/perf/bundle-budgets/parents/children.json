@@ -9,6 +9,11 @@
     "/parents/children/[id]": {
       "referenceBytes": 918122,
       "maxBytes": 936484
+    },
+    "/parents/children/[id]/elternsprechtag": {
+      "referenceBytes": 794710,
+      "maxBytes": 811628,
+      "_reason": "#4801: Neue Elternsprechtag-Seite. Referenz aus der Branch-Messung übernommen; unverändert 2 % Toleranz. #5399: +1 KiB für die Abmelde-Sperre, die jede angemeldete Eltern-Seite trägt."
     }
   }
 }

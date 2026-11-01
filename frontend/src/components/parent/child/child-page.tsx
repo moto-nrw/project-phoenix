@@ -7,7 +7,8 @@ import {
   UsersIcon,
 } from "@phosphor-icons/react/ssr";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -35,12 +36,15 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   UNKNOWN_CHILD_TODAY,
+  fetchChildParentConferences,
   getChildToday,
   listMyChildren,
   type Child,
   type ChildToday,
 } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
+import { parseISODate } from "~/lib/date-helpers";
+import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import { requiresGuardianReason } from "~/lib/parent-request-reason";
 import { SharingOptionsProvider } from "~/components/parent/sharing-options-context";
 import { ChildRequestsProvider } from "~/components/parent/child-requests-context";
@@ -49,6 +53,10 @@ import {
   ParentPageHeader,
   ParentPageSkeleton,
 } from "~/components/parent/parent-page";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { childrenConcept } from "~/lib/concepts/children";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildPage" });
 
@@ -219,7 +227,11 @@ export function ChildPage({
             data-testid="child-profile-icon"
             className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50"
           >
-            <MotoConceptIcon concept="children" size={28} aria-hidden="true" />
+            <MotoConceptIcon
+              concept={childrenConcept}
+              size={28}
+              aria-hidden="true"
+            />
           </span>
         }
         backHref={
@@ -462,6 +474,8 @@ function ChildAreaTabs({
   onCareRefresh: () => void;
 }>) {
   const t = useTranslations("parentChild");
+  const conferenceT = useTranslations("parentConference");
+  const locale = useLocale();
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
   // Ein Reiter lädt seine Daten erst beim ersten Öffnen. Danach bleibt er
   // gemountet und nur verborgen, damit Eingaben und geladene Listen beim
@@ -470,122 +484,178 @@ function ChildAreaTabs({
     () => new Set(["betreuung"]),
   );
   const masterData = useChildMasterData(child.student_id);
+  // Elternsprechtag (#4801): nur sichtbar, wenn die Klasse einen hat. Ein
+  // Ladefehler bleibt still, denn der Eintrag ist nur ein Weg zur Seite des
+  // Sprechtags, die ihren Fehler selbst zeigt.
+  const [conferences, setConferences] = useState<ParentConferenceOffer[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetchChildParentConferences(child.student_id)
+      .then((loaded) => {
+        if (active) setConferences(loaded);
+      })
+      .catch((err: unknown) => {
+        logger.warn("parent_child_conferences_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [child.student_id]);
+  const booking = conferences.find((offer) => offer.booking);
 
   return (
-    <Tabs
-      value={activeArea}
-      onValueChange={(value) => {
-        const area = value as ChildArea;
-        setActiveArea(area);
-        setOpenedAreas((opened) =>
-          opened.has(area) ? opened : new Set(opened).add(area),
-        );
-      }}
-      className="space-y-5"
-    >
-      <div className="pb-1">
-        <TabsList
-          aria-label={t("areas.label")}
-          data-parent-tour="child-area-tabs"
-          className="flex h-auto w-full gap-1 rounded-xl bg-gray-100 p-1"
+    <>
+      {conferences.length > 0 ? (
+        <ParentSection
+          title={conferenceT("entryTitle")}
+          description={
+            booking?.booking
+              ? conferenceT("entryBooked", {
+                  date: parseISODate(booking.date).toLocaleDateString(locale, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  }),
+                  time: conferenceT("timeRange", {
+                    from: booking.booking.start_time,
+                    to: booking.booking.end_time,
+                  }),
+                })
+              : conferenceT("entryDescription", { child: child.first_name })
+          }
+          concept={calendarConcept}
+          actions={
+            <ButtonLink
+              href={parentPath(
+                `/parents/children/${encodeURIComponent(child.student_id)}/elternsprechtag`,
+              )}
+              variant="outline"
+              size="md"
+            >
+              {booking
+                ? conferenceT("entryActionBooked")
+                : conferenceT("entryAction")}
+            </ButtonLink>
+          }
+        />
+      ) : null}
+      <Tabs
+        value={activeArea}
+        onValueChange={(value) => {
+          const area = value as ChildArea;
+          setActiveArea(area);
+          setOpenedAreas((opened) =>
+            opened.has(area) ? opened : new Set(opened).add(area),
+          );
+        }}
+        className="space-y-5"
+      >
+        <div className="pb-1">
+          <TabsList
+            aria-label={t("areas.label")}
+            data-parent-tour="child-area-tabs"
+            className="flex h-auto w-full gap-1 rounded-xl bg-gray-100 p-1"
+          >
+            <AreaTab
+              value="betreuung"
+              label={t("areas.care.title")}
+              shortLabel={t("areas.care.shortTitle")}
+              icon={CalendarDotsIcon}
+              tourId="child-care-tab"
+            />
+            <AreaTab
+              value="angaben"
+              label={t("areas.data.title")}
+              shortLabel={t("areas.data.shortTitle")}
+              icon={IdentificationCardIcon}
+              tourId="child-data-tab"
+            />
+            <AreaTab
+              value="kontakte"
+              label={t("areas.contacts.title")}
+              shortLabel={t("areas.contacts.shortTitle")}
+              icon={UsersIcon}
+              tourId="child-contacts-tab"
+            />
+          </TabsList>
+        </div>
+
+        <TabsContent
+          forceMount
+          value="betreuung"
+          data-parent-tour="child-care"
+          className="mt-0 space-y-5 data-[state=inactive]:hidden"
         >
-          <AreaTab
-            value="betreuung"
-            label={t("areas.care.title")}
-            shortLabel={t("areas.care.shortTitle")}
-            icon={CalendarDotsIcon}
-            tourId="child-care-tab"
-          />
-          <AreaTab
-            value="angaben"
-            label={t("areas.data.title")}
-            shortLabel={t("areas.data.shortTitle")}
-            icon={IdentificationCardIcon}
-            tourId="child-data-tab"
-          />
-          <AreaTab
-            value="kontakte"
-            label={t("areas.contacts.title")}
-            shortLabel={t("areas.contacts.shortTitle")}
-            icon={UsersIcon}
-            tourId="child-contacts-tab"
-          />
-        </TabsList>
-      </div>
-
-      <TabsContent
-        forceMount
-        value="betreuung"
-        data-parent-tour="child-care"
-        className="mt-0 space-y-5 data-[state=inactive]:hidden"
-      >
-        {(sickDays.length > 0 || excusedRequests.length > 0) && (
-          <ParentSection title={t("care.absenceTitle")} concept="sick">
-            <SickStatusSummary
-              studentId={child.student_id}
-              sickDays={sickDays}
-              excusedRequests={excusedRequests}
-              canEdit={canEditAbsenceRequests}
-              reasonRequired={reasonRequired}
-              onEdited={onCareRefresh}
-            />
-          </ParentSection>
-        )}
-        <BookedCareSection
-          studentId={child.student_id}
-          childFirstName={child.first_name}
-          careEnded={careEnded}
-          enrolledUntil={child.enrolled_until}
-          reasonRequired={reasonRequired}
-        />
-        {/* Kurse (#3075): eigener Abschnitt, damit eine Kursanfrage nicht
-            zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
-            die Schule sie aus, rendert der Abschnitt nichts. */}
-        <CoursesSection studentId={child.student_id} careEnded={careEnded} />
-        <ChildMasterDataView
-          studentId={child.student_id}
-          childName={childName}
-          area="departure"
-          masterData={masterData}
-        />
-      </TabsContent>
-
-      <TabsContent
-        forceMount
-        value="angaben"
-        data-parent-tour="child-data"
-        className="mt-0 space-y-5 data-[state=inactive]:hidden"
-      >
-        {openedAreas.has("angaben") && (
-          <>
-            <ChildMasterDataView
-              studentId={child.student_id}
-              childName={childName}
-              area="details"
-              masterData={masterData}
-            />
-            <ChildConsentsSection studentId={child.student_id} />
-          </>
-        )}
-      </TabsContent>
-
-      <TabsContent
-        forceMount
-        value="kontakte"
-        data-parent-tour="child-contacts"
-        className="mt-0 data-[state=inactive]:hidden"
-      >
-        {openedAreas.has("kontakte") && (
-          <GuardiansPanel
+          {(sickDays.length > 0 || excusedRequests.length > 0) && (
+            <ParentSection title={t("care.absenceTitle")} concept={sickConcept}>
+              <SickStatusSummary
+                studentId={child.student_id}
+                sickDays={sickDays}
+                excusedRequests={excusedRequests}
+                canEdit={canEditAbsenceRequests}
+                reasonRequired={reasonRequired}
+                onEdited={onCareRefresh}
+              />
+            </ParentSection>
+          )}
+          <BookedCareSection
             studentId={child.student_id}
-            canInvite={canInvite}
-            canRemove={canRemove}
-            canAddContact={canAddContact}
-            canManagePickup={canManagePickup}
+            childFirstName={child.first_name}
+            careEnded={careEnded}
+            enrolledUntil={child.enrolled_until}
+            reasonRequired={reasonRequired}
           />
-        )}
-      </TabsContent>
-    </Tabs>
+          {/* Kurse (#3075): eigener Abschnitt, damit eine Kursanfrage nicht
+              zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
+              die Schule sie aus, rendert der Abschnitt nichts. */}
+          <CoursesSection studentId={child.student_id} careEnded={careEnded} />
+          <ChildMasterDataView
+            studentId={child.student_id}
+            childName={childName}
+            area="departure"
+            masterData={masterData}
+          />
+        </TabsContent>
+
+        <TabsContent
+          forceMount
+          value="angaben"
+          data-parent-tour="child-data"
+          className="mt-0 space-y-5 data-[state=inactive]:hidden"
+        >
+          {openedAreas.has("angaben") && (
+            <>
+              <ChildMasterDataView
+                studentId={child.student_id}
+                childName={childName}
+                area="details"
+                masterData={masterData}
+              />
+              <ChildConsentsSection studentId={child.student_id} />
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent
+          forceMount
+          value="kontakte"
+          data-parent-tour="child-contacts"
+          className="mt-0 data-[state=inactive]:hidden"
+        >
+          {openedAreas.has("kontakte") && (
+            <GuardiansPanel
+              studentId={child.student_id}
+              canInvite={canInvite}
+              canRemove={canRemove}
+              canAddContact={canAddContact}
+              canManagePickup={canManagePickup}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }
 
@@ -627,7 +697,7 @@ function PickupSummary({
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
-        concept="pickup"
+        concept={pickupConcept}
         size={28}
         className="mt-0.5"
         aria-hidden="true"

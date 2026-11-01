@@ -48,6 +48,7 @@ import { ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
@@ -314,7 +315,7 @@ function ChangeRequestsOverview({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-            <MotoConceptIcon concept="parentConversations" size={20} />
+            <MotoConceptIcon concept={parentConversationsConcept} size={20} />
           </span>
           <div>
             <h2 className="text-base font-semibold text-gray-900">

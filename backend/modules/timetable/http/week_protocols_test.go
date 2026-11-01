@@ -63,6 +63,16 @@ func (r *weekProtocolRenderer) RenderReport(doc timetable.WeekProtocolReportDocu
 // weekProtocolDayLog answers one group with two missing children.
 type weekProtocolDayLog struct{ groupID int64 }
 
+// SchoolDayAttendance answers the whole school as the one group's day.
+func (d weekProtocolDayLog) SchoolDayAttendance(ctx context.Context, day calendar.Date) (timetable.WeekProtocolGroupDay, error) {
+	days, err := d.GroupDayAttendance(ctx, day, nil)
+	if err != nil {
+		return timetable.WeekProtocolGroupDay{}, err
+	}
+	days[0].GroupID = 0
+	return days[0], nil
+}
+
 func (d weekProtocolDayLog) GroupDayAttendance(context.Context, calendar.Date, []int64) ([]timetable.WeekProtocolGroupDay, error) {
 	return []timetable.WeekProtocolGroupDay{{GroupID: d.groupID, Present: 8, Sick: 1, Absent: 1, Missing: []timetable.WeekProtocolMissingChild{
 		{StudentID: 1, Name: "Mia Kurz", Reason: timetable.WeekProtocolAbsenceSick, Label: "Krank"},

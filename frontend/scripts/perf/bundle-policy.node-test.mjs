@@ -10,6 +10,7 @@ import {
   BUDGET_FORMAT,
   compareBudgets,
   legacyCeiling,
+  NEAR_CEILING_BYTES,
   readBudgets,
 } from "./bundle-policy.mjs";
 
@@ -21,35 +22,48 @@ const approved = new Map([
   ],
 ]);
 
-test("bundle policy retains migration ceilings except the explicit #5260 room-detail increase", () => {
+/**
+ * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
+ * #5260 room detail (logout safeguards) and #5399: the parents'
+ * Elternsprechtag page (#4801) was budgeted without room for the
+ * session-end barrier every signed-in page carries.
+ */
+const increases = new Map([
+  ["/[tenant]/rooms/[id]", 2_048],
+  ["/parents/children/[id]/elternsprechtag", 1_024],
+]);
+
+test("bundle policy retains migration ceilings except the explicit increases", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
   assert.ok(budgets.size > 0);
   assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
-    referenceBytes: 1_024_021,
-    maxBytes: 1_046_549,
+    referenceBytes: 1_026_710,
+    maxBytes: 1_049_292,
   });
   for (const [route, budget] of budgets) {
-    const increase = route === "/[tenant]/rooms/[id]" ? 2_048 : 0;
     assert.equal(
       budget.maxBytes,
-      legacyCeiling(budget.referenceBytes) + increase,
+      legacyCeiling(budget.referenceBytes) + (increases.get(route) ?? 0),
       route,
     );
   }
 });
 
-test("the #5260 room-detail policy still rejects one byte over its ceiling", () => {
-  const route = "/[tenant]/rooms/[id]";
+test("each increased policy still rejects one byte over its ceiling", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
-  const { maxBytes } = budgets.get(route);
-  assert.deepEqual(
-    compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
-    [],
-  );
-  assert.equal(
-    compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
-    1,
-  );
+  for (const route of increases.keys()) {
+    const { maxBytes } = budgets.get(route);
+    assert.deepEqual(
+      compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
+      [],
+      route,
+    );
+    assert.equal(
+      compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
+      1,
+      route,
+    );
+  }
 });
 
 test("a significant improvement passes without lowering an observation baseline", () => {
@@ -72,12 +86,44 @@ test("retired routes do not require cleanup of old observations", () => {
 });
 
 test("the absolute ceiling still fails when a rolling PR delta is tiny", () => {
-  const measured = new Map([["/parents/children", 111_000]]);
-  const base = new Map([["/parents/children", 110_000]]);
+  // The base keeps more than NEAR_CEILING_BYTES of headroom (cap 110 240).
+  const measured = new Map([["/parents/children", 110_300]]);
+  const base = new Map([["/parents/children", 109_000]]);
   const result = compareBudgets(approved, measured, base);
-  assert.equal(result.rows[0].delta, 1_000);
+  assert.equal(result.rows[0].delta, 1_300);
   assert.equal(result.failures.length, 1);
   assert.match(result.failures[0], /Obergrenze/);
+});
+
+test("a base within NEAR_CEILING_BYTES of its ceiling leaves PRs to their own delta (#5396)", () => {
+  const route = "/parents/children";
+  const limit = approved.get(route).maxBytes;
+  const over = new Map([[route, limit + 13]]);
+  const near = compareBudgets(
+    approved,
+    over,
+    new Map([[route, limit - NEAR_CEILING_BYTES + 1]]),
+  );
+  assert.deepEqual(near.failures, []);
+  assert.equal(near.warnings.length, 1);
+  assert.match(near.warnings[0], /eigenes Delta/);
+  const intact = compareBudgets(
+    approved,
+    over,
+    new Map([[route, limit - NEAR_CEILING_BYTES]]),
+  );
+  assert.equal(intact.failures.length, 1);
+  assert.match(intact.failures[0], /Obergrenze/);
+  // Development pushes, the nightly and release PRs compare without a base.
+  assert.equal(compareBudgets(approved, over).failures.length, 1);
+  // The own delta still blocks next to the ceiling.
+  assert.ok(
+    compareBudgets(
+      approved,
+      new Map([[route, limit + 11_000]]),
+      new Map([[route, limit - 100]]),
+    ).failures.some((failure) => /eigenes PR-Delta/.test(failure)),
+  );
 });
 
 test("own PR delta over tolerance fails even with plenty of absolute headroom", () => {
@@ -104,9 +150,11 @@ test("historical baseline drift plus 512 B own growth passes (#5181/#5213)", () 
     new Map([[route, 1_079_590]]),
   );
   assert.equal(result.rows[0].delta, 512);
-  // Crossing a previously intact absolute budget is still a separate failure.
-  assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /Obergrenze/);
+  // The base sat 229 B under the ceiling: the crossing warns on the PR and
+  // stays red on development until the ceiling is reset (#5396).
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /Obergrenze/);
   policies.get(route).maxBytes = 1_100_000;
   assert.deepEqual(
     compareBudgets(

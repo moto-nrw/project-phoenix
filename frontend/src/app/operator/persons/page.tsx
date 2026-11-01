@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -19,6 +21,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
+import { peopleConcept } from "~/lib/concepts/people";
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -43,9 +46,9 @@ function OperatorPersonsPageContent() {
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && selectedSchool
-      ? `operator-school-persons-${selectedSchool.id}`
+      ? operatorProvisioningKeys.schoolPersons(selectedSchool.id)
       : null,
     () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
     {
@@ -78,7 +81,11 @@ function OperatorPersonsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Personen" concept="people" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Personen"
+        concept={peopleConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="person"

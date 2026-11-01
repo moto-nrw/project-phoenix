@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ func TestCatererInvitationsQueryBudget(t *testing.T) {
 		add(4)
 		large := run()
 		assert.Equal(t, len(small), len(large), "the list must not grow a statement per invitation")
-		testpkg.AssertQueryBudget(t, "modules.identityaccess.caterer_invitations.reads", large)
+		querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_invitations.reads", large)
 		return nil
 	}))
 }
@@ -73,7 +74,7 @@ func TestCatererSchoolsQueryBudget(t *testing.T) {
 	}
 	large := run()
 	assert.Equal(t, len(small), len(large), "the read must not grow a statement per school")
-	testpkg.AssertQueryBudget(t, "modules.identityaccess.caterer_schools.reads", large)
+	querybudgets.AssertQueryBudget(t, "modules.identityaccess.caterer_schools.reads", large)
 }
 
 // The operator lists the caterer accounts and their second factor in a

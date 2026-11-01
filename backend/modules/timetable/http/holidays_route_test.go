@@ -21,6 +21,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type holidayRouteSetup struct {
@@ -159,5 +160,5 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 	)
 	decodeHolidayList(t, response)
 	t.Logf("query budget: holiday list → %d queries", counter.Total())
-	testpkg.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
 }

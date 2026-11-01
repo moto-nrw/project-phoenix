@@ -7414,6 +7414,26 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.MorningAttendanceBetween; modules/studentpresence/internal/application/morning_attendance.go:14. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.MorningAttendanceBetween; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
       "classification": "query",
       "effect": "query",
@@ -14013,7 +14033,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
-      "reason": "Read-only newly exposed target: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolAttendance.GroupDayAttendance. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolAttendance.GroupDayAttendance. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098). Re-reviewed for #5401: the entry mapping moved into weekProtocolGroupDayOf, shared with the whole-school day; still read-only.",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
       "target_owner": "presence-legacy-view"
@@ -14023,9 +14043,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
-      "reason": "Read-only development seed adapter: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolSeedAttendance.GroupDayAttendance. It reads the current day while the local seed records sample data for Sunday; no persistent, lock or scope effect.",
+      "reason": "Read-only development seed adapter: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolSeedAttendance.GroupDayAttendance. It reads the current day while the local seed records sample data for Sunday; no persistent, lock or scope effect. Re-reviewed for #5401: its source port gained the whole-school day; this binding still forwards the group read unchanged.",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAttendance.SchoolDayAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.SchoolDayAttendance",
+      "reason": "Read-only target: timetable-activities reaches modules/presenceprojection/http.Resource.SchoolDayLog (presence-legacy-view) through api.weekProtocolAttendance.SchoolDayAttendance: the whole school's day log of an open-care school's weekly protocol (#5401), every child of the day once. It writes no data access entry; no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.SchoolDayLog",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.SchoolDayAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.SchoolDayAttendance",
+      "reason": "Read-only development seed adapter: timetable-activities reaches modules/presenceprojection/http.Resource.SchoolDayLog (presence-legacy-view) through api.weekProtocolSeedAttendance.SchoolDayAttendance. It reads the current day's whole-school day log while the local seed records sample data for Sunday (#5401); no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.SchoolDayLog",
       "target_owner": "presence-legacy-view"
     },
     {

@@ -23,7 +23,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mutate } from "swr";
+import { useInvalidateFamily } from "~/lib/swr";
+import { mutate } from "~/lib/swr/mutate";
+import { SWR_FAMILIES } from "~/lib/swr/shell-keys";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useTenantSafe } from "~/lib/tenant-context";
@@ -31,7 +34,6 @@ import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   SEARCH_STUDENTS_ALL_GROUPS_KEY,
   SEARCH_STUDENTS_KEY_PREFIX,
@@ -68,7 +70,7 @@ export const MAX_FLUSH_WAIT_MS = 1000;
 // "staff-dashboard-summary-" (staff time tracking, which has its own
 // staff_time_tracking_changed trigger + refresh interval) — refetching both on
 // every check-in was a large part of the #2057 request herd.
-const DASHBOARD_COUNT_CACHE_KEYS = ["dashboard-analytics"] as const;
+const DASHBOARD_COUNT_CACHE_KEYS = [dashboardKeys.analytics()] as const;
 
 // Every cache family derived from work sessions, absences, balance
 // adjustments, month-close snapshots, contractual schedules, or planned
@@ -281,6 +283,7 @@ function currentStudentDetailId(): string | null {
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  const invalidateFamily = useInvalidateFamily();
   const tenantID = session?.user?.tenantId;
   const tenant = useTenantSafe()?.tenant;
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
@@ -363,6 +366,36 @@ export function useGlobalSSE(): SSEHookState {
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
   // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
+    const families = new Set<string>();
+    if (hasPendingGroupAccessEvent.current) {
+      families.add(SWR_FAMILIES.groups);
+      families.add(SWR_FAMILIES.me);
+      families.add(SWR_FAMILIES.staff);
+    }
+    if (
+      hasPendingStaffTimeTrackingEvent.current ||
+      hasPendingTimetableEvent.current
+    ) {
+      families.add(SWR_FAMILIES.staff);
+    }
+    if (
+      hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
+      hasPendingDashboardEvent.current ||
+      hasPendingStudentUpdateEvent.current ||
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0
+    ) {
+      families.add(SWR_FAMILIES.rooms);
+    }
+    for (const family of families) {
+      void invalidateFamily(family).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: family,
+        });
+      });
+    }
     if (hasPendingStaffTimeTrackingEvent.current) {
       mutate(
         (key) =>
@@ -532,14 +565,8 @@ export function useGlobalSSE(): SSEHookState {
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
             // section above it refreshes (#1374).
-            // Room overview cards on /rooms use their own direct rooms
-            // list cache. A room move changes studentCount there even
-            // though the Room entity itself did not change.
-            // (ROOM_LIST_CACHE_KEYS = the three /api/rooms list caches —
-            // NOT room-derived-caches' ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-            // which contains "ogs-students-" and would
-            // silently re-broaden the #2057 scoping if swapped in.)
-            ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
+            // Room lists are invalidated once via SWR_FAMILIES.rooms above.
+            key.includes("room-detail-")),
       ).catch((err) => {
         // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
@@ -877,7 +904,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingTimetableEvent.current = false;
     hasPendingGroupAccessEvent.current = false;
     hasPendingGroupSubscriptionRefresh.current = false;
-  }, []);
+  }, [invalidateFamily]);
 
   const scheduleFlush = useCallback(() => {
     const now = Date.now();

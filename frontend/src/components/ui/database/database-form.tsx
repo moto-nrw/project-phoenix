@@ -1,7 +1,8 @@
 "use client";
 
+import { studentKeys } from "~/lib/swr/portal-keys";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -10,7 +11,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { FieldLabel } from "~/components/ui/field-label";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseForm" });
 
@@ -244,7 +245,7 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
 }
 
 /** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */
@@ -333,11 +334,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
     hasPrivacyConsentFields(sections)
       ? initialData.id
       : null;
-  const { data: privacyConsent } = useSWR(
-    privacyStudentId
-      ? `/api/students/${privacyStudentId}/privacy-consent`
-      : null,
+  const { data: privacyConsent } = useSWRAuth(
+    privacyStudentId ? studentKeys.privacyConsent(privacyStudentId) : null,
     () => fetchPrivacyConsentForStudent(privacyStudentId!),
+    { keepPreviousData: false },
   );
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const formRef = useRef<HTMLFormElement>(null);

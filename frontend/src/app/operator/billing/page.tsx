@@ -1,9 +1,10 @@
 "use client";
 
+import { operatorBillingKeys } from "~/lib/swr/portal-keys";
 import { Suspense, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -40,11 +41,12 @@ import {
   type BillingKeyDateCount,
   type BillingKeyDay,
 } from "~/lib/operator/billing-api";
+import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "OperatorBillingPage" });
 
-const KEY_DAY_SWR_KEY = "operator-billing-key-day";
-const COUNTS_SWR_KEY = "operator-billing-key-date-counts";
+const KEY_DAY_SWR_KEY = operatorBillingKeys.keyDay();
+const COUNTS_SWR_KEY = operatorBillingKeys.counts();
 
 const KEY_DAY_OPTIONS = Array.from(
   { length: BILLING_KEY_DAY_MAX - BILLING_KEY_DAY_MIN + 1 },
@@ -189,7 +191,7 @@ function KeyDaySection({
             <CustomSelect
               id="billing-key-day"
               name="key_day"
-              labelId="billing-key-day-label"
+              ariaLabelledBy="billing-key-day-label"
               value={draft}
               options={KEY_DAY_OPTIONS}
               onChange={setDraft}
@@ -260,8 +262,10 @@ function OperatorBillingPageContent() {
     error: keyDayError,
     isLoading: keyDayLoading,
     mutate: mutateKeyDay,
-  } = useSWR(isAuthenticated ? KEY_DAY_SWR_KEY : null, () =>
-    operatorBillingService.getKeyDay(),
+  } = useSWRAuth(
+    isAuthenticated ? KEY_DAY_SWR_KEY : null,
+    () => operatorBillingService.getKeyDay(),
+    { keepPreviousData: false },
   );
   const keyDayLoadError = useSwrLoadError(
     keyDayError,
@@ -273,8 +277,10 @@ function OperatorBillingPageContent() {
     isLoading: countsLoading,
     error: countsError,
     mutate: mutateCounts,
-  } = useSWR(isAuthenticated ? COUNTS_SWR_KEY : null, () =>
-    operatorBillingService.listKeyDateCounts(),
+  } = useSWRAuth(
+    isAuthenticated ? COUNTS_SWR_KEY : null,
+    () => operatorBillingService.listKeyDateCounts(),
+    { keepPreviousData: false },
   );
   const countsLoadError = useSwrLoadError(
     countsError,
@@ -327,7 +333,7 @@ function OperatorBillingPageContent() {
     <div className="-mt-1.5 w-full space-y-6">
       <PageHeaderWithSearch
         title="Stichtagszahlen"
-        concept="reports"
+        concept={reportsConcept}
         tabs={{
           items: [{ id: "billing", label: "Stichtagszahlen" }],
           activeTab: "billing",

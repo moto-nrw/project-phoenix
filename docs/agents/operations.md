@@ -34,7 +34,9 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
-| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure) |
+| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
+| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`) and `test-changed.sh --fast` for committed, uncommitted and untracked changes. Steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
+| Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
@@ -110,6 +112,15 @@ After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
+
+Seeded E2E (`test:e2e`) and guide generation use the frontend port from
+`PORT`, as `next dev` and `next start` do; without `PORT` that is 3000. Run
+them through `scripts/dev-native.sh frontend`, which sets `PORT` to the
+worktree's `FRONTEND_HOST_PORT`. Playwright then reuses or starts only the
+worktree's own frontend and never tests another checkout's server on 3000.
+If the port already serves a frontend started from another checkout, the
+Playwright config stops with that checkout's path (`e2e/own-server.ts`, local
+runs with `lsof` only).
 
 ### Synthetic network E2E suites
 
@@ -374,6 +385,39 @@ the regular API. Expired or revoked proof falls back to a real login using
 Mailpit. Delete that directory to force fresh logins; it is local credential
 state and must not be uploaded. Keep the same working directory between seed
 and simulation commands.
+
+## Shared machine resources
+
+Several agent sessions, worktrees and their dev servers share one machine.
+These mistakes damage another session's work, not your own:
+
+1. **Stopping by pattern.** `pkill -f`, `pgrep … | xargs kill`, `killall` and
+   killing whatever holds a port match by name, path or port. Your own agent's
+   command line contains your worktree path, and other sessions run the same
+   tools. Stop a PID you captured when you started it, or a listener whose
+   working directory you checked (`lsof -a -p <pid> -d cwd`) is your worktree.
+   `scripts/dev-native.sh down` stops only its own PID files.
+2. **Shared state.** The Git stash stack belongs to every worktree: no bare
+   `git stash`/`git stash pop`. The test database server on `TEST_DB_PORT` is
+   shared on purpose; tests isolate through clones and run IDs, so never drop
+   its databases or stop it while other runs may use it. Never run
+   `docker compose down -v`, `docker volume rm` or `docker * prune` for a
+   Compose project that is not your worktree's.
+3. **Shared ports.** Every linked worktree gets its own frontend, backend,
+   Postgres and Mailpit ports: `wt add` leases them, and
+   `scripts/worktree-ports.sh` (run by `scripts/dev-native.sh` and
+   `devbox run bootstrap`) assigns a stable slot from the worktree path when a
+   worktree still has the main checkout's defaults. It also moves `localhost`
+   URLs in `.env`, `backend/dev.env` and `frontend/.env.local` that still name a
+   default port. The main checkout keeps 3000/8080.
+
+## Cached check results
+
+`scripts/pre-push.sh`, the frontend guard run in `scripts/test-frontend-changed.mjs`
+and `scripts/check-changed.mjs` reuse a pass for byte-identical inputs. A
+share of those hits runs anyway (`PHX_CACHE_VERIFY_RATE`, default `0.05`;
+`0` never, `1` always). A failing verification removes the cached pass and
+names the stage: its cache key misses an input, so report it.
 
 ## Cleanup CLI
 

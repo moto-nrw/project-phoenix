@@ -28,6 +28,8 @@ vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
   getChildToday: vi.fn().mockResolvedValue({ at_ogs: null, state: "unknown" }),
   UNKNOWN_CHILD_TODAY: { at_ogs: null, state: "unknown" },
+  // Elternsprechtag (#4801): without a day the entry stays hidden.
+  fetchChildParentConferences: vi.fn().mockResolvedValue([]),
 }));
 
 // Die schweren Abschnitte laden eigene Daten; hier zaehlt nur, DASS sie in der

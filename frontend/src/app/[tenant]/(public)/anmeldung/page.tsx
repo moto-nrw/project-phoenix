@@ -24,6 +24,8 @@ import { localizeNamed } from "~/lib/enrollment-translations";
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
 
@@ -204,7 +206,7 @@ export default function EnrollPhasePickerPage() {
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-8">
               <PublicInfoCard
-                icon={<MotoConceptIcon concept="calendar" size={22} />}
+                icon={<MotoConceptIcon concept={calendarConcept} size={22} />}
                 title={t("chooseOfferTitle")}
               >
                 {t("chooseOfferText")}
@@ -216,7 +218,9 @@ export default function EnrollPhasePickerPage() {
                 {t("submitText")}
               </PublicInfoCard>
               <PublicInfoCard
-                icon={<MotoConceptIcon concept="permissions" size={22} />}
+                icon={
+                  <MotoConceptIcon concept={permissionsConcept} size={22} />
+                }
                 title={t("statusTitle")}
               >
                 {t("statusText")}

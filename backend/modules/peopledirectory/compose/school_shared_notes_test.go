@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // The OGS releases a note for the school (#4797): off by default, set and
@@ -156,5 +157,5 @@ func TestSchoolSharedNotesListQueryBudget(t *testing.T) {
 	large := list(6)
 
 	assert.Equal(t, small, large, "the statement count must not grow with the released notes")
-	testpkg.AssertQueryBudget(t, "modules.peopledirectory.school_shared_notes.list", reads())
+	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.school_shared_notes.list", reads())
 }

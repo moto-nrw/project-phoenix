@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR, { useSWRConfig } from "swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -19,6 +21,7 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
+import { accountsConcept } from "~/lib/concepts/accounts";
 
 const ACCOUNT_SWR_PREFIXES = [
   "operator-all-accounts",
@@ -60,15 +63,15 @@ function OperatorAccountsPageContent() {
     SchoolAccount | OrgAccount | null
   >(null);
 
-  const { mutate: globalMutate } = useSWRConfig();
+  const refreshFamily = useTenantMutateMatching(ACCOUNT_SWR_PREFIXES);
 
   const {
     data: schoolAccounts,
     error: schoolAccountsError,
     isLoading: schoolAccountsLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && selectedSchool
-      ? `operator-school-accounts-${selectedSchool.id}`
+      ? operatorProvisioningKeys.schoolAccounts(selectedSchool.id)
       : null,
     () => operatorProvisioningService.listSchoolAccounts(selectedSchool!.id),
     {
@@ -82,9 +85,9 @@ function OperatorAccountsPageContent() {
     data: orgAccounts,
     error: orgAccountsError,
     isLoading: orgAccountsLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && filterOrgId && !selectedSchool
-      ? `operator-org-accounts-${filterOrgId}`
+      ? operatorProvisioningKeys.orgAccounts(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationAccounts(filterOrgId),
     {
@@ -98,9 +101,9 @@ function OperatorAccountsPageContent() {
     data: allAccounts,
     error: allAccountsError,
     isLoading: allAccountsLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && !filterOrgId && !selectedSchool
-      ? "operator-all-accounts"
+      ? operatorProvisioningKeys.allAccounts()
       : null,
     () => operatorProvisioningService.listAllAccounts(),
     {
@@ -110,13 +113,7 @@ function OperatorAccountsPageContent() {
     },
   );
 
-  const refreshAccounts = useCallback(() => {
-    return globalMutate(
-      (key: unknown) =>
-        typeof key === "string" &&
-        ACCOUNT_SWR_PREFIXES.some((p) => key.startsWith(p)),
-    );
-  }, [globalMutate]);
+  const refreshAccounts = useCallback(() => refreshFamily(), [refreshFamily]);
 
   // Only one of the three lists is active at a time.
   const accountsLoadError = useSwrLoadError(
@@ -183,7 +180,11 @@ function OperatorAccountsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Konten" concept="accounts" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Konten"
+        concept={accountsConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="account"

@@ -141,6 +141,7 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/calendar",
   "/children",
   "/children/:id",
+  "/children/:id/elternsprechtag",
   "/demo",
   // Dokumente des Trägers (#4671).
   "/documents",
@@ -166,6 +167,8 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/einstellungen",
   "/elternbriefe",
   "/elternbriefe/:id",
+  "/elternsprechtag",
+  "/fehlzeiten",
   "/invite",
   "/kalender",
   "/klasse",

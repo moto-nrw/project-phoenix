@@ -70,6 +70,9 @@
   "api/parent/me/children/[studentId]/meal-plan": [
     "GET parent /parent/me/children/studentId%2F1/meal-plan"
   ],
+  "api/parent/me/children/[studentId]/parent-conferences": [
+    "GET parent /parent/me/children/studentId%2F1/parent-conferences"
+  ],
   "api/parent/me/children/[studentId]/pickup-change-requests": [
     "GET parent /parent/me/children/studentId%2F1/pickup-change-requests"
   ],

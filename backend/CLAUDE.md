@@ -65,8 +65,8 @@ Before completing a backend code change:
    including runtime access and transaction boundaries, not just imports.
    Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
    baseline, and composition-inventory diffs; green only proves detected rules.
-2. Run `scripts/test-changed.sh --fast origin/development` before push; CI runs
-   the full affected closure.
+2. Run `scripts/run-go-toolchain.sh scripts/check-changed.mjs` before push;
+   CI runs the full affected closure.
 3. Fill in **Backend-Architektur** in the
    [PR template](../.github/PULL_REQUEST_TEMPLATE.md) with the boundary rationale
    and evidence it requires. Update it after backend fixes so it describes the
@@ -82,7 +82,7 @@ conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
-**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `querybudgets.AssertQueryBudget` (package `test/query-budgets`, kept apart from `testpkg` so a budget edit retests only the packages that assert budgets). The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 

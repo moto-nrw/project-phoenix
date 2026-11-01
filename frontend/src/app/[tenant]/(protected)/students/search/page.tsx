@@ -1,5 +1,7 @@
 "use client";
 
+import { rooms as roomKeys } from "~/lib/swr/rooms";
+import { groups as groupKeys } from "~/lib/swr/groups";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -45,7 +47,7 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { studentService, groupService, roomService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -155,7 +157,6 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
-import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
   normalizeSearchStudentsGroupId,
   SEARCH_STUDENTS_KEY_PREFIX,
@@ -190,6 +191,7 @@ import {
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 import { useSamePageLinkClick } from "./use-same-page-link-click";
 import { useChildScopeTabs } from "./use-child-scope-tabs";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -1488,34 +1490,12 @@ function SearchPageContent() {
 
   // Fetch groups with SWR (immutable - only fetched once)
   const { data: groups = [] } = useImmutableSWR<Group[]>(
-    "search-groups-list",
-    async () => {
-      try {
-        return await groupService.getGroups();
-      } catch {
-        // Bewusst still: ohne groups:read fehlt die Liste regelmäßig. Der
-        // Filter bietet dann keine Gruppen an, die Kinderliste selbst lädt
-        // und filtert unverändert weiter.
-        logger.warn("could not load groups for filter");
-        return [];
-      }
-    },
+    groupKeys.key(),
+    groupKeys.fetcher,
   );
-
-  // Room names/options are mutable from the rooms admin page, so this must
-  // revalidate stale cache entries when the search page remounts.
   const { data: rooms = [] } = useSWRAuth<Room[]>(
-    SEARCH_ROOMS_LIST_CACHE_KEY,
-    async () => {
-      try {
-        return await roomService.getRooms({ page: 1, pageSize: 1000 });
-      } catch {
-        // Bewusst still wie bei den Gruppen: ohne Raumliste bietet der
-        // Filter keine Räume an, die Kinderliste lädt unverändert weiter.
-        logger.warn("could not load rooms for filter");
-        return [];
-      }
-    },
+    roomKeys.key({ page: 1, pageSize: 1000 }),
+    () => roomKeys.fetcher({ page: 1, pageSize: 1000 }),
   );
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
@@ -3309,7 +3289,7 @@ function SearchPageContent() {
           rowsLoaded
             ? {
                 count: filteredStudents.length,
-                icon: <MotoConceptIcon concept="children" size={20} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={20} />,
               }
             : undefined
         }

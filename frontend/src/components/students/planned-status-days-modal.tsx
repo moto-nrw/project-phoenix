@@ -43,6 +43,7 @@ import {
   formatDate as formatCalendarDate,
   parseISODate,
   toISODate,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import {
   StudentStatusDayConflictError,
@@ -51,6 +52,9 @@ import {
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -189,7 +193,9 @@ export function PlannedStatusDaysModal({
         ? "Klassenfahrt speichern"
         : "Entschuldigen";
   const currentWeekDates = useMemo(() => {
-    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const monday = startOfWeek(parseISODate(berlinTodayISO()), {
+      weekStartsOn: 1,
+    });
     return Array.from({ length: 5 }, (_, index) => addDays(monday, index));
   }, []);
   const activeExistingDays = useMemo(
@@ -368,7 +374,7 @@ export function PlannedStatusDaysModal({
 
   const resetForm = useCallback(
     (prefillClassTrip: boolean) => {
-      const today = new Date();
+      const today = parseISODate(berlinTodayISO());
       const todayKey = toISODate(today);
       setSelectionMode("individual");
       clearSubmitError();
@@ -795,7 +801,11 @@ export function PlannedStatusDaysModal({
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
                   <MotoConceptIcon
                     concept={
-                      isClassTrip ? "classTrip" : isSick ? "sick" : "excused"
+                      isClassTrip
+                        ? classTripConcept
+                        : isSick
+                          ? sickConcept
+                          : excusedConcept
                     }
                     size={22}
                   />

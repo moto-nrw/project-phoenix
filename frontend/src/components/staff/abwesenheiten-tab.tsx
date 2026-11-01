@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSWRConfig } from "swr";
 import {
   ArrowLeftRight,
   CalendarClock,
@@ -80,12 +79,12 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   formatDate,
   berlinTodayISO,
   parseISODate,
-  todayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import {
@@ -152,8 +151,10 @@ function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
   );
 }
 
-function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
-  const today = todayISO();
+function upcomingAbsences(
+  absences: StaffAbsenceRow[],
+  today: string,
+): StaffAbsenceRow[] {
   return absences.filter(
     (absence) =>
       (absence.status === "approved" || absence.status === "reported") &&
@@ -161,8 +162,10 @@ function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
   );
 }
 
-function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
-  const today = todayISO();
+function historicalAbsences(
+  absences: StaffAbsenceRow[],
+  today: string,
+): StaffAbsenceRow[] {
   return absences
     .filter(
       (absence) =>
@@ -226,7 +229,8 @@ export function AbwesenheitenTab({
   readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
-  const currentYear = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
+  const today = useBerlinToday();
+  const currentYear = Number.parseInt(today.slice(0, 4), 10);
   // Ein Jahr für alle Kontingente und die Listen darunter (#3256): im
   // Dezember lässt sich so der Anspruch fürs nächste Jahr eintragen.
   const [year, setYear] = useState(currentYear);
@@ -277,7 +281,12 @@ export function AbwesenheitenTab({
   const [loadFailed, setLoadFailed] = useState(false);
   // „Wiederholen“ lädt das aktuell gewählte Jahr.
   const latestReloadRef = useRef<() => Promise<void>>(async () => undefined);
-  const { mutate: swrMutate } = useSWRConfig();
+  // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
+  // outside this component and otherwise stays stale after approvals,
+  // denials and stornos.
+  const refreshPendingBadges = useTenantMutateMatching([
+    "staff-pending-absences-",
+  ]);
 
   // A sick report / its deletion cascades into the Dienst- and
   // Vertretungsplan, so revalidate those caches alongside the local reload.
@@ -324,15 +333,7 @@ export function AbwesenheitenTab({
             summary: summaries[index]!,
           })),
         );
-        // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
-        // outside this component and otherwise stays stale after approvals,
-        // denials and stornos. useSWRAuth prefixes every key with the tenant
-        // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
-        // never matches, we use includes for the cache hit.
-        swrMutate(
-          (key) =>
-            typeof key === "string" && key.includes("staff-pending-absences-"),
-        );
+        void refreshPendingBadges();
         // Sidebar pending counter (#1419) listens for this event.
         dispatchAbsencesRefresh();
       } catch (err) {
@@ -349,7 +350,7 @@ export function AbwesenheitenTab({
         setLoading(false);
       }
     },
-    [staff, staffId, year, swrMutate, showLoadError, clearLoadError],
+    [staff, staffId, year, refreshPendingBadges, showLoadError, clearLoadError],
   );
   useLayoutEffect(() => {
     latestReloadRef.current = () => reload();
@@ -361,8 +362,14 @@ export function AbwesenheitenTab({
   }, [reload]);
 
   const pending = useMemo(() => pendingAbsences(absences), [absences]);
-  const upcoming = useMemo(() => upcomingAbsences(absences), [absences]);
-  const history = useMemo(() => historicalAbsences(absences), [absences]);
+  const upcoming = useMemo(
+    () => upcomingAbsences(absences, today),
+    [absences, today],
+  );
+  const history = useMemo(
+    () => historicalAbsences(absences, today),
+    [absences, today],
+  );
   const canRebook =
     canManageSickReports &&
     staff !== undefined &&

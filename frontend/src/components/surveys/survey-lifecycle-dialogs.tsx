@@ -30,6 +30,7 @@ import {
   participantLabel,
 } from "./survey-meta";
 import { SURVEY_MIN_RESPONSES } from "./survey-questionnaire";
+import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "SurveyLifecycle" });
 
@@ -289,7 +290,7 @@ export function buildSurveyMenuItems(
   if (handlers.onView) {
     items.push({
       label: survey.status === "draft" ? "Anzeigen" : "Auswertung anzeigen",
-      icon: <MotoConceptIcon concept="reports" size={16} />,
+      icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
       onClick: handlers.onView,
     });
   }

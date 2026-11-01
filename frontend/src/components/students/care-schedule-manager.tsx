@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { mutate } from "swr";
+import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Button } from "~/components/ui/button";
 import {
@@ -59,7 +59,7 @@ import {
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { parseISODate } from "~/lib/date-helpers";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -99,6 +99,12 @@ import type {
   StudentStatusDay,
   StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
+import { excusedConcept } from "~/lib/concepts/excused";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -123,8 +129,8 @@ function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
 
 function weeklyPickupAdjustmentPayload(
   data: CarePlanWeeklySubmit,
-  adjustment?: CarePlanWeeklyAdjustment,
-  effectiveFrom = formatDateISO(new Date()),
+  adjustment: CarePlanWeeklyAdjustment | undefined,
+  effectiveFrom: string,
 ): PickupAdjustmentPayload {
   return {
     schedules: data.pickupSchedules.map((schedule) => ({
@@ -150,7 +156,7 @@ async function applyWeeklyPickupAdjustment(
     preview = await previewStudentPickupAdjustment(studentId, payload);
     if (
       preview.resolution_required ||
-      payload.effective_from > formatDateISO(new Date())
+      payload.effective_from > berlinTodayISO()
     ) {
       return preview;
     }
@@ -344,8 +350,8 @@ export function CareScheduleManager({
   const weekRange = useMemo(
     () =>
       formatWeekRange(
-        weekDays[0] ?? new Date(),
-        weekDays[weekDays.length - 1] ?? new Date(),
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+        weekDays[weekDays.length - 1] ?? parseISODate(berlinTodayISO()),
       ),
     [weekDays],
   );
@@ -683,8 +689,10 @@ export function CareScheduleManager({
         }
         return;
       }
-      const today = formatDateISO(new Date());
-      const weekStart = formatDateISO(weekDays[0] ?? new Date());
+      const today = berlinTodayISO();
+      const weekStart = formatDateISO(
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+      );
       const basePayload = weeklyPickupAdjustmentPayload(
         data,
         adjustment,
@@ -990,7 +998,7 @@ export function CareScheduleManager({
       <div className="border-b border-gray-100 p-4 sm:p-5">
         <ConceptSectionHeader
           title="Betreuungszeiten"
-          concept="careTimes"
+          concept={careTimesConcept}
           subtitle={weekRange}
           actions={
             // While the section is in its edit state the week controls step
@@ -1389,7 +1397,7 @@ function CareDayCard({
             ) : null}
             {parentChanged ? (
               <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                <MotoConceptIcon concept="parents" size={14} />
+                <MotoConceptIcon concept={parentsConcept} size={14} />
                 Von Eltern
               </span>
             ) : null}
@@ -1471,12 +1479,12 @@ function AbsencePlaceholder({
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
   if (!status) return null;
-  const concept: MotoConceptKey =
+  const concept: MotoConcept =
     status === "class_trip"
-      ? "classTrip"
+      ? classTripConcept
       : status === "sick"
-        ? "sick"
-        : "excused";
+        ? sickConcept
+        : excusedConcept;
   const label =
     status === "class_trip"
       ? "Ganztägig Klassenfahrt"
@@ -1571,7 +1579,7 @@ function CareBoundaryRow({
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
-            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            MotoConceptIcon setzt seine Farbe selbst aus dem Konzept und
             ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
             deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
             Auto auf Orange. */}
@@ -1757,7 +1765,7 @@ function getCareBoundaries(
       value: getArrivalValue(day.arrival),
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
-      icon: <MotoConceptIcon concept="careTimes" size={18} />,
+      icon: <MotoConceptIcon concept={careTimesConcept} size={18} />,
       onEdit: actions.onEditArrival,
     },
     {
@@ -1766,7 +1774,7 @@ function getCareBoundaries(
       value: getPickupValue(day.pickup),
       description: getPickupDescription(day.pickup),
       marker: getPickupMarker(day.pickup),
-      icon: <MotoConceptIcon concept="pickup" size={18} />,
+      icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
       onEdit: actions.onEditPickup,
     },
     // Die Abholart erscheint nur an einem Tag, an dem sie vom Wochenplan
@@ -1784,7 +1792,7 @@ function getCareBoundaries(
               ? `Grund: ${day.pickup.departureException.reason}`
               : "Nur an diesem Tag",
             marker: "Ausnahme",
-            icon: <MotoConceptIcon concept="pickup" size={18} />,
+            icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
             onEdit: actions.onEditPickup,
           },
         ]

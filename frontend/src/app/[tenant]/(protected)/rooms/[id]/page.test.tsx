@@ -74,6 +74,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  useSWRSeedFrom: () => () => undefined,
   useTenantMutate: () => vi.fn(() => Promise.resolve()),
   useTenantMutateMatching: () => vi.fn(() => Promise.resolve()),
 }));
@@ -92,7 +93,6 @@ vi.mock("~/lib/api", async (importOriginal) => ({
 }));
 
 vi.mock("~/components/rooms/room-detail-content", () => ({
-  roomDetailKey: (id: string) => `room-detail-${id}`,
   useRoomDetail: (roomId: string) => useRoomDetailMock(roomId),
   RoomDetailContent: ({ room }: { room: { name: string } }) => (
     <div data-testid="room-overview">{room.name}</div>

@@ -40,6 +40,21 @@ export const SCHOOL_EVENT_TYPE_LABELS: Record<SchoolEventType, string> = {
   sonstiges: "Sonstiges",
 };
 
+/**
+ * Art eines Schultermins im Kalender. „elternsprechtag“ trägt ein gebuchtes
+ * Zeitfenster am Elternsprechtag (#4801); es entsteht nur durch die Buchung,
+ * nie im Formular eines Schultermins.
+ */
+export type CalendarSchoolEventType = SchoolEventType | "elternsprechtag";
+
+export const CALENDAR_SCHOOL_EVENT_TYPE_LABELS: Record<
+  CalendarSchoolEventType,
+  string
+> = {
+  ...SCHOOL_EVENT_TYPE_LABELS,
+  elternsprechtag: "Elternsprechtag",
+};
+
 export interface CalendarEvent {
   readonly id: string;
   readonly source: CalendarSource;
@@ -70,7 +85,7 @@ export interface CalendarEvent {
   readonly can_edit: boolean;
   readonly can_view_overview?: boolean;
   /** Gesetzt, wenn eine Lehrkraft den Termin als Schultermin angelegt hat. */
-  readonly school_event_type?: SchoolEventType;
+  readonly school_event_type?: CalendarSchoolEventType;
 }
 
 export interface CalendarResponse {

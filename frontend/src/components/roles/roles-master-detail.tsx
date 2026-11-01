@@ -28,13 +28,13 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { RolePermissionsTab } from "~/components/roles/role-permissions-tab";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   getBaseRoleLabel,
   getRoleDisplayDescription,
   getRoleDisplayName,
   type Role,
 } from "@/lib/auth-helpers";
+import { rolesConcept } from "~/lib/concepts/roles";
 
 interface RolesMasterDetailProps {
   roles: Role[];
@@ -231,8 +231,8 @@ function RoleDetailContent({
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.roles.icon}
-              tone={MOTO_CONCEPTS.roles.tone}
+              icon={rolesConcept.icon}
+              tone={rolesConcept.tone}
               size={36}
             />
           }
@@ -317,8 +317,8 @@ function RoleStammdatenTab({
         title="Rollendetails"
         icon={
           <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.roles.icon}
-            tone={MOTO_CONCEPTS.roles.tone}
+            icon={rolesConcept.icon}
+            tone={rolesConcept.tone}
             size={18}
           />
         }

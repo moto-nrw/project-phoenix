@@ -71,6 +71,8 @@ import { nextCareDayISO, previousCareDayISO } from "~/lib/timetable-helpers";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "TagesplanView" });
 
@@ -226,7 +228,7 @@ function TagesplanRow({
     room ? (
       <Fragment key="room">
         <MotoConceptIcon
-          concept="rooms"
+          concept={roomsConcept}
           size={14}
           className="mr-1 inline-block align-[-2px]"
         />
@@ -281,7 +283,7 @@ function TagesplanRow({
         {staff && !cancelled ? (
           <span className="block truncate text-xs text-gray-400">
             <MotoConceptIcon
-              concept="staff"
+              concept={staffConcept}
               size={14}
               className="mr-1 inline-block align-[-2px]"
             />

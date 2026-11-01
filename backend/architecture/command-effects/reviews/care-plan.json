@@ -1134,6 +1134,37 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation enters the existing Care Lifecycle tenant unit through TransactionRunner.RunInTx. Scope and transaction ownership stay with the platform protocol (ADR 0098); this report performs no owner writes.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.ListEnded",
       "classification": "platform",
       "effect": "scope",
@@ -1605,6 +1636,38 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.OfferingChangeDependencies.Today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0143",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -3221,6 +3284,37 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation enters the existing Care Lifecycle tenant unit through TransactionRunner.RunInTx. Scope and transaction ownership stay with the platform protocol (ADR 0098); this report performs no owner writes.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "classification": "query",
       "effect": "query",
@@ -3600,6 +3694,70 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.OfferingChangeDependencies.Today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0143",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0143",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -4656,6 +4814,70 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.OfferingChangeDependencies.Today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0143",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0143",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -12105,6 +12327,16 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CapacityPeaks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.CapacityPeaks",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.OfferingCapacityPeaks; modules/enrollment/booking_capacity.go:85. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.OfferingCapacityPeaks",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CatalogState",
       "classification": "query",
       "effect": "query",
@@ -12219,9 +12451,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriods",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecords; modules/enrollment/offering_selection_record.go:136. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; maps the student identity with the care period and has no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecords; modules/enrollment/offering_selection_record.go:136. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecords",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecordsByStudentIDs; modules/enrollment/offering_selection_record.go:149. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecordsByStudentIDs",
       "target_owner": "enrollment"
     },
     {
@@ -12229,7 +12471,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/compose.New; modules/timetableprojection/compose/compose.go:5. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed after the group-specific excluded-student map was added: read/value/construction method with no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/compose.New; modules/timetableprojection/compose/compose.go:5. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose.New",
       "target_owner": "timetable-legacy-view"
@@ -12239,7 +12481,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments; modules/timetableprojection/internal/adapters/postgres/projection.go:77. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed after the group-specific excluded-student map was added: read/value/construction method with no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments; modules/timetableprojection/internal/adapters/postgres/projection.go:77. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments",
       "target_owner": "timetable-legacy-view"
@@ -12249,17 +12491,37 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/transactionruntime/compose.Database.Pool (transaction-runtime) through roots/owners.ManualPlanningReader.CountActiveCourseEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed after the group-specific excluded-student map was added: care-plan reaches modules/transactionruntime/compose.Database.Pool (transaction-runtime) through roots/owners.ManualPlanningReader.CountActiveCourseEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose.Database.Pool",
       "target_owner": "transaction-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.CourseGroup.ParticipantLimit; modules/timetable/course_group_links.go:65. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.CourseGroupsByID; modules/timetable/course_group_links.go:56. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroupsByID",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsForOfferings",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsForOfferings",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.CourseGroup.ParticipantLimit; modules/timetable/course_group_links.go:55. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.CourseGroup.ParticipantLimit; modules/timetable/course_group_links.go:65. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",
       "target_owner": "timetable-activities"
@@ -12524,6 +12786,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByID; modules/peopledirectory/internal/application/student_records_boundary.go:23. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeStudents.FindStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeStudents.FindStudents",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.StudentState.IsAlumnus; modules/peopledirectory/student_state.go:73. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentState.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeStudents.FindStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeStudents.FindStudents",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByIDs; modules/peopledirectory/ports/repository_contracts.go:87. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
       "target_owner": "people-directory"
     },
     {

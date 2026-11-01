@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 const INITIAL_TODO_COUNT = 5;
 
@@ -26,7 +26,7 @@ const INITIAL_TODO_COUNT = 5;
 
 export interface TodoItem {
   readonly key: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly title: string;
   readonly context: string;
   readonly meta?: Readonly<{

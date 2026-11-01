@@ -166,6 +166,8 @@ import type { parentChildMissingTopic as authored_parentChildMissingTopic } from
 
 import type { parentChildOverviewTopic as authored_parentChildOverviewTopic } from "./articles/parent-child-overview";
 
+import type { parentConferenceTopic as authored_parentConferenceTopic } from "./articles/parent-conference";
+
 import type { parentDeclarationTopic as authored_parentDeclarationTopic } from "./articles/parent-declaration";
 
 import type { parentDepartureTopic as authored_parentDepartureTopic } from "./articles/parent-departure";
@@ -254,6 +256,8 @@ import type { tagAssignmentTopic as authored_tagAssignmentTopic } from "./articl
 
 import type { targetOverrideTopic as authored_targetOverrideTopic } from "./articles/target-override";
 
+import type { teacherAbsenceListTopic as authored_teacherAbsenceListTopic } from "./articles/teacher-absence-list";
+
 import type { teacherAbsenceReportTopic as authored_teacherAbsenceReportTopic } from "./articles/teacher-absence-report";
 
 import type { teacherAccessTopic as authored_teacherAccessTopic } from "./articles/teacher-access";
@@ -289,6 +293,8 @@ import type { teacherMorningAttendanceTopic as authored_teacherMorningAttendance
 import type { teacherNoClassesTopic as authored_teacherNoClassesTopic } from "./articles/teacher-no-classes";
 
 import type { teacherNoticesTopic as authored_teacherNoticesTopic } from "./articles/teacher-notices";
+
+import type { teacherParentConferenceTopic as authored_teacherParentConferenceTopic } from "./articles/teacher-parent-conference";
 
 import type { teacherParentLettersTopic as authored_teacherParentLettersTopic } from "./articles/teacher-parent-letters";
 
@@ -4069,6 +4075,8 @@ export const manageActivityTopic = function manageActivityTopic(
     differences: [
       "Eine Aktivität kann am Tablet mehrfach gewählt werden. Termine mit Uhrzeit stehen im Betreuungsplan.",
       "Aktivitäten anderer Personen können Sie ansehen, aber nicht immer bearbeiten.",
+      // #4767: Plätze und Warteliste einer AG.
+      "Dürfen Sie Anfragen von Eltern entscheiden? Dann sehen Sie bei einer Aktivität `Plätze und Warteliste`. Dort steht, wer dabei ist und wer wartet.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.carePlan],
   };
@@ -5234,6 +5242,16 @@ export const parentCareChangeTopic =
           ],
         },
         {
+          // #3075, #4767: Kurse mit Warteliste.
+          title: "Einen Kurs anfragen",
+          steps: [
+            "Gehen Sie im Reiter `Betreuung` zum Abschnitt `Kurse`.",
+            "Tippen Sie beim gewünschten Kurs auf `Anfragen`.",
+            "Ist der Kurs voll? Dann kommt Ihre Anfrage auf die Warteliste. Sie sehen Ihren Platz, zum Beispiel `Warteliste, Platz 2`.",
+            "Wird ein Platz frei, bestätigt die OGS die Anfrage in dieser Reihenfolge. Sie bekommen dann eine Nachricht.",
+          ],
+        },
+        {
           title: "Die gebuchte Betreuung ändern",
           steps: [
             "Gehen Sie zum Abschnitt `Gebuchte Betreuung`.",
@@ -5410,6 +5428,43 @@ export const parentChildOverviewTopic =
       ],
     };
   } satisfies typeof authored_parentChildOverviewTopic;
+
+/** `/parents/children/<id>/elternsprechtag`: Termin buchen (#4801). */
+export const parentConferenceTopic =
+  function parentConferenceTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.parentConference,
+      title: "Einen Termin am Elternsprechtag buchen",
+      question: "Wie buche ich einen Termin bei der Lehrkraft?",
+      summary:
+        "Bietet die Lehrkraft einen Elternsprechtag an, buchen Sie eine freie Zeit für Ihr Kind.",
+      group: "nachrichten",
+      audience: "parent",
+      icon: "CalendarPlus",
+      steps: [
+        "Tippen Sie unten auf `Mein Kind`.",
+        "Haben Sie mehrere Kinder, wählen Sie oben das Kind.",
+        "Wählen Sie bei `Elternsprechtag` die Schaltfläche `Termin buchen`.",
+        "Tippen Sie unter `Freie Zeiten` auf eine Uhrzeit.",
+      ],
+      result:
+        "Der Termin ist gebucht. Er steht in Ihrem Kalender, und Sie bekommen eine Nachricht.",
+      notes: [
+        "Sie buchen einen Termin je Kind. Haben Sie zwei Kinder in der Klasse, buchen Sie für jedes Kind einzeln.",
+        "Tippen Sie auf eine andere Zeit, um Ihren Termin zu verschieben. Mit `Termin absagen` sagen Sie ab.",
+      ],
+      differences: [
+        "Sie sehen Zeiten ohne Schaltflächen? Für dieses Kind dürfen Sie nicht buchen. Fragen Sie bei Bedarf die Schule.",
+        "Sie sehen nur freie Zeiten. Was andere Familien gebucht haben, sehen Sie nicht.",
+        "Ändert die Lehrkraft den Tag oder sagt ihn ab, bekommen Sie eine Nachricht.",
+      ],
+      troubleshootingDetails: [
+        "Sie sehen keinen `Elternsprechtag`? Dann bietet die Lehrkraft der Klasse zurzeit keinen an.",
+        "Sie können nicht mehr buchen oder absagen? Bis 24 Stunden vor dem Termin ist das in der App möglich. Danach wenden Sie sich direkt an die Lehrkraft.",
+      ],
+      related: [HELP_TOPICS.parentCalendar, HELP_TOPICS.parentChildOverview],
+    };
+  } satisfies typeof authored_parentConferenceTopic;
 
 /**
  * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
@@ -6276,6 +6331,7 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Die Bezugsperson sieht die Nachricht in der Eltern-App. Sie wird dort im Namen der OGS angezeigt.",
     differences: [
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
+      "Schaltet die Schule Eltern-Nachrichten während einer offenen Unterhaltung aus? Der Verlauf bleibt lesbar. Statt des Schreibfelds erscheint ein Hinweis. Sie können nicht mehr antworten.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
@@ -6605,6 +6661,10 @@ export const parentRequestsTopic = function parentRequestsTopic(
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       // #5137: Klassen-Regeltermine holen das Kind wieder herein.
       "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
+      // #4767: Warteliste je AG; Nachrücken ist die normale Freigabe.
+      "Fragen Eltern einen Platz in einer vollen AG an? Dann zeigt die Anfrage zum Beispiel `Warteliste Platz 2`. Die älteste Anfrage ist zuerst dran.",
+      "Oben steht die Karte `Wartelisten`. Sie zeigt je AG die belegten Plätze und die wartenden Kinder in Reihenfolge. `Zur Anfrage` öffnet die Anfrage des Kindes.",
+      "Ist in einer AG ein Platz frei, steht dort `Platz frei` und beim ersten Kind `Als Nächstes dran`. Wählen Sie bei seiner Anfrage `Freigeben`, dann rückt es nach.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -8121,6 +8181,55 @@ export const targetOverrideTopic = function targetOverrideTopic(): HelpTopic {
 } satisfies typeof authored_targetOverrideTopic;
 
 /**
+ * `/school/fehlzeiten` (#4793): Fehltage je Kind einer Klasse in einem
+ * Zeitraum, mit Export als PDF oder Excel.
+ */
+export const teacherAbsenceListTopic =
+  function teacherAbsenceListTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.teacherAbsenceList,
+      title: "Fehlzeiten einer Klasse ansehen",
+      question: "Wie viele Tage hat ein Kind gefehlt?",
+      summary:
+        "Unter `Fehlzeiten` stehen die Fehltage je Kind, für Klassenbuch und Zeugnis.",
+      group: "klasse",
+      audience: "teacher",
+      icon: "ClipboardList",
+      steps: [
+        "Öffnen Sie `Fehlzeiten`.",
+        "Wählen Sie die Klasse.",
+        "Prüfen Sie `Von` und `Bis`. Vorgewählt ist das laufende Halbjahr.",
+        "Lesen Sie je Kind die Fehltage, davon entschuldigt und unentschuldigt.",
+        "Wählen Sie bei Bedarf `Exportieren`. Wählen Sie `PDF` oder `Excel`.",
+      ],
+      result: "Sie sehen die Fehltage jedes Kindes im gewählten Zeitraum.",
+      notes: [
+        "Gezählt werden die Anwesenheit am Vormittag und die Meldungen.",
+        "Krank oder entschuldigt gemeldet zählt als entschuldigt. Auch eine Meldung der Schulverwaltung zählt.",
+        "Ein Kind war am Vormittag da, ist aber krank gemeldet? Dann zählt der Tag nicht als Fehltag.",
+        "Klassenfahrt ist kein Fehltag.",
+        "`Nicht erfasst` heißt: An diesem Schultag gibt es keinen Eintrag. Das ist kein Fehltag.",
+        "Es gibt nur ganze Tage. Ein halber Tag zählt nicht extra.",
+        "Kinder, deren Betreuung im Zeitraum endet, bleiben in der Liste. Gezählt werden nur ihre Betreuungstage.",
+        "Jeder Abruf und jeder Export wird protokolliert.",
+      ],
+      differences: [
+        "Die Schulverwaltung sieht alle Klassen. Eine Lehrkraft sieht nur ihre Klassen.",
+        "Kinder ohne eigenen Eintrag in moto stehen noch nicht in der Liste.",
+      ],
+      troubleshootingDetails: [
+        "Viele Tage `Nicht erfasst`? Dann fehlt die Anwesenheit am Vormittag. Tragen Sie sie jeden Morgen ein.",
+        "`Unvollständiger Zeitraum`? Ältere Anwesenheit oder Meldungen können bereits gelöscht sein. Die Liste und der Export zählen erst ab dem angegebenen Datum.",
+      ],
+      related: [
+        HELP_TOPICS.teacherMorningAttendance,
+        HELP_TOPICS.teacherAbsenceReport,
+        HELP_TOPICS.teacherNoClasses,
+      ],
+    };
+  } satisfies typeof authored_teacherAbsenceListTopic;
+
+/**
  * `Fehlen ohne Meldung` in der Tagesübersicht der Schulverwaltung
  * (`class-day-overview.tsx`, #4791): Meldung nachtragen und zurücknehmen.
  */
@@ -8896,6 +9005,52 @@ export const teacherNoticesTopic = function teacherNoticesTopic(): HelpTopic {
   };
 } satisfies typeof authored_teacherNoticesTopic;
 
+/** `/school/elternsprechtag`: Elternsprechtag einer eigenen Klasse (#4801). */
+export const teacherParentConferenceTopic =
+  function teacherParentConferenceTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.teacherParentConference,
+      title: "Einen Elternsprechtag anbieten",
+      question: "Wie biete ich den Eltern meiner Klasse Gesprächstermine an?",
+      summary:
+        "Sie legen einen Tag mit Zeitfenstern an. Die Eltern buchen in der Eltern-App ein Zeitfenster je Kind.",
+      group: "nachrichten",
+      audience: "teacher",
+      icon: "CalendarCheck",
+      requirements: ["Ihnen ist die Klasse zugeordnet."],
+      steps: [
+        "Öffnen Sie `Kalender`.",
+        "Wählen Sie `Elternsprechtag`.",
+        "Wählen Sie `Neuer Elternsprechtag`.",
+        "Wählen Sie die Klasse und den Tag.",
+        "Geben Sie `Beginn`, `Ende` und die `Dauer je Gespräch` an. Eine Pause und den Raum können Sie dazuschreiben.",
+        "Wählen Sie `Speichern`.",
+      ],
+      result:
+        "Die Eltern der Klasse sehen die freien Zeitfenster in der Eltern-App und buchen eines je Kind. Jede Buchung steht in Ihrem Kalender und im Kalender der Eltern.",
+      notes: [
+        "Wählen Sie den Tag in der Liste. Dort sehen Sie, welches Kind wann kommt. Mit `Drucken` drucken Sie die Liste.",
+        "Eltern buchen, verschieben oder sagen ab, bis 24 Stunden vor dem Termin. Danach melden sie sich bei Ihnen.",
+        "Unter `Einstellungen` schalten Sie `Buchungen am Elternsprechtag` ein. Dann bekommen Sie einen Hinweis, wenn Eltern buchen, verschieben oder absagen.",
+      ],
+      differences: [
+        "Sie ändern den Tag mit `Ändern`. Eltern mit Buchung bekommen eine Nachricht. Fällt ein gebuchtes Zeitfenster weg, ist diese Buchung abgesagt.",
+        "Wählen Sie eine andere Klasse, werden alle bisherigen Buchungen abgesagt. Die Eltern bekommen eine Nachricht.",
+        "Sie löschen den Tag mit `Löschen`. Alle Buchungen sind dann abgesagt, und die Eltern bekommen eine Nachricht.",
+        "`Neuer Elternsprechtag` ist grau? Ihnen ist keine Klasse zugeordnet.",
+      ],
+      troubleshootingDetails: [
+        "Eltern finden keinen Termin? Die Eltern sehen den Tag nur, wenn ihr Kind in der Klasse ist und sie Zugang zur Eltern-App haben.",
+        "Am Ende des Schuljahres löscht moto die Elternsprechtage und ihre Buchungen.",
+      ],
+      related: [
+        HELP_TOPICS.teacherCalendar,
+        HELP_TOPICS.teacherParentLetters,
+        HELP_TOPICS.teacherNoClasses,
+      ],
+    };
+  } satisfies typeof authored_teacherParentConferenceTopic;
+
 export const teacherParentLettersTopic =
   function teacherParentLettersTopic(): HelpTopic {
     return {
@@ -9237,6 +9392,7 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
     result:
       "Ihre Arbeitszeit erscheint in der Wochenübersicht und in der Tabelle `Zeiterfassung`.",
     notes: [
+      "Nach dem Stempeln steht oben in der `Stempeluhr` kurz `Wird gespeichert`. Danach meldet moto, ob es geklappt hat.",
       // Live geprueft: `Einstempeln` ist ein runder Knopf mit dem Wort
       // darunter. Ohne gewaehlten Arbeitsort steht dort `Bitte Status wählen`.
       "`Einstempeln` steht unter dem runden Knopf in der Mitte.",

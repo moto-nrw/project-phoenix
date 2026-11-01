@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorInvitationKeys } from "~/lib/swr/portal-keys";
+
 import { useState, useCallback, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -39,6 +41,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
+import { operatorsConcept } from "~/lib/concepts/operators";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -50,10 +53,10 @@ export default function OperatorOperatorsPage() {
     error: fetchError,
     isLoading,
     mutate,
-  } = useSWR<OperatorInvitationsData>(
-    "operator-invitations",
+  } = useSWRAuth<OperatorInvitationsData>(
+    operatorInvitationKeys.list(),
     () => listOperatorInvitations(),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     fetchError,
@@ -65,7 +68,7 @@ export default function OperatorOperatorsPage() {
     <div className="space-y-8 p-6">
       <ConceptPageHeader
         title="Operatoren"
-        concept="operators"
+        concept={operatorsConcept}
         subtitle="Neue Operatoren einladen und bestehende anzeigen."
       />
 
@@ -149,7 +152,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
     <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Neuen Operator einladen"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
+        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
         className="mb-4"
       />
       <form
@@ -266,7 +269,7 @@ function PendingInvitationsList({
     <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Offene Einladungen"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
+        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
         className="mb-4"
       />
 
@@ -419,7 +422,7 @@ function OperatorsList({
     <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <SectionHeader
         title="Bestehende Operatoren"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
+        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
         className="mb-4"
       />
 

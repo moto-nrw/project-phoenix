@@ -29,6 +29,9 @@ import {
   timetableSurface,
 } from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -210,7 +213,7 @@ export function TemplateCard({
 
         <dl className="space-y-1.5 text-xs text-gray-600">
           <div className="flex items-center gap-2">
-            <MotoConceptIcon concept="careTimes" size={14} />
+            <MotoConceptIcon concept={careTimesConcept} size={14} />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
               {/* #3594: eine Serie kann vor dem Planungszeitraum enden. Danach
@@ -229,7 +232,7 @@ export function TemplateCard({
             </div>
           ) : null}
           <div className="flex items-center gap-2">
-            <MotoConceptIcon concept="rooms" size={16} />
+            <MotoConceptIcon concept={roomsConcept} size={16} />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -255,9 +258,11 @@ export function TemplateCard({
           </div>
           {template.requiredStaffCount > 0 && (
             <div className="flex items-center gap-2">
-              <MotoConceptIcon concept="supervision" size={16} />
+              <MotoConceptIcon concept={supervisionConcept} size={16} />
               <TimetableRatioPill
-                icon={<MotoConceptIcon concept="supervision" size={16} />}
+                icon={
+                  <MotoConceptIcon concept={supervisionConcept} size={16} />
+                }
                 label="Besetzung"
                 value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
                 tone={capacityTone(

@@ -35,7 +35,6 @@ import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   formatColumnDate,
   formatPlannedHours,
@@ -50,6 +49,11 @@ import {
 import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useTenantMutateMatching } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { notArrivalConcept } from "~/lib/concepts/notArrival";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { sickConcept } from "~/lib/concepts/sick";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -223,7 +227,7 @@ function AssignmentCard({
       </span>
       <span className="flex items-center gap-1 truncate text-xs text-gray-500">
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.rooms.icon}
+          icon={roomsConcept.icon}
           tone="neutral"
           size={12}
           className="shrink-0"
@@ -433,7 +437,7 @@ export function DienstplanResourceGrid({
     if (onOpenPersonWeek) {
       items.push({
         label: "Wochenraster öffnen",
-        icon: <MotoConceptIcon concept="staffPlan" size={18} />,
+        icon: <MotoConceptIcon concept={staffPlanConcept} size={18} />,
         onClick: () => onOpenPersonWeek(member),
       });
     }
@@ -443,19 +447,19 @@ export function DienstplanResourceGrid({
     if (onSickReport) {
       items.push({
         label: "Krank melden",
-        icon: <MotoConceptIcon concept="sick" size={18} />,
+        icon: <MotoConceptIcon concept={sickConcept} size={18} />,
         onClick: () => onSickReport(member),
       });
     }
     if (!reducedPath) {
       items.push({
         label: "Für heute abwesend melden",
-        icon: <MotoConceptIcon concept="notArrival" size={18} />,
+        icon: <MotoConceptIcon concept={notArrivalConcept} size={18} />,
         onClick: () => router.push(`/vertretung?d=${absenceEntryDate}`),
       });
       items.push({
         label: "Zeiterfassung öffnen",
-        icon: <MotoConceptIcon concept="timeTracking" size={18} />,
+        icon: <MotoConceptIcon concept={timeTrackingConcept} size={18} />,
         onClick: () => router.push(timeTrackingHref(member)),
       });
     }

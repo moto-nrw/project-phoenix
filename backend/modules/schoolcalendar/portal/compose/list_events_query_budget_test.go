@@ -8,6 +8,7 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +67,7 @@ func TestListMyStaffEventsQueryBudget(t *testing.T) {
 
 		assert.Equal(t, smallCount, largeCount,
 			"query count must be independent of the appointment count (no per-appointment N+1)")
-		testpkg.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Queries())
 		return nil
 	}))
 }

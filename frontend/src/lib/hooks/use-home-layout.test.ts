@@ -2,7 +2,17 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("swr", () => ({ default: vi.fn() }));
+vi.mock("swr", () => ({
+  default: vi.fn(),
+  useSWRConfig: () => ({
+    cache: new Map(),
+    mutate: (_key: unknown, ...args: unknown[]) =>
+      vi
+        .mocked(useSWR)
+        .mock.results.at(-1)
+        ?.value.mutate(...args),
+  }),
+}));
 vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: vi.fn() }));
 vi.mock("~/lib/home-layout-api", () => ({
   fetchHomeLayout: vi.fn(),
@@ -44,9 +54,9 @@ describe("useHomeLayout", () => {
     renderHook(() => useHomeLayout());
 
     expect(useSWR).toHaveBeenCalledWith(
-      "home-layout:school-a:account-a",
+      "school-a:account-a:home-layout",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      expect.objectContaining({ revalidateOnFocus: false }),
     );
 
     vi.mocked(useSession).mockReturnValue({
@@ -61,9 +71,9 @@ describe("useHomeLayout", () => {
     renderHook(() => useHomeLayout());
 
     expect(useSWR).toHaveBeenLastCalledWith(
-      "home-layout:school-b:account-b",
+      "school-b:account-b:home-layout",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      expect.objectContaining({ revalidateOnFocus: false }),
     );
   });
 
@@ -88,6 +98,25 @@ describe("useHomeLayout", () => {
 
     expect(result.current.isReady).toBe(true);
   });
+
+  it.each(["save", "reset", "savePolicies"] as const)(
+    "rejects %s without loaded layout data",
+    async (operation) => {
+      const { result } = renderHook(() => useHomeLayout());
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isReady).toBe(false);
+      const save =
+        operation === "save"
+          ? () => result.current.save({}, [])
+          : operation === "reset"
+            ? result.current.reset
+            : () => result.current.savePolicies({ news: "required" });
+      await expect(save()).rejects.toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+      });
+    },
+  );
 
   it("revalidates only the changed account or a school-wide prescription", () => {
     const mutate = vi.fn();

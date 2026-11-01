@@ -18,7 +18,7 @@ func TestCalendarFixtureClockRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 	}
 	findings, err := scanCalendarFixtureClockRisks(backendRoot)
 	if err == nil {

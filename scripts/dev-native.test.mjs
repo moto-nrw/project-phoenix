@@ -326,6 +326,21 @@ test('a shell-provided native DB_DSN bypasses the Compose host rewrite', t => {
   assert.equal(result.stdout.trim(), dbDsn);
 });
 
+// Devbox puts a Bash without programmable completion first on PATH, so the
+// script must not rely on the `compgen` builtin to see shell-provided keys.
+test('shell-provided keys win over .env in a Bash without compgen', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'moto-dev-native-bashenv-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const bashEnv = join(dir, 'no-compgen.sh');
+  writeFileSync(bashEnv, 'enable -n compgen\n');
+  const dbDsn = 'postgres://shell@localhost:5432/custom';
+  const f = fixture(t, { tools: [], env: { DB_DSN: dbDsn, SERVER_HOST_PORT: '19090', BASH_ENV: bashEnv } });
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$SERVER_HOST_PORT"');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.stdout.trim().split('\n'), [dbDsn, '19090']);
+  assert.doesNotMatch(result.stderr, /compgen/);
+});
+
 test('unresolvable .env references stop before any command runs', t => {
   for (const [value, message] of [
     ['postgres://postgres:${MISSING_PASSWORD}@postgres:5432/postgres', /DB_DSN in .env references \$\{MISSING_PASSWORD\}, which is not set/],

@@ -9,7 +9,7 @@ import {
 } from "~/app/[tenant]/providers";
 import type { RemindersResult } from "~/lib/reminders-api";
 import type { ShellBootstrap } from "~/lib/shell-seed";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { useReminders } from "./use-reminders";
 
 // Die Glocke der Hülle hält die Erinnerungen aktuell (Server-Seed, Abfrage im

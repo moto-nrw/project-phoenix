@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // checkCatererDeliveryExportQueryBudget pins the statements of the caterer's
@@ -83,7 +84,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		return strings.HasPrefix(strings.TrimSpace(sql), "insert") || strings.HasPrefix(strings.TrimSpace(sql), "update") || strings.HasPrefix(strings.TrimSpace(sql), "delete")
 	}), "the caterer's list writes nothing")
 	assert.Empty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "pg_advisory") }), "and takes no lock")
-	testpkg.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
 
 	status, refused := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(7)))
 	assert.Equal(t, http.StatusBadRequest, status)

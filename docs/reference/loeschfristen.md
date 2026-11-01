@@ -29,6 +29,7 @@ Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellun
 | Abgeschlossene Raumbesuche bei ausgeschaltetem Protokoll | `gdpr.attendance_log_enabled = false` | bis Tagesende, Löschung im nächsten nächtlichen Lauf | Ende vor heutiger Berliner Mitternacht | Besuchsende | Student Presence | im Code umgesetzt; produktiv nachzuweisen (#3844, Slice b) |
 | Betreuungsplan (Termine, Teilnahme, Änderungsprotokoll) | `gdpr.timetable_retention_days` | 365 Tage | 30 Tage bis 5 Jahre | Termin | Timetable | umgesetzt |
 | Termine im Kalender (Elternabende, Teamtermine) samt Empfängern, Antworten und Serienregeln | keine eigene: `gdpr.timetable_retention_days` | 365 Tage | 30 Tage bis 5 Jahre | letzter Tag des Termins bzw. der Serie | Appointments | umgesetzt (#4045) |
+| Elternsprechtage der Lehrkräfte samt Buchungen je Kind und den Terminen der Buchungen | keine: feste Frist | Ende des Schuljahres | – | Beginn des neuen Schuljahres am 1. August | School Calendar, Appointments | umgesetzt (#4801) |
 | Krank-, Entschuldigt- und Klassenfahrt-Tage | `gdpr.status_day_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | gemeldeter Tag | Care Plan | umgesetzt (#3958) |
 | Hausaufgaben der Lehrkräfte samt Rückmeldungen der OGS je Kind | `gdpr.homework_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | Tag der Hausaufgabe | Timetable | umgesetzt (#4796) |
 | Elternnachrichten | `gdpr.parent_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Versand | Communication | umgesetzt (#3959) |

@@ -50,7 +50,8 @@ math.
 | Need | Use | Never |
 |---|---|---|
 | `Date` → `"YYYY-MM-DD"` | `toISODate(d)` from `~/lib/date-helpers` | `d.toISOString().split("T")[0]` / `.slice(0, 10)` |
-| Today as `"YYYY-MM-DD"` | `todayISO()` | `new Date().toISOString()...` |
+| School today as `"YYYY-MM-DD"` (defaults, validity, attendance, backend DATE comparisons) | `berlinTodayISO()`; `useBerlinToday()` for views that stay mounted across midnight | `todayISO()`, `new Date().toISOString()...` |
+| Browser-local today (birthdate input maxima; not backend Berlin-day filters) | `todayISO()` | using the browser day for school dates |
 | `"YYYY-MM-DD"` → `Date` (local midnight) | `parseISODate(s)` | `new Date("YYYY-MM-DD")` (UTC midnight) |
 | Render a date string in German | `formatDate(s)` from `~/lib/date-helpers` (handles date-only and timestamps) | new file-local `formatDate` duplicates |
 
@@ -108,6 +109,19 @@ not bind it as a date or use it as a sentinel. An optional date is
    Berlin instant converts it to UTC and can reverse the clock interval around
    UTC midnight.
 
+6. **oxlint** `date-safety/no-browser-today` detects the explicit forms
+   `new Date()`, `new globalThis.Date()` and `new Date(Date.now())`, calls to
+   `todayISO()` (including import aliases/namespace calls), and statically
+   imported date-fns calendar helpers with implicit now (`isToday`,
+   `startOfToday`, and the related day/week/month/year helpers listed in the
+   rule). It is a syntactic guard, not general data-flow analysis: arbitrary
+   wrappers, reassigned constructors and computed aliases are not traced.
+   Reviewed clock sources and genuinely local inputs, including the specific
+   clock sites inside `date-helpers.ts`, live in
+   `frontend/scripts/school-today-baseline.mjs`. Each source-bound entry is
+   consumed once; unused entries fail lint, and a test checks that baseline
+   files still exist. Keep the baseline shrink-only.
+
 ## Detection
 
 ```bash
@@ -125,7 +139,7 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 - [ ] Ad-hoc repo result structs (ModelTableExpr pattern) scanning DATE columns use `calendar.Date` too — the registry test does NOT see these
 - [ ] API contract checked: a model-serialized date field emits `"YYYY-MM-DD"` — verify consumers when flipping a previously RFC3339 field
 - [ ] Tests construct dates via `calendar.NewDate(...)`/`TodayDate()` — never `time.Now()`-derived instants for calendar days
-- [ ] Frontend serializes via `toISODate`/`todayISO`/`parseISODate` — no `.toISOString()` date extraction
+- [ ] Frontend serializes via `toISODate`/`berlinTodayISO` (school day)/`todayISO` (browser day)/`parseISODate` — no `.toISOString()` date extraction
 
 ## Scope boundary
 

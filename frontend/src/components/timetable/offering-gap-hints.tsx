@@ -26,13 +26,10 @@ import {
 } from "~/lib/offering-gap";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { timetableKeys } from "~/lib/swr/portal-keys";
 import { timetableService } from "~/lib/timetable-api";
 
 const logger = createLogger({ component: "OfferingGapHints" });
-
-function offeringGapsKey(periodId: string): string {
-  return `offering-gaps-${periodId}`;
-}
 
 /** Open rows shown before „N weitere anzeigen“, as in the parents' to-do list. */
 const INITIAL_GAP_COUNT = 5;
@@ -43,8 +40,8 @@ const INITIAL_GAP_COUNT = 5;
  * card with one row per offering and its two equal decisions, the way the
  * staff inbox lists absence requests. A row offers „Regeltermin anlegen“
  * only when the new Regeltermin would plan no child twice (#5343); the
- * reason stands once above the list. Only the icon and the count badge
- * carry the warning colour. Decided offerings wait in a folded card with
+ * reason stands once above the list while such a row is shown (#5390).
+ * Only the icon and the count badge carry the warning colour. Decided offerings wait in a folded card with
  * the same rows, from where the hint can come back. Readers without planning
  * rights only see the open hints. A failed check shows the load error with a
  * retry, never an empty list: no hint must not read as "no gaps". Every
@@ -70,7 +67,7 @@ export function OfferingGapHints({
   const [expanded, setExpanded] = useState(false);
   const openListId = useId();
   const { data, error } = useSWRAuth(
-    periodId ? offeringGapsKey(periodId) : null,
+    periodId ? timetableKeys.offeringGaps(periodId) : null,
     () => timetableService.getOfferingGaps(periodId!),
     { keepPreviousData: false },
   );
@@ -78,7 +75,7 @@ export function OfferingGapHints({
   const loadError = useSwrLoadError(
     error,
     "die Prüfung der Angebote ohne Regeltermin",
-    () => periodId && tenantMutate(offeringGapsKey(periodId)),
+    () => periodId && tenantMutate(timetableKeys.offeringGaps(periodId)),
   );
 
   const seenVersion = useRef(templatesVersion);
@@ -88,7 +85,7 @@ export function OfferingGapHints({
     seenVersion.current = templatesVersion;
     // The first template load runs next to the first hint load already.
     if (!first && templatesVersion !== undefined && periodId) {
-      void tenantMutate(offeringGapsKey(periodId));
+      void tenantMutate(timetableKeys.offeringGaps(periodId));
     }
   }, [templatesVersion, periodId, tenantMutate]);
 
@@ -107,7 +104,7 @@ export function OfferingGapHints({
             ? `Der Hinweis zu „${gap.offering.name}“ ist ausgeblendet.`
             : `Der Hinweis zu „${gap.offering.name}“ wird wieder gezeigt.`,
         );
-        await tenantMutate(offeringGapsKey(periodId));
+        await tenantMutate(timetableKeys.offeringGaps(periodId));
       } catch (err) {
         logger.error("offering_gap_decision_failed", {
           offering_id: gap.offering.id,
@@ -135,9 +132,11 @@ export function OfferingGapHints({
   if (open.length === 0 && decided.length === 0) return null;
 
   const hiddenCount = Math.max(0, open.length - INITIAL_GAP_COUNT);
-  const createWithheld =
-    canManage && open.some((gap) => gap.newSeriesPlansCovered);
   const visible = expanded ? open : open.slice(0, INITIAL_GAP_COUNT);
+  // Only rows on screen count: a folded row without the button must not
+  // explain a gap the reader cannot see (#5390).
+  const createWithheld =
+    canManage && visible.some((gap) => gap.newSeriesPlansCovered);
 
   return (
     <div className="flex flex-col gap-3" data-testid="offering-gap-hints">

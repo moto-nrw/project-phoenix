@@ -314,14 +314,16 @@ describe("TenantProviders with a server snapshot", () => {
       // Scoped to the school and the account the snapshot was built for
       // (#4989, #5006).
       "school-a:1:staff-notices-today:1": shell.staffNoticesToday,
-      // Platform-scoped: no tenant prefix.
-      "user-announcements-unread": shell.announcements,
+      // The platform resource still belongs to this school/account cache.
+      "school-a:1:user-announcements-unread": shell.announcements,
     };
     expect(mockSWRConfig).toHaveBeenCalledWith({
       fallback: entries,
       // The seeder writes the shell-owned entries into the cache; only the
       // entry a reader consumes on mount travels as cacheData (#5006).
-      cacheData: { "user-announcements-unread": shell.announcements },
+      cacheData: {
+        "school-a:1:user-announcements-unread": shell.announcements,
+      },
     });
     expect(mockProfileProvider).toHaveBeenCalledWith(
       expect.objectContaining({ initialProfile: shell.profile }),

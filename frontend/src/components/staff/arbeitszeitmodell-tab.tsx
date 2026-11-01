@@ -1,7 +1,7 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -41,7 +41,7 @@ import {
   startOfWeek,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
 import {
@@ -110,7 +110,7 @@ export function ArbeitszeitmodellTab({
     staffScheduleService.getSchedule(staffId),
   );
 
-  const { mutate } = useSWRConfig();
+  const invalidate = useInvalidateMatching();
   const load = useApiLoadError();
   const showLoadError = load.show;
   const clearLoadError = load.clear;
@@ -150,7 +150,7 @@ export function ArbeitszeitmodellTab({
     );
   }
 
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   const weeklyTotal = schedule.weeklyTotals.reduce((s, m) => s + m, 0);
   const weeksLabel =
     schedule.rotationLength > 1
@@ -160,7 +160,7 @@ export function ArbeitszeitmodellTab({
     schedule.rotationLength > 0 ? weeklyTotal / schedule.rotationLength : 0;
   const handleScheduleSaved = () => {
     mutateSchedule();
-    void mutate(isStaleAfterModelSave);
+    void invalidate(isStaleAfterModelSave);
     setEditing(false);
   };
 

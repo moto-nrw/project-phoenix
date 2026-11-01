@@ -1,5 +1,7 @@
 "use client";
 
+import { studentKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
@@ -200,7 +202,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     mutate,
   } = useSWRAuth<StudentDetailResponse>(
     studentId && hasSessionAccess(session)
-      ? `student-detail-${studentId}`
+      ? studentKeys.detail(studentId)
       : null,
     async () => {
       // Fetch student data and user context in parallel
@@ -276,7 +278,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       };
     },
     {
-      keepPreviousData: true, // Show cached data while revalidating
+      keepPreviousData: false, // Never carry another child's detail or grants.
       revalidateOnFocus: false, // Handled by global SSE
     },
   );
@@ -305,7 +307,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     student: studentData?.student ?? null,
     loading,
     error,
-    hasFullAccess: studentData?.hasFullAccess ?? true,
+    hasFullAccess: studentData?.hasFullAccess ?? false,
     hasWriteAccess: studentData?.hasWriteAccess ?? false,
     hasAbsenceWriteAccess: studentData?.hasAbsenceWriteAccess ?? false,
     hasSickExcusedWriteAccess: studentData?.hasSickExcusedWriteAccess ?? false,

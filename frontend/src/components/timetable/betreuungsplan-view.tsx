@@ -23,6 +23,7 @@
  * bleibt reiner Component-State.
  */
 
+import { staff as staffKeys } from "~/lib/swr/staff";
 import {
   Suspense,
   useCallback,
@@ -119,7 +120,6 @@ import {
   planFilterKey,
   type PlanFilter,
 } from "~/lib/plan-filter";
-import { staffService } from "~/lib/staff-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
 import {
@@ -166,6 +166,7 @@ import {
   TimetableContentSkeleton,
   TimetablePageSkeleton,
 } from "./betreuungsplan-skeleton";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
 const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
@@ -636,10 +637,8 @@ function TimetablesContent() {
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
   const { data: staffData, error: staffError } = useSWRAuth(
-    status === "authenticated" && canReadTenantRosters
-      ? "timetable-staff-list"
-      : null,
-    () => staffService.getAllStaff(),
+    status === "authenticated" && canReadTenantRosters ? staffKeys.key() : null,
+    staffKeys.fetcher,
   );
   // Ohne users:read fehlt die Personalliste. Die Namen für die Blöcke (#3817)
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
@@ -720,7 +719,7 @@ function TimetablesContent() {
     "die Liste der Namen",
     () =>
       Promise.all([
-        tenantMutate("timetable-staff-list"),
+        tenantMutate(staffKeys.key()),
         tenantMutate("timetable-student-list"),
         tenantMutate(
           `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`,
@@ -2459,7 +2458,7 @@ function TimetablesContent() {
       empty={
         showEmptyPeriodState
           ? {
-              icon: <MotoConceptIcon concept="closingDays" size={42} />,
+              icon: <MotoConceptIcon concept={closingDaysConcept} size={42} />,
               title: "Noch kein Planungszeitraum",
               description: canManageSchedules
                 ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."

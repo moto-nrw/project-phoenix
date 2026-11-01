@@ -793,6 +793,30 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "ad2275e7e18d506e2e8c50b1ebac3483",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "612303696cc2c79ec9975e19a69f327f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.ListEnded",
       "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ListEnded",
@@ -1126,6 +1150,30 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseCatalog",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "binding_digest": "34f37b09cb1320effc96b1323b10c2c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "binding_digest": "8771d028f346c79fa6cb357a54c71140",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
+      "binding_digest": "6df3675a772fb3f0ffc4f791549a243a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -2249,6 +2297,30 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "ad2275e7e18d506e2e8c50b1ebac3483",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "612303696cc2c79ec9975e19a69f327f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "binding_digest": "4e6923da0fbedfca77fd06c5bf4aeeb0",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.MasterDataDirectory.FindStudents",
@@ -2526,6 +2598,54 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseCatalog",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "binding_digest": "34f37b09cb1320effc96b1323b10c2c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "binding_digest": "8771d028f346c79fa6cb357a54c71140",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
+      "binding_digest": "6df3675a772fb3f0ffc4f791549a243a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "binding_digest": "34f37b09cb1320effc96b1323b10c2c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "binding_digest": "8771d028f346c79fa6cb357a54c71140",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
+      "binding_digest": "6df3675a772fb3f0ffc4f791549a243a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -3254,6 +3374,54 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CatalogAt",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "binding_digest": "34f37b09cb1320effc96b1323b10c2c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "binding_digest": "8771d028f346c79fa6cb357a54c71140",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
+      "binding_digest": "6df3675a772fb3f0ffc4f791549a243a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "binding_digest": "34f37b09cb1320effc96b1323b10c2c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "binding_digest": "8771d028f346c79fa6cb357a54c71140",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
+      "binding_digest": "6df3675a772fb3f0ffc4f791549a243a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
@@ -8761,6 +8929,14 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CapacityPeaks",
+      "binding_digest": "53e66e3a941116e70a9ebb7aded5a49e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.CapacityPeaks",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.OfferingCapacityPeaks",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CatalogState",
       "binding_digest": "7e7c1a1cc083ec0b989a8d5622c7e83d",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.CatalogState",
@@ -8850,15 +9026,23 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriods",
-      "binding_digest": "ea5ae8ff1ea8d23d4ea7ecd9eec526a9",
+      "binding_digest": "9436877e4d6dd1735cbd4e8f66dc6adc",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriods",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecords",
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "binding_digest": "5b3560b348c2221708b9637fc54591bd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecordsByStudentIDs",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "5e0f75e53ee75c3989676c5e1d29c40e",
+      "binding_digest": "d4d88b080c1b9752dfc55edfd562f646",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose.New",
@@ -8866,7 +9050,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "407dedc8a2955c1a80ce56edaa4d9e88",
+      "binding_digest": "177608f077745f1b5325d4d093ddb6b8",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments",
@@ -8874,15 +9058,31 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "f85165089733c367831dfd79f2e222cd",
+      "binding_digest": "5c25e9ea81ac28787035289bb7954855",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose.Database.Pool",
       "target_owner": "transaction-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "binding_digest": "51608c5c15451c57cda95a30bf4ad065",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "binding_digest": "99d2d389f39be15bbeebad7a2d2e07eb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroupsByID",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsForOfferings",
-      "binding_digest": "945e7e6585326ebef2dbb25b49497a49",
+      "binding_digest": "97faed09e52712b8b834179cb4bbe50f",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsForOfferings",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",
@@ -9094,6 +9294,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeStudents.FindStudent",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeStudents.FindStudents",
+      "binding_digest": "54e608c611df90c0a2f507a4bf26e730",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeStudents.FindStudents",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentState.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeStudents.FindStudents",
+      "binding_digest": "cfc5b0282463454495ce7aeabcdbf7e6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeStudents.FindStudents",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
       "target_owner": "people-directory"
     },
     {

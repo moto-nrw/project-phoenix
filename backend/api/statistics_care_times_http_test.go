@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Soll und Ist je Kind (#4774) through the production router: the care plan
@@ -203,9 +204,9 @@ func TestCareTimesQueryBudgets(t *testing.T) {
 	assert.Len(t, studentMany.statements, len(studentOne.statements), "the child view must batch its day inputs")
 	assert.Len(t, overrunsMany.statements, len(overrunsBaseline.statements), "the overrun list must batch its children")
 	assert.Len(t, exportMany.statements, len(exportBaseline.statements), "the export must reuse the batched overrun list")
-	testpkg.AssertQueryBudget(t, "api.statistics.student_care_times", studentMany.statements)
-	testpkg.AssertQueryBudget(t, "api.statistics.care_time_overruns", overrunsMany.statements)
-	testpkg.AssertQueryBudget(t, "api.statistics.care_time_overruns_export", exportMany.statements)
+	querybudgets.AssertQueryBudget(t, "api.statistics.student_care_times", studentMany.statements)
+	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns", overrunsMany.statements)
+	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns_export", exportMany.statements)
 }
 
 func TestCareTimes_RejectMissingRightsWithARegisteredCode(t *testing.T) {

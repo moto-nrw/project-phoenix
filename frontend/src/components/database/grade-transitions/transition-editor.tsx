@@ -1,4 +1,5 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 // Editor for a Jahrgangswechsel draft: one row per class with the target
 // class or "Abgang" (child leaves the OGS, soft-deactivated as alumnus).
@@ -76,7 +77,8 @@ export function TransitionEditor({
   onReadyForPreview,
 }: TransitionEditorProps) {
   const [academicYear, setAcademicYear] = useState(
-    existingDraft?.academicYear ?? suggestAcademicYear(new Date()),
+    existingDraft?.academicYear ??
+      suggestAcademicYear(parseISODate(berlinTodayISO())),
   );
   const [notes, setNotes] = useState(existingDraft?.notes ?? "");
   const [rows, setRows] = useState<EditorRow[] | null>(

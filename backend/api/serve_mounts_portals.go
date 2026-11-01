@@ -164,10 +164,11 @@ func newParentResource(
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
-		Auth:     parentPortalLogin(identity),
-		Resets:   parentPasswordResets(identity),
-		Parent:   parent,
-		Calendar: calendarApp,
+		Auth:        parentPortalLogin(identity),
+		Resets:      parentPasswordResets(identity),
+		Parent:      parent,
+		Calendar:    calendarApp,
+		Conferences: calendarApp,
 		Enrollment: parentEnrollmentForms(
 			enrollmentAPI.NewRequestService(flows.Intake),
 			enrollmentUploadUnits{intake: flows.Intake, records: owners.NewEnrollmentBookings(), reads: flows.Uploads},

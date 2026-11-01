@@ -1,3 +1,12 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "tenant" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
@@ -17,6 +26,7 @@ import type { FormField, FormSection } from "./database-form";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 type KitDatabaseFormProps = ComponentProps<typeof KitDatabaseForm>;
 
@@ -767,7 +777,7 @@ describe("DatabaseForm", () => {
   // wird - der concept-lose Zweig rendert eine eigene Ueberschrift.
   it.each([
     ["ohne concept", mockSections],
-    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+    ["mit concept", [{ ...mockSections[0]!, concept: roomsConcept }]],
   ])("nutzt %s standardmaessig h2", (_label, sections) => {
     render(<DatabaseForm {...defaultProps} sections={sections} />);
 
@@ -778,7 +788,7 @@ describe("DatabaseForm", () => {
 
   it.each([
     ["ohne concept", mockSections],
-    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+    ["mit concept", [{ ...mockSections[0]!, concept: roomsConcept }]],
   ])(
     "reicht sectionLevel %s bis zur Ueberschrift durch",
     (_label, sections) => {

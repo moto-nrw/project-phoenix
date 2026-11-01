@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const contributionRulesPath = "/traeger/contribution-rules"
@@ -391,5 +392,5 @@ func TestContributionRuleListQueryBudgetIsFlat(t *testing.T) {
 	one := list()
 	createContributionRule(t, f, billing, benefitsExemption())
 	assert.Len(t, list(), len(one), "the list reads the same statements for any number of rules")
-	testpkg.AssertQueryBudget(t, "api.traeger.contribution_rules", one)
+	querybudgets.AssertQueryBudget(t, "api.traeger.contribution_rules", one)
 }

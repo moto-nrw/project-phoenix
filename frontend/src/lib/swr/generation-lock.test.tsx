@@ -7,7 +7,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 // The generation lock on the real SWR 2.5.1.
 vi.unmock("swr");
@@ -31,17 +39,20 @@ import {
   isFallbackVisible,
   preloadSWR,
 } from "./generation";
+import { swrConfig } from "./config";
 import {
   useDiscardRefusedEntity,
   useSWRAuth,
   useTenantMutate,
   useTenantMutateMatching,
+  type ReaderOptions,
 } from "./hooks";
 import {
   _setSWRCleanupForTests,
   resetSWRScope,
   resumeSWRSession,
 } from "./scope";
+import { SWRSeedBoundary } from "./config-boundaries";
 import { SWRScopeBoundary } from "./scope-boundary";
 
 /**
@@ -93,7 +104,7 @@ function Reader({
 }: Readonly<{
   name: string;
   fetcher: () => Promise<string>;
-  options?: SWRConfiguration<string>;
+  options?: ReaderOptions<string>;
 }>) {
   const response = useSWRAuth<string>(name, fetcher, options);
   responses[name] = response;
@@ -228,19 +239,33 @@ describe.each([
           const fetcher = vi.fn(() => answer.promise);
           const key = "student-7-unseen";
           const kept = "student-8-unseen";
+          // A provider fallback reaches readers only through SWRSeedBoundary
+          // (#5007); fallbackData is a reader option.
           const options =
-            source === "fallbackData"
-              ? { fallbackData: "veraltet" }
-              : {
-                  fallback: {
-                    [FULL(key)]: "veraltet",
-                    [FULL(kept)]: "veraltet",
-                  },
-                };
-          view.rerender(
-            <Page>
+            source === "fallbackData" ? { fallbackData: "veraltet" } : {};
+          const readers = (
+            <>
               <Reader name={key} fetcher={fetcher} options={options} />
               <Reader name={kept} fetcher={fetcher} options={options} />
+            </>
+          );
+          view.rerender(
+            <Page>
+              {source === "fallbackData" ? (
+                readers
+              ) : (
+                <SWRSeedBoundary
+                  seed={{
+                    fallback: {
+                      [FULL(key)]: "veraltet",
+                      [FULL(kept)]: "veraltet",
+                    },
+                    cacheData: {},
+                  }}
+                >
+                  {readers}
+                </SWRSeedBoundary>
+              )}
             </Page>,
           );
           // Anker: ein nicht verworfener, ebenfalls neuer Key zeigt den Fallback.
@@ -506,13 +531,19 @@ describe.each([
         return calls === 1 ? answer.promise : Promise.resolve("neu");
       };
       const onError = vi.fn();
+      // onErrorRetry is no reader option (#5007): watch the shared one.
       const onErrorRetry = vi.fn();
+      const configuredRetry = swrConfig.onErrorRetry;
+      swrConfig.onErrorRetry = onErrorRetry;
+      onTestFinished(() => {
+        swrConfig.onErrorRetry = configuredRetry;
+      });
       const ui = (
         <Page>
           <Reader
             name="student-7-late-error"
             fetcher={fetcher}
-            options={{ onError, onErrorRetry }}
+            options={{ onError }}
           />
         </Page>
       );
@@ -651,12 +682,19 @@ describe.each([
       ) => {
         scheduled = () => void revalidate(options);
       };
+      // onErrorRetry is no reader option (#5007): the shared configuration
+      // schedules every retry, so it captures this one.
+      const configuredRetry = swrConfig.onErrorRetry;
+      swrConfig.onErrorRetry = retry;
+      onTestFinished(() => {
+        swrConfig.onErrorRetry = configuredRetry;
+      });
       const ui = (
         <Page>
           <Reader
             name="student-7-retry"
             fetcher={fetcher}
-            options={{ onErrorRetry: retry, dedupingInterval: 0 }}
+            options={{ dedupingInterval: 0 }}
           />
         </Page>
       );

@@ -1,5 +1,6 @@
 "use client";
 
+import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
@@ -13,7 +14,6 @@ import {
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -27,12 +27,9 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import {
-  DATABASE_ROOMS_LIST_CACHE_KEY,
-  ROOM_LIST_CACHE_KEYS,
-} from "~/lib/swr/room-derived-caches";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 type RoomsGroupingMode = "none" | "building" | "floor";
 
@@ -99,21 +96,17 @@ function RoomsPageContent() {
   });
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
-  const tenantMutate = useTenantMutate();
-  const refreshRoomLists = useCallback(
-    () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
-    [tenantMutate],
-  );
+  const refreshRoomLists = useTenantMutateMatching([roomsKeys.family]);
 
   const {
     data: roomsData,
     isLoading: swrLoading,
     error: roomsError,
     mutate: mutateRooms,
-  } = useSWRAuth(DATABASE_ROOMS_LIST_CACHE_KEY, async () => {
-    const data = await service.getList({ page: 1, pageSize: 500 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(
+    roomsKeys.key({ page: 1, pageSize: 500, includeSystem: true }),
+    () => roomsKeys.fetcher({ page: 1, pageSize: 500, includeSystem: true }),
+  );
 
   const error = useSwrLoadError(roomsError, "die Liste der Räume", () =>
     mutateRooms(),
@@ -286,8 +279,8 @@ function RoomsPageContent() {
                   : "Legen Sie den ersten Raum an, damit Gruppen einen Ort haben.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.rooms.icon}
-                  tone={MOTO_CONCEPTS.rooms.tone}
+                  icon={roomsConcept.icon}
+                  tone={roomsConcept.tone}
                   size={48}
                 />
               ),
@@ -333,8 +326,8 @@ function RoomsPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.rooms.icon}
-                tone={MOTO_CONCEPTS.rooms.tone}
+                icon={roomsConcept.icon}
+                tone={roomsConcept.tone}
                 size={20}
               />
             ),

@@ -100,6 +100,8 @@ type FullService interface {
 	FeedCleanupService
 	StaffCalDAVService
 	SchoolCalendar
+	SchoolParentConferences
+	ParentConferenceBookings
 }
 
 // Parent audiences a Lehrkraft may choose for a Schultermin (#4798). The

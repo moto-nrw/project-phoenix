@@ -1,9 +1,14 @@
 "use client";
 
+import {
+  operatorAnnouncementKeys,
+  operatorProvisioningKeys,
+} from "~/lib/swr/portal-keys";
+
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -47,6 +52,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { Alert } from "~/components/ui/alert";
+import { announcementsConcept } from "~/lib/concepts/announcements";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -105,8 +111,10 @@ export default function OperatorAnnouncementsPage() {
     error: announcementsError,
     isLoading,
     mutate,
-  } = useSWR("operator-announcements", () =>
-    operatorAnnouncementsService.fetchAll(),
+  } = useSWRAuth(
+    operatorAnnouncementKeys.list(),
+    () => operatorAnnouncementsService.fetchAll(),
+    { keepPreviousData: false },
   );
   const announcementsLoadError = useSwrLoadError(
     announcementsError,
@@ -118,8 +126,8 @@ export default function OperatorAnnouncementsPage() {
     data: organizations,
     error: organizationsError,
     mutate: reloadOrganizations,
-  } = useSWR(
-    "operator-organizations",
+  } = useSWRAuth(
+    operatorProvisioningKeys.organizations(),
     () => operatorProvisioningService.listOrganizations(),
     {
       keepPreviousData: true,
@@ -132,8 +140,8 @@ export default function OperatorAnnouncementsPage() {
     data: schools,
     error: schoolsError,
     mutate: reloadSchools,
-  } = useSWR(
-    "operator-schools",
+  } = useSWRAuth(
+    operatorProvisioningKeys.schools(),
     () => operatorProvisioningService.listSchools(),
     {
       keepPreviousData: true,
@@ -455,7 +463,7 @@ export default function OperatorAnnouncementsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Ankündigungen"
-        concept="announcements"
+        concept={announcementsConcept}
         badge={
           announcements
             ? { count: announcements.length, label: "Gesamt" }
@@ -1353,10 +1361,10 @@ function AnnouncementViewsAccordionWrapper({
     data: stats,
     error,
     mutate,
-  } = useSWR<AnnouncementStats>(
-    `announcement-stats-${announcementId}`,
+  } = useSWRAuth<AnnouncementStats>(
+    operatorAnnouncementKeys.stats(announcementId),
     () => operatorAnnouncementsService.fetchStats(announcementId),
-    { refreshInterval: 30000 },
+    { keepPreviousData: false, refreshInterval: 30000 },
   );
   const loadError = useSwrLoadError(
     error,

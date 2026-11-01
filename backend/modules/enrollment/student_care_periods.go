@@ -1,6 +1,7 @@
 package enrollment
 
 type StudentCarePeriod struct {
+	StudentID         int64
 	RequestChildID    int64
 	RequestID         int64
 	PhaseID           int64

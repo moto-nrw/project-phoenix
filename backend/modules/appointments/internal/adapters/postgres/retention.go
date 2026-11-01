@@ -157,3 +157,36 @@ func (s *Store) DeleteAppointments(ctx context.Context, ids []int64) (int, error
 	_, rows, err := execute(ctx, withTenant(query, "appointment", tenantID), "delete expired appointments")
 	return int(rows), err
 }
+
+// ListParentConferenceAppointments returns and locks the school's
+// Elternsprechtag appointments that start before cutoff, cancelled and
+// deleted ones included (#4801).
+func (s *Store) ListParentConferenceAppointments(ctx context.Context, cutoff appointments.Date) ([]int64, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "list past parent conference appointments")
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	query := db.NewSelect().Column("appointment.id").Model((*appointmentRow)(nil)).ModelTableExpr(appointmentTable).
+		Where(`"appointment".school_event_type = ?`, appointments.SchoolEventTypeParentConference).
+		Where(`"appointment".start_date < ?`, cutoff.String()).
+		OrderExpr(`"appointment".id`).For("UPDATE")
+	if err := withTenant(query, "appointment", tenantID).Scan(ctx, &ids); err != nil {
+		return nil, fmt.Errorf("appointments postgres: list past parent conference appointments: %w", err)
+	}
+	return ids, nil
+}
+
+// DeleteParentConferenceAppointments deletes the given Elternsprechtag
+// appointments of the school; their recipients cascade.
+func (s *Store) DeleteParentConferenceAppointments(ctx context.Context, ids []int64) (int, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "delete past parent conference appointments")
+	if err != nil {
+		return 0, err
+	}
+	query := db.NewDelete().Model((*appointmentRow)(nil)).ModelTableExpr(appointmentTable).
+		Where(`"appointment".id IN (?)`, bun.List(ids)).
+		Where(`"appointment".school_event_type = ?`, appointments.SchoolEventTypeParentConference)
+	_, rows, err := execute(ctx, withTenant(query, "appointment", tenantID), "delete past parent conference appointments")
+	return int(rows), err
+}

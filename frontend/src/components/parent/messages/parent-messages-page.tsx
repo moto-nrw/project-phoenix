@@ -38,6 +38,7 @@ import {
   ParentPageHeader,
   ParentSectionSkeleton,
 } from "~/components/parent/parent-page";
+import { messagesConcept } from "~/lib/concepts/messages";
 
 const logger = createLogger({ component: "ParentMessagesPage" });
 
@@ -386,7 +387,7 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
       className="flex min-h-[88px] w-full items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100 sm:px-5"
     >
       <ConceptIconTile
-        concept="messages"
+        concept={messagesConcept}
         variant="page"
         className="bg-moto-blue-soft rounded-full"
       />

@@ -61,7 +61,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -91,6 +91,7 @@ import {
 } from "~/lib/school-holidays-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -408,7 +409,9 @@ function StaffCalendarPageInner() {
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
-  const [referenceDate, setReferenceDate] = useState(() => new Date());
+  const [referenceDate, setReferenceDate] = useState(() =>
+    parseISODate(berlinTodayISO()),
+  );
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   // Der Wochenend-Schalter sitzt im Bedienband der Kopfkarte, das Raster
   // darunter richtet sich danach — deshalb liegt der Zustand hier.
@@ -429,8 +432,8 @@ function StaffCalendarPageInner() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [startDate, setStartDate] = useState(toISODate(new Date()));
-  const [endDate, setEndDate] = useState(toISODate(new Date()));
+  const [startDate, setStartDate] = useState(berlinTodayISO());
+  const [endDate, setEndDate] = useState(berlinTodayISO());
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
@@ -585,8 +588,8 @@ function StaffCalendarPageInner() {
 
   const handleCreate = () => {
     resetForm();
-    setStartDate(toISODate(new Date()));
-    setEndDate(toISODate(new Date()));
+    setStartDate(berlinTodayISO());
+    setEndDate(berlinTodayISO());
     setStartTime("09:00");
     setEndTime("10:00");
     setAllDay(false);
@@ -1065,7 +1068,10 @@ function StaffCalendarPageInner() {
                 <div ref={formRef}>
                   <form className="space-y-5" onSubmit={handleSubmit}>
                     <div className="flex items-center gap-2">
-                      <MotoConceptIcon concept="calendarPeriods" size={20} />
+                      <MotoConceptIcon
+                        concept={calendarPeriodsConcept}
+                        size={20}
+                      />
                       <p className="text-sm text-gray-600">
                         {editingId
                           ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."

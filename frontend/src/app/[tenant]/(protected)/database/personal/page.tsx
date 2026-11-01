@@ -1,5 +1,8 @@
 "use client";
 
+import { createCrudService } from "~/lib/database/service-factory";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "~/components/ui/navigation-link";
@@ -16,7 +19,6 @@ import {
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
@@ -37,13 +39,12 @@ import {
   getRoleDisplayName,
 } from "@/lib/auth-helpers";
 import { staffDisplayName } from "~/lib/staff-helpers";
-import { createCrudService } from "@/lib/database/service-factory";
-import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { staffConcept } from "~/lib/concepts/staff";
 
 type StaffGroupingMode = "none" | "role";
 
@@ -142,11 +143,11 @@ function TeachersPageContent() {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
-    mutate: refreshTeachers,
-  } = useSWRAuth("database-teachers-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 1000 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(staffKeys.teachersKey(), () =>
+    staffKeys.teachersFetcher(service),
+  );
+
+  const refreshTeachers = useTenantMutateMatching([staffKeys.family]);
 
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
@@ -449,8 +450,8 @@ function TeachersPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.staff.icon}
-                tone={MOTO_CONCEPTS.staff.tone}
+                icon={staffConcept.icon}
+                tone={staffConcept.tone}
                 size={20}
               />
             ),
@@ -496,8 +497,8 @@ function TeachersPageContent() {
             }
             icon={
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.staff.icon}
-                tone={MOTO_CONCEPTS.staff.tone}
+                icon={staffConcept.icon}
+                tone={staffConcept.tone}
                 size={48}
               />
             }

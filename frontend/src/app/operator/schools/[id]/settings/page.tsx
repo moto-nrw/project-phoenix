@@ -35,7 +35,11 @@ import {
   ConceptPageHeader,
   ConceptSectionHeader,
 } from "~/components/ui/concept-section-header";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { settingsConcept } from "~/lib/concepts/settings";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "OperatorSchoolSettingsPage" });
 
@@ -54,14 +58,14 @@ const TAB_LABELS: Record<string, string> = {
 
 // Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf
 // das neutrale "settings"-Konzept zurueck, wenn kein spezifischeres passt.
-const TAB_CONCEPTS: Record<string, MotoConceptKey> = {
-  operations: "settings",
-  reminders: "notifications",
-  gdpr: "permissions",
-  security: "permissions",
-  devices: "devices",
-  system: "settings",
-  general: "settings",
+const TAB_CONCEPTS: Record<string, MotoConcept> = {
+  operations: settingsConcept,
+  reminders: notificationsConcept,
+  gdpr: permissionsConcept,
+  security: permissionsConcept,
+  devices: devicesConcept,
+  system: settingsConcept,
+  general: settingsConcept,
 };
 
 interface PageProps {
@@ -198,7 +202,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
         <BackLink href={backHref} label={backLabel} className="mb-2" />
         <ConceptPageHeader
           title={`Einstellungen${schoolName ? ` · ${schoolName}` : ""}`}
-          concept="settings"
+          concept={settingsConcept}
           subtitle="Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule."
         />
       </div>
@@ -231,7 +235,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           <section key={tab.key} className="mb-8">
             <ConceptSectionHeader
               title={TAB_LABELS[tab.key] ?? tab.label}
-              concept={TAB_CONCEPTS[tab.key] ?? "settings"}
+              concept={TAB_CONCEPTS[tab.key] ?? settingsConcept}
               className="mb-4"
             />
             <div className="space-y-6">

@@ -12,7 +12,7 @@ import {
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { RequiredMark } from "~/components/ui/field-label";
@@ -57,12 +57,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
-import {
-  berlinTodayISO,
-  parseISODate,
-  toISODate,
-  todayISO,
-} from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
 import {
@@ -70,6 +65,8 @@ import {
   PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -730,7 +727,7 @@ export function SickNoteModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const datePicker = useLocalizedDatePicker();
-  const initial = todayISO();
+  const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
   const [selectedStatus, setStatus] = useState<StudentStatusKind>("sick");
@@ -1881,7 +1878,7 @@ export function SickStatusSummary({
   // A within-window date with no matching status day was NOT dropped for being
   // out of range — it was superseded or cleared. Inside the window the status
   // days are authoritative; approved requests only fill gaps outside it.
-  const windowStart = todayISO();
+  const windowStart = berlinTodayISO();
   const windowEnd = (() => {
     const d = parseISODate(windowStart);
     d.setMonth(d.getMonth() + 2);
@@ -2024,7 +2021,7 @@ export type OgsActionKey = "sick" | "pickup";
 // the school's settings.
 export interface OgsAction {
   readonly key: OgsActionKey;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly enabled: boolean;
 }
 
@@ -2040,14 +2037,14 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
   return [
     {
       key: "sick",
-      concept: "sick",
+      concept: sickConcept,
       enabled:
         features.sick_note_enabled ||
         (features.excused_note_enabled ?? features.sick_note_enabled),
     },
     {
       key: "pickup",
-      concept: "pickup",
+      concept: pickupConcept,
       enabled: features.pickup_change_enabled,
     },
   ];
