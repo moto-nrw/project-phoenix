@@ -54,6 +54,14 @@
       "referenceBytes": 980676,
       "maxBytes": 1000290
     },
+    "/[tenant]/database/qualification-types": {
+      "referenceBytes": 965120,
+      "maxBytes": 984422
+    },
+    "/[tenant]/database/qualifications": {
+      "referenceBytes": 939441,
+      "maxBytes": 958230
+    },
     "/[tenant]/database/roles": {
       "referenceBytes": 990901,
       "maxBytes": 1010719
