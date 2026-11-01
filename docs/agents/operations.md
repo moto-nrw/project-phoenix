@@ -100,7 +100,7 @@ when a selected app's published port is taken. Each `up` replaces both
 previously managed native app processes, then starts only the selected apps.
 All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
 and expects a separately running backend for API calls. Backend children default
-to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+to `GOFLAGS="-p=4 -trimpath"` and `GOMAXPROCS=4`, preserving explicit caller values.
 `down` captures both managed process trees before sending TERM and waits up to
 ten seconds for them to exit, including children whose launcher exits first.
 On timeout it returns an error without forcing KILL. A persisted shutdown

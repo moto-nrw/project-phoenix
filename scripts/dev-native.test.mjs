@@ -204,8 +204,8 @@ test('default up starts both services, bounds Go children and cleans up on termi
   await runner.ready;
   const calls = f.lines();
   assert.ok(calls.some(line => line.startsWith('docker|compose up -d --wait postgres mailpit|')));
-  assert.ok(calls.some(line => line.startsWith('go|build ') && line.includes('|GOFLAGS=-p=4|GOMAXPROCS=4|PORT=18080|API_URL=http://localhost:18080|DB_DSN=postgres://fixture@localhost:15432/fixture')));
-  assert.ok(calls.some(line => line.startsWith('air|') && line.includes('|GOFLAGS=-p=4|GOMAXPROCS=4|')));
+  assert.ok(calls.some(line => line.startsWith('go|build ') && line.includes('|GOFLAGS=-p=4 -trimpath|GOMAXPROCS=4|PORT=18080|API_URL=http://localhost:18080|DB_DSN=postgres://fixture@localhost:15432/fixture')));
+  assert.ok(calls.some(line => line.startsWith('air|') && line.includes('|GOFLAGS=-p=4 -trimpath|GOMAXPROCS=4|')));
   assert.ok(calls.some(line => line.startsWith('migrate|migrate')));
   assert.ok(calls.some(line => line.startsWith('node|') && line.includes('|GOFLAGS=<unset>|GOMAXPROCS=<unset>|PORT=13000|')));
   const result = await stop(runner);

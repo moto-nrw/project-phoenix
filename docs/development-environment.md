@@ -104,9 +104,17 @@ the current two-worker budget and later architecture-test changes.
 ### Go CPU and package budgets
 
 Devbox, `scripts/run-go-toolchain.sh`, the native backend launcher and the
-pre-push runner default to `GOFLAGS=-p=4` and `GOMAXPROCS=4`. The pinned
-runner also supplies these values outside a Devbox shell and passes them
-to nested commands. Explicit caller values remain intact.
+pre-push runner default to `GOFLAGS="-p=4 -trimpath"` and `GOMAXPROCS=4`.
+The pinned runner also supplies these values outside a Devbox shell and passes
+them to nested commands. Explicit caller values remain intact.
+
+[`-trimpath`](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies)
+lets worktrees share the Go build cache. Without it, Go adds each package's
+absolute directory to the cache key, so every new worktree compiles the
+backend again and stores a second copy. With it, `runtime.Caller` reports
+module-relative paths such as `github.com/moto-nrw/project-phoenix/api/...`.
+Code that locates repository files must therefore walk up from the working
+directory to `go.mod` (see `routetest.BackendRoot`), not from its source file.
 
 The two controls cover different work: [`-p`](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies)
 limits concurrent package commands, while

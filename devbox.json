@@ -44,7 +44,7 @@
   ],
   "env": {
     "CGO_ENABLED": "0",
-    "GOFLAGS": "-p=4",
+    "GOFLAGS": "-p=4 -trimpath",
     "GOMAXPROCS": "4",
     "GOTOOLCHAIN": "local"
   },
