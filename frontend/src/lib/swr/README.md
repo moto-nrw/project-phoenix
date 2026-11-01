@@ -41,7 +41,12 @@ void invalidateFamily(rooms.family);
    reader's bound `mutate` when it already owns that key. Its identity, like
    that of `useSWRPreload()`, survives revalidations; a scope or data bump
    hands out a new one. A revalidation of the key does not drop a running
-   mutation, a scope or data bump does. For an action the
+   mutation, a scope or data bump does. Whether a run still counts is bound
+   to the token it took at its start, never to its result equalling a value
+   stamped since: a dropped run resolves to `undefined` even when its result
+   equals the fresh value. Only values written into the cache are stamped,
+   and the committed value an optimistic run rolls back to keeps its stamp
+   while that run is pending (#5485). For an action the
    user should see at once (send, check in, toggle), use
    `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
    expected result is an overlay on the confirmed data per scoped key and

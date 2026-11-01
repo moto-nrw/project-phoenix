@@ -131,6 +131,13 @@ export function isDiscardedAnswer(error: unknown): error is DiscardedAnswer {
 const PRIMITIVES_KEPT = 4;
 const objectStamps = new Map<string, WeakMap<object, number>>();
 const primitiveStamps = new Map<string, Map<unknown, number>>();
+// The committed primitive an optimistic run in flight rolls back to keeps
+// its stamp outside that history until the run settles (#5485): newer
+// optimistic values must not evict it. One count per run.
+const pinnedStamps = new Map<
+  string,
+  Map<unknown, { generation: number; runs: number }>
+>();
 
 // The data generation from which values of a key that no path of ~/lib/swr
 // stamped (a caller's `fallbackData`, a provider fallback) count, per key of
@@ -153,10 +160,12 @@ function releaseStamps(): void {
   const released =
     objectStamps.size > 0 ||
     primitiveStamps.size > 0 ||
+    pinnedStamps.size > 0 ||
     fallbackGenerations.size > 0;
   if (!released && unstampedFrom === scopeGeneration) unstampedFrom = counter;
   objectStamps.clear();
   primitiveStamps.clear();
+  pinnedStamps.clear();
   fallbackGenerations.clear();
 }
 
@@ -164,6 +173,7 @@ function releaseStamps(): void {
 export function _resetSWRFallbacksForTests(): void {
   objectStamps.clear();
   primitiveStamps.clear();
+  pinnedStamps.clear();
   fallbackGenerations.clear();
   unstampedFrom = scopeGeneration;
 }
@@ -173,6 +183,7 @@ export function _swrStampedKeyCountForTests(): number {
   return new Set([
     ...objectStamps.keys(),
     ...primitiveStamps.keys(),
+    ...pinnedStamps.keys(),
     ...fallbackGenerations.keys(),
   ]).size;
 }
@@ -185,9 +196,38 @@ function isObject(value: unknown): value is object {
 
 function stampOf(key: string, value: unknown): number | undefined {
   const plain = plainSWRKey(key);
-  return isObject(value)
-    ? objectStamps.get(plain)?.get(value)
-    : primitiveStamps.get(plain)?.get(value);
+  if (isObject(value)) return objectStamps.get(plain)?.get(value);
+  const stamp = primitiveStamps.get(plain)?.get(value);
+  const pinned = pinnedStamps.get(plain)?.get(value)?.generation;
+  return stamp === undefined || (pinned !== undefined && pinned > stamp)
+    ? pinned
+    : stamp;
+}
+
+/** Keeps the stamp of a primitive `value` of `key` while a run needs it. */
+function pinStamp(key: string, value: unknown): (() => void) | undefined {
+  const generation = stampOf(key, value);
+  if (isObject(value) || value === undefined || generation === undefined)
+    return undefined;
+  const plain = plainSWRKey(key);
+  let pins = pinnedStamps.get(plain);
+  if (!pins) {
+    pins = new Map();
+    pinnedStamps.set(plain, pins);
+  }
+  const pin = pins.get(value) ?? { generation, runs: 0 };
+  pin.generation = Math.max(pin.generation, generation);
+  pin.runs += 1;
+  pins.set(value, pin);
+  const held = pins;
+  return () => {
+    // A scope boundary may have released the pins since.
+    if (pinnedStamps.get(plain) !== held || held.get(value) !== pin) return;
+    pin.runs -= 1;
+    if (pin.runs > 0) return;
+    held.delete(value);
+    if (held.size === 0) pinnedStamps.delete(plain);
+  };
 }
 
 /** Records that `value` of `key` was produced in data generation `generation`. */
@@ -366,42 +406,72 @@ export function preloadSWR<T>(
 
 /**
  * Puts the data argument of a mutation of `key` under the generation lock.
- * Optimistic and computed values are stamped with the generation the
- * mutation started in; an answer that arrives after the generation moved is
- * not written, the entry keeps its committed value instead.
+ *
+ * G25: whether the run writes, stamps, rolls back or hands its result to the
+ * caller depends only on the token it took at its start (the data generation
+ * of its key), never on its result being equal to a value stamped since: two
+ * primitives of different runs cannot be told apart by value. Only values
+ * the run writes into the cache are stamped (optimistic value, result or
+ * populated value, rollback); a result that populates nothing stays out of
+ * the four-value history of its key. The returned `isCurrent` is that token.
  */
 export function lockMutation(
   key: string,
   data: unknown,
   options: unknown,
-): [unknown, unknown] {
+): [unknown, unknown, () => boolean] {
   const start = startOf(key);
+  const isCurrent = () => isMutationCurrent(key, start);
   const stamp = <V>(value: V): V => {
-    // A stale result may equal a fresh primitive or share its object
-    // reference. Do not replace that value's current stamp before the
-    // populateCache guard rejects the stale write.
-    if (isMutationCurrent(key, start)) stampSWRValue(key, value, start.data);
+    if (isCurrent()) stampSWRValue(key, value, start.data);
     return value;
   };
-  const settle = (value: unknown): unknown =>
-    isObject(value) && typeof (value as Promise<unknown>).then === "function"
-      ? (value as Promise<unknown>).then(stamp)
-      : stamp(value);
-  // A value of an ended generation is no base for a new one: functions of
-  // the mutation see nothing in its place, as for an empty entry.
-  const base = (value: unknown): unknown =>
-    isVisibleSWRValue(key, value) ? value : undefined;
-  const locked =
-    typeof data === "function"
-      ? (current: unknown) =>
-          settle((data as (c: unknown) => unknown)(base(current)))
-      : settle(data);
   if (typeof options === "boolean") options = { revalidate: options };
   const given = (options ?? {}) as {
     populateCache?: boolean | ((result: unknown, current: unknown) => unknown);
     optimisticData?: unknown;
     rollbackOnError?: boolean | ((error: unknown) => boolean);
   };
+  const populate = given.populateCache;
+  // SWR writes the result itself only under its default `populateCache`.
+  const writesResult = populate === undefined || populate === true;
+  // The pin of the committed value, released once the data settled.
+  let unpin: (() => void) | undefined;
+  let settled = false;
+  const finish = () => {
+    settled = true;
+    unpin?.();
+    unpin = undefined;
+  };
+  const settle = (value: unknown): unknown => {
+    if (
+      isObject(value) &&
+      typeof (value as Promise<unknown>).then === "function"
+    ) {
+      const result = (value as Promise<unknown>).then((resolved) =>
+        writesResult ? stamp(resolved) : resolved,
+      );
+      void result.then(finish, finish);
+      return result;
+    }
+    finish();
+    return writesResult ? stamp(value) : value;
+  };
+  // A value of an ended generation is no base for a new one: functions of
+  // the mutation see nothing in its place, as for an empty entry.
+  const base = (value: unknown): unknown =>
+    isVisibleSWRValue(key, value) ? value : undefined;
+  const locked =
+    typeof data === "function"
+      ? (current: unknown) => {
+          try {
+            return settle((data as (c: unknown) => unknown)(base(current)));
+          } catch (error) {
+            finish();
+            throw error;
+          }
+        }
+      : settle(data);
   const optimistic = given.optimisticData;
   const rollback = given.rollbackOnError;
   let committed: unknown;
@@ -412,7 +482,9 @@ export function lockMutation(
       ? {}
       : {
           optimisticData: (...args: unknown[]) => {
+            // SWR hands the committed value first: the one it rolls back to.
             committed = base(args[0]);
+            if (!settled && isCurrent()) unpin = pinStamp(key, committed);
             return stamp(
               typeof optimistic === "function"
                 ? (optimistic as (...a: unknown[]) => unknown)(
@@ -422,30 +494,30 @@ export function lockMutation(
             );
           },
           rollbackOnError: (error: unknown) => {
+            // An ended run writes no rollback either.
+            if (!isCurrent()) return false;
             const shouldRollback =
               typeof rollback === "function"
                 ? rollback(error)
                 : rollback !== false;
-            // Optimistic primitives can evict the committed value's stamp.
-            // Restore only the base that was valid before this mutation,
-            // and only while its data generation still counts.
+            // The value SWR restores carries the stamp it had before.
             if (shouldRollback) stamp(committed);
             return shouldRollback;
           },
         }),
   };
-  if (given.populateCache === false) return [locked, withOptimistic];
-  const populate = given.populateCache;
+  if (populate === false) return [locked, withOptimistic, isCurrent];
   return [
     locked,
     {
       ...withOptimistic,
       populateCache: (result: unknown, current: unknown) => {
-        if (!isMutationCurrent(key, start)) return current;
+        if (!isCurrent()) return current;
         return typeof populate === "function"
           ? stamp(populate(result, base(current)))
           : result;
       },
     },
+    isCurrent,
   ];
 }

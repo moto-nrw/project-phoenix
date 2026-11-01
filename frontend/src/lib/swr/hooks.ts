@@ -148,9 +148,9 @@ const generationLockMiddleware: Middleware =
   };
 
 /**
- * The value a mutate resolves to, only while it belongs to the key's current
- * generation: after a discarded revalidation SWR resolves to whatever the
- * cache still holds.
+ * The value a revalidation or clear resolves to, only while it belongs to
+ * the key's current generation: after a discarded revalidation SWR resolves
+ * to whatever the cache still holds.
  */
 function currentResult<V>(
   key: string,
@@ -158,6 +158,20 @@ function currentResult<V>(
 ): Promise<V | undefined> {
   return Promise.resolve(result).then((value) =>
     isVisibleSWRValue(key, value) ? value : undefined,
+  );
+}
+
+/**
+ * The result of a data mutation, only while its own run still counts (G25):
+ * judged by the run's start token, never by the result equalling a value
+ * stamped since. A run ended by a scope or data bump resolves to undefined.
+ */
+function runResult<V>(
+  isCurrent: () => boolean,
+  result: Promise<V>,
+): Promise<V | undefined> {
+  return Promise.resolve(result).then((value) =>
+    isCurrent() ? value : undefined,
   );
 }
 
@@ -296,13 +310,13 @@ function lockBoundMutate<T>(
       );
       return currentResult(key, mutate(key, undefined, clear as never));
     }
-    const [locked, lockedOptions] = lockMutation(
+    const [locked, lockedOptions, isCurrent] = lockMutation(
       key,
       args[0],
       mutationOptions(args[1]),
     );
-    return currentResult(
-      key,
+    return runResult(
+      isCurrent,
       mutate(key, locked as never, lockedOptions as never),
     );
   }) as SWRResponse<T>["mutate"];
@@ -573,13 +587,13 @@ export function useTenantMutate() {
         return currentResult(cacheKey, swrMutate(cacheKey));
       }
       // A write that settles after the generation moved is not kept.
-      const [locked, lockedOptions] = lockMutation(
+      const [locked, lockedOptions, isCurrent] = lockMutation(
         cacheKey,
         data,
         mutationOptions(options),
       );
-      return currentResult(
-        cacheKey,
+      return runResult(
+        isCurrent,
         swrMutate(cacheKey, locked, lockedOptions as never),
       );
     },
