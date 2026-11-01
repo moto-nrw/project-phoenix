@@ -218,71 +218,105 @@ export default function CatererOverviewPage() {
   const { show: showActionError } = useApiErrorDisplay();
   const invalidate = useInvalidateMatching();
 
+  const runAction = action.run;
+  const retries = useRef(new Map<string, number>());
   const retrySchool = useCallback(
     async (school: CatererSchool) => {
-      // The locked writer discards a late response after a period/session change.
-      await mutateOrders(
-        async (current) => {
-          try {
-            const loaded = await fetchCatererOrders(school.id, from, to);
-            return {
-              orders: { ...current?.orders, [school.id]: loaded },
-              failures: { ...current?.failures, [school.id]: undefined },
-            };
-          } catch (cause) {
-            return {
-              orders: { ...current?.orders, [school.id]: null },
-              failures: { ...current?.failures, [school.id]: cause },
-            };
-          }
+      if (currentKey.current !== scopedKey) return;
+      const ticket = (retries.current.get(school.id) ?? 0) + 1;
+      retries.current.set(school.id, ticket);
+      const outcome = await runAction({
+        // A refresh has no provisional data, but shares the action's generation guard.
+        optimistic: (current) => current,
+        request: () => fetchCatererOrders(school.id, from, to),
+        refusal: {
+          codes: ["meals.not_supplied", "meals.order_not_found"],
+          matches: (key) => key.startsWith("caterer-orders-"),
         },
-        { revalidate: false },
-      );
-    },
-    [mutateOrders, from, to],
-  );
-
-  async function confirm(school: CatererSchool, orderId: string) {
-    const outcome = await action.run({
-      optimistic: (current) => {
-        const previous = current.orders[school.id];
-        if (!previous) return current;
-        return {
-          ...current,
-          orders: {
-            ...current.orders,
-            [school.id]: {
-              ...previous,
-              days: previous.days.map((day) =>
-                day.orderId === orderId
-                  ? { ...day, status: "confirmed" as const }
-                  : day,
-              ),
-            },
-          },
-        };
-      },
-      request: async () => {
-        await confirmCatererOrder(school.id, orderId);
-        if (currentKey.current !== scopedKey) return undefined;
-        return fetchCatererOrders(school.id, from, to);
-      },
-      commit: (loaded) => {
-        if (loaded)
-          void response.mutate(
+        commit: (loaded) => {
+          if (retries.current.get(school.id) !== ticket) return;
+          // Read the latest window only after the GET, so other schools' writes survive.
+          void mutateOrders(
             (current) =>
               current
                 ? {
-                    ...current,
                     orders: { ...current.orders, [school.id]: loaded },
+                    failures: { ...current.failures, [school.id]: undefined },
                   }
                 : current,
             { revalidate: false },
           );
+        },
+      });
+      if (outcome.status === "discarded") return;
+      if (outcome.status === "failed" && outcome.refused) {
+        // The action cleared every cached window; its error is not a reader error.
+        void showActionError(outcome.error, {
+          object: "die Bestellungen",
+          retry: () => void invalidate((key) => key === ordersKey),
+        });
+        return;
+      }
+      if (
+        outcome.status === "failed" &&
+        retries.current.get(school.id) === ticket
+      ) {
+        // Keep a successfully confirmed snapshot and show the refresh error beside it.
+        await mutateOrders(
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  failures: { ...current.failures, [school.id]: outcome.error },
+                }
+              : current,
+          { revalidate: false },
+        );
+      }
+    },
+    [
+      from,
+      to,
+      mutateOrders,
+      runAction,
+      scopedKey,
+      showActionError,
+      invalidate,
+      ordersKey,
+    ],
+  );
+
+  async function confirm(school: CatererSchool, orderId: string) {
+    const markConfirmed = (current: NonNullable<typeof response.data>) => {
+      const previous = current.orders[school.id];
+      if (!previous) return current;
+      return {
+        ...current,
+        orders: {
+          ...current.orders,
+          [school.id]: {
+            ...previous,
+            days: previous.days.map((day) =>
+              day.orderId === orderId
+                ? { ...day, status: "confirmed" as const }
+                : day,
+            ),
+          },
+        },
+      };
+    };
+    const outcome = await action.run({
+      optimistic: markConfirmed,
+      request: () => confirmCatererOrder(school.id, orderId),
+      commit: () => {
+        // The successful POST confirms the status even if the subsequent GET fails.
+        void mutateOrders(
+          (current) => (current ? markConfirmed(current) : current),
+          { revalidate: false },
+        );
         // Other windows must not later resurrect an unconfirmed order.
         void invalidate(
-          (key) =>
-            key.startsWith("caterer-orders-") && (!loaded || key !== ordersKey),
+          (key) => key.startsWith("caterer-orders-") && key !== ordersKey,
         );
       },
       refusal: {
@@ -295,6 +329,7 @@ export default function CatererOverviewPage() {
       // The session/window no longer owns this action: no toast or reload.
       return;
     }
+    if (currentKey.current === scopedKey) await retrySchool(school);
   }
 
   async function download(format: DeliveryExportFormat) {
@@ -532,11 +567,20 @@ export default function CatererOverviewPage() {
                 {schoolOrders === undefined ? (
                   <DataTableSkeleton rows={3} columns={5} />
                 ) : schoolOrders ? (
-                  <CatererSchoolOrders
-                    school={school}
-                    orders={schoolOrders}
-                    onConfirm={(orderId) => confirm(school, orderId)}
-                  />
+                  <>
+                    {failures[school.id] != null && (
+                      <SchoolLoadError
+                        school={school}
+                        cause={failures[school.id]}
+                        onRetry={() => retrySchool(school)}
+                      />
+                    )}
+                    <CatererSchoolOrders
+                      school={school}
+                      orders={schoolOrders}
+                      onConfirm={(orderId) => confirm(school, orderId)}
+                    />
+                  </>
                 ) : (
                   <SchoolLoadError
                     school={school}

@@ -325,6 +325,118 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(card).toContainElement(sentence);
   });
 
+  it("preserves both schools when failed orders are retried concurrently", async () => {
+    mocks.fetchCatererOrders.mockRejectedValueOnce(new ApiError("north", 503));
+    mocks.fetchCatererOrders.mockRejectedValueOnce(new ApiError("south", 503));
+    render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "OGS Süd ausklappen" }));
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    const south = screen
+      .getByRole("heading", { name: "OGS Süd" })
+      .closest("section")!;
+    const retryNorth = await within(north).findByRole("button", {
+      name: "Wiederholen",
+    });
+    const retrySouth = await within(south).findByRole("button", {
+      name: "Wiederholen",
+    });
+    const first = deferred<ReturnType<typeof week>>();
+    const second = deferred<ReturnType<typeof week>>();
+    mocks.fetchCatererOrders
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    fireEvent.click(retryNorth);
+    fireEvent.click(retrySouth);
+    await act(async () => first.resolve(week([10, 10, 10, 10, 10])));
+    await act(async () => second.resolve(week([5, 5, 5, 5, 5])));
+    const table = within(screen.getAllByRole("table")[0]!);
+    expect(
+      within(table.getByText("OGS Nord").closest("tr")!).getByText("50"),
+    ).toBeVisible();
+    expect(
+      within(table.getByText("OGS Süd").closest("tr")!).getByText("25"),
+    ).toBeVisible();
+    expect(table.getByText("75")).toBeVisible();
+    expect(
+      within(north).queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(south).queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a successful confirmation when its refresh fails and lets the school retry", async () => {
+    mocks.confirmCatererOrder.mockResolvedValueOnce(undefined);
+    render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    mocks.fetchCatererOrders.mockRejectedValueOnce(
+      new ApiError("refresh down", 503),
+    );
+    fireEvent.click(
+      within(north).getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+    );
+    const retry = await within(north).findByRole("button", {
+      name: "Wiederholen",
+    });
+    expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    const fresh = week([10, 10, 10, 10, 10]);
+    fresh.days[0]!.status = "confirmed";
+    mocks.fetchCatererOrders.mockResolvedValueOnce(fresh);
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+    );
+    expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
+    expect(mocks.confirmCatererOrder).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops confirmed orders when the subsequent refresh refuses school access", async () => {
+    mocks.confirmCatererOrder.mockResolvedValueOnce(undefined);
+    render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    expect(
+      within(north).getAllByRole("button", { name: "Erhalten bestätigen" })
+        .length,
+    ).toBeGreaterThan(0);
+    mocks.fetchCatererOrders.mockRejectedValueOnce(
+      new ApiError("revoked", 403, { code: "meals.not_supplied" }),
+    );
+    fireEvent.click(
+      within(north).getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+    );
+    const messages = await screen.findAllByText(
+      "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+    );
+    expect(messages[0]).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Erhalten bestätigen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
+    expect(mocks.confirmCatererOrder).toHaveBeenCalledTimes(1);
+  });
+
   it("retries the orders of one school from its card", async () => {
     let southFails = true;
     mocks.fetchCatererOrders.mockImplementation((schoolId: string) => {
