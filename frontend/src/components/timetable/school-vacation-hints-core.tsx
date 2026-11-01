@@ -72,7 +72,7 @@ export function vacationHintMessage(hint: SchoolVacationHint): string {
  * Link in den Betreuungsplan, der die Sammelabsage mit diesen Ferien öffnet
  * (`absagen`/`absagenBis`, siehe `betreuungsplan-view.tsx`).
  */
-export function vacationCancelPath(hint: SchoolVacationHint): string {
+function vacationCancelPath(hint: SchoolVacationHint): string {
   const query = new URLSearchParams({
     d: hint.cancelFrom,
     absagen: hint.cancelFrom,
