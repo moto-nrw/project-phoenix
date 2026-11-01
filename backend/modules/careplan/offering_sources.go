@@ -22,9 +22,10 @@ type OfferingSourceOption struct {
 	Name      string
 	PhaseID   int64
 	PhaseName string
-	// PhaseServiceStart is the phase's service_start_date. Sourced
-	// enrollments never start earlier, so materialised occurrences before this
-	// day stay empty of offering-fed children (OGS am Berg, 2026-08).
+	// PhaseServiceStart is the phase's service_start_date, or the period start
+	// when the phase begins earlier. Sourced enrollments never start earlier,
+	// so materialised occurrences before this day stay empty of offering-fed
+	// children (OGS am Berg, 2026-08).
 	PhaseServiceStart calendar.Date
 	// TotalCount is the number of distinct approved children currently or
 	// prospectively enrolled in the offering.
@@ -106,7 +107,7 @@ func ExplainEmptyOfferingRoster(
 }
 
 // OfferingWeekdayBooking is one child's approved booking of an active
-// offering fitting a calendar period, with the weekdays it plans (ISO,
+// offering overlapping a calendar period, with the weekdays it plans (ISO,
 // 1 = Monday) from a date on (#5103). A child with several links to the same
 // offering appears once, with the union of their weekdays.
 type OfferingWeekdayBooking struct {
