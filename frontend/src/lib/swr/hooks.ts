@@ -727,7 +727,8 @@ export function useDiscardRefusedEntity() {
 }
 
 /**
- * Capture at the start of an SWR fetcher; run synchronous completion effects
+ * Call the hook in the component; call its returned starter inside the SWR
+ * fetcher before awaiting. Its completion callback runs synchronous effects
  * only in that request's scope and generation, even after a key change.
  * Stale completions become the wrapper's silent DiscardedAnswer. This exposes
  * no cache or writer, and does not change SWR's view-bound onSuccess contract.

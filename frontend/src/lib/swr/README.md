@@ -148,9 +148,10 @@ and hides it while another tab's session change is being confirmed.
 ### Completion effects of batch readers
 
 A batch reader processes supply/access refusals when its request settles,
-not only in an effect of the currently selected view. Capture
-`useSWRRequestGuard()` (from `hooks`) at the start of the fetcher and run the
-synchronous refusal handling through its returned completion callback. It
+not only in an effect of the currently selected view. Call
+`useSWRRequestGuard()` (from `hooks`) in the component body. Call its returned
+request starter at the beginning of the fetcher, before awaiting the request.
+Run synchronous refusal handling through the resulting completion callback. It
 checks the session, scope and request generation even after the user changes
 keys. A stale completion becomes `DiscardedAnswer`, which the existing SWR
 wrapper suppresses. The guard exposes no cache or writer and does not change
