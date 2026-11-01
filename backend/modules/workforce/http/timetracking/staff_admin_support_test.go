@@ -86,6 +86,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	resource := NewStaffAdminResource(StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		PayrollDispatch:    payrollDispatchOff{},
+		PayrollRules:       workforcetest.ComposePayrollRules(t, db),
 		OffboardingCleanup: cleanup,
 		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,

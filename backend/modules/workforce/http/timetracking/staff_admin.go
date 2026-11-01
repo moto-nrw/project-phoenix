@@ -47,7 +47,10 @@ type StaffAdminResource struct {
 	// PayrollDispatch queues the automatic send after a month close and
 	// reports the newest dispatch on /payroll (#4805).
 	PayrollDispatch workforce.PayrollDispatch
-	schedules       scheduleReader
+	// PayrollRules maintains the school's own wage types and surcharge
+	// rules on /payroll (#4807).
+	PayrollRules workforce.PayrollRules
+	schedules    scheduleReader
 	// targetOverrides serves the Sonderarbeitszeiten (#3259); nil answers
 	// their routes with "not wired".
 	targetOverrides    workforce.StaffTargetOverrides
@@ -85,7 +88,9 @@ type StaffAdminDependencies struct {
 	// PayrollDispatch is required: a month close of a school that switched
 	// the automatic send on must queue it.
 	PayrollDispatch workforce.PayrollDispatch
-	Identity        IdentityFunc
+	// PayrollRules is required: /payroll maintains the wage types with it.
+	PayrollRules workforce.PayrollRules
+	Identity     IdentityFunc
 
 	Logger *slog.Logger
 }
@@ -103,6 +108,9 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	}
 	if deps.PayrollDispatch == nil {
 		panic("staff admin resource: the payroll dispatch is required")
+	}
+	if deps.PayrollRules == nil {
+		panic("staff admin resource: the payroll rules are required")
 	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
@@ -131,6 +139,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		TimeExportService:    deps.TimeExport,
 		ExportTransfer:       deps.ExportTransfer,
 		PayrollDispatch:      deps.PayrollDispatch,
+		PayrollRules:         deps.PayrollRules,
 		schedules:            schedules,
 		targetOverrides:      deps.TargetOverrides,
 		notifyTimeTracking:   deps.NotifyChanged,
@@ -150,6 +159,7 @@ func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Mi
 	rs.registerTargetOverrideRoutes(r, withTx)
 	rs.registerBalanceRoutes(r, withTx)
 	rs.registerCrossStaffRoutes(r, withTx)
+	rs.registerPayrollRuleRoutes(r, withTx)
 	rs.registerAbsenceRoutes(r, withTx)
 }
 

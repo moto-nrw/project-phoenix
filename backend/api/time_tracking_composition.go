@@ -122,6 +122,10 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 	if err != nil {
 		panic(err)
 	}
+	payrollRules, err := owners.BuildPayrollRules(db)
+	if err != nil {
+		panic(err)
+	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
@@ -142,6 +146,7 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 		NotifyChanged:      notifyChanged,
 		ExportTransfer:     newExportTransferPort(exportTransfer),
 		PayrollDispatch:    payroll,
+		PayrollRules:       payrollRules,
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})

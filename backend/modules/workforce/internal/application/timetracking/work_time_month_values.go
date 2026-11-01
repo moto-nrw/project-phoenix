@@ -53,6 +53,18 @@ type monthAggregates struct {
 	plannedShift     int
 	adjustment       int
 	adjustments      []*StaffBalanceAdjustment
+	// creditedByType splits the credit of the school's own absence types
+	// (#4807): the DATEV export books a mapped type onto its wage type.
+	creditedByType map[int64]AbsenceTypeCredit
+}
+
+// AbsenceTypeCredit is the credit of one school absence type in a month: the
+// credited minutes, the absence days and the standard type whose category it
+// is counted in.
+type AbsenceTypeCredit struct {
+	BaseType string
+	Minutes  int
+	Days     float64
 }
 
 func (a *monthAggregates) creditedTotal() int {
@@ -69,6 +81,16 @@ func (a *monthAggregates) balance() int {
 func creditAbsenceDay(absence *StaffAbsence, credit int, fraction float64, agg *monthAggregates) {
 	if agg == nil {
 		return
+	}
+	if absence.AbsenceTypeID != nil && absence.AbsenceType != AbsenceTypeCompTime {
+		if agg.creditedByType == nil {
+			agg.creditedByType = make(map[int64]AbsenceTypeCredit)
+		}
+		entry := agg.creditedByType[*absence.AbsenceTypeID]
+		entry.BaseType = absence.AbsenceType
+		entry.Minutes += credit
+		entry.Days += fraction
+		agg.creditedByType[*absence.AbsenceTypeID] = entry
 	}
 	switch absence.AbsenceType {
 	case AbsenceTypeSick:

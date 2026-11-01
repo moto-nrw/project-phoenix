@@ -27,6 +27,7 @@ type StaffMonthBalanceSnapshot struct {
 	ReopenedAt            *time.Time
 	ReopenedBy            *int64
 	ReopenReason          string
+	PayrollRules          []byte
 }
 
 func (s StaffMonthBalanceSnapshot) Validate() error {

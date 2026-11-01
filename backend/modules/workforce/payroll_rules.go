@@ -150,3 +150,26 @@ type PayrollRules interface {
 	ArchiveSurchargeRule(ctx context.Context, actorAccountID, id int64) error
 	SetAbsenceTypeWageType(ctx context.Context, actorAccountID, absenceTypeID int64, wageTypeID *int64) error
 }
+
+// PayrollRuleChange is one change for the settings audit: Key names the
+// object ("payroll.wage_type.12"), Action is "set" or "delete", Old and New
+// are the JSON of the object before and after.
+type PayrollRuleChange struct {
+	Key            string
+	Action         string
+	Old, New       []byte
+	ActorAccountID int64
+}
+
+// PayrollRuleAudit writes a change into the settings audit of the tenant in
+// the context, in its transaction. The root binds it to the Settings
+// Platform.
+type PayrollRuleAudit interface {
+	RecordPayrollRuleChange(context.Context, PayrollRuleChange) error
+}
+
+// PayrollRuleSetReader answers the rule set in force now; the export books
+// open months with it.
+type PayrollRuleSetReader interface {
+	CurrentPayrollRuleSet(context.Context) (*PayrollRuleSet, error)
+}

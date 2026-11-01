@@ -165,7 +165,11 @@ type staffOverviewService struct {
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithOverviewVacationOpenings, nil in bare unit fixtures.
 	openingRepo VacationOpeningRecords
-	logger      *slog.Logger
+	// payrollRules and statutoryHolidays feed the wage type values of the
+	// month export (#4807); without them no row carries any.
+	payrollRules      workforce.PayrollRuleSetReader
+	statutoryHolidays HolidayDatesReader
+	logger            *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() calendar.Date

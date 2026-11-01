@@ -67,5 +67,9 @@
   "vacation_quota_reason_required": "{object} could not be saved. Please check your entries.",
   "vacation_request_in_past": "{object} could not be saved. Please check your entries.",
   "work_session_overlap": "{object} could not be changed. Please check its current status.",
-  "payroll_download_unavailable": "{object} could not be changed. Please check its current status."
+  "payroll_download_unavailable": "{object} could not be changed. Please check its current status.",
+  "payroll_rule_invalid": "{object} could not be saved. Please check your entries.",
+  "payroll_rule_not_found": "{object} could not be changed. Please check its current status.",
+  "payroll_wage_type_in_use": "{object} could not be changed. Please check its current status.",
+  "payroll_wage_type_name_taken": "{object} could not be saved. Please check your entries."
 }

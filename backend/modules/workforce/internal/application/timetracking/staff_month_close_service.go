@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -78,6 +79,9 @@ type staffMonthCloseService struct {
 	settings     monthSettingsResolver
 	broadcaster  EventPublisher
 	logger       *slog.Logger
+	// payrollRules is frozen into every snapshot of a close (#4807): a
+	// closed month keeps the wage types and rules in force at the close.
+	payrollRules workforce.PayrollRuleSetReader
 }
 
 func NewStaffMonthCloseService(
@@ -185,10 +189,14 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	// against a concurrent payout or schedule edit.
 	slices.Sort(staffIDs)
 
+	payrollRules, err := s.frozenPayrollRules(ctx)
+	if err != nil {
+		return nil, err
+	}
 	result := &MonthCloseResult{Year: year, Month: month}
 	closedAt := time.Now()
 	for _, staffID := range staffIDs {
-		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staffID, closedBy, key, trimmedReason, closedAt)
+		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staffID, closedBy, key, trimmedReason, closedAt, payrollRules)
 		if err != nil {
 			return nil, err
 		}
@@ -223,6 +231,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	key monthKey,
 	reason string,
 	closedAt time.Time,
+	payrollRules []byte,
 ) (*MonthSnapshot, bool, error) {
 	if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, false, fmt.Errorf("failed to lock staff balance writes: %w", err)
@@ -264,6 +273,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		ClosedBy:          closedBy,
 		CloseReason:       reason,
 		Source:            SnapshotSourceAdmin,
+		PayrollRules:      payrollRules,
 	}
 	created, err := s.snapshotRepo.RecordClosedMonth(ctx, *snapshot)
 	if err != nil {
@@ -276,6 +286,23 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		"closing_balance_minutes", snapshot.ClosingBalanceMinutes,
 	)
 	return &created, false, nil
+}
+
+// frozenPayrollRules is the JSON of the rule set in force now; without a
+// rule reader nothing is frozen and the month books with the current rules.
+func (s *staffMonthCloseService) frozenPayrollRules(ctx context.Context) ([]byte, error) {
+	if s.payrollRules == nil {
+		return nil, nil
+	}
+	set, err := s.payrollRules.CurrentPayrollRuleSet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payroll rules for month close: %w", err)
+	}
+	data, err := json.Marshal(set)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode payroll rules for month close: %w", err)
+	}
+	return data, nil
 }
 
 func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reopenedBy int64, year, month int, reason string) error {

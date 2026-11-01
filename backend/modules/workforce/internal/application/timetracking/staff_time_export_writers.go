@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -100,14 +102,78 @@ func monthExportCells(row MonthExportRow, timeFormat string) []string {
 }
 
 func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
+	wageTypes := exportWageTypes(rows)
 	cells := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		cells = append(cells, monthExportCells(row, timeFormat))
+		cells = append(cells, append(monthExportCells(row, timeFormat), wageTypeCells(row, wageTypes, timeFormat)...))
 	}
-	return writeExportCSV(monthExportHeaders, cells, []int{0, 1, 2})
+	return writeExportCSV(monthExportHeadersWith(wageTypes), cells, []int{0, 1, 2})
+}
+
+// monthExportHeadersWith appends one column per wage type of the school
+// (#4807); a school without one keeps the header unchanged.
+func monthExportHeadersWith(wageTypes []workforce.PayrollWageType) []string {
+	headers := slices.Clone(monthExportHeaders)
+	for _, wageType := range wageTypes {
+		headers = append(headers, wageTypeColumnHeader(wageType))
+	}
+	return headers
+}
+
+// wageTypeCells renders the row's value of each wage type column; a wage
+// type the row does not book stays empty.
+func wageTypeCells(row MonthExportRow, wageTypes []workforce.PayrollWageType, timeFormat string) []string {
+	values := wageTypeValuesByID(row)
+	cells := make([]string, len(wageTypes))
+	for i, wageType := range wageTypes {
+		value, ok := values[wageType.ID]
+		if !ok {
+			continue
+		}
+		switch wageType.Unit {
+		case workforce.WageTypeUnitAmount:
+			cells[i] = formatExportCents(value.Cents)
+		case workforce.WageTypeUnitDays:
+			cells[i] = formatExportDays(value.Days)
+		default:
+			cells[i] = formatExportMinutes(value.Minutes, timeFormat)
+		}
+	}
+	return cells
+}
+
+// wageTypeXLSXValues are the numeric cells of the wage type columns: hours
+// as decimal hours or "h:mm" text, days and Euro as numbers.
+func wageTypeXLSXValues(row MonthExportRow, wageTypes []workforce.PayrollWageType, timeFormat string) []any {
+	values := wageTypeValuesByID(row)
+	cells := stringsToAny(wageTypeCells(row, wageTypes, timeFormat))
+	for i, wageType := range wageTypes {
+		value, ok := values[wageType.ID]
+		if !ok {
+			continue
+		}
+		switch {
+		case wageType.Unit == workforce.WageTypeUnitAmount:
+			cells[i] = float64(value.Cents) / 100
+		case wageType.Unit == workforce.WageTypeUnitDays:
+			cells[i] = value.Days
+		case timeFormat == ExportTimeDecimal:
+			cells[i] = float64(value.Minutes) / 60
+		}
+	}
+	return cells
+}
+
+func wageTypeValuesByID(row MonthExportRow) map[int64]wageTypeValue {
+	values := map[int64]wageTypeValue{}
+	for _, value := range rowWageTypeValues(row) {
+		values[value.WageType.ID] = value
+	}
+	return values
 }
 
 func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackingWorkbookRenderer) ([]byte, error) {
+	wageTypes := exportWageTypes(rows)
 	cells := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		values := stringsToAny(monthExportCells(row, timeFormat))
@@ -132,13 +198,18 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackin
 			values[20] = float64(row.ClosingBalanceMinutes) / 60
 			values[21] = float64(row.DriftMinutes) / 60
 		}
-		cells = append(cells, values)
+		cells = append(cells, append(values, wageTypeXLSXValues(row, wageTypes, timeFormat)...))
 	}
 	var decimalColumns []int
 	if timeFormat == ExportTimeDecimal {
 		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22}
 	}
-	return render("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
+	for i, wageType := range wageTypes {
+		if wageType.Unit == workforce.WageTypeUnitAmount || (wageType.Unit == workforce.WageTypeUnitHours && timeFormat == ExportTimeDecimal) {
+			decimalColumns = append(decimalColumns, len(monthExportHeaders)+i+1)
+		}
+	}
+	return render("Zeiterfassung", monthExportHeadersWith(wageTypes), cells, decimalColumns)
 }
 
 // --- day granularity -------------------------------------------------------

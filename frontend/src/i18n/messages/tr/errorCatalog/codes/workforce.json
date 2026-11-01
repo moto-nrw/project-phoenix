@@ -67,5 +67,9 @@
   "vacation_quota_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "vacation_request_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "work_session_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "payroll_download_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "payroll_download_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "payroll_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "payroll_rule_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "payroll_wage_type_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "payroll_wage_type_name_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

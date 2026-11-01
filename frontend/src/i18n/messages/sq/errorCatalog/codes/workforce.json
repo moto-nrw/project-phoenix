@@ -67,5 +67,9 @@
   "vacation_quota_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "vacation_request_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "work_session_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "payroll_download_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "payroll_download_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "payroll_rule_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "payroll_rule_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "payroll_wage_type_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "payroll_wage_type_name_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }

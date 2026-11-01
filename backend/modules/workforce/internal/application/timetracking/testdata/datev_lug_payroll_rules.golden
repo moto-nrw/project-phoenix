@@ -1,0 +1,12 @@
+Personalnummer;Kalendertag;Ausfallschluessel;Lohnartennummer;Stundenanzahl;Tagesanzahl;Wert;Abw. Faktor;Abw. Lohnveraenderung;Kostenstellennummer;Kostentraeger
+1001;;;100;16,00;;;;;;
+1001;;;120;10,00;;;;;;
+1001;;;130;2,00;;;;;;
+1001;;;200;;1;;;;;
+1001;;;210;16,00;;;;;;
+1001;;;220;;1;;;;;
+1001;;;340;;1;;;;;
+1002;;;100;12,50;;;;;;
+1002;;;310;5,50;;;;;;
+1002;;;320;;;10,00;;;;
+1002;;;330;3,00;;;;;;

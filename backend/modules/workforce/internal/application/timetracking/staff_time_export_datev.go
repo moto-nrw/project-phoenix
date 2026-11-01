@@ -65,9 +65,11 @@ type DatevExportReport struct {
 type datevLine struct {
 	personnelNumber string
 	lohnart         string
-	// exactly one of hoursMinutes / days is set, mirroring the configured unit
+	// exactly one of hoursMinutes / days / amountCents is set, mirroring the
+	// configured unit; amounts come from the school's own wage types (#4807)
 	hoursMinutes *int
 	days         *float64
+	amountCents  *int
 }
 
 // datevCategoryValue picks the ONE MonthExportRow field a category exports.
@@ -92,11 +94,11 @@ func datevCategoryValue(category PayrollExportCategory, row MonthExportRow) (min
 	case "freizeitausgleich":
 		minutes = -row.CompTimeMinutes
 	case "krank":
-		minutes, days = row.CreditedSickMinutes, row.SickDays
+		minutes, days = withoutMappedCredit(row, AbsenceTypeSick, row.CreditedSickMinutes, row.SickDays)
 	case "urlaub":
-		minutes, days = row.CreditedVacationMinutes, row.VacationDays
+		minutes, days = withoutMappedCredit(row, AbsenceTypeVacation, row.CreditedVacationMinutes, row.VacationDays)
 	case "fortbildung":
-		minutes, days = row.CreditedTrainingMinutes, row.TrainingDays
+		minutes, days = withoutMappedCredit(row, AbsenceTypeTraining, row.CreditedTrainingMinutes, row.TrainingDays)
 	default:
 		return 0, 0, false, false
 	}
@@ -105,6 +107,13 @@ func datevCategoryValue(category PayrollExportCategory, row MonthExportRow) (min
 		return 0, days, true, days != 0
 	}
 	return minutes, 0, false, minutes != 0
+}
+
+// withoutMappedCredit takes the school absence types booked onto their own
+// wage type (#4807) out of their standard category, so a day books once.
+func withoutMappedCredit(row MonthExportRow, baseType string, minutes int, days float64) (int, float64) {
+	mappedMinutes, mappedDays := mappedCategoryCredit(row, baseType)
+	return minutes - mappedMinutes, days - mappedDays
 }
 
 // buildDatevLines maps the export rows onto Bewegungsdaten lines and collects
@@ -137,7 +146,9 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 			report.OpenMonth = true
 		}
 		lines = appendDatevRowLines(lines, configured, row)
+		lines = appendDatevWageTypeLines(lines, row)
 	}
+	report.UnconfiguredCategories = append(report.UnconfiguredCategories, unnumberedWageTypes(rows)...)
 	report.LineCount = len(lines)
 	report.StaffExported = len(exported)
 	return lines, report
@@ -196,6 +207,12 @@ func datevDays(days float64) string {
 const (
 	lodasRecordHours = "1"
 	lodasRecordDays  = "2"
+	// lodasRecordAmount books an amount of the school's own wage types
+	// (#4807) into the standard table with Bearbeitungsschlüssel 02
+	// (Bruttowerte). Declared only when the file carries an amount, so a file
+	// without one stays byte-identical.
+	lodasRecordAmount   = "3"
+	lodasAmountBSNumber = "02"
 )
 
 func writeDatevLodas(lines []datevLine, status *PayrollExportConfiguration, year, month int) []byte {
@@ -212,8 +229,15 @@ func writeDatevLodas(lines []datevLine, status *PayrollExportConfiguration, year
 	b.WriteString("\n[Satzbeschreibung]\n")
 	b.WriteString(lodasRecordHours + ";u_lod_bwd_buchung_stunden;pnr#bwd;abrechnung_zeitraum#bwd;stunden#bwd;la_eigene#bwd;\n")
 	b.WriteString(lodasRecordDays + ";u_lod_bwd_buchung_tage;pnr#bwd;abrechnung_zeitraum#bwd;tage#bwd;la_eigene#bwd;\n")
+	if datevLinesCarryAmounts(lines) {
+		b.WriteString(lodasRecordAmount + ";u_lod_bwd_buchung_standard;pnr#bwd;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;\n")
+	}
 	b.WriteString("\n[Bewegungsdaten]\n")
 	for _, line := range lines {
+		if line.amountCents != nil {
+			b.WriteString(strings.Join([]string{lodasRecordAmount, line.personnelNumber, period, formatExportCents(*line.amountCents), lodasAmountBSNumber, line.lohnart}, ";") + ";\n")
+			continue
+		}
 		if line.days != nil {
 			b.WriteString(strings.Join([]string{lodasRecordDays, line.personnelNumber, period, datevDays(*line.days), line.lohnart}, ";") + ";\n")
 			continue
@@ -239,13 +263,16 @@ func writeDatevLug(lines []datevLine) []byte {
 	var b strings.Builder
 	b.WriteString(strings.Join(datevLugHeader, ";") + "\n")
 	for _, line := range lines {
-		hours, days := "", ""
-		if line.days != nil {
+		hours, days, value := "", "", ""
+		switch {
+		case line.amountCents != nil:
+			value = formatExportCents(*line.amountCents)
+		case line.days != nil:
 			days = datevDays(*line.days)
-		} else {
+		default:
 			hours = datevHours(*line.hoursMinutes)
 		}
-		fields := []string{line.personnelNumber, "", "", line.lohnart, hours, days, "", "", "", "", ""}
+		fields := []string{line.personnelNumber, "", "", line.lohnart, hours, days, value, "", "", "", ""}
 		b.WriteString(strings.Join(fields, ";") + "\n")
 	}
 	return encodeDatevANSI(b.String())
@@ -300,9 +327,33 @@ func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, form
 		return nil, fmt.Errorf("%w: Berater- und Mandantennummer fehlen", ErrPayrollConfigIncomplete)
 	}
 	if status.ConfiguredCategories == 0 {
-		return nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+		numbered, err := s.hasNumberedWageType(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !numbered {
+			return nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+		}
 	}
 	return status, nil
+}
+
+// hasNumberedWageType reports whether one of the school's own wage types
+// (#4807) has a DATEV number, so a file has lines without a fixed category.
+func (s *staffTimeExportService) hasNumberedWageType(ctx context.Context) (bool, error) {
+	if s.payrollRules == nil {
+		return false, nil
+	}
+	rules, err := s.payrollRules.CurrentPayrollRuleSet(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to load payroll rules: %w", err)
+	}
+	for _, wageType := range rules.WageTypes {
+		if wageType.Number != "" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // buildDatev computes lines + report for both the download and the report

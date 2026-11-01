@@ -27,6 +27,9 @@ type MonthSnapshot struct {
 	ReopenedAt            *time.Time `json:"reopened_at,omitempty"`
 	ReopenedBy            *int64     `json:"reopened_by,omitempty"`
 	ReopenReason          string     `json:"reopen_reason,omitempty"`
+	// PayrollRules is the JSON of the wage types, rules and absence type
+	// mapping in force at the close (#4807); nil books with the current ones.
+	PayrollRules []byte `json:"-"`
 }
 
 func (s *MonthSnapshot) IsActive() bool { return s.ReopenedAt == nil }

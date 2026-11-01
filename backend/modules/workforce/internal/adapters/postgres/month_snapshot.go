@@ -36,6 +36,7 @@ type monthSnapshotRow struct {
 	ReopenedAt            *time.Time `bun:"reopened_at"`
 	ReopenedBy            *int64     `bun:"reopened_by"`
 	ReopenReason          string     `bun:"reopen_reason,notnull,default:''"`
+	PayrollRules          []byte     `bun:"payroll_rules,type:jsonb,nullzero"`
 }
 
 func monthSnapshotToDomain(v monthSnapshotRow) domain.StaffMonthBalanceSnapshot {
@@ -45,6 +46,7 @@ func monthSnapshotToDomain(v monthSnapshotRow) domain.StaffMonthBalanceSnapshot 
 		TargetMinutes: v.TargetMinutes, ActualMinutes: v.ActualMinutes, CreditedMinutes: v.CreditedMinutes,
 		AdjustmentMinutes: v.AdjustmentMinutes, ClosedAt: v.ClosedAt, ClosedBy: v.ClosedBy, CloseReason: v.CloseReason,
 		Source: v.Source, ReopenedAt: v.ReopenedAt, ReopenedBy: v.ReopenedBy, ReopenReason: v.ReopenReason,
+		PayrollRules: v.PayrollRules,
 	}
 }
 
@@ -55,6 +57,7 @@ func monthSnapshotFromDomain(v domain.StaffMonthBalanceSnapshot) monthSnapshotRo
 		TargetMinutes: v.TargetMinutes, ActualMinutes: v.ActualMinutes, CreditedMinutes: v.CreditedMinutes,
 		AdjustmentMinutes: v.AdjustmentMinutes, ClosedAt: v.ClosedAt, ClosedBy: v.ClosedBy, CloseReason: v.CloseReason,
 		Source: v.Source, ReopenedAt: v.ReopenedAt, ReopenedBy: v.ReopenedBy, ReopenReason: v.ReopenReason,
+		PayrollRules: v.PayrollRules,
 	}
 }
 
