@@ -146,8 +146,7 @@ const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
 // supervisors of a running session change (#2806, #4763): someone was added,
 // handed the supervision over or released it. Both people's sidebars list
 // their supervisions from it. Presence names every other supervisor write
-// (claim, add, edit, end, replace) supervisors_changed on its combined
-// refresh (#5017).
+// (claim, add, edit, end, replace) supervisors_changed (#5017).
 const SUPERVISOR_CHANGE_REASONS: ReadonlySet<string> = new Set([
   "additional_supervisor_assigned",
   "supervision_handed_over",

@@ -179,7 +179,7 @@ describe("useGlobalSSE: own supervision family (#5017)", () => {
   );
 
   it.each([
-    ["dashboard_counts_changed", { reason: "supervisors_changed" }],
+    ["active_supervision_changed", { reason: "supervisors_changed" }],
     ["active_supervision_changed", { reason: "timetable_attendance_updated" }],
   ] satisfies [SSEEvent["type"], SSEEvent["data"]][])(
     "%s (%o) refreshes the own supervision",

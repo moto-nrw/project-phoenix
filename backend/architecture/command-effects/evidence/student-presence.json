@@ -8753,6 +8753,14 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceEvents.SupervisionChanged",
+      "binding_digest": "df6e73ef736160341d14115d7c5c7450",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.EventPublisher.SupervisionChanged",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents.GroupEvents.QueueActiveSupervisionChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceEvents.SupervisionRefresh",
       "binding_digest": "86b6d3565dc458f08eec28f20ba69f13",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.EventPublisher.SupervisionRefresh",

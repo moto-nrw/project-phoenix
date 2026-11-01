@@ -1653,7 +1653,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		require.NoError(t, err)
 		// One school-wide refresh for the whole close (#5017).
-		assert.Equal(t, []supervisionRefresh{{reason: activeSupervisionReasonActivityEnded}}, publisher.refreshes)
+		assert.Equal(t, []supervisionRefresh{{activeGroupID: activeGroup.ID, reason: activeSupervisionReasonActivityEnded}}, publisher.refreshes)
 		assert.True(t, result.Success)
 		assert.Equal(t, 2, result.VisitsEnded)
 		assert.Equal(t, 1, result.SessionsEnded)

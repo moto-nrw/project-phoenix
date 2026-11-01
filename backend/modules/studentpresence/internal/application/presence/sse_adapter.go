@@ -3,8 +3,6 @@ package presence
 import (
 	"context"
 	"strconv"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
@@ -23,21 +21,13 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 // queueSupervisionRefresh announces a change to a session, its supervisors or
 // its visits once the surrounding transaction commits (#5017): „Aktuelle
 // Aufsicht", the own supervision and the room views show them, and without
-// the event they would wait for the five-minute reconcile. Outside a
-// transaction it announces at once. No child identity travels.
+// the event they would wait for the five-minute reconcile. No child identity
+// travels.
 func (s *service) queueSupervisionRefresh(ctx context.Context, activeGroupID int64, reason string) {
-	if s.Broadcaster == nil {
+	if s.Broadcaster == nil || activeGroupID <= 0 {
 		return
 	}
-	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
-	// 0 names no single session: a school-wide change such as the daily close.
-	id := ""
-	if activeGroupID > 0 {
-		id = strconv.FormatInt(activeGroupID, 10)
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		s.broadcastSupervisionRefresh(broadcastCtx, id, reason, nil)
-	})
+	s.Broadcaster.SupervisionChanged(ctx, activeGroupID, reason)
 }
 
 // broadcastDashboardCountsChanged sends the tenant-wide dashboard refresh

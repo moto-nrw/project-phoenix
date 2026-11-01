@@ -127,7 +127,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		}
 		if len(lockedIDs) > 0 {
 			// One school-wide refresh for the whole day's close (#5017).
-			s.queueSupervisionRefresh(txCtx, 0, activeSupervisionReasonActivityEnded)
+			s.queueSupervisionRefresh(txCtx, lockedIDs[0], activeSupervisionReasonActivityEnded)
 		}
 		return nil
 	}); err != nil {

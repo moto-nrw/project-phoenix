@@ -89,11 +89,11 @@ type Dependencies struct {
 	AppendAudit        func(context.Context, Actor, Result) error
 	Cleanup            func(context.Context, int64) error
 	GroupAccessChanged func(context.Context)
-	// PlanChanged announces, after the commit, that the person's future
-	// absences, shifts or planned block staffing are gone: the time-tracking
-	// views, the planner and the supervision views refresh (#5017).
-	PlanChanged func(context.Context)
-	Observe     func(Observation)
+	// TimeTrackingChanged announces, after the commit, that the person's
+	// future absences or shifts are gone: the time-tracking views refresh
+	// (#5017). Timetable announces its removed block staffing itself.
+	TimeTrackingChanged func(context.Context)
+	Observe             func(Observation)
 }
 
 type Observation struct {
@@ -130,7 +130,7 @@ func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.FindStaff == nil ||
 		deps.Membership == nil || deps.Workforce == nil || deps.Timetable == nil || deps.People == nil ||
 		deps.PreviewAccess == nil || deps.ExecuteAccess == nil || deps.LockSupervision == nil ||
-		deps.AppendAudit == nil || deps.Cleanup == nil || deps.GroupAccessChanged == nil || deps.PlanChanged == nil || deps.Observe == nil {
+		deps.AppendAudit == nil || deps.Cleanup == nil || deps.GroupAccessChanged == nil || deps.TimeTrackingChanged == nil || deps.Observe == nil {
 		return nil, errors.New("staff offboarding: all dependencies are required")
 	}
 	return &Workflow{deps: deps}, nil
@@ -333,8 +333,8 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, p Preview) (result R
 	if result.Membership.GroupAssignments > 0 || result.Workforce.Substitutions > 0 {
 		w.deps.GroupAccessChanged(ctx)
 	}
-	if result.Workforce != (workforce.OffboardingCounts{}) || result.Timetable != (timetable.OffboardingCounts{}) {
-		w.deps.PlanChanged(ctx)
+	if result.Workforce != (workforce.OffboardingCounts{}) {
+		w.deps.TimeTrackingChanged(ctx)
 	}
 	return result, nil
 }

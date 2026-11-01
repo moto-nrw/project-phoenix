@@ -86,12 +86,12 @@ func newFixture(t *testing.T) fixture {
 		ExecuteAccess: func(context.Context, int64, string) (staffoffboarding.AccessResult, error) {
 			return staffoffboarding.AccessResult{}, errors.New("fixture subject has no account")
 		},
-		LockSupervision:    presence.LockStaffSupervision,
-		AppendAudit:        func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return nil },
-		Cleanup:            func(context.Context, int64) error { return nil },
-		GroupAccessChanged: func(context.Context) {},
-		PlanChanged:        func(context.Context) {},
-		Observe:            func(staffoffboarding.Observation) {},
+		LockSupervision:     presence.LockStaffSupervision,
+		AppendAudit:         func(context.Context, staffoffboarding.Actor, staffoffboarding.Result) error { return nil },
+		Cleanup:             func(context.Context, int64) error { return nil },
+		GroupAccessChanged:  func(context.Context) {},
+		TimeTrackingChanged: func(context.Context) {},
+		Observe:             func(staffoffboarding.Observation) {},
 	}
 	return fixture{deps: deps, staffID: staff.ID, personID: staff.PersonID, shiftID: shift.ID, membership: membership, workforce: work, people: people.Owner}
 }
@@ -178,12 +178,12 @@ func TestWorkflowDetectsDriftThenRetiresIdempotently(t *testing.T) {
 	preview, err = workflow.Preview(ctx, f.staffID)
 	require.NoError(t, err)
 	planChanges := 0
-	f.deps.PlanChanged = func(context.Context) { planChanges++ }
+	f.deps.TimeTrackingChanged = func(context.Context) { planChanges++ }
 	workflow, err = staffoffboarding.New(f.deps)
 	require.NoError(t, err)
 	result, err := workflow.Execute(ctx, f.staffID, preview.Revision)
 	require.NoError(t, err)
-	// The removed shift and block staffing are announced once (#5017).
+	// The removed shift is announced once (#5017).
 	require.Equal(t, 1, planChanges)
 	require.EqualValues(t, 2, result.Membership.ClassAssignments)
 	require.EqualValues(t, 1, result.Workforce.Shifts)

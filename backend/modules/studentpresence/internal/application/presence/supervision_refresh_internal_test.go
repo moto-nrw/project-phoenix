@@ -10,15 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type supervisionRefresh struct{ activeGroupID, reason string }
+type supervisionRefresh struct {
+	activeGroupID int64
+	reason        string
+}
 
-// refreshRecordingPublisher records the tenant-wide supervision refreshes.
+// refreshRecordingPublisher records the queued supervision changes.
 type refreshRecordingPublisher struct {
 	recordingEventPublisher
 	refreshes []supervisionRefresh
 }
 
-func (p *refreshRecordingPublisher) SupervisionRefresh(_ context.Context, activeGroupID, reason string, _ []string) {
+func (p *refreshRecordingPublisher) SupervisionChanged(_ context.Context, activeGroupID int64, reason string) {
 	p.refreshes = append(p.refreshes, supervisionRefresh{activeGroupID: activeGroupID, reason: reason})
 }
 
@@ -67,7 +70,7 @@ func TestClaimAnnouncesTheNewSupervisor(t *testing.T) {
 
 	_, err := svc.ClaimActiveGroup(ctx, 7, 84, "")
 	require.NoError(t, err)
-	require.Equal(t, []supervisionRefresh{{activeGroupID: "7", reason: activeSupervisionReasonSupervisorsChanged}}, publisher.refreshes)
+	require.Equal(t, []supervisionRefresh{{activeGroupID: 7, reason: activeSupervisionReasonSupervisorsChanged}}, publisher.refreshes)
 
 	owner.err = studentpresence.ErrAlreadySupervising
 	_, err = svc.ClaimActiveGroup(ctx, 7, 84, "")
@@ -83,7 +86,7 @@ func TestDeleteVisitAnnouncesItsSession(t *testing.T) {
 	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: owner, Broadcaster: publisher}}
 
 	require.NoError(t, svc.DeleteVisit(ctx, 3))
-	require.Equal(t, []supervisionRefresh{{activeGroupID: "11", reason: activeSupervisionReasonStudentMoved}}, publisher.refreshes)
+	require.Equal(t, []supervisionRefresh{{activeGroupID: 11, reason: activeSupervisionReasonStudentMoved}}, publisher.refreshes)
 
 	owner.deleteErr = errors.New("delete failed")
 	require.Error(t, svc.DeleteVisit(ctx, 3))
