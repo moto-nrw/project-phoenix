@@ -299,15 +299,16 @@ func (s *AccountAuthentication) createRefreshSession(ctx context.Context, accoun
 func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
 	session := s.newRefreshSession(account.ID, scope)
 	session.MFAVerified = len(verified) > 0 && verified[0]
-	return s.persistNewSession(ctx, account, session, tenantID, guard, retireFamilyID)
+	return s.persistNewSession(ctx, account, session, tenantID, guard, retireFamilyID, retireFamilyID)
 }
 
 // persistNewSession writes a freshly minted session, retrying with a new
-// family only for token-family collisions of concurrent logins.
-func (s *AccountAuthentication) persistNewSession(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
+// family only for token-family collisions of concurrent logins. Inheriting
+// a source does not require retiring it: an Absprung leaves its Träger live.
+func (s *AccountAuthentication) persistNewSession(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID, retireFamilyID string) (domain.AccountSession, error) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, retireFamilyID)
+		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, sourceFamilyID, retireFamilyID)
 		if err == nil {
 			return stored, nil
 		}
@@ -360,10 +361,10 @@ func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string)
 // issuers enforce the session cap serially instead of from identical
 // snapshots; the replaced family is retired before the cap so it is the cap's
 // first candidate.
-func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
+func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID, retireFamilyID string) (domain.AccountSession, error) {
 	var stored domain.AccountSession
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, retireFamilyID)
+		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, sourceFamilyID)
 		if err != nil {
 			return err
 		}

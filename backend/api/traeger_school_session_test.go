@@ -333,3 +333,78 @@ func TestTraegerLogoutEndsTheSchoolSessionsOfItsAbsprung(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.tokens WHERE account_id = ? AND expiry > NOW()`, account.ID).Scan(context.Background(), &live))
 	assert.Zero(t, live, "no session of the Träger lineage survives")
 }
+
+// A legacy Träger login must not gain a sliding lifetime by opening a school.
+func TestTraegerSchoolHandoffKeepsTheLegacyDeadline(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name      string
+		remaining time.Duration
+		linked    bool
+	}{
+		{"unrotated legacy source", time.Hour, false},
+		{"source expires before handoff TTL", time.Minute, false},
+		{"rotated legacy source", time.Hour, true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+			password := testpkg.NewTestPassword()
+			organization := traegerOrganization(t, db, "Träger Alt-Sitzung", true)
+			first := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Alt Eins")
+			second := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Alt Zwei")
+			account := traegerAccount(t, db, password)
+			testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
+			traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
+			family := traegerAccessSession(t, traeger.AccessToken).FamilyID
+			deadline := time.Now().Add(scenario.remaining).Truncate(time.Microsecond)
+			expiry := deadline
+			var origin any
+			var cap any
+			if scenario.linked {
+				origin, cap = family, deadline
+				expiry = deadline.Add(time.Hour)
+			}
+			_, err := db.ExecContext(context.Background(), `UPDATE auth.tokens
+				SET switched_from_family_id = ?, expiry = ?, family_expiry_cap = ?, lineage_deadline = ?
+				WHERE family_id = ?`, origin, expiry, cap, cap, family)
+			require.NoError(t, err)
+
+			code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, first)
+			require.Equal(t, http.StatusCreated, code, answer.Code)
+			handoff := traegerTokenClaims(t, answer.Data.HandoffToken)
+			assert.LessOrEqual(t, handoff["exp"].(float64), float64(time.Now().Add(2*time.Minute).Unix()), "the handoff retains its short TTL")
+			assert.LessOrEqual(t, handoff["exp"].(float64), float64(deadline.Unix()), "a nearer source deadline wins")
+			assertDeadline := func(familyID string) {
+				t.Helper()
+				var head struct {
+					Expiry          time.Time
+					FamilyExpiryCap *time.Time
+					LineageDeadline *time.Time
+				}
+				require.NoError(t, db.NewRaw(`SELECT expiry, family_expiry_cap, lineage_deadline FROM auth.tokens
+					WHERE family_id = ? AND rotated_at IS NULL ORDER BY generation DESC LIMIT 1`, familyID).Scan(context.Background(), &head))
+				require.NotNil(t, head.FamilyExpiryCap, "the school family keeps its source's deadline")
+				require.NotNil(t, head.LineageDeadline, "later switches must inherit the deadline too")
+				assert.True(t, head.FamilyExpiryCap.Equal(deadline))
+				assert.True(t, head.LineageDeadline.Equal(deadline))
+				assert.False(t, head.Expiry.After(deadline))
+			}
+			assertDeadline(handoff["family_id"].(string))
+			ctx := tenant.WithUnitOfWork(context.Background(), unit)
+			access, refresh, err := identity.RefreshTokenWithAudit(ctx, answer.Data.HandoffToken, "legacy-school-host", "", "")
+			require.NoError(t, err)
+			assertDeadline(traegerAccessSession(t, access).FamilyID)
+			access, _, err = identity.RefreshTokenWithAudit(ctx, refresh, "legacy-school-host", "", "")
+			require.NoError(t, err)
+			assertDeadline(traegerAccessSession(t, access).FamilyID)
+			switched, switchedRefresh, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, access).FamilyID)
+			require.NoError(t, err)
+			assertDeadline(traegerAccessSession(t, switched).FamilyID)
+			_, _, err = identity.RefreshTokenWithAudit(ctx, switchedRefresh, "legacy-second-school", "", "")
+			require.NoError(t, err)
+			assertDeadline(traegerAccessSession(t, switched).FamilyID)
+			require.NoError(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, traeger.AccessToken)), "the handoff does not retire the Träger session")
+		})
+	}
+}

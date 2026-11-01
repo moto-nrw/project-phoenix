@@ -48,18 +48,12 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	if err != nil {
 		return "", err
 	}
-	// The proof and the lineage are read first to stamp the session; the
-	// guard reads both again under the account lock MFA reset and logout
-	// take.
-	var (
-		proof  bool
-		origin string
-	)
+	// The proof is read first to stamp the session; the guard checks it
+	// again under the account lock MFA reset and logout take. Source
+	// lineage and its legacy deadline are inherited under that same lock.
+	var proof bool
 	if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
 		var readErr error
-		if origin, readErr = s.liveSourceLineage(txCtx, account.ID, request.TraegerFamilyID, time.Now()); readErr != nil {
-			return readErr
-		}
 		proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
 		return readErr
 	}); err != nil {
@@ -70,11 +64,8 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	session.OrganizationID = request.OrganizationID
 	session.Expiry = time.Now().Add(domain.TraegerSchoolHandoffTTL)
 	session.MFAVerified = proof
-	// The school session descends from the Träger session: the Träger's
-	// logout ends it (#5422).
-	session.SwitchedFromFamilyID = origin
 	guard := s.traegerSchoolMintGuard(request.OrganizationID, request.SchoolID, &metadata)
-	session, err = s.persistNewSession(ctx, account, session, request.SchoolID, s.traegerSchoolHandoffGuard(request, proof, guard), "")
+	session, err = s.persistNewSession(ctx, account, session, request.SchoolID, s.traegerSchoolHandoffGuard(request, proof, guard), request.TraegerFamilyID, "")
 	if err != nil {
 		return "", err
 	}
@@ -305,7 +296,7 @@ func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account
 	session := s.newRefreshSession(account.ID, domain.ScopeTenant)
 	session.OrganizationID = school.OrganizationID
 	guard := s.traegerSchoolAuditGuard(school.OrganizationID, school.ID, "", "", s.traegerSchoolMintGuard(school.OrganizationID, school.ID, &metadata))
-	session, err := s.persistNewSession(ctx, account, session, school.ID, guard, presentedFamilyID)
+	session, err := s.persistNewSession(ctx, account, session, school.ID, guard, presentedFamilyID, presentedFamilyID)
 	if err != nil {
 		return "", "", err
 	}
