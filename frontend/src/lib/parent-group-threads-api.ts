@@ -43,6 +43,7 @@ export interface GroupThreadSummary extends GroupThread {
 }
 
 interface GroupMessage {
+  client_message_id?: string;
   id: string;
   sender_name: string;
   body: string;
@@ -126,6 +127,7 @@ export function fetchGroupAudience(
 }
 
 export function createGroupThread(input: {
+  client_message_id?: string;
   target: GroupTarget;
   title: string;
   body: string;
@@ -138,6 +140,7 @@ export function createGroupThread(input: {
       target_label: input.target.label,
       title: input.title,
       body: input.body,
+      client_message_id: input.client_message_id,
     },
     "Gruppennachricht konnte nicht gesendet werden",
   );
@@ -153,10 +156,11 @@ export function fetchGroupThread(id: string): Promise<GroupThreadDetail> {
 export function postGroupMessage(
   id: string,
   body: string,
+  clientMessageId?: string,
 ): Promise<GroupThreadDetail> {
   return post<GroupThreadDetail>(
     `${BASE}/${encodeURIComponent(id)}/messages`,
-    { body },
+    { body, client_message_id: clientMessageId },
     "Nachricht konnte nicht gesendet werden",
   );
 }

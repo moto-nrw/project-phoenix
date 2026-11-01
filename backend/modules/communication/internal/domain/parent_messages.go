@@ -20,6 +20,8 @@ const ParentMessageEventRequestCreated = "request_created"
 // append-only and SenderName is frozen at send time, so a later rename or
 // offboarding never rewrites history.
 type ParentMessage struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
 	ID              int64
 	TenantID        int64
 	ThreadID        int64

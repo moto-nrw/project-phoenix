@@ -78,6 +78,8 @@ const INVENTORY = [
   "school-a:account-7:staff-dashboard-summary-month",
   "school-a:account-7:ogs-students-3",
   "school-a:account-7:timetable-week-2026-09-07",
+  // The leftover hint of the Betreuungsplan and the home page (#5102).
+  "school-a:account-7:booking-leftovers-4",
   "school-a:account-7:time-tracking-config",
 ];
 
@@ -209,6 +211,7 @@ describe("useGlobalSSE: own supervision family (#5017)", () => {
       expect(matchedKeys()).toEqual([
         "school-a:account-7:active-supervision-dashboard-0-224",
         "school-a:account-7:timetable-week-2026-09-07",
+        "school-a:account-7:booking-leftovers-4",
       ]);
     },
   );
@@ -229,7 +232,7 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     const view = renderConnected();
     reconnect(view);
     // No timer: the reconcile does not wait for the event debounce.
-    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 5));
+    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 6));
     expect(invalidatedFamilies).toContain(OWN);
   });
 
@@ -298,7 +301,7 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     expect(invalidatedFamilies).toEqual([]);
     // Then once, for the events of the first seconds.
     act(() => vi.advanceTimersByTime(1));
-    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 5));
+    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 6));
     expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(1);
     act(() => vi.advanceTimersByTime(10 * RECONCILE_MIN_GAP_MS));
     expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(1);
@@ -371,7 +374,7 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     act(() => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
-    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 5));
+    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 6));
     expect(invalidatedFamilies).toContain(OWN);
   });
 

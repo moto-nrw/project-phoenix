@@ -1,6 +1,7 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
-export type LoginScope = "tenant" | "operator" | "school" | "traeger";
+export type LoginScope =
+  "tenant" | "operator" | "school" | "traeger" | "caterer";
 
 interface MFARequiredLoginResponse {
   status: "mfa_required";
@@ -75,6 +76,10 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
       return `/api/school/auth/mfa/${suffix}`;
     case "traeger":
       return `/api/traeger/auth/mfa/${suffix}`;
+    case "caterer":
+      // The caterer portal's second factor is voluntary (#4497); its
+      // endpoints answer top-level JSON like the tenant ones.
+      return `/api/caterer/auth/mfa/${suffix}`;
     default:
       return `/api/auth/mfa/${suffix}`;
   }

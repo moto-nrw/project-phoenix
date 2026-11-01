@@ -2,6 +2,7 @@ import { proxyGet, proxyPost } from "~/lib/parent/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendMessage {
+  client_message_id?: string;
   id: string;
   sender_kind: "guardian" | "staff";
   sender_name: string;
@@ -27,6 +28,7 @@ interface BackendThreadView {
 }
 
 interface PostMessageBody {
+  client_message_id?: string;
   body: string;
   // The group thread this message answers (#4784).
   group_thread_id?: string;

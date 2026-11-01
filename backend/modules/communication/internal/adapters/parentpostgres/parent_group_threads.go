@@ -55,6 +55,8 @@ func (r *groupThreadRow) value() *communication.ParentGroupThread {
 }
 
 type groupMessageRow struct {
+	ClientMessageID string `bun:"client_message_id,nullzero"`
+	SendReplayed    bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel   `bun:"table:users.parent_group_messages,alias:gm"`
 	ID              int64     `bun:"id,pk,autoincrement"`
 	TenantID        int64     `bun:"tenant_id,notnull"`
@@ -66,7 +68,11 @@ type groupMessageRow struct {
 }
 
 func (r *groupMessageRow) value() communication.ParentGroupMessage {
-	return communication.ParentGroupMessage{ID: r.ID, SenderName: r.SenderName, Body: r.Body, CreatedAt: r.CreatedAt}
+	sender := int64(0)
+	if r.SenderAccountID != nil {
+		sender = *r.SenderAccountID
+	}
+	return communication.ParentGroupMessage{SenderAccountID: sender, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, ID: r.ID, SenderName: r.SenderName, Body: r.Body, CreatedAt: r.CreatedAt}
 }
 
 type groupRecipientRow struct {
@@ -135,9 +141,25 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 	if err != nil {
 		return nil, err
 	}
-	row := &groupMessageRow{TenantID: tenantID, ThreadID: threadID, SenderAccountID: sender, SenderName: senderName, Body: body}
-	if _, err := db.NewInsert().Model(row).Returning("id, created_at").Exec(ctx); err != nil {
+	row := &groupMessageRow{ClientMessageID: communication.MessageSendID(ctx), TenantID: tenantID, ThreadID: threadID, SenderAccountID: sender, SenderName: senderName, Body: body}
+	result, err := db.NewInsert().Model(row).
+		On("CONFLICT (tenant_id, sender_account_id, client_message_id) WHERE client_message_id IS NOT NULL DO UPDATE").
+		Set("client_message_id = EXCLUDED.client_message_id").
+		Where("gm.thread_id = EXCLUDED.thread_id AND gm.body = EXCLUDED.body").
+		Returning("gm.*, (xmax <> 0) AS send_replayed").Exec(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("append parent group message: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if count != 1 {
+		return nil, communication.ErrMessageSendConflict
+	}
+	if row.SendReplayed {
+		value := row.value()
+		return &value, nil
 	}
 	if len(recipients) > 0 {
 		rows := make([]groupRecipientRow, 0, len(recipients))
@@ -151,7 +173,7 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 			return nil, fmt.Errorf("store parent group message recipients: %w", err)
 		}
 	}
-	result, err := db.NewUpdate().TableExpr("users.parent_group_threads").
+	result, err = db.NewUpdate().TableExpr("users.parent_group_threads").
 		Set("last_message_at = ?", row.CreatedAt).
 		Where("id = ? AND tenant_id = ?", threadID, tenantID).
 		Exec(ctx)

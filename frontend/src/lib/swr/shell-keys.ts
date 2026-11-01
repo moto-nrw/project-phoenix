@@ -10,6 +10,8 @@ export const announcementKeys = {
 // refreshes it on attendance events.
 export const dashboardKeys = {
   analytics: () => "dashboard-analytics",
+  supervision: (accountId: string | undefined, refresh = 0) =>
+    `active-supervision-dashboard-${refresh}-${accountId}`,
 } as const;
 
 // „Aktuelle Aufsicht" without groups:read (#4573): the caller's own planned

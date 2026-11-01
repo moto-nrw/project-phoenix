@@ -29,6 +29,8 @@ export function leadCarePlanTopic(): HelpTopic {
       // #5102: Hand-Kinderlisten folgen keiner Abmeldung; #5137: Klassen-
       // Regeltermine führen zu „Mit Angebot verbinden“.
       "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Bei einer Liste von Hand wählen Sie dort `Dort auch entfernen`, bei Klasse, Jahrgang oder Gruppe `Mit Angebot verbinden`.",
+      // #5102: der Hinweis bleibt nach dem Neuladen im Betreuungsplan.
+      "Haben Sie dort nichts gewählt, steht das Kind in der Ansicht `Serien` unter `Ohne passende Buchung eingeplant`. Wählen Sie `Entfernen` oder `Bleibt so`. Die Startseite zeigt dazu `Kinder ohne passende Buchung`.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",

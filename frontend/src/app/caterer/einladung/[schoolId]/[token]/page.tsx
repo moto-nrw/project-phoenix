@@ -27,6 +27,7 @@ import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
@@ -41,6 +42,7 @@ import {
   fetchCatererInvitation,
   loginCaterer,
   type CatererInvitationPreview,
+  type CatererLoginResult,
 } from "~/lib/caterer-api";
 import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
@@ -188,6 +190,10 @@ function AcceptForm({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [mfaStep, setMfaStep] = useState<Extract<
+    CatererLoginResult,
+    { status: "mfa_required" }
+  > | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
@@ -222,7 +228,14 @@ function AcceptForm({
     );
     let target = catererPath("/caterer");
     try {
-      await loginCaterer(invitation.email, password);
+      const result = await loginCaterer(invitation.email, password);
+      if (result.status === "mfa_required") {
+        // Two-factor sign-in is on (#4497): the sign-in already mailed its
+        // code, so it is asked here instead of mailing a second one.
+        await shown;
+        setMfaStep(result);
+        return;
+      }
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {
@@ -240,6 +253,24 @@ function AcceptForm({
 
   const passwordError = formErrors.fieldError("password");
   const confirmError = formErrors.fieldError("confirm_password");
+
+  if (mfaStep) {
+    return (
+      <MFAChallengeForm
+        scope="caterer"
+        challengeToken={mfaStep.challengeToken}
+        maskedEmail={mfaStep.maskedEmail}
+        trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+        trustedDeviceDays={mfaStep.trustedDeviceDays}
+        onSuccess={() => {
+          window.location.href = catererPath("/caterer");
+        }}
+        onCancel={() => {
+          window.location.href = catererPath("/caterer/login");
+        }}
+      />
+    );
+  }
 
   if (accepted) {
     return (

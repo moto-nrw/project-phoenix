@@ -19,21 +19,22 @@ import (
 // the message froze staff-name visibility on at send time (see toMessageResponses
 // and operations.parent_message_staff_name_visible).
 type MessageResponse struct {
-	ID             string                     `json:"id"`
-	SenderKind     string                     `json:"sender_kind"`
-	SenderName     string                     `json:"sender_name"`
-	Body           string                     `json:"body"`
-	CreatedAt      time.Time                  `json:"created_at"`
-	Kind           string                     `json:"kind"`
-	EventType      string                     `json:"event_type,omitempty"`
-	RequestType    string                     `json:"request_type,omitempty"`
-	RequestStatus  string                     `json:"request_status,omitempty"`
-	Payload        map[string]json.RawMessage `json:"payload,omitempty"`
-	RefTable       string                     `json:"ref_table,omitempty"`
-	RefID          string                     `json:"ref_id,omitempty"`
-	AppliedAt      *time.Time                 `json:"applied_at,omitempty"`
-	DecisionReason string                     `json:"decision_reason,omitempty"`
-	ReadByStaff    bool                       `json:"read_by_staff,omitempty"`
+	ClientMessageID string                     `json:"client_message_id,omitempty"`
+	ID              string                     `json:"id"`
+	SenderKind      string                     `json:"sender_kind"`
+	SenderName      string                     `json:"sender_name"`
+	Body            string                     `json:"body"`
+	CreatedAt       time.Time                  `json:"created_at"`
+	Kind            string                     `json:"kind"`
+	EventType       string                     `json:"event_type,omitempty"`
+	RequestType     string                     `json:"request_type,omitempty"`
+	RequestStatus   string                     `json:"request_status,omitempty"`
+	Payload         map[string]json.RawMessage `json:"payload,omitempty"`
+	RefTable        string                     `json:"ref_table,omitempty"`
+	RefID           string                     `json:"ref_id,omitempty"`
+	AppliedAt       *time.Time                 `json:"applied_at,omitempty"`
+	DecisionReason  string                     `json:"decision_reason,omitempty"`
+	ReadByStaff     bool                       `json:"read_by_staff,omitempty"`
 	// GroupThreadID and GroupThreadTitle name the group thread this answer
 	// refers to (#4784).
 	GroupThreadID    string `json:"group_thread_id,omitempty"`
@@ -183,7 +184,8 @@ type ThreadViewResponse struct {
 
 // PostMessageRequest is the wire shape for POST .../children/{studentId}.
 type PostMessageRequest struct {
-	Body string `json:"body"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	Body            string `json:"body"`
 	// GroupThreadID names the group thread this message answers (#4784).
 	GroupThreadID string `json:"group_thread_id,omitempty"`
 	// Audience is "team" (default) or "leadership" (#5200). An answer to a
@@ -219,7 +221,7 @@ func staffShortName(full string) string {
 // message froze StaffNameVisible=true at send time; otherwise it collapses to
 // the neutral "OGS [Schulname]" label. Guardian/system rows pass through
 // unchanged.
-func toMessageResponses(messages []*parentService.ParentMessage, counterpart string) []MessageResponse {
+func toMessageResponses(messages []*parentService.ParentMessage, counterpart string, viewer ...int64) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		senderName := m.SenderName
@@ -241,10 +243,10 @@ func toMessageResponses(messages []*parentService.ParentMessage, counterpart str
 			refID = strconv.FormatInt(*m.RefID, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:               strconv.FormatInt(m.ID, 10),
-			SenderKind:       m.SenderKind,
-			SenderName:       senderName,
-			Body:             m.Body,
+			ID:              strconv.FormatInt(m.ID, 10),
+			SenderKind:      m.SenderKind,
+			SenderName:      senderName,
+			ClientMessageID: clientMessageIDForViewer(m.ClientMessageID, m.SenderAccountID, viewer), Body: m.Body,
 			CreatedAt:        m.CreatedAt,
 			Kind:             m.Kind,
 			EventType:        m.EventType,
@@ -263,7 +265,7 @@ func toMessageResponses(messages []*parentService.ParentMessage, counterpart str
 	return out
 }
 
-func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
+func toThreadView(v *parentService.MessageThreadView, viewer ...int64) ThreadViewResponse {
 	counterpart := ogsLabel(v.SchoolName)
 	threadID := ""
 	if v.ThreadID > 0 {
@@ -282,7 +284,7 @@ func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
 			School:   schoolReaders(audience, v.LeadershipReaders),
 		},
 		LeadershipOption: leadershipOption(v.Leadership),
-		Messages:         toMessageResponses(v.Messages, counterpart),
+		Messages:         toMessageResponses(v.Messages, counterpart, viewer...),
 	}
 }
 
@@ -375,7 +377,7 @@ func (rs *Resource) getChildConversation(w http.ResponseWriter, r *http.Request)
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toThreadView(view), "Conversation retrieved")
+	common.Respond(w, r, http.StatusOK, toThreadView(view, accountID), "Conversation retrieved")
 }
 
 // postChildMessage appends a guardian message to the child's conversation,
@@ -399,10 +401,26 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID, req.Audience)
+	if len(req.ClientMessageID) > 128 {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+		return
+	}
+
+	view, err := rs.ParentService.PostChildReply(parentService.WithMessageSendID(r.Context(), req.ClientMessageID), accountID, studentID, req.Body, groupThreadID, req.Audience)
+	if errors.Is(err, parentService.ErrMessageSendConflict) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict))
+		return
+	}
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toThreadView(view), "Message sent")
+	common.Respond(w, r, http.StatusCreated, toThreadView(view, accountID), "Message sent")
+}
+
+func clientMessageIDForViewer(key string, author int64, viewer []int64) string {
+	if len(viewer) > 0 && viewer[0] > 0 && viewer[0] == author {
+		return key
+	}
+	return ""
 }

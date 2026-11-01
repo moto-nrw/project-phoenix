@@ -97,6 +97,7 @@ const guards = [
   "src/lib/personal-storage.test.ts",
   "src/lib/browser-token-ratchet.test.ts",
   "src/components/ui/tenant-page-scaffold.test.ts",
+  "src/components/ui/nav-scene-icon/nav-scene-coverage.test.ts",
   "src/components/ui/plan-design-guards.test.ts",
   "src/components/settings/settings-filter.test.ts",
   "src/components/school-setup/setup-tour-targets.test.ts",

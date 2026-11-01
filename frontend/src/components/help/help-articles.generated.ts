@@ -2486,6 +2486,7 @@ export const enrollmentReviewTopic =
         "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
+        "Haben Sie die Seite schon verlassen? Der Hinweis bleibt im `Betreuungsplan` unter `Ohne passende Buchung eingeplant`.",
         // #5137
         "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Entfernen hilft dort nicht: Bei der nächsten Planung steht das Kind wieder im Plan.",
         "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
@@ -3652,6 +3653,8 @@ export const leadCarePlanTopic = function leadCarePlanTopic(): HelpTopic {
       // #5102: Hand-Kinderlisten folgen keiner Abmeldung; #5137: Klassen-
       // Regeltermine führen zu „Mit Angebot verbinden“.
       "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Bei einer Liste von Hand wählen Sie dort `Dort auch entfernen`, bei Klasse, Jahrgang oder Gruppe `Mit Angebot verbinden`.",
+      // #5102: der Hinweis bleibt nach dem Neuladen im Betreuungsplan.
+      "Haben Sie dort nichts gewählt, steht das Kind in der Ansicht `Serien` unter `Ohne passende Buchung eingeplant`. Wählen Sie `Entfernen` oder `Bleibt so`. Die Startseite zeigt dazu `Kinder ohne passende Buchung`.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
@@ -9850,7 +9853,7 @@ export const traegerHolidayFormTopic =
             "Soll jede Familie antworten oder jedes Kind? Für Fragen zum Kind wählen Sie `Pro Kind abfragen`.",
             "Muss die Frage beantwortet werden? Wählen Sie `Pflichtfrage`.",
             "Geht es um die Gesundheit des Kindes? Wählen Sie `Gesundheitsangabe`.",
-            "Soll die OGS der Ferienwoche die Antwort sehen? Wählen Sie `OGS sieht die Antwort`. Das geht nur ohne `Gesundheitsangabe`.",
+            "Bei neuen Fragen ist `OGS sieht die Antwort` an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten. Bei `Gesundheitsangabe` bleibt es aus.",
             "Mit den Pfeilen ändern Sie die Reihenfolge.",
             "Wählen Sie `Als neue Version speichern`.",
           ],
@@ -9879,14 +9882,14 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
-        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Die OGS sieht dort die Antworten zu `Darf allein nach Hause gehen` und `Darf an Ausflügen teilnehmen`.",
+        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen ohne Gesundheitsangabe sind für die ausrichtende OGS freigegeben.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
         "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
         "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
         "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
         "Die ausrichtende OGS sieht nur Antworten mit `OGS sieht die Antwort`. Sie stehen in ihrer Liste unter `Ferienwochen` und beim Feriengast. Gesundheitsangaben sieht sie nie.",
-        "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Ältere Anmeldungen bleiben ohne Freigabe.",
+        "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Bei älteren Anmeldungen bleibt die bisherige Freigabe unverändert.",
         "Die OGS sieht auch Name und Telefon der zweiten sorgeberechtigten Person, keine E-Mail-Adresse.",
       ],
       troubleshootingDetails: [

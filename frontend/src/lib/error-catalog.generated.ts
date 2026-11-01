@@ -213,6 +213,8 @@ export const ERROR_CATALOG = {
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
       "communication.leadership_messages_unavailable":
         "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
+      "communication.message_send_conflict":
+        "Die Nachricht wurde bereits anders gesendet. Bitte laden Sie den Chat neu.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_messaging_disabled":
@@ -1692,6 +1694,8 @@ export const ERROR_CATALOG = {
         "No child in this group has parents with access to moto. The message was not sent.",
       "communication.leadership_messages_unavailable":
         "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.message_send_conflict":
+        "This message was already sent differently. Please reload the chat.",
       "communication.parent_messaging_disabled":
         "The school has turned off parent messaging. This is not possible right now.",
       "communication.staff_group_create_forbidden":
@@ -2178,6 +2182,8 @@ export const ERROR_CATALOG = {
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
       "communication.leadership_messages_unavailable":
         "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
+      "communication.message_send_conflict":
+        "Это сообщение уже было отправлено с другими данными. Обновите чат.",
       "communication.parent_messaging_disabled":
         "Школа отключила сообщения для родителей. Сейчас это невозможно.",
       "communication.survey_already_answered":
@@ -2588,6 +2594,8 @@ export const ERROR_CATALOG = {
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
       "communication.leadership_messages_unavailable":
         "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
+      "communication.message_send_conflict":
+        "Ky mesazh është dërguar tashmë me të dhëna të tjera. Ringarkoni bisedën.",
       "communication.parent_messaging_disabled":
         "Shkolla i ka çaktivizuar mesazhet për prindërit. Kjo nuk është e mundur tani.",
       "communication.survey_already_answered":
@@ -3010,6 +3018,8 @@ export const ERROR_CATALOG = {
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
       "communication.leadership_messages_unavailable":
         "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+      "communication.message_send_conflict":
+        "Ta wiadomość została już wysłana z innymi danymi. Odśwież czat.",
       "communication.parent_messaging_disabled":
         "Szkoła wyłączyła wiadomości dla rodziców. To teraz nie jest możliwe.",
       "communication.survey_already_answered":
@@ -3421,6 +3431,8 @@ export const ERROR_CATALOG = {
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
       "communication.leadership_messages_unavailable":
         "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
+      "communication.message_send_conflict":
+        "Bu mesaj daha önce farklı bilgilerle gönderildi. Lütfen sohbeti yenileyin.",
       "communication.parent_messaging_disabled":
         "Okul veli mesajlaşmasını kapattı. Bu şu anda mümkün değil.",
       "communication.survey_already_answered":
@@ -3834,6 +3846,8 @@ export const ERROR_CATALOG = {
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
       "communication.leadership_messages_unavailable":
         "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
+      "communication.message_send_conflict":
+        "Це повідомлення вже надіслано з іншими даними. Оновіть чат.",
       "communication.parent_messaging_disabled":
         "Школа вимкнула повідомлення для батьків. Зараз це неможливо.",
       "communication.survey_already_answered":

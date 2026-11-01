@@ -86,6 +86,7 @@ export function PortalSidebarLink({
         className={portalSidebarRowClasses(active)}
       >
         <MotoNavIcon
+          scene
           concept={concept}
           active={active}
           className={`${PORTAL_ICON_CLASSES} ${active ? "" : "text-gray-400"}`}

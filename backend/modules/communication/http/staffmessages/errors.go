@@ -20,6 +20,9 @@ import (
 // conversations by probing ids. "Not yours" and "not there" must be
 // indistinguishable from outside.
 var staffMessagingErrorRules = []common.ErrorRule{
+	{Target: communication.ErrMessageSendConflict, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict)
+	}},
 	// Beide rendern denselben deutschen Satz: "nicht deine Unterhaltung" und
 	// "gibt es nicht" muessen von aussen ununterscheidbar bleiben, sonst lassen
 	// sich Thread-IDs durchprobieren. Der Text geht wortwoertlich an den Browser,
