@@ -19,7 +19,8 @@ export function rosterDeviationsKey(periodId: string): string {
  * plan: a failed read shows no hint and is logged, the plan itself stays
  * usable. Every reload of the template list reloads the hints too, so a save,
  * a connection or „Bleibt von Hand gepflegt“ shows at once. A deep link uses
- * its own read so cached hints cannot decide its one-time action. `settled`
+ * its own read so cached hints cannot decide its one-time action; that read
+ * also reviews the linked Regeltermin when it is kept by hand. `settled`
  * requires a successful read with no revalidation in flight.
  */
 export function useRosterDeviations(
@@ -38,7 +39,10 @@ export function useRosterDeviations(
     : null;
   const { data, error, isValidating, mutate } = useSWRAuth(
     enabled ? key : null,
-    () => timetableService.getRosterDeviations(periodId!),
+    () =>
+      freshReadID
+        ? timetableService.getRosterDeviations(periodId!, freshReadID)
+        : timetableService.getRosterDeviations(periodId!),
     {
       keepPreviousData: false,
       ...(freshReadID ? { revalidateOnMount: true, dedupingInterval: 0 } : {}),

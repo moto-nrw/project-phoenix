@@ -597,7 +597,7 @@ src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@201 text-[10px
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@469
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241
-src/components/timetable/template-card.tsx|text-[11px]@128 text-[11px]@142 text-[10px]@202
+src/components/timetable/template-card.tsx|text-[11px]@129 text-[11px]@143 text-[10px]@207
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542

@@ -1035,9 +1035,9 @@ function TimetablesContent() {
   );
   const reviewOnly = params.pruefen === "1";
   // „Mit Angebot verbinden“ aus der Rückmeldung nach einer Buchungsänderung
-  // (#5137): öffnet einmal den Dialog des Regeltermins. Findet moto kein
-  // passendes Angebot, öffnet der Regeltermin zum Bearbeiten; dort lässt sich
-  // ein Angebot als Quelle wählen.
+  // (#5137): öffnet einmal den Dialog des Regeltermins, auch wenn er von Hand
+  // gepflegt bleibt; Verbinden beendet das. Findet moto kein passendes
+  // Angebot, sagt es das und nennt den Weg über „Bearbeiten“.
   useEffect(() => {
     if (!connectTemplateID || status !== "authenticated") return;
     // Ohne Planungsrecht gibt es weder Serienansicht noch Dialog.
@@ -1092,13 +1092,8 @@ function TimetablesContent() {
       setConnecting({ template, deviation });
       return;
     }
-    setEditingInstance(null);
-    setConvertingInstance(null);
-    setEditingTemplate(template);
-    setEventDefaultRepeat("weekly");
-    setEventModalOpen(true);
-    toast.info(
-      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    showConnectMessage(
+      `moto findet für „${template.name}“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.`,
     );
   }, [
     connectTemplateID,
@@ -1119,7 +1114,6 @@ function TimetablesContent() {
     templates,
     canManageSchedules,
     updateUrlParams,
-    toast,
     showConnectMessage,
   ]);
   const modalCalendarPeriods = useMemo(() => {
@@ -2628,7 +2622,9 @@ function TimetablesContent() {
           onConnect={(template, deviation) =>
             setConnecting({ template, deviation })
           }
-          onKeepManual={(template) => void handleManualRoster(template, true)}
+          onSetManualRoster={(template, confirmed) =>
+            void handleManualRoster(template, confirmed)
+          }
           reviewOnly={reviewOnly}
           onReviewOnlyChange={(next) =>
             updateUrlParams({ pruefen: next ? "1" : null })
