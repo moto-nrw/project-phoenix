@@ -439,9 +439,8 @@ export async function operatorAdminResetTraegerMFA(
 }
 
 /**
- * Resets the second factor of a caterer (#4497): every account of the
- * caterer, scoped by the caterer, not a school. Its passkeys stay; the
- * backend mails the caterer.
+ * Resets the second factor of one caterer account (#4497), scoped by the
+ * caterer, not a school. Its passkeys stay; the backend mails the caterer.
  */
 export async function operatorAdminResetCatererMFA(
   catererId: string,

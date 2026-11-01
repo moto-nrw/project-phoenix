@@ -167,7 +167,7 @@ describe("CatererInvitationPage", () => {
     expect(window.location.href).toBe("/caterer/login");
   });
 
-  it("leaves the code of two-factor sign-in to the login page (#4497)", async () => {
+  it("asks the already mailed code of two-factor sign-in on the page (#4497)", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mocks.loginCaterer.mockResolvedValue({
       status: "mfa_required",
@@ -183,8 +183,16 @@ describe("CatererInvitationPage", () => {
     expect(await screen.findByText("Konto erstellt")).toBeInTheDocument();
     await waitFor(() => expect(mocks.loginCaterer).toHaveBeenCalled());
     await vi.advanceTimersByTimeAsync(1600);
-    expect(window.location.href).toBe("/caterer/login");
+    // The sign-in mailed its code: it is asked here, not mailed again by
+    // the login page.
+    expect(await screen.findByText("Code-Eingabe")).toBeInTheDocument();
+    expect(screen.getByText("k***@example.test")).toBeInTheDocument();
+    expect(window.location.href).toBe("https://caterer.example.test/einladung");
+    expect(mocks.loginCaterer).toHaveBeenCalledOnce();
     expect(mocks.signIn).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zurück zum Login" }));
+    expect(window.location.href).toBe("/caterer/login");
   });
 
   it("asks a caterer with an account only for the password", async () => {
