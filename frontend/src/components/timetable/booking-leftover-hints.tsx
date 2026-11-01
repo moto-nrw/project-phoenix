@@ -347,7 +347,7 @@ function BookingLeftoverRow({
         </p>
         <p className="mt-0.5 text-sm text-gray-600">
           „{leftover.templateName}“ · {formatWeekdayAdverbs(leftover.weekdays)}{" "}
-          · keine Buchung mehr ab {formatDate(leftover.bookingEndedOn)}
+          · ohne passende Buchung ab {formatDate(leftover.from)}
         </p>
       </div>
       {children ? (

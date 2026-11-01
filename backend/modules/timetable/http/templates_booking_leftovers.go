@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -73,8 +74,14 @@ func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]boo
 	if err != nil || rs.OfferingSourceOptions == nil {
 		return result, err
 	}
-	scope := timetable.BookingLeftoverScope{Tomorrow: rs.todayDate().AddDays(1), PeriodID: periodID}
 	until := calendar.Date(period.EndDate)
+	cycle := period.WeekCycle()
+	scope := timetable.BookingLeftoverScope{
+		Tomorrow: rs.todayDate().AddDays(1), PeriodID: periodID, Until: until.AddDays(1),
+		WeekPatternApplies: func(weekPattern int, date calendar.Date) bool {
+			return schoolcalendar.WeekPatternApplies(weekPattern, date.String(), cycle)
+		},
+	}
 	if scope.Tomorrow.After(until) {
 		return result, nil
 	}
@@ -136,56 +143,34 @@ func (rs *Resource) bookingLeftoverTemplates(ctx context.Context, periodID int64
 	for _, template := range templates {
 		result = append(result, timetable.BookingLeftoverTemplate{
 			ID: template.ID, Name: template.Name, Kind: timetable.RosterOfferingKindFor(template.Type, template.ListKind),
-			WeekdayEnds: latestScheduleEnds(template.Schedules), WeekdayUntil: scheduleWeekdayUntil(template),
-			Roster: rosters[template.ID],
+			Schedules: leftoverSchedules(template), Roster: rosters[template.ID],
 		})
 	}
 	return result, nil
 }
 
-// latestScheduleEnds keeps the latest end time per weekday; "HH:MM" strings
-// compare in clock order.
-func latestScheduleEnds(schedules []templateScheduleResponse) map[int]string {
-	ends := make(map[int]string, len(schedules))
-	for _, schedule := range schedules {
-		if current, found := ends[schedule.Weekday]; !found || schedule.EndTime > current {
-			ends[schedule.Weekday] = schedule.EndTime
-		}
-	}
-	return ends
-}
-
-// scheduleWeekdayUntil is the exclusive end of each weekday's latest
-// schedule, capped by the series' last day; an open weekday has no entry.
-func scheduleWeekdayUntil(template templateResponse) map[int]calendar.Date {
-	open := make(map[int]bool)
-	until := make(map[int]calendar.Date)
-	for _, schedule := range template.Schedules {
-		end, err := calendar.ParseDate(schedule.ValidUntil)
-		if schedule.ValidUntil == "" || err != nil {
-			open[schedule.Weekday] = true
-		} else if current, found := until[schedule.Weekday]; !found || end.After(current) {
-			until[schedule.Weekday] = end
-		}
-	}
-	var seriesEnd *calendar.Date
+// leftoverSchedules hands the rule each schedule with its validity, A/B
+// week and end, the exclusive end capped by the series' last day.
+func leftoverSchedules(template templateResponse) []timetable.BookingLeftoverSchedule {
+	var seriesUntil *calendar.Date
 	if template.EndDate != nil {
 		if last, err := calendar.ParseDate(*template.EndDate); err == nil {
-			seriesEnd = new(last.AddDays(1))
+			seriesUntil = new(last.AddDays(1))
 		}
 	}
-	result := make(map[int]calendar.Date)
+	result := make([]timetable.BookingLeftoverSchedule, 0, len(template.Schedules))
 	for _, schedule := range template.Schedules {
-		weekday := schedule.Weekday
-		end := until[weekday]
-		switch {
-		case !open[weekday] && seriesEnd != nil:
-			result[weekday] = min(end, *seriesEnd)
-		case !open[weekday]:
-			result[weekday] = end
-		case seriesEnd != nil:
-			result[weekday] = *seriesEnd
+		entry := timetable.BookingLeftoverSchedule{Weekday: schedule.Weekday, WeekPattern: schedule.WeekPattern, End: schedule.EndTime}
+		if from, err := calendar.ParseDate(schedule.ValidFrom); err == nil {
+			entry.ValidFrom = &from
 		}
+		if until, err := calendar.ParseDate(schedule.ValidUntil); err == nil {
+			entry.ValidUntil = &until
+		}
+		if seriesUntil != nil && (entry.ValidUntil == nil || seriesUntil.Before(*entry.ValidUntil)) {
+			entry.ValidUntil = seriesUntil
+		}
+		result = append(result, entry)
 	}
 	return result
 }

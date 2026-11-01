@@ -88,7 +88,7 @@ func (s *bookingLeftoversSetup) listLeftovers(t *testing.T) []bookingLeftoverRes
 // a Korrektur took the child's Thursday away, nobody clicked "Dort auch
 // entfernen", and the hand-maintained Regeltermin keeps the child on every
 // Thursday. The read names it again; "Bleibt so" moves it to the decided
-// entries and back; "Entfernen" from tomorrow on clears it.
+// entries and back; "Entfernen" from the first Thursday on clears it.
 func TestBookingLeftoversSurviveTheReload(t *testing.T) {
 	t.Parallel()
 	s := buildBookingLeftoversModule(t)
@@ -97,7 +97,7 @@ func TestBookingLeftoversSurviveTheReload(t *testing.T) {
 	template := s.createHandTemplate(t, "Hausaufgaben 2c", children)
 	change := rosterReviewMonday.AddDays(-3)
 	s.sources.bookings = thursdayDroppedBookings(changed, unchanged, change)
-	tomorrow := rosterReviewMonday.AddDays(1)
+	firstThursday := rosterReviewMonday.AddDays(3)
 
 	leftovers := s.listLeftovers(t)
 	require.Len(t, leftovers, 1, "only the child whose Thursday ended: %+v", leftovers)
@@ -108,7 +108,7 @@ func TestBookingLeftoversSurviveTheReload(t *testing.T) {
 	assert.NotEmpty(t, got.StudentName)
 	assert.Equal(t, []int{timetableModule.WeekdayThursday}, got.Weekdays)
 	assert.Equal(t, change.String(), got.BookingEndedOn)
-	assert.Equal(t, tomorrow.String(), got.From, "the removal never touches today or earlier")
+	assert.Equal(t, firstThursday.String(), got.From, "the removal starts on the first planned day without a booking, never today or earlier")
 	assert.False(t, got.Kept)
 
 	keep := func(kept bool) {

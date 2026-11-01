@@ -36,7 +36,12 @@ export function BookingLeftoverTodos({
     () => timetableService.getBookingLeftovers(period?.id ?? ""),
   );
 
-  const count = leftovers?.filter((leftover) => !leftover.kept).length ?? 0;
+  // One child with several Regeltermine or days counts once.
+  const count = new Set(
+    (leftovers ?? [])
+      .filter((leftover) => !leftover.kept)
+      .map((leftover) => leftover.studentId),
+  ).size;
   if (!enabled || count === 0) return null;
   return (
     <Alert
@@ -45,8 +50,8 @@ export function BookingLeftoverTodos({
       title="Kinder ohne passende Buchung"
       message={
         count === 1
-          ? "1 Kind steht noch in einem Regeltermin, obwohl seine Buchung weggefallen ist."
-          : `${count} Kinder stehen noch in Regelterminen, obwohl ihre Buchung weggefallen ist.`
+          ? "1 Kind steht noch von Hand im Plan, obwohl seine Buchung weggefallen ist."
+          : `${count} Kinder stehen noch von Hand im Plan, obwohl ihre Buchung weggefallen ist.`
       }
       action={
         <ButtonLink

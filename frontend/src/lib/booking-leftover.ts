@@ -11,9 +11,15 @@ export interface BookingLeftover {
   studentName: string;
   /** ISO weekdays, 1 = Monday, ascending. */
   weekdays: number[];
-  /** Day the booking ended (exclusive end, YYYY-MM-DD). */
+  /**
+   * Latest day a booking of these weekdays ended without a carrying one
+   * (exclusive end, YYYY-MM-DD); „Bleibt so“ records it.
+   */
   bookingEndedOn: string;
-  /** First day „Entfernen“ changes, tomorrow at the earliest. */
+  /**
+   * First planned day without a carrying booking, tomorrow at the earliest;
+   * the row shows it and „Entfernen“ starts there.
+   */
   from: string;
   /** The school decided: the child stays planned. */
   kept: boolean;

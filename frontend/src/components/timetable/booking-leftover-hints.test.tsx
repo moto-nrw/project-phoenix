@@ -111,7 +111,7 @@ describe("BookingLeftoverHints", () => {
     expect(within(rows[0]!).getByText("Hannah Schmitz")).toBeInTheDocument();
     expect(
       within(rows[0]!).getByText(
-        "„Hausaufgabenbetreuung“ · mittwochs · keine Buchung mehr ab 07.09.2026",
+        "„Hausaufgabenbetreuung“ · mittwochs · ohne passende Buchung ab 10.09.2026",
       ),
     ).toBeInTheDocument();
     // A list in the page, not an alert that interrupts.

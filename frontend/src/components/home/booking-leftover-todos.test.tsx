@@ -61,13 +61,27 @@ describe("BookingLeftoverTodos (#5102)", () => {
     expect(state.keys).toContain("booking-leftovers-4");
     expect(
       screen.getByText(
-        "2 Kinder stehen noch in Regelterminen, obwohl ihre Buchung weggefallen ist.",
+        "2 Kinder stehen noch von Hand im Plan, obwohl ihre Buchung weggefallen ist.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Kinder prüfen" })).toHaveAttribute(
       "href",
       "/test-tenant/betreuungsplan?view=serien",
     );
+  });
+
+  it("counts a child with several entries once (quorum review of #5452)", () => {
+    state.leftovers = [
+      leftover("1"),
+      { ...leftover("1"), templateId: "10", templateName: "Lernzeit" },
+    ];
+    render(<BookingLeftoverTodos enabled />);
+
+    expect(
+      screen.getByText(
+        "1 Kind steht noch von Hand im Plan, obwohl seine Buchung weggefallen ist.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("stays away when everything is decided or without planning rights", () => {
