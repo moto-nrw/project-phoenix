@@ -334,9 +334,12 @@ export function useGlobalSSE(): SSEHookState {
   const boundScopeRef = useRef(boundScope);
   // The scope of the pending burst; a flush for another scope is dropped.
   const burstScopeRef = useRef<string | null>(null);
-  // Set while a reconnect reconcile flushes: SupervisionContext resyncs its
-  // sidebar lists every five minutes on its own, so the reconcile spares it.
-  const reconcilingRef = useRef(false);
+  // A reconcile spares the sidebar's own periodic resync, but must still
+  // deliver notifications from real events queued before the reconnect.
+  const reconcilingRef = useRef<{
+    groupAccess: boolean;
+    activity: boolean;
+  } | null>(null);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   // (+ per-burst jitter). pendingGroupIds holds ACTIVE-group ids (activity
@@ -876,7 +879,10 @@ export function useGlobalSSE(): SSEHookState {
       // exactly what a colleague looks at after a handover, so announce
       // staleness and let the provider refetch (same decoupling as reminders
       // and the care-schedule editor above).
-      if (typeof window !== "undefined" && !reconcilingRef.current) {
+      if (
+        typeof window !== "undefined" &&
+        (reconcilingRef.current?.groupAccess ?? true)
+      ) {
         window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
       }
     }
@@ -887,7 +893,7 @@ export function useGlobalSSE(): SSEHookState {
 
     if (
       hasPendingActivityEvent.current &&
-      !reconcilingRef.current &&
+      (reconcilingRef.current?.activity ?? true) &&
       typeof window !== "undefined"
     ) {
       window.dispatchEvent(
@@ -1449,6 +1455,12 @@ export function useGlobalSSE(): SSEHookState {
     }
     if (!accepts(boundScopeRef.current)) return;
     lastReconcileAt.current = now;
+    const pendingSidebarEvents = {
+      groupAccess:
+        accepts(burstScopeRef.current) && hasPendingGroupAccessEvent.current,
+      activity:
+        accepts(burstScopeRef.current) && hasPendingActivityEvent.current,
+    };
     hasPendingBroadOgsEvent.current = true;
     hasPendingActivityEvent.current = true;
     hasPendingActiveSupervisionEvent.current = true;
@@ -1470,11 +1482,11 @@ export function useGlobalSSE(): SSEHookState {
       debounceTimer.current = null;
     }
     burstScopeRef.current = boundScopeRef.current;
-    reconcilingRef.current = true;
+    reconcilingRef.current = pendingSidebarEvents;
     try {
       flushInvalidations();
     } finally {
-      reconcilingRef.current = false;
+      reconcilingRef.current = null;
     }
     window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));

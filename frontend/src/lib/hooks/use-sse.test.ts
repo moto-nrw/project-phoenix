@@ -265,3 +265,81 @@ it("retries a stream out of retries when the provider answers again", async () =
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(sentAccount(1)).toBe("A");
 });
+
+it.each([
+  [
+    "permissions granted",
+    { permissions: [] },
+    { permissions: ["users:read", "parent_messages:read"] },
+  ],
+  [
+    "permissions revoked",
+    { permissions: ["users:read", "parent_messages:read"] },
+    { permissions: [] },
+  ],
+  ["admin granted", { isAdmin: false }, { isAdmin: true }],
+  ["admin revoked", { isAdmin: true }, { isAdmin: false }],
+  ["roles changed", { roles: ["user"] }, { roles: ["admin"] }],
+])(
+  "replaces the stream when the same account's %s",
+  async (_name, before, after) => {
+    const initial = session("A");
+    mockUseSession.mockReturnValue({
+      ...initial,
+      data: { user: { ...initial.data.user, ...before } },
+    });
+    const { result, rerender } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage }),
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+    mockUseSession.mockReturnValue({
+      ...initial,
+      data: { user: { ...initial.data.user, ...after } },
+    });
+    rerender();
+    expect(signal.aborted).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentAccount(1)).toBe("A");
+  },
+);
+
+it("keeps the stream for reordered permissions and roles and profile changes", async () => {
+  const initial = session("A");
+  mockUseSession.mockReturnValue({
+    ...initial,
+    data: {
+      user: {
+        ...initial.data.user,
+        roles: ["user", "teacher"],
+        permissions: ["users:read", "parent_messages:read"],
+        isAdmin: false,
+      },
+    },
+  });
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage }),
+  );
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+  mockUseSession.mockReturnValue({
+    ...initial,
+    data: {
+      user: {
+        ...initial.data.user,
+        roles: ["teacher", "user"],
+        permissions: ["parent_messages:read", "users:read"],
+        isAdmin: false,
+        name: "Updated name",
+      },
+    },
+  });
+  rerender();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(signal.aborted).toBe(false);
+  expect(result.current.isConnected).toBe(true);
+});

@@ -224,6 +224,32 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     unsubscribe();
   });
 
+  it.each(["activity_end", "group_access_changed"] as const)(
+    "preserves a queued %s sidebar notification during reconnect",
+    (type) => {
+      const view = renderConnected();
+      const dispatch = vi.spyOn(window, "dispatchEvent");
+      fire(event(type));
+      // Reconnect before the event's debounce timer flushes.
+      reconnect(view);
+      expect(invalidatedFamilies).toContain(OWN);
+      const notifications = dispatch.mock.calls
+        .map(([e]) => e)
+        .filter((e) => e.type === "phoenix:supervision-stale");
+      expect(notifications).toHaveLength(1);
+      expect((notifications[0] as CustomEvent).detail).toEqual(
+        type === "activity_end" ? { groupsOnly: false } : null,
+      );
+      act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
+      expect(
+        dispatch.mock.calls.filter(
+          ([e]) => e.type === "phoenix:supervision-stale",
+        ),
+      ).toHaveLength(1);
+      dispatch.mockRestore();
+    },
+  );
+
   it("does not reconcile on the first connection", () => {
     setStatus("idle");
     const view = renderHook(() => useGlobalSSE());
@@ -327,6 +353,28 @@ describe("useGlobalSSE: events of another school or account (#5017)", () => {
     expect(mutate).not.toHaveBeenCalled();
     expect(invalidatedFamilies).toEqual([]);
   });
+
+  it.each(["activity_end", "group_access_changed"] as const)(
+    "drops a queued %s sidebar notification after an account change",
+    (type) => {
+      const view = renderConnected();
+      const dispatch = vi.spyOn(window, "dispatchEvent");
+      fire(event(type));
+      session.current = { ...session.current, id: "account-8" };
+      view.rerender();
+      reconnect(view);
+      // Anker: a later reconnect reconciles the new account's caches.
+      reconnect(view);
+      expect(invalidatedFamilies).toContain(OWN);
+      act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
+      expect(
+        dispatch.mock.calls.filter(
+          ([e]) => e.type === "phoenix:supervision-stale",
+        ),
+      ).toHaveLength(0);
+      dispatch.mockRestore();
+    },
+  );
 
   it("ignores events while another tab's session change is being confirmed", () => {
     const view = renderConnected();

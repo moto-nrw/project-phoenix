@@ -40,11 +40,18 @@ export function useSSE(
 
   const { data: session } = useSession();
   // The stream is bound to the tab's account (#5385). A provider answer for
-  // the same account leaves an open stream alone (#5017): the session poll
-  // would otherwise replace it every few minutes, and each replacement is a
-  // gap the consumer has to reconcile. It still restarts a stream that is
-  // down, refused or out of retries (restartIfDownRef).
+  // the same account and authorization leaves an open stream alone (#5017).
+  // Otherwise every session poll would create a gap to reconcile. It still
+  // restarts a stream that is down, refused or out of retries
+  // (restartIfDownRef).
   const sessionAccount = session?.user?.id ?? null;
+  // The server snapshots authorization when opening the stream. Replace it
+  // when rights change, but not for fresh arrays or a different array order.
+  const sessionAuthorization = JSON.stringify([
+    session?.user?.isAdmin ?? false,
+    [...(session?.user?.roles ?? [])].sort(),
+    [...(session?.user?.permissions ?? [])].sort(),
+  ]);
 
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +63,7 @@ export function useSSE(
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
   const reconnectKeyRef = useRef(reconnectKey);
   const confirmedAccountRef = useRef(sessionAccount);
+  const confirmedAuthorizationRef = useRef(sessionAuthorization);
   const restartIfDownRef = useRef<() => void>(() => undefined);
 
   // Stable onMessage callback
@@ -84,8 +92,10 @@ export function useSSE(
   useEffect(() => {
     const reconnectKeyChanged =
       reconnectKeyRef.current !== reconnectKey ||
-      confirmedAccountRef.current !== sessionAccount;
+      confirmedAccountRef.current !== sessionAccount ||
+      confirmedAuthorizationRef.current !== sessionAuthorization;
     confirmedAccountRef.current = sessionAccount;
+    confirmedAuthorizationRef.current = sessionAuthorization;
     reconnectKeyRef.current = reconnectKey;
 
     if (!enabled) {
@@ -389,6 +399,7 @@ export function useSSE(
     enabled,
     reconnectKey,
     sessionAccount,
+    sessionAuthorization,
   ]);
 
   // Every provider answer (lookup, poll, update()) confirms the session.
