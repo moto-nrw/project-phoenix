@@ -159,3 +159,29 @@ B7). Punkt 3 gilt mit dieser Erweiterung:
 
 Option C (Gesundheitsangaben für die OGS) braucht #4722 und einen eigenen
 Nachtrag.
+
+## Nachtrag 2026-11-01: Informationsfluss statt Datensilos
+
+Der Nutzer ersetzt Option B „Ohne Gesundheit“ aus dem Nachtrag vom 28.10.2026
+als dauerhaftes Produktziel durch Option C: Die ausrichtende OGS erhält die
+für die Betreuung benötigten Gesundheitsangaben im normalen Ablauf. Dazu
+gehören Allergien, Medikamente, Gesundheitshinweise und Antworten auf
+Gesundheitsfragen. Dass die Anmeldung beim Träger liegt, begründet keine
+Informationssperre für die tatsächlich betreuende OGS. Es gilt die
+[Regel zum Informationsfluss](../../.claude/rules/information-flow.md).
+
+Die Umsetzung und ihre Nachweise gehören zu
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722), das die
+Weitergabe bereits umfasst. Der Zugriff muss den berechtigten Beteiligten
+für die bestätigte Betreuung und deren Zeitraum dienen, mit passender
+Rechtsgrundlage, erforderlichen Einwilligungen, Zugriffsschutz und
+Zugriffsprotokoll. Für bestehende Anmeldungen muss die Rechtsgrundlage die
+konkrete Weitergabe ebenfalls tragen; dieser Nachtrag erteilt keine
+rückwirkende Freigabe.
+
+**Produktentscheidung, noch kein Implementierungsnachweis:** Dieser Nachtrag
+ersetzt das dauerhafte Ziel „keine Gesundheitsangaben für die OGS“, entfernt
+aber keine bestehenden Filter oder Berechtigungen. Bis zur nachgewiesenen
+Umsetzung beschreibt der Nachtrag vom 28.10.2026 weiter den technischen
+Stand. Die neue Entscheidung erlaubt weder Zugriff durch andere Schulen
+noch pauschale Gesundheitsexporte oder eine Ausweitung bestehender Fristen.
