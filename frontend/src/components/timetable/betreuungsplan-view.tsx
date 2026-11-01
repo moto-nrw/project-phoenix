@@ -2204,6 +2204,7 @@ function TimetablesContent() {
           templateName={connecting.template.name}
           periodId={templatePeriodID}
           deviation={connecting.deviation}
+          canManagePhases={hasPermission(session, "config:manage")}
           onClose={() => setConnecting(null)}
           onConnected={handleOfferingConnected}
         />

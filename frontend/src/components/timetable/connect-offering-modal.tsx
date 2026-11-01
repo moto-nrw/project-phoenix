@@ -12,6 +12,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { PhasesOutsidePeriodNotice } from "~/components/timetable/phases-outside-period-notice";
 import { EditActions } from "~/components/ui/edit-actions";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
@@ -20,6 +21,7 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useOfferingPreview } from "~/lib/hooks/use-offering-preview";
 import { createLogger } from "~/lib/logger";
+import type { OfferingPhaseOutsidePeriod } from "~/lib/offering-gap";
 import {
   describeSelectionFilter,
   laterSegmentSentence,
@@ -81,6 +83,7 @@ export function ConnectOfferingModal({
   templateName,
   periodId,
   deviation,
+  canManagePhases = false,
   onClose,
   onConnected,
 }: Readonly<{
@@ -89,6 +92,8 @@ export function ConnectOfferingModal({
   /** The planning period whose offerings the school may add. */
   periodId?: string;
   deviation: RosterDeviation;
+  /** May open the Anmeldephasen page to align a phase with the period. */
+  canManagePhases?: boolean;
   onClose: () => void;
   /** After a successful save; the caller refreshes plan and lists. */
   onConnected: () => void | Promise<void>;
@@ -102,6 +107,9 @@ export function ConnectOfferingModal({
   );
   const [periodOfferings, setPeriodOfferings] = useState<
     OfferingSourceOption[]
+  >([]);
+  const [phasesOutsidePeriod, setPhasesOutsidePeriod] = useState<
+    OfferingPhaseOutsidePeriod[]
   >([]);
   const [saving, setSaving] = useState(false);
   const formErrors = useApiFormError();
@@ -119,9 +127,11 @@ export function ConnectOfferingModal({
     if (!isOpen || !periodId) return;
     let active = true;
     timetableService
-      .getOfferingSources(periodId)
-      .then((offerings) => {
-        if (active) setPeriodOfferings(offerings);
+      .getOfferingSourceChoice(periodId)
+      .then((choice) => {
+        if (!active) return;
+        setPeriodOfferings(choice.offerings);
+        setPhasesOutsidePeriod(choice.phasesOutsidePeriod);
       })
       .catch((err: unknown) => {
         // Bewusst ohne Anzeige: die vorgeschlagenen Angebote bleiben
@@ -131,6 +141,7 @@ export function ConnectOfferingModal({
           period_id: periodId,
           error: err instanceof Error ? err.message : String(err),
         });
+        if (active) setPhasesOutsidePeriod([]);
       });
     return () => {
       active = false;
@@ -243,6 +254,11 @@ export function ConnectOfferingModal({
             </p>
           ) : null}
         </div>
+        <PhasesOutsidePeriodNotice
+          phases={phasesOutsidePeriod}
+          context="choice"
+          canManagePhases={canManagePhases}
+        />
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium text-gray-700">Kinder</span>
           <span className="text-sm text-gray-900">

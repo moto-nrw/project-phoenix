@@ -1067,6 +1067,26 @@ describe("StepPersonalKinder — Anmeldephase außerhalb des Zeitraums", () => {
     ).toBeInTheDocument();
   });
 
+  it("says that phases can fall outside the period at either end", () => {
+    renderStep({
+      offeringPhasesOutsidePeriod: [
+        {
+          ...phase,
+          phaseId: "42",
+          serviceStart: "2026-07-20",
+          serviceEnd: "2026-08-15",
+        },
+        phase,
+      ],
+    });
+
+    expect(
+      screen.getByTestId("phases-outside-period-notice"),
+    ).toHaveTextContent(
+      "Sie passen nicht vollständig in diesen Planungszeitraum",
+    );
+  });
+
   it("stays quiet when every phase fits the period", () => {
     renderStep();
     expect(screen.getByLabelText("Angebote als Quelle")).toBeInTheDocument();

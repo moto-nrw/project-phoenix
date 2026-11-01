@@ -53,7 +53,7 @@ export function PhasesOutsidePeriodNotice({
     : `${question} Dann muss jemand mit Zugriff auf die Anmeldephasen die Daten angleichen.`;
   const message = single
     ? `Die Anmeldephase läuft vom ${range(first.serviceStart, first.serviceEnd)}, der Planungszeitraum vom ${period}. ${missing} ${fix}`
-    : `Sie laufen länger als dieser Planungszeitraum (${period}). ${missing} ${fix}`;
+    : `Sie passen nicht vollständig in diesen Planungszeitraum (${period}). ${missing} ${fix}`;
 
   return (
     <Alert

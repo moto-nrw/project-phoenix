@@ -5,19 +5,19 @@ import { ApiError } from "~/lib/api-error";
 import { duplicateIds } from "~/test/helpers/duplicate-ids";
 import type { OfferingPreview, RosterDeviation } from "~/lib/roster-deviation";
 
-const { mockPreview, mockConnect, mockToastSuccess, mockOfferingSources } =
+const { mockPreview, mockConnect, mockToastSuccess, mockOfferingSourceChoice } =
   vi.hoisted(() => ({
     mockPreview: vi.fn(),
     mockConnect: vi.fn(),
     mockToastSuccess: vi.fn(),
-    mockOfferingSources: vi.fn(),
+    mockOfferingSourceChoice: vi.fn(),
   }));
 
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
     getOfferingPreview: mockPreview,
     connectTemplateToOffering: mockConnect,
-    getOfferingSources: mockOfferingSources,
+    getOfferingSourceChoice: mockOfferingSourceChoice,
   },
 }));
 
@@ -71,7 +71,10 @@ describe("ConnectOfferingModal (#5103)", () => {
     mockPreview.mockReset().mockResolvedValue(preview);
     mockConnect.mockReset().mockResolvedValue(undefined);
     mockToastSuccess.mockReset();
-    mockOfferingSources.mockReset().mockResolvedValue([]);
+    mockOfferingSourceChoice.mockReset().mockResolvedValue({
+      offerings: [],
+      phasesOutsidePeriod: [],
+    });
   });
 
   it("previews per weekday who joins and who leaves, then connects every period", async () => {
@@ -236,12 +239,20 @@ describe("ConnectOfferingModal (#5103)", () => {
   });
 
   it("connects Randstunde and Ganztag together and keeps the Ganztag children (#5139)", async () => {
-    mockOfferingSources.mockResolvedValue([
-      { id: "3", name: "Randstunde", phaseId: "1", phaseName: "2026/27" },
-      { id: "4", name: "Ganztag", phaseId: "1", phaseName: "2026/27" },
-      { id: "5", name: "Ferien", phaseId: "1", phaseName: "2026/27" },
-      { id: "6", name: "Nachmeldung", phaseId: "2", phaseName: "Nachmeldung" },
-    ]);
+    mockOfferingSourceChoice.mockResolvedValue({
+      offerings: [
+        { id: "3", name: "Randstunde", phaseId: "1", phaseName: "2026/27" },
+        { id: "4", name: "Ganztag", phaseId: "1", phaseName: "2026/27" },
+        { id: "5", name: "Ferien", phaseId: "1", phaseName: "2026/27" },
+        {
+          id: "6",
+          name: "Nachmeldung",
+          phaseId: "2",
+          phaseName: "Nachmeldung",
+        },
+      ],
+      phasesOutsidePeriod: [],
+    });
     render(
       <ConnectOfferingModal
         isOpen
@@ -271,7 +282,7 @@ describe("ConnectOfferingModal (#5103)", () => {
       gradeLevels: [],
       schoolClasses: ["1a"],
     });
-    expect(mockOfferingSources).toHaveBeenCalledWith("12");
+    expect(mockOfferingSourceChoice).toHaveBeenCalledWith("12");
     expect(
       await screen.findByText(
         "Ab 28.10.2026 kommen nur noch die für „Randstunde“ oder „Ganztag“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.",
@@ -309,5 +320,41 @@ describe("ConnectOfferingModal (#5103)", () => {
         "Regeltermin ist mit „Randstunde“ und „Ganztag“ verbunden.",
       ),
     );
+  });
+
+  it("explains phases the planning period leaves out of the offering choice", async () => {
+    mockOfferingSourceChoice.mockResolvedValue({
+      offerings: [],
+      phasesOutsidePeriod: [
+        {
+          phaseId: "41",
+          phaseName: "Schuljahr 2026/27",
+          serviceStart: "2026-08-01",
+          serviceEnd: "2027-07-31",
+          offeringCount: 1,
+          periodStart: "2026-08-01",
+          periodEnd: "2027-07-07",
+        },
+      ],
+    });
+
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        periodId="12"
+        deviation={deviation}
+        canManagePhases
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByTestId("phases-outside-period-notice"),
+    ).toHaveTextContent("„Schuljahr 2026/27“ wird hier nicht geprüft");
+    expect(
+      screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
+    ).toBeInTheDocument();
   });
 });
