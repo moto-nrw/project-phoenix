@@ -12,9 +12,35 @@ import {
 import {
   getChildCareSchedule,
   getChildFeatures,
+  type Child,
   type ChildCareSchedule,
   type ChildFeatures,
 } from "~/lib/parent-api";
+
+import { useParentFeatures } from "~/lib/hooks/use-parent-resources";
+
+const SharedFeaturesContext = createContext<ReturnType<
+  typeof useParentFeatures
+> | null>(null);
+
+export function SharedParentFeaturesProvider({
+  children,
+  linkedChildren,
+}: Readonly<{
+  children: ReactNode;
+  linkedChildren: readonly Child[] | undefined;
+}>) {
+  const resource = useParentFeatures(linkedChildren);
+  return (
+    <SharedFeaturesContext.Provider value={resource}>
+      {children}
+    </SharedFeaturesContext.Provider>
+  );
+}
+
+export function useSharedParentFeatures() {
+  return useContext(SharedFeaturesContext);
+}
 
 interface ChildRequests {
   features: (studentId: string) => Promise<ChildFeatures>;
