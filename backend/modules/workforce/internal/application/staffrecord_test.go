@@ -3,6 +3,7 @@ package application
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,4 +41,13 @@ func TestPlanQualificationReplace(t *testing.T) {
 	for index, row := range unchanged.rows {
 		assert.Equal(t, plannedQualification{action: qualificationKeep, value: live[index]}, row)
 	}
+}
+
+func TestValidateQualificationIDs(t *testing.T) {
+	t.Parallel()
+
+	live := []domain.StaffQualification{{ID: 101, Name: "Erste Hilfe"}}
+	assert.NoError(t, validateQualificationIDs([]domain.StaffQualification{{ID: 101, Name: "Erste Hilfe"}}, live))
+	assert.NoError(t, validateQualificationIDs([]domain.StaffQualification{{Name: "Fortbildung"}}, live))
+	assert.ErrorIs(t, validateQualificationIDs([]domain.StaffQualification{{ID: 102, Name: "Fortbildung"}}, live), workforce.ErrInvalidStaffRecord)
 }

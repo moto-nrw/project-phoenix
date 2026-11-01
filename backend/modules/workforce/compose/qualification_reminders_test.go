@@ -316,4 +316,8 @@ func TestQualificationReminderCaughtUpAfterExpirySaysLapsed(t *testing.T) {
 	assert.Equal(t, "Nachweis ist abgelaufen", deliveries.notices[0].Title, "a caught-up reminder does not say 'heute'")
 	assert.Equal(t, "Nachweis ist abgelaufen", deliveries.mails[0].Subject)
 	assert.True(t, deliveries.mails[0].Content.Lapsed)
+
+	var standardTypes int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_qualification_types`).Scan(ctx, &standardTypes))
+	assert.Equal(t, 3, standardTypes, "the reminder read initializes the school's standard types")
 }

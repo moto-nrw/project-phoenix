@@ -26,9 +26,17 @@ func newQualificationRecords(store ports.Store, clock ports.Clock) qualification
 	return qualificationRecords{store: store, clock: clock}
 }
 
+func (r qualificationRecords) ensureStandardTypes(ctx context.Context) error {
+	_, err := r.store.EnsureStandardQualificationTypes(ctx, domain.StandardQualificationTypes())
+	return err
+}
+
 // load reads the school's kinds with the live qualifications of one staff
 // member, or of every staff member when staffID is zero.
 func (r qualificationRecords) load(ctx context.Context, staffID int64) ([]domain.QualificationType, []domain.StaffQualification, error) {
+	if err := r.ensureStandardTypes(ctx); err != nil {
+		return nil, nil, err
+	}
 	types, _, err := r.store.ListQualificationTypes(ctx)
 	if err != nil {
 		return nil, nil, err

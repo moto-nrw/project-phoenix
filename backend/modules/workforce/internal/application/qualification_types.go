@@ -22,7 +22,7 @@ func NewQualificationTypes(store ports.Store, clock ports.Clock) *QualificationT
 // ListQualificationTypes returns the school's kinds and adds the standard
 // kinds it does not have yet, so a new school starts with the standard list.
 func (q *QualificationTypes) ListQualificationTypes(ctx context.Context) ([]workforce.QualificationType, error) {
-	if _, err := q.records.store.EnsureStandardQualificationTypes(ctx, domain.StandardQualificationTypes()); err != nil {
+	if err := q.records.ensureStandardTypes(ctx); err != nil {
 		return nil, mapQualificationTypeError(err)
 	}
 	result, _, err := q.records.store.ListQualificationTypes(ctx)

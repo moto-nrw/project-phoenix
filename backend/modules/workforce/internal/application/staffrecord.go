@@ -117,6 +117,9 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 			if listErr != nil {
 				return listErr
 			}
+			if validationErr := validateQualificationIDs(rows, live); validationErr != nil {
+				return validationErr
+			}
 			resolved, resolveErr := s.resolveQualificationTypes(txCtx, rows, live, stats)
 			if resolveErr != nil {
 				return resolveErr
@@ -277,6 +280,25 @@ func sameQualification(live, submitted domain.StaffQualification) bool {
 
 func sameQualificationType(a, b *int64) bool {
 	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+// validateQualificationIDs keeps submitted row IDs scoped to the staff
+// member whose qualification list is being replaced. Insert rows must leave
+// their ID empty so PostgreSQL assigns it from the sequence.
+func validateQualificationIDs(submitted, live []domain.StaffQualification) error {
+	liveIDs := make(map[int64]struct{}, len(live))
+	for _, row := range live {
+		liveIDs[row.ID] = struct{}{}
+	}
+	for _, row := range submitted {
+		if row.ID <= 0 {
+			continue
+		}
+		if _, ok := liveIDs[row.ID]; !ok {
+			return invalidStaffRecord("qualification ID does not belong to staff member")
+		}
+	}
+	return nil
 }
 
 // qualificationRowsFor converts and validates the submitted rows of one staff

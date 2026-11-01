@@ -1,6 +1,6 @@
 {
   "scenario": "workforce.staff_qualifications.list",
-  "max": 6,
+  "max": 7,
   "exact": true,
-  "description": "modules/workforce/http/timetracking — GET /api/staff/qualifications\n(#4808): the tenant-transaction statements, ONE read of the school's\nNachweisarten and ONE read of every live qualification. The staff names\ncome from the People Directory port. Flat in people and rows."
+  "description": "modules/workforce/http/timetracking — GET /api/staff/qualifications\n(#4808): the tenant-transaction statements, ONE idempotent insert that adds\nmissing standard Nachweisarten, ONE read of the school's Nachweisarten and\nONE read of every live qualification. The staff names come from the People\nDirectory port. Flat in people and rows."
 }

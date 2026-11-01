@@ -1,7 +1,9 @@
 "use client";
 
 import { QualificationEntryList } from "~/components/staff/qualification-entry-list";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffQualificationService } from "~/lib/staff-qualification-api";
 import { staffQualificationKeys } from "~/lib/swr/staff-keys";
 import { useSWRAuth } from "~/lib/swr";
@@ -12,9 +14,17 @@ import { useSWRAuth } from "~/lib/swr";
  * Karte weg.
  */
 export function OwnQualificationsSection() {
-  const { data } = useSWRAuth(staffQualificationKeys.own(), () =>
+  const { data, error, mutate } = useSWRAuth(staffQualificationKeys.own(), () =>
     staffQualificationService.ownEntries(),
   );
+  const loadError = useSwrLoadError(error, "meine Nachweise", () => mutate());
+  if (loadError) {
+    return (
+      <SectionCard title="Meine Nachweise">
+        <LoadErrorAlert error={loadError} />
+      </SectionCard>
+    );
+  }
   if (!data || data.length === 0) return null;
   return (
     <SectionCard
