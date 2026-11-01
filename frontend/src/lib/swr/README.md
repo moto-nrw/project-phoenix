@@ -125,6 +125,68 @@ scoped evaluation request in parallel with the detail. The confirmed detail
 alone renders the evaluation and its actions; the same evaluation key is
 shared with the panel, so mounting it does not repeat the request.
 
+## Parents portal
+
+`useParentChildren`, `useParentFeatures` and `useParentToday` share the parent
+resources between the shell, start page and child page. Features and today's
+status use the sorted `(tenant_id, student_id)` relationship set in their
+factory key, together with the Berlin calendar day for date-dependent flags
+and status. Each relationship is fetched, including siblings at the same
+school; a school's flags never stand in for another child's permissions.
+A non-refusal background failure preserves that child's latest confirmed
+features and status; successful siblings use their fresh answers. Alternating
+partial failures retain successful per-child updates in the current batch error,
+not only the last wholly successful batch. At request start, `readCurrent()` on
+the authenticated reader supplies generation-checked data/error snapshots.
+This capability exposes no cache and immediately returns empty values after a
+scope/data drop or session suspension, including before a React rerender.
+It is optional in the structural response type for compatibility with standard
+SWR-shaped consumers; real authenticated readers always implement it. Without a confirmed value, failed feature lookups stay off and failed
+status lookups use `UNKNOWN_CHILD_TODAY`. Errors remain available for logging
+and cold-load error presentation. Partial results are read only through the
+wrapper's current-error gate (G19). No separate fallback cache is retained:
+access refusal, logout, account or relationship changes discard confirmed and
+partial values together. The private batch failure is not an `ApiError`, so
+refusals cannot restamp its partial results into a newer generation.
+The authenticated wrapper adds `parent:-:<account>`: the parents JWT has no
+school, and account-wide lists can span schools. They must not use a tenant,
+school or operator session. News, message lists and the start-page calendar
+also have one factory key per response.
+
+Batch readers expose `hasConfirmedData` for a complete, successful response;
+partial error values are not a confirmed initial response. Pages keep loaded
+content and dialogs mounted after background failures and log those failures.
+Use `useSwrResourceLoadError` from `~/lib/hooks/use-swr-load-error` for this
+shared presentation rule: it accepts SWR resources, blocks only on errors without
+confirmed data, and logs background failures. Empty lists are confirmed data.
+Pass batch readers with their `hasConfirmedData` flag so partial failure payloads
+do not hide an initial load error. Access/scope discards remain the resource
+boundary’s responsibility; the presenter never retains discarded data.
+The load-error path remains for resources that have never loaded successfully.
+
+Warm mounts use confirmed data immediately. Revalidating readers refresh an
+unmounted resource after an SSE invalidation; only the session-wide children
+list and profile skip mount revalidation. Requests deduplicate for 60 seconds. Focus recovery is throttled to
+60 seconds; SSE events revalidate the shared resources. Profile, children and
+the start-page feeds start independently, then features and day status start
+in parallel as soon as children are known. The child header still reads the
+complete authorized children list, not a new detail preview or permission seed.
+
+The parent API reports `care.child_not_linked` (401/403/404) to the
+authenticated bridge. `care.guardian_permission_denied` triggers eviction only
+for the features and today readers, which check `parent_portal.access` alone.
+Action-specific refusals, including document inbox reads and writes, do not
+prove loss of child access. Reads keep their load errors; write actions roll
+back and recheck their still-readable resource (as in #5425).
+It discards the parent resource family through `useDiscardRefusedEntity`,
+revalidates the children list, and broadcasts only account and refusal code
+to the other tabs. The API captures the originating account before the request;
+a late refusal cannot evict another account. Business refusals do not evict.
+A changed relationship set also drops derived resources, so removing and later
+re-adding a relationship cannot resurrect its former flags. The shell remounts
+remaining local-state sections at account/scope and relationship boundaries.
+No cache internals, persistent storage or new lint exceptions are involved.
+
 ## Operator portal
 
 The backend session scope `platform` maps to `operator:{accountId}`. Operators

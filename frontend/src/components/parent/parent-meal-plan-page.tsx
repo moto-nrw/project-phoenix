@@ -41,7 +41,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { useMealParticipation } from "~/lib/hooks/use-meal-participation";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { usedMealAllergens } from "~/lib/meal-allergens";
 import {
@@ -500,8 +500,8 @@ function ParticipationWeek({
   );
   const participation = meal.data;
   const loading = meal.isLoading;
-  const loadError = useSwrLoadError(
-    meal.error,
+  const { error: loadError } = useSwrResourceLoadError(
+    [meal],
     t("errorObjectParticipation"),
     () => meal.mutate(),
   );

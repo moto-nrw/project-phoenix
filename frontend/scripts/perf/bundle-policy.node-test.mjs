@@ -49,10 +49,9 @@ test("bundle policy retains migration ceilings except the explicit increases", (
   }
 });
 
-test("each increased policy still rejects one byte over its ceiling", () => {
+test("each policy still rejects one byte over its ceiling", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
-  for (const route of increases.keys()) {
-    const { maxBytes } = budgets.get(route);
+  for (const [route, { maxBytes }] of budgets) {
     assert.deepEqual(
       compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
       [],

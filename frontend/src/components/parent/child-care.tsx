@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
@@ -51,7 +52,10 @@ import {
   RequestEditModal,
   useRequestVersion,
 } from "~/components/parent/request-edit-modal";
-import { useChildRequests } from "~/components/parent/child-requests-context";
+import {
+  useChildRequests,
+  useSharedParentFeatures,
+} from "~/components/parent/child-requests-context";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -304,6 +308,19 @@ export interface ChildCare {
 
 export function useChildCare(studentId: string): ChildCare {
   const childRequests = useChildRequests();
+  const sharedFeatures = useSharedParentFeatures();
+  const hasSharedFeatures = sharedFeatures !== null;
+  const sharedFailure =
+    sharedFeatures?.errorsByChild[studentId] ??
+    (sharedFeatures && !sharedFeatures.data?.[studentId]
+      ? sharedFeatures.error
+      : undefined);
+  const tChild = useTranslations("parentChild");
+  const { failure: sharedFeatureError } = useSwrResourceLoadError(
+    [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
+    tChild("errorObjectCare"),
+    () => sharedFeatures?.mutate(),
+  );
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
@@ -449,7 +466,10 @@ export function useChildCare(studentId: string): ChildCare {
           }),
           // Approval settings have no safe fallback: keep them unknown when
           // the feature request fails so the modal uses neutral wording.
-          childRequests.features(studentId).catch((err: unknown) => {
+          (hasSharedFeatures
+            ? Promise.resolve(DEFAULT_FEATURES)
+            : childRequests.features(studentId)
+          ).catch((err: unknown) => {
             failures.push(err);
             return DEFAULT_FEATURES;
           }),
@@ -493,7 +513,7 @@ export function useChildCare(studentId: string): ChildCare {
       // after a newer one can't flip it back off prematurely.
       if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
-  }, [childRequests, studentId]);
+  }, [childRequests, hasSharedFeatures, studentId]);
 
   // Reload on mount, on a studentId change (load identity), AND when the Berlin
   // calendar day rolls over while the tab stays open — the windowed lists and
@@ -530,6 +550,11 @@ export function useChildCare(studentId: string): ChildCare {
   // so it fires even in a background tab. refetchOnFocus:true stays as the fallback
   // for a tab whose SSE stream had dropped entirely (no event ever arrives), mirroring
   // the conversation views' focus healing.
+  const reloadSharedFeatures = sharedFeatures?.mutate;
+  const retryChildCare = useCallback(() => {
+    void reloadSharedFeatures?.();
+    void load();
+  }, [load, reloadSharedFeatures]);
   const refreshChildCare = useCallback(() => void load(), [load]);
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
@@ -671,13 +696,20 @@ export function useChildCare(studentId: string): ChildCare {
     pickupChangeRequestsLoaded:
       hasCurrentStudentData && pickupChangeRequestsLoaded,
     todayPickup,
-    features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
-    loading: !hasCurrentStudentData || loading,
-    loadError: hasCurrentStudentData ? loadError : null,
+    features: hasCurrentStudentData
+      ? sharedFeatures
+        ? (sharedFeatures.data?.[studentId] ?? DEFAULT_FEATURES)
+        : features
+      : DEFAULT_FEATURES,
+    loading:
+      !hasCurrentStudentData ||
+      loading ||
+      (!!sharedFeatures && !sharedFeatures.data && !sharedFeatures.error),
+    loadError: hasCurrentStudentData ? (sharedFeatureError ?? loadError) : null,
     reportSick,
     saveCareException,
     removeCareException,
-    refresh: refreshChildCare,
+    refresh: retryChildCare,
   };
 }
 

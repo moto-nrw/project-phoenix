@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDotsIcon,
   IdentificationCardIcon,
@@ -32,13 +32,12 @@ import {
   useChildMasterData,
 } from "~/components/parent/child-master-data";
 import GuardiansPanel from "~/components/parent/guardians-panel";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   UNKNOWN_CHILD_TODAY,
   fetchChildParentConferences,
-  getChildToday,
-  listMyChildren,
   type Child,
   type ChildToday,
 } from "~/lib/parent-api";
@@ -47,7 +46,10 @@ import { parseISODate } from "~/lib/date-helpers";
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import { requiresGuardianReason } from "~/lib/parent-request-reason";
 import { SharingOptionsProvider } from "~/components/parent/sharing-options-context";
-import { ChildRequestsProvider } from "~/components/parent/child-requests-context";
+import {
+  SharedParentFeaturesProvider,
+  ChildRequestsProvider,
+} from "~/components/parent/child-requests-context";
 import {
   ParentPage,
   ParentPageHeader,
@@ -57,6 +59,14 @@ import { calendarConcept } from "~/lib/concepts/calendar";
 import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+
+import {
+  useParentChildren,
+  useParentToday,
+} from "~/lib/hooks/use-parent-resources";
+
+const EMPTY_CHILDREN: Child[] = [];
+const EMPTY_TODAY: Record<string, ChildToday> = {};
 
 const logger = createLogger({ component: "ChildPage" });
 
@@ -84,68 +94,18 @@ export function ChildPage({
   const t = useTranslations("parentChild");
   const navT = useTranslations("parentNav");
   const backT = useTranslations("parentChildDetail");
-  const [children, setChildren] = useState<Child[]>([]);
-  const [selectionToday, setSelectionToday] = useState<
-    Readonly<Record<string, ChildToday>>
-  >({});
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    listMyChildren()
-      .then(async (list) => {
-        const todayEntries =
-          !studentId && list.length > 1
-            ? await Promise.all(
-                list.map(
-                  async (child) =>
-                    [
-                      child.student_id,
-                      // Bewusst still: die Auswahlkarte zeigt dann
-                      // "Status derzeit nicht verfügbar", die Kinder bleiben
-                      // wählbar.
-                      await getChildToday(child.student_id).catch(
-                        () => UNKNOWN_CHILD_TODAY,
-                      ),
-                    ] as const,
-                ),
-              )
-            : [];
-        if (!active) return;
-        setChildren(list);
-        setSelectionToday(Object.fromEntries(todayEntries));
-        setFailed(false);
-      })
-      .catch((err: unknown) => {
-        if (!active) return;
-        logger.warn("parent_child_page_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setFailed(true);
-        void showLoadError(err, {
-          object: t("errorObject"),
-          retry: () => {
-            clearLoadError();
-            setFailed(false);
-            setReloadKey((key) => key + 1);
-          },
-        });
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [clearLoadError, reloadKey, showLoadError, studentId, t]);
+  const childResource = useParentChildren();
+  const children = childResource.data ?? EMPTY_CHILDREN;
+  const statuses = useParentToday(childResource.data);
+  const selectionToday = statuses.data ?? EMPTY_TODAY;
+  const loading =
+    (!childResource.data && !childResource.error) ||
+    (!studentId && children.length > 1 && !statuses.data && !statuses.error);
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [childResource],
+    t("errorObject"),
+    () => childResource.mutate(),
+  );
 
   const active = useMemo(() => {
     if (children.length === 0) return null;
@@ -169,7 +129,7 @@ export function ChildPage({
     return <ParentPageSkeleton rows={2} />;
   }
 
-  if (failed) return <LoadErrorAlert error={loadError} />;
+  if (failure) return <LoadErrorAlert error={loadError} />;
 
   if (children.length === 0) {
     return (
@@ -244,21 +204,32 @@ export function ChildPage({
       {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
           einzigen Abruf der möglichen Empfänger. Ebenso teilen sie laufende
           Abrufe der Schulschalter und des Wochenplans. */}
-      <SharingOptionsProvider>
-        <ChildRequestsProvider>
-          <ChildSections key={active.student_id} child={active} />
-        </ChildRequestsProvider>
-      </SharingOptionsProvider>
+      <SharedParentFeaturesProvider linkedChildren={children}>
+        <SharingOptionsProvider>
+          <ChildRequestsProvider>
+            <ChildSections
+              key={active.student_id}
+              child={active}
+              today={
+                selectionToday[active.student_id] ??
+                (statuses.error ? UNKNOWN_CHILD_TODAY : null)
+              }
+            />
+          </ChildRequestsProvider>
+        </SharingOptionsProvider>
+      </SharedParentFeaturesProvider>
     </ParentPage>
   );
 }
 
-function ChildSections({ child }: Readonly<{ child: Child }>) {
+function ChildSections({
+  child,
+  today,
+}: Readonly<{ child: Child; today: ChildToday | null }>) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const t = useTranslations("parentChild");
   const care = useChildCare(child.student_id);
-  const [today, setToday] = useState<ChildToday | null>(null);
   const {
     error: careLoadError,
     show: showCareLoadError,
@@ -266,8 +237,8 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   } = useApiLoadError();
   const careFailure = care.loadError;
   const refreshCare = care.refresh;
-  // Fehlt eine Liste oder die Freigaben der Schule, fehlen auch Knöpfe. Der
-  // Kasten sagt, warum, und lädt auf Wunsch neu.
+  // Fehlende Erstlade-Daten erhalten eine Fehlerkarte mit Retry. Bestätigte
+  // Features bleiben bei Hintergrundfehlern nutzbar; ihr Leser loggt den Fehler.
   useEffect(() => {
     if (!careFailure) {
       clearCareLoadError();
@@ -280,25 +251,6 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   }, [careFailure, clearCareLoadError, refreshCare, showCareLoadError, t]);
   const [modal, setModal] = useState<null | "sick" | "pickup">(null);
   const fullName = `${child.first_name} ${child.last_name}`;
-
-  const loadToday = useCallback(() => {
-    getChildToday(child.student_id)
-      .then(setToday)
-      // Bewusst still: die Tageskarte zeigt "Status derzeit nicht verfügbar".
-      // Fokus und Statusereignisse laden ohne Zutun der Person neu.
-      .catch(() => setToday(UNKNOWN_CHILD_TODAY));
-  }, [child.student_id]);
-
-  useEffect(() => {
-    loadToday();
-    const refresh = () => loadToday();
-    window.addEventListener("parent-child-status-refresh", refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("parent-child-status-refresh", refresh);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [loadToday]);
 
   // Die Startseite verlinkt ihre Aktionen als ?action=sick / ?action=pickup.
   // Die Kinderseite fuehrt den Dialog, deshalb wird er hier geoeffnet und der
