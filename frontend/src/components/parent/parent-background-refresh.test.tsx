@@ -103,13 +103,17 @@ async function failChildrenRefresh() {
   });
   await waitFor(() => expect(api.listMyChildren).toHaveBeenCalledTimes(2));
 }
-async function failResourceRefresh(source: "children" | "features") {
+async function failResourceRefresh(source: "children" | "features" | "today") {
   if (source === "children") return failChildrenRefresh();
-  vi.mocked(api.getChildFeatures).mockRejectedValue(unavailable);
+  const request =
+    source === "features"
+      ? vi.mocked(api.getChildFeatures)
+      : vi.mocked(api.getChildToday);
+  request.mockRejectedValue(unavailable);
   await act(async () => {
     window.dispatchEvent(new CustomEvent("parent-child-status-refresh"));
   });
-  await waitFor(() => expect(api.getChildFeatures).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
 }
 function mount(page: ReactNode) {
   return render(
@@ -121,7 +125,7 @@ function mount(page: ReactNode) {
   );
 }
 describe("parent background refresh preserves mounted content", () => {
-  it.each(["children", "features"] as const)(
+  it.each(["children", "features", "today"] as const)(
     "keeps the sickness draft after a %s 503",
     async (source) => {
       mount(<ChildPage studentId="42" />);
@@ -135,6 +139,7 @@ describe("parent background refresh preserves mounted content", () => {
       expect(screen.getByTestId("child-profile-icon")).toBeInTheDocument();
       expect(screen.getByRole("dialog")).toBe(dialog);
       expect(draft).toHaveValue("Arzttermin am Vormittag");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     },
   );
   it.each(["children", "features"] as const)(

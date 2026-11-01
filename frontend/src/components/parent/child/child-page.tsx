@@ -237,8 +237,8 @@ function ChildSections({
   } = useApiLoadError();
   const careFailure = care.loadError;
   const refreshCare = care.refresh;
-  // Fehlt eine Liste oder die Freigaben der Schule, fehlen auch Knöpfe. Der
-  // Kasten sagt, warum, und lädt auf Wunsch neu.
+  // Fehlende Erstlade-Daten erhalten eine Fehlerkarte mit Retry. Bestätigte
+  // Features bleiben bei Hintergrundfehlern nutzbar; ihr Leser loggt den Fehler.
   useEffect(() => {
     if (!careFailure) {
       clearCareLoadError();

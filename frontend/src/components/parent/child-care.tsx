@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
@@ -309,11 +310,17 @@ export function useChildCare(studentId: string): ChildCare {
   const childRequests = useChildRequests();
   const sharedFeatures = useSharedParentFeatures();
   const hasSharedFeatures = sharedFeatures !== null;
-  const sharedFeatureError =
+  const sharedFailure =
     sharedFeatures?.errorsByChild[studentId] ??
     (sharedFeatures && !sharedFeatures.data?.[studentId]
       ? sharedFeatures.error
       : undefined);
+  const tChild = useTranslations("parentChild");
+  const { failure: sharedFeatureError } = useSwrResourceLoadError(
+    [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
+    tChild("errorObjectCare"),
+    () => sharedFeatures?.mutate(),
+  );
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
