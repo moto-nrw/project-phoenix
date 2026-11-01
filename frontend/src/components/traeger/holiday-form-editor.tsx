@@ -23,6 +23,8 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+// Die Vorschau nennt die Abschnitte wie das Elternformular (#5467).
+import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
@@ -364,9 +366,9 @@ export function HolidayFormEditor({
                 ]}
               />
               <PreviewFieldsSection
-                title="Fragen je Kind"
+                title={germanMessages.childQuestionsTitle}
                 fields={childFields}
-                emptyTitle="Keine Fragen je Kind"
+                emptyTitle="Keine Fragen oder Infos zum Kind"
                 emptyText="Bei jedem Kind stehen nur die festen Angaben."
                 fieldBadge={questionBadge}
               />
@@ -375,9 +377,9 @@ export function HolidayFormEditor({
                 fields={["Vorname *", "Nachname *", "E-Mail *", "Telefon *"]}
               />
               <PreviewFieldsSection
-                title="Fragen zur Familie"
+                title={germanMessages.familyQuestionsTitle}
                 fields={familyFields}
-                emptyTitle="Keine Fragen zur Familie"
+                emptyTitle="Keine Fragen oder Infos zur Familie"
                 emptyText="Beim Elternteil stehen nur die festen Angaben."
                 fieldBadge={questionBadge}
               />

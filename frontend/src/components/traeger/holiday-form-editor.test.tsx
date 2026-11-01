@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { ApiError } from "~/lib/api-error";
 import type {
   HolidayForm,
@@ -67,6 +68,22 @@ function choice(name: RegExp, index = 0): HTMLElement {
 describe("HolidayFormEditor (#5198)", () => {
   beforeEach(() => {
     mockSave.mockReset();
+  });
+
+  it("names the preview sections like the parent form (#5467)", () => {
+    renderEditor();
+    expect(
+      screen.getByText(germanMessages.childQuestionsTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(germanMessages.familyQuestionsTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Fragen oder Infos zum Kind"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Fragen oder Infos zur Familie"),
+    ).toBeInTheDocument();
   });
 
   it("inserts the missing questions of the standard template once", () => {
