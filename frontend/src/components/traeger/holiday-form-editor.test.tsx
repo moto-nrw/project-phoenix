@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
@@ -53,6 +54,19 @@ function renderEditor(initial: HolidayForm = form()) {
     </ToastProvider>,
   );
   return onSaved;
+}
+
+// Mirrors the page: the editor remounts with each saved version.
+function RemountingPage({ initial }: Readonly<{ initial: HolidayForm }>) {
+  const [current, setCurrent] = useState(initial);
+  return (
+    <HolidayFormEditor
+      key={current.version}
+      periodId="5"
+      form={current}
+      onSaved={setCurrent}
+    />
+  );
 }
 
 function questionInputs(): HTMLInputElement[] {
@@ -247,6 +261,56 @@ describe("HolidayFormEditor (#5198)", () => {
       { key: "taschengeld", health: false, share_with_host: true },
       { key: "forderbedarf", health: true, share_with_host: false },
     ]);
+  });
+
+  it("confirms a saved version with a toast that survives the remount (#5466)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({ ...form(), version: 4, fields }),
+    );
+    render(
+      <ToastProvider>
+        <RemountingPage initial={{ ...form([TEMPLATE[1]!]), version: 3 }} />
+      </ToastProvider>,
+    );
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Ausflüge erlaubt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Das Anmeldeformular ist als Version 4 gespeichert.",
+      ),
+    ).toBeInTheDocument();
+    // The remounted editor shows the saved version, not a draft.
+    expect(questionInputs()[0]).toHaveValue("Ausflüge erlaubt");
+    expect(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    ).toBeDisabled();
+  });
+
+  it("shows no success toast when saving fails (#5466)", async () => {
+    mockSave.mockRejectedValue(new ApiError("boom", 500, {}));
+    const onSaved = renderEditor(form([TEMPLATE[1]!]));
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Ausflüge erlaubt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Als neue Version speichern" }),
+      ).toBeEnabled(),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Das Anmeldeformular ist als Version/),
+    ).not.toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
   });
 
   it("marks a question without text instead of saving", async () => {
