@@ -542,12 +542,7 @@ export function useImmutableSWR<T, E = Error>(
  */
 export function useTenantMutate() {
   const { prefix } = useSWRScope();
-  useSyncExternalStore(
-    subscribeSWRDataGeneration,
-    currentSWRDataGeneration,
-    currentSWRDataGeneration,
-  );
-  const originatingGeneration = currentSWRGeneration();
+  const origin = useDataOrigin();
 
   return useCallback(
     (
@@ -561,7 +556,7 @@ export function useTenantMutate() {
       // A retained action or passive effect must not restamp captured data
       // after a layout-effect reset. Only this key's data bumps count, so
       // an unrelated drop (including `except`) leaves the callback usable.
-      if (dataGenerationOf(cacheKey) > originatingGeneration)
+      if (dataGenerationOf(cacheKey) > origin.generation)
         return Promise.resolve(undefined);
       if (data === undefined) {
         return currentResult(cacheKey, swrMutate(cacheKey));
@@ -577,8 +572,28 @@ export function useTenantMutate() {
         swrMutate(cacheKey, locked, lockedOptions as never),
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, origin],
   );
+}
+
+/**
+ * The generation a callback of this render originates in (G21), renewed only
+ * when values stop counting (scope or data bump). A request bump moves the
+ * generation counter but ends no value, so it keeps the object and with it
+ * the identity of every callback built on it (#5223). The callbacks take any
+ * key: a data bump of any key renews them, a retained one keeps its origin.
+ */
+function useDataOrigin(): { readonly generation: number } {
+  const moved = useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  const origin = useRef<{ moved: number; generation: number } | null>(null);
+  if (origin.current?.moved !== moved) {
+    origin.current = { moved, generation: currentSWRGeneration() };
+  }
+  return origin.current;
 }
 
 /**
@@ -760,18 +775,13 @@ export function useSWRCacheKey() {
 /** Hover/intent preload, held to the same session and generation as mounted readers. */
 export function useSWRPreload() {
   const { prefix } = useSWRScope();
-  useSyncExternalStore(
-    subscribeSWRDataGeneration,
-    currentSWRDataGeneration,
-    currentSWRDataGeneration,
-  );
-  const originatingGeneration = currentSWRGeneration();
+  const origin = useDataOrigin();
   return useCallback(
     <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
       const fullKey = scopedSWRKey(prefix, key);
-      if (dataGenerationOf(fullKey) > originatingGeneration)
+      if (dataGenerationOf(fullKey) > origin.generation)
         return Promise.resolve(undefined);
       const start = startOf(fullKey);
       return preloadSWR(fullKey, fetcher).then(
@@ -791,7 +801,7 @@ export function useSWRPreload() {
         },
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, origin],
   );
 }
 

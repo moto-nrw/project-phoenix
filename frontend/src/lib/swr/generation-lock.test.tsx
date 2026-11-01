@@ -1253,3 +1253,46 @@ describe.each([
     },
   );
 });
+
+describe("callback identity across bumps of other keys (#5223)", () => {
+  it("keeps the useTenantMutate callback across a request bump", async () => {
+    const name = "student-7-identity";
+    const ui = (
+      <Page>
+        <Reader name={name} fetcher={() => Promise.resolve("stand")} />
+      </Page>
+    );
+    const view = render(ui);
+    await flush();
+    // Anker: geladen.
+    expect(screen.getByTestId(name)).toHaveTextContent("stand");
+    const before = tools.mutate;
+
+    act(() => {
+      void tools.matching();
+    });
+    await flush();
+    view.rerender(cloneElement(ui));
+
+    expect(tools.mutate).toBe(before);
+    await act(async () => {
+      await tools.mutate(name, "neu", { revalidate: false });
+    });
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+  });
+
+  it("hands out a new useTenantMutate callback after a data bump", async () => {
+    // The callback takes any key, so a drop of any key ends it (G21).
+    const view = render(<Page />);
+    const before = tools.mutate;
+    act(() => {
+      tools.discard(refusal, {
+        codes: ["care.guardian_permission_denied"],
+        matches: (key) => key.startsWith("student-8-"),
+      });
+    });
+    view.rerender(<Page />);
+
+    expect(tools.mutate).not.toBe(before);
+  });
+});
