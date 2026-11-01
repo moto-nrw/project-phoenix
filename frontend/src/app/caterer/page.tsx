@@ -149,6 +149,11 @@ function SchoolLoadError({
   return <LoadErrorAlert error={error} />;
 }
 
+interface CatererOrderWindow {
+  orders: Record<string, CatererOrders | null>;
+  failures: Record<string, unknown>;
+}
+
 interface OverviewRow {
   key: string;
   school: CatererSchool | null;
@@ -177,7 +182,12 @@ export default function CatererOverviewPage() {
   const schoolIds = schools?.schools.map((school) => school.id) ?? [];
   const ordersKey =
     enabled && schools ? catererKeys.orders(schoolIds, from, to) : null;
-  const response = useSWRAuth(
+  const scopedKey = useSWRCacheKey()(ordersKey ?? "");
+  const orderSnapshot = useRef<{
+    scopedKey: string | null;
+    data?: CatererOrderWindow;
+  }>({ scopedKey: null });
+  const response = useSWRAuth<CatererOrderWindow>(
     ordersKey,
     async () => {
       const results = await Promise.allSettled(
@@ -189,7 +199,20 @@ export default function CatererOverviewPage() {
         const schoolId = schoolIds[index]!;
         if (result.status === "fulfilled") orders[schoolId] = result.value;
         else {
-          orders[schoolId] = null;
+          // Keep a warm snapshot only for this exact scoped window. A true
+          // supply refusal must never retain previously readable orders.
+          const refused =
+            result.reason instanceof ApiError &&
+            (result.reason.status === 401 ||
+              result.reason.code === "general.permission" ||
+              result.reason.code === "meals.not_supplied");
+          const previous =
+            orderSnapshot.current.scopedKey === scopedKey
+              ? orderSnapshot.current.data
+              : undefined;
+          orders[schoolId] = refused
+            ? null
+            : (previous?.orders[schoolId] ?? null);
           failures[schoolId] = result.reason;
           logger.warn("caterer_orders_load_failed", {
             school_id: schoolId,
@@ -204,8 +227,11 @@ export default function CatererOverviewPage() {
     },
     { keepPreviousData: false },
   );
+  useLayoutEffect(() => {
+    orderSnapshot.current = { scopedKey, data: response.data };
+  });
   const discardRefused = useDiscardRefusedEntity();
-  useEffect(() => {
+  useLayoutEffect(() => {
     for (const [schoolId, cause] of Object.entries(
       response.data?.failures ?? {},
     )) {
@@ -218,7 +244,6 @@ export default function CatererOverviewPage() {
       });
     }
   }, [response.data, ordersKey, discardRefused]);
-  const scopedKey = useSWRCacheKey()(ordersKey ?? "");
   const currentWindow = useRef({
     scopedKey,
     key: ordersKey,
@@ -235,12 +260,19 @@ export default function CatererOverviewPage() {
   const orders = action.data?.orders ?? {};
   const failures = action.data?.failures ?? {};
   const loading = schoolResponse.isLoading || response.isLoading;
-  const error = useSwrLoadError(
-    schoolResponse.error ?? response.error,
-    schoolResponse.error ? "Ihre Schulen" : "die Bestellungen",
-    schoolResponse.error ? schoolResponse.mutate : response.mutate,
-    schoolResponse.error ? schoolResponse.data : response.data,
+  const schoolsLoadError = useSwrLoadError(
+    schoolResponse.error,
+    "Ihre Schulen",
+    schoolResponse.mutate,
+    schoolResponse.data,
   );
+  const ordersLoadError = useSwrLoadError(
+    response.error,
+    "die Bestellungen",
+    response.mutate,
+    response.data,
+  );
+  const error = schoolsLoadError ?? ordersLoadError;
   const mutateOrders = response.mutate;
   const [exporting, setExporting] = useState<string | null>(null);
   const { show: showActionError } = useApiErrorDisplay();
@@ -289,7 +321,14 @@ export default function CatererOverviewPage() {
         outcome.status === "failed" &&
         retries.current.get(school.id) === ticket
       ) {
-        // Keep a successfully confirmed snapshot and show the refresh error beside it.
+        // A background failure keeps the confirmed snapshot and controls.
+        logger.warn("caterer_orders_load_failed", {
+          school_id: school.id,
+          error:
+            outcome.error instanceof Error
+              ? outcome.error.message
+              : String(outcome.error),
+        });
         await mutateOrders(
           (current) =>
             current
@@ -623,20 +662,11 @@ export default function CatererOverviewPage() {
                 {schoolOrders === undefined ? (
                   <DataTableSkeleton rows={3} columns={5} />
                 ) : schoolOrders ? (
-                  <>
-                    {failures[school.id] != null && (
-                      <SchoolLoadError
-                        school={school}
-                        cause={failures[school.id]}
-                        onRetry={() => retrySchool(school)}
-                      />
-                    )}
-                    <CatererSchoolOrders
-                      school={school}
-                      orders={schoolOrders}
-                      onConfirm={(orderId) => confirm(school, orderId)}
-                    />
-                  </>
+                  <CatererSchoolOrders
+                    school={school}
+                    orders={schoolOrders}
+                    onConfirm={(orderId) => confirm(school, orderId)}
+                  />
                 ) : (
                   <SchoolLoadError
                     school={school}

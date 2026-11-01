@@ -15,7 +15,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useLayoutEffect, useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -172,7 +172,7 @@ function ClassLink({
       href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
       variant="surface"
       size="card"
-      className="justify-between gap-3 text-left"
+      className="min-h-24 justify-between gap-3 text-left"
     >
       {/* flex-1 + min-w-0: ohne beides schrumpft das Textfeld nicht und die
           Karte läuft auf schmalen Bildschirmen über den Rand hinaus. Die
@@ -211,10 +211,12 @@ function ClassReportLink({
   klass,
   dateISO,
   fetchClassDay,
+  onFailure,
 }: Readonly<{
   klass: string;
   dateISO: string;
   fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
+  onFailure: (klass: string, failure: ClassReportFailure | undefined) => void;
 }>) {
   const classReportKey = schoolPortalKeys.classDayReport(klass, dateISO);
   const { data, error, isLoading, mutate } = useSWRAuth(
@@ -237,29 +239,80 @@ function ClassReportLink({
 
   const refresh = useCallback(() => void mutate(), [mutate]);
   useClassDayRefresh(refresh);
-  const loadError = useSwrLoadError(
-    error,
-    `die ${schoolClassLabel(klass)}`,
-    mutate,
-  );
-  if (isLoading && !data) return <Skeleton className="h-24 w-full" />;
-  const link = (
+  useLayoutEffect(() => {
+    onFailure(
+      klass,
+      error && data === undefined ? { cause: error, retry: mutate } : undefined,
+    );
+  }, [klass, error, data, mutate, onFailure]);
+  if (isLoading && !data && !error) return <Skeleton className="h-24 w-full" />;
+  return (
     <ClassLink
       klass={klass}
       dateISO={dateISO}
       report={data ? reportLine(data) : null}
-      failed={Boolean(error)}
+      failed={Boolean(error) && !data}
       weekend={false}
       openList={null}
     />
   );
-  return error ? (
-    <div className="flex flex-col">
-      <LoadErrorAlert error={loadError} className="mb-2" />
-      {link}
-    </div>
-  ) : (
-    link
+}
+
+interface ClassReportFailure {
+  cause: unknown;
+  retry: () => unknown;
+}
+
+/** Parallel canonical readers, with one shared notice outside the stable tiles. */
+function ClassReports({
+  classes,
+  dateISO,
+  fetchClassDay,
+}: Readonly<{
+  classes: readonly string[];
+  dateISO: string;
+  fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
+}>) {
+  const [failures, setFailures] = useState<Record<string, ClassReportFailure>>(
+    {},
+  );
+  const onFailure = useCallback(
+    (klass: string, failure: ClassReportFailure | undefined) => {
+      setFailures((current) => {
+        if (current[klass]?.cause === failure?.cause) return current;
+        const next = { ...current };
+        if (failure) next[klass] = failure;
+        else delete next[klass];
+        return next;
+      });
+    },
+    [],
+  );
+  const missing = Object.values(failures);
+  const loadError = useSwrLoadError(
+    missing[0]?.cause,
+    "die Klassenberichte",
+    () => Promise.all(missing.map((failure) => failure.retry())),
+  );
+  return (
+    <>
+      <div className="mt-2 grid gap-3 lg:grid-cols-2">
+        {classes.map((klass) => (
+          <ClassReportLink
+            key={klass}
+            klass={klass}
+            dateISO={dateISO}
+            fetchClassDay={fetchClassDay}
+            onFailure={onFailure}
+          />
+        ))}
+      </div>
+      <LoadErrorAlert
+        error={loadError}
+        className="mt-4"
+        actionLayout="responsive"
+      />
+    </>
   );
 }
 
@@ -419,13 +472,20 @@ export function ClassDayOverview({
   const loading =
     classesLoading ||
     (schoolMode && !weekend && schoolDay === undefined && schoolDayLoading);
-  const loadError = useSwrLoadError(
-    classesError ?? schoolDayError,
-    classesError ? "die Liste Ihrer Klassen" : "die Tagesübersicht der Schule",
-    () => (classesError ? reloadClasses() : reloadSchoolDay()),
+  const classesLoadError = useSwrLoadError(
+    classesError,
+    "die Liste Ihrer Klassen",
+    reloadClasses,
+    classList,
   );
-  const hasLoadFailure =
-    Boolean(classesError) || (schoolMode && Boolean(schoolDayError));
+  const schoolDayLoadError = useSwrLoadError(
+    schoolMode ? schoolDayError : undefined,
+    "die Tagesübersicht der Schule",
+    reloadSchoolDay,
+    schoolDay,
+  );
+  const loadError = classesLoadError ?? schoolDayLoadError;
+  const hasLoadFailure = Boolean(loadError);
 
   const selectedDate = parseISODate(dateISO);
   // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
@@ -696,9 +756,9 @@ export function ClassDayOverview({
                   <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
                   </h3>
-                  <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                    {(classes ?? []).map((klass) =>
-                      schoolMode ? (
+                  {schoolMode ? (
+                    <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                      {(classes ?? []).map((klass) => (
                         <ClassLink
                           key={klass}
                           klass={klass}
@@ -708,16 +768,16 @@ export function ClassDayOverview({
                           dateISO={dateISO}
                           openList={openList}
                         />
-                      ) : (
-                        <ClassReportLink
-                          key={klass}
-                          klass={klass}
-                          dateISO={dateISO}
-                          fetchClassDay={fetchClassDay}
-                        />
-                      ),
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <ClassReports
+                      key={JSON.stringify([dateISO, classes])}
+                      classes={classes ?? []}
+                      dateISO={dateISO}
+                      fetchClassDay={fetchClassDay}
+                    />
+                  )}
                 </>
               )}
             </>

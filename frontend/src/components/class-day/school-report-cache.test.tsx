@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useInvalidateMatching } from "~/lib/swr";
@@ -133,7 +139,8 @@ describe("school report cache", () => {
       await act(async () => {
         await options.refresh();
       });
-      expect(await screen.findByRole("alert")).toBeVisible();
+      if (status === 403)
+        expect(await screen.findByRole("alert")).toBeVisible();
       const cachedReport = [...options.cache.entries()].find(([key]) =>
         key.endsWith(`:${schoolPortalKeys.classDayReport("4a", "2026-09-09")}`),
       )?.[1];
@@ -141,7 +148,9 @@ describe("school report cache", () => {
       expect(cachedReport.data).toBe(status === 403 ? undefined : report);
       expect(cachedReport.error).toBe(failure);
       if (reader === "overview")
-        expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(1);
+        expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(
+          status === 403 ? 1 : 2,
+        );
       if (reader === "class" && status === 403)
         expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
 
@@ -153,13 +162,76 @@ describe("school report cache", () => {
       view.rerender(
         <ClassDayClass key="reopened" schoolClass="4a" {...options} />,
       );
-      // Anker: Der neue Leser zeigt weiter den Fehler des gemeinsamen Keys.
-      expect(await screen.findByRole("alert")).toBeVisible();
-      if (status === 403)
+      if (status === 403) {
+        // Anker: Der neue Leser zeigt weiter den echten Zugriffsfehler.
+        expect(await screen.findByRole("alert")).toBeVisible();
         expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
-      else expect(screen.getByText("Klassentag, Klara")).toBeVisible();
+      } else {
+        // Anker: Der neue Leser behält den geladenen Report ohne Fehlerkarte.
+        expect(screen.getByText("Klassentag, Klara")).toBeVisible();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      }
     },
   );
+
+  it("keeps both loaded summaries and their links after background report failures", async () => {
+    const options = setup();
+    render(<ClassDayOverview {...options} />, options);
+    expect(await screen.findAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
+    const links = screen
+      .getAllByText(/1 Kinder · 1 bleiben/)
+      .map((node) => node.closest("a"));
+    await act(async () => {
+      await import("~/lib/error-presentation");
+    });
+    options.fetchClassDay.mockImplementation(async () => {
+      throw new ApiError("unavailable", 503);
+    });
+    await act(async () => {
+      await options.refresh();
+    });
+    // Anker: beide vorher geladenen Zahlen bleiben an denselben Links sichtbar.
+    expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
+    expect(
+      screen
+        .getAllByText(/1 Kinder · 1 bleiben/)
+        .map((node) => node.closest("a")),
+    ).toEqual(links);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows one shared error outside the tiles and retries every missing report", async () => {
+    const options = setup();
+    options.fetchClassDay.mockImplementation(async () => {
+      throw new ApiError("unavailable", 503);
+    });
+    await act(async () => {
+      await import("~/lib/error-presentation");
+    });
+    render(<ClassDayOverview {...options} />, options);
+    const failedLinks = await waitFor(() => {
+      const links = screen
+        .getAllByText("Konnte nicht geladen werden")
+        .map((node) => node.closest("a")!);
+      expect(links).toHaveLength(2);
+      return links;
+    });
+    const errors = await screen.findAllByRole("alert");
+    expect(errors).toHaveLength(1);
+    for (const link of failedLinks)
+      expect(link).not.toContainElement(errors[0]!);
+    options.fetchClassDay.mockResolvedValue(report);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    // Anker: ein Retry stellt beide Klassen wieder her, ohne neue Kacheln.
+    expect(await screen.findAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
+    expect(
+      screen
+        .getAllByText(/1 Kinder · 1 bleiben/)
+        .map((node) => node.closest("a")),
+    ).toEqual(failedLinks);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(options.fetchClassDay).toHaveBeenCalledTimes(4);
+  });
 
   it("starts all class reports in parallel without waiting for another report", async () => {
     const options = setup();

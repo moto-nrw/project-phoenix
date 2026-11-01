@@ -321,6 +321,7 @@ export function ClassDayClass({
     error,
     `die ${schoolClassLabel(schoolClass)}`,
     () => refetchReport(),
+    report,
   );
 
   const rows = useMemo(() => report?.rows ?? [], [report]);

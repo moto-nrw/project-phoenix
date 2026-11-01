@@ -161,6 +161,50 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("keeps loaded order snapshots and expanded controls after background order failures", async () => {
+    let refresh!: ReturnType<typeof useInvalidateMatching>;
+    function Revalidation() {
+      refresh = useInvalidateMatching();
+      return null;
+    }
+    render(
+      <>
+        <Revalidation />
+        <CatererOverviewPage />
+      </>,
+    );
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    const button = within(north).getAllByRole("button", {
+      name: "Erhalten bestätigen",
+    })[0]!;
+    expect(button).toBeVisible();
+    await act(async () => {
+      await import("~/lib/error-presentation");
+    });
+    mocks.fetchCatererOrders.mockRejectedValue(
+      new ApiError("unavailable", 503),
+    );
+    await act(async () => {
+      await refresh((key) => key.startsWith(catererKeys.family));
+    });
+    // Anker: die Bestellungen beider Schulen und der aufgeklappte Knopf bleiben sichtbar.
+    expect(button).toBeVisible();
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("50"),
+    ).toBeVisible();
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("25"),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4);
+  });
+
   it("shares schools and orders on return without a loading replacement", async () => {
     const view = render(<CatererOverviewPage />);
     await screen.findByText("Bestellungen für Küche am Markt");
@@ -630,9 +674,19 @@ describe("CatererOverviewPage (#3873)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps a successful confirmation when its refresh fails and lets the school retry", async () => {
+  it("keeps a successful confirmation silently through a failed refresh and later revalidation", async () => {
     mocks.confirmCatererOrder.mockResolvedValueOnce(undefined);
-    render(<CatererOverviewPage />);
+    let refresh!: ReturnType<typeof useInvalidateMatching>;
+    function Revalidation() {
+      refresh = useInvalidateMatching();
+      return null;
+    }
+    render(
+      <>
+        <Revalidation />
+        <CatererOverviewPage />
+      </>,
+    );
     await screen.findByText("Bestellungen für Küche am Markt");
     fireEvent.click(
       screen.getByRole("button", { name: "OGS Nord ausklappen" }),
@@ -646,9 +700,12 @@ describe("CatererOverviewPage (#3873)", () => {
     fireEvent.click(
       within(north).getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
     );
-    const retry = await within(north).findByRole("button", {
-      name: "Wiederholen",
-    });
+    await waitFor(() =>
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(3),
+    );
+    // Anker: bestätigte Bestellungen bleiben ohne blockierende Fehlerkarte stehen.
+    expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
+    expect(within(north).queryByRole("alert")).not.toBeInTheDocument();
     expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
     expect(
       within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
@@ -656,9 +713,11 @@ describe("CatererOverviewPage (#3873)", () => {
     const fresh = week([10, 10, 10, 10, 10]);
     fresh.days[0]!.status = "confirmed";
     mocks.fetchCatererOrders.mockResolvedValueOnce(fresh);
-    fireEvent.click(retry);
+    await act(async () => {
+      await refresh((key) => key.startsWith(catererKeys.family));
+    });
     await waitFor(() =>
-      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(5),
     );
     expect(within(north).getAllByText("Bestätigt").length).toBeGreaterThan(0);
     expect(mocks.confirmCatererOrder).toHaveBeenCalledTimes(1);
