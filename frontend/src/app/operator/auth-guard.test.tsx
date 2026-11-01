@@ -118,6 +118,27 @@ describe("OperatorAuthGuard", () => {
     });
   });
 
+  it.each(["RefreshTokenExpired", "RefreshTokenError"])(
+    "redirects an authenticated session with %s to login recovery",
+    (error) => {
+      mockUsePathname.mockReturnValue("/operator/settings");
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "operator-a", scope: "platform" }, error },
+        status: "authenticated",
+      });
+
+      render(
+        <OperatorAuthGuard>
+          <div>Protected Content</div>
+        </OperatorAuthGuard>,
+      );
+
+      expect(mockRedirect).toHaveBeenCalledWith(
+        "/operator/login?error=SessionExpired",
+      );
+    },
+  );
+
   it("renders full shell for authenticated platform users", () => {
     mockUsePathname.mockReturnValue("/operator/settings");
     mockUseSession.mockReturnValue({

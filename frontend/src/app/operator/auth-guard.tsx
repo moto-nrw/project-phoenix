@@ -61,6 +61,10 @@ export function OperatorAuthGuard({
   if (status === "unauthenticated") {
     redirect(operatorPath("/operator/login"));
   }
+  if (status === "authenticated" && session?.error !== undefined) {
+    // The login page clears failed sessions and explains how to sign in again.
+    redirect(operatorPath("/operator/login?error=SessionExpired"));
+  }
 
   if (status === "loading" || !contentScope) {
     return <FullPageLoading />;
