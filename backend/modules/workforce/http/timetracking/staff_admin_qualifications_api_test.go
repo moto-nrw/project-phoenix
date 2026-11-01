@@ -148,5 +148,6 @@ func TestQualificationsAPI_ReadsStayInTheSchool(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis", "another school's staff member shows nothing here")
 
 	rec = ctx.get(fmt.Sprintf("/staff/%d/qualifications", foreign.ID), "time_tracking:manage")
-	require.Equal(t, http.StatusForbidden, rec.Code, "the Nachweise read needs staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "Fremder Nachweis", "time-tracking managers read the same tenant-scoped status")
 }

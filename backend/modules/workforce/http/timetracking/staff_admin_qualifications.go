@@ -79,11 +79,12 @@ type QualificationOverviewResponse struct {
 
 func (rs *StaffAdminResource) registerQualificationRoutes(r chi.Router, withTx common.Middleware) {
 	stammdaten := common.RequiresPermission(permissions.StaffStammdaten)
+	qualificationRead := common.RequiresAnyPermission(permissions.StaffStammdaten, permissions.TimeTrackingManage)
 	r.With(stammdaten, withTx).Get("/qualification-types", rs.listQualificationTypes)
 	r.With(stammdaten, withTx).Post("/qualification-types", rs.createQualificationType)
 	r.With(stammdaten, withTx).Put("/qualification-types/{typeId}", rs.updateQualificationType)
 	r.With(stammdaten, withTx).Get("/qualifications", rs.listQualificationOverview)
-	r.With(stammdaten, withTx).Get("/{id}/qualifications", rs.getStaffQualifications)
+	r.With(qualificationRead, withTx).Get("/{id}/qualifications", rs.getStaffQualifications)
 	// Every signed-in staff member reads their own Nachweise; the handler
 	// resolves the caller and never takes a staff id from the request.
 	r.With(withTx).Get("/me/qualifications", rs.getOwnQualifications)

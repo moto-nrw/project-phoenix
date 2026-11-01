@@ -128,11 +128,14 @@ export function StammdatenTab({
 
   // Nachweise mit Status und fehlenden Pflichtnachweisen (#4808); die Arten
   // braucht nur das Bearbeiten.
-  const { data: qualificationEntries, mutate: mutateQualificationEntries } =
-    useSWRAuth(
-      canEditSections ? staffQualificationKeys.entries(staffId) : null,
-      () => staffQualificationService.staffEntries(staffId),
-    );
+  const {
+    data: qualificationEntries,
+    error: qualificationEntriesError,
+    mutate: mutateQualificationEntries,
+  } = useSWRAuth(
+    canViewSections ? staffQualificationKeys.entries(staffId) : null,
+    () => staffQualificationService.staffEntries(staffId),
+  );
   const { data: qualificationTypes } = useSWRAuth(
     canEditSections ? staffQualificationKeys.types() : null,
     () => staffQualificationService.listTypes(),
@@ -181,6 +184,11 @@ export function StammdatenTab({
     "die Übersicht der Stammdaten",
     mutateStammdaten,
   );
+  const qualificationEntriesLoadError = useSwrLoadError(
+    canViewSections ? qualificationEntriesError : undefined,
+    "die Nachweise",
+    mutateQualificationEntries,
+  );
   const financialLoadError = useSwrLoadError(
     canViewFinancial ? financialError : undefined,
     "die Anzeige der Bank- und Steuerdaten",
@@ -193,6 +201,10 @@ export function StammdatenTab({
 
   if (canViewSections && stammdatenError) {
     return <LoadErrorAlert error={stammdatenLoadError} />;
+  }
+
+  if (canViewSections && qualificationEntriesError) {
+    return <LoadErrorAlert error={qualificationEntriesLoadError} />;
   }
 
   const editing = draft !== null;
