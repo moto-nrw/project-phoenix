@@ -1243,6 +1243,15 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			}})
 			return
 		}
+		// The payroll rules step (#4807) books the Regenerationstag the time
+		// tracking step created; the school starts without own wage types.
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/time-tracking/payroll-rules" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"wage_types": []any{}, "surcharge_rules": []any{},
+				"absence_types": []map[string]any{{"id": "9001", "name": "Regenerationstag", "is_active": true, "wage_type_id": nil}},
+			}})
+			return
+		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
 			var body struct {
 				Value json.RawMessage `json:"value"`

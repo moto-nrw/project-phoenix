@@ -244,7 +244,7 @@ export const SURCHARGE_RATE_TYPE_LABELS: Record<SurchargeRateType, string> = {
 };
 
 /** A percent rule books hours, an amount rule an amount (backend rule). */
-export function wageTypeUnitForRate(rateType: SurchargeRateType): WageTypeUnit {
+function wageTypeUnitForRate(rateType: SurchargeRateType): WageTypeUnit {
   return rateType === "betrag" ? "betrag" : "stunden";
 }
 
