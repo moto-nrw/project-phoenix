@@ -99,8 +99,8 @@
     "yesNo": "Lütfen evet veya hayır seçin.",
     "choose": "Lütfen bir cevap seçin."
   },
-  "childQuestionsTitle": "Diğer bilgiler",
-  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler",
+  "childQuestionsTitle": "Çocuk hakkında sorular ve bilgiler",
+  "familyQuestionsTitle": "Aileniz hakkında sorular ve bilgiler",
   "legalTitle": "Bilgiler ve onaylar",
   "legalAccepted": "Onaylandı",
   "legalNotAccepted": "Onaylanmadı"

@@ -99,8 +99,8 @@
     "yesNo": "Будь ласка, виберіть «так» або «ні».",
     "choose": "Будь ласка, виберіть відповідь."
   },
-  "childQuestionsTitle": "Додаткові відомості",
-  "familyQuestionsTitle": "Додаткові відомості про сім’ю",
+  "childQuestionsTitle": "Запитання та інформація про дитину",
+  "familyQuestionsTitle": "Запитання та інформація про сім’ю",
   "legalTitle": "Повідомлення та згоди",
   "legalAccepted": "Підтверджено",
   "legalNotAccepted": "Не підтверджено"
