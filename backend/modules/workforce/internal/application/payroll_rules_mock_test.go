@@ -24,8 +24,12 @@ func (f *payrollRulesStoreFake) id() int64 { f.nextID++; return f.nextID }
 
 func (f *payrollRulesStoreFake) LockPayrollRules(context.Context) error { f.locks++; return nil }
 
-func (f *payrollRulesStoreFake) ListPayrollWageTypes(context.Context) ([]workforce.PayrollWageType, error) {
-	return append([]workforce.PayrollWageType(nil), f.wageTypes...), nil
+func (f *payrollRulesStoreFake) ReadPayrollRuleState(context.Context) (workforce.PayrollRulesState, error) {
+	return workforce.PayrollRulesState{
+		WageTypes:    append([]workforce.PayrollWageType(nil), f.wageTypes...),
+		Rules:        append([]workforce.PayrollSurchargeRule(nil), f.rules...),
+		AbsenceTypes: append([]workforce.PayrollAbsenceTypeWageType(nil), f.absenceTypes...),
+	}, nil
 }
 
 func (f *payrollRulesStoreFake) InsertPayrollWageType(_ context.Context, value workforce.PayrollWageType) (workforce.PayrollWageType, error) {
@@ -49,10 +53,6 @@ func (f *payrollRulesStoreFake) UpdatePayrollWageType(_ context.Context, value w
 	return false, nil
 }
 
-func (f *payrollRulesStoreFake) ListPayrollSurchargeRules(context.Context) ([]workforce.PayrollSurchargeRule, error) {
-	return append([]workforce.PayrollSurchargeRule(nil), f.rules...), nil
-}
-
 func (f *payrollRulesStoreFake) InsertPayrollSurchargeRule(_ context.Context, value workforce.PayrollSurchargeRule) (workforce.PayrollSurchargeRule, error) {
 	value.ID = f.id()
 	f.rules = append(f.rules, value)
@@ -67,10 +67,6 @@ func (f *payrollRulesStoreFake) UpdatePayrollSurchargeRule(_ context.Context, va
 		}
 	}
 	return false, nil
-}
-
-func (f *payrollRulesStoreFake) ListPayrollAbsenceTypes(context.Context) ([]workforce.PayrollAbsenceTypeWageType, error) {
-	return append([]workforce.PayrollAbsenceTypeWageType(nil), f.absenceTypes...), nil
 }
 
 func (f *payrollRulesStoreFake) SetAbsenceTypeWageType(_ context.Context, absenceTypeID int64, wageTypeID *int64) (bool, error) {
@@ -245,6 +241,16 @@ func TestPayrollRules_CurrentRuleSetLocksBeforeReadingTheRuleState(t *testing.T)
 	rules, store, _ := newPayrollRulesForTest(t)
 
 	_, err := rules.CurrentPayrollRuleSet(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, store.locks)
+}
+
+func TestPayrollRules_OverviewLocksBeforeReadingTheRuleState(t *testing.T) {
+	t.Parallel()
+	rules, store, _ := newPayrollRulesForTest(t)
+
+	_, err := rules.Overview(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, store.locks)

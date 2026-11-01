@@ -192,6 +192,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/workforce/internal/application/PayrollRules.Overview",
+      "reason": "Coordinates the tenant-scoped payroll-rule advisory lock with the complete overview state before translating active rows; it is not a forwarding service method."
+    },
+    {
+      "decision": "0090",
       "id": "modules/workforce/internal/application/Service.AllowanceSummary",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

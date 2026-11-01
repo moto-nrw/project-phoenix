@@ -20,19 +20,11 @@ func (p *PayrollRules) loadState(ctx context.Context) (*payrollRuleState, error)
 }
 
 func loadPayrollRuleState(ctx context.Context, store ports.PayrollRulesStore) (*payrollRuleState, error) {
-	wageTypes, err := store.ListPayrollWageTypes(ctx)
+	state, err := store.ReadPayrollRuleState(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rules, err := store.ListPayrollSurchargeRules(ctx)
-	if err != nil {
-		return nil, err
-	}
-	absenceTypes, err := store.ListPayrollAbsenceTypes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &payrollRuleState{wageTypes: wageTypes, rules: rules, absenceTypes: absenceTypes}, nil
+	return &payrollRuleState{wageTypes: state.WageTypes, rules: state.Rules, absenceTypes: state.AbsenceTypes}, nil
 }
 
 func (s *payrollRuleState) activeWageTypes() []workforce.PayrollWageType {

@@ -268,6 +268,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p *PayrollRules) Overview(ctx context.Context) (*workforce.PayrollRulesOverview, error) {\n\tif err := p.store.LockPayrollRules(ctx); err != nil {\n\t\treturn nil, err\n\t}\n\tstate, err := p.loadState(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026workforce.PayrollRulesOverview{WageTypes: state.activeWageTypes(), SurchargeRules: state.activeRules(), AbsenceTypes: state.absenceTypes}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/PayrollRules.Overview",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {\n\tif staffID \u003c= 0 || year \u003c 2000 || year \u003e 2100 {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(domain.ErrAbsenceTypeAllowanceInvalid)\n\t}\n\tabsenceType, err := s.findAllowanceType(ctx, absenceTypeID)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\taccounts, err := s.loadAllowanceAccounts(ctx, staffID, absenceType, year, year)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\treturn allowanceSummaryToPublic(accounts.ledger(s.clock.Today()).Summary(staffID, absenceTypeID, year)), MapError(nil)\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/Service.AllowanceSummary",

@@ -14,12 +14,10 @@ import (
 // unknown or archived entry.
 type PayrollRulesStore interface {
 	LockPayrollRules(context.Context) error
-	ListPayrollWageTypes(context.Context) ([]workforce.PayrollWageType, error)
+	ReadPayrollRuleState(context.Context) (workforce.PayrollRulesState, error)
 	InsertPayrollWageType(context.Context, workforce.PayrollWageType) (workforce.PayrollWageType, error)
 	UpdatePayrollWageType(context.Context, workforce.PayrollWageType) (bool, error)
-	ListPayrollSurchargeRules(context.Context) ([]workforce.PayrollSurchargeRule, error)
 	InsertPayrollSurchargeRule(context.Context, workforce.PayrollSurchargeRule) (workforce.PayrollSurchargeRule, error)
 	UpdatePayrollSurchargeRule(context.Context, workforce.PayrollSurchargeRule) (bool, error)
-	ListPayrollAbsenceTypes(context.Context) ([]workforce.PayrollAbsenceTypeWageType, error)
 	SetAbsenceTypeWageType(ctx context.Context, absenceTypeID int64, wageTypeID *int64) (bool, error)
 }

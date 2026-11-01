@@ -111,6 +111,14 @@ type PayrollAbsenceTypeWageType struct {
 	WageTypeID    *int64 `json:"wage_type_id"`
 }
 
+// PayrollRulesState is the complete rule state a maintenance operation reads
+// under the payroll-rule lock.
+type PayrollRulesState struct {
+	WageTypes    []PayrollWageType
+	Rules        []PayrollSurchargeRule
+	AbsenceTypes []PayrollAbsenceTypeWageType
+}
+
 // PayrollRulesOverview is what /payroll shows: the active wage types and
 // rules and every school absence type with its mapping.
 type PayrollRulesOverview struct {

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -89,22 +90,53 @@ func (s *Store) LockPayrollRules(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) ListPayrollWageTypes(ctx context.Context) ([]workforce.PayrollWageType, error) {
+// ReadPayrollRuleState loads the wage types and surcharge rules together, so
+// the complete read stays within the payroll overview's fixed query budget
+// when it takes the advisory lock.
+func (s *Store) ReadPayrollRuleState(ctx context.Context) (workforce.PayrollRulesState, error) {
 	db, tenantID, err := s.payrollRulesDatabase(ctx)
 	if err != nil {
-		return nil, err
+		return workforce.PayrollRulesState{}, err
 	}
-	var rows []payrollWageTypeRow
-	if err := db.NewSelect().Model(&rows).ModelTableExpr(`active.payroll_wage_types AS "payroll_wage_type"`).
-		Where(`"payroll_wage_type".tenant_id = ?`, tenantID).
-		OrderExpr(`"payroll_wage_type".id`).Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list payroll wage types: %w", err)
+	var configured struct {
+		WageTypes json.RawMessage `bun:"wage_types"`
+		Rules     json.RawMessage `bun:"surcharge_rules"`
 	}
-	result := make([]workforce.PayrollWageType, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toContract())
+	if err := db.NewRaw(`SELECT
+		COALESCE((SELECT jsonb_agg(jsonb_build_object(
+			'id', id, 'name', name, 'number', number, 'unit', unit, 'archived', archived_at IS NOT NULL
+		) ORDER BY id) FROM active.payroll_wage_types WHERE tenant_id = ?), '[]'::jsonb) AS wage_types,
+		COALESCE((SELECT jsonb_agg(jsonb_build_object(
+			'id', id, 'kind', kind, 'window_start_minute', window_start_minute, 'window_end_minute', window_end_minute,
+			'rate_type', rate_type, 'rate_hundredths', rate_hundredths, 'wage_type_id', wage_type_id, 'archived', archived_at IS NOT NULL
+		) ORDER BY id) FROM active.payroll_surcharge_rules WHERE tenant_id = ?), '[]'::jsonb) AS surcharge_rules`, tenantID, tenantID).
+		Scan(ctx, &configured); err != nil {
+		return workforce.PayrollRulesState{}, fmt.Errorf("read payroll wage types and surcharge rules: %w", err)
 	}
-	return result, nil
+	state := workforce.PayrollRulesState{}
+	if err := json.Unmarshal(configured.WageTypes, &state.WageTypes); err != nil {
+		return workforce.PayrollRulesState{}, fmt.Errorf("decode payroll wage types: %w", err)
+	}
+	if err := json.Unmarshal(configured.Rules, &state.Rules); err != nil {
+		return workforce.PayrollRulesState{}, fmt.Errorf("decode payroll surcharge rules: %w", err)
+	}
+	var absenceTypes []struct {
+		ID         int64  `bun:"id"`
+		Name       string `bun:"name"`
+		IsActive   bool   `bun:"is_active"`
+		WageTypeID *int64 `bun:"wage_type_id"`
+	}
+	if err := db.NewRaw(`SELECT id, name, is_active, wage_type_id FROM active.staff_absence_types
+		WHERE tenant_id = ? ORDER BY lower(name), id`, tenantID).Scan(ctx, &absenceTypes); err != nil {
+		return workforce.PayrollRulesState{}, fmt.Errorf("list payroll absence types: %w", err)
+	}
+	state.AbsenceTypes = make([]workforce.PayrollAbsenceTypeWageType, 0, len(absenceTypes))
+	for _, absenceType := range absenceTypes {
+		state.AbsenceTypes = append(state.AbsenceTypes, workforce.PayrollAbsenceTypeWageType{
+			AbsenceTypeID: absenceType.ID, Name: absenceType.Name, IsActive: absenceType.IsActive, WageTypeID: absenceType.WageTypeID,
+		})
+	}
+	return state, nil
 }
 
 func (s *Store) InsertPayrollWageType(ctx context.Context, value workforce.PayrollWageType) (workforce.PayrollWageType, error) {
@@ -148,24 +180,6 @@ func payrollWageTypeWriteError(operation string, err error) error {
 	return fmt.Errorf("%s: %w", operation, err)
 }
 
-func (s *Store) ListPayrollSurchargeRules(ctx context.Context) ([]workforce.PayrollSurchargeRule, error) {
-	db, tenantID, err := s.payrollRulesDatabase(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var rows []payrollSurchargeRuleRow
-	if err := db.NewSelect().Model(&rows).ModelTableExpr(`active.payroll_surcharge_rules AS "payroll_surcharge_rule"`).
-		Where(`"payroll_surcharge_rule".tenant_id = ?`, tenantID).
-		OrderExpr(`"payroll_surcharge_rule".id`).Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list payroll surcharge rules: %w", err)
-	}
-	result := make([]workforce.PayrollSurchargeRule, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toContract())
-	}
-	return result, nil
-}
-
 func (s *Store) InsertPayrollSurchargeRule(ctx context.Context, value workforce.PayrollSurchargeRule) (workforce.PayrollSurchargeRule, error) {
 	db, tenantID, err := s.payrollRulesDatabase(ctx)
 	if err != nil {
@@ -201,31 +215,6 @@ func (s *Store) UpdatePayrollSurchargeRule(ctx context.Context, value workforce.
 		return false, fmt.Errorf("update payroll surcharge rule: %w", err)
 	}
 	return affectedOne(result)
-}
-
-// ListPayrollAbsenceTypes lists every school absence type with its wage type.
-func (s *Store) ListPayrollAbsenceTypes(ctx context.Context) ([]workforce.PayrollAbsenceTypeWageType, error) {
-	db, tenantID, err := s.payrollRulesDatabase(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var rows []struct {
-		ID         int64  `bun:"id"`
-		Name       string `bun:"name"`
-		IsActive   bool   `bun:"is_active"`
-		WageTypeID *int64 `bun:"wage_type_id"`
-	}
-	if err := db.NewRaw(`SELECT id, name, is_active, wage_type_id FROM active.staff_absence_types
-		WHERE tenant_id = ? ORDER BY lower(name), id`, tenantID).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("list payroll absence types: %w", err)
-	}
-	result := make([]workforce.PayrollAbsenceTypeWageType, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, workforce.PayrollAbsenceTypeWageType{
-			AbsenceTypeID: row.ID, Name: row.Name, IsActive: row.IsActive, WageTypeID: row.WageTypeID,
-		})
-	}
-	return result, nil
 }
 
 // SetAbsenceTypeWageType books an absence type onto a wage type, or back
