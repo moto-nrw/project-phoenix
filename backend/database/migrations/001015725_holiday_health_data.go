@@ -14,7 +14,7 @@ import (
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 )
 
-const holidayHealthDataVersion = "1.15.724"
+const holidayHealthDataVersion = "1.15.725"
 
 // HealthDataKeysEnv names the key ring the health information of the holiday
 // registrations is sealed with (#4722). The server reads the same variable.
@@ -25,7 +25,7 @@ func init() {
 		Version:     holidayHealthDataVersion,
 		Description: "Gesundheitsangaben der Ferienanmeldung verschlüsselt speichern und an die ausrichtende OGS weitergeben (#4722)",
 		DependsOn: []string{
-			"1.15.723",                       // the last migration before this one (message send idempotency)
+			staffQualificationTypesVersion,   // the last migration before this one
 			holidayRegistrationProofsVersion, // the audit actions this extends
 			holidayGuestAnswerFilterVersion,  // the guest copy and its read-time filter
 		},
