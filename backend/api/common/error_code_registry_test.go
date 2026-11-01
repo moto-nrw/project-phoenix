@@ -9,7 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -500,9 +499,9 @@ func loadErrorCodeRegistry(t *testing.T) errorCodeRegistry {
 
 func backendRoot(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locate backend root")
+	root, err := routetest.BackendRoot()
+	if err != nil {
+		t.Fatalf("locate backend root: %v", err)
 	}
-	return filepath.Join(filepath.Dir(file), "..", "..")
+	return root
 }

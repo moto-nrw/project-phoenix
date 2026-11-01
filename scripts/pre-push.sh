@@ -96,7 +96,7 @@ export PATH="$root/.devbox/nix/profile/default/bin:$PATH"
 export GOTOOLCHAIN=local
 export CGO_ENABLED=${CGO_ENABLED:-0}
 # Cache inputs must see the same budget that the pinned runner exports.
-export GOFLAGS="${GOFLAGS--p=4}"
+export GOFLAGS="${GOFLAGS--p=4 -trimpath}"
 export GOMAXPROCS="${GOMAXPROCS-4}"
 require_pinned() {
   if [[ ! -x "$root/.devbox/nix/profile/default/bin/$1" ]]; then

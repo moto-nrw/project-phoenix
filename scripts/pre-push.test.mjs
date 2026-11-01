@@ -274,7 +274,7 @@ test('the pinned runner bounds Go processes outside a Devbox shell', t => {
   const f = goBudgetFixture(t);
   const result = f.inspect('go');
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n');
+  assert.equal(result.stdout, 'GOFLAGS=-p=4 -trimpath\nGOMAXPROCS=4\n');
 });
 
 test('pinned tools and delegated scripts inherit the same budget in nested Go calls', t => {
@@ -282,7 +282,7 @@ test('pinned tools and delegated scripts inherit the same budget in nested Go ca
   for (const [command, copies] of [['inspect-budget', 2], ['scripts/delegate.sh', 1]]) {
     const result = f.inspect(command);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n'.repeat(copies));
+    assert.equal(result.stdout, 'GOFLAGS=-p=4 -trimpath\nGOMAXPROCS=4\n'.repeat(copies));
   }
 });
 
@@ -309,7 +309,7 @@ fi
 `);
   f.write('.gitignore', '.devbox/\nbackend/.devbox-budgets\n');
   f.commit('backend/example.go', 'package example\n');
-  for (const [overrides, expected] of [[{}, '-p=4|4'], [{ GOFLAGS: '-p=1', GOMAXPROCS: '1' }, '-p=1|1']]) {
+  for (const [overrides, expected] of [[{}, '-p=4 -trimpath|4'], [{ GOFLAGS: '-p=1', GOMAXPROCS: '1' }, '-p=1|1']]) {
     const budgetFile = join(f.root, 'backend/.devbox-budgets');
     rmSync(budgetFile, { force: true });
     const result = f.check(overrides);
