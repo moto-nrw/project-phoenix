@@ -1,4 +1,4 @@
-import { studentService } from "~/lib/api";
+import type { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { busDaysHaveAny } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
@@ -145,10 +145,11 @@ export interface StudentDetailResponse {
 /** Canonical complete detail projection, shared with navigation intent. */
 export async function fetchStudentDetail(
   studentId: string,
+  loadStudent: typeof studentService.getStudent,
 ): Promise<StudentDetailResponse> {
   // Fetch student data and user context in parallel
   const [studentResponse, groups, supervisedGroups] = await Promise.all([
-    studentService.getStudent(studentId),
+    loadStudent(studentId),
     // Own groups only refine access hints on the page; without them the
     // child still loads, just without the "my group" shortcuts.
     userContextService.getMyEducationalGroups().catch((err) => {

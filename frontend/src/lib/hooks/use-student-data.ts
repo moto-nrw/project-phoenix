@@ -6,6 +6,7 @@ import {
   type ExtendedStudent,
 } from "~/lib/student-detail-resource";
 export type { ExtendedStudent } from "~/lib/student-detail-resource";
+import { studentService } from "~/lib/api";
 import { studentKeys } from "~/lib/swr/portal-keys";
 
 import { useCallback } from "react";
@@ -70,7 +71,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     studentId && hasSessionAccess(session)
       ? studentKeys.detail(studentId)
       : null,
-    () => fetchStudentDetail(studentId),
+    () => fetchStudentDetail(studentId, studentService.getStudent),
     {
       keepPreviousData: false, // Never carry another child's detail or grants.
       revalidateOnFocus: false, // Handled by global SSE

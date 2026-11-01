@@ -916,120 +916,223 @@ function parseConflictMessage(body: string): string {
   return parseBackendMessage(body, "companion plan conflict");
 }
 
-export const studentService = {
-  // Get all students
-  getStudents: async (filters?: {
+export const getStudents = async (filters?: {
+  search?: string;
+  inHouse?: boolean;
+  /** Several groups/classes/years may be selected — see buildStudentQueryParams. */
+  groupId?: string | string[];
+  roomId?: string;
+  schoolClass?: string | string[];
+  gradeLevel?: string | string[];
+  locationState?: "present" | "transit";
+  dayStatus?: "comes_today" | "not_coming_today";
+  date?: string;
+  bus?: "yes" | "no";
+  photoConsent?: "yes" | "no";
+  pickupStatus?: "self" | "pickedUp" | "none";
+  page?: number;
+  pageSize?: number;
+  includePickupTimes?: boolean;
+  includeArrivalTimes?: boolean;
+  includeCompanions?: boolean;
+  /** Wire projection (#2097) — see buildStudentQueryParams. */
+  view?: "slim";
+}): Promise<StudentsResult> => {
+  const params = buildStudentQueryParams(filters);
+  const useProxyApi = globalThis.window !== undefined;
+  const baseUrl = await resolveApiUrl("/api/students");
+  const queryString = params.toString();
+  const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+
+  try {
+    if (useProxyApi) {
+      const { data, accessDeniedStatus, accessDeniedBody } =
+        await fetchWithRetry<unknown>(url, {
+          onAuthFailure: handleAuthFailure,
+          beforeRetry: reloadSession,
+        });
+
+      if (data === null) {
+        throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
+      }
+
+      return parseStudentsPaginatedResponse(data);
+    }
+
+    // Server-side: use axios with the API URL directly
+    const response = await api.get(url, { params });
+    const paginatedResponse =
+      response.data as PaginatedResponse<BackendStudent>;
+    return {
+      students: mapStudentsResponse(paginatedResponse.data),
+      pagination: paginatedResponse.pagination,
+    };
+  } catch (error) {
+    throw handleApiError(error, "Error fetching students");
+  }
+};
+
+export const getSchoolClasses = async (): Promise<string[]> => {
+  const useProxyApi = globalThis.window !== undefined;
+  const url = await resolveApiUrl("/api/students/school-classes");
+
+  try {
+    if (useProxyApi) {
+      const { data, accessDeniedStatus, accessDeniedBody } =
+        await fetchWithRetry<unknown>(url, {
+          onAuthFailure: handleAuthFailure,
+          beforeRetry: reloadSession,
+        });
+
+      if (data === null) {
+        throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
+      }
+
+      return parseSchoolClassesResponse(data);
+    }
+
+    const response = await api.get(url);
+    return parseSchoolClassesResponse(response.data);
+  } catch (error) {
+    throw handleApiError(error, "Error fetching school classes");
+  }
+};
+
+export const getStudent = async (id: string): Promise<Student> => {
+  // Use the nextjs api route which handles auth token properly
+  const useProxyApi = globalThis.window !== undefined;
+  const url = await resolveApiUrl(`/api/students/${id}`);
+
+  try {
+    if (useProxyApi) {
+      // Browser environment: use fetchWithRetry for automatic 401 handling
+      // Route handler already maps response, so applyMapping=false
+      const { data, accessDeniedStatus, accessDeniedBody } =
+        await fetchWithRetry<unknown>(url, {
+          onAuthFailure: handleAuthFailure,
+          beforeRetry: reloadSession,
+        });
+
+      if (data === null) {
+        throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
+      }
+
+      return parseSingleStudentResponse(data, false);
+    }
+
+    // Server-side: use axios with the API URL directly (needs mapping)
+    const response = await api.get(url);
+    return parseSingleStudentResponse(response.data, true);
+  } catch (error) {
+    throw handleApiError(error, `Error fetching student ${id}`);
+  }
+};
+
+export const getGroups = async (
+  filters?: { search?: string; page?: number; pageSize?: number },
+  options?: { strict?: boolean },
+): Promise<Group[]> => {
+  const params = new URLSearchParams();
+  if (filters?.search) params.append("search", filters.search);
+
+  if (filters?.page !== undefined) params.set("page", String(filters.page));
+  if (filters?.pageSize !== undefined)
+    params.set("page_size", String(filters.pageSize));
+
+  const useProxyApi = globalThis.window !== undefined;
+  const queryString = params.toString();
+  const baseUrl = await resolveApiUrl("/api/groups");
+  const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+
+  try {
+    if (useProxyApi) {
+      // Browser environment: use fetchWithRetry for automatic 401 handling
+      const { response, data, accessDeniedStatus, accessDeniedBody } =
+        await fetchWithRetry<unknown>(url, {
+          onAuthFailure: handleAuthFailure,
+          beforeRetry: reloadSession,
+        });
+
+      // Handle errors: null response means auth failed or permission denied
+      // Return empty array for graceful degradation
+      if (response === null || data === null) {
+        if (options?.strict)
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
+        return [];
+      }
+
+      return mapGroupsResponse(parseGroupsResponse(data));
+    }
+
+    // Server-side: use axios with the API URL directly
+    const response = await api.get(url, { params });
+    const paginatedResponse = response.data as PaginatedResponse<BackendGroup>;
+    return mapGroupsResponse(paginatedResponse.data);
+  } catch (error) {
+    logger.error("failed to fetch groups", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+};
+
+export const getRooms = async (
+  filters?: {
+    building?: string;
+    floor?: number;
+    category?: string;
+    occupied?: boolean;
     search?: string;
-    inHouse?: boolean;
-    /** Several groups/classes/years may be selected — see buildStudentQueryParams. */
-    groupId?: string | string[];
-    roomId?: string;
-    schoolClass?: string | string[];
-    gradeLevel?: string | string[];
-    locationState?: "present" | "transit";
-    dayStatus?: "comes_today" | "not_coming_today";
-    date?: string;
-    bus?: "yes" | "no";
-    photoConsent?: "yes" | "no";
-    pickupStatus?: "self" | "pickedUp" | "none";
+    includeSystem?: boolean;
     page?: number;
     pageSize?: number;
-    includePickupTimes?: boolean;
-    includeArrivalTimes?: boolean;
-    includeCompanions?: boolean;
-    /** Wire projection (#2097) — see buildStudentQueryParams. */
-    view?: "slim";
-  }): Promise<StudentsResult> => {
-    const params = buildStudentQueryParams(filters);
-    const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = await resolveApiUrl("/api/students");
-    const queryString = params.toString();
-    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+  },
+  options?: { strict?: boolean },
+): Promise<Room[]> => {
+  const params = buildRoomQueryParams(filters);
+  const queryString = params.toString();
 
-    try {
-      if (useProxyApi) {
-        const { data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
+  const useProxyApi = globalThis.window !== undefined;
+  const baseUrl = await resolveApiUrl("/api/rooms");
+  const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
-        if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
+  try {
+    if (useProxyApi) {
+      // Browser environment: use fetchWithRetry for automatic 401 handling
+      const { response, data, accessDeniedStatus, accessDeniedBody } =
+        await fetchWithRetry<unknown>(url, {
+          onAuthFailure: handleAuthFailure,
+          beforeRetry: reloadSession,
+        });
 
-        return parseStudentsPaginatedResponse(data);
+      if (options?.strict && (response === null || data === null)) {
+        throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
       }
 
-      // Server-side: use axios with the API URL directly
-      const response = await api.get(url, { params });
-      const paginatedResponse =
-        response.data as PaginatedResponse<BackendStudent>;
-      return {
-        students: mapStudentsResponse(paginatedResponse.data),
-        pagination: paginatedResponse.pagination,
-      };
-    } catch (error) {
-      throw handleApiError(error, "Error fetching students");
+      const rooms = parseRoomsResponse(data);
+      return mapRoomsResponse(rooms);
     }
-  },
 
-  getSchoolClasses: async (): Promise<string[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/students/school-classes");
+    // Server-side: use axios with the API URL directly
+    const response = await api.get(url, { params });
+    const rooms = parseRoomsResponse(response.data);
+    return mapRoomsResponse(rooms);
+  } catch (error) {
+    logger.error("failed to fetch rooms", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+};
 
-    try {
-      if (useProxyApi) {
-        const { data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
+export const studentService = {
+  // Get all students
+  getStudents,
 
-        if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
-
-        return parseSchoolClassesResponse(data);
-      }
-
-      const response = await api.get(url);
-      return parseSchoolClassesResponse(response.data);
-    } catch (error) {
-      throw handleApiError(error, "Error fetching school classes");
-    }
-  },
+  getSchoolClasses,
 
   // Get a specific student by ID
-  getStudent: async (id: string): Promise<Student> => {
-    // Use the nextjs api route which handles auth token properly
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/students/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        // Route handler already maps response, so applyMapping=false
-        const { data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
-
-        if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
-
-        return parseSingleStudentResponse(data, false);
-      }
-
-      // Server-side: use axios with the API URL directly (needs mapping)
-      const response = await api.get(url);
-      return parseSingleStudentResponse(response.data, true);
-    } catch (error) {
-      throw handleApiError(error, `Error fetching student ${id}`);
-    }
-  },
+  getStudent,
 
   // Create a new student
   createStudent: async (student: Omit<Student, "id">): Promise<Student> => {
@@ -1191,54 +1294,7 @@ export const studentService = {
 // Group service for API operations
 export const groupService = {
   // Get all groups
-  getGroups: async (
-    filters?: { search?: string; page?: number; pageSize?: number },
-    options?: { strict?: boolean },
-  ): Promise<Group[]> => {
-    const params = new URLSearchParams();
-    if (filters?.search) params.append("search", filters.search);
-
-    if (filters?.page !== undefined) params.set("page", String(filters.page));
-    if (filters?.pageSize !== undefined)
-      params.set("page_size", String(filters.pageSize));
-
-    const useProxyApi = globalThis.window !== undefined;
-    const queryString = params.toString();
-    const baseUrl = await resolveApiUrl("/api/groups");
-    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
-
-        // Handle errors: null response means auth failed or permission denied
-        // Return empty array for graceful degradation
-        if (response === null || data === null) {
-          if (options?.strict)
-            throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-          return [];
-        }
-
-        return mapGroupsResponse(parseGroupsResponse(data));
-      }
-
-      // Server-side: use axios with the API URL directly
-      const response = await api.get(url, { params });
-      const paginatedResponse =
-        response.data as PaginatedResponse<BackendGroup>;
-      return mapGroupsResponse(paginatedResponse.data);
-    } catch (error) {
-      logger.error("failed to fetch groups", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
+  getGroups,
 
   // Get a specific group by ID
   getGroup: async (id: string): Promise<Group> => {
@@ -1598,54 +1654,7 @@ export const groupService = {
 // Room service for API operations
 export const roomService = {
   // Get all rooms
-  getRooms: async (
-    filters?: {
-      building?: string;
-      floor?: number;
-      category?: string;
-      occupied?: boolean;
-      search?: string;
-      includeSystem?: boolean;
-      page?: number;
-      pageSize?: number;
-    },
-    options?: { strict?: boolean },
-  ): Promise<Room[]> => {
-    const params = buildRoomQueryParams(filters);
-    const queryString = params.toString();
-
-    const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = await resolveApiUrl("/api/rooms");
-    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
-
-        if (options?.strict && (response === null || data === null)) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
-
-        const rooms = parseRoomsResponse(data);
-        return mapRoomsResponse(rooms);
-      }
-
-      // Server-side: use axios with the API URL directly
-      const response = await api.get(url, { params });
-      const rooms = parseRoomsResponse(response.data);
-      return mapRoomsResponse(rooms);
-    } catch (error) {
-      logger.error("failed to fetch rooms", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
+  getRooms,
 
   // Get a specific room by ID
   getRoom: async (id: string): Promise<Room> => {

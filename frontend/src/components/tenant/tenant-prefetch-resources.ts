@@ -7,13 +7,19 @@ import {
 } from "~/lib/auth-utils";
 import { canReadStudents } from "~/lib/student-access";
 import { canReviewChangeRequests } from "~/lib/change-request-access";
-import { groups } from "~/lib/swr/groups";
-import { rooms } from "~/lib/swr/rooms";
+import { groupKeys as groups } from "~/lib/swr/groups-keys";
+import { roomKeys as rooms } from "~/lib/swr/rooms-keys";
 import { studentKeys, homeLayoutKeys } from "~/lib/swr/portal-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { fetchStudentSearch } from "~/lib/student-search-resource";
 import { berlinTodayISO } from "~/lib/date-helpers";
-import { studentService } from "~/lib/api";
+import {
+  getStudents,
+  getStudent,
+  getSchoolClasses,
+  getGroups,
+  getRooms,
+} from "~/lib/api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import { courseWaitlistKeys } from "~/lib/swr/course-waitlist-keys";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
@@ -81,6 +87,7 @@ export async function tenantPrefetchResources(
                   },
                   date,
                   true,
+                  getStudents,
                 ),
             },
           ]
@@ -88,19 +95,25 @@ export async function tenantPrefetchResources(
     return [
       ...main,
       ...(hasPermission(session, "groups:read")
-        ? [{ key: groups.key(), fetcher: groups.fetcher }]
+        ? [
+            {
+              key: groups.key(),
+              fetcher: () => getGroups({}, { strict: true }),
+            },
+          ]
         : []),
       ...(hasPermission(session, "rooms:read")
         ? [
             {
               key: rooms.key({ page: 1, pageSize: 1000 }),
-              fetcher: () => rooms.fetcher({ page: 1, pageSize: 1000 }),
+              fetcher: () =>
+                getRooms({ page: 1, pageSize: 1000 }, { strict: true }),
             },
           ]
         : []),
       {
         key: studentKeys.schoolClasses(),
-        fetcher: () => studentService.getSchoolClasses(),
+        fetcher: () => getSchoolClasses(),
       },
     ];
   }
@@ -133,7 +146,10 @@ export async function tenantPrefetchResources(
     const { fetchStudentDetail } =
       await import("~/lib/student-detail-resource");
     return [
-      { key: studentKeys.detail(id), fetcher: () => fetchStudentDetail(id) },
+      {
+        key: studentKeys.detail(id),
+        fetcher: () => fetchStudentDetail(id, getStudent),
+      },
     ];
   }
   if (path === "/home")
