@@ -28,7 +28,7 @@ vi.mock("~/lib/shell-auth-context", () => ({
 
 // The device card has tests of its own.
 vi.mock("~/components/settings/trusted-devices-section", () => ({
-  TrustedDevicesSection: () => null,
+  TrustedDevicesSection: () => <p>Gemerkte Geräte (Karte)</p>,
 }));
 
 vi.mock("~/lib/caterer-mfa-api", () => ({
@@ -265,5 +265,26 @@ describe("Caterer-Konto: Zwei-Faktor-Anmeldung (#4497)", () => {
 
     expect(await screen.findByText("Ausgeschaltet")).toBeInTheDocument();
     expect(mfa.disable).toHaveBeenCalledWith("Passw0rd!");
+  });
+
+  it("shows the remembered devices only while the factor is on", async () => {
+    mfa.status.mockResolvedValue({ enabled: true, maskedEmail: "" });
+    mfa.disable.mockResolvedValue(undefined);
+    render(<CatererAccountPage />, { wrapper: ToastProvider });
+
+    expect(await screen.findByText("Eingeschaltet")).toBeInTheDocument();
+    expect(screen.getByText("Gemerkte Geräte (Karte)")).toBeInTheDocument();
+
+    // Switching off deletes the remembered devices in the backend.
+    fireEvent.click(screen.getByRole("button", { name: "Ausschalten" }));
+    fireEvent.change(screen.getByLabelText("Aktuelles Passwort"), {
+      target: { value: "Passw0rd!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ausschalten" }));
+
+    expect(await screen.findByText("Ausgeschaltet")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Gemerkte Geräte (Karte)"),
+    ).not.toBeInTheDocument();
   });
 });

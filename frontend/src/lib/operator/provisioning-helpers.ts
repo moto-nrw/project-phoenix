@@ -925,8 +925,9 @@ export interface RecordTraegerErasureOrderRequest {
 
 /** Wire shape of GET /operator/caterers (#4497): one row per caterer account. */
 export interface BackendOperatorCaterer {
-  id: number;
-  account_id: number;
+  // The backend sends the IDs as strings.
+  id: string;
+  account_id: string;
   name: string;
   email: string;
   mfa_enabled: boolean;
@@ -944,8 +945,8 @@ export function mapOperatorCaterer(
   data: BackendOperatorCaterer,
 ): OperatorCaterer {
   return {
-    id: data.id.toString(),
-    accountId: data.account_id.toString(),
+    id: data.id,
+    accountId: data.account_id,
     name: data.name,
     email: data.email,
     mfaEnabled: data.mfa_enabled,

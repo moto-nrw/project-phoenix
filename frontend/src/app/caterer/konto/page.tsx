@@ -50,10 +50,23 @@ type Step =
   | { kind: "disable" }
   | { kind: "reauthenticate" };
 
-function TwoFactorSection() {
+function TwoFactorSection({
+  onEnabledChange,
+}: {
+  // The device card below only makes sense while the factor is on: switching
+  // it off deletes the remembered devices in the backend.
+  readonly onEnabledChange: (enabled: boolean) => void;
+}) {
   const { logout } = useShellAuth();
   const toast = useToast();
-  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [enabled, setEnabledState] = useState<boolean | null>(null);
+  const setEnabled = useCallback(
+    (value: boolean) => {
+      setEnabledState(value);
+      onEnabledChange(value);
+    },
+    [onEnabledChange],
+  );
   const [step, setStep] = useState<Step>({ kind: "idle" });
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -80,7 +93,7 @@ function TwoFactorSection() {
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [clear, showLoadError]);
+  }, [clear, setEnabled, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -322,6 +335,7 @@ export default function CatererAccountPage() {
   const { data: session } = useSession();
   const { logout } = useShellAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [mfaEnabled, setMfaEnabled] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -351,8 +365,8 @@ export default function CatererAccountPage() {
         }
       />
 
-      <TwoFactorSection />
-      <TrustedDevicesSection scope="caterer" />
+      <TwoFactorSection onEnabledChange={setMfaEnabled} />
+      {mfaEnabled && <TrustedDevicesSection scope="caterer" />}
 
       <TenantPasswordChangeModal
         isOpen={showPasswordModal}
