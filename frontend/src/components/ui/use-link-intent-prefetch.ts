@@ -6,6 +6,7 @@ import {
   useState,
   type ComponentProps,
   type FocusEvent,
+  type MouseEvent,
   type PointerEvent,
 } from "react";
 import {
@@ -22,6 +23,7 @@ export const HOVER_PREFETCH_DELAY_MS = 80;
 
 type IntentPrefetchProps = Pick<
   ComponentProps<typeof NextLink>,
+  | "onClick"
   | "target"
   | "prefetch"
   | "onPointerEnter"
@@ -37,6 +39,7 @@ type IntentPrefetchProps = Pick<
 /** Shared intent policy, without portal progress or router dependencies. */
 export function useLinkIntentPrefetch({
   href,
+  onClick,
   target,
   prefetch: allowed,
   onPointerEnter,
@@ -79,6 +82,10 @@ export function useLinkIntentPrefetch({
 
   return {
     prefetch: prefetch && canPrefetch,
+    onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+      dataIntent.onClick();
+      onClick?.(event);
+    },
     onPointerEnter: (event: PointerEvent<HTMLAnchorElement>) => {
       onPointerEnter?.(event);
       if (event.defaultPrevented || !canPrefetch) return;
