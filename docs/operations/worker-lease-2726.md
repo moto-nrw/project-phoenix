@@ -103,3 +103,31 @@ Current holder from the database:
 SELECT lease_name, holder_id, fencing_token, lease_until, lease_until > clock_timestamp() AS running
 FROM platform.worker_leases;
 ```
+
+## Realtime across processes (#5457)
+
+The event transport uses PostgreSQL LISTEN/NOTIFY on the existing application
+pool's database, not a new broker or durable outbox. Delivery Platform owns
+transport and routing; process roots only construct and close it.
+
+Transport invariants:
+
+1. Producers retain their after-commit hooks. A committed Worker signal reaches
+   subscribers of the same school in every API process listening at that time.
+2. Each envelope carries the school ID and its original group, account or
+   guardian addressing. Receiving a signal never broadens its audience.
+   Tenant-wide signals remain identity-free. Invalid envelopes are discarded.
+3. Delivery is lossy: disconnects, oversized messages and full client buffers
+   can lose signals, never redirect them. No replay or durable delivery is
+   promised. The existing poll reconcile remains five minutes while SSE is
+   connected, otherwise 60 seconds.
+4. Every API has one dedicated listener connection. A standalone Worker only
+   publishes. Listeners reconnect; shutdown closes the listener before the pool.
+5. Existing required database configuration is reused and still fails startup
+   when missing. No new environment variable, fallback DSN, table or migration
+   is needed. All processes must use the same database and a direct PostgreSQL
+   connection (not transaction-mode pooling) for LISTEN.
+
+Until the transport implementation is deployed to both API and Worker, a
+standalone Worker has no connected browsers: cutting over disables realtime
+job signals, and a second API cannot see the first API's local signals.
