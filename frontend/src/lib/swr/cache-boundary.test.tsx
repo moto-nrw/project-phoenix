@@ -108,6 +108,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   "course-waitlist-keys": ["activityWaitlistKeys", "courseWaitlistKeys"],
   "portal-keys": [
     "announcementKeys",
+    "catererKeys",
     "dashboardKeys",
     "databaseKeys",
     "displayKeys",

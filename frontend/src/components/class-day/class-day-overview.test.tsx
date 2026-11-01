@@ -1,4 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -17,39 +22,34 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "authenticated" }),
+  useSession: () => ({
+    data: {
+      user: { id: "teacher", scope: "school", tenantId: 1 },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
 }));
 
 vi.mock("~/lib/school-url", () => ({
   schoolPath: (path: string) => path,
 }));
 
-vi.mock("~/lib/swr", async () => {
-  const React = await import("react");
-  return {
-    useSWRAuth: <T,>(key: string | null, fetcher: () => Promise<T>) => {
-      const [data, setData] = React.useState<T | undefined>(undefined);
-      const [loading, setLoading] = React.useState(true);
-      const fetcherRef = React.useRef(fetcher);
-      fetcherRef.current = fetcher;
-      const load = React.useCallback(() => {
-        if (key === null) {
-          setLoading(false);
-          return Promise.resolve(undefined);
-        }
-        return fetcherRef.current().then((d) => {
-          setData(d);
-          setLoading(false);
-          return d;
-        });
-      }, [key]);
-      React.useEffect(() => {
-        void load();
-      }, [load]);
-      return { data, error: undefined, isLoading: loading, mutate: load };
-    },
-  };
-});
+vi.unmock("swr");
+import { SWRConfig } from "~/lib/swr/testing";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { ReactElement } from "react";
+
+function render(ui: ReactElement) {
+  const cache = new Map();
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    ),
+  });
+}
 
 function report(date: string): ClassDayReport {
   return {
@@ -524,3 +524,5 @@ describe("ClassDayOverview: Meldung nachtragen", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));

@@ -36,7 +36,6 @@ import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import type {
   AbsenceReportStatus,
@@ -46,6 +45,7 @@ import type {
 } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { countDayChanges } from "./day-changes";
 import { classDayDateParam, isWeekendISO } from "./routes";
 import {
@@ -59,8 +59,6 @@ import type { SchoolDayListKey } from "./school-day";
 import { statusLabel } from "./status-labels";
 import { useClassDayRefresh } from "./use-class-day-refresh";
 import { useSchoolAbsenceReports } from "./use-school-absence-reports";
-
-const logger = createLogger({ component: "ClassDayOverview" });
 
 // Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
 // aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
@@ -207,6 +205,48 @@ function ClassLink({
   );
 }
 
+/** One canonical report reader, shared with the opened class. */
+function ClassReportLink({
+  klass,
+  dateISO,
+  fetchClassDay,
+}: Readonly<{
+  klass: string;
+  dateISO: string;
+  fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
+}>) {
+  const { data, error, isLoading, mutate } = useSWRAuth(
+    schoolPortalKeys.classDayReport(klass, dateISO),
+    () => fetchClassDay(klass, dateISO),
+    {
+      revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+      keepPreviousData: false,
+    },
+  );
+  const refresh = useCallback(() => void mutate(), [mutate]);
+  useClassDayRefresh(refresh);
+  const loadError = useSwrLoadError(
+    error,
+    `die ${schoolClassLabel(klass)}`,
+    mutate,
+  );
+  if (isLoading && !data) return <Skeleton className="h-24 w-full" />;
+  return (
+    <div className="flex flex-col">
+      {error && <LoadErrorAlert error={loadError} className="mb-2" />}
+      <ClassLink
+        klass={klass}
+        dateISO={dateISO}
+        report={data ? reportLine(data) : null}
+        failed={Boolean(error)}
+        weekend={false}
+        openList={null}
+      />
+    </div>
+  );
+}
+
 /**
  * Was eine Liste über ein Kind nicht schon selbst sagt: in „Kinder“ und
  * „Fehlen“ der Tagesstatus, in „Kinder“ das Kind ohne Betreuung.
@@ -302,7 +342,7 @@ export function ClassDayOverview({
     error: classesError,
     isLoading: classesLoading,
     mutate: reloadClasses,
-  } = useSWRAuth("class-day-my-classes", fetchClasses, {
+  } = useSWRAuth(schoolPortalKeys.classDayClasses(), fetchClasses, {
     revalidateOnFocus: true,
     focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
   });
@@ -315,60 +355,6 @@ export function ClassDayOverview({
   const schoolMode =
     fetchSchoolDay !== undefined && classList?.can_view_school_day === true;
 
-  // Alle zugewiesenen Klassen für den Tag parallel laden: die Übersicht
-  // braucht von jeder Klasse die Zahlen und die Anzahl der Abweichungen.
-  // allSettled, damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener
-  // Zuweisung) nicht die gesunden Klassen mit wegwischt. Wochenenden laden
-  // gar nicht (spart pro Klasse den vollen Report samt GDPR-Logzeile).
-  const {
-    data: dayData,
-    isLoading: reportsLoading,
-    mutate: reloadReports,
-  } = useSWRAuth(
-    classes && classes.length > 0 && !weekend && !schoolMode
-      ? `class-day-reports-${dateISO}-${JSON.stringify(classes)}`
-      : null,
-    async () => {
-      const list = classes ?? [];
-      const results = await Promise.allSettled(
-        list.map((klass) =>
-          fetchClassDay(klass, dateISO).then(
-            (response) => [klass, response] as const,
-          ),
-        ),
-      );
-      const loaded: Record<string, ClassDayReport> = {};
-      const failed: string[] = [];
-      // Der erste Fehlschlag trägt Code und Vorgangskennung in die Meldung.
-      let firstFailure: unknown = null;
-      for (const [index, result] of results.entries()) {
-        if (result.status === "fulfilled") {
-          const [klass, response] = result.value;
-          loaded[klass] = response;
-        } else {
-          const klass = list[index];
-          if (klass) failed.push(klass);
-          firstFailure ??= result.reason;
-          logger.error("class_day_fetch_failed", {
-            date: dateISO,
-            error:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
-          });
-        }
-      }
-      return { reports: loaded, failed, firstFailure };
-    },
-    {
-      revalidateOnFocus: true,
-      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
-      // Beim Datumswechsel Skeleton statt der Daten des alten Tages zeigen;
-      // bereits besuchte Tage kommen trotzdem sofort aus dem SWR-Cache.
-      keepPreviousData: false,
-    },
-  );
-
   // Die Tagesübersicht der Schule: dieselbe Fokus-Revalidierung wie die
   // Klassenreports, und der Server protokolliert sie wie diese nur einmal
   // pro Person, Tag und Zugriffstag.
@@ -379,7 +365,7 @@ export function ClassDayOverview({
     mutate: reloadSchoolDay,
   } = useSWRAuth(
     schoolMode && classes && classes.length > 0 && !weekend
-      ? `class-day-school-day-${dateISO}`
+      ? schoolPortalKeys.schoolDay(dateISO)
       : null,
     () =>
       fetchSchoolDay
@@ -396,8 +382,8 @@ export function ClassDayOverview({
   // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
   // Tagesübersicht der Schule, sonst die Klassenreports.
   const refreshReports = useCallback(
-    () => void (schoolMode ? reloadSchoolDay() : reloadReports()),
-    [schoolMode, reloadSchoolDay, reloadReports],
+    () => void reloadSchoolDay(),
+    [reloadSchoolDay],
   );
   useClassDayRefresh(refreshReports);
 
@@ -410,49 +396,20 @@ export function ClassDayOverview({
   const canReportAbsences =
     absenceReports.available && schoolDay?.can_report_absences === true;
 
-  const reports = useMemo<Record<string, ClassLine>>(() => {
-    if (schoolMode) return schoolDay ? schoolDayLines(schoolDay) : {};
-    const lines: Record<string, ClassLine> = {};
-    for (const [klass, report] of Object.entries(dayData?.reports ?? {})) {
-      lines[klass] = reportLine(report);
-    }
-    return lines;
-  }, [schoolMode, schoolDay, dayData]);
-  const failedClasses = useMemo(
-    () => new Set(dayData?.failed ?? []),
-    [dayData],
+  const reports = useMemo(
+    () => (schoolDay ? schoolDayLines(schoolDay) : {}),
+    [schoolDay],
   );
   const loading =
     classesLoading ||
-    (!weekend &&
-      (classes?.length ?? 0) > 0 &&
-      (schoolMode
-        ? schoolDay === undefined && schoolDayLoading
-        : dayData === undefined && reportsLoading));
-  // Fehler beim Laden der Klassenliste ist NICHT "keine Klassen zugewiesen":
-  // sonst rennt die Lehrkraft bei einem transienten 500 der Verwaltung
-  // hinterher. Katalogtext mit Wiederholen (#2517); bei Teilausfall nennt
-  // die Meldung die erste fehlende Klasse, die geladenen bleiben stehen.
-  const firstFailedClass = dayData?.failed[0];
+    (schoolMode && !weekend && schoolDay === undefined && schoolDayLoading);
   const loadError = useSwrLoadError(
-    classesError ??
-      (schoolMode ? schoolDayError : dayData?.firstFailure) ??
-      null,
-    classesError
-      ? "die Liste Ihrer Klassen"
-      : schoolMode
-        ? "die Tagesübersicht der Schule"
-        : firstFailedClass
-          ? `die ${schoolClassLabel(firstFailedClass)}`
-          : "die Klassenansicht",
-    () => {
-      if (classesError) return reloadClasses();
-      return schoolMode ? reloadSchoolDay() : reloadReports();
-    },
+    classesError ?? schoolDayError,
+    classesError ? "die Liste Ihrer Klassen" : "die Tagesübersicht der Schule",
+    () => (classesError ? reloadClasses() : reloadSchoolDay()),
   );
   const hasLoadFailure =
-    Boolean(classesError) ||
-    (schoolMode ? Boolean(schoolDayError) : (dayData?.failed.length ?? 0) > 0);
+    Boolean(classesError) || (schoolMode && Boolean(schoolDayError));
 
   const selectedDate = parseISODate(dateISO);
   // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
@@ -563,7 +520,7 @@ export function ClassDayOverview({
 
         {!noClasses &&
           !loading &&
-          (weekend || Object.keys(reports).length > 0) && (
+          (weekend || !schoolMode || Object.keys(reports).length > 0) && (
             <>
               {hasLoadFailure && Object.keys(reports).length > 0 && (
                 <LoadErrorAlert error={loadError} className="mt-4" />
@@ -724,17 +681,26 @@ export function ClassDayOverview({
                     {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
                   </h3>
                   <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                    {(classes ?? []).map((klass) => (
-                      <ClassLink
-                        key={klass}
-                        klass={klass}
-                        report={reports[klass] ?? null}
-                        failed={failedClasses.has(klass)}
-                        weekend={weekend}
-                        dateISO={dateISO}
-                        openList={schoolMode ? openList : null}
-                      />
-                    ))}
+                    {(classes ?? []).map((klass) =>
+                      schoolMode ? (
+                        <ClassLink
+                          key={klass}
+                          klass={klass}
+                          report={reports[klass] ?? null}
+                          failed={false}
+                          weekend={weekend}
+                          dateISO={dateISO}
+                          openList={openList}
+                        />
+                      ) : (
+                        <ClassReportLink
+                          key={klass}
+                          klass={klass}
+                          dateISO={dateISO}
+                          fetchClassDay={fetchClassDay}
+                        />
+                      ),
+                    )}
                   </div>
                 </>
               )}
