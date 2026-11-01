@@ -4,6 +4,8 @@ import { join } from "node:path";
 export const BUDGET_FORMAT = "moto-bundle-budget/v1";
 const TOLERANCE_RATIO = 0.02;
 const TOLERANCE_BYTES = 10 * 1024;
+// Cold repeat measurements and maintenance procedure: docs/perf/bundle-ratchet-5483.md.
+const STALE_REFERENCE_RATIO = 0.05;
 // A merge-base this close to its ceiling turns any PR that grows shared code by
 // a few bytes red (#5396: 4 of 5 bundle failures were 13 to 201 bytes over).
 // Such PRs are judged by their own delta; development pushes, the nightly and
@@ -89,7 +91,7 @@ export function readBudgets(directory) {
   return budgets;
 }
 
-/** Improvements and retired observations do not require policy maintenance. */
+/** Reductions pass, but stale references warn so maintainers can ratchet down. */
 export function compareBudgets(budgets, measured, base = null) {
   if (!(measured instanceof Map) || measured.size === 0)
     throw new Error("No measured bundle routes");
@@ -122,6 +124,14 @@ export function compareBudgets(budgets, measured, base = null) {
     if (baseBytes !== undefined && bytes > legacyCeiling(baseBytes)) {
       failures.push(
         `${route}: eigenes PR-Delta ${bytes - baseBytes} Bytes überschreitet die Toleranz ${legacyCeiling(baseBytes) - baseBytes} Bytes gegenüber der Merge-Basis (${baseBytes} Bytes). Bundle verkleinern; historische Referenzen ändern dieses Delta nicht.`,
+      );
+    }
+    if (
+      budget.referenceBytes - bytes >
+      budget.referenceBytes * STALE_REFERENCE_RATIO
+    ) {
+      warnings.push(
+        `${route}: Veraltete Referenz ${budget.referenceBytes} Bytes; gemessen ${bytes} Bytes, mehr als ${STALE_REFERENCE_RATIO * 100} % darunter. Kalte Linux-Messung wiederholen und Referenz samt Obergrenze nach Review nach unten nachziehen; niemals automatisch erhöhen.`,
       );
     }
     if (bytes > budget.maxBytes) {

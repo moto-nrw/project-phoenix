@@ -235,6 +235,98 @@ describe("HolidayRegistrationForm", () => {
     ).toHaveTextContent(/\S/);
   });
 
+  it("maps pickup_persons.1.name to the third person and shows both roles once in the summary", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "pickup_persons.1.name", reason: "invalid" }],
+      }),
+    );
+    renderForm();
+    fillRegistration();
+    fireEvent.click(screen.getByRole("button", { name: "Person hinzufügen" }));
+    let people = screen.getAllByRole("group", { name: /Person \d/ });
+    type(within(people[1]!).getByLabelText("Name"), "Opa");
+    fireEvent.click(within(people[1]!).getByLabelText("Notfallkontakt"));
+    fireEvent.click(
+      within(people[1]!).getByLabelText("Darf die Kinder abholen"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Person hinzufügen" }));
+    people = screen.getAllByRole("group", { name: /Person \d/ });
+    type(within(people[2]!).getByLabelText("Name"), "Tante");
+    type(within(people[2]!).getByLabelText("Telefon"), "0123");
+    fireEvent.click(
+      within(people[2]!).getByLabelText("Darf die Kinder abholen"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Tante · 0123/)).toHaveTextContent(
+      "Notfallkontakt, Darf die Kinder abholen",
+    );
+    expect(screen.getAllByText(/Tante · 0123/)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    const thirdName = await screen.findByDisplayValue("Tante");
+    await waitFor(() =>
+      expect(thirdName).toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(thirdName).toHaveFocus();
+    expect(screen.getByDisplayValue("Opa")).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it.each([
+    ["noRole", "Bitte wählen Sie mindestens eine Aufgabe."],
+    ["noEmergency", "Bitte wählen Sie mindestens einen Notfallkontakt."],
+    ["noPhone", "Bitte füllen Sie dieses Feld aus."],
+    ["tooMany", "Sie können höchstens drei Notfallkontakte angeben."],
+  ])("blocks the summary and submission for %s", async (scenario, message) => {
+    renderForm();
+    fillRegistration();
+    if (scenario === "noRole" || scenario === "noEmergency") {
+      fireEvent.click(screen.getByLabelText("Notfallkontakt"));
+      if (scenario === "noEmergency")
+        fireEvent.click(screen.getByLabelText("Darf die Kinder abholen"));
+      else {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Person hinzufügen" }),
+        );
+        const person = within(screen.getByRole("group", { name: "Person 2" }));
+        type(person.getByLabelText("Name"), "Opa");
+        type(person.getByLabelText("Telefon"), "0123");
+      }
+    } else if (scenario === "noPhone") {
+      type(screen.getAllByLabelText("Telefon")[1]!, "");
+    } else {
+      for (let i = 2; i <= 4; i++) {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Person hinzufügen" }),
+        );
+        const person = within(
+          screen.getByRole("group", { name: `Person ${i}` }),
+        );
+        type(person.getByLabelText("Name"), `Kontakt ${i}`);
+        type(person.getByLabelText("Telefon"), "0123");
+      }
+    }
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    ).toBeInTheDocument();
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     mockSubmit.mockReset();
     mockQuote.mockReset();
