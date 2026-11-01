@@ -1190,3 +1190,66 @@ describe("what the lock leaves alone (#5006)", () => {
     expect(responses["student-7-steady"]!.mutate).toBe(retained);
   });
 });
+
+describe.each([
+  ["with cleanup", true],
+  ["lock only, cleanup off", false],
+])("a running mutation and a bump %s (#5223)", (_mode, cleanup) => {
+  // The first request answers, every later one never: a write the test sees
+  // can only come from the mutation.
+  function loadsOnce(value: string) {
+    let calls = 0;
+    return vi.fn(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(value)
+        : new Promise<string>(() => {});
+    });
+  }
+
+  function start(kind: "bound" | "tenant", name: string, data: unknown) {
+    return kind === "bound"
+      ? responses[name]!.mutate(data as Promise<string>, { revalidate: false })
+      : tools.mutate(name, data, { revalidate: false });
+  }
+
+  it.each(["bound", "tenant"] as const)(
+    "keeps the result of a running %s mutation across a request bump",
+    async (kind) => {
+      const name = `student-7-request-bump-${kind}`;
+      const fetcher = loadsOnce("v0");
+      render(
+        <Page>
+          <Reader
+            name={name}
+            fetcher={fetcher}
+            options={{ dedupingInterval: 0 }}
+          />
+        </Page>,
+      );
+      await flush();
+      // Anker: der Leser zeigt den Stand vor der Mutation.
+      expect(screen.getByTestId(name)).toHaveTextContent("v0");
+      _setSWRCleanupForTests(cleanup);
+      const saved = deferred<string>();
+      let saving!: Promise<unknown>;
+      act(() => {
+        saving = start(kind, name, saved.promise);
+      });
+      // Revalidating matching keys is no drop: their values stay valid.
+      act(() => {
+        void tools.matching();
+      });
+      let result: unknown;
+      await act(async () => {
+        saved.resolve("v1");
+        result = await saving;
+      });
+      await flush();
+
+      expect(result).toBe("v1");
+      expect(cachedData(name)).toBe("v1");
+      expect(screen.getByTestId(name)).toHaveTextContent("v1");
+    },
+  );
+});

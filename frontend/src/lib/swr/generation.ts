@@ -253,6 +253,15 @@ export function isStillCurrent(key: string, start: SWRStart): boolean {
   return requestGenerationOf(key) === start.request;
 }
 
+/**
+ * Whether a mutation started at `start` may still write under `key`. A
+ * request bump only ends answers of requests (#5223): the caller's own write
+ * stays valid until a scope or data bump of its key.
+ */
+function isMutationCurrent(key: string, start: SWRStart): boolean {
+  return dataGenerationOf(key) === start.data;
+}
+
 // Preloads keep the generation they started in, so a later reader that
 // takes the preloaded answer judges it by that start, not by its own.
 const preloadStarts = new WeakMap<object, SWRStart>();
@@ -319,7 +328,7 @@ export function lockMutation(
     // A stale result may equal a fresh primitive or share its object
     // reference. Do not replace that value's current stamp before the
     // populateCache guard rejects the stale write.
-    if (isStillCurrent(key, start)) stampSWRValue(key, value, start.data);
+    if (isMutationCurrent(key, start)) stampSWRValue(key, value, start.data);
     return value;
   };
   const settle = (value: unknown): unknown =>
@@ -365,7 +374,7 @@ export function lockMutation(
     {
       ...withOptimistic,
       populateCache: (result: unknown, current: unknown) => {
-        if (!isStillCurrent(key, start)) return current;
+        if (!isMutationCurrent(key, start)) return current;
         return typeof populate === "function"
           ? stamp(populate(result, base(current)))
           : result;
