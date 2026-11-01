@@ -17,9 +17,11 @@ import {
   listAnnouncements,
 } from "~/lib/parent-api";
 import { ParentStartPage } from "./parent-start-page";
+import type { SSEHookOptions } from "~/lib/sse-types";
 
 vi.unmock("swr");
-vi.mock("~/lib/hooks/use-sse", () => ({ useSSE: () => undefined }));
+const useSSE = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/hooks/use-sse", () => ({ useSSE }));
 const state = vi.hoisted(() => ({ account: "A" as string | null }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -65,6 +67,7 @@ beforeEach(() => {
   state.account = "A";
   vi.clearAllMocks();
   vi.mocked(listAnnouncements).mockResolvedValue([]);
+  vi.mocked(listMessageThreads).mockResolvedValue([]);
   vi.mocked(fetchParentProfile).mockResolvedValue({
     first_name: "Eltern",
     portal_locale: null,
@@ -237,18 +240,69 @@ describe("parent start cache isolation", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(commits.some((text) => text.includes("Alles erledigt"))).toBe(false);
   });
-  it("revalidates messages without repeating unrelated child requests", async () => {
+  it.each(["parent-threads-refresh", "parent-messages-unread-refresh"])(
+    "revalidates messages without repeating unrelated child requests after %s",
+    async (eventName) => {
+      mount();
+      expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+      expect(listMessageThreads).toHaveBeenCalledTimes(1);
+      act(() => {
+        window.dispatchEvent(new CustomEvent(eventName));
+      });
+      await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
+      expect(listMyChildren).toHaveBeenCalledTimes(1);
+      expect(getChildFeatures).toHaveBeenCalledTimes(1);
+      expect(getChildToday).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("refreshes the shared message list only once for one incoming SSE message", async () => {
     mount();
     expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
-    expect(listMessageThreads).toHaveBeenCalledTimes(1);
-    act(() => {
-      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
+    const options = useSSE.mock.calls.at(-1)?.[1] as SSEHookOptions | undefined;
+    if (!options?.onMessage) throw new Error("SSE handler was not registered");
+    await act(async () => {
+      options.onMessage?.({
+        type: "parent_message",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
     });
     await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
     expect(listMyChildren).toHaveBeenCalledTimes(1);
     expect(getChildFeatures).toHaveBeenCalledTimes(1);
     expect(getChildToday).toHaveBeenCalledTimes(1);
   });
+
+  it("removes a read conversation from the start tasks on a warm return", async () => {
+    const unread = {
+      thread_id: "thread-42",
+      student_id: "42",
+      student_name: "Kind A Test",
+      school_name: "Schule",
+      counterpart_name: "OGS Schule",
+      last_message_read_by_staff: false,
+      unread: 1,
+    };
+    vi.mocked(listMessageThreads).mockResolvedValue([unread]);
+    const view = mount();
+    expect(await screen.findByText("Neue Nachricht")).toBeInTheDocument();
+    view.rerender(<Fixture visible={false} />);
+    vi.mocked(listMessageThreads).mockResolvedValue([{ ...unread, unread: 0 }]);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
+    });
+    view.rerender(<Fixture />);
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText("Neue Nachricht")).not.toBeInTheDocument(),
+    );
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
+    expect(getChildFeatures).toHaveBeenCalledTimes(1);
+    expect(getChildToday).toHaveBeenCalledTimes(1);
+  });
+
   it("does not reuse yesterday's day status or date-dependent features on a warm mount", async () => {
     const view = mount();
     expect(await screen.findByText("Kind A Test")).toBeInTheDocument();

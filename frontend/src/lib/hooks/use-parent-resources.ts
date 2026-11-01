@@ -131,11 +131,16 @@ export function useParentResourceEvents() {
     };
     window.addEventListener("parent-child-status-refresh", refreshChild);
     window.addEventListener("parent-threads-refresh", refreshMessages);
+    window.addEventListener("parent-messages-unread-refresh", refreshMessages);
     window.addEventListener("parent-news-unread-refresh", refreshNews);
     window.addEventListener(PARENT_ACCESS_REFUSED_EVENT, accessRefused);
     return () => {
       window.removeEventListener("parent-child-status-refresh", refreshChild);
       window.removeEventListener("parent-threads-refresh", refreshMessages);
+      window.removeEventListener(
+        "parent-messages-unread-refresh",
+        refreshMessages,
+      );
       window.removeEventListener("parent-news-unread-refresh", refreshNews);
       channel.close();
       window.removeEventListener(PARENT_ACCESS_REFUSED_EVENT, accessRefused);
