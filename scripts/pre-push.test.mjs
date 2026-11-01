@@ -128,6 +128,24 @@ test('docs-only branch does not buy backend or frontend compute', t => {
   assert.doesNotMatch(result.stdout, /run-go-toolchain|check-quality.sh|pnpm/);
 });
 
+test('budget JSON and every skill directory select the context gate', async t => {
+  for (const path of [
+    'scripts/check-agent-context.budget.json',
+    '.agents/skills/example/reference.json', '.claude/skills/example/reference.json',
+    'backend/.agents/skills/example/reference.json', 'backend/.claude/skills/example/reference.json',
+    'frontend/.agents/skills/example/reference.json', 'frontend/.claude/skills/example/reference.json',
+  ]) {
+    await t.test(path, t => {
+      const f = fixture(t);
+      f.commit(path, '{}\n');
+      const result = f.check();
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, /\[context\]/);
+      assert.match(result.stdout, /\[context-tests\]/);
+    });
+  }
+});
+
 test('hook stdin validates the whole branch even if only the docs tip is pushed', t => {
   const f = fixture(t);
   f.commit('backend/example.go', 'package example\n');
