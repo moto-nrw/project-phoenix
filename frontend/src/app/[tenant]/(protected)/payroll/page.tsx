@@ -1193,6 +1193,30 @@ function SurchargeRulesCard({
   readonly onCreate: () => void;
   readonly onArchive: (rule: PayrollSurchargeRule) => void;
 }) {
+  // The API replaces the complete rule. Keep each row's last confirmed value
+  // so a queued field save builds on the preceding successful save, instead
+  // of a stale render of another field.
+  const savedSurchargeRules = useRef(new Map<string, PayrollSurchargeRule>());
+  useEffect(() => {
+    savedSurchargeRules.current = new Map(
+      rules.surchargeRules.map((rule) => [rule.id, rule]),
+    );
+  }, [rules.surchargeRules]);
+  const saveSurchargeRule = (
+    rule: PayrollSurchargeRule,
+    changes: Partial<PayrollSurchargeRule>,
+  ) => {
+    void onChange(
+      "die Zuschlagsregel",
+      async () => {
+        const current = savedSurchargeRules.current.get(rule.id) ?? rule;
+        const updated = { ...current, ...changes };
+        await updateSurchargeRule(rule.id, updated);
+        savedSurchargeRules.current.set(rule.id, updated);
+      },
+      `surcharge-rule:${rule.id}`,
+    );
+  };
   const wageTypeName = (id: string) =>
     rules.wageTypes.find((wageType) => wageType.id === id)?.name ?? "–";
   const columns: DataTableColumn<PayrollSurchargeRule>[] = [
@@ -1208,7 +1232,7 @@ function SurchargeRulesCard({
       header: "Zeitraum",
       render: (rule) =>
         rule.kind === "nacht" ? (
-          <NightWindowCell rule={rule} onChange={onChange} />
+          <NightWindowCell rule={rule} onSave={saveSurchargeRule} />
         ) : (
           <span className="text-sm text-gray-600">ganzer Tag</span>
         ),
@@ -1216,7 +1240,7 @@ function SurchargeRulesCard({
     {
       key: "rate",
       header: "Höhe",
-      render: (rule) => <RateCell rule={rule} onChange={onChange} />,
+      render: (rule) => <RateCell rule={rule} onSave={saveSurchargeRule} />,
     },
     {
       key: "wageType",
@@ -1234,9 +1258,7 @@ function SurchargeRulesCard({
             placeholder={wageTypeName(rule.wageTypeId)}
             onChange={(next) => {
               if (next !== rule.wageTypeId) {
-                void onChange("die Zuschlagsregel", () =>
-                  updateSurchargeRule(rule.id, { ...rule, wageTypeId: next }),
-                );
+                saveSurchargeRule(rule, { wageTypeId: next });
               }
             }}
             triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
@@ -1299,12 +1321,17 @@ function SurchargeRulesCard({
   );
 }
 
+type SaveSurchargeRule = (
+  rule: PayrollSurchargeRule,
+  changes: Partial<PayrollSurchargeRule>,
+) => void;
+
 function NightWindowCell({
   rule,
-  onChange,
+  onSave,
 }: {
   readonly rule: PayrollSurchargeRule;
-  readonly onChange: ChangeRules;
+  readonly onSave: SaveSurchargeRule;
 }) {
   const [from, setFrom] = useState(minutesToClock(rule.windowStartMinute ?? 0));
   const [until, setUntil] = useState(minutesToClock(rule.windowEndMinute ?? 0));
@@ -1326,13 +1353,10 @@ function NightWindowCell({
     ) {
       return;
     }
-    void onChange("die Zuschlagsregel", () =>
-      updateSurchargeRule(rule.id, {
-        ...rule,
-        windowStartMinute: fromMinute,
-        windowEndMinute: untilMinute,
-      }),
-    );
+    onSave(rule, {
+      windowStartMinute: fromMinute,
+      windowEndMinute: untilMinute,
+    });
   };
 
   return (
@@ -1361,10 +1385,10 @@ function NightWindowCell({
 
 function RateCell({
   rule,
-  onChange,
+  onSave,
 }: {
   readonly rule: PayrollSurchargeRule;
-  readonly onChange: ChangeRules;
+  readonly onSave: SaveSurchargeRule;
 }) {
   const [text, setText] = useState(
     formatRate(rule.rateType, rule.rateHundredths),
@@ -1385,12 +1409,7 @@ function RateCell({
           onChange={(event) => setText(event.target.value)}
           onBlur={() => {
             if (value !== null && value !== rule.rateHundredths) {
-              void onChange("die Zuschlagsregel", () =>
-                updateSurchargeRule(rule.id, {
-                  ...rule,
-                  rateHundredths: value,
-                }),
-              );
+              onSave(rule, { rateHundredths: value });
             }
           }}
           inputMode="decimal"

@@ -57,11 +57,30 @@ func (p *exportPayroll) apply(row *MonthExportRow, summary *MonthSummary, prefet
 	}
 	row.PayrollRules = rules
 	row.AbsenceTypeCredits = summary.CreditedByAbsenceType
+	// School-defined absence types retain the canonical "other" category for
+	// month arithmetic. A mapped type is exported through its own wage type,
+	// so it must not also remain in the generic Sonstige export column.
+	row.CreditedOtherMinutes -= mappedAbsenceCreditMinutes(rules, row.AbsenceTypeCredits)
 	if len(rules.SurchargeRules) > 0 {
 		row.SurchargeMinutes = SurchargeMinutes(prefetch.sessions[row.StaffID], prefetch.breaks, p.holidays,
 			rules.SurchargeRules, key.firstDay(), key.lastDay(), p.now)
 	}
 	return nil
+}
+
+func mappedAbsenceCreditMinutes(rules *workforce.PayrollRuleSet, credits map[int64]AbsenceTypeCredit) int {
+	var minutes int
+	for absenceTypeID, credit := range credits {
+		wageTypeID, mapped := rules.AbsenceTypeWageTypes[absenceTypeID]
+		if !mapped {
+			continue
+		}
+		wageType, active := rules.WageType(wageTypeID)
+		if active && (wageType.Unit == workforce.WageTypeUnitHours || wageType.Unit == workforce.WageTypeUnitDays) {
+			minutes += credit.Minutes
+		}
+	}
+	return minutes
 }
 
 // frozenPayrollRules decodes the rule set of the active snapshot of the

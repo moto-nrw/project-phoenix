@@ -16,6 +16,7 @@ const {
   mutateMock,
   setSettingValueMock,
   updateWageTypeMock,
+  updateSurchargeRuleMock,
   archiveWageTypeMock,
   setAbsenceTypeWageTypeMock,
   swrData,
@@ -24,6 +25,7 @@ const {
   mutateMock: vi.fn(),
   setSettingValueMock: vi.fn(),
   updateWageTypeMock: vi.fn(),
+  updateSurchargeRuleMock: vi.fn(),
   archiveWageTypeMock: vi.fn(),
   setAbsenceTypeWageTypeMock: vi.fn(),
   // Per SWR key: the page loads the status, the latest dispatch and, for
@@ -85,6 +87,7 @@ vi.mock("~/lib/hooks/use-require-permission", () => ({
 vi.mock("~/lib/payroll-rules-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/payroll-rules-api")>()),
   updateWageType: updateWageTypeMock,
+  updateSurchargeRule: updateSurchargeRuleMock,
   archiveWageType: archiveWageTypeMock,
   setAbsenceTypeWageType: setAbsenceTypeWageTypeMock,
 }));
@@ -456,6 +459,7 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     swrKeys.length = 0;
     mutateMock.mockResolvedValue(undefined);
     updateWageTypeMock.mockResolvedValue(undefined);
+    updateSurchargeRuleMock.mockResolvedValue(undefined);
     archiveWageTypeMock.mockResolvedValue(undefined);
     setAbsenceTypeWageTypeMock.mockResolvedValue(undefined);
     resetSwr();
@@ -537,6 +541,55 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
       name: "Nacht neu",
       number: "310",
       unit: "stunden",
+    });
+  });
+
+  it("serialisiert schnelle Änderungen an derselben Zuschlagsregel", async () => {
+    const firstSave = deferred<void>();
+    updateSurchargeRuleMock
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValueOnce(undefined);
+    render(<PayrollPage />);
+
+    const [rate] = screen.getAllByRole("textbox", {
+      name: "Höhe Nachtarbeit in Prozent",
+    });
+    fireEvent.change(rate!, { target: { value: "30" } });
+    fireEvent.blur(rate!);
+
+    await waitFor(() =>
+      expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(1),
+    );
+    const [from] = screen.getAllByLabelText("Nachtarbeit von");
+    fireEvent.change(from!, { target: { value: "21:00" } });
+    fireEvent.blur(from!);
+    expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstSave.promise;
+    });
+
+    await waitFor(() =>
+      expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(2),
+    );
+    expect(updateSurchargeRuleMock).toHaveBeenNthCalledWith(1, "8", {
+      id: "8",
+      kind: "nacht",
+      windowStartMinute: 1200,
+      windowEndMinute: 360,
+      rateType: "prozent",
+      rateHundredths: 3000,
+      wageTypeId: "7",
+    });
+    expect(updateSurchargeRuleMock).toHaveBeenNthCalledWith(2, "8", {
+      id: "8",
+      kind: "nacht",
+      windowStartMinute: 1260,
+      windowEndMinute: 360,
+      rateType: "prozent",
+      rateHundredths: 3000,
+      wageTypeId: "7",
     });
   });
 

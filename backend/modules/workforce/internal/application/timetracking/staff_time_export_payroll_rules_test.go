@@ -192,7 +192,7 @@ func TestMonthExport_CSVCarriesTheWageTypeColumns(t *testing.T) {
 	header := strings.Split(lines[0], ";")
 	assert.Equal(t, []string{"Nachtzuschlag (Stunden)", "Sonntagszuschlag (Euro)", "Feiertagszuschlag (Stunden)", "Sonderurlaub (Tage)", "Rufbereitschaft (Stunden)"},
 		header[len(header)-5:])
-	var staffOne, staffZero []string
+	var staffOne, staffZero, staffZeroRow []string
 	for _, line := range lines[1:] {
 		cells := strings.Split(line, ";")
 		if len(cells) < len(header) {
@@ -203,8 +203,19 @@ func TestMonthExport_CSVCarriesTheWageTypeColumns(t *testing.T) {
 			staffOne = cells[len(cells)-5:]
 		case cells[len(cells)-2] == "1":
 			staffZero = cells[len(cells)-5:]
+			staffZeroRow = cells
 		}
 	}
 	assert.Equal(t, []string{"5,50", "10,00", "3,00", "", ""}, staffOne)
 	assert.Equal(t, []string{"", "", "", "1", ""}, staffZero)
+	otherColumn := -1
+	for i, label := range header {
+		if label == "Gutschrift Sonstige" {
+			otherColumn = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, otherColumn)
+	require.Len(t, staffZeroRow, len(header))
+	assert.Equal(t, "0,00", staffZeroRow[otherColumn], "a mapped custom absence must not also be exported as Sonstige")
 }
