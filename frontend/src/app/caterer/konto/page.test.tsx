@@ -26,7 +26,10 @@ vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: () => ({ logout }),
 }));
 
-// The device card has tests of its own.
+// The passkey and device cards have tests of their own.
+vi.mock("~/components/settings/passkey-settings-section", () => ({
+  PasskeySettingsSection: () => null,
+}));
 vi.mock("~/components/settings/trusted-devices-section", () => ({
   TrustedDevicesSection: () => <p>Gemerkte Geräte (Karte)</p>,
 }));

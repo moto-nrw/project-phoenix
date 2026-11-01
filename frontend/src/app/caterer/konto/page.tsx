@@ -1,8 +1,8 @@
 "use client";
 
 // Konto-Seite des Caterer-Portals (#4496): die Anmelde-Adresse, „Passwort
-// ändern“ und die freiwillige Zwei-Faktor-Anmeldung (#4497) mit gemerkten
-// Geräten. Jeder Bereich ist eine eigene Karte.
+// ändern“ und die freiwillige Zwei-Faktor-Anmeldung (#4497) mit Passkeys und
+// gemerkten Geräten. Jeder Bereich ist eine eigene Karte.
 
 import {
   useCallback,
@@ -14,6 +14,7 @@ import {
 import { useSession } from "next-auth/react";
 import { credentialError } from "~/components/auth/credential-error";
 import { TenantPasswordChangeModal } from "~/components/auth/tenant-password-change-modal";
+import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -366,6 +367,7 @@ export default function CatererAccountPage() {
       />
 
       <TwoFactorSection onEnabledChange={setMfaEnabled} />
+      <PasskeySettingsSection scope="caterer" />
       {mfaEnabled && <TrustedDevicesSection scope="caterer" />}
 
       <TenantPasswordChangeModal
