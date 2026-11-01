@@ -3,34 +3,55 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// capLegacyLineage keeps the deadline of a refresh family issued before the
-// switch link existed (#5422) that may descend from a school switch or a
-// Träger Absprung. Its rows carry no switched_from_family_id, so a logout of
-// another family of its lineage cannot reach it; renewing it on every
-// rotation would keep it alive without bound. Its successor keeps the
-// family's current expiry as family_expiry_cap, which every later rotation
-// inherits, so such a family ends one refresh lifetime after the deploy at
-// the latest. A token the new code issued names its lineage (lineage_id) and
-// passes; so does every family that cannot stem from a switch, which keeps
-// renewing as before. The branch has no work left once the last token
-// issued before #5422 has expired.
-func (s *AccountAuthentication) capLegacyLineage(ctx context.Context, claims domain.RefreshClaims, current *domain.AccountSession) error {
-	if claims.LineageID != "" || current.SwitchedFromFamilyID != "" {
-		return nil
+// capLegacyLineage handles a refresh family issued before the switch link
+// existed (#5422). Every family the new code issues names at least itself as
+// its lineage origin (switched_from_family_id); an empty origin marks a
+// family issued before, or by a backend that predates the column. Such a
+// family may descend from a school switch or a Träger Absprung without the
+// link, so a logout of another family of its lineage cannot reach it, and
+// renewing it on every rotation would keep it alive without bound. If it may
+// descend from one, it keeps its current expiry as family_expiry_cap, which
+// every later rotation and switch inherits: it ends one refresh lifetime after
+// the deploy at the latest, and capped reports that the deadline is new. A
+// family that cannot stem from a switch becomes its own origin and renews as
+// before. The branch has no work left once the last family issued before
+// #5422 has expired.
+func (s *AccountAuthentication) capLegacyLineage(ctx context.Context, current *domain.AccountSession) (capped bool, err error) {
+	if current.SwitchedFromFamilyID != "" {
+		return false, nil
 	}
 	unlinked, err := s.mayDescendFromSwitch(ctx, *current)
-	if err != nil || !unlinked {
-		return err
+	if err != nil {
+		return false, err
+	}
+	if !unlinked {
+		current.SwitchedFromFamilyID = current.FamilyID
+		return false, nil
 	}
 	if current.FamilyExpiryCap == nil || current.Expiry.Before(*current.FamilyExpiryCap) {
 		deadline := current.Expiry
 		current.FamilyExpiryCap = &deadline
 	}
-	return nil
+	return true, nil
+}
+
+// legacyDeadline is the deadline a family issued before #5422 hands down to a
+// school switch out of it: its cap, else its expiry. A family the new code
+// issued hands down nothing; its retirement grace stays its own.
+func legacyDeadline(source domain.AccountSession) *time.Time {
+	if source.SwitchedFromFamilyID != "" {
+		return nil
+	}
+	deadline := source.Expiry
+	if source.FamilyExpiryCap != nil && source.FamilyExpiryCap.Before(deadline) {
+		deadline = *source.FamilyExpiryCap
+	}
+	return &deadline
 }
 
 // mayDescendFromSwitch reports whether a family could have been minted by a

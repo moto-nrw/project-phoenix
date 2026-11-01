@@ -35,7 +35,6 @@ func TestCapLegacyLineage(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		session       domain.AccountSession
-		lineage       string
 		mappings      int
 		organizations []identityaccess.TraegerOrganization
 		capped        bool
@@ -47,7 +46,7 @@ func TestCapLegacyLineage(t *testing.T) {
 		{name: "single-school account", session: domain.AccountSession{PortalScope: domain.PortalScopeTenant}, mappings: 1},
 		{name: "parent portal", session: domain.AccountSession{PortalScope: domain.PortalScopeParent}, mappings: 2},
 		{name: "Träger portal", session: domain.AccountSession{PortalScope: domain.PortalScopeOrg}, organizations: traeger},
-		{name: "token issued with its lineage", session: domain.AccountSession{PortalScope: domain.PortalScopeTenant}, lineage: "family", mappings: 2},
+		{name: "family issued with its origin", session: domain.AccountSession{PortalScope: domain.PortalScopeTenant, SwitchedFromFamilyID: "family"}, mappings: 2},
 		{name: "linked switch family", session: domain.AccountSession{PortalScope: domain.PortalScopeTenant, SwitchedFromFamilyID: "origin"}, mappings: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -60,13 +59,16 @@ func TestCapLegacyLineage(t *testing.T) {
 			session := tc.session
 			session.AccountID, session.FamilyID, session.Expiry = 1, "family", expiry
 
-			err := legacyCapAuth(t, f, tc.organizations).capLegacyLineage(context.Background(), domain.RefreshClaims{AccountID: 1, LineageID: tc.lineage}, &session)
+			capped, err := legacyCapAuth(t, f, tc.organizations).capLegacyLineage(context.Background(), &session)
 
 			require.NoError(t, err)
+			assert.Equal(t, tc.capped, capped)
 			if !tc.capped {
 				assert.Nil(t, session.FamilyExpiryCap)
+				assert.NotEmpty(t, session.SwitchedFromFamilyID, "a family that cannot stem from a switch names an origin and is checked once")
 				return
 			}
+			assert.Empty(t, session.SwitchedFromFamilyID, "a capped family stays unlinked")
 			require.NotNil(t, session.FamilyExpiryCap)
 			assert.True(t, session.FamilyExpiryCap.Equal(expiry), "the family keeps its current expiry as its deadline")
 		})
@@ -84,7 +86,8 @@ func TestCapLegacyLineage_KeepsAnEarlierDeadline(t *testing.T) {
 	retired := time.Now().Add(time.Minute)
 	session := domain.AccountSession{AccountID: 1, FamilyID: "family", PortalScope: domain.PortalScopeTenant, Expiry: retired.Add(time.Hour), FamilyExpiryCap: &retired}
 
-	require.NoError(t, f.auth.capLegacyLineage(context.Background(), domain.RefreshClaims{AccountID: 1}, &session))
+	_, err := f.auth.capLegacyLineage(context.Background(), &session)
+	require.NoError(t, err)
 
 	assert.True(t, session.FamilyExpiryCap.Equal(retired))
 }

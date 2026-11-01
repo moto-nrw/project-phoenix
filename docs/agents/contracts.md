@@ -455,21 +455,24 @@ that commits before the logout's lock is revoked with it, one that waits finds
 its source gone and is refused, with or without a configured second factor.
 Other logins of the account keep their sessions. Each school records the
 revocation of its own sessions in its own tenant transaction (#5422).
-Transition: families issued before #5422 carry no link, and their refresh
-tokens no `lineage_id`. A rotation that presents such a token for a family
-that may descend from a switch or an Absprung (a Träger school session, or a
-tenant, school or legacy session of an account with two or more school
-mappings of any status or an active Träger membership) does not renew it: the
-successor keeps the current expiry as `family_expiry_cap`, which every later
-rotation and school switch inherit. Refresh hand-off recovery persists the
-same deadline before issuing lineage claims. Such a family therefore ends
-at the latest one refresh lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the
-deploy, and its users sign in once more; every other family keeps renewing,
-so the deploy signs nobody out.
-Until then a logout cannot reach such an unlinked family through another family
-of its lineage. Not covered: a mapping row a school erasure deleted before the
-deploy, or a Träger membership ended before it; the sessions at that school
-or of that Träger, the other side of such a switch, were deleted with it. A staff-view preview token carries the admin's
+Transition: every family the new code issues names at least itself as its
+origin; an empty `switched_from_family_id` marks a family issued before #5422
+(or by a backend predating the column). A rotation of such a family that may
+descend from a switch or an Absprung (a Träger school session, or a tenant,
+school or legacy session of an account with two or more school mappings of any
+status or an active Träger membership) does not renew it: the successor keeps
+the current expiry as `family_expiry_cap`, which every later rotation inherits,
+a hand-off recovery persists on the recovered head, and a school switch out of
+it hands down to the new family. Such a family therefore ends at the latest one
+refresh lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the deploy, and its users
+sign in once more. Every other family becomes its own origin at its next
+rotation and keeps renewing, so the deploy signs nobody out; a retirement grace
+of a family the new code issued is not handed down. Until the deadline a logout
+cannot reach such an unlinked family through another family of its lineage.
+Not covered: a mapping row a school erasure deleted before the deploy, or a
+Träger membership ended before it; the sessions at that school or of that
+Träger, the other side of such a switch, were deleted with it.
+A staff-view preview token carries the admin's
 family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at

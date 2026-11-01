@@ -29,8 +29,10 @@ func init() {
 // with a grace; a Träger Absprung opens a school family out of the Träger
 // family. switched_from_family_id retains the origin of that lineage, so a
 // logout revokes it even after the origin's rows are gone (#5422).
-// Rows from before this migration carry NULL: their switches stay unlinked,
-// as they were, and their source families end with the grace.
+// Every family issued after it names at least itself, so NULL marks a row
+// from before: its switch stays unlinked, and the application ends such a
+// family that may descend from a switch one refresh lifetime after the
+// deploy instead of renewing it (capLegacyLineage).
 func authTokenSwitchedFromFamilyUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.tokens

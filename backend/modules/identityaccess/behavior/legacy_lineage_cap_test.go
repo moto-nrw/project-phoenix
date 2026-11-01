@@ -44,12 +44,15 @@ func headOfFamily(t *testing.T, db *bun.DB, familyID string) familyHead {
 	return head
 }
 
-// ageFamily moves the family's live rows to a shorter remaining lifetime,
-// as a family issued days before the deploy has.
+// ageFamily turns the family into one issued before #5422, days before the
+// deploy: its rows name no lineage origin, and its live rows have a shorter
+// remaining lifetime.
 func ageFamily(t *testing.T, db *bun.DB, familyID string, remaining time.Duration) time.Time {
 	t.Helper()
 	expiry := time.Now().Add(remaining)
-	_, err := db.NewRaw(`UPDATE auth.tokens SET expiry = ? WHERE family_id = ? AND rotated_at IS NULL`, expiry, familyID).Exec(context.Background())
+	_, err := db.NewRaw(`UPDATE auth.tokens SET switched_from_family_id = NULL WHERE family_id = ?`, familyID).Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewRaw(`UPDATE auth.tokens SET expiry = ? WHERE family_id = ? AND rotated_at IS NULL`, expiry, familyID).Exec(context.Background())
 	require.NoError(t, err)
 	return expiry
 }
@@ -153,4 +156,51 @@ func TestLegacyFamilySwitchKeepsItsDeadline(t *testing.T) {
 	_, _, err = f.service.RefreshToken(ctx, refresh)
 	require.NoError(t, err)
 	assert.False(t, headOfFamily(t, f.db, switchedFamily).Expiry.After(deadline), "rotation of the switched family keeps the deadline")
+}
+
+// TestSwitchFromARetiredFamilyKeepsAFullLifetime keeps the transition to
+// families issued before #5422: a second tab that switches out of a family a
+// first tab's switch just retired gets a family of the full lifetime, not the
+// five-minute grace of its retired source.
+func TestSwitchFromARetiredFamilyKeepsAFullLifetime(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "retired-switch-lifetime")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access).FamilyID
+	_, _, err := f.switchToTarget(ctx, source)
+	require.NoError(t, err)
+	require.False(t, headOfFamily(t, f.db, source).Expiry.After(time.Now().Add(recoveryGrace)), "the first switch retired the source")
+
+	access, _, err := f.switchToTarget(ctx, source)
+	require.NoError(t, err)
+	head := headOfFamily(t, f.db, accessSessionOf(t, access).FamilyID)
+	assert.True(t, head.Expiry.After(time.Now().Add(time.Hour)), "the second switch keeps a full lifetime")
+	assert.Nil(t, head.FamilyExpiryCap, "a retirement grace is no transition deadline")
+}
+
+// TestLegacyFamilyOfASingleSchoolAccountBecomesItsOwnOrigin pins that the
+// transition checks such a family once: its rotation names it as its own
+// lineage origin, so later rotations skip the check.
+func TestLegacyFamilyOfASingleSchoolAccountBecomesItsOwnOrigin(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	ctx := testpkg.Ctx(t)
+	email, username := uniqueTestCredentials("legacy-lineage-origin")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+	access, refresh, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, testpkg.Tenant(t), "", "")
+	require.NoError(t, err)
+	family := accessSessionOf(t, access).FamilyID
+	ageFamily(t, db, family, time.Hour)
+
+	_, _, err = service.RefreshToken(ctx, legacyRefreshToken(t, refresh))
+	require.NoError(t, err)
+	var origin *string
+	require.NoError(t, db.NewRaw(`SELECT switched_from_family_id FROM auth.tokens
+		WHERE family_id = ? AND rotated_at IS NULL ORDER BY generation DESC LIMIT 1`, family).Scan(ctx, &origin))
+	require.NotNil(t, origin)
+	assert.Equal(t, family, *origin)
 }

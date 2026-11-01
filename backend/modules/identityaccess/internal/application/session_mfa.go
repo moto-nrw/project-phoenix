@@ -160,11 +160,13 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// that runs after this switch commits finds the new family through it
 	// (#5422); one that ran before left no source family to switch from.
 	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
-	// An unlinked legacy source must not escape its deadline by switching
-	// into a fresh family whose lineage claims skip the legacy transition.
-	session.FamilyExpiryCap = source.FamilyExpiryCap
-	if source.FamilyExpiryCap != nil && source.FamilyExpiryCap.Before(session.Expiry) {
-		session.Expiry = *source.FamilyExpiryCap
+	// A family issued before #5422 cannot escape its transition deadline
+	// by switching on: the new family keeps it (capLegacyLineage).
+	if deadline := legacyDeadline(source); deadline != nil {
+		session.FamilyExpiryCap = deadline
+		if deadline.Before(session.Expiry) {
+			session.Expiry = *deadline
+		}
 	}
 	if session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool {
 		return nil
