@@ -14,11 +14,15 @@ import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { ClassDayReport } from "~/lib/class-day-api";
+import type { SchoolDayReport } from "~/lib/school-class-day-api";
 import { ClassDayOverview } from "./class-day-overview";
 import { ClassDayClass } from "./class-day-class";
 
 vi.unmock("swr");
-const identity = vi.hoisted(() => ({ session: null as Session | null }));
+const identity = vi.hoisted(() => ({
+  session: null as Session | null,
+  search: "tag=2026-09-09",
+}));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: identity.session,
@@ -27,7 +31,7 @@ vi.mock("next-auth/react", () => ({
 }));
 vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("tag=2026-09-09"),
+  useSearchParams: () => new URLSearchParams(identity.search),
   useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
@@ -87,9 +91,14 @@ function setup() {
     fetchClassDay,
     refresh: () =>
       invalidate((key) => key.startsWith("school-class-day-report-")),
+    refreshSchoolDay: () =>
+      invalidate((key) => key === schoolPortalKeys.schoolDay("2026-09-09")),
   };
 }
-beforeEach(() => signIn());
+beforeEach(() => {
+  signIn();
+  identity.search = "tag=2026-09-09";
+});
 
 describe("school report cache", () => {
   it("opens the report loaded by the overview immediately, with the same load key", async () => {
@@ -258,6 +267,120 @@ describe("school report cache", () => {
     expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it.each([403, 503])(
+    "handles school-day revalidation returning %s without retaining refused children",
+    async (status) => {
+      const options = setup();
+      identity.search = "tag=2026-09-09&liste=kinder";
+      options.fetchClasses.mockResolvedValue({
+        classes: ["4a"],
+        can_view_school_day: true,
+      });
+      const totals = {
+        ...report.totals,
+        staying: 0,
+        absent: 1,
+        missing: 1,
+        unreported: 0,
+        sick: 1,
+        excused: 0,
+        class_trip: 0,
+        changes: 0,
+      };
+      const schoolDay: SchoolDayReport = {
+        date: "2026-09-09",
+        weekday: "wed",
+        school_day: true,
+        enrollment_known: true,
+        totals,
+        can_report_absences: true,
+        classes: [
+          {
+            school_class: "4a",
+            totals,
+            children: [
+              {
+                student_id: "1",
+                first_name: "Klara",
+                last_name: "Klassentag",
+                after_school: "stays",
+                status: "sick",
+                status_by_school: true,
+              },
+            ],
+          },
+        ],
+      };
+      const fetchSchoolDay = vi.fn().mockResolvedValue(schoolDay);
+      const reportAbsence = vi.fn().mockResolvedValue(undefined);
+      const ui = (
+        <ClassDayOverview
+          {...options}
+          fetchSchoolDay={fetchSchoolDay}
+          reportAbsence={reportAbsence}
+          withdrawAbsenceReport={reportAbsence}
+        />
+      );
+      const view = render(ui, options);
+      // Anker: Schulverwaltungs-Liste samt erlaubter Meldeaktion ist geladen.
+      const child = await screen.findByText("Klassentag, Klara");
+      const actionName = "Meldung für Klara Klassentag zurücknehmen";
+      const action = screen.getByRole("button", { name: actionName });
+      expect(child).toBeVisible();
+      expect(action).toBeVisible();
+      fireEvent.click(action);
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Meldung zurücknehmen" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Meldung zurücknehmen?",
+      });
+      expect(dialog).toBeVisible();
+      await act(async () => {
+        await import("~/lib/error-presentation");
+      });
+      fetchSchoolDay.mockRejectedValueOnce(
+        new ApiError("school-day refresh failed", status),
+      );
+      await act(async () => {
+        await options.refreshSchoolDay();
+      });
+      if (status === 403) {
+        expect(await screen.findByRole("alert")).toBeVisible();
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: actionName }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("dialog", { name: "Meldung zurücknehmen?" }),
+        ).not.toBeInTheDocument();
+      } else {
+        // Anker: ein temporärer Fehler behält dieselben Inhalte und Aktionen.
+        expect(screen.getByText("Klassentag, Klara")).toBe(child);
+        expect(screen.getByRole("button", { name: actionName })).toBe(action);
+        expect(
+          screen.getByRole("dialog", { name: "Meldung zurücknehmen?" }),
+        ).toBe(dialog);
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      }
+      fetchSchoolDay.mockImplementation(() => new Promise(() => undefined));
+      view.rerender(
+        <ClassDayOverview
+          key="reopened"
+          {...options}
+          fetchSchoolDay={fetchSchoolDay}
+          reportAbsence={reportAbsence}
+          withdrawAbsenceReport={reportAbsence}
+        />,
+      );
+      if (status === 403) {
+        // Anker: auch der neue Leser zeigt nur den Zugriffsfehler.
+        expect(await screen.findByRole("alert")).toBeVisible();
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+      } else expect(screen.getByText("Klassentag, Klara")).toBeVisible();
+    },
+  );
 
   it("starts all class reports in parallel without waiting for another report", async () => {
     const options = setup();

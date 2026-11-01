@@ -13,7 +13,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -61,7 +61,6 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
-import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
@@ -69,6 +68,7 @@ import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { handoverLine, handoverRows, initialAbsentIds } from "./class-handover";
 import { countDayChanges } from "./day-changes";
 import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolReportRefusal } from "./use-school-report-refusal";
 import {
   draftMarks,
   markOpenPresent,
@@ -298,14 +298,7 @@ export function ClassDayClass({
     },
   );
 
-  const discardRefused = useDiscardRefusedEntity();
-  useLayoutEffect(() => {
-    // Keep the refusal visible, but never reopen the previously loaded roster.
-    discardRefused(error, {
-      codes: ["general.permission"],
-      matches: (key) => key === classReportKey,
-    });
-  }, [discardRefused, error, classReportKey]);
+  useSchoolReportRefusal(error, classReportKey);
 
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).

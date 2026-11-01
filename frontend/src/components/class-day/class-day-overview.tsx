@@ -45,7 +45,6 @@ import type {
 } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
-import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { countDayChanges } from "./day-changes";
 import { classDayDateParam, isWeekendISO } from "./routes";
@@ -59,6 +58,7 @@ import {
 import type { SchoolDayListKey } from "./school-day";
 import { statusLabel } from "./status-labels";
 import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolReportRefusal } from "./use-school-report-refusal";
 import { useSchoolAbsenceReports } from "./use-school-absence-reports";
 
 // Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
@@ -228,14 +228,7 @@ function ClassReportLink({
       keepPreviousData: false,
     },
   );
-  const discardRefused = useDiscardRefusedEntity();
-  useLayoutEffect(() => {
-    // Keep the refusal visible, but never reopen the previously loaded roster.
-    discardRefused(error, {
-      codes: ["general.permission"],
-      matches: (key) => key === classReportKey,
-    });
-  }, [discardRefused, error, classReportKey]);
+  useSchoolReportRefusal(error, classReportKey);
 
   const refresh = useCallback(() => void mutate(), [mutate]);
   useClassDayRefresh(refresh);
@@ -424,6 +417,8 @@ export function ClassDayOverview({
   const schoolMode =
     fetchSchoolDay !== undefined && classList?.can_view_school_day === true;
 
+  const schoolDayKey = schoolPortalKeys.schoolDay(dateISO);
+
   // Die Tagesübersicht der Schule: dieselbe Fokus-Revalidierung wie die
   // Klassenreports, und der Server protokolliert sie wie diese nur einmal
   // pro Person, Tag und Zugriffstag.
@@ -434,7 +429,7 @@ export function ClassDayOverview({
     mutate: reloadSchoolDay,
   } = useSWRAuth(
     schoolMode && classes && classes.length > 0 && !weekend
-      ? schoolPortalKeys.schoolDay(dateISO)
+      ? schoolDayKey
       : null,
     () =>
       fetchSchoolDay
@@ -446,6 +441,8 @@ export function ClassDayOverview({
       keepPreviousData: false,
     },
   );
+
+  useSchoolReportRefusal(schoolDayError, schoolDayKey);
 
   // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
   // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
@@ -464,6 +461,11 @@ export function ClassDayOverview({
   });
   const canReportAbsences =
     absenceReports.available && schoolDay?.can_report_absences === true;
+
+  const { withdrawTarget, closeWithdraw } = absenceReports;
+  useLayoutEffect(() => {
+    if (!canReportAbsences && withdrawTarget) closeWithdraw();
+  }, [canReportAbsences, withdrawTarget, closeWithdraw]);
 
   const reports = useMemo(
     () => (schoolDay ? schoolDayLines(schoolDay) : {}),
@@ -784,7 +786,7 @@ export function ClassDayOverview({
           )}
       </section>
       <ConfirmationModal
-        isOpen={absenceReports.withdrawTarget !== null}
+        isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
         onClose={absenceReports.closeWithdraw}
         onConfirm={() => void absenceReports.confirmWithdraw()}
         title="Meldung zurücknehmen?"
