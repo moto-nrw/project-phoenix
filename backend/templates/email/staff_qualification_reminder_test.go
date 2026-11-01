@@ -61,7 +61,8 @@ func TestStaffQualificationReminderTemplate_Render(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
 			require.NoError(t, tpl.ExecuteTemplate(&out, "staff-qualification-reminder.html", tt.data))
-			assert.Contains(t, out.String(), `class="school-logo-fallback">OGS</div>`)
+			assert.Contains(t, out.String(), `class="school-name">OGS Am Park</p>`)
+			assert.NotContains(t, out.String(), "Online-Anmeldung")
 			assert.NotContains(t, out.String(), `src=""`)
 			for _, want := range tt.mustContain {
 				assert.Contains(t, out.String(), want)
