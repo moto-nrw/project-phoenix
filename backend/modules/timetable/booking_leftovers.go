@@ -32,7 +32,10 @@ type BookingLeftoverTemplate struct {
 	Name        string
 	Kind        RosterOfferingKind
 	WeekdayEnds map[int]string
-	Roster      TemplatePlannedRoster
+	// WeekdayUntil is the exclusive end of the weekday's latest schedule or
+	// of the series; a weekday without an entry runs open.
+	WeekdayUntil map[int]calendar.Date
+	Roster       TemplatePlannedRoster
 }
 
 // BookingLeftover names a child a hand row keeps on a Regeltermin on
@@ -101,7 +104,7 @@ func addLeftoverDay(
 	key := leftoverKey{templateID: template.ID, studentID: entry.StudentID, weekday: weekday}
 	for _, endedOn := range endedBookingDays(bookings, weekday) {
 		from := max(endedOn, scope.Tomorrow)
-		if !entryPlansWeekdayFrom(entry, weekday, from, scope.PeriodID) ||
+		if !weekdayRunsFrom(template, weekday, from) || !entryPlansWeekdayFrom(entry, weekday, from, scope.PeriodID) ||
 			bookingsCarry(bookings, template.Kind, weekday, end, from, endedOn) {
 			continue
 		}
@@ -131,6 +134,17 @@ func endedBookingDays(bookings []OfferingWeekdayBooking, weekday int) []calendar
 		}
 	}
 	return result
+}
+
+// weekdayRunsFrom reports whether the Regeltermin still has a day of the
+// weekday on or after the date.
+func weekdayRunsFrom(template BookingLeftoverTemplate, weekday int, from calendar.Date) bool {
+	until, bounded := template.WeekdayUntil[weekday]
+	if !bounded {
+		return true
+	}
+	first := from.AddDays((weekday - calendar.ISOWeekday(from) + 7) % 7)
+	return until.After(first)
 }
 
 // entryPlansWeekdayFrom reports whether the row plans its child on the

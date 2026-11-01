@@ -188,3 +188,23 @@ func TestDetectBookingLeftoversIgnoresARebookedOffering(t *testing.T) {
 		[]timetable.BookingLeftoverTemplate{course}, []timetable.OfferingWeekdayBooking{rebooked})
 	assert.Empty(t, leftovers)
 }
+
+// A weekday whose schedules end before the booking does plans nothing the
+// change touches (review of #5452): no hint and no removal to offer.
+func TestDetectBookingLeftoversNeedsAnOccurrenceAfterTheDrop(t *testing.T) {
+	t.Parallel()
+	future := calendar.NewDate(2026, 12, 1)
+	booking := leftoverBooking(leftoverGanztag, leftoverChild, nil,
+		leftoverWindow(phaseStart, future, true, 4),
+		leftoverWindow(future, phaseEnd, false, 1))
+	template := handTemplate(handRow(leftoverChild))
+	template.WeekdayUntil = map[int]calendar.Date{4: calendar.NewDate(2026, 11, 27)}
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
+	assert.Empty(t, leftovers, "the last Thursday is 26.11., before the booking ends")
+
+	template.WeekdayUntil = map[int]calendar.Date{4: calendar.NewDate(2026, 12, 4)}
+	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
+	require.Len(t, leftovers, 1, "Thursday 03.12. still runs")
+}

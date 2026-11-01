@@ -136,7 +136,8 @@ func (rs *Resource) bookingLeftoverTemplates(ctx context.Context, periodID int64
 	for _, template := range templates {
 		result = append(result, timetable.BookingLeftoverTemplate{
 			ID: template.ID, Name: template.Name, Kind: timetable.RosterOfferingKindFor(template.Type, template.ListKind),
-			WeekdayEnds: latestScheduleEnds(template.Schedules), Roster: rosters[template.ID],
+			WeekdayEnds: latestScheduleEnds(template.Schedules), WeekdayUntil: scheduleWeekdayUntil(template),
+			Roster: rosters[template.ID],
 		})
 	}
 	return result, nil
@@ -152,6 +153,41 @@ func latestScheduleEnds(schedules []templateScheduleResponse) map[int]string {
 		}
 	}
 	return ends
+}
+
+// scheduleWeekdayUntil is the exclusive end of each weekday's latest
+// schedule, capped by the series' last day; an open weekday has no entry.
+func scheduleWeekdayUntil(template templateResponse) map[int]calendar.Date {
+	open := make(map[int]bool)
+	until := make(map[int]calendar.Date)
+	for _, schedule := range template.Schedules {
+		end, err := calendar.ParseDate(schedule.ValidUntil)
+		if schedule.ValidUntil == "" || err != nil {
+			open[schedule.Weekday] = true
+		} else if current, found := until[schedule.Weekday]; !found || end.After(current) {
+			until[schedule.Weekday] = end
+		}
+	}
+	var seriesEnd *calendar.Date
+	if template.EndDate != nil {
+		if last, err := calendar.ParseDate(*template.EndDate); err == nil {
+			seriesEnd = new(last.AddDays(1))
+		}
+	}
+	result := make(map[int]calendar.Date)
+	for _, schedule := range template.Schedules {
+		weekday := schedule.Weekday
+		end := until[weekday]
+		switch {
+		case !open[weekday] && seriesEnd != nil:
+			result[weekday] = min(end, *seriesEnd)
+		case !open[weekday]:
+			result[weekday] = end
+		case seriesEnd != nil:
+			result[weekday] = *seriesEnd
+		}
+	}
+	return result
 }
 
 // namedBookingLeftovers adds the children's names and drops children who no
