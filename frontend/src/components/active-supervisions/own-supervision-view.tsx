@@ -29,7 +29,8 @@ import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
+import { ownSupervisionKeys } from "~/lib/swr/shell-keys";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -40,7 +41,6 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { roomsConcept } from "~/lib/concepts/rooms";
 
 const NO_ROOMS = [] as const;
-const LIST_REFRESH_MS = 60 * 1000;
 
 function sessionHref(activeGroupId: string): string {
   return `/active-supervisions?session=${activeGroupId}`;
@@ -97,21 +97,24 @@ export function OwnSupervisionView() {
   const showTimetableCounts = useShowTimetableCounts();
   const isDesktop = !useMediaQuery(BELOW_LG);
 
+  // SSE invalidates these on supervision, activity and timetable events; the
+  // interval only reconciles missed events (#5017).
+  const refreshInterval = useLiveRefreshInterval();
   const day = useSWRAuth<PlannedTimetableInstance[]>(
-    "active-supervisions-own-day",
+    ownSupervisionKeys.day(),
     () =>
       timetableOperationsApi.plannedNow({ scope: "day", includeRoster: false }),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const upcoming = useSWRAuth<PlannedTimetableInstance[]>(
-    "active-supervisions-own-planned-now",
+    ownSupervisionKeys.plannedNow(),
     () => timetableOperationsApi.plannedNow({ includeRoster: true }),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const ownSessions = useSWRAuth<ActiveGroup[]>(
-    "active-supervisions-own-sessions",
+    ownSupervisionKeys.sessions(),
     () => userContextService.getMySupervisedGroups(),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const { mutate: mutateOwnSessions } = ownSessions;
   const { mutate: mutateDay } = day;

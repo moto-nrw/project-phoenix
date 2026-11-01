@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import type { FormError } from "~/components/ui/form-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
@@ -302,6 +302,9 @@ export function useSupervisionDashboard(
   const refresh = useCallback(() => setRefreshKey((prev) => prev + 1), []);
 
   const { show: showActionError } = useApiErrorDisplay();
+  // SSE invalidates the aggregate on attendance and supervision events; the
+  // interval reconciles missed events and the Berlin day change (#5017).
+  const refreshInterval = useLiveRefreshInterval();
 
   // SWR-based aggregate fetching with caching. The key prefix
   // "active-supervision-dashboard-" is invalidated by global SSE on relevant
@@ -366,8 +369,9 @@ export function useSupervisionDashboard(
       keepPreviousData: true,
       // Re-fetch server time without deriving a browser calendar day. Focus
       // covers backgrounded tabs; polling advances a continuously open tab
-      // across the Berlin midnight boundary.
-      refreshInterval: 60_000,
+      // across the Berlin midnight boundary, within five minutes while SSE
+      // is connected.
+      refreshInterval,
       revalidateOnFocus: true,
     },
   );

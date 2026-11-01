@@ -3,7 +3,7 @@
 import { announcementKeys } from "~/lib/swr/shell-keys";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { useSWRAuth } from "~/lib/swr";
+import { LIVE_RECONCILE_INTERVAL_MS, useSWRAuth } from "~/lib/swr";
 import { authFetch } from "~/lib/api-helpers";
 
 export interface UnreadAnnouncement {
@@ -42,7 +42,9 @@ export function useAnnouncements() {
     fetchUnread,
     {
       keepPreviousData: false,
-      refreshInterval: 60000, // Poll every 60s
+      // No SSE event announces them; every route change refetches below, so
+      // an idle tab only reconciles every five minutes (#5017).
+      refreshInterval: LIVE_RECONCILE_INTERVAL_MS,
       revalidateOnFocus: false, // Don't revalidate on window focus to avoid showing dismissed items again
       revalidateOnMount: true, // Always fetch fresh data on component mount
       dedupingInterval: 5000, // Prevent rapid refetches
