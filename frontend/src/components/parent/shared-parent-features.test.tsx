@@ -20,6 +20,7 @@ import { useChildMasterData } from "./child-master-data";
 import {
   ChildRequestsProvider,
   SharedParentFeaturesProvider,
+  useSharedParentFeatures,
 } from "./child-requests-context";
 vi.unmock("swr");
 vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
@@ -55,7 +56,11 @@ beforeEach(() => {
 });
 function mount() {
   return renderHook(
-    () => ({ care: useChildCare("42"), master: useChildMasterData("42") }),
+    () => ({
+      care: useChildCare("42"),
+      master: useChildMasterData("42"),
+      shared: useSharedParentFeatures(),
+    }),
     { wrapper },
   );
 }
@@ -98,7 +103,12 @@ describe("shared parent relationship features", () => {
     await act(async () => {
       result.current.care.refresh();
     });
-    await waitFor(() => expect(result.current.master.error).not.toBeNull());
+    await waitFor(() =>
+      expect(result.current.shared?.error).toMatchObject({
+        code: "general.unavailable",
+      }),
+    );
+    expect(result.current.master.error).toBeNull();
     expect(result.current.master.features).toEqual(features);
     expect(result.current.care.features.sick_note_enabled).toBe(true);
   });

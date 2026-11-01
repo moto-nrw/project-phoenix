@@ -14,6 +14,11 @@ import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import * as api from "~/lib/parent-api";
+import { ChildMasterDataView } from "./child-master-data";
+import {
+  ChildRequestsProvider,
+  SharedParentFeaturesProvider,
+} from "./child-requests-context";
 import { ChildPage } from "./child/child-page";
 import { ParentMessagesPage } from "./messages/parent-messages-page";
 import { ParentRealtimeBridge } from "./parent-realtime-bridge";
@@ -143,6 +148,33 @@ describe("parent background refresh preserves mounted content", () => {
       expect(draft).toHaveValue("Noch nicht gesendet");
     },
   );
+});
+
+it("keeps an unsaved master-data field after a feature background failure", async () => {
+  vi.mocked(api.getChildFeatures).mockResolvedValue({
+    master_data_edit_enabled: true,
+  } as api.ChildFeatures);
+  vi.mocked(api.getChildMasterData).mockResolvedValue({
+    student_id: "42",
+    first_name: "Felix",
+    last_name: "Schneider",
+    birthday: "2018-03-04",
+    school_class: "1a",
+    status: "active",
+    health_info: "Allergie",
+    pending_changes: [],
+  } as unknown as api.ChildMasterData);
+  mount(
+    <SharedParentFeaturesProvider linkedChildren={[child]}>
+      <ChildRequestsProvider>
+        <ChildMasterDataView studentId="42" childName="Felix" />
+      </ChildRequestsProvider>
+    </SharedParentFeaturesProvider>,
+  );
+  const field = await screen.findByDisplayValue("Allergie");
+  fireEvent.change(field, { target: { value: "Ungespeicherter Hinweis" } });
+  await failResourceRefresh("features");
+  expect(screen.getByDisplayValue("Ungespeicherter Hinweis")).toBe(field);
 });
 
 function SharedLoadErrorFixture() {
