@@ -116,25 +116,6 @@ func compareInt64(a, b int64) int {
 	}
 }
 
-// mappedCategoryCredit is the part of a standard category that an absence
-// type booked onto its own wage type takes away: without a mapping the
-// credit stays in its category, with one it books only once.
-func mappedCategoryCredit(row MonthExportRow, baseType string) (int, float64) {
-	rules := row.PayrollRules
-	if rules == nil {
-		return 0, 0
-	}
-	minutes, days := 0, 0.0
-	for absenceTypeID, credit := range row.AbsenceTypeCredits {
-		wageTypeID, mapped := rules.AbsenceTypeWageTypes[absenceTypeID]
-		if _, active := rules.WageType(wageTypeID); mapped && active && credit.BaseType == baseType {
-			minutes += credit.Minutes
-			days += credit.Days
-		}
-	}
-	return minutes, days
-}
-
 // exportWageTypes is every wage type a row of the export books with, in
 // wage type order; a renamed wage type keeps the name of its first row.
 func exportWageTypes(rows []MonthExportRow) []workforce.PayrollWageType {

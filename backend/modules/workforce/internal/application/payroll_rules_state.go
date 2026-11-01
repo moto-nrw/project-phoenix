@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 )
 
 // payrollRuleState is the school's wage types, rules and absence types as
@@ -15,15 +16,19 @@ type payrollRuleState struct {
 }
 
 func (p *PayrollRules) loadState(ctx context.Context) (*payrollRuleState, error) {
-	wageTypes, err := p.store.ListPayrollWageTypes(ctx)
+	return loadPayrollRuleState(ctx, p.store)
+}
+
+func loadPayrollRuleState(ctx context.Context, store ports.PayrollRulesStore) (*payrollRuleState, error) {
+	wageTypes, err := store.ListPayrollWageTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rules, err := p.store.ListPayrollSurchargeRules(ctx)
+	rules, err := store.ListPayrollSurchargeRules(ctx)
 	if err != nil {
 		return nil, err
 	}
-	absenceTypes, err := p.store.ListPayrollAbsenceTypes(ctx)
+	absenceTypes, err := store.ListPayrollAbsenceTypes(ctx)
 	if err != nil {
 		return nil, err
 	}

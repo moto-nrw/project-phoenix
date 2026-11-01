@@ -38,8 +38,8 @@ func (s *staffOverviewService) loadExportPayroll(ctx context.Context, first, las
 }
 
 // apply fills the wage type fields of one row. A closed month books with the
-// rules frozen at its close; a close from before #4807 froze none and books
-// with the current ones.
+// rules frozen at its close; a close from before #4807 froze none, so the
+// month had no own wage types and books none now either.
 func (p *exportPayroll) apply(row *MonthExportRow, summary *MonthSummary, prefetch *monthPrefetch, key monthKey) error {
 	if p == nil {
 		return nil
@@ -50,9 +50,7 @@ func (p *exportPayroll) apply(row *MonthExportRow, summary *MonthSummary, prefet
 		if err != nil {
 			return fmt.Errorf("staff %d %04d-%02d: %w", row.StaffID, key.Year, key.Month, err)
 		}
-		if frozen != nil {
-			rules = frozen
-		}
+		rules = frozen
 	}
 	if rules == nil || len(rules.WageTypes) == 0 {
 		return nil
@@ -70,8 +68,11 @@ func (p *exportPayroll) apply(row *MonthExportRow, summary *MonthSummary, prefet
 // month, nil when the close froze none.
 func frozenPayrollRules(snapshots []*MonthSnapshot, key monthKey) (*workforce.PayrollRuleSet, error) {
 	for _, snapshot := range snapshots {
-		if !snapshot.IsActive() || snapshot.Year != key.Year || snapshot.Month != key.Month || len(snapshot.PayrollRules) == 0 {
+		if !snapshot.IsActive() || snapshot.Year != key.Year || snapshot.Month != key.Month {
 			continue
+		}
+		if len(snapshot.PayrollRules) == 0 {
+			return nil, nil
 		}
 		var rules workforce.PayrollRuleSet
 		if err := json.Unmarshal(snapshot.PayrollRules, &rules); err != nil {

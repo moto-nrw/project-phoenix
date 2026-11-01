@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,4 +89,41 @@ func TestPayrollRulesAPI_StableErrorCodes(t *testing.T) {
 	rec = ctx.put(payrollRulesPath+"/absence-types/999999999", `{"wage_type_id":null}`, "config:manage")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"workforce.payroll_rule_not_found"`)
+}
+
+// TestPayrollRulesAPI_QueryBudget: the /payroll block reads the wage types,
+// the rules and the absence types once each, however many there are.
+func TestPayrollRulesAPI_QueryBudget(t *testing.T) {
+	t.Parallel()
+	ctx := setupOverviewAPI(t)
+	addWageType := func(name string) {
+		rec := ctx.post(payrollRulesPath+"/wage-types", fmt.Sprintf(`{"name":%q,"unit":"stunden"}`, name), "config:manage")
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		var created struct {
+			Data struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+		rule := fmt.Sprintf(`{"kind":"feiertag","rate_type":"prozent","rate_hundredths":5000,"wage_type_id":%q}`, created.Data.ID)
+		rec = ctx.post(payrollRulesPath+"/surcharge-rules", rule, "config:manage")
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	measure := func() []string {
+		counter := testpkg.CaptureQueriesForContext(t, ctx.tc.db)
+		req := httptest.NewRequest(http.MethodGet, payrollRulesPath, nil)
+		rec := ctx.do(req.WithContext(counter.Context(req.Context())), "config:manage")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		queries := counter.Queries()
+		counter.Stop()
+		return queries
+	}
+	addWageType("Lohnart A")
+	small := measure()
+	addWageType("Lohnart B")
+	addWageType("Lohnart C")
+	large := measure()
+
+	assert.Equal(t, len(small), len(large), "the list must not issue a statement per wage type")
+	querybudgets.AssertQueryBudget(t, "workforce.payroll_rules.list", large)
 }

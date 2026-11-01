@@ -56,10 +56,16 @@ func (p *PayrollRules) Overview(ctx context.Context) (*workforce.PayrollRulesOve
 	}, nil
 }
 
-// CurrentPayrollRuleSet is the rule set an open month books with. Absence
-// types mapped onto an archived wage type keep their category.
+// CurrentPayrollRuleSet is the rule set an open month books with.
 func (p *PayrollRules) CurrentPayrollRuleSet(ctx context.Context) (*workforce.PayrollRuleSet, error) {
-	state, err := p.loadState(ctx)
+	return currentPayrollRuleSet(ctx, p.store)
+}
+
+// currentPayrollRuleSet reads the active wage types and rules and the absence
+// type mapping. Absence types mapped onto an archived wage type keep their
+// category. It writes nothing, so the reader needs no audit.
+func currentPayrollRuleSet(ctx context.Context, store ports.PayrollRulesStore) (*workforce.PayrollRuleSet, error) {
+	state, err := loadPayrollRuleState(ctx, store)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +347,7 @@ func mappingJSON(wageTypeID *int64) json.RawMessage {
 // caller's tenant transaction, so the close freezes what its own unit sees;
 // without one the store refuses.
 func (s *Service) CurrentPayrollRuleSet(ctx context.Context) (*workforce.PayrollRuleSet, error) {
-	set, err := (&PayrollRules{store: s.store}).CurrentPayrollRuleSet(ctx)
+	set, err := currentPayrollRuleSet(ctx, s.store)
 	if err != nil {
 		return nil, fmt.Errorf("current payroll rule set: %w", err)
 	}

@@ -92,7 +92,9 @@ func TestExportPayroll_AClosedMonthBooksWithItsFrozenRules(t *testing.T) {
 	assert.Equal(t, map[int64]int{8: 120}, closed.SurchargeMinutes)
 }
 
-func TestExportPayroll_ACloseWithoutFrozenRulesBooksWithTheCurrentOnes(t *testing.T) {
+// A month closed before #4807 froze no rules: it had no own wage types at
+// its close, so later rules do not reach it.
+func TestExportPayroll_ACloseWithoutFrozenRulesBooksNoOwnWageTypes(t *testing.T) {
 	t.Parallel()
 	prefetch := &monthPrefetch{snapshots: map[int64][]*MonthSnapshot{5: {{StaffID: 5, Year: 2026, Month: 6}}}}
 	payroll := &exportPayroll{current: ruleSetWithNight(2500), holidays: map[calendar.Date]bool{}}
@@ -100,5 +102,6 @@ func TestExportPayroll_ACloseWithoutFrozenRulesBooksWithTheCurrentOnes(t *testin
 	row := MonthExportRow{StaffID: 5}
 	require.NoError(t, payroll.apply(&row, &MonthSummary{IsClosed: true}, prefetch, monthKey{Year: 2026, Month: 6}))
 
-	assert.Equal(t, 2500, row.PayrollRules.SurchargeRules[0].RateHundredths)
+	assert.Nil(t, row.PayrollRules)
+	assert.Empty(t, row.SurchargeMinutes)
 }

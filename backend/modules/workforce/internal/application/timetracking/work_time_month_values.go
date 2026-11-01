@@ -59,12 +59,13 @@ type monthAggregates struct {
 }
 
 // AbsenceTypeCredit is the credit of one school absence type in a month: the
-// credited minutes, the absence days and the standard type whose category it
-// is counted in.
+// credited minutes and the absence days. An absence of a school absence type
+// is always of type other (chk_sa_custom_type_is_other on
+// active.staff_absences), which no fixed DATEV category books, so its own
+// wage type books it exactly once.
 type AbsenceTypeCredit struct {
-	BaseType string
-	Minutes  int
-	Days     float64
+	Minutes int
+	Days    float64
 }
 
 func (a *monthAggregates) creditedTotal() int {
@@ -87,7 +88,6 @@ func creditAbsenceDay(absence *StaffAbsence, credit int, fraction float64, agg *
 			agg.creditedByType = make(map[int64]AbsenceTypeCredit)
 		}
 		entry := agg.creditedByType[*absence.AbsenceTypeID]
-		entry.BaseType = absence.AbsenceType
 		entry.Minutes += credit
 		entry.Days += fraction
 		agg.creditedByType[*absence.AbsenceTypeID] = entry

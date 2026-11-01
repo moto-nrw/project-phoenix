@@ -159,7 +159,7 @@ export function CreateWageTypeModal({
           value={number}
           onChange={(event) => setNumber(event.target.value)}
           inputMode="numeric"
-          placeholder="Nicht konfiguriert"
+          placeholder="Noch keine Nummer"
           error={
             numberValid ? formErrors.fieldError("number") : "1 bis 4 Ziffern."
           }

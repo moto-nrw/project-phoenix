@@ -94,11 +94,11 @@ func datevCategoryValue(category PayrollExportCategory, row MonthExportRow) (min
 	case "freizeitausgleich":
 		minutes = -row.CompTimeMinutes
 	case "krank":
-		minutes, days = withoutMappedCredit(row, AbsenceTypeSick, row.CreditedSickMinutes, row.SickDays)
+		minutes, days = row.CreditedSickMinutes, row.SickDays
 	case "urlaub":
-		minutes, days = withoutMappedCredit(row, AbsenceTypeVacation, row.CreditedVacationMinutes, row.VacationDays)
+		minutes, days = row.CreditedVacationMinutes, row.VacationDays
 	case "fortbildung":
-		minutes, days = withoutMappedCredit(row, AbsenceTypeTraining, row.CreditedTrainingMinutes, row.TrainingDays)
+		minutes, days = row.CreditedTrainingMinutes, row.TrainingDays
 	default:
 		return 0, 0, false, false
 	}
@@ -107,13 +107,6 @@ func datevCategoryValue(category PayrollExportCategory, row MonthExportRow) (min
 		return 0, days, true, days != 0
 	}
 	return minutes, 0, false, minutes != 0
-}
-
-// withoutMappedCredit takes the school absence types booked onto their own
-// wage type (#4807) out of their standard category, so a day books once.
-func withoutMappedCredit(row MonthExportRow, baseType string, minutes int, days float64) (int, float64) {
-	mappedMinutes, mappedDays := mappedCategoryCredit(row, baseType)
-	return minutes - mappedMinutes, days - mappedDays
 }
 
 // buildDatevLines maps the export rows onto Bewegungsdaten lines and collects

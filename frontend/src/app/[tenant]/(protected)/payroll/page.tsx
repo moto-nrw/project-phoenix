@@ -1122,7 +1122,7 @@ function WageTypeTextCell({
             );
           }
         }}
-        placeholder={field === "number" ? "Nicht konfiguriert" : undefined}
+        placeholder={field === "number" ? "Noch keine Nummer" : undefined}
         inputMode={field === "number" ? "numeric" : undefined}
         maxLength={field === "name" ? 100 : undefined}
         className="h-9 py-1 text-sm"

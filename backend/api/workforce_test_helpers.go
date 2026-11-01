@@ -167,11 +167,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, shiftPlanSyncer, tenant.NewTransactionRunner().RunInTx)
-	payrollRules, err := owners.BuildPayrollRules(repos.Workforce, db)
-	if err != nil {
-		return WorkforceTestModule{}, nil, err
-	}
-	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}, PayrollRules: payrollRules}, usersService, err
+	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}, PayrollRules: testPayrollRules(repos.Workforce, db)}, usersService, err
 }
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
@@ -213,3 +209,13 @@ type (
 	StaffAbsenceRow      = workforceCompose.StaffAbsence
 	AbsenceRequestFilter = workforceCompose.AbsenceRequestFilter
 )
+
+// testPayrollRules composes the wage type maintenance (#4807) with the root's
+// settings audit. It fails only without an audit, which the root always binds.
+func testPayrollRules(workTime workforce.Capability, db transactionruntime.Database) workforce.PayrollRules {
+	rules, err := owners.BuildPayrollRules(workTime, db)
+	if err != nil {
+		panic(err)
+	}
+	return rules
+}
