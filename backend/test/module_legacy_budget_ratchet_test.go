@@ -216,10 +216,11 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":             351,
-	"modules/dataimport/compose":                    85,
-	"modules/dataimport/compose/imports":            29,
-	"modules/delivery/compose":                      393, // ADR 0144: +32 LOC for the realtime transport constructor.
+	"modules/communication/composition":  351,
+	"modules/dataimport/compose":         85,
+	"modules/dataimport/compose/imports": 29,
+	// ADR 0144: +32 LOC for the realtime transport constructor.
+	"modules/delivery/compose":                      393,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
