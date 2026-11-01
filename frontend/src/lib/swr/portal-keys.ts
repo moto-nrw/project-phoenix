@@ -4,21 +4,31 @@ import { resourceKey } from "./resource-key";
 export { announcementKeys, dashboardKeys } from "./shell-keys";
 export { parentKeys } from "./parent-keys";
 
+const operatorSummaryPrefixes = [
+  "operator-school-summaries",
+  "operator-organization-summaries",
+  "operator-organization-school-summaries-",
+] as const;
+
 /** Unscoped family factories. Only the shared hooks turn these into cache keys. */
 export const operatorProvisioningKeys = {
+  summaryChanges: (key: string): boolean =>
+    operatorSummaryPrefixes.some((prefix) => key.startsWith(prefix)),
+  personChanges: (key: string): boolean =>
+    key.startsWith("operator-school-persons-") ||
+    key.startsWith("operator-org-persons-") ||
+    operatorSummaryPrefixes.some((prefix) => key.startsWith(prefix)),
   accountFamilies: [
     "operator-all-accounts",
     "operator-school-accounts-",
     "operator-org-accounts-",
-    "operator-school-summaries",
-    "operator-organization-summaries",
+    ...operatorSummaryPrefixes,
   ],
   deviceFamilies: [
     "operator-all-devices",
     "operator-school-devices-",
     "operator-org-devices-",
-    "operator-school-summaries",
-    "operator-organization-summaries",
+    ...operatorSummaryPrefixes,
   ],
   schoolDevices: (id: string | undefined) =>
     `operator-school-devices-${encodeURIComponent(id ?? "")}`,

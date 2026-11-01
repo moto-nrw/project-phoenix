@@ -8,6 +8,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type {
+  OperatorPerson,
   OrganizationSummary,
   SchoolSummary,
 } from "~/lib/operator/provisioning-helpers";
@@ -15,6 +16,7 @@ import AccountsPage from "./accounts/page";
 import DevicesPage from "./devices/page";
 import PersonsPage from "./persons/page";
 import TagsPage from "./unregistered-tags/page";
+import OrganizationPage from "./organizations/[slug]/page";
 import SchoolPage from "./organizations/[slug]/schools/[schoolSlug]/page";
 
 vi.unmock("swr");
@@ -83,6 +85,25 @@ vi.mock("~/components/operator/account-tenant-access-modal", () => ({
   }: {
     onUpdated: () => Promise<void>;
   }) => <button onClick={() => void onUpdated()}>Zugang speichern</button>,
+}));
+
+// Exercise the page's post-success callbacks, with the real SWR readers and invalidators.
+vi.mock("~/components/operator/staff-person-merge", () => ({
+  StaffPersonMerge: ({ onMerged }: { onMerged: () => Promise<unknown> }) => (
+    <button onClick={() => void onMerged()}>Zusammenführen bestätigen</button>
+  ),
+}));
+vi.mock("~/components/operator/delete-person-modal", () => ({
+  DeletePersonModal: ({
+    person,
+    onDeleted,
+  }: {
+    person: OperatorPerson | null;
+    onDeleted: (person: OperatorPerson) => Promise<void>;
+  }) =>
+    person ? (
+      <button onClick={() => void onDeleted(person)}>Löschen bestätigen</button>
+    ) : null,
 }));
 
 const org: OrganizationSummary = {
@@ -154,6 +175,7 @@ beforeEach(() => {
   api.listUnregisteredTagScans.mockResolvedValue([]);
   api.listOrganizationSummaries.mockResolvedValue([org]);
   api.listSchoolSummaries.mockResolvedValue([school]);
+  api.listOrganizationSchools.mockResolvedValue([school]);
   api.getSchoolPWAUsage.mockResolvedValue({
     windowDays: 30,
     staff: { standaloneUsers: 0, eligibleUsers: 0 },
@@ -255,6 +277,113 @@ describe("operator reads with real SWR", () => {
     expect(api.listSchoolAccounts).not.toHaveBeenCalled();
     expect(api.getSchoolPWAUsage).not.toHaveBeenCalled();
   });
+
+  it("loads the audited organization-specific school list and excludes another organization", async () => {
+    const otherSchool = {
+      ...school,
+      id: "20",
+      name: "Fremde Schule",
+      organizationId: "2",
+    };
+    // Even a malformed response may not expose a row from another organization.
+    api.listOrganizationSchools.mockResolvedValue([school, otherSchool]);
+    const params = Promise.resolve({ slug: org.slug });
+    await params;
+    let view!: ReturnType<typeof renderPage>;
+    await act(async () => {
+      view = renderPage(<OrganizationPage params={params} />);
+    });
+    expect(await screen.findByText(school.name)).toBeInTheDocument();
+    expect(api.listOrganizationSchools).toHaveBeenCalledWith(org.id);
+    const cached = view.cache.get(
+      `operator:account-a:${operatorProvisioningKeys.organizationSchoolSummaries(org.id)}`,
+    );
+    expect(cached.data.map((row: SchoolSummary) => row.id)).toEqual([
+      school.id,
+    ]);
+    // Anker: the requested organization's own school row has finished loading.
+    expect(screen.getByText(school.name)).toBeInTheDocument();
+    expect(screen.queryByText(otherSchool.name)).not.toBeInTheDocument();
+    expect(api.listSchoolSummaries).not.toHaveBeenCalled();
+  });
+
+  it.each(["delete", "merge"])(
+    "refreshes all person counters after %s",
+    async (action) => {
+      let count = 2;
+      const person: OperatorPerson = {
+        id: "10",
+        firstName: "Test",
+        lastName: "Person",
+        fullName: "Test Person",
+        hasAccount: false,
+        accountEmail: null,
+        hasRfidCard: false,
+        isStaff: true,
+        isStudent: false,
+        schoolId: school.id,
+        schoolName: school.name,
+        organizationId: org.id,
+        organizationName: org.name,
+        createdAt: org.createdAt,
+      };
+      api.listSchoolPersons.mockResolvedValue([
+        person,
+        { ...person, id: "11", firstName: "Zweite", fullName: "Zweite Person" },
+      ]);
+      function CounterReaders() {
+        const organizations = useSWRAuth(
+          operatorProvisioningKeys.organizationSummaries(),
+          async () => [{ ...org, personenCount: count }],
+        );
+        const schools = useSWRAuth(
+          operatorProvisioningKeys.schoolSummaries(),
+          async () => [{ ...school, personenCount: count }],
+        );
+        const organizationSchools = useSWRAuth(
+          operatorProvisioningKeys.organizationSchoolSummaries(org.id),
+          async () => [{ ...school, personenCount: count }],
+        );
+        return (
+          <p>
+            Trägerzahl {organizations.data?.[0]?.personenCount} Schulzahl{" "}
+            {schools.data?.[0]?.personenCount} Trägerschulen{" "}
+            {organizationSchools.data?.[0]?.personenCount}
+          </p>
+        );
+      }
+      renderPage(
+        <>
+          <PersonsPage />
+          <CounterReaders />
+        </>,
+      );
+      expect(
+        await screen.findByText("Trägerzahl 2 Schulzahl 2 Trägerschulen 2"),
+      ).toBeInTheDocument();
+      expect(await screen.findByText("Zweite Person")).toBeInTheDocument();
+      count = 1;
+      api.listSchoolPersons.mockResolvedValue([
+        { ...person, firstName: "Bestätigte", fullName: "Bestätigte Person" },
+      ]);
+      if (action === "delete") {
+        act(() => screen.getAllByTitle("Person löschen")[1]!.click());
+        act(() =>
+          screen.getByRole("button", { name: "Löschen bestätigen" }).click(),
+        );
+      } else {
+        act(() =>
+          screen
+            .getByRole("button", { name: "Zusammenführen bestätigen" })
+            .click(),
+        );
+      }
+      expect(
+        await screen.findByText("Trägerzahl 1 Schulzahl 1 Trägerschulen 1"),
+      ).toBeInTheDocument();
+      expect(await screen.findByText("Bestätigte Person")).toBeInTheDocument();
+    },
+  );
 
   it("refreshes mounted detail and summary readers after a list write", async () => {
     let revision = 1;

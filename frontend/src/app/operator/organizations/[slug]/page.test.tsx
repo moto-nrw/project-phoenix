@@ -112,6 +112,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mockUseSWR,
+  useInvalidateMatching: () => vi.fn(async () => []),
   useSWRConfig: () => ({ mutate: vi.fn() }),
   useTenantMutateMatching: () => vi.fn(async () => []),
 }));
@@ -299,7 +300,7 @@ function setupSWR(opts: SetupOpts = {}) {
           isLoading: orgsLoading,
           mutate: mockMutateOrgs,
         };
-      case operatorProvisioningKeys.schoolSummaries():
+      case operatorProvisioningKeys.organizationSchoolSummaries(mockOrg.id):
         return {
           data: schoolsLoading ? undefined : schools,
           isLoading: schoolsLoading,

@@ -134,9 +134,13 @@ All-school summaries stay under `schoolSummaries()`; consumers filter after
 reading and never put a cross-school response under a school-specific key.
 
 Use URL `schoolId` for list requests, independently of filter-option loading.
-The two slug detail pages load organization and all-school summaries in parallel;
-only the school's ID-dependent requests wait for that resolution. List writes
-invalidate the factory's account/device families, including overview counters.
+The organization detail uses `organizationSchoolSummaries(id)` and its audited
+organization-specific endpoint, never the all-school response. The school detail
+loads organization and all-school summaries in parallel; only its ID-dependent
+requests wait for that resolution. Summary invalidation covers both all-school
+and organization-filtered responses. Account/device writes use their factory
+families; person deletion/merging uses `personChanges` to refresh person lists
+and every school/organization counter.
 Announcement statistics and confirmation details run only while expanded.
 The operator auth guard also keys local page/modal state to its confirmed scope
 and hides it while another tab's session change is being confirmed.

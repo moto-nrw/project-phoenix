@@ -4,7 +4,7 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -172,6 +172,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     [organizations, slug],
   );
   const organizationId = organization?.id;
+  const invalidate = useInvalidateMatching();
 
   const activeOrganizations = useMemo(
     () =>
@@ -184,24 +185,25 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   useSetBreadcrumb({ pageTitle: organization?.name ?? "Träger" });
 
   const {
-    data: schoolSummaries,
+    data: organizationSchoolSummaries,
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
   } = useSWRAuth(
-    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
-    () => operatorProvisioningService.listSchoolSummaries(),
+    isAuthenticated && organizationId
+      ? operatorProvisioningKeys.organizationSchoolSummaries(organizationId)
+      : null,
+    async () =>
+      (
+        await operatorProvisioningService.listOrganizationSchools(
+          organizationId ?? "",
+        )
+      ).filter((item) => item.organizationId === organizationId),
     {
       keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
-  );
-
-  const organizationSchoolSummaries = useMemo(
-    () =>
-      schoolSummaries?.filter((item) => item.organizationId === organizationId),
-    [schoolSummaries, organizationId],
   );
 
   const activeSchools = useMemo(
@@ -221,8 +223,20 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
 
   const refreshOrganizationDrillIn = useCallback(async () => {
-    await Promise.all([mutateOrganizations(), mutateSchoolSummaries()]);
-  }, [mutateOrganizations, mutateSchoolSummaries]);
+    await Promise.all([
+      mutateOrganizations(),
+      mutateSchoolSummaries(),
+      invalidate(
+        (key) =>
+          operatorProvisioningKeys.summaryChanges(key) &&
+          key !== operatorProvisioningKeys.organizationSummaries() &&
+          key !==
+            operatorProvisioningKeys.organizationSchoolSummaries(
+              organizationId,
+            ),
+      ),
+    ]);
+  }, [mutateOrganizations, mutateSchoolSummaries, invalidate, organizationId]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;

@@ -103,6 +103,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mockUseSWR,
+  useInvalidateMatching: () => vi.fn(async () => []),
   useSWRConfig: () => ({ mutate: vi.fn() }),
   useTenantMutateMatching: () => vi.fn(async () => []),
 }));

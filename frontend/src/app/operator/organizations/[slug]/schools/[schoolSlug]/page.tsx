@@ -4,7 +4,7 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -86,6 +86,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
 function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
   const { status } = useSession();
+  const invalidate = useInvalidateMatching();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -190,8 +191,17 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   useSetBreadcrumb({ pageTitle: school?.name ?? "Schule" });
 
   const refreshSchoolDetail = useCallback(async () => {
-    await Promise.all([mutateOrganizations(), mutateSchools()]);
-  }, [mutateOrganizations, mutateSchools]);
+    await Promise.all([
+      mutateOrganizations(),
+      mutateSchools(),
+      invalidate(
+        (key) =>
+          operatorProvisioningKeys.summaryChanges(key) &&
+          key !== operatorProvisioningKeys.organizationSummaries() &&
+          key !== operatorProvisioningKeys.schoolSummaries(),
+      ),
+    ]);
+  }, [mutateOrganizations, mutateSchools, invalidate]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
