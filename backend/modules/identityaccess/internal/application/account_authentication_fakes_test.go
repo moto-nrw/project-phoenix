@@ -313,6 +313,16 @@ func (s *fakeStore) RecordAccountLogin(_ context.Context, id int64, _ time.Time)
 	return stats(), s.recordLoginErr
 }
 
+func (s *fakeStore) CountAccountTenantMappings(_ context.Context, accountID int64) (int64, domain.OperationStats, error) {
+	var count int64
+	for _, mapping := range s.mappings {
+		if mapping.accountID == accountID {
+			count++
+		}
+	}
+	return count, stats(), nil
+}
+
 func (s *fakeStore) ListActiveTenantIDs(_ context.Context, accountID int64) ([]int64, domain.OperationStats, error) {
 	if s.listTenantsErr != nil {
 		return nil, stats(), s.listTenantsErr

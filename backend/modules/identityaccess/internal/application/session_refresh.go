@@ -381,6 +381,9 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	if r.recovered {
 		r.newSession = current
 	} else {
+		if err := r.service.capLegacyLineage(ctx, r.claims, &current); err != nil {
+			return err
+		}
 		var err error
 		r.newSession, err = r.service.createAndPersistSuccessor(ctx, current, r.account.ID, effectiveTenantID, r.claims.Scope, now)
 		if err != nil {

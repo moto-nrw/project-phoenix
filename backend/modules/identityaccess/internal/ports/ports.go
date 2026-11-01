@@ -294,6 +294,9 @@ type AccountLoginStore interface {
 	// ListActiveTenantIDs returns the schools the account is actively mapped
 	// to in mapping-creation order.
 	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// CountAccountTenantMappings counts the account's school mappings of
+	// every status: an account with one has never switched schools (#5422).
+	CountAccountTenantMappings(ctx context.Context, accountID int64) (int64, domain.OperationStats, error)
 	// LockActiveTenantMappingShared is HasActiveAccountTenant with a FOR
 	// SHARE lock so a revocation cannot commit under a mint.
 	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
