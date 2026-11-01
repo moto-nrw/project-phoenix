@@ -26,7 +26,7 @@ export GOTOOLCHAIN=local
 export CGO_ENABLED=${CGO_ENABLED:-0}
 # -p limits Go subprocesses; analyzers also use GOMAXPROCS for type/SSA work.
 # Default only when unset so explicit caller settings remain intact.
-export GOFLAGS="${GOFLAGS--p=4}"
+export GOFLAGS="${GOFLAGS--p=4 -trimpath}"
 export GOMAXPROCS="${GOMAXPROCS-4}"
 unset GOBIN
 
