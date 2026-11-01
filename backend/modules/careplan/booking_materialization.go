@@ -285,6 +285,9 @@ type RemainingDayBooking struct {
 	CountsAsCare  bool
 	IncludesLunch bool
 	PickupTime    string
+	// From is the day a booking of another enrollment starts when that lies
+	// after the change's date (#5497); nil when it is in force then.
+	From *calendar.Date
 }
 
 // ManualRosterTemplate is one hand-maintained Regeltermin series that keeps
@@ -297,6 +300,9 @@ type ManualRosterTemplate struct {
 	// ViaTarget is true when a Klasse, Jahrgang or Gruppe target includes
 	// the child: occurrences created later add the child again.
 	ViaTarget bool
+	// Until is the day a later booking carries the Regeltermin again on
+	// Weekdays (exclusive end of the gap, #5497); nil when none does.
+	Until *calendar.Date
 }
 
 // OfferingAdjustmentSnapshot is one offering in the before and after

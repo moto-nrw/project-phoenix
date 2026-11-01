@@ -57,6 +57,10 @@ type BookingLeftover struct {
 	// From is the first planned day without a carrying booking, tomorrow at
 	// the earliest; "Entfernen" starts there.
 	From calendar.Date
+	// Until ends the gap (exclusive, #5497): a later booking carries the
+	// Regeltermin again from this day on, so "Entfernen" keeps the child
+	// planned from there. Nil when no later booking carries it.
+	Until *calendar.Date
 	// Kept is the school's decision to keep the child planned.
 	Kept bool
 }
@@ -68,10 +72,12 @@ type leftoverKey struct {
 }
 
 // leftoverDay is the earliest gap of one weekday: start is the later of its
-// booking end and tomorrow, from its first planned day. endedOn is the
+// booking end and tomorrow, from its first planned day, until the day a
+// later booking carries the weekday again (nil: none does). endedOn is the
 // latest booking end of the weekday's gaps.
 type leftoverDay struct {
 	start, from, endedOn calendar.Date
+	until                *calendar.Date
 	kept                 bool
 }
 
@@ -126,8 +132,9 @@ func occurrenceWeekdays(occurrences []BookingLeftoverOccurrence) []int {
 // entryLeftoverDay looks at every day a booking of the child dropped the
 // weekday: from the later of that day and tomorrow, the row's first planned
 // day of the weekday decides with the bookings in force then. The earliest
-// such day without a carrying booking starts the gap; the latest booking end
-// among the gaps is what "Bleibt so" must reach.
+// such day without a carrying booking starts the gap, which lasts until a
+// later planned day is carried again; the latest booking end among the gaps
+// is what "Bleibt so" must reach.
 func entryLeftoverDay(
 	scope BookingLeftoverScope, template BookingLeftoverTemplate, entry TemplateRosterEntry,
 	weekday int, bookings []OfferingWeekdayBooking,
@@ -142,6 +149,7 @@ func entryLeftoverDay(
 		}
 		if !found || first.Before(result.from) {
 			result.start, result.from = start, first
+			result.until = gapUntil(template, entry, weekday, first, endedOn, bookings)
 		}
 		result.endedOn = max(result.endedOn, endedOn)
 		found = true
@@ -160,12 +168,64 @@ func mergeLeftoverDays(current, next leftoverDay) leftoverDay {
 	if current.from.IsZero() {
 		return next
 	}
-	if next.from.Before(current.from) {
-		current.start, current.from = next.start, next.from
+	switch {
+	case next.from.Before(current.from):
+		current.start, current.from, current.until = next.start, next.from, next.until
+	case next.from == current.from:
+		current.until = earlierUntil(current.until, next.until)
 	}
 	current.endedOn = max(current.endedOn, next.endedOn)
 	current.kept = current.kept && next.kept
 	return current
+}
+
+// earlierUntil is the earlier of two gap ends; nil is open and comes last. A
+// removal that ends earlier takes nothing a booking carries.
+func earlierUntil(a, b *calendar.Date) *calendar.Date {
+	if a == nil || (b != nil && b.Before(*a)) {
+		return b
+	}
+	return a
+}
+
+// gapUntil ends the gap that starts on the planned day first (#5497): the
+// row's next planned day of the weekday that a booking carries again ends
+// it, on the day the latest booking in force then started, but after the
+// last planned day without a carrying booking. Nil when no later planned day
+// is carried: the gap stays open.
+func gapUntil(
+	template BookingLeftoverTemplate, entry TemplateRosterEntry, weekday int, first, endedOn calendar.Date,
+	bookings []OfferingWeekdayBooking,
+) *calendar.Date {
+	lastLost := first
+	for _, occurrence := range template.Occurrences {
+		if !occurrence.Date.After(first) || calendar.ISOWeekday(occurrence.Date) != weekday ||
+			!entry.appliesOn(occurrence.Date, occurrence.PeriodID) {
+			continue
+		}
+		if !bookingsCarry(bookings, template.Kind, weekday, occurrence.End, occurrence.Date, endedOn) {
+			lastLost = occurrence.Date
+			continue
+		}
+		until := max(latestBookingStart(bookings, weekday, occurrence.Date), lastLost.AddDays(1))
+		return &until
+	}
+	return nil
+}
+
+// latestBookingStart is the latest start of a link that plans the weekday on
+// the date; empty when every such link is open at its start.
+func latestBookingStart(bookings []OfferingWeekdayBooking, weekday int, on calendar.Date) calendar.Date {
+	var latest calendar.Date
+	for _, booking := range bookings {
+		for _, window := range booking.Windows {
+			if slices.Contains(window.Weekdays, weekday) && window.ValidFrom != nil && !window.ValidFrom.After(on) &&
+				(window.ValidUntil == nil || window.ValidUntil.After(on)) {
+				latest = max(latest, *window.ValidFrom)
+			}
+		}
+	}
+	return latest
 }
 
 // endedBookingDays lists, ascending, the days on which a change or a
@@ -264,9 +324,10 @@ func wallClock(value string) (time.Time, bool) {
 }
 
 // groupLeftoverDays merges the weekdays of one Regeltermin and child whose
-// gaps start on the same day and share the decision. A removal of the group
-// starts on its earliest planned day; a weekday planned later has no day
-// before its own, so the removal takes nothing a booking still carries.
+// gaps start and end on the same days and share the decision. A removal of
+// the group starts on its earliest planned day; a weekday planned later has
+// no day before its own, so the removal takes nothing a booking still
+// carries.
 func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey]leftoverDay) []BookingLeftover {
 	names := make(map[int64]string, len(templates))
 	for _, template := range templates {
@@ -274,16 +335,17 @@ func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey
 	}
 	type groupKey struct {
 		templateID, studentID int64
-		start                 calendar.Date
+		start, until          calendar.Date
 		kept                  bool
 	}
 	groups := make(map[groupKey]*BookingLeftover)
 	for key, day := range days {
 		group := groupKey{templateID: key.templateID, studentID: key.studentID, start: day.start, kept: day.kept}
+		group.until = untilKey(day.until)
 		leftover := groups[group]
 		if leftover == nil {
 			leftover = &BookingLeftover{TemplateID: key.templateID, TemplateName: names[key.templateID],
-				StudentID: key.studentID, From: day.from, Kept: day.kept}
+				StudentID: key.studentID, From: day.from, Until: day.until, Kept: day.kept}
 			groups[group] = leftover
 		}
 		leftover.Weekdays = append(leftover.Weekdays, key.weekday)
@@ -305,7 +367,18 @@ func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey
 		if a.StudentID != b.StudentID {
 			return int(a.StudentID - b.StudentID)
 		}
-		return a.From.Compare(b.From)
+		if c := a.From.Compare(b.From); c != 0 {
+			return c
+		}
+		return untilKey(a.Until).Compare(untilKey(b.Until))
 	})
 	return result
+}
+
+// untilKey orders and groups gap ends; an open end sorts last.
+func untilKey(until *calendar.Date) calendar.Date {
+	if until == nil {
+		return "9999-12-31"
+	}
+	return *until
 }

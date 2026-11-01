@@ -297,8 +297,10 @@ func rowsCoverWeekday(rows []*activityContract.StudentEnrollment, templateID int
 }
 
 // manualPlansBySeries names the templates, drops the weekdays a remaining
-// booking carries and merges split segments into one entry per series,
-// pointing at the latest segment.
+// booking carries and merges split segments into one entry per series and
+// gap end, pointing at the latest segment. A later booking that carries a
+// weekday again ends its gap there (#5497); weekdays with different ends get
+// an entry each, so one removal per entry takes nothing a booking carries.
 func (s *StudentTemplateDays) manualPlansBySeries(
 	ctx context.Context, studentID int64, days templateDays, ends templateDayEnds, carry bookingCarry,
 ) ([]timetable.ManualStudentPlan, error) {
@@ -315,7 +317,7 @@ func (s *StudentTemplateDays) manualPlansBySeries(
 		return nil, fmt.Errorf("student template days: list target students: %w", err)
 	}
 	bySeries := make(map[int64]*timetable.ManualStudentPlan)
-	weekdays := make(map[int64]map[int]bool)
+	untils := make(map[int64]map[int]*calendar.Date)
 	for _, group := range groups {
 		root := group.ID
 		if group.SeriesRootID != nil {
@@ -325,17 +327,37 @@ func (s *StudentTemplateDays) manualPlansBySeries(
 		if plan == nil {
 			plan = &timetable.ManualStudentPlan{}
 			bySeries[root] = plan
-			weekdays[root] = make(map[int]bool)
+			untils[root] = make(map[int]*calendar.Date)
 		}
 		if group.ID > plan.TemplateID {
 			plan.TemplateID, plan.Name = group.ID, group.Name
 		}
 		plan.ViaTarget = plan.ViaTarget || slices.Contains(targets[group.ID], studentID)
-		for weekday := range days[group.ID] {
-			weekdays[root][weekday] = true
-		}
+		addGapEnds(untils[root], group, days[group.ID], ends[group.ID], carry)
 	}
-	return sortedManualPlans(bySeries, weekdays), nil
+	return sortedManualPlans(bySeries, untils), nil
+}
+
+// addGapEnds records, per lost weekday of the segment, where a later booking
+// carries it again; segments of one series keep the earlier end.
+func addGapEnds(untils map[int]*calendar.Date, group timetable.Group, days map[int]bool, ends map[int]int, carry bookingCarry) {
+	kind := timetable.RosterOfferingKindFor(group.Type, group.ListKind)
+	for weekday := range days {
+		end, known := ends[weekday]
+		resume := carry.resumes(weekday, kind, end, known)
+		if current, seen := untils[weekday]; seen {
+			resume = earlierEnd(current, resume)
+		}
+		untils[weekday] = resume
+	}
+}
+
+// earlierEnd is the earlier of two gap ends; nil is open and comes last.
+func earlierEnd(a, b *calendar.Date) *calendar.Date {
+	if a == nil || (b != nil && b.Before(*a)) {
+		return b
+	}
+	return a
 }
 
 func sortedTemplateIDs(days templateDays) []int64 {
@@ -347,19 +369,52 @@ func sortedTemplateIDs(days templateDays) []int64 {
 	return ids
 }
 
-func sortedManualPlans(bySeries map[int64]*timetable.ManualStudentPlan, weekdays map[int64]map[int]bool) []timetable.ManualStudentPlan {
+// sortedManualPlans splits each series by gap end and orders the entries by
+// name, template and end (open last).
+func sortedManualPlans(bySeries map[int64]*timetable.ManualStudentPlan, untils map[int64]map[int]*calendar.Date) []timetable.ManualStudentPlan {
 	plans := make([]timetable.ManualStudentPlan, 0, len(bySeries))
-	for root, plan := range bySeries {
-		plan.Weekdays = sortedWeekdays(weekdays[root])
-		plans = append(plans, *plan)
+	for root, series := range bySeries {
+		byEnd := make(map[string]*timetable.ManualStudentPlan)
+		for _, weekday := range sortedWeekdays(weekdaySet(untils[root])) {
+			until := untils[root][weekday]
+			key := openDateText(until)
+			plan := byEnd[key]
+			if plan == nil {
+				plan = &timetable.ManualStudentPlan{TemplateID: series.TemplateID, Name: series.Name, ViaTarget: series.ViaTarget, Until: until}
+				byEnd[key] = plan
+			}
+			plan.Weekdays = append(plan.Weekdays, weekday)
+		}
+		for _, plan := range byEnd {
+			plans = append(plans, *plan)
+		}
 	}
 	sort.Slice(plans, func(i, j int) bool {
 		if left, right := strings.ToLower(plans[i].Name), strings.ToLower(plans[j].Name); left != right {
 			return left < right
 		}
-		return plans[i].TemplateID < plans[j].TemplateID
+		if plans[i].TemplateID != plans[j].TemplateID {
+			return plans[i].TemplateID < plans[j].TemplateID
+		}
+		return endSortKey(plans[i].Until) < endSortKey(plans[j].Until)
 	})
 	return plans
+}
+
+func weekdaySet[V any](byWeekday map[int]V) map[int]bool {
+	set := make(map[int]bool, len(byWeekday))
+	for weekday := range byWeekday {
+		set[weekday] = true
+	}
+	return set
+}
+
+// endSortKey orders gap ends; an open end sorts last.
+func endSortKey(until *calendar.Date) string {
+	if until == nil {
+		return "~"
+	}
+	return until.String()
 }
 
 func sortedWeekdays(set map[int]bool) []int {

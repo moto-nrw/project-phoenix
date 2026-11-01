@@ -29,6 +29,7 @@ import { formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
+  formatRemovalSpan,
   formatWeekdayAdverbs,
   removeStudentTemplateDays,
 } from "~/lib/roster-impact";
@@ -138,6 +139,7 @@ export function BookingLeftoverHints({
         studentId: removing.studentId,
         weekdays: removing.weekdays,
         effectiveFrom: removing.from,
+        effectiveUntil: removing.until,
       });
       toast.success(
         `${removing.studentName} ist aus „${removing.templateName}“ entfernt.`,
@@ -266,13 +268,17 @@ export function BookingLeftoverHints({
         description={
           removing ? (
             <p>
-              {removing.studentName} wird ab {formatDate(removing.from)}{" "}
+              {removing.studentName} wird{" "}
+              {formatRemovalSpan(removing.from, removing.until)}{" "}
               {formatWeekdayAdverbs(removing.weekdays)} aus{" "}
               <span className="font-medium text-gray-900">
                 „{removing.templateName}“
               </span>{" "}
-              entfernt. Das gilt auch für schon geplante Termine. Andere Tage
-              und vergangene Termine bleiben.
+              entfernt. Das gilt auch für schon geplante Termine.
+              {removing.until
+                ? ` Ab ${formatDate(removing.until)} passt die neue Buchung wieder. Dann bleibt ${removing.studentName} eingeplant.`
+                : null}{" "}
+              Andere Tage und vergangene Termine bleiben.
             </p>
           ) : null
         }
@@ -347,7 +353,8 @@ function BookingLeftoverRow({
         </p>
         <p className="mt-0.5 text-sm text-gray-600">
           „{leftover.templateName}“ · {formatWeekdayAdverbs(leftover.weekdays)}{" "}
-          · ohne passende Buchung ab {formatDate(leftover.from)}
+          · ohne passende Buchung{" "}
+          {formatRemovalSpan(leftover.from, leftover.until)}
         </p>
       </div>
       {children ? (

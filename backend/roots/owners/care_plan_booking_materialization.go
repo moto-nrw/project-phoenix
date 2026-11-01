@@ -63,7 +63,7 @@ func (p bookingManualPlans) ManualStudentPlan(
 	result := make([]careplan.ManualRosterTemplate, 0, len(plans))
 	for _, plan := range plans {
 		result = append(result, careplan.ManualRosterTemplate{
-			TemplateID: plan.TemplateID, Name: plan.Name, Weekdays: plan.Weekdays, ViaTarget: plan.ViaTarget,
+			TemplateID: plan.TemplateID, Name: plan.Name, Weekdays: plan.Weekdays, ViaTarget: plan.ViaTarget, Until: plan.Until,
 		})
 	}
 	return result, nil
@@ -74,7 +74,7 @@ func studentDayBookings(remaining []careplan.RemainingDayBooking) []timetable.St
 	for _, booking := range remaining {
 		bookings = append(bookings, timetable.StudentDayBooking{
 			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
-			PickupTime: booking.PickupTime,
+			PickupTime: booking.PickupTime, From: booking.From,
 		})
 	}
 	return bookings
@@ -383,10 +383,10 @@ func (e bookingEnrollment) SelectionHistory(ctx context.Context, childID int64) 
 	return BookedOfferings(values), err
 }
 
-// StudentSelectionsAt reads the approved selections of the student that
-// overlap the single day, across all the student's request children.
-func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
-	selections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))
+// StudentSelectionsBetween reads the approved selections of the student that
+// overlap the inclusive range, across all the student's request children.
+func (e bookingEnrollment) StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error) {
+	selections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(from), enrollmentOwner.Date(to))
 	if err != nil {
 		return nil, err
 	}

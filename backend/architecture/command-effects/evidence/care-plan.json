@@ -6953,16 +6953,16 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsAt",
-      "binding_digest": "a19e4fb6a7b768105586a3a7a459f7f7",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsAt",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsBetween",
+      "binding_digest": "df44d3a7bd4fb15af8a172d9d7d267b3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsBetween",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ApprovedSelectionsForStudents",
       "target_owner": "enrollment"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingManualPlans.ManualStudentPlan",
-      "binding_digest": "7f7201d7d002cb6b37914b9e2ad508d9",
+      "binding_digest": "dd819a8b9c91ae0b5959454ae6bbeb2e",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",

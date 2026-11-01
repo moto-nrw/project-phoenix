@@ -27,6 +27,9 @@ type manualRosterTemplateResponse struct {
 	Name       string `json:"name"`
 	Weekdays   []int  `json:"weekdays"`
 	ViaTarget  bool   `json:"via_target"`
+	// Until is the day a later booking carries the Regeltermin again
+	// (exclusive, #5497); null when none does. "Entfernen" ends there.
+	Until *string `json:"until"`
 }
 
 func newRosterImpactResponse(impact careplan.RosterImpact) rosterImpactResponse {
@@ -42,10 +45,14 @@ func newRosterImpactResponse(impact careplan.RosterImpact) rosterImpactResponse 
 		})
 	}
 	for _, template := range impact.NotAdjusted {
-		out.NotAdjusted = append(out.NotAdjusted, manualRosterTemplateResponse{
+		response := manualRosterTemplateResponse{
 			TemplateID: strconv.FormatInt(template.TemplateID, 10), Name: template.Name,
 			Weekdays: nonNilWeekdays(template.Weekdays), ViaTarget: template.ViaTarget,
-		})
+		}
+		if template.Until != nil {
+			response.Until = new(template.Until.String())
+		}
+		out.NotAdjusted = append(out.NotAdjusted, response)
 	}
 	return out
 }

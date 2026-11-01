@@ -352,3 +352,59 @@ func TestDetectBookingLeftoversFollowsThePlannedDays(t *testing.T) {
 	require.Len(t, leftovers, 1)
 	assert.Equal(t, calendar.NewDate(2026, 11, 12), leftovers[0].From)
 }
+
+// TestDetectBookingLeftoversEndsTheGapAtTheRebooking is the case of #5497: the
+// Thursday booking ends on the change day and the same offering is booked
+// again two weeks later. „Entfernen“ covers the gap only and ends where the
+// new booking starts; Tuesday, dropped and booked again with it, shares the
+// entry.
+func TestDetectBookingLeftoversEndsTheGapAtTheRebooking(t *testing.T) {
+	t.Parallel()
+	rebooked := calendar.NewDate(2026, 11, 16)
+	pause := leftoverBooking(leftoverGanztag, leftoverChild, nil,
+		leftoverWindow(phaseStart, leftoverChange, true, 1, 2, 3, 4, 5),
+		leftoverWindow(leftoverChange, phaseEnd, false, 1, 3, 5),
+		leftoverWindow(rebooked, phaseEnd, false, 2, 4))
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))},
+		[]timetable.OfferingWeekdayBooking{pause})
+
+	require.Len(t, leftovers, 1, "Tuesday and Thursday end together: %+v", leftovers)
+	assert.Equal(t, []int{2, 4}, leftovers[0].Weekdays)
+	assert.Equal(t, leftoverToday.AddDays(1), leftovers[0].From, "Thursday 05.11. is the first day without a booking")
+	require.NotNil(t, leftovers[0].Until, "the rebooking ends the gap")
+	assert.Equal(t, rebooked, *leftovers[0].Until)
+}
+
+func TestDetectBookingLeftoversKeepsTheGapOpenWithoutRebooking(t *testing.T) {
+	t.Parallel()
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))},
+		[]timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
+	require.Len(t, leftovers, 1)
+	assert.Nil(t, leftovers[0].Until, "no later booking carries Thursday")
+}
+
+// TestDetectBookingLeftoversSplitsWeekdaysWithDifferentEnds: Thursday is
+// booked again, Tuesday is not; one removal cannot cover both, so each gets
+// its own entry.
+func TestDetectBookingLeftoversSplitsWeekdaysWithDifferentEnds(t *testing.T) {
+	t.Parallel()
+	rebooked := calendar.NewDate(2026, 11, 16)
+	pause := leftoverBooking(leftoverGanztag, leftoverChild, nil,
+		leftoverWindow(phaseStart, leftoverChange, true, 1, 2, 3, 4, 5),
+		leftoverWindow(leftoverChange, phaseEnd, false, 1, 3, 5),
+		leftoverWindow(rebooked, phaseEnd, false, 4))
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))},
+		[]timetable.OfferingWeekdayBooking{pause})
+	require.Len(t, leftovers, 2, "%+v", leftovers)
+	byWeekday := map[int]timetable.BookingLeftover{}
+	for _, leftover := range leftovers {
+		require.Len(t, leftover.Weekdays, 1)
+		byWeekday[leftover.Weekdays[0]] = leftover
+	}
+	assert.Nil(t, byWeekday[2].Until, "Tuesday stays without a booking")
+	require.NotNil(t, byWeekday[4].Until)
+	assert.Equal(t, rebooked, *byWeekday[4].Until)
+}

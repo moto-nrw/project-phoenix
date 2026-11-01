@@ -31,7 +31,10 @@ type bookingLeftoverResponse struct {
 	BookingEndedOn string `json:"booking_ended_on"`
 	// From is the first day "Entfernen" changes, tomorrow at the earliest.
 	From string `json:"from"`
-	Kept bool   `json:"kept"`
+	// Until is the day a later booking carries the Regeltermin again
+	// (exclusive end of the gap, #5497); null when none does.
+	Until *string `json:"until"`
+	Kept  bool    `json:"kept"`
 }
 
 type bookingLeftoversResponse struct {
@@ -209,11 +212,15 @@ func (rs *Resource) namedBookingLeftovers(ctx context.Context, leftovers []timet
 		if !attends {
 			continue
 		}
-		result = append(result, bookingLeftoverResponse{
+		response := bookingLeftoverResponse{
 			TemplateID: leftover.TemplateID, TemplateName: leftover.TemplateName,
 			StudentID: leftover.StudentID, StudentName: name, Weekdays: leftover.Weekdays,
 			BookingEndedOn: leftover.BookingEndedOn.String(), From: leftover.From.String(), Kept: leftover.Kept,
-		})
+		}
+		if leftover.Until != nil {
+			response.Until = new(leftover.Until.String())
+		}
+		result = append(result, response)
 	}
 	return result, nil
 }

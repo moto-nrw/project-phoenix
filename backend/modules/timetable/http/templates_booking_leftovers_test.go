@@ -275,6 +275,99 @@ func TestRemoveStudentTemplateDaysLeavesToday(t *testing.T) {
 	assert.Empty(t, s.occurrenceStudents(t, nextMonday), "next Monday loses the child")
 }
 
+// TestBookingLeftoversRemoveOnlyTheGap is #5497 end to end: the Thursday
+// booking ends on the change day and the same offering is booked again two
+// weeks later. The hint names the gap with its end; „Entfernen“ takes the
+// child off the Thursday in the gap and keeps it planned from the rebooking
+// on, in the hand rows and in the occurrences created already.
+func TestBookingLeftoversRemoveOnlyTheGap(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2g", 1)
+	child := children[0]
+	template := s.createHandTemplate(t, "Hausaufgaben 2g", children)
+	start, end := rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(121)
+	change, rebooked := rosterReviewMonday.AddDays(-3), rosterReviewMonday.AddDays(14)
+	window := func(from, until calendar.Date, ended bool, weekdays ...int) timetableModule.OfferingBookingWindow {
+		return timetableModule.OfferingBookingWindow{ValidFrom: &from, ValidUntil: &until, Weekdays: weekdays, Ended: ended}
+	}
+	s.sources.bookings = []timetableModule.OfferingWeekdayBooking{{
+		OfferingID: leftoverGanztagID, OfferingName: "Ganztag", StudentID: child, CountsAsCare: true, Weekdays: []int{1, 2, 3, 4, 5},
+		Windows: []timetableModule.OfferingBookingWindow{
+			window(start, change, true, 1, 2, 3, 4, 5), window(change, end, false, 1, 2, 3, 5), window(rebooked, end, false, 4),
+		},
+	}}
+	occurrence := func(date calendar.Date) int64 {
+		instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &template, CalendarPeriodID: &s.period.ID, Title: "Hausaufgaben 2g",
+		})
+		testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, child, "")
+		return instance.ID
+	}
+	inGap, afterRebooking := occurrence(rosterReviewMonday.AddDays(10)), occurrence(rosterReviewMonday.AddDays(17))
+
+	leftovers := s.listLeftovers(t)
+	require.Len(t, leftovers, 1, "%+v", leftovers)
+	got := leftovers[0]
+	assert.Equal(t, rosterReviewMonday.AddDays(3).String(), got.From)
+	require.NotNil(t, got.Until, "the rebooking ends the gap")
+	assert.Equal(t, rebooked.String(), *got.Until)
+
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
+		"weekdays": got.Weekdays, "effective_from": got.From, "effective_until": *got.Until,
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.Empty(t, s.occurrenceStudents(t, inGap), "the Thursday in the gap loses the child")
+	assert.Equal(t, []int64{child}, s.occurrenceStudents(t, afterRebooking), "the Thursday the new booking carries keeps the child")
+	assert.Empty(t, s.listLeftovers(t), "after the removal nothing is left")
+
+	rosters, err := s.res.RosterReview.PlannedRosters(testpkg.Ctx(t), []int64{template})
+	require.NoError(t, err)
+	for _, day := range []struct {
+		date    calendar.Date
+		planned bool
+	}{{rosterReviewMonday.AddDays(10), false}, {rosterReviewMonday.AddDays(17), true}, {rosterReviewMonday.AddDays(11), true}} {
+		assert.Equal(t, day.planned, handRowPlans(rosters[template], child, day.date), "hand rows on %s", day.date)
+	}
+}
+
+// handRowPlans reports whether a hand row of the roster plans the child on
+// the date by validity and weekday scope.
+func handRowPlans(roster timetableModule.TemplatePlannedRoster, studentID int64, date calendar.Date) bool {
+	weekday := calendar.ISOWeekday(date)
+	for _, entry := range roster.Entries {
+		switch {
+		case entry.StudentID != studentID, entry.FromBooking,
+			entry.ValidFrom != nil && entry.ValidFrom.After(date),
+			entry.ValidUntil != nil && !entry.ValidUntil.After(date),
+			entry.Weekday != nil && *entry.Weekday != weekday,
+			len(entry.SelectedWeekdays) > 0 && !slices.Contains(entry.SelectedWeekdays, weekday):
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// TestRemoveStudentTemplateDaysRefusesAnEndBeforeTheStart: the end must lie
+// after the first removed day.
+func TestRemoveStudentTemplateDaysRefusesAnEndBeforeTheStart(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2h", 1)
+	template := s.createHandTemplate(t, "Hausaufgaben 2h", children)
+	for name, until := range map[string]string{
+		"same day": rosterReviewMonday.AddDays(3).String(),
+		"before":   rosterReviewMonday.AddDays(1).String(),
+		"bad date": "19.11.2030",
+	} {
+		w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, children[0]), map[string]any{
+			"weekdays": []int{timetableModule.WeekdayThursday}, "effective_from": rosterReviewMonday.AddDays(3).String(), "effective_until": until,
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code, "%s: body=%s", name, w.Body.String())
+	}
+}
+
 func TestBookingLeftoversQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

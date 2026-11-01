@@ -275,3 +275,46 @@ func TestDropCarriedDays_KeepsOnlyUncarriedWeekdays(t *testing.T) {
 	assert.Equal(t, []timetable.Group{groups[1]}, kept)
 	assert.Equal(t, templateDays{afternoon: {friday: true}}, days)
 }
+
+// laterCare is a booking of another enrollment that starts after the
+// change's date (#5497).
+func laterCare(weekday int, pickup string, from calendar.Date) timetable.StudentDayBooking {
+	booking := careDay(weekday, pickup)
+	booking.From = &from
+	return booking
+}
+
+func TestBookingCarry_LaterRebookingEndsTheGap(t *testing.T) {
+	t.Parallel()
+	change, rebooked := calendar.NewDate(2026, 11, 2), calendar.NewDate(2026, 11, 16)
+	carry, err := newBookingCarry(timetable.ManualStudentPlanQuery{
+		StudentID: 1, From: change, Weekdays: []int{timetable.WeekdayThursday},
+		NetLossWeekdays: []int{timetable.WeekdayThursday},
+		OtherBookings:   []timetable.StudentDayBooking{laterCare(timetable.WeekdayThursday, "16:00", rebooked)},
+	})
+	assert.NoError(t, err)
+
+	thursday := timetable.WeekdayThursday
+	assert.False(t, carry.keeps(thursday, careKind, endAt1600, true), "the later booking does not carry the change's date")
+	until := carry.resumes(thursday, careKind, endAt1600, true)
+	if assert.NotNil(t, until, "the rebooking carries Thursday again") {
+		assert.Equal(t, rebooked, *until)
+	}
+	assert.Nil(t, carry.resumes(friday, careKind, endAt1600, true), "no later booking of Friday")
+}
+
+func TestBookingCarry_LaterBookingThatEndsTooEarlyLeavesTheGapOpen(t *testing.T) {
+	t.Parallel()
+	change, later := calendar.NewDate(2026, 11, 2), calendar.NewDate(2026, 11, 16)
+	carry, err := newBookingCarry(timetable.ManualStudentPlanQuery{
+		StudentID: 1, From: change, Weekdays: []int{monday},
+		OtherBookings: []timetable.StudentDayBooking{laterCare(monday, "12:45", later)},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, carry.resumes(monday, careKind, endAt1600, true), "picked up at 12:45, the block until 16:00 stays without a booking")
+	// Without times, the later booking of the weekday offsets the dropped one.
+	until := carry.resumes(monday, careKind, unknownEnd, false)
+	if assert.NotNil(t, until) {
+		assert.Equal(t, later, *until)
+	}
+}

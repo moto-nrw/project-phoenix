@@ -137,3 +137,33 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 		{Weekday: 2, PickupTime: "15:00"},
 	}, remainingDayBookings(links, offerings, from))
 }
+
+// TestLinkStart_NamesTheDayALaterSelectionStarts (#5497): a selection of
+// another enrollment that starts after the change's date counts from its own
+// start, a phase that starts later from the phase's start; a selection that
+// ends before its phase serves, or a child that is not approved, plans
+// nothing.
+func TestLinkStart_NamesTheDayALaterSelectionStarts(t *testing.T) {
+	t.Parallel()
+	from := calendar.NewDate(2026, 11, 2)
+	service := &careplan.OfferingPhase{ServiceStart: calendar.NewDate(2026, 8, 17), ServiceEnd: calendar.NewDate(2027, 7, 1)}
+	date := func(d calendar.Date) *calendar.Date { return &d }
+
+	start, ok := linkStart(&careplan.BookedOffering{ValidFrom: date(calendar.NewDate(2026, 8, 17))}, service, from)
+	assert.True(t, ok)
+	assert.Equal(t, from, start, "in force on the date")
+
+	start, ok = linkStart(&careplan.BookedOffering{ValidFrom: date(calendar.NewDate(2026, 11, 16))}, service, from)
+	assert.True(t, ok)
+	assert.Equal(t, calendar.NewDate(2026, 11, 16), start, "the rebooking starts later")
+
+	later := &careplan.OfferingPhase{ServiceStart: calendar.NewDate(2027, 2, 1), ServiceEnd: calendar.NewDate(2027, 7, 1)}
+	start, ok = linkStart(&careplan.BookedOffering{}, later, from)
+	assert.True(t, ok)
+	assert.Equal(t, calendar.NewDate(2027, 2, 1), start, "the phase serves from its start")
+
+	_, ok = linkStart(&careplan.BookedOffering{ValidUntil: date(calendar.NewDate(2027, 1, 1))}, later, from)
+	assert.False(t, ok, "the selection ends before its phase serves")
+	_, ok = linkStart(&careplan.BookedOffering{}, nil, from)
+	assert.False(t, ok, "a request child that is not approved books nothing")
+}

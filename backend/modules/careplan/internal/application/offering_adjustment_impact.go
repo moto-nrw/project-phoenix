@@ -75,11 +75,12 @@ func bookingDayChange(work *offeringAdjustmentWork, from calendar.Date) careplan
 }
 
 // otherEnrollmentDayBookings lists, per weekday, the offerings the student
-// books on the date through its other approved request children, which the
-// change leaves as they are (#5366). A student may hold enrollments of
-// several phases at once. A selection counts when it is in force on the
-// date, its phase serves the date and its offering is active; anything else
-// plans no care that could carry a Regeltermin from the date on.
+// books through its other approved request children, which the change leaves
+// as they are (#5366). A student may hold enrollments of several phases at
+// once. A selection counts from the day it is in force and its phase serves,
+// when its offering is active; anything else plans no care that could carry a
+// Regeltermin. One that starts after the date carries the date (From set) only
+// from then on: it ends the gap of a Regeltermin it carries again (#5497).
 func (m *BookingMaterialization) otherEnrollmentDayBookings(
 	ctx context.Context, work *offeringAdjustmentWork, from calendar.Date,
 ) ([]careplan.RemainingDayBooking, error) {
@@ -87,41 +88,84 @@ func (m *BookingMaterialization) otherEnrollmentDayBookings(
 	if err != nil || len(links) == 0 {
 		return []careplan.RemainingDayBooking{}, err
 	}
-	offerings, err := m.catalog.listByIDs(ctx, bookedOfferingIDs(links))
+	booked := make([]*careplan.BookedOffering, 0, len(links))
+	for _, link := range links {
+		booked = append(booked, link.link)
+	}
+	offerings, err := m.catalog.listByIDs(ctx, bookedOfferingIDs(booked))
 	if err != nil {
 		return nil, fmt.Errorf("decision: list the student's other offerings: %w", err)
 	}
-	return remainingDayBookings(links, activeOfferingsByID(offerings), from), nil
+	active := activeOfferingsByID(offerings)
+	result := make([]careplan.RemainingDayBooking, 0, len(links))
+	for _, link := range links {
+		for _, booking := range remainingDayBookings([]*careplan.BookedOffering{link.link}, active, link.start) {
+			if link.start.After(from) {
+				booking.From = new(link.start)
+			}
+			result = append(result, booking)
+		}
+	}
+	return result, nil
+}
+
+// otherEnrollmentLookaheadDays bounds the later selections read for the gap
+// end: a school year.
+const otherEnrollmentLookaheadDays = 366
+
+// datedLink is a selection with the first day from the date on that it is in
+// force and its phase serves.
+type datedLink struct {
+	link  *careplan.BookedOffering
+	start calendar.Date
 }
 
 // otherEnrollmentLinks lists the selections of the student's other request
-// children that are in force on the date and whose phase serves it.
+// children that are in force, within their phase's service, on the date or
+// on a later day of the next school year.
 func (m *BookingMaterialization) otherEnrollmentLinks(
 	ctx context.Context, work *offeringAdjustmentWork, from calendar.Date,
-) ([]*careplan.BookedOffering, error) {
-	selections, err := m.deps.Enrollment.StudentSelectionsAt(ctx, *work.child.CreatedStudentID, from)
+) ([]datedLink, error) {
+	selections, err := m.deps.Enrollment.StudentSelectionsBetween(ctx, *work.child.CreatedStudentID, from, from.AddDays(otherEnrollmentLookaheadDays))
 	if err != nil {
 		return nil, fmt.Errorf("decision: list the student's other bookings: %w", err)
 	}
-	links := make([]*careplan.BookedOffering, 0, len(selections))
-	serves := make(map[int64]bool)
+	links := make([]datedLink, 0, len(selections))
+	services := make(map[int64]*careplan.OfferingPhase)
 	for i := range selections {
 		link := &selections[i]
 		if link.RequestChildID == work.child.ID {
 			continue
 		}
-		within, known := serves[link.RequestChildID]
+		service, known := services[link.RequestChildID]
 		if !known {
-			if within, err = m.requestChildServesOn(ctx, link.RequestChildID, from); err != nil {
+			if service, err = m.requestChildService(ctx, link.RequestChildID); err != nil {
 				return nil, err
 			}
-			serves[link.RequestChildID] = within
+			services[link.RequestChildID] = service
 		}
-		if within {
-			links = append(links, link)
+		if start, ok := linkStart(link, service, from); ok {
+			links = append(links, datedLink{link: link, start: start})
 		}
 	}
 	return links, nil
+}
+
+// linkStart is the first day from the date on that the selection is in force
+// and its phase serves; false when there is none or the request child is not
+// approved (no service).
+func linkStart(link *careplan.BookedOffering, service *careplan.OfferingPhase, from calendar.Date) (calendar.Date, bool) {
+	if service == nil {
+		return "", false
+	}
+	start := max(from, service.ServiceStart)
+	if link.ValidFrom != nil {
+		start = max(start, *link.ValidFrom)
+	}
+	if start.After(service.ServiceEnd) || (link.ValidUntil != nil && !link.ValidUntil.After(start)) {
+		return "", false
+	}
+	return start, true
 }
 
 // activeOfferingsByID keeps the active offerings by id.
@@ -135,25 +179,25 @@ func activeOfferingsByID(offerings []careplan.CareOffering) map[int64]*careplan.
 	return byID
 }
 
-// requestChildServesOn reports whether the approved request child's phase
-// serves the date.
-func (m *BookingMaterialization) requestChildServesOn(ctx context.Context, childID int64, on calendar.Date) (bool, error) {
+// requestChildService is the service window of the approved request child's
+// phase; nil when the child is not approved.
+func (m *BookingMaterialization) requestChildService(ctx context.Context, childID int64) (*careplan.OfferingPhase, error) {
 	child, err := m.deps.Enrollment.Child(ctx, childID)
 	if err != nil {
-		return false, fmt.Errorf("decision: load the student's other request child: %w", err)
+		return nil, fmt.Errorf("decision: load the student's other request child: %w", err)
 	}
 	if !child.Approved {
-		return false, nil
+		return nil, nil
 	}
 	request, err := m.deps.Enrollment.Request(ctx, child.RequestID)
 	if err != nil {
-		return false, fmt.Errorf("decision: load the student's other request: %w", err)
+		return nil, fmt.Errorf("decision: load the student's other request: %w", err)
 	}
 	phase, err := m.deps.Enrollment.Phase(ctx, request.PhaseID)
 	if err != nil {
-		return false, fmt.Errorf("decision: load the student's other phase: %w", err)
+		return nil, fmt.Errorf("decision: load the student's other phase: %w", err)
 	}
-	return !on.Before(phase.ServiceStart) && !on.After(phase.ServiceEnd), nil
+	return &phase.OfferingPhase, nil
 }
 
 // changedBookingWeekdays names the ISO weekdays on which the change drops an

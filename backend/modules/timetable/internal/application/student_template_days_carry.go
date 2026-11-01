@@ -163,19 +163,23 @@ func (s *StudentTemplateDays) scheduleEnds(ctx context.Context, schedules []time
 }
 
 // bookingCarry decides, with the bookings after the change, which weekdays
-// of a hand-maintained Regeltermin keep a booking.
+// of a hand-maintained Regeltermin keep a booking. Bookings that start after
+// the change's date (later) decide only when a lost weekday is carried
+// again (#5497).
 type bookingCarry struct {
-	bookings, others []timetable.StudentDayBooking
-	netLoss          map[int]bool
+	bookings, others, later []timetable.StudentDayBooking
+	netLoss                 map[int]bool
 }
 
 func newBookingCarry(query timetable.ManualStudentPlanQuery) (bookingCarry, error) {
-	carry := bookingCarry{bookings: query.Bookings, others: query.OtherBookings, netLoss: make(map[int]bool, len(query.NetLossWeekdays))}
+	carry := bookingCarry{netLoss: make(map[int]bool, len(query.NetLossWeekdays))}
 	for _, booking := range slices.Concat(query.Bookings, query.OtherBookings) {
 		if !isISOWeekday(booking.Weekday) {
 			return carry, fmt.Errorf("%w: booking weekday %d is not an ISO weekday", timetable.ErrStudentTemplateDaysInvalid, booking.Weekday)
 		}
 	}
+	carry.bookings, carry.later = splitLaterBookings(query.Bookings, query.From, nil)
+	carry.others, carry.later = splitLaterBookings(query.OtherBookings, query.From, carry.later)
 	for _, weekday := range query.NetLossWeekdays {
 		if !isISOWeekday(weekday) {
 			return carry, fmt.Errorf("%w: net-loss weekday %d is not an ISO weekday", timetable.ErrStudentTemplateDaysInvalid, weekday)
@@ -238,4 +242,53 @@ func (c bookingCarry) pickupsKnown(weekday int) bool {
 		}
 	}
 	return true
+}
+
+// splitLaterBookings returns the bookings in force on the date and appends
+// those that start after it to later.
+func splitLaterBookings(bookings []timetable.StudentDayBooking, from calendar.Date, later []timetable.StudentDayBooking) ([]timetable.StudentDayBooking, []timetable.StudentDayBooking) {
+	current := make([]timetable.StudentDayBooking, 0, len(bookings))
+	for _, booking := range bookings {
+		if booking.From != nil && booking.From.After(from) {
+			later = append(later, booking)
+			continue
+		}
+		current = append(current, booking)
+	}
+	return current, later
+}
+
+// resumes is the first start of a later booking from which the weekday the
+// change lost keeps the Regeltermin again, by the rule of keeps with the
+// later bookings started by then; nil when none does. Where the times do not
+// decide, a later booking of the weekday offsets the dropped one, as a
+// switch does on the change's date.
+func (c bookingCarry) resumes(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) *calendar.Date {
+	for _, start := range c.laterStarts(weekday) {
+		then := bookingCarry{bookings: c.bookings, others: slices.Clone(c.others), netLoss: c.netLoss}
+		for _, booking := range c.later {
+			if !booking.From.After(start) {
+				then.others = append(then.others, booking)
+				if booking.Weekday == weekday {
+					then.netLoss = map[int]bool{}
+				}
+			}
+		}
+		if then.keeps(weekday, kind, end, endKnown) {
+			return &start
+		}
+	}
+	return nil
+}
+
+// laterStarts lists, ascending, the days later bookings of the weekday start.
+func (c bookingCarry) laterStarts(weekday int) []calendar.Date {
+	starts := make([]calendar.Date, 0, len(c.later))
+	for _, booking := range c.later {
+		if booking.Weekday == weekday {
+			starts = append(starts, *booking.From)
+		}
+	}
+	slices.Sort(starts)
+	return slices.Compact(starts)
 }
