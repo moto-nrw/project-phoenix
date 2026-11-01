@@ -246,8 +246,8 @@ function statusOf(value: unknown): unknown {
 
 // refused: the route's refusal code (everyday-action-refusals.ts); the
 // layout has none, its read is open to every signed-in account.
-// business: a failure that only rolls back. recheck: the reader that loads
-// again after it, because reading may be refused too (#5423).
+// business: a write-only failure that rolls back without another read.
+// reader: observes that the write never revalidates a still-readable plan.
 const cases = [
   {
     name: "Einstempeln",
@@ -256,7 +256,7 @@ const cases = [
     reply: opened,
     refused: "general.permission",
     business: [409, "workforce.already_checked_in"],
-    recheck: undefined,
+    reader: undefined,
   },
   {
     name: "Ausstempeln",
@@ -265,7 +265,7 @@ const cases = [
     reply: { ...opened, checkOutTime: "2026-09-09T12:00:00+02:00" },
     refused: "general.permission",
     business: [404, "workforce.no_active_session"],
-    recheck: undefined,
+    reader: undefined,
   },
   {
     name: "Layout speichern",
@@ -274,7 +274,7 @@ const cases = [
     reply: undefined,
     refused: undefined,
     business: [400, "general.input"],
-    recheck: undefined,
+    reader: undefined,
   },
   {
     name: "Layout zurücksetzen",
@@ -283,61 +283,61 @@ const cases = [
     reply: undefined,
     refused: undefined,
     business: [400, "general.input"],
-    recheck: undefined,
+    reader: undefined,
   },
   {
     name: "Essenstag anmelden",
     useCase: useDay,
     request: mocks.day,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Essenswoche anmelden",
     useCase: useWeek,
     request: mocks.week,
     reply: { changed: ["2026-09-09"], locked: [] },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Essenswochenplan",
     useCase: useSchedule,
     request: mocks.schedule,
     reply: { effective_from: "2026-09-09" },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Essenstag abmelden",
     useCase: useCancelDay,
     request: mocks.day,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Essenstag zurücksetzen",
     useCase: useResetDay,
     request: mocks.clear,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Essenswoche abmelden",
     useCase: useCancelWeek,
     request: mocks.week,
     reply: { changed: ["2026-09-09"], locked: [] },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
-    recheck: mocks.meals,
+    refused: ["care.child_not_linked", "care.guardian_permission_denied"],
+    business: [403, "meals.participation_manage_denied"],
+    reader: mocks.meals,
   },
   {
     name: "Layout-Vorgaben",
@@ -346,7 +346,7 @@ const cases = [
     reply: undefined,
     refused: undefined,
     business: [403, "general.permission"],
-    recheck: undefined,
+    reader: undefined,
   },
 ] as const;
 
@@ -431,7 +431,7 @@ it.each([
   ["general.unavailable", false],
   ["identity.session_account_mismatch", false],
 ] as const)(
-  "handles a revalidation rejected with %s after a refused write",
+  "handles a read revalidation rejected with %s",
   async (code, refused) => {
     const { result, unmount } = renderHook(
       () => ({
@@ -462,14 +462,11 @@ it.each([
       expect(result.current.otherChild.data).toEqual(meals);
     });
     const error = new ApiError("diag", 403, { code });
-    mocks.day.mockRejectedValue(
-      new ApiError("diag", 403, { code: "care.guardian_permission_denied" }),
-    );
     mocks.meals.mockImplementation(() =>
       Promise.reject(new ApiError("diag", 403, { code })),
     );
     await act(async () => {
-      await result.current.current.saveDay("2026-09-09", true);
+      await result.current.current.mutate().catch(() => undefined);
     });
     await waitFor(() => expect(result.current.current.error).toEqual(error));
     if (refused) {
@@ -482,7 +479,7 @@ it.each([
           await result.current.current.saveDay("2026-09-09", true),
         ).toEqual({ status: "discarded" });
       });
-      expect(mocks.day).toHaveBeenCalledOnce();
+      expect(mocks.day).not.toHaveBeenCalled();
     } else {
       expect(result.current.current.data).toEqual(meals);
       expect(result.current.otherRange.data).toEqual(meals);
@@ -580,25 +577,31 @@ for (const scenario of cases) {
       expect(result.current.data).toBe(before);
     });
     if (scenario.refused !== undefined) {
-      const refused = scenario.refused;
-      it("verwirft die Ressource bei ihrem echten Ablehnungscode", async () => {
-        const { result, pending } = await setup();
-        let task!: Promise<unknown>;
-        act(() => {
-          task = result.current.run().catch((error: unknown) => error);
-        });
-        expect(result.current.data).toBe(true);
-        await act(async () => {
-          pending.reject(new ApiError("refused", 403, { code: refused }));
-          await task;
-        });
-        expect(result.current.ready).toBe(false);
-      });
+      const codes =
+        typeof scenario.refused === "string"
+          ? [scenario.refused]
+          : scenario.refused;
+      it.each(codes)(
+        "verwirft die Ressource bei ihrem echten Ablehnungscode %s",
+        async (refused) => {
+          const { result, pending } = await setup();
+          let task!: Promise<unknown>;
+          act(() => {
+            task = result.current.run().catch((error: unknown) => error);
+          });
+          expect(result.current.data).toBe(true);
+          await act(async () => {
+            pending.reject(new ApiError("refused", 403, { code: refused }));
+            await task;
+          });
+          expect(result.current.ready).toBe(false);
+        },
+      );
     }
     it("nimmt einen fachlichen Zustand nur zurück und behält die Daten", async () => {
       const { result, pending } = await setup();
       const before = result.current.data;
-      const reads = scenario.recheck?.mock.calls.length ?? 0;
+      const reads = scenario.reader?.mock.calls.length ?? 0;
       let task!: Promise<unknown>;
       act(() => {
         task = result.current.run().catch((error: unknown) => error);
@@ -611,9 +614,10 @@ for (const scenario of cases) {
       });
       expect(result.current.ready).toBe(true);
       expect(result.current.data).toBe(before);
-      if (scenario.recheck) {
+      expect(scenario.request).toHaveBeenCalledOnce();
+      if (scenario.reader) {
         await waitFor(() =>
-          expect(scenario.recheck!.mock.calls.length).toBe(reads + 1),
+          expect(scenario.reader!.mock.calls.length).toBe(reads),
         );
       }
     });
