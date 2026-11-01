@@ -32,8 +32,9 @@ func (s seedBookingLeftoverStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	ganztag, lunch := rt.Enrollment.Offerings["ogs-ganztag"], rt.Enrollment.Offerings["mittagessen"]
-	if ganztag == 0 || lunch == 0 {
-		return fmt.Errorf("booking leftover: offerings ogs-ganztag and mittagessen not seeded")
+	theater := rt.Enrollment.Offerings["ag-theater"]
+	if ganztag == 0 || lunch == 0 || theater == 0 {
+		return fmt.Errorf("booking leftover: offerings ogs-ganztag, mittagessen and ag-theater not seeded")
 	}
 	days := []string{"mon", "tue", "fri"}
 	path := fmt.Sprintf("/api/enrollment/admin/requests/%d/children/%d/offerings", request.RequestID, request.ChildIDs[0])
@@ -41,6 +42,8 @@ func (s seedBookingLeftoverStep) Run(_ context.Context, rt *Runtime) error {
 		"offerings": []map[string]any{
 			{"offering_id": fmt.Sprint(ganztag), "selected_days": days},
 			{"offering_id": fmt.Sprint(lunch), "selected_days": days},
+			// Her Theater-AG on Thursdays stays (enrollment_course_bookings.go).
+			{"offering_id": fmt.Sprint(theater)},
 		},
 		"reason":         "Mittwochs geht Hannah zur Oma",
 		"effective_from": todaySeedDate().String(),

@@ -116,13 +116,16 @@ func addLeftoverDay(
 	}
 }
 
-// endedBookingDays lists the days on which a booking link of the weekday
-// ended by a change or a withdrawal.
+// endedBookingDays lists the days on which a change or a withdrawal dropped
+// an offering from the weekday: a link of it ended and no link of the same
+// offering plans the weekday from that day on. A rebooking of the same
+// offering drops nothing, as in the save response.
 func endedBookingDays(bookings []OfferingWeekdayBooking, weekday int) []calendar.Date {
 	var result []calendar.Date
 	for _, booking := range bookings {
 		for _, window := range booking.Windows {
-			if window.Ended && window.ValidUntil != nil && slices.Contains(window.Weekdays, weekday) {
+			if window.Ended && window.ValidUntil != nil && slices.Contains(window.Weekdays, weekday) &&
+				len(bookingsInForce([]OfferingWeekdayBooking{booking}, weekday, *window.ValidUntil)) == 0 {
 				result = append(result, *window.ValidUntil)
 			}
 		}

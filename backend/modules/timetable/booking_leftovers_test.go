@@ -173,3 +173,18 @@ func TestDetectBookingLeftoversStartsAFutureChangeOnItsDay(t *testing.T) {
 	assert.Equal(t, future, leftovers[0].From, "the removal starts when the booking ends")
 	assert.Equal(t, future, leftovers[0].BookingEndedOn)
 }
+
+// A link that ends where the same offering continues on the weekday is a
+// rebooking, not a drop: the save response would name no dropped day, and
+// a Regeltermin of another kind must not show up for it (seeded AG lists).
+func TestDetectBookingLeftoversIgnoresARebookedOffering(t *testing.T) {
+	t.Parallel()
+	rebooked := leftoverBooking(leftoverGanztag, leftoverChild, map[int]string{4: "16:00"},
+		leftoverWindow(phaseStart, leftoverChange, true, 1, 2, 3, 4, 5),
+		leftoverWindow(leftoverChange, phaseEnd, false, 1, 2, 3, 4, 5))
+	course := handTemplate(handRow(leftoverChild))
+	course.Kind = timetable.RosterOfferingCourse
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{course}, []timetable.OfferingWeekdayBooking{rebooked})
+	assert.Empty(t, leftovers)
+}
