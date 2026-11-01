@@ -17,6 +17,7 @@ import {
 } from "~/components/traeger/holiday-registration-format";
 import { holidayPeriodTabs } from "~/components/traeger/holiday-period-head";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -173,6 +174,7 @@ export default function TraegerHolidayRegistrationsPage() {
     data: period,
     preview,
     loadError: periodError,
+    error: periodFailure,
   } = useTraegerHolidayPeriod(periodId);
   const [list, setList] = useState<HolidayRegistrationList | null>(null);
   const [status, setStatus] = useState<StatusChoice>("all");
@@ -183,7 +185,11 @@ export default function TraegerHolidayRegistrationsPage() {
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   // Each new filter starts a new list; an answer for an older one is dropped.
   const generation = useRef(0);
-  const { schools, error: schoolsError } = useTraegerSchools();
+  const {
+    schools,
+    error: schoolsError,
+    fetchError: schoolsFailure,
+  } = useTraegerSchools();
   const listLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = listLoad;
   const { show: showActionError } = useApiErrorDisplay();
@@ -262,7 +268,14 @@ export default function TraegerHolidayRegistrationsPage() {
   ];
   const filtered = Boolean(status !== "all" || school || weekId || timeModel);
   const duplicates = duplicateCount(list);
-  const loadError = listLoad.error ?? periodError ?? schoolsError;
+  const loadError =
+    listLoad.error ??
+    metadataLoadError(
+      periodError ?? schoolsError,
+      Boolean(list && period && schools),
+      periodFailure,
+      schoolsFailure,
+    );
 
   const filters: FilterConfig[] = [
     {
