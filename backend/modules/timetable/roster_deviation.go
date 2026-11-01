@@ -74,8 +74,10 @@ type RosterDeviation struct {
 	// explains the most planned child-weekdays, then adds the fewest
 	// unplanned ones, then needs the fewest offerings (#5139). A Randstunde
 	// for a whole Klasse is explained by Randstunde and Ganztag together;
-	// one of them alone would drop the other's children. When Ambiguous it
-	// is only the first of the equal Combinations.
+	// one of them alone would drop the other's children. For a Klasse or
+	// Jahrgang every other offering of the phase that carries the
+	// Regeltermin joins (withCarryingOfferings). When Ambiguous it is only the
+	// first of the equal Combinations.
 	Offerings []OfferingRef
 	// GradeLevels / SchoolClasses are the suggested source filter, taken
 	// from the Regeltermin's Jahrgang or Klasse targets.
@@ -115,6 +117,8 @@ type deviationCandidate struct {
 	// passes is the rule of #5103; a combination must retain at least one
 	// passing offering; complementary offerings need not pass alone.
 	passes bool
+	// pickupTimes are the offering's pickup times per ISO weekday.
+	pickupTimes map[int]string
 }
 
 // DetectRosterDeviation applies the rule to one roster. It returns nil when
@@ -142,6 +146,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 	if len(best) == 0 {
 		return nil
 	}
+	best = withCarryingOfferings(roster, candidates, best)
 	chosen := best[0].members
 	booked := unionBookedSlots(candidates, chosen)
 	combinations := [][]OfferingRef{}
@@ -216,7 +221,7 @@ func plannedRosterSlots(roster TemplateFutureRoster) map[rosterSlot]bool {
 func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSlot]bool, bookings []OfferingWeekdayBooking) []deviationCandidate {
 	candidates := make([]deviationCandidate, 0)
 	for _, candidate := range bookedSlotsByOffering(roster, bookings) {
-		if len(candidate.booked) > 0 {
+		if len(candidate.booked) > 0 && candidate.carriage(roster) != carriageRuledOut {
 			candidate.passes = scoreDeviationCandidate(candidate, planned)
 			candidates = append(candidates, *candidate)
 		}
@@ -249,9 +254,10 @@ func bookedSlotsByOffering(roster TemplateFutureRoster, bookings []OfferingWeekd
 		candidate := byOffering[booking.OfferingID]
 		if candidate == nil {
 			candidate = &deviationCandidate{
-				offering: OfferingRef{ID: booking.OfferingID, Name: booking.OfferingName},
-				phaseID:  booking.PhaseID,
-				booked:   make(map[rosterSlot]bool),
+				offering:    OfferingRef{ID: booking.OfferingID, Name: booking.OfferingName},
+				phaseID:     booking.PhaseID,
+				booked:      make(map[rosterSlot]bool),
+				pickupTimes: booking.PickupTimes,
 			}
 			byOffering[booking.OfferingID] = candidate
 		}

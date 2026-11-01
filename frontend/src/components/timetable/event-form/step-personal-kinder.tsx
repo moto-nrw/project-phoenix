@@ -242,6 +242,7 @@ export function StepPersonalKinder({
           periodId: form.calendarPeriodId,
           type: form.type,
           ...(form.listKind ? { listKind: form.listKind } : {}),
+          ...(form.endTime ? { endTime: form.endTime } : {}),
           roster: draftRoster,
           ...draftTargetFilter(form),
         }

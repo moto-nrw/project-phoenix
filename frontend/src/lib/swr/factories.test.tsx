@@ -93,7 +93,7 @@ describe("shared resource factories", () => {
         expect(result.current.key).toBe(
           scope === "platform"
             ? `operator:account-7:${factory.key()}`
-            : `${scope === "org" ? "traeger:84" : `${scope || "tenant"}:42`}:account-7:${factory.key()}`,
+            : `${scope === "org" ? "traeger:84" : scope === "caterer" ? "caterer" : `${scope || "tenant"}:42`}:account-7:${factory.key()}`,
         );
         unmount();
       }

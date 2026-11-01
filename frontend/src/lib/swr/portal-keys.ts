@@ -174,6 +174,9 @@ export const timetableKeys = {
 // School portal (Lehrkräfte).
 export const schoolPortalKeys = {
   classDayClasses: () => "class-day-my-classes",
+  classDayReport: (schoolClass: string, date: string) =>
+    resourceKey("school-class-day-report-", { schoolClass, date }),
+  schoolDay: (date: string) => `school-day-${date}`,
   parentConferences: () => "school-parent-conferences",
   absenceList: (schoolClass: string, from = "", to = "") =>
     `school-absence-list-${schoolClass}-${from}-${to}`,
@@ -272,3 +275,33 @@ function searchKey(params: {
 }): string {
   return `${"search-students-"}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}`;
 }
+
+const catererOrdersFamily = "caterer-orders-";
+
+/** Caterer sessions span schools; every order response still names its school. */
+export const catererKeys = {
+  family: catererOrdersFamily,
+  containsSchool(key: string, schoolId: string): boolean {
+    if (!key.startsWith(catererOrdersFamily)) return false;
+    try {
+      const params: unknown = JSON.parse(key.slice(catererOrdersFamily.length));
+      return (
+        params !== null &&
+        typeof params === "object" &&
+        "schoolIds" in params &&
+        Array.isArray(params.schoolIds) &&
+        params.schoolIds.includes(schoolId)
+      );
+    } catch {
+      // Not a factory-built order window.
+      return false;
+    }
+  },
+  schools: () => "caterer-schools",
+  orders: (schoolIds: readonly string[], from: string, to: string) =>
+    resourceKey(catererOrdersFamily, {
+      schoolIds: [...schoolIds].sort(),
+      from,
+      to,
+    }),
+} as const;

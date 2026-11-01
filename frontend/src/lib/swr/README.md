@@ -207,6 +207,21 @@ Announcement statistics and confirmation details run only while expanded.
 The operator auth guard also keys local page/modal state to its confirmed scope
 and hides it while another tab's session change is being confirmed.
 
+### Completion effects of batch readers
+
+A batch reader processes supply/access refusals when its request settles,
+not only in an effect of the currently selected view. Call
+`useSWRRequestGuard()` (from `hooks`) in the component body. Call its returned
+request starter at the beginning of the fetcher, before awaiting the request.
+Run synchronous refusal handling through the resulting completion callback. It
+checks the session, scope and request generation even after the user changes
+keys. A stale completion becomes `DiscardedAnswer`, which the existing SWR
+wrapper suppresses. Imperative reads can check the callback’s `isCurrent()`
+before handling either success or failure, without turning a GET into an
+optimistic action. The guard exposes no cache or writer and does not change
+SWR's view-bound `onSuccess` semantics. Keep each refused resource's existing
+factory-key predicate; do not clear other readable schools.
+
 ## Navigation intent
 
 Navigation data preloads must use `useSWRPreload` with the destination's exact
