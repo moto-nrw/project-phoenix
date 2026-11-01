@@ -152,13 +152,61 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 func configuredDatevCategories(categories []PayrollExportCategory, report *DatevExportReport) []PayrollExportCategory {
 	var configured []PayrollExportCategory
 	for _, category := range categories {
-		if category.Number == "" || (category.UnitRequired && category.Unit == "") {
+		if !isDatevCategoryConfigured(category) {
 			report.UnconfiguredCategories = append(report.UnconfiguredCategories, category.Label)
 			continue
 		}
 		configured = append(configured, category)
 	}
 	return configured
+}
+
+func isDatevCategoryConfigured(category PayrollExportCategory) bool {
+	return category.Number != "" && (!category.UnitRequired || category.Unit != "")
+}
+
+// validateDatevWageTypeNumbers keeps each own wage type distinct from the
+// fixed categories and from every other own wage type the requested export
+// can carry. Closed rows use their frozen definition, so this check belongs
+// here rather than in the current-rule maintenance path.
+func validateDatevWageTypeNumbers(rows []MonthExportRow, status *PayrollExportConfiguration) error {
+	used := make(map[string]string)
+	for _, category := range status.Categories {
+		if isDatevCategoryConfigured(category) {
+			// Fixed categories predate own wage types and may deliberately share
+			// a number. Own wage types must not join that existing booking.
+			if _, exists := used[category.Number]; !exists {
+				used[category.Number] = category.Label
+			}
+		}
+	}
+
+	type definition struct {
+		id     int64
+		number string
+	}
+	seen := make(map[definition]bool)
+	for _, row := range rows {
+		if row.PayrollRules == nil {
+			continue
+		}
+		for _, wageType := range row.PayrollRules.WageTypes {
+			if wageType.Number == "" {
+				continue
+			}
+			key := definition{id: wageType.ID, number: wageType.Number}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			if name, exists := used[wageType.Number]; exists {
+				return fmt.Errorf("%w: DATEV-Lohnartnummer %s ist sowohl für %s als auch für %s eingerichtet",
+					ErrPayrollConfigIncomplete, wageType.Number, name, wageType.Name)
+			}
+			used[wageType.Number] = wageType.Name
+		}
+	}
+	return nil
 }
 
 // appendDatevRowLines appends one line per configured category with a value
@@ -358,6 +406,9 @@ func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportR
 	}
 	if status.ConfiguredCategories == 0 && !rowsHaveNumberedWageType(rows) {
 		return nil, nil, nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+	}
+	if err := validateDatevWageTypeNumbers(rows, status); err != nil {
+		return nil, nil, nil, err
 	}
 	lines, report := buildDatevLines(rows, status)
 	report.Format = req.Format

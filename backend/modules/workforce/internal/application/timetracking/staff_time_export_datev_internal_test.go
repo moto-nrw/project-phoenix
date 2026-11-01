@@ -63,9 +63,11 @@ func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		rows []MonthExportRow
-		want error
+		name          string
+		rows          []MonthExportRow
+		configuration PayrollExportConfiguration
+		want          error
+		wantDetail    string
 	}{
 		{
 			name: "numbered frozen wage type allows a historical export",
@@ -84,13 +86,45 @@ func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 			}},
 			want: ErrPayrollConfigIncomplete,
 		},
+		{
+			name: "an own wage type may not reuse a fixed category number",
+			rows: []MonthExportRow{{
+				PayrollRules: &workforce.PayrollRuleSet{
+					WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours}},
+				},
+			}},
+			configuration: PayrollExportConfiguration{
+				Categories:           []PayrollExportCategory{{Label: "Regelarbeit", Number: "310"}},
+				ConfiguredCategories: 1,
+			},
+			want:       ErrPayrollConfigIncomplete,
+			wantDetail: "310",
+		},
+		{
+			name: "two own wage types may not reuse a number",
+			rows: []MonthExportRow{{
+				PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{
+					{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours},
+					{ID: 8, Name: "Feiertagszuschlag", Number: "310", Unit: workforce.WageTypeUnitHours},
+				}},
+			}},
+			want:       ErrPayrollConfigIncomplete,
+			wantDetail: "310",
+		},
+		{
+			name: "the same frozen wage type on several rows remains valid",
+			rows: []MonthExportRow{
+				{PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours}}}},
+				{PayrollRules: &workforce.PayrollRuleSet{WageTypes: []workforce.PayrollWageType{{ID: 7, Name: "Nachtzuschlag", Number: "310", Unit: workforce.WageTypeUnitHours}}}},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			svc := &staffTimeExportService{
 				overview:      datevOverviewStub{rows: test.rows},
-				payrollStatus: payrollConfigurationStub{},
+				payrollStatus: payrollConfigurationStub{configuration: test.configuration},
 				payrollRules:  payrollRuleSetStub{},
 			}
 
@@ -99,6 +133,7 @@ func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 			})
 			if test.want != nil {
 				require.ErrorIs(t, err, test.want)
+				assert.ErrorContains(t, err, test.wantDetail)
 				return
 			}
 			require.NoError(t, err)
