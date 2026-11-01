@@ -99,7 +99,8 @@ export async function tenantPrefetchResources(
   if (path === "/ogs-groups" && canReadStudents(session)) {
     const id = params.get("group") ?? context.groupId;
     // Membership/supervision is confirmed by the shell, not inferred from URL.
-    if (!id || !context.groups.includes(id)) return [];
+    if (id ? !context.groups.includes(id) : context.groups.length === 0)
+      return [];
     return [{ key: groups.live(id), fetcher: () => fetchOgsGroupLive(id) }];
   }
   if (

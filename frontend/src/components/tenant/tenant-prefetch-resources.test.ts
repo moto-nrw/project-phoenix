@@ -72,6 +72,21 @@ describe("tenant destination resources", () => {
     expect(
       await tenantPrefetchResources("/ogs-groups?group=8", allowed),
     ).toEqual([]);
+    expect(
+      (
+        await tenantPrefetchResources("/ogs-groups", {
+          ...allowed,
+          groupId: null,
+        })
+      ).map((resource) => resource.key),
+    ).toEqual([groups.live(null)]);
+    expect(
+      await tenantPrefetchResources("/ogs-groups", {
+        ...allowed,
+        groupId: null,
+        groups: [],
+      }),
+    ).toEqual([]);
   });
   it("shares the exact complete child-detail key, never an inferred permission flag", async () => {
     expect(

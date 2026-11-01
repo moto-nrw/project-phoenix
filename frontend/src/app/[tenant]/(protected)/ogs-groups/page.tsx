@@ -580,7 +580,7 @@ function OGSGroupPageContent() {
       // was in flight would otherwise leave a stale seed pinned until the
       // next event.
       if (dataGroupId) {
-        void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
+        void tenantMutate(groupKeys.live(dataGroupId), liveData, {
           revalidate: true,
         });
       }
