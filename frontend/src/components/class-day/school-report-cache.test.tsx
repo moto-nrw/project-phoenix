@@ -233,6 +233,32 @@ describe("school report cache", () => {
     expect(options.fetchClassDay).toHaveBeenCalledTimes(4);
   });
 
+  it("groups denied reports without a retry and recovers on later revalidation", async () => {
+    const options = setup();
+    options.fetchClassDay.mockImplementation(async () => {
+      throw new ApiError("denied", 403);
+    });
+    render(<ClassDayOverview {...options} />, options);
+    expect(
+      await screen.findAllByText("Konnte nicht geladen werden"),
+    ).toHaveLength(2);
+    expect(await screen.findAllByRole("alert")).toHaveLength(1);
+    // Anker: die betroffenen Klassen stehen da, aber keine verweigerten Zahlen.
+    expect(screen.getByRole("link", { name: /Klasse 4a/ })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Klasse 4b/ })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/1 Kinder · 1 bleiben/)).not.toBeInTheDocument();
+    options.fetchClassDay.mockResolvedValue(report);
+    await act(async () => {
+      await options.refresh();
+    });
+    // Anker: neue erlaubte Antworten heben den Entzug auf, nicht alte Daten.
+    expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("starts all class reports in parallel without waiting for another report", async () => {
     const options = setup();
     options.fetchClassDay.mockImplementation(
