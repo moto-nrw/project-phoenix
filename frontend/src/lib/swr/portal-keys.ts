@@ -188,6 +188,7 @@ export const payrollKeys = {
   status: () => "payroll-status",
   dispatch: () => "payroll-dispatch",
   sftpStatus: () => "payroll-sftp-status",
+  rules: () => "payroll-rules",
 } as const;
 
 export const databaseKeys = {

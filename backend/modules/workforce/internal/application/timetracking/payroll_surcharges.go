@@ -104,18 +104,7 @@ func netWorkSpans(session *WorkSession, breaks []*WorkSessionBreak, now time.Tim
 	if !end.After(start) {
 		return nil
 	}
-	cuts := make([]timeSpan, 0, len(breaks))
-	for _, brk := range breaks {
-		breakEnd := end
-		if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
-			breakEnd = *brk.EndedAt
-		}
-		if cut := (timeSpan{start: brk.StartedAt, end: breakEnd}); !cut.empty() {
-			cuts = append(cuts, cut)
-		}
-	}
-	slices.SortFunc(cuts, func(a, b timeSpan) int { return a.start.Compare(b.start) })
-
+	cuts := breakSpans(breaks, end)
 	spans := []timeSpan{}
 	cursor := start
 	for _, cut := range cuts {
@@ -133,6 +122,23 @@ func netWorkSpans(session *WorkSession, breaks []*WorkSessionBreak, now time.Tim
 		spans = append(spans, timeSpan{start: cursor, end: end})
 	}
 	return spans
+}
+
+// breakSpans are the break intervals in start order; a running break lasts
+// until the session end.
+func breakSpans(breaks []*WorkSessionBreak, end time.Time) []timeSpan {
+	cuts := make([]timeSpan, 0, len(breaks))
+	for _, brk := range breaks {
+		breakEnd := end
+		if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
+			breakEnd = *brk.EndedAt
+		}
+		if cut := (timeSpan{start: brk.StartedAt, end: breakEnd}); !cut.empty() {
+			cuts = append(cuts, cut)
+		}
+	}
+	slices.SortFunc(cuts, func(a, b timeSpan) int { return a.start.Compare(b.start) })
+	return cuts
 }
 
 func minTime(a, b time.Time) time.Time {

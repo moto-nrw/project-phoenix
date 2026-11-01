@@ -8,7 +8,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,13 +38,7 @@ func (a payrollRuleAudit) RecordPayrollRuleChange(ctx context.Context, change wo
 }
 
 // BuildPayrollRules composes the wage type and surcharge rule maintenance of
-// /payroll over the settings audit.
-func BuildPayrollRules(db transactionruntime.Database) (workforceModule.PayrollRules, error) {
-	return workforceCompose.NewPayrollRules(db.Pool(), NewPayrollRuleAudit(db))
-}
-
-// BuildPayrollRuleSetReader composes the reader the export and the month
-// close book with.
-func BuildPayrollRuleSetReader(db transactionruntime.Database) (workforceModule.PayrollRuleSetReader, error) {
-	return workforceCompose.NewPayrollRuleSetReader(db.Pool())
+// /payroll over the Workforce rows and the settings audit.
+func BuildPayrollRules(workTime workforceModule.Capability, db transactionruntime.Database) (workforceModule.PayrollRules, error) {
+	return workTime.PayrollRuleMaintenance(NewPayrollRuleAudit(db))
 }

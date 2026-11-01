@@ -127,8 +127,12 @@ func newStaffComposition(
 	if err != nil {
 		return nil, nil, err
 	}
+	payrollRules, err := owners.BuildPayrollRules(workforce, db)
+	if err != nil {
+		return nil, nil, err
+	}
 	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
-	staffAdmin := newStaffAdminResource(capabilities, absenceWrites, workforce, staffTimeTrackingNotifier(hub), exportTransfer, payroll, db, logger)
+	staffAdmin := newStaffAdminResource(capabilities, absenceWrites, workforce, staffTimeTrackingNotifier(hub), exportTransfer, payroll, payrollRules, db, logger)
 	resource, err := newStaffResource(module, people, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
 	}, staffAdmin, logger)

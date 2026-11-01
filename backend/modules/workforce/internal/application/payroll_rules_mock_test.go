@@ -101,6 +101,7 @@ func newPayrollRulesForTest(t *testing.T) (*PayrollRules, *payrollRulesStoreFake
 }
 
 func TestPayrollRules_CreateWageTypeTrimsAndAuditsTheNewObject(t *testing.T) {
+	t.Parallel()
 	rules, _, audit := newPayrollRulesForTest(t)
 
 	created, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "  Nachtzuschlag ", Number: " 310 ", Unit: workforce.WageTypeUnitHours})
@@ -118,6 +119,7 @@ func TestPayrollRules_CreateWageTypeTrimsAndAuditsTheNewObject(t *testing.T) {
 }
 
 func TestPayrollRules_CreateWageTypeRejectsWhatDATEVCannotBook(t *testing.T) {
+	t.Parallel()
 	rules, _, audit := newPayrollRulesForTest(t)
 	for name, input := range map[string]workforce.PayrollWageTypeInput{
 		"no name":         {Name: " ", Unit: workforce.WageTypeUnitHours},
@@ -133,6 +135,7 @@ func TestPayrollRules_CreateWageTypeRejectsWhatDATEVCannotBook(t *testing.T) {
 }
 
 func TestPayrollRules_ANightRuleWithoutWindowGetsTheDefaultWindow(t *testing.T) {
+	t.Parallel()
 	rules, _, _ := newPayrollRulesForTest(t)
 	wageType, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "Nacht", Unit: workforce.WageTypeUnitHours})
 	require.NoError(t, err)
@@ -147,6 +150,7 @@ func TestPayrollRules_ANightRuleWithoutWindowGetsTheDefaultWindow(t *testing.T) 
 }
 
 func TestPayrollRules_ARuleBooksOntoAWageTypeOfTheMatchingUnit(t *testing.T) {
+	t.Parallel()
 	rules, _, _ := newPayrollRulesForTest(t)
 	hours, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "Stunden", Unit: workforce.WageTypeUnitHours})
 	require.NoError(t, err)
@@ -172,6 +176,7 @@ func TestPayrollRules_ARuleBooksOntoAWageTypeOfTheMatchingUnit(t *testing.T) {
 }
 
 func TestPayrollRules_AWageTypeInUseCannotBeArchived(t *testing.T) {
+	t.Parallel()
 	rules, store, audit := newPayrollRulesForTest(t)
 	wageType, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "Sonntag", Unit: workforce.WageTypeUnitHours})
 	require.NoError(t, err)
@@ -193,6 +198,7 @@ func TestPayrollRules_AWageTypeInUseCannotBeArchived(t *testing.T) {
 }
 
 func TestPayrollRules_AnAbsenceTypeBooksOntoAnHourOrDayWageType(t *testing.T) {
+	t.Parallel()
 	rules, store, audit := newPayrollRulesForTest(t)
 	store.absenceTypes = []workforce.PayrollAbsenceTypeWageType{{AbsenceTypeID: 900, Name: "Sonderurlaub", IsActive: true}}
 	days, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "Sonderurlaub", Number: "250", Unit: workforce.WageTypeUnitDays})
@@ -216,6 +222,7 @@ func TestPayrollRules_AnAbsenceTypeBooksOntoAnHourOrDayWageType(t *testing.T) {
 }
 
 func TestPayrollRules_TheCurrentRuleSetLeavesArchivedEntriesOut(t *testing.T) {
+	t.Parallel()
 	rules, _, _ := newPayrollRulesForTest(t)
 	kept, err := rules.CreateWageType(t.Context(), payrollActor, workforce.PayrollWageTypeInput{Name: "Nacht", Number: "310", Unit: workforce.WageTypeUnitHours})
 	require.NoError(t, err)

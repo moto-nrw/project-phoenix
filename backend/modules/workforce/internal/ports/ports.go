@@ -12,6 +12,7 @@ import (
 // config.work_time_model_entries and config.staff_work_schedules. Reads and
 // writes honour the tenant in context when one is bound.
 type Store interface {
+	PayrollRulesStore
 	ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
 	LatestClosedMonth(context.Context, int64, int, int) (*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
 	ClosedMonthSnapshots(context.Context, int, int) ([]*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)

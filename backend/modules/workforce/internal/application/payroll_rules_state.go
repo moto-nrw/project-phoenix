@@ -30,6 +30,26 @@ func (p *PayrollRules) loadState(ctx context.Context) (*payrollRuleState, error)
 	return &payrollRuleState{wageTypes: wageTypes, rules: rules, absenceTypes: absenceTypes}, nil
 }
 
+func (s *payrollRuleState) activeWageTypes() []workforce.PayrollWageType {
+	result := make([]workforce.PayrollWageType, 0, len(s.wageTypes))
+	for _, wageType := range s.wageTypes {
+		if !wageType.Archived {
+			result = append(result, wageType)
+		}
+	}
+	return result
+}
+
+func (s *payrollRuleState) activeRules() []workforce.PayrollSurchargeRule {
+	result := make([]workforce.PayrollSurchargeRule, 0, len(s.rules))
+	for _, rule := range s.rules {
+		if !rule.Archived {
+			result = append(result, rule)
+		}
+	}
+	return result
+}
+
 func (s *payrollRuleState) activeWageType(id int64) (workforce.PayrollWageType, bool) {
 	for _, wageType := range s.wageTypes {
 		if wageType.ID == id && !wageType.Archived {

@@ -3800,6 +3800,37 @@
       "target_owner": "staff-directory-view"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "reason": "Platform protocol participation (mutation): workforce reaches modules/settings/records.SettingAuditRepository.Create (settings-platform) through roots/owners.payrollRuleAudit.RecordPayrollRuleChange (#4807). The wage type, rule or mapping change and its settings audit row commit in the caller's tenant unit; the audit insert is append-only and its transaction stays with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingAuditRepository.Create",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "reason": "Read or pure value helper of the payroll rule audit (#4807): workforce reaches tenant.TenantFromContext (tenant-runtime) through roots/owners.payrollRuleAudit.RecordPayrollRuleChange. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "reason": "Read or pure value helper of the payroll rule audit (#4807): workforce reaches tenant.TenantID.Int64 (tenant-runtime) through roots/owners.payrollRuleAudit.RecordPayrollRuleChange. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
       "classification": "query",
       "effect": "query",
@@ -10497,6 +10528,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar/internal/application.NonWorkingDays.HolidayDates; modules/schoolcalendar/internal/application/non_working_days.go:18. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.NonWorkingDays.HolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.HolidayDatesReader.HolidayDates",
+      "reason": "Read of the statutory holidays for the holiday surcharge (#4807): workforce reaches modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates (school-calendar) through modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",
       "target_owner": "school-calendar"
     },
     {

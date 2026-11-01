@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/settings/settingstest"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -107,11 +109,17 @@ func addPayrollRules(t *testing.T, f *overviewFixture) {
 // the school's wage types and the fixed holiday.
 func (f *overviewFixture) newPayrollRulesExportService(t *testing.T) timetracking.StaffTimeExportService {
 	t.Helper()
-	reader, err := workforceCompose.NewPayrollRuleSetReader(f.db)
-	require.NoError(t, err)
 	settings := wtmIntSettings{accountStart: calendar.NewDate(f.today.Year(), f.today.Month(), 1).String()}
-	f.svc = f.newOverviewService(settings, timetracking.WithOverviewPayrollRules(reader, payrollHolidays{}))
-	return f.newDatevExportService(datevFullConfig())
+	overview := f.newOverviewService(settings, timetracking.WithOverviewPayrollRules(f.workforce, payrollHolidays{}))
+	return timetracking.NewStaffTimeExportService(
+		overview,
+		f.newWorkSessionService(),
+		owners.TimeExportStaff(f.repos.Staff),
+		owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		api.NewPayrollExportSettings(settingstest.New(datevFullConfig()), f.countPersonnelNumbers),
+		nil,
+		owners.RenderTimeTrackingWorkbook,
+	)
 }
 
 // TestDatevExport_PayrollRuleGoldenFiles pins both DATEV formats with

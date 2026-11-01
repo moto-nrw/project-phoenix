@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // PayrollRules maintains the school's own wage types, surcharge rules and
@@ -48,30 +47,26 @@ func payrollRuleNotFound(what string) error {
 // Overview lists the active wage types and rules and every school absence
 // type with its mapping.
 func (p *PayrollRules) Overview(ctx context.Context) (*workforce.PayrollRulesOverview, error) {
-	wageTypes, rules, err := p.activeRows(ctx)
+	state, err := p.loadState(ctx)
 	if err != nil {
 		return nil, err
 	}
-	absenceTypes, err := p.store.ListPayrollAbsenceTypes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &workforce.PayrollRulesOverview{WageTypes: wageTypes, SurchargeRules: rules, AbsenceTypes: absenceTypes}, nil
+	return &workforce.PayrollRulesOverview{
+		WageTypes: state.activeWageTypes(), SurchargeRules: state.activeRules(), AbsenceTypes: state.absenceTypes,
+	}, nil
 }
 
 // CurrentPayrollRuleSet is the rule set an open month books with. Absence
 // types mapped onto an archived wage type keep their category.
 func (p *PayrollRules) CurrentPayrollRuleSet(ctx context.Context) (*workforce.PayrollRuleSet, error) {
-	wageTypes, rules, err := p.activeRows(ctx)
+	state, err := p.loadState(ctx)
 	if err != nil {
 		return nil, err
 	}
-	absenceTypes, err := p.store.ListPayrollAbsenceTypes(ctx)
-	if err != nil {
-		return nil, err
+	set := &workforce.PayrollRuleSet{
+		WageTypes: state.activeWageTypes(), SurchargeRules: state.activeRules(), AbsenceTypeWageTypes: map[int64]int64{},
 	}
-	set := &workforce.PayrollRuleSet{WageTypes: wageTypes, SurchargeRules: rules, AbsenceTypeWageTypes: map[int64]int64{}}
-	for _, absenceType := range absenceTypes {
+	for _, absenceType := range state.absenceTypes {
 		if absenceType.WageTypeID == nil {
 			continue
 		}
@@ -80,30 +75,6 @@ func (p *PayrollRules) CurrentPayrollRuleSet(ctx context.Context) (*workforce.Pa
 		}
 	}
 	return set, nil
-}
-
-func (p *PayrollRules) activeRows(ctx context.Context) ([]workforce.PayrollWageType, []workforce.PayrollSurchargeRule, error) {
-	allWageTypes, err := p.store.ListPayrollWageTypes(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	allRules, err := p.store.ListPayrollSurchargeRules(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	wageTypes := make([]workforce.PayrollWageType, 0, len(allWageTypes))
-	for _, wageType := range allWageTypes {
-		if !wageType.Archived {
-			wageTypes = append(wageTypes, wageType)
-		}
-	}
-	rules := make([]workforce.PayrollSurchargeRule, 0, len(allRules))
-	for _, rule := range allRules {
-		if !rule.Archived {
-			rules = append(rules, rule)
-		}
-	}
-	return wageTypes, rules, nil
 }
 
 // --- wage types -------------------------------------------------------------
@@ -365,26 +336,23 @@ func mappingJSON(wageTypeID *int64) json.RawMessage {
 	return json.RawMessage(strconv.FormatInt(*wageTypeID, 10))
 }
 
-// payrollRuleSetReader answers the rule set in force without the write side.
-type payrollRuleSetReader struct{ rules *PayrollRules }
-
-// NewPayrollRuleSetReader reads the current rule set; it writes nothing and
-// needs no audit.
-func NewPayrollRuleSetReader(store ports.PayrollRulesStore) workforce.PayrollRuleSetReader {
-	if store == nil {
-		panic("payroll rule set reader: store is required")
+// CurrentPayrollRuleSet is the rule set in force (#4807): the export books
+// open months with it and the month close freezes it. It reads in the
+// caller's tenant transaction, so the close freezes what its own unit sees;
+// without one the store refuses.
+func (s *Service) CurrentPayrollRuleSet(ctx context.Context) (*workforce.PayrollRuleSet, error) {
+	set, err := (&PayrollRules{store: s.store}).CurrentPayrollRuleSet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("current payroll rule set: %w", err)
 	}
-	return payrollRuleSetReader{rules: &PayrollRules{store: store}}
+	return set, nil
 }
 
-// CurrentPayrollRuleSet joins the caller's tenant transaction, or opens one
-// for a caller without (the worker's file build).
-func (r payrollRuleSetReader) CurrentPayrollRuleSet(ctx context.Context) (*workforce.PayrollRuleSet, error) {
-	var set *workforce.PayrollRuleSet
-	err := tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
-		var err error
-		set, err = r.rules.CurrentPayrollRuleSet(ctx)
-		return err
-	})
-	return set, err
+// PayrollRuleMaintenance maintains the school's own wage types over the
+// Workforce rows; every change goes to the audit the root binds.
+func (s *Service) PayrollRuleMaintenance(audit workforce.PayrollRuleAudit) (workforce.PayrollRules, error) {
+	if audit == nil {
+		return nil, errors.New("payroll rules: audit is required")
+	}
+	return &PayrollRules{store: s.store, audit: audit}, nil
 }

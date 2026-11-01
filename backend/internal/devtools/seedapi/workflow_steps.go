@@ -245,6 +245,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
 		// zählt alle, auch Besuch, Admin und Externe (#5032).
 		seedPayrollNumbersStep{},
+		// Eigene Lohnarten und Zuschläge (#4807); bucht den Regenerationstag
+		// der Zeiterfassung auf eine eigene Lohnart.
+		seedPayrollRulesStep{},
 		// Nach der Abrechnung: Der geplante Austritt ändert keine Zahl dort
 		// (#4809).
 		seedPlannedStaffExitStep{},

@@ -2713,6 +2713,30 @@
       "target_owner": "staff-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "binding_digest": "b818bf1f4f9e62e6983bb8913e0be706",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingAuditRepository.Create",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "binding_digest": "a32638cc17d8f4e55fa68c15a8b0580b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollRuleAudit.RecordPayrollRuleChange",
+      "binding_digest": "0995fde8ca511c11099c09a863531b03",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollRuleAudit.RecordPayrollRuleChange",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
       "binding_digest": "fcc95047b36b7ac6673746b672898338",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollSchools.School",
@@ -7398,6 +7422,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.HolidayDatesReader.HolidayDates",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.NonWorkingDays.HolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",
+      "binding_digest": "7ac98fc0350ee9de2af1069ae884e479",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.HolidayDatesReader.HolidayDates",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.TenantHolidays.HolidayDates",
       "target_owner": "school-calendar"
     },
     {

@@ -6211,6 +6211,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a payrollRuleAudit) RecordPayrollRuleChange(ctx context.Context, change workforceModule.PayrollRuleChange) error {\n\ttenantID, err := tenant.TenantFromContext(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"payroll rule audit: %w\", err)\n\t}\n\tvar changedBy *int64\n\tif change.ActorAccountID \u003e 0 {\n\t\tactor := change.ActorAccountID\n\t\tchangedBy = \u0026actor\n\t}\n\treturn a.audit.Create(ctx, configModels.NewAuditEntry(tenantID.Int64(), change.Key, change.Action, change.Old, change.New, changedBy))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollRuleAudit.RecordPayrollRuleChange",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (t payrollTransfer) RecordEmail(ctx context.Context, result workforce.PayrollEmailResult) error {\n\trecord := exporttransfer.EmailRecord{Kind: exporttransfer.KindStaffTimeTracking, Format: result.Format, Period: result.Period, Filename: result.Filename, ByteSize: result.ByteSize, Recipient: result.Recipient, Delivered: result.Delivered, ActorAccountID: result.ActorAccountID, ActorName: result.ActorName}\n\tif !result.Delivered {\n\t\trecord.Reason = exporttransfer.ReasonMailFailed\n\t}\n\treturn t.module.RecordEmail(ctx, record)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/payrollTransfer.RecordEmail",

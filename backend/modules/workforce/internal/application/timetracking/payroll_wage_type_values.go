@@ -30,35 +30,55 @@ func (v wageTypeValue) empty() bool { return v.Minutes == 0 && v.Days == 0 && v.
 // rowWageTypeValues returns the non-empty wage type values of a row, ordered
 // by wage type.
 func rowWageTypeValues(row MonthExportRow) []wageTypeValue {
-	rules := row.PayrollRules
-	if rules == nil || len(rules.WageTypes) == 0 {
+	if row.PayrollRules == nil || len(row.PayrollRules.WageTypes) == 0 {
 		return nil
 	}
-	values := make(map[int64]*wageTypeValue, len(rules.WageTypes))
-	valueOf := func(id int64) *wageTypeValue {
-		wageType, ok := rules.WageType(id)
-		if !ok {
-			return nil
-		}
-		if values[id] == nil {
-			values[id] = &wageTypeValue{WageType: wageType}
-		}
-		return values[id]
-	}
+	values := wageTypeValues{rules: row.PayrollRules, byID: map[int64]*wageTypeValue{}}
 	for absenceTypeID, credit := range row.AbsenceTypeCredits {
-		wageTypeID, mapped := rules.AbsenceTypeWageTypes[absenceTypeID]
-		if value := valueOf(wageTypeID); mapped && value != nil {
-			addAbsenceCredit(value, credit)
+		if wageTypeID, mapped := values.rules.AbsenceTypeWageTypes[absenceTypeID]; mapped {
+			values.addAbsence(wageTypeID, credit)
 		}
 	}
-	for _, rule := range rules.SurchargeRules {
-		minutes := row.SurchargeMinutes[rule.ID]
-		if value := valueOf(rule.WageTypeID); minutes > 0 && value != nil {
-			addSurcharge(value, rule, minutes)
+	for _, rule := range values.rules.SurchargeRules {
+		if minutes := row.SurchargeMinutes[rule.ID]; minutes > 0 {
+			values.addSurcharge(rule, minutes)
 		}
 	}
-	result := make([]wageTypeValue, 0, len(values))
-	for _, value := range values {
+	return values.sorted()
+}
+
+// wageTypeValues collects the values of one row per active wage type.
+type wageTypeValues struct {
+	rules *workforce.PayrollRuleSet
+	byID  map[int64]*wageTypeValue
+}
+
+func (v wageTypeValues) of(id int64) *wageTypeValue {
+	wageType, ok := v.rules.WageType(id)
+	if !ok {
+		return nil
+	}
+	if v.byID[id] == nil {
+		v.byID[id] = &wageTypeValue{WageType: wageType}
+	}
+	return v.byID[id]
+}
+
+func (v wageTypeValues) addAbsence(wageTypeID int64, credit AbsenceTypeCredit) {
+	if value := v.of(wageTypeID); value != nil {
+		addAbsenceCredit(value, credit)
+	}
+}
+
+func (v wageTypeValues) addSurcharge(rule PayrollSurchargeRule, minutes int) {
+	if value := v.of(rule.WageTypeID); value != nil {
+		addSurcharge(value, rule, minutes)
+	}
+}
+
+func (v wageTypeValues) sorted() []wageTypeValue {
+	result := make([]wageTypeValue, 0, len(v.byID))
+	for _, value := range v.byID {
 		if !value.empty() {
 			result = append(result, *value)
 		}

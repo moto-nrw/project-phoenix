@@ -42,6 +42,9 @@ type WorkforceTestModule struct {
 	// PayrollDispatch is a school without the automatic send (#4805): the
 	// month close queues nothing. The dispatch has its own tests.
 	PayrollDispatch workforce.PayrollDispatch
+	// PayrollRules maintains the school's own wage types (#4807) with the
+	// root's settings audit.
+	PayrollRules workforce.PayrollRules
 }
 
 // payrollDispatchOff is the Lohnbüro of a school that never switched the
@@ -164,7 +167,11 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, shiftPlanSyncer, tenant.NewTransactionRunner().RunInTx)
-	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}}, usersService, err
+	payrollRules, err := owners.BuildPayrollRules(repos.Workforce, db)
+	if err != nil {
+		return WorkforceTestModule{}, nil, err
+	}
+	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}, PayrollRules: payrollRules}, usersService, err
 }
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
