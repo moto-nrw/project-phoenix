@@ -49,11 +49,47 @@ func TestErasureSchoolLockSurvivesStatementTimeout(t *testing.T) {
 		return stepErr
 	})
 	require.Error(t, err)
-	require.NotContains(t, err.Error(), "coordination release failed")
+	require.NotContains(t, err.Error(), "coordination release")
 	_, err = db.ExecContext(t.Context(), `DROP TRIGGER cancel_erasure_begin ON platform.school_erasures; DROP FUNCTION platform.cancel_erasure_begin()`)
 	require.NoError(t, err)
 	require.NoError(t, store.WithSchoolLock(t.Context(), id, func(ctx context.Context) error {
 		_, err := store.Call(ctx, time.Second, time.Minute, "begin", id, operator.ID, "ORDER-TIMEOUT")
 		return err
 	}))
+}
+
+func TestErasureSchoolLockSurvivesRealStatementTimeout(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	id := testpkg.Tenant(t)
+	store, err := NewErasureStore(db)
+	require.NoError(t, err)
+	err = store.WithSchoolLock(t.Context(), id, func(ctx context.Context) error {
+		stepErr := store.withConnection(ctx, func(ctx context.Context, conn bun.Conn) error {
+			if _, err := conn.ExecContext(ctx, `SET statement_timeout = '20ms'`); err != nil {
+				return err
+			}
+			_, err := conn.ExecContext(ctx, `SELECT pg_sleep(10)`)
+			return err
+		})
+		var timeout pgdriver.Error
+		require.ErrorAs(t, stepErr, &timeout)
+		require.Equal(t, "57014", timeout.Field('C'))
+		require.ErrorContains(t, store.WithSchoolLock(t.Context(), id, func(context.Context) error {
+			t.Error("work timeout must not release the coordination lock")
+			return nil
+		}), "school already running")
+		return stepErr
+	})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "coordination release")
+	require.NoError(t, store.WithSchoolLock(t.Context(), id, func(context.Context) error { return nil }))
+}
+
+func TestErasureRejectsSingleConnectionPool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	db.SetMaxOpenConns(1)
+	_, err := NewErasureStore(db)
+	require.ErrorContains(t, err, "at least two connections")
 }

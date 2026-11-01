@@ -12,22 +12,21 @@ import (
 )
 
 type ErasureStore struct{ db *bun.DB }
-type erasureConnectionKey struct{}
 
 func NewErasureStore(db *bun.DB) (*ErasureStore, error) {
 	if db == nil {
 		return nil, errors.New("erasure: database required")
 	}
+	if db.Stats().MaxOpenConnections == 1 {
+		return nil, errors.New("erasure: pool requires at least two connections for coordination and work")
+	}
 	return &ErasureStore{db: db}, nil
 }
 
 // Each SQL function call commits independently using PostgreSQL autocommit.
-// The session is reserved for the workflow, then physically discarded: neither
-// SET ROLE, session timeouts nor the coordination lock can leak into the pool.
+// Each step uses its own session, separate from the workflow coordination lock.
+// Physically discard sessions so SET ROLE and timeouts cannot leak into the pool.
 func (s *ErasureStore) withConnection(ctx context.Context, fn func(context.Context, bun.Conn) error) error {
-	if conn, ok := ctx.Value(erasureConnectionKey{}).(bun.Conn); ok {
-		return fn(ctx, conn)
-	}
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return errors.New("erasure: database session unavailable")
@@ -39,7 +38,7 @@ func (s *ErasureStore) withConnection(ctx context.Context, fn func(context.Conte
 	if _, err = conn.ExecContext(ctx, `SET ROLE phoenix_school_erasure`); err != nil {
 		return errors.New("erasure: dedicated role unavailable")
 	}
-	return fn(context.WithValue(ctx, erasureConnectionKey{}, conn), conn)
+	return fn(ctx, conn)
 }
 
 func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(context.Context) error) error {
@@ -60,11 +59,16 @@ func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(con
 			defer cancel()
 			var unlocked bool
 			err := conn.NewRaw(`SELECT pg_advisory_unlock(hashtextextended('school-erasure-cli:' || ?::text,0))`, id).Scan(cleanupCtx, &unlocked)
-			if err != nil || !unlocked {
-				runErr = errors.Join(runErr, errors.New("erasure: coordination release failed"))
+			if err != nil {
+				runErr = errors.Join(runErr, errors.New("erasure: coordination release unconfirmed; database session unavailable; PostgreSQL may retain its lock until session termination"))
+			} else if !unlocked {
+				runErr = errors.Join(runErr, errors.New("erasure: coordination lock was lost before release"))
 			}
 		}()
-		// DB-function transactions are deliberately not nested in the lock.
+		// Never lend the coordination session to a work step: pgdriver closes
+		// its socket on 57014 in ExecContext. Keep the lock through the entire
+		// callback, including file and ledger work, and acknowledge its release.
+		// DB-function transactions remain independent of the lock session.
 		return fn(ctx)
 	})
 }
