@@ -35,9 +35,11 @@ import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { setTestClock } from "~/test/clock";
 import {
   _resetSWRFallbacksForTests,
+  bumpScopeGeneration,
   isCurrentSWRValue,
   isFallbackVisible,
   preloadSWR,
+  stampSWRValue,
 } from "./generation";
 import { swrConfig } from "./config";
 import {
@@ -226,6 +228,64 @@ describe.each([
   ["with cleanup", true],
   ["lock only, cleanup off", false],
 ])("generation lock %s (#5006)", (_mode, cleanup) => {
+  it.each(["bound", "tenant"])(
+    "keeps the committed primitive through repeated failed %s mutations",
+    async (kind) => {
+      const name = "student-7-rollback-stamp";
+      stampSWRValue(FULL(name), "vorher", 0);
+      bumpScopeGeneration();
+      const fetcher = vi
+        .fn(() => new Promise<string>(() => {}))
+        .mockResolvedValueOnce("stand");
+      render(
+        <Page>
+          <Reader name={name} fetcher={fetcher} />
+        </Page>,
+      );
+      await flush();
+      expect(screen.getByTestId(name)).toHaveTextContent("stand");
+      _setSWRCleanupForTests(cleanup);
+
+      for (let i = 0; i < 4; i += 1) {
+        const pending = deferred<string>();
+        const rollbackOnError = vi.fn(() => true);
+        let mutation: Promise<unknown> = Promise.resolve();
+        act(() => {
+          const options = {
+            optimisticData:
+              i % 2 === 0 ? `optimistisch-${i}` : () => `optimistisch-${i}`,
+            ...(i % 2 === 0 ? {} : { rollbackOnError }),
+            revalidate: false,
+          };
+          mutation = (
+            kind === "bound"
+              ? responses[name]!.mutate(pending.promise, options)
+              : tools.mutate(name, pending.promise, options)
+          ).catch(() => undefined);
+        });
+        expect(screen.getByTestId(name)).toHaveTextContent(`optimistisch-${i}`);
+        await act(async () => {
+          pending.reject(new Error("Speichern fehlgeschlagen"));
+          await mutation;
+        });
+        expect(screen.getByTestId(name)).toHaveTextContent("stand");
+        if (i % 2 !== 0) expect(rollbackOnError).toHaveBeenCalledTimes(1);
+      }
+
+      const update = vi.fn((current: unknown) => `${String(current)}-neu`);
+      await act(async () => {
+        if (kind === "bound") {
+          await responses[name]!.mutate(update, { revalidate: false });
+        } else {
+          await tools.mutate(name, update, { revalidate: false });
+        }
+      });
+      expect(update).toHaveBeenCalledWith("stand");
+      expect(screen.getByTestId(name)).toHaveTextContent("stand-neu");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
   describe.each(OPERATIONS.slice(4))(
     "unseen fallback after %s",
     (_name, operation) => {
@@ -1188,5 +1248,418 @@ describe("what the lock leaves alone (#5006)", () => {
     expect(screen.getByTestId("student-7-steady")).toHaveTextContent("stand");
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(responses["student-7-steady"]!.mutate).toBe(retained);
+  });
+});
+
+describe.each([
+  ["with cleanup", true],
+  ["lock only, cleanup off", false],
+])("a running mutation and a bump %s (#5223)", (_mode, cleanup) => {
+  // The first request answers, every later one never: a write the test sees
+  // can only come from the mutation.
+  function loadsOnce(value: string) {
+    let calls = 0;
+    return vi.fn(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(value)
+        : new Promise<string>(() => {});
+    });
+  }
+
+  function start(kind: "bound" | "tenant", name: string, data: unknown) {
+    return kind === "bound"
+      ? responses[name]!.mutate(data as Promise<string>, { revalidate: false })
+      : tools.mutate(name, data, { revalidate: false });
+  }
+
+  it.each(["bound", "tenant"] as const)(
+    "keeps the result of a running %s mutation across a request bump",
+    async (kind) => {
+      const name = `student-7-request-bump-${kind}`;
+      const fetcher = loadsOnce("v0");
+      render(
+        <Page>
+          <Reader
+            name={name}
+            fetcher={fetcher}
+            options={{ dedupingInterval: 0 }}
+          />
+        </Page>,
+      );
+      await flush();
+      // Anker: der Leser zeigt den Stand vor der Mutation.
+      expect(screen.getByTestId(name)).toHaveTextContent("v0");
+      _setSWRCleanupForTests(cleanup);
+      const saved = deferred<string>();
+      let saving!: Promise<unknown>;
+      act(() => {
+        saving = start(kind, name, saved.promise);
+      });
+      // Revalidating matching keys is no drop: their values stay valid.
+      act(() => {
+        void tools.matching();
+      });
+      let result: unknown;
+      await act(async () => {
+        saved.resolve("v1");
+        result = await saving;
+      });
+      await flush();
+
+      expect(result).toBe("v1");
+      expect(cachedData(name)).toBe("v1");
+      expect(screen.getByTestId(name)).toHaveTextContent("v1");
+    },
+  );
+
+  // G25: whether a run counts is bound to the run, never to its result
+  // being equal to a value stamped since (#5460 review).
+  describe.each([
+    ["0", 0],
+    ["null", null],
+    ["undefined", undefined],
+  ] as const)("a result equal to the fresh value %s", (_label, value) => {
+    it.each(["bound", "tenant"] as const)(
+      "drops the result of a %s mutation that started before a drop",
+      async (kind) => {
+        const name = `student-7-equal-result-${kind}`;
+        render(
+          <Page>
+            <Reader
+              name={name}
+              fetcher={loadsOnce("v0")}
+              options={{ dedupingInterval: 0 }}
+            />
+          </Page>,
+        );
+        await flush();
+        // Anker: der Leser zeigt den Stand vor beiden Mutationen.
+        expect(screen.getByTestId(name)).toHaveTextContent("v0");
+        _setSWRCleanupForTests(cleanup);
+        const late = deferred<unknown>();
+        let old!: Promise<unknown>;
+        act(() => {
+          old = start(kind, name, late.promise);
+        });
+        act(() => {
+          void tools.matching({ clear: true });
+        });
+        // A mutation of the new generation writes the same value (a bound
+        // mutate of `undefined` clears; useTenantMutate would revalidate).
+        await act(async () => {
+          await responses[name]!.mutate(value as never, { revalidate: false });
+        });
+        let result: unknown = "offen";
+        await act(async () => {
+          late.resolve(value);
+          result = await old;
+        });
+        await flush();
+
+        expect(result).toBeUndefined();
+        if (value !== undefined) expect(cachedData(name)).toBe(value);
+      },
+    );
+  });
+
+  describe.each(OPERATIONS)("%s", (_operationName, operation) => {
+    it.each(["bound", "tenant"] as const)(
+      "drops the result of a running %s mutation",
+      async (kind) => {
+        const name = `student-7-drop-bump-${kind}`;
+        const ui = (
+          <Page>
+            <Reader
+              name={name}
+              fetcher={loadsOnce("v0")}
+              options={{ dedupingInterval: 0 }}
+            />
+          </Page>
+        );
+        const view = render(ui);
+        await flush();
+        // Anker: der Leser zeigt den Stand vor der Mutation.
+        expect(screen.getByTestId(name)).toHaveTextContent("v0");
+        _setSWRCleanupForTests(cleanup);
+        const saved = deferred<string>();
+        let saving!: Promise<unknown>;
+        act(() => {
+          saving = start(kind, name, saved.promise);
+        });
+        act(() => operation(() => view.rerender(cloneElement(ui))));
+        seen = {};
+        let result: unknown;
+        await act(async () => {
+          saved.resolve("v1");
+          result = await saving;
+        });
+        await flush();
+
+        expect(result).toBeUndefined();
+        expect(cachedData(name)).not.toBe("v1");
+        expect(seen[name] ?? []).not.toContain("v1");
+      },
+    );
+  });
+});
+
+describe.each([
+  ["with cleanup", true],
+  ["lock only, cleanup off", false],
+])("the stamp of the committed primitive %s (#5485)", (_mode, cleanup) => {
+  // After a boundary released stamps, a value without one no longer counts
+  // (G22): the committed value must keep its own stamp.
+  async function committed(name: string) {
+    stampSWRValue(FULL(name), "vorher", 0);
+    bumpScopeGeneration();
+    const fetcher = vi
+      .fn(() => new Promise<string>(() => {}))
+      .mockResolvedValueOnce("stand");
+    render(
+      <Page>
+        <Reader name={name} fetcher={fetcher} />
+      </Page>,
+    );
+    await flush();
+    // Anker: der bestätigte Wert steht.
+    expect(screen.getByTestId(name)).toHaveTextContent("stand");
+    _setSWRCleanupForTests(cleanup);
+    return fetcher;
+  }
+
+  async function expectCommitted(name: string, fetcher: () => unknown) {
+    expect(screen.getByTestId(name)).toHaveTextContent("stand");
+    const update = vi.fn((current: unknown) => `${String(current)}-neu`);
+    await act(async () => {
+      await responses[name]!.mutate(update, { revalidate: false });
+    });
+    expect(update).toHaveBeenCalledWith("stand");
+    expect(screen.getByTestId(name)).toHaveTextContent("stand-neu");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  }
+
+  it("keeps it through results that populate nothing", async () => {
+    const name = "student-7-unpopulated";
+    const fetcher = await committed(name);
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        await responses[name]!.mutate(Promise.resolve(`ergebnis-${i}`), {
+          populateCache: false,
+          revalidate: false,
+        });
+      });
+    }
+
+    await expectCommitted(name, fetcher);
+  });
+
+  it("keeps it through overlapping optimistic mutations", async () => {
+    const name = "student-7-overlapping";
+    const fetcher = await committed(name);
+    const pending = Array.from({ length: 5 }, () => deferred<string>());
+    const runs: Promise<unknown>[] = [];
+    act(() => {
+      pending.forEach((answer, i) => {
+        runs.push(
+          responses[name]!.mutate(answer.promise, {
+            optimisticData: `optimistisch-${i}`,
+            rollbackOnError: true,
+            revalidate: false,
+          }).catch(() => undefined),
+        );
+      });
+    });
+    expect(screen.getByTestId(name)).toHaveTextContent("optimistisch-4");
+
+    await act(async () => {
+      pending[4]!.reject(new Error("Speichern fehlgeschlagen"));
+      await runs[4];
+    });
+    await flush();
+    expect(screen.getByTestId(name)).toHaveTextContent("stand");
+    await act(async () => {
+      for (const answer of pending.slice(0, 4))
+        answer.reject(new Error("Speichern fehlgeschlagen"));
+      await Promise.all(runs);
+    });
+    await flush();
+
+    await expectCommitted(name, fetcher);
+  });
+
+  it("keeps it until SWR populated the last of overlapping runs", async () => {
+    const name = "student-7-pinned-populate";
+    const fetcher = await committed(name);
+    const pending = Array.from({ length: 5 }, () => deferred<string>());
+    const populate = vi.fn(
+      (result: unknown, current: unknown) =>
+        `${String(current)}+${String(result)}`,
+    );
+    const runs: Promise<unknown>[] = [];
+    act(() => {
+      pending.forEach((answer, i) => {
+        runs.push(
+          responses[name]!.mutate(answer.promise, {
+            optimisticData: `optimistisch-${i}`,
+            populateCache: populate,
+            revalidate: false,
+          }),
+        );
+      });
+    });
+    // The overtaken runs end first; SWR populates only the last one.
+    await act(async () => {
+      pending.slice(0, 4).forEach((answer, i) => answer.resolve(`alt-${i}`));
+      await Promise.all(runs.slice(0, 4));
+    });
+    await act(async () => {
+      pending[4]!.resolve("neu");
+      await runs[4];
+    });
+    await flush();
+
+    expect(populate).toHaveBeenCalledExactlyOnceWith("neu", "stand");
+    expect(screen.getByTestId(name)).toHaveTextContent("stand+neu");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("stamps no result of an overtaken run", async () => {
+    const name = "student-7-overtaken";
+    const fetcher = await committed(name);
+    const pending = Array.from({ length: 5 }, () => deferred<string>());
+    const runs: Promise<unknown>[] = [];
+    act(() => {
+      for (const answer of pending)
+        runs.push(
+          responses[name]!.mutate(answer.promise, { revalidate: false }),
+        );
+    });
+    await act(async () => {
+      pending[4]!.resolve("neu");
+      await runs[4];
+    });
+    // Anker: das Ergebnis des letzten Laufs steht.
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+    await act(async () => {
+      pending.slice(0, 4).forEach((answer, i) => answer.resolve(`alt-${i}`));
+      await Promise.all(runs);
+    });
+    await flush();
+
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+    const update = vi.fn((current: unknown) => `${String(current)}-neu`);
+    await act(async () => {
+      await responses[name]!.mutate(update, { revalidate: false });
+    });
+    expect(update).toHaveBeenCalledWith("neu");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("callback identity across bumps of other keys (#5223)", () => {
+  it("keeps the useTenantMutate callback across a request bump", async () => {
+    const name = "student-7-identity";
+    const ui = (
+      <Page>
+        <Reader name={name} fetcher={() => Promise.resolve("stand")} />
+      </Page>
+    );
+    const view = render(ui);
+    await flush();
+    // Anker: geladen.
+    expect(screen.getByTestId(name)).toHaveTextContent("stand");
+    const before = tools.mutate;
+
+    act(() => {
+      void tools.matching();
+    });
+    await flush();
+    view.rerender(cloneElement(ui));
+
+    expect(tools.mutate).toBe(before);
+    await act(async () => {
+      await tools.mutate(name, "neu", { revalidate: false });
+    });
+    expect(screen.getByTestId(name)).toHaveTextContent("neu");
+  });
+
+  it("hands out a new useTenantMutate callback after a data bump", async () => {
+    // The callback takes any key, so a drop of any key ends it (G21).
+    const view = render(<Page />);
+    const before = tools.mutate;
+    act(() => {
+      tools.discard(refusal, {
+        codes: ["care.guardian_permission_denied"],
+        matches: (key) => key.startsWith("student-8-"),
+      });
+    });
+    view.rerender(<Page />);
+
+    expect(tools.mutate).not.toBe(before);
+  });
+});
+
+describe.each([
+  ["with cleanup", true],
+  ["lock only, cleanup off", false],
+])("released stamps %s (#5223)", (_mode, cleanup) => {
+  describe.each(OPERATIONS)("%s", (_name, operation) => {
+    it.each(["object", "primitive"] as const)(
+      "lets no reachable %s of the generation before count again",
+      async (kind) => {
+        const name = `student-7-released-${kind}`;
+        // Held by the test: still reachable after the boundary.
+        const old = kind === "object" ? { label: "alt" } : "alt";
+        let calls = 0;
+        const fetcher = () => {
+          calls += 1;
+          return calls === 1
+            ? Promise.resolve<unknown>(old)
+            : new Promise<unknown>(() => {});
+        };
+        let response: SWRResponse<unknown> | undefined;
+        function Holder() {
+          response = useSWRAuth<unknown>(name, fetcher, {
+            dedupingInterval: 0,
+          });
+          (seen[name] ??= []).push(response.data);
+          return (
+            <p data-testid={name}>
+              {response.data === undefined
+                ? "leer"
+                : JSON.stringify(response.data)}
+            </p>
+          );
+        }
+        const ui = (
+          <Page>
+            <Holder />
+          </Page>
+        );
+        const view = render(ui);
+        await flush();
+        // Anker: der Wert gilt in seiner Generation.
+        expect(screen.getByTestId(name)).toHaveTextContent("alt");
+        _setSWRCleanupForTests(cleanup);
+        act(() => operation(() => view.rerender(cloneElement(ui))));
+        await flush();
+        seen = {};
+        view.rerender(<Page />);
+        view.rerender(cloneElement(ui));
+        await flush();
+        const updater = vi.fn((current: unknown) => current);
+        let result: unknown = "offen";
+        await act(async () => {
+          result = await response!.mutate(updater, { revalidate: false });
+        });
+        await flush();
+
+        expect(updater).not.toHaveBeenCalledWith(old);
+        expect(result).not.toBe(old);
+        expect(seen[name] ?? []).not.toContain(old);
+        expect(screen.queryByText(/alt/)).toBeNull();
+      },
+    );
   });
 });

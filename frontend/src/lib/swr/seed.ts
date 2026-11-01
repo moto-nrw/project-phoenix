@@ -38,12 +38,15 @@ export function stampSWRSeeds(entries: Readonly<Record<string, unknown>>) {
  */
 export function writeSWRSeeds(entries: Readonly<Record<string, unknown>>) {
   for (const [key, data] of Object.entries(entries)) {
-    const [locked, options] = lockMutation(
+    const [locked, options, run] = lockMutation(
       key,
       (current: unknown) => current ?? data,
       { revalidate: false },
     );
-    void swrMutate(key, locked, options as never);
+    void Promise.resolve(swrMutate(key, locked, options as never)).then(
+      run.done,
+      run.done,
+    );
   }
 }
 
