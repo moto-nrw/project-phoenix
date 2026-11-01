@@ -1,37 +1,27 @@
 package application
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-// capLegacyLineage handles a refresh family issued before the switch link
+// capLegacyLineage ends a refresh family issued before the switch link
 // existed (#5422). Every family the new code issues names at least itself as
 // its lineage origin (switched_from_family_id); an empty origin marks a
-// family issued before, or by a backend that predates the column. Such a
-// family may descend from a school switch or a Träger Absprung without the
-// link, so a logout of another family of its lineage cannot reach it, and
-// renewing it on every rotation would keep it alive without bound. If it may
-// descend from one, it keeps its current expiry as family_expiry_cap, which
-// every later rotation and switch inherits: it ends one refresh lifetime after
-// the deploy at the latest, and capped reports that the deadline is new. A
-// family that cannot stem from a switch becomes its own origin and renews as
-// before. The branch has no work left once the last family issued before
-// #5422 has expired.
-func (s *AccountAuthentication) capLegacyLineage(ctx context.Context, current *domain.AccountSession) (capped bool, err error) {
+// family issued before, or by a backend that predates the column. No rule can
+// tell which of these came from a school switch or a Träger Absprung (a
+// switch also accepts the current school), and a logout of another family of
+// such a lineage cannot reach one, so renewing it would keep it alive without
+// bound. Every such family therefore keeps its current expiry as
+// family_expiry_cap and lineage_deadline at its first rotation; every later
+// rotation and every switch out of it inherit the deadline, so it ends one
+// refresh lifetime after the deploy at the latest and its user signs in once
+// more. capped reports that current is such a family. The branch has no
+// work left once the last family issued before #5422 has expired.
+func capLegacyLineage(current *domain.AccountSession) (capped bool) {
 	if current.SwitchedFromFamilyID != "" {
-		return false, nil
-	}
-	unlinked, err := s.mayDescendFromSwitch(ctx, *current)
-	if err != nil {
-		return false, err
-	}
-	if !unlinked {
-		current.SwitchedFromFamilyID = current.FamilyID
-		return false, nil
+		return false
 	}
 	if current.FamilyExpiryCap == nil || current.Expiry.Before(*current.FamilyExpiryCap) {
 		deadline := current.Expiry
@@ -39,7 +29,7 @@ func (s *AccountAuthentication) capLegacyLineage(ctx context.Context, current *d
 	}
 	deadline := *current.FamilyExpiryCap
 	current.LineageDeadline = &deadline
-	return true, nil
+	return true
 }
 
 // legacyDeadline is the transition deadline a school switch out of source
@@ -56,35 +46,4 @@ func legacyDeadline(source domain.AccountSession) *time.Time {
 		deadline = *source.FamilyExpiryCap
 	}
 	return &deadline
-}
-
-// mayDescendFromSwitch reports whether a family could have been minted by a
-// school switch or an Absprung. A switch needs a mapping at its target and a
-// source family at another school or of a Träger, and an Absprung session
-// names its Träger: an account with a single school mapping of any status and
-// without Träger membership never switched.
-func (s *AccountAuthentication) mayDescendFromSwitch(ctx context.Context, session domain.AccountSession) (bool, error) {
-	switch session.PortalScope {
-	case domain.PortalScopeTenant, domain.PortalScopeSchool, domain.PortalScopeUnknown:
-	default:
-		return false, nil
-	}
-	if session.OrganizationID != 0 {
-		return true, nil
-	}
-	mappings, _, err := s.store.CountAccountTenantMappings(ctx, session.AccountID)
-	if err != nil {
-		return false, fmt.Errorf("count school mappings of a legacy refresh family: %w", err)
-	}
-	if mappings > 1 {
-		return true, nil
-	}
-	if s.traeger == nil {
-		return false, nil
-	}
-	organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, session.AccountID)
-	if err != nil {
-		return false, fmt.Errorf("list Träger memberships of a legacy refresh family: %w", err)
-	}
-	return len(organizations) > 0, nil
 }

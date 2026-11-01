@@ -377,10 +377,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	if err != nil {
 		return err
 	}
-	capped, err := r.service.capLegacyLineage(ctx, &current)
-	if err != nil {
-		return err
-	}
+	capped := capLegacyLineage(&current)
 	r.recovered = wasRecovered
 	if r.recovered {
 		// Recovery hands out the successor a rotation before the deploy

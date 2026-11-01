@@ -30,9 +30,9 @@ func init() {
 // family. switched_from_family_id retains the origin of that lineage, so a
 // logout revokes it even after the origin's rows are gone (#5422).
 // Every family issued after it names at least itself, so NULL marks a row
-// from before: its switch stays unlinked, and the application ends such a
-// family that may descend from a switch one refresh lifetime after the
-// deploy instead of renewing it (capLegacyLineage). lineage_deadline carries
+// from before: its switch stays unlinked, and the application ends every
+// such family one refresh lifetime after the deploy instead of renewing it
+// (capLegacyLineage). lineage_deadline carries
 // that transition deadline along the lineage, through rotations and further
 // switches, apart from the retirement grace in family_expiry_cap.
 func authTokenSwitchedFromFamilyUp(ctx context.Context, db *bun.DB) error {

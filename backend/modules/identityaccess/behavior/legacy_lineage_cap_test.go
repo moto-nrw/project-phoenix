@@ -58,13 +58,12 @@ func ageFamily(t *testing.T, db *bun.DB, familyID string, remaining time.Duratio
 	return expiry
 }
 
-// TestLegacyFamilyThatMayDescendFromASwitchKeepsItsDeadline pins the
-// transition of #5422: a family issued before the switch link existed may
-// descend from a school switch without carrying the link, so no logout of
-// its lineage reaches it. Its next rotation must not slide its lifetime:
+// TestLegacyFamilyKeepsItsDeadline pins the transition of #5422: a family
+// issued before the switch link existed may descend from a school switch
+// without carrying the link, so no logout of its lineage reaches it. Its next rotation must not slide its lifetime:
 // the successor keeps the family's deadline, and so does every later one,
 // so the family ends one refresh lifetime after the deploy at the latest.
-func TestLegacyFamilyThatMayDescendFromASwitchKeepsItsDeadline(t *testing.T) {
+func TestLegacyFamilyKeepsItsDeadline(t *testing.T) {
 	t.Parallel()
 	f := newSwitchLineageFixture(t, "legacy-lineage-cap")
 	ctx := testpkg.Ctx(t)
@@ -74,7 +73,7 @@ func TestLegacyFamilyThatMayDescendFromASwitchKeepsItsDeadline(t *testing.T) {
 	_, rotated, err := f.service.RefreshToken(ctx, legacyRefreshToken(t, f.refresh))
 	require.NoError(t, err)
 	head := headOfFamily(t, f.db, family)
-	assert.False(t, head.Expiry.After(deadline), "the rotation of a legacy family of a multi-school account does not extend it")
+	assert.False(t, head.Expiry.After(deadline), "the rotation of a legacy family does not extend it")
 	require.NotNil(t, head.FamilyExpiryCap, "the deadline is kept on the family")
 	assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Second)
 

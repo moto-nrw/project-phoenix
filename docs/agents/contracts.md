@@ -457,22 +457,18 @@ Other logins of the account keep their sessions. Each school records the
 revocation of its own sessions in its own tenant transaction (#5422).
 Transition: every family the new code issues names at least itself as its
 origin; an empty `switched_from_family_id` marks a family issued before #5422
-(or by a backend predating the column). A rotation of such a family that may
-descend from a switch or an Absprung (a Träger school session, or a tenant,
-school or legacy session of an account with two or more school mappings of any
-status or an active Träger membership) does not renew it: the successor keeps
-the current expiry as `family_expiry_cap` and `lineage_deadline`. Every later
-rotation inherits both, a hand-off recovery persists the cap on the recovered
-head, and every school switch out of the lineage hands `lineage_deadline` down,
-also through further switches. Such a family therefore ends at the latest one
-refresh lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the deploy, and its users
-sign in once more. Every other family becomes its own origin at its next
-rotation and keeps renewing, so the deploy signs nobody out; a retirement grace
-in `family_expiry_cap` is not handed down. Until the deadline a logout
+(or by a backend predating the column). No rule tells which of these came from
+a switch or an Absprung (a switch also accepts the current school), so the
+first rotation of every such family, in every portal, does not renew it: the
+successor keeps the current expiry as `family_expiry_cap` and
+`lineage_deadline`. Every later rotation inherits both, a hand-off recovery
+persists the cap on the recovered head, and every school switch out of the
+lineage hands `lineage_deadline` down, also through further switches. Every
+family issued before the deploy therefore ends at the latest one refresh
+lifetime (`AUTH_JWT_REFRESH_EXPIRY`, 168h) after it, and its user signs in
+once more within that week; the deploy itself signs nobody out. A retirement
+grace in `family_expiry_cap` is not handed down. Until the deadline a logout
 cannot reach such an unlinked family through another family of its lineage.
-Not covered: a mapping row a school erasure deleted before the deploy, or a
-Träger membership ended before it; the sessions at that school or of that
-Träger, the other side of such a switch, were deleted with it.
 A staff-view preview token carries the admin's
 family and ends with the admin's session.
 

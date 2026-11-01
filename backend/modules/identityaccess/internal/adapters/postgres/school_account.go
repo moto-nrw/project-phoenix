@@ -25,22 +25,6 @@ func (s *Store) HasActiveAccountTenant(ctx context.Context, accountID, tenantID 
 	return exists, stats, nil
 }
 
-// CountAccountTenantMappings counts the account's mapping rows, pending and
-// inactive ones included, inside the caller's administrative unit.
-func (s *Store) CountAccountTenantMappings(ctx context.Context, accountID int64) (int64, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	started := time.Now()
-	count, err := db.NewSelect().TableExpr("auth.account_tenants").Where("account_id = ?", accountID).Count(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return 0, stats, fmt.Errorf("identity access postgres: count account mappings: %w", err)
-	}
-	return int64(count), stats, nil
-}
-
 func (s *Store) ListAccountRoleIDs(ctx context.Context, accountID, tenantID int64) ([]int64, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
