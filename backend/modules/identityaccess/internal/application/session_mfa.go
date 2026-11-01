@@ -189,6 +189,7 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	// by switching on: the new family keeps it (capLegacyLineage).
 	if deadline := legacyDeadline(source); deadline != nil {
 		session.FamilyExpiryCap = deadline
+		session.LineageDeadline = deadline
 		if deadline.Before(session.Expiry) {
 			session.Expiry = *deadline
 		}

@@ -71,6 +71,8 @@ func TestCapLegacyLineage(t *testing.T) {
 			assert.Empty(t, session.SwitchedFromFamilyID, "a capped family stays unlinked")
 			require.NotNil(t, session.FamilyExpiryCap)
 			assert.True(t, session.FamilyExpiryCap.Equal(expiry), "the family keeps its current expiry as its deadline")
+			require.NotNil(t, session.LineageDeadline)
+			assert.True(t, session.LineageDeadline.Equal(expiry), "the lineage carries the deadline to later switches")
 		})
 	}
 }
@@ -90,4 +92,24 @@ func TestCapLegacyLineage_KeepsAnEarlierDeadline(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, session.FamilyExpiryCap.Equal(retired))
+}
+
+// TestLegacyDeadline pins what a switch hands down: the lineage deadline of
+// a linked family, the cap or expiry of a legacy one, and nothing for a new
+// family whose cap is only its retirement grace.
+func TestLegacyDeadline(t *testing.T) {
+	t.Parallel()
+	expiry := time.Now().Add(time.Hour)
+	grace := time.Now().Add(5 * time.Minute)
+	deadline := time.Now().Add(30 * time.Minute)
+	assert.Nil(t, legacyDeadline(domain.AccountSession{SwitchedFromFamilyID: "own", Expiry: expiry, FamilyExpiryCap: &grace}), "a retirement grace is not handed down")
+	got := legacyDeadline(domain.AccountSession{SwitchedFromFamilyID: "origin", Expiry: expiry, FamilyExpiryCap: &grace, LineageDeadline: &deadline})
+	require.NotNil(t, got)
+	assert.True(t, got.Equal(deadline), "a linked family hands down its lineage deadline")
+	got = legacyDeadline(domain.AccountSession{Expiry: expiry, FamilyExpiryCap: &grace})
+	require.NotNil(t, got)
+	assert.True(t, got.Equal(grace), "a legacy family hands down its earlier cap")
+	got = legacyDeadline(domain.AccountSession{Expiry: expiry})
+	require.NotNil(t, got)
+	assert.True(t, got.Equal(expiry), "a legacy family without cap hands down its expiry")
 }

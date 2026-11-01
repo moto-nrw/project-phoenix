@@ -37,15 +37,19 @@ func (s *AccountAuthentication) capLegacyLineage(ctx context.Context, current *d
 		deadline := current.Expiry
 		current.FamilyExpiryCap = &deadline
 	}
+	deadline := *current.FamilyExpiryCap
+	current.LineageDeadline = &deadline
 	return true, nil
 }
 
-// legacyDeadline is the deadline a family issued before #5422 hands down to a
-// school switch out of it: its cap, else its expiry. A family the new code
-// issued hands down nothing; its retirement grace stays its own.
+// legacyDeadline is the transition deadline a school switch out of source
+// hands down: the lineage deadline it already carries, or, for a family
+// issued before #5422, its cap, else its expiry. A family the new code issued
+// outside such a lineage hands down nothing; its retirement grace stays its
+// own.
 func legacyDeadline(source domain.AccountSession) *time.Time {
 	if source.SwitchedFromFamilyID != "" {
-		return nil
+		return source.LineageDeadline
 	}
 	deadline := source.Expiry
 	if source.FamilyExpiryCap != nil && source.FamilyExpiryCap.Before(deadline) {

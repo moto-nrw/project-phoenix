@@ -69,6 +69,9 @@ type AccountSession struct {
 	// of an Absprung. It outlives the origin's rows (#5422).
 	SwitchedFromFamilyID string
 	FamilyExpiryCap      *time.Time
+	// LineageDeadline is the transition deadline of a lineage descending
+	// from a family issued before #5422; switches and rotations keep it.
+	LineageDeadline      *time.Time
 	Generation           int
 	RotatedAt            *time.Time
 	ReplacementTokenHash *string

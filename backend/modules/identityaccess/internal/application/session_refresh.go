@@ -509,6 +509,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		FamilyID:             familyID,
 		SwitchedFromFamilyID: predecessor.SwitchedFromFamilyID,
 		FamilyExpiryCap:      predecessor.FamilyExpiryCap,
+		LineageDeadline:      predecessor.LineageDeadline,
 		Generation:           predecessor.Generation + 1,
 		PortalScope:          domain.PersistedPortalScope(scope),
 		MFAVerified:          predecessor.MFAVerified,

@@ -461,13 +461,14 @@ origin; an empty `switched_from_family_id` marks a family issued before #5422
 descend from a switch or an Absprung (a Träger school session, or a tenant,
 school or legacy session of an account with two or more school mappings of any
 status or an active Träger membership) does not renew it: the successor keeps
-the current expiry as `family_expiry_cap`, which every later rotation inherits,
-a hand-off recovery persists on the recovered head, and a school switch out of
-it hands down to the new family. Such a family therefore ends at the latest one
+the current expiry as `family_expiry_cap` and `lineage_deadline`. Every later
+rotation inherits both, a hand-off recovery persists the cap on the recovered
+head, and every school switch out of the lineage hands `lineage_deadline` down,
+also through further switches. Such a family therefore ends at the latest one
 refresh lifetime (`AUTH_JWT_REFRESH_EXPIRY`) after the deploy, and its users
 sign in once more. Every other family becomes its own origin at its next
 rotation and keeps renewing, so the deploy signs nobody out; a retirement grace
-of a family the new code issued is not handed down. Until the deadline a logout
+in `family_expiry_cap` is not handed down. Until the deadline a logout
 cannot reach such an unlinked family through another family of its lineage.
 Not covered: a mapping row a school erasure deleted before the deploy, or a
 Träger membership ended before it; the sessions at that school or of that
