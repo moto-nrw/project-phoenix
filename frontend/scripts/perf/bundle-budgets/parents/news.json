@@ -3,12 +3,12 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/parents/news": {
-      "referenceBytes": 831269,
-      "maxBytes": 847894
+      "referenceBytes": 813650,
+      "maxBytes": 829923
     },
     "/parents/news/[id]/nachweis": {
-      "referenceBytes": 811598,
-      "maxBytes": 827830
+      "referenceBytes": 794313,
+      "maxBytes": 810199
     }
   }
 }
