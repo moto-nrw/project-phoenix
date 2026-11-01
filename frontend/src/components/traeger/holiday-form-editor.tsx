@@ -389,7 +389,7 @@ export function HolidayFormEditor({
               />
               <PreviewSection
                 title="Kontakte"
-                fields={["Notfallkontakt *", "Abholberechtigte"]}
+                fields={["Personen: Notfallkontakt und/oder Abholung"]}
               />
               <PreviewSection
                 title="Hinweise und Einwilligungen"

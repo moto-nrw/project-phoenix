@@ -97,11 +97,20 @@
     "health": "Lütfen onay verin veya sağlık bilgilerini silin.",
     "binding": "Lütfen kaydın bağlayıcı olduğunu onaylayın.",
     "yesNo": "Lütfen evet veya hayır seçin.",
-    "choose": "Lütfen bir cevap seçin."
+    "choose": "Lütfen bir cevap seçin.",
+    "contactRole": "Lütfen en az bir rol seçin.",
+    "emergencyRequired": "Lütfen acil durumda aranacak en az bir kişi seçin.",
+    "emergencyLimit": "Acil durumda aranacak en fazla üç kişi girebilirsiniz.",
+    "pickupLimit": "Çocukları alabilecek en fazla beş kişi girebilirsiniz.",
+    "contactLimit": "En fazla sekiz kişi girebilirsiniz."
   },
   "childQuestionsTitle": "Çocuk hakkında sorular ve bilgiler",
   "familyQuestionsTitle": "Aileniz hakkında sorular ve bilgiler",
   "legalTitle": "Bilgiler ve onaylar",
   "legalAccepted": "Onaylandı",
-  "legalNotAccepted": "Onaylanmadı"
+  "legalNotAccepted": "Onaylanmadı",
+  "contactsTitle": "İletişim kişileri",
+  "contactsText": "Her ek kişiyi bir kez girin. Rollerini seçin. Telefon numarası olan en az bir acil durum kişisi gereklidir.",
+  "emergencyRole": "Acil durumda aranacak kişi",
+  "pickupRole": "Çocukları alabilir"
 }
