@@ -51,29 +51,26 @@ func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(con
 		if !locked {
 			return errors.New("erasure: school already running")
 		}
-		// Closing a socket does not wait for PostgreSQL to release session locks.
-		// Acknowledge the unlock before a connected caller can start the next run,
-		// even if this run failed or its caller cancelled. Still discard the session.
+		lock := &erasureLock{conn: conn, lastConfirmed: time.Now()}
 		defer func() {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			var unlocked bool
-			err := conn.NewRaw(`SELECT pg_advisory_unlock(hashtextextended('school-erasure-cli:' || ?::text,0))`, id).Scan(cleanupCtx, &unlocked)
-			if err != nil {
-				runErr = errors.Join(runErr, errors.New("erasure: coordination release unconfirmed; database session unavailable; PostgreSQL may retain its lock until session termination"))
-			} else if !unlocked {
-				runErr = errors.Join(runErr, errors.New("erasure: coordination lock was lost before release"))
+			if releaseErr := lock.release(cleanupCtx, id); releaseErr != nil && !errors.Is(runErr, releaseErr) {
+				runErr = errors.Join(runErr, releaseErr)
 			}
 		}()
 		// Never lend the coordination session to a work step: pgdriver closes
 		// its socket on 57014 in ExecContext. Keep the lock through the entire
 		// callback, including file and ledger work, and acknowledge its release.
 		// DB-function transactions remain independent of the lock session.
-		return fn(ctx)
+		return fn(context.WithValue(ctx, erasureLockKey{}, lock))
 	})
 }
 
 func (s *ErasureStore) Call(ctx context.Context, lockTimeout, statementTimeout time.Duration, operation string, args ...any) (json.RawMessage, error) {
+	if err := s.CheckSchoolLock(ctx); err != nil {
+		return nil, err
+	}
 	var result string
 	err := s.withConnection(ctx, func(ctx context.Context, conn bun.Conn) error {
 		if _, err := conn.ExecContext(ctx, `SELECT set_config('lock_timeout',?,false),set_config('statement_timeout',?,false)`, strconv.FormatInt(lockTimeout.Milliseconds(), 10)+"ms", strconv.FormatInt(statementTimeout.Milliseconds(), 10)+"ms"); err != nil {

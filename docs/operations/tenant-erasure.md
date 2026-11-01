@@ -211,9 +211,14 @@ DB-Funktion läuft separat per Autocommit auf einer weiteren Verbindung; der
 Pool braucht mindestens zwei Verbindungen. Arbeitssitzungen werden nach jedem
 Schritt verworfen, die Sperrsitzung nach bestätigter Freigabe. Löschrolle,
 Zeitlimits und Sperren gelangen dadurch nicht zurück in den Pool. Ein
-Statement-Timeout eines Arbeitsschritts beendet nicht die Sperrsitzung. Kann
-die Datenbank die Freigabe nicht bestätigen, nennt die CLI den
-Verbindungsfehler und die mögliche Wartezeit bis zum Ende der DB-Sitzung.
+Statement-Timeout eines Arbeitsschritts beendet nicht die Sperrsitzung. Vor jedem DB-Schritt, jeder Dateiart und der Ledger-Arbeit prüft die CLI die
+Sperrsitzung. Ist sie nicht mehr erreichbar, startet sie keinen weiteren
+Schritt. Die Meldung nennt den Verbindungsfehler und den letzten bestätigten
+Schutzzeitpunkt; der genaue Verlustzeitpunkt bleibt unbekannt. Bei
+serverseitigem Sitzungsende ist die Sperre bereits frei. Eine fehlgeschlagene
+Freigabe wird getrennt davon gemeldet. Diese Prüfungen sind keine dauerhafte
+Überwachung: Einen bereits laufenden DB- oder Dateischritt können sie bei
+Verlust der Sperrsitzung nicht atomar abbrechen.
 Lokal gilt `scripts/dev-native.sh backend go run . tenant ...`; dieses
 Runbook ist keine Erlaubnis für Agenten, Produktionssysteme zu bedienen.
 
