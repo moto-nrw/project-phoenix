@@ -165,27 +165,34 @@ func isDatevCategoryConfigured(category PayrollExportCategory) bool {
 	return category.Number != "" && (!category.UnitRequired || category.Unit != "")
 }
 
-// validateDatevWageTypeNumbers keeps each own wage type distinct from the
-// fixed categories and from every other own wage type the requested export
-// can carry. Closed rows use their frozen definition, so this check belongs
-// here rather than in the current-rule maintenance path.
-func validateDatevWageTypeNumbers(rows []MonthExportRow, status *PayrollExportConfiguration) error {
+type datevWageTypeDefinition struct {
+	id     int64
+	name   string
+	number string
+}
+
+func fixedDatevWageTypeNumbers(categories []PayrollExportCategory) map[string]string {
 	used := make(map[string]string)
-	for _, category := range status.Categories {
-		if isDatevCategoryConfigured(category) {
-			// Fixed categories predate own wage types and may deliberately share
-			// a number. Own wage types must not join that existing booking.
-			if _, exists := used[category.Number]; !exists {
-				used[category.Number] = category.Label
-			}
+	for _, category := range categories {
+		if !isDatevCategoryConfigured(category) {
+			continue
+		}
+		// Fixed categories predate own wage types and may deliberately share a
+		// number. Own wage types must not join that existing booking.
+		if _, exists := used[category.Number]; !exists {
+			used[category.Number] = category.Label
 		}
 	}
+	return used
+}
 
-	type definition struct {
+func definedDatevWageTypes(rows []MonthExportRow) []datevWageTypeDefinition {
+	type key struct {
 		id     int64
 		number string
 	}
-	seen := make(map[definition]bool)
+	seen := make(map[key]bool)
+	var definitions []datevWageTypeDefinition
 	for _, row := range rows {
 		if row.PayrollRules == nil {
 			continue
@@ -194,17 +201,29 @@ func validateDatevWageTypeNumbers(rows []MonthExportRow, status *PayrollExportCo
 			if wageType.Number == "" {
 				continue
 			}
-			key := definition{id: wageType.ID, number: wageType.Number}
-			if seen[key] {
+			definition := datevWageTypeDefinition{id: wageType.ID, name: wageType.Name, number: wageType.Number}
+			if seen[key{id: definition.id, number: definition.number}] {
 				continue
 			}
-			seen[key] = true
-			if name, exists := used[wageType.Number]; exists {
-				return fmt.Errorf("%w: DATEV-Lohnartnummer %s ist sowohl für %s als auch für %s eingerichtet",
-					ErrPayrollConfigIncomplete, wageType.Number, name, wageType.Name)
-			}
-			used[wageType.Number] = wageType.Name
+			seen[key{id: definition.id, number: definition.number}] = true
+			definitions = append(definitions, definition)
 		}
+	}
+	return definitions
+}
+
+// validateDatevWageTypeNumbers keeps each own wage type distinct from the
+// fixed categories and from every other own wage type the requested export
+// can carry. Closed rows use their frozen definition, so this check belongs
+// here rather than in the current-rule maintenance path.
+func validateDatevWageTypeNumbers(rows []MonthExportRow, status *PayrollExportConfiguration) error {
+	used := fixedDatevWageTypeNumbers(status.Categories)
+	for _, wageType := range definedDatevWageTypes(rows) {
+		if name, exists := used[wageType.number]; exists {
+			return fmt.Errorf("%w: DATEV-Lohnartnummer %s ist sowohl für %s als auch für %s eingerichtet",
+				ErrPayrollConfigIncomplete, wageType.number, name, wageType.name)
+		}
+		used[wageType.number] = wageType.name
 	}
 	return nil
 }
