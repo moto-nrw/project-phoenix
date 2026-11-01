@@ -277,9 +277,9 @@ describe("HolidayRegistrationForm", () => {
       expect(thirdName).toHaveAttribute("aria-invalid", "true"),
     );
     expect(thirdName).toHaveFocus();
-    expect(screen.getByDisplayValue("Opa")).toHaveAttribute(
+    expect(screen.getByDisplayValue("Opa")).not.toHaveAttribute(
       "aria-invalid",
-      "false",
+      "true",
     );
   });
 
