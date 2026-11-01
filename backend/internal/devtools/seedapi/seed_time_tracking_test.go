@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"testing"
@@ -298,4 +299,96 @@ func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
 	assert.Equal(t, []string{"/api/staff/11/schedule"}, paths)
 	// The schedule reaches back to the history, or its days carry no Soll.
 	assert.Equal(t, []any{"2026-06-03"}, validFrom)
+}
+
+func TestSeedBreakClockingCarriesDeviationReasonsAtMidnight(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 1, 23, 59, 59, 0, seedBerlinLocation())
+	var stamps []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/time-tracking/check-in", "/api/time-tracking/check-out":
+			now = now.Add(2 * time.Second)
+			var body struct {
+				Reason string `json:"reason"`
+			}
+			if r.Body != nil {
+				_ = json.NewDecoder(r.Body).Decode(&body)
+			}
+			if body.Reason == "" {
+				w.WriteHeader(409)
+				_, _ = fmt.Fprint(w, `{"status":409,"code":"iot.deviation_reason_required"}`)
+				return
+			}
+			stamps = append(stamps, r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":42}}`)
+	})
+	defer srv.Close()
+	_, err := seedSessionViaAPI(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2)), time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC), seedBerlinLocation(), false)
+	require.NoError(t, err)
+	assert.Len(t, stamps, 2)
+	assert.Equal(t, 2, now.Day())
+}
+
+// Run the real care-exit and poll steps in workflow order while the injected
+// clock crosses midnight. The server enforces the last-care-day boundary.
+func TestSeedParentPollSurvivesBerlinMidnight(t *testing.T) {
+	t.Parallel()
+	for _, deferred := range []bool{false, true} {
+		t.Run(fmt.Sprint(deferred), func(t *testing.T) {
+			t.Parallel()
+			now := time.Date(2026, 11, 1, 23, 59, 59, 0, seedBerlinLocation())
+			var lastCareDay string
+			fake := &familyFeedServer{}
+			feed := fake.handler(t, func(_ []string) string {
+				return `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-11-01T22:59:59Z","options":[{"id":"o1"}],"children":[{"student_id":"2","selected_options":[]}]}]}`
+			})
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/students/care-end/preview":
+					_, _ = fmt.Fprint(w, `{"data":{"token":"preview"}}`)
+				case "/api/students/care-end":
+					var body struct {
+						StudentIDs  []string `json:"student_ids"`
+						LastCareDay string   `json:"last_care_day"`
+					}
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					if slices.Contains(body.StudentIDs, "2") {
+						lastCareDay = body.LastCareDay
+					}
+					_, _ = fmt.Fprint(w, `{"data":{}}`)
+				case "/parent/me/news/73/respond":
+					if lastCareDay != "" && now.Format(seedDateLayout) > lastCareDay {
+						w.WriteHeader(403)
+						_, _ = fmt.Fprint(w, `{"status":403,"code":"care.child_care_ended"}`)
+						return
+					}
+					feed(w, r)
+				default:
+					feed(w, r)
+				}
+			})
+			defer srv.Close()
+			rt := familyRuntime(srv.URL, 0)
+			rt.Parents[1].StudentIDs = []int64{2}
+			exits := careExitDemoStudentIndexes()
+			rt.FixedSeeder = &FixedSeeder{studentIDByIndex: map[int]int64{exits[0]: 2, exits[1]: 3}}
+			for _, step := range fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey, DeferHistory: deferred}}).Steps {
+				switch step := step.(type) {
+				case seedCareExitsStep:
+					step.now = func() time.Time { return now }
+					require.NoError(t, step.Run(t.Context(), rt))
+					now = now.Add(2 * time.Second)
+				case seedParentPollStep:
+					require.NoError(t, step.Run(t.Context(), rt))
+					now = now.Add(2 * time.Second)
+				}
+			}
+			require.Len(t, fake.writes, 1, "the parent actually answers, no permission check is skipped")
+			assert.Equal(t, "2026-11-02", lastCareDay)
+		})
+	}
 }

@@ -105,7 +105,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	plan := timeTrackingHistoryPlan{
-		today:                todaySeedDate().UTCMidnight(),
+		today:                todayDate.UTCMidnight(),
 		loc:                  seedBerlinLocation(),
 		adminAuth:            rt.TenantAuth,
 		vacationApproverAuth: vacationApproverAuth,
@@ -492,6 +492,7 @@ func seedSessionViaAPI(client *Client, rng *rand.Rand, day time.Time, loc *time.
 
 	checkInResp, err := client.Post("/api/time-tracking/check-in", map[string]any{
 		"status": status,
+		"reason": "Seed-Backdatierung",
 	})
 	if err != nil {
 		return false, fmt.Errorf("post check-in: %w", err)
@@ -506,7 +507,7 @@ func seedSessionViaAPI(client *Client, rng *rand.Rand, day time.Time, loc *time.
 		}
 	}
 
-	if _, err := client.Post("/api/time-tracking/check-out", nil); err != nil {
+	if _, err := client.Post("/api/time-tracking/check-out", map[string]any{"reason": "Seed-Backdatierung"}); err != nil {
 		return false, fmt.Errorf("post check-out: %w", err)
 	}
 

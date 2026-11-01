@@ -10,7 +10,11 @@ const seedDateLayout = "2006-01-02"
 type seedDate struct{ time.Time }
 
 func todaySeedDate() seedDate {
-	now := time.Now().In(seedBerlinLocation())
+	return seedDateAt(time.Now())
+}
+
+func seedDateAt(instant time.Time) seedDate {
+	now := instant.In(seedBerlinLocation())
 	return seedDate{Time: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)}
 }
 
