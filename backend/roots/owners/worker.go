@@ -1,6 +1,7 @@
 package owners
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -144,6 +146,20 @@ func NewWorker(
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
-		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), SchoolVacations: schoolVacationSync(),
 	})
+}
+
+// schoolVacationSync binds the Worker's school vacation job to the School
+// Calendar's platform-wide sync (#5345). The composition needs no
+// collaborator that can be missing; a failure still surfaces on every run.
+func schoolVacationSync() schedulerPorts.SchoolVacationSync {
+	sync, composeErr := schoolCalendarCompose.NewSchoolVacations(nil, "", nil)
+	return func(ctx context.Context) (int, int, error) {
+		if composeErr != nil {
+			return 0, 0, fmt.Errorf("compose school vacation sync: %w", composeErr)
+		}
+		result, err := sync.SyncSchoolVacations(ctx)
+		return result.Regions, result.Vacations, err
+	}
 }

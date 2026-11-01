@@ -43,8 +43,8 @@ func TestSessionEndRejectsVisitsCommittedWhileWaitingForTheSession(t *testing.T)
 	// The actor rolls back on the command's error. Both visits and the
 	// group's lifecycle must remain untouched, not partially closed.
 	select {
-	case err := <-ending.done:
-		require.ErrorIs(t, err, studentpresence.ErrVisitWriteConflict)
+	case <-ending.done:
+		require.ErrorIs(t, ending.err, studentpresence.ErrVisitWriteConflict)
 	case <-time.After(10 * time.Second):
 		t.Fatal("failed session end did not release its transaction")
 	}

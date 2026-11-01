@@ -140,17 +140,21 @@ func lockScenarioDB(t *testing.T) *bun.DB {
 // txActor runs one tenant transaction in its own goroutine, so a test can
 // hold it open, let it block on a lock, and decide when it commits.
 type txActor struct {
-	pid     int
-	tx      bun.Tx
-	steps   chan func(context.Context) error
-	done    chan error
+	pid   int
+	tx    bun.Tx
+	steps chan func(context.Context) error
+	// done closes once the transaction ended; err holds its result. A
+	// buffered result channel let the first reader take the value before the
+	// close, so a later non-blocking check still saw an open transaction.
+	done    chan struct{}
+	err     error
 	release sync.Once
 }
 
 func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 	t.Helper()
 	txCtx, cancel := context.WithCancel(ctx)
-	actor := &txActor{steps: make(chan func(context.Context) error), done: make(chan error, 1)}
+	actor := &txActor{steps: make(chan func(context.Context) error), done: make(chan struct{})}
 	// A failed assertion leaves the actor open: end it, cancelling a step
 	// that still waits on a lock, so the pool can close.
 	t.Cleanup(func() {
@@ -183,13 +187,13 @@ func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 			}
 			return nil
 		})
-		actor.done <- err
+		actor.err = err
 		close(actor.done)
 	}()
 	select {
 	case actor.pid = <-ready:
-	case err := <-actor.done:
-		t.Fatalf("transaction did not start: %v", err)
+	case <-actor.done:
+		t.Fatalf("transaction did not start: %v", actor.err)
 	}
 	return actor
 }
@@ -256,8 +260,8 @@ func (a *txActor) commit(t *testing.T) {
 	t.Helper()
 	a.finish()
 	select {
-	case err := <-a.done:
-		require.NoError(t, err)
+	case <-a.done:
+		require.NoError(t, a.err)
 	case <-time.After(10 * time.Second):
 		t.Fatal("transaction did not commit")
 	}

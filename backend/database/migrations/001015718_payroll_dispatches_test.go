@@ -69,6 +69,9 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 	}
 	// Roll back the newer erasures before testing the payroll migration alone:
 	// the Elternsprechtag (1.15.720, #4801) extends the weekly protocols'.
+	// The school vacations (1.15.721, #5345) extend the erasure functions of
+	// 1.15.720; they go first.
+	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
 	require.NoError(t, groupWeekProtocolsDown(ctx, db))
 	require.NoError(t, payrollDispatchesUp(ctx, db), "the migration is idempotent")

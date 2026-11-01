@@ -101,6 +101,18 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 	})
 }
 
+// BuildSchoolVacations composes the school vacations of the School Calendar
+// (#5345) over the tenant's federal state and the OpenHolidays API.
+func BuildSchoolVacations(settings settingsCompose.SettingsService) (schoolcalendar.SchoolVacationOwner, error) {
+	return schoolCalendarCompose.NewSchoolVacations(func(ctx context.Context) (string, error) {
+		region, err := settings.ResolveString(ctx, configModels.KeyFederalState)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve federal state setting: %w", err)
+		}
+		return region, nil
+	}, "", nil)
+}
+
 // BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
 func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (workforceCompose.WorkTime, error) {

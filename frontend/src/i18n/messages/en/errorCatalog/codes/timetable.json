@@ -83,6 +83,7 @@
   "reopen_student_active": "{object} could not be changed. Please check its current status.",
   "reopen_supervision_changed": "{object} could not be changed. Please check its current status.",
   "room_occupied": "{object} could not be changed. Please check its current status.",
+  "school_vacation_not_found": "{object} could not be changed. Please check its current status.",
   "series_end_before_start": "{object} could not be saved. Please check your entries.",
   "series_end_outside_period": "{object} could not be saved. Please check your entries.",
   "sick_absence_scope_locked": "{object} could not be changed. Please check its current status.",

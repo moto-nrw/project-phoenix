@@ -78,10 +78,11 @@ type fakeParentService struct {
 	gotTodayAccount int64
 	gotTodayStudent int64
 
-	mealPlanRows         []parentService.MealPlanEntry
-	mealPlanErr          error
-	mealParticipation    parentService.MealParticipationPlan
-	mealParticipationErr error
+	mealPlanRows              []parentService.MealPlanEntry
+	mealPlanErr               error
+	mealParticipation         parentService.MealParticipationPlan
+	mealParticipationErr      error
+	mealParticipationWriteErr error
 
 	consents           []parentService.ChildConsent
 	consentsErr        error
@@ -213,16 +214,16 @@ func (f *fakeParentService) MealParticipation(context.Context, int64, int64, tim
 	return f.mealParticipation, f.mealParticipationErr
 }
 func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []parentService.MealWeekday) (string, error) {
-	return "2026-09-07", nil
+	return "2026-09-07", f.mealParticipationWriteErr
 }
 func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
-	return nil
+	return f.mealParticipationWriteErr
 }
 func (f *fakeParentService) SetMealParticipationWeek(context.Context, int64, int64, timezone.Date, bool) (parentService.MealWeekChange, error) {
-	return parentService.MealWeekChange{Changed: []string{"2026-09-10"}, Locked: []string{"2026-09-09"}}, nil
+	return parentService.MealWeekChange{Changed: []string{"2026-09-10"}, Locked: []string{"2026-09-09"}}, f.mealParticipationWriteErr
 }
 func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
-	return nil
+	return f.mealParticipationWriteErr
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -622,6 +623,49 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","model":"ongoing_split","schedule_changeable":true,"sick_cancels_after_deadline":true,"days":[{"date":"2026-08-24","participating":true,"regular_participating":true,"source":"regular","changeable":true,"can_register":false,"can_cancel":true,"register_until":"2026-08-20T10:00:00Z","cancel_until":"2026-08-24T06:00:00Z"}]},"message":"Meal participation retrieved"}`, w.Body.String())
+}
+
+func TestMealParticipationWrites_PermissionCodes(t *testing.T) {
+	t.Parallel()
+	for _, denial := range []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"read-only", parentService.ErrMealParticipationManageDenied, "meals.participation_manage_denied"},
+		{"no portal access", parentService.ErrGuardianPermissionDenied, "care.guardian_permission_denied"},
+		{"not linked", parentService.ErrChildNotLinked, "care.child_not_linked"},
+	} {
+		t.Run(denial.name, func(t *testing.T) {
+			rs := &Resource{ParentService: &fakeParentService{mealParticipationWriteErr: denial.err}}
+			for _, write := range []struct {
+				name, method, body string
+				handler            http.HandlerFunc
+			}{
+				{"schedule", http.MethodPut, `{"weekdays":[1]}`, rs.replaceMealParticipation},
+				{"day", http.MethodPut, `{"participating":true}`, rs.setMealParticipationDay},
+				{"week", http.MethodPut, `{"participating":false}`, rs.setMealParticipationWeek},
+				{"reset", http.MethodDelete, "", rs.clearMealParticipationDay},
+			} {
+				t.Run(write.name, func(t *testing.T) {
+					req := withClaims(httptest.NewRequest(write.method, "/me/children/77/meal-participation", strings.NewReader(write.body)), 1234)
+					route := chi.NewRouteContext()
+					route.URLParams.Add("studentId", "77")
+					route.URLParams.Add("date", "2026-09-09")
+					w := httptest.NewRecorder()
+					write.handler(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route)))
+					require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+					var problem struct {
+						Status int    `json:"status"`
+						Code   string `json:"code"`
+					}
+					require.NoError(t, json.Unmarshal(w.Body.Bytes(), &problem))
+					assert.Equal(t, http.StatusForbidden, problem.Status)
+					assert.Equal(t, denial.code, problem.Code)
+				})
+			}
+		})
+	}
 }
 
 func TestSetMealParticipationWeek_ResponseContract(t *testing.T) {
