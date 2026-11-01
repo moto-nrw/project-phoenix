@@ -95,9 +95,7 @@ const payrollActor = int64(42)
 func newPayrollRulesForTest(t *testing.T) (*PayrollRules, *payrollRulesStoreFake, *payrollAuditFake) {
 	t.Helper()
 	store, audit := &payrollRulesStoreFake{}, &payrollAuditFake{}
-	rules, err := NewPayrollRules(store, audit)
-	require.NoError(t, err)
-	return rules, store, audit
+	return &PayrollRules{store: store, audit: audit}, store, audit
 }
 
 func TestPayrollRules_CreateWageTypeTrimsAndAuditsTheNewObject(t *testing.T) {

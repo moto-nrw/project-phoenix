@@ -24,14 +24,6 @@ type PayrollRules struct {
 
 var _ workforce.PayrollRules = (*PayrollRules)(nil)
 
-// NewPayrollRules requires the store and the audit.
-func NewPayrollRules(store ports.PayrollRulesStore, audit workforce.PayrollRuleAudit) (*PayrollRules, error) {
-	if store == nil || audit == nil {
-		return nil, errors.New("payroll rules: store and audit are required")
-	}
-	return &PayrollRules{store: store, audit: audit}, nil
-}
-
 const maxWageTypeNameLength = 100
 
 var wageTypeNumberPattern = regexp.MustCompile(`^[0-9]{1,4}$`)
