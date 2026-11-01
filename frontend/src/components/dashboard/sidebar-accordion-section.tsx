@@ -16,14 +16,14 @@ import {
   sidebarLabelClasses,
   sidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
   readonly icon?: string;
   /** Keep dashboard defaults; portals share their responsive link geometry. */
   readonly variant?: "dashboard" | "portal";
   readonly "data-portal-nav-section"?: string;
-  readonly concept?: MotoConceptKey;
+  readonly concept?: MotoConcept;
   readonly label: string;
   readonly activeColor?: string;
   readonly isExpanded: boolean;
@@ -79,7 +79,7 @@ export function SidebarAccordionSection({
   const bodyId = useId();
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
-  const conceptDefinition = concept ? MOTO_CONCEPTS[concept] : null;
+  const conceptDefinition = concept ?? null;
   const ConceptIcon = conceptDefinition?.icon;
   const showActiveIcon = isIconActive ?? isActive;
   // Im Streifen ist der Bereichsinhalt nie offen.

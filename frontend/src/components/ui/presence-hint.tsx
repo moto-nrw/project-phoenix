@@ -1,5 +1,9 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { notArrivalConcept } from "~/lib/concepts/notArrival";
+import { sickConcept } from "~/lib/concepts/sick";
 
 /**
  * A fact about a child that sits next to its location pill: present but not
@@ -22,22 +26,22 @@ const HINT_TEXT_SIZE: Record<PresenceHintSize, string> = {
 const HINTS = {
   notArrival: {
     label: LOCATION_STATUSES.UNPLANNED_PRESENT,
-    concept: "notArrival",
+    concept: notArrivalConcept,
     dataAttr: "data-not-arrival-indicator",
   },
   sick: {
     label: LOCATION_STATUSES.SICK,
-    concept: "sick",
+    concept: sickConcept,
     dataAttr: "data-sick-indicator",
   },
   classTrip: {
     label: LOCATION_STATUSES.CLASS_TRIP,
-    concept: "classTrip",
+    concept: classTripConcept,
     dataAttr: "data-class-trip-indicator",
   },
   excused: {
     label: LOCATION_STATUSES.EXCUSED,
-    concept: "excused",
+    concept: excusedConcept,
     dataAttr: "data-excused-indicator",
   },
 } as const;

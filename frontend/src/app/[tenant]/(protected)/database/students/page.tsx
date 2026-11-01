@@ -18,7 +18,6 @@ import { fetchChildQuota } from "~/lib/child-quota-api";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -49,6 +48,7 @@ import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -473,8 +473,8 @@ function StudentsPageContent() {
                   : "Legen Sie das erste Kind an, um mit der Betreuung zu starten.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.children.icon}
-                  tone={MOTO_CONCEPTS.children.tone}
+                  icon={childrenConcept.icon}
+                  tone={childrenConcept.tone}
                   size={48}
                 />
               ),
@@ -609,8 +609,8 @@ function StudentsPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.children.icon}
-                tone={MOTO_CONCEPTS.children.tone}
+                icon={childrenConcept.icon}
+                tone={childrenConcept.tone}
                 size={20}
               />
             ),

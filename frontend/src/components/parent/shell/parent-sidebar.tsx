@@ -15,6 +15,11 @@ import {
   PARENT_PRIMARY_NAV,
   type ParentNavItem,
 } from "./parent-nav-items";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { helpConcept } from "~/lib/concepts/help";
+import { logoutConcept } from "~/lib/concepts/logout";
+import { settingsConcept } from "~/lib/concepts/settings";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 const ROW =
   "flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm";
@@ -83,7 +88,9 @@ export function ParentSidebar({
           <MotoNavIcon
             concept={item.concept}
             iconConcept={
-              item.key === "children" && childCount !== 1 ? "groups" : undefined
+              item.key === "children" && childCount !== 1
+                ? groupsConcept
+                : undefined
             }
             active={active}
             className={`${ICON} ${active ? "" : "text-gray-400"}`}
@@ -145,7 +152,7 @@ export function ParentSidebar({
                   className={`${ROW} ${ROW_IDLE}`}
                 >
                   <MotoNavIcon
-                    concept="help"
+                    concept={helpConcept}
                     active={false}
                     className={`${ICON} text-gray-400`}
                   />
@@ -161,7 +168,7 @@ export function ParentSidebar({
                   className={`${ROW} ${settingsActive ? ROW_ACTIVE : ROW_IDLE}`}
                 >
                   <MotoNavIcon
-                    concept="settings"
+                    concept={settingsConcept}
                     active={settingsActive}
                     className={`${ICON} ${settingsActive ? "" : "text-gray-400"}`}
                   />
@@ -177,7 +184,7 @@ export function ParentSidebar({
                   className={`${ROW} ${enrollActive ? ROW_ACTIVE : ROW_IDLE}`}
                 >
                   <MotoNavIcon
-                    concept="enrollments"
+                    concept={enrollmentsConcept}
                     active={enrollActive}
                     className={`${ICON} ${enrollActive ? "" : "text-gray-400"}`}
                   />
@@ -192,7 +199,7 @@ export function ParentSidebar({
                   className={`${ROW} ${ROW_IDLE} w-full text-left`}
                 >
                   <MotoNavIcon
-                    concept="logout"
+                    concept={logoutConcept}
                     active={false}
                     className={`${ICON} text-gray-400`}
                   />

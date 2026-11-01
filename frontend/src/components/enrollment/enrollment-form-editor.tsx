@@ -112,6 +112,10 @@ import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { childrenConcept } from "~/lib/concepts/children";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -1549,7 +1553,7 @@ function TemplateOverviewRow({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-            <MotoConceptIcon concept="enrollments" size={16} />
+            <MotoConceptIcon concept={enrollmentsConcept} size={16} />
           </span>
           <h4 className="truncate text-sm font-semibold text-gray-900">
             {schema.name}
@@ -1679,17 +1683,19 @@ function OverviewGuide({
       >
         <div className="space-y-3">
           <GuideStep
-            icon={<MotoConceptIcon concept="permissions" size={18} />}
+            icon={<MotoConceptIcon concept={permissionsConcept} size={18} />}
             title="Basisformular prüfen"
             done
           />
           <GuideStep
-            icon={<MotoConceptIcon concept="enrollments" size={18} />}
+            icon={<MotoConceptIcon concept={enrollmentsConcept} size={18} />}
             title="Vorlage nur bei Bedarf"
             done={templateCount > 0}
           />
           <GuideStep
-            icon={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+            icon={
+              <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
+            }
             title="Vorlage in Anmeldephase wählen"
             done={assignedTemplateCount > 0}
           />
@@ -1758,7 +1764,9 @@ function FormTemplateDetail({
                   label="Zuletzt gespeichert"
                 />
                 <FormMetric
-                  icon={<MotoConceptIcon concept="enrollments" size={16} />}
+                  icon={
+                    <MotoConceptIcon concept={enrollmentsConcept} size={16} />
+                  }
                   value={schema.fields.length.toString()}
                   label="Zusatzfragen"
                 />
@@ -1768,7 +1776,7 @@ function FormTemplateDetail({
                   label="Pflicht-Zusatzfragen"
                 />
                 <FormMetric
-                  icon={<MotoConceptIcon concept="children" size={16} />}
+                  icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
                   value={childFieldCount.toString()}
                   label="Pro Kind"
                 />
@@ -1815,7 +1823,7 @@ function FormTemplateDetail({
                 className="w-full gap-2"
               >
                 <MotoConceptIcon
-                  concept="calendarPeriods"
+                  concept={calendarPeriodsConcept}
                   colorMode="inherit"
                   size={18}
                 />
@@ -1860,7 +1868,10 @@ function FormTemplateDetail({
                   />
                   <GuideStep
                     icon={
-                      <MotoConceptIcon concept="calendarPeriods" size={18} />
+                      <MotoConceptIcon
+                        concept={calendarPeriodsConcept}
+                        size={18}
+                      />
                     }
                     title="In Anmeldephase auswählen"
                     done={assignedPhases.length > 0}

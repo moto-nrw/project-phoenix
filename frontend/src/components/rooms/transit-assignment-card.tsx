@@ -5,6 +5,7 @@ import { SectionHeader } from "~/components/ui/concept-section-header";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TileCard } from "~/components/ui/tile-card";
 import { cn } from "~/lib/utils";
+import { transitConcept } from "~/lib/concepts/transit";
 
 /**
  * Der Einstieg zur Seite „Unterwegs“ (Kinder ohne Raumzuweisung). Steht auf
@@ -28,7 +29,7 @@ export function TransitAssignmentCard({
       <SectionHeader
         className="min-w-0 flex-1"
         title="Unterwegs"
-        icon={<MotoConceptIcon concept="transit" size={22} />}
+        icon={<MotoConceptIcon concept={transitConcept} size={22} />}
         subtitle={
           <>
             <span className="font-medium text-gray-900">{count}</span>{" "}

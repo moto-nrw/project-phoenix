@@ -48,6 +48,7 @@ import {
 
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
 
 const logger = createLogger({ component: "TenantLoginPage" });
 
@@ -640,7 +641,7 @@ function LoginForm() {
                   onClick={handlePasskeyLogin}
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 >
-                  <MotoConceptIcon concept="passkeys" size={16} />
+                  <MotoConceptIcon concept={passkeysConcept} size={16} />
                   <span>Mit Passkey anmelden</span>
                 </button>
               )}

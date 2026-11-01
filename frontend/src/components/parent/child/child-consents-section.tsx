@@ -24,6 +24,7 @@ import {
   type ChildConsent,
   type ChildConsentState,
 } from "~/lib/parent-api";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
 
 type PhotoConsentAction = "withdraw" | "grant";
 
@@ -129,7 +130,7 @@ export function ChildConsentsSection({
             ? `${t("description")} ${t("photoDescription")}`
             : t("description")
         }
-        concept="confirmations"
+        concept={confirmationsConcept}
       >
         {successfulAction === "withdraw" ? (
           <Alert type="success" message={t("success")} />

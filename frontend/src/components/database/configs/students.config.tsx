@@ -12,6 +12,8 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "@/lib/location-helper";
+import { childrenConcept } from "~/lib/concepts/children";
+import { transportConcept } from "~/lib/concepts/transport";
 
 const PrivacyConsentSection = dynamic(
   () =>
@@ -62,7 +64,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     plural: "Kinder",
   },
 
-  concept: "children",
+  concept: childrenConcept,
 
   backUrl: "/database",
 
@@ -75,7 +77,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     sections: [
       {
         title: "Persönliche Daten",
-        concept: "children",
+        concept: childrenConcept,
         columns: 2,
         fields: [
           {
@@ -108,7 +110,7 @@ export const studentsConfig = defineEntityConfig<Student>({
 
       {
         title: "Busfahrer",
-        concept: "transport",
+        concept: transportConcept,
         columns: 1,
         fields: [
           {

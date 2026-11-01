@@ -29,6 +29,9 @@ import {
   type AccountTenantAccess,
 } from "~/lib/operator/account-tenant-access-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
@@ -429,13 +432,13 @@ export function AccountTenantAccessModal({
             <section className="space-y-2">
               <ConceptSectionHeader
                 title="Aktive Zugänge"
-                concept="schools"
+                concept={schoolsConcept}
                 // FormModal rendert seinen Titel als h3.
                 level={4}
               />
               {activeEntries.length === 0 ? (
                 <EmptyState
-                  icon={<MotoConceptIcon concept="schools" size={22} />}
+                  icon={<MotoConceptIcon concept={schoolsConcept} size={22} />}
                   title="Kein aktiver Schulzugang"
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
@@ -601,7 +604,7 @@ export function AccountTenantAccessModal({
 
               <p className="flex items-start gap-2 text-xs text-gray-500">
                 <MotoConceptIcon
-                  concept="permissions"
+                  concept={permissionsConcept}
                   size={16}
                   className="mt-0.5"
                 />
@@ -626,7 +629,7 @@ export function AccountTenantAccessModal({
               <section className="space-y-2">
                 <ConceptSectionHeader
                   title="Frühere Zugänge"
-                  concept="changeHistory"
+                  concept={changeHistoryConcept}
                   // FormModal rendert seinen Titel als h3.
                   level={4}
                 />

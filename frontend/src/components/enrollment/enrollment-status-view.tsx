@@ -49,6 +49,8 @@ import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-re
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
+import { childrenConcept } from "~/lib/concepts/children";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -865,12 +867,14 @@ function EnrollmentStatusSummary({
         value={submittedDate}
       />
       <StatusSummaryCard
-        icon={<MotoConceptIcon concept="children" size={22} />}
+        icon={<MotoConceptIcon concept={childrenConcept} size={22} />}
         label={t("childrenLabel")}
         value={String(status.children.length)}
       />
       <StatusSummaryCard
-        icon={<MotoConceptIcon concept="parentConversations" size={20} />}
+        icon={
+          <MotoConceptIcon concept={parentConversationsConcept} size={20} />
+        }
         label={t("contactLabel")}
         value={status.guardian_email}
       />
@@ -1070,7 +1074,7 @@ function EnrollmentChildRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
-            <MotoConceptIcon concept="children" size={20} />
+            <MotoConceptIcon concept={childrenConcept} size={20} />
           </span>
           <div className="min-w-0">
             <p className="font-semibold break-words text-gray-900">
@@ -1500,7 +1504,7 @@ function ChangeRequestsPanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
-            <MotoConceptIcon concept="parentConversations" size={20} />
+            <MotoConceptIcon concept={parentConversationsConcept} size={20} />
           </span>
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

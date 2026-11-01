@@ -45,6 +45,7 @@ import {
   dayHomeChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
+import { childrenConcept } from "~/lib/concepts/children";
 
 /**
  * Arrival, pickup or absence of one visitor for the table view (#3834). Same
@@ -207,7 +208,7 @@ export function SupervisionStudentGrid({
     return (
       <SectionCard>
         <EmptyState
-          icon={<MotoConceptIcon concept="children" size={40} />}
+          icon={<MotoConceptIcon concept={childrenConcept} size={40} />}
           title="Keine Kinder in diesem Raum"
           description="Es wurden noch keine Kinder eingecheckt."
         />

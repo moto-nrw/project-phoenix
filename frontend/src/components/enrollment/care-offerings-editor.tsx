@@ -89,6 +89,10 @@ import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1132,7 +1136,7 @@ function CareOfferingToolbar({
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid min-w-0 flex-[999_1_40rem] gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="carePlan" size={16} />}
+            leading={<MotoConceptIcon concept={carePlanConcept} size={16} />}
             label="Angebote"
             value={offeringCount}
           />
@@ -1142,12 +1146,12 @@ function CareOfferingToolbar({
             value={activeOfferingCount}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendar" size={18} />}
+            leading={<MotoConceptIcon concept={calendarConcept} size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="children" size={18} />}
+            leading={<MotoConceptIcon concept={childrenConcept} size={18} />}
             label="Kapazität"
             value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={
@@ -1219,7 +1223,7 @@ function NoPhaseState() {
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="calendarPeriods" size={28} />
+            <MotoConceptIcon concept={calendarPeriodsConcept} size={28} />
           </span>
         }
         title="Erst eine Anmeldephase anlegen"
@@ -1231,7 +1235,7 @@ function NoPhaseState() {
             className="gap-2"
           >
             <MotoConceptIcon
-              concept="calendarPeriods"
+              concept={calendarPeriodsConcept}
               colorMode="inherit"
               size={18}
             />
@@ -1249,7 +1253,7 @@ function EmptyCareOfferingState() {
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="carePlan" size={24} />
+            <MotoConceptIcon concept={carePlanConcept} size={24} />
           </span>
         }
         title="Noch kein Betreuungsangebot angelegt"

@@ -37,6 +37,18 @@ import {
   type StudentExportPreset,
 } from "~/lib/student-export-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { birthdaysConcept } from "~/lib/concepts/birthdays";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { listsConcept } from "~/lib/concepts/lists";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
 
@@ -58,14 +70,14 @@ interface StudentModalConfig {
  * template picker inside the modal only appears in the Kindersuche.
  */
 const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
-  ogs_weekly: <MotoConceptIcon concept="calendar" size={20} />,
-  ogs_compact: <MotoConceptIcon concept="lists" size={20} />,
-  class_roster: <MotoConceptIcon concept="children" size={20} />,
-  daily_planning: <MotoConceptIcon concept="carePlan" size={20} />,
-  attendance_snapshot: <MotoConceptIcon concept="present" size={20} />,
-  pickup_list: <MotoConceptIcon concept="pickup" size={20} />,
-  blank_checklist: <MotoConceptIcon concept="activities" size={20} />,
-  birthday_list: <MotoConceptIcon concept="birthdays" size={20} />,
+  ogs_weekly: <MotoConceptIcon concept={calendarConcept} size={20} />,
+  ogs_compact: <MotoConceptIcon concept={listsConcept} size={20} />,
+  class_roster: <MotoConceptIcon concept={childrenConcept} size={20} />,
+  daily_planning: <MotoConceptIcon concept={carePlanConcept} size={20} />,
+  attendance_snapshot: <MotoConceptIcon concept={presentConcept} size={20} />,
+  pickup_list: <MotoConceptIcon concept={pickupConcept} size={20} />,
+  blank_checklist: <MotoConceptIcon concept={activitiesConcept} size={20} />,
+  birthday_list: <MotoConceptIcon concept={birthdaysConcept} size={20} />,
   // No moto concept names health data; "sick" is the Krank status and would
   // read as a list of sick children.
   health_list: <HeartPulse className="h-5 w-5" />,
@@ -241,7 +253,7 @@ export default function DatabaseExportsPage() {
         <ExportSection title="Momentaufnahmen">
           <InfoCard
             title="Notfallliste"
-            icon={<MotoConceptIcon concept="emergency" size={20} />}
+            icon={<MotoConceptIcon concept={emergencyConcept} size={20} />}
           >
             <ExportDescription>
               Alle aktuell anwesenden Kinder mit Kontaktdaten der
@@ -273,7 +285,7 @@ export default function DatabaseExportsPage() {
           {canReadRooms && (
             <InfoCard
               title="Wer ist wo"
-              icon={<MotoConceptIcon concept="rooms" size={20} />}
+              icon={<MotoConceptIcon concept={roomsConcept} size={20} />}
             >
               <ExportDescription>
                 Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
@@ -318,7 +330,7 @@ export default function DatabaseExportsPage() {
           {canUseSlotLists && !timetableDisabled && (
             <InfoCard
               title="Tageslisten"
-              icon={<MotoConceptIcon concept="lists" size={20} />}
+              icon={<MotoConceptIcon concept={listsConcept} size={20} />}
             >
               <ExportDescription>
                 Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
@@ -362,7 +374,9 @@ export default function DatabaseExportsPage() {
             onlineAnmeldungBooked && (
               <InfoCard
                 title="Anmeldungen"
-                icon={<MotoConceptIcon concept="enrollments" size={20} />}
+                icon={
+                  <MotoConceptIcon concept={enrollmentsConcept} size={20} />
+                }
               >
                 <ExportDescription>
                   Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
@@ -377,7 +391,7 @@ export default function DatabaseExportsPage() {
           {zeiterfassungBooked && (
             <InfoCard
               title="Zeitnachweis"
-              icon={<MotoConceptIcon concept="timeTracking" size={20} />}
+              icon={<MotoConceptIcon concept={timeTrackingConcept} size={20} />}
             >
               <ExportDescription>
                 Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört

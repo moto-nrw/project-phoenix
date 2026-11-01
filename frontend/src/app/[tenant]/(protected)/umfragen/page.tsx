@@ -43,6 +43,7 @@ import {
   type SurveyToAnswer,
 } from "~/lib/surveys-api";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 const TO_ANSWER_KEY = "surveys-to-answer";
 
@@ -350,7 +351,7 @@ function SurveysContent() {
                 ariaHasPopup="dialog"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <MotoConceptIcon concept="polls" size={20} />
+                  <MotoConceptIcon concept={pollsConcept} size={20} />
                   <h3 className="min-w-0 truncate text-base font-semibold text-gray-900">
                     {survey.title}
                   </h3>

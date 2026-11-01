@@ -24,6 +24,7 @@ import {
 } from "~/lib/parent-group-threads-api";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 const logger = createLogger({ component: "GroupMessagesPage" });
 
@@ -96,7 +97,7 @@ function GroupMessagesContent() {
       empty={
         bodyReplaced && !loadFailed
           ? {
-              icon: <MotoConceptIcon concept="groups" size={48} />,
+              icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
               title: "Noch keine Gruppennachrichten",
               description: messagingEnabled
                 ? "Mit einer Gruppennachricht schreiben Sie allen Eltern einer Gruppe, Klasse oder AG. Eltern antworten nur Ihnen."
@@ -126,7 +127,7 @@ function GroupMessagesContent() {
                 onClick={() => router.push(`/messages/groups/${thread.id}`)}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <MotoConceptIcon concept="groups" size={20} />
+                  <MotoConceptIcon concept={groupsConcept} size={20} />
                   <h3 className="truncate text-base font-semibold text-gray-900">
                     {thread.title}
                   </h3>

@@ -37,6 +37,7 @@ import {
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 const NO_ROOMS = [] as const;
 const LIST_REFRESH_MS = 60 * 1000;
@@ -290,7 +291,7 @@ export function OwnSupervisionView() {
         ownSessions.data !== undefined ? (
         <SectionCard>
           <EmptyState
-            icon={<MotoConceptIcon concept="rooms" size={48} />}
+            icon={<MotoConceptIcon concept={roomsConcept} size={48} />}
             title="Keine laufende Aufsicht"
             description="Starten Sie Ihren Termin unter „Als Nächstes“. Dann sehen Sie hier die Kinderliste."
           />

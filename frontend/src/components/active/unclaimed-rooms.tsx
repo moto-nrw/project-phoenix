@@ -15,6 +15,7 @@ import { createLogger } from "~/lib/logger";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { schoolyardConcept } from "~/lib/concepts/schoolyard";
 
 const logger = createLogger({ component: "UnclaimedRooms" });
 
@@ -236,7 +237,7 @@ export function UnclaimedRooms({
 
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <MotoConceptIcon concept="schoolyard" size={20} />
+          <MotoConceptIcon concept={schoolyardConcept} size={20} />
         </div>
         <div className="pr-6">
           <h3 className="font-semibold text-gray-900">

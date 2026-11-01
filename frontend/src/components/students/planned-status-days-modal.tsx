@@ -52,6 +52,9 @@ import {
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -798,7 +801,11 @@ export function PlannedStatusDaysModal({
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
                   <MotoConceptIcon
                     concept={
-                      isClassTrip ? "classTrip" : isSick ? "sick" : "excused"
+                      isClassTrip
+                        ? classTripConcept
+                        : isSick
+                          ? sickConcept
+                          : excusedConcept
                     }
                     size={22}
                   />
