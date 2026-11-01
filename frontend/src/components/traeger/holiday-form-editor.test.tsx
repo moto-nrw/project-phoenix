@@ -260,7 +260,7 @@ describe("HolidayFormEditor (#5198)", () => {
         sort_order: 0,
         applies_to_child: true,
         health: false,
-        share_with_host: false,
+        share_with_host: true,
       },
       {
         key: "forderbedarf",
@@ -283,7 +283,7 @@ describe("HolidayFormEditor (#5198)", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 
-  it("shares a question without health information with the hosting OGS (#5202)", async () => {
+  it("shares new questions by default but not health answers (#5470)", async () => {
     const saved = form([]);
     mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
       Promise.resolve({ ...saved, version: 2, fields }),
@@ -299,8 +299,7 @@ describe("HolidayFormEditor (#5198)", () => {
       target: { value: "Förderbedarf" },
     });
 
-    fireEvent.click(choice(/^OGS sieht die Antwort/));
-    fireEvent.click(choice(/^OGS sieht die Antwort/, 1));
+    expect(choice(/^OGS sieht die Antwort/)).toBeChecked();
     expect(choice(/^OGS sieht die Antwort/, 1)).toBeChecked();
     // A health question stays with the Träger: the share goes off and
     // cannot be chosen, and the row says why.
@@ -331,6 +330,64 @@ describe("HolidayFormEditor (#5198)", () => {
       { key: "taschengeld", health: false, share_with_host: true },
       { key: "forderbedarf", health: true, share_with_host: false },
     ]);
+  });
+
+  it("lets the Träger turn off sharing for a new question (#5470)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({ ...form(), version: 2, fields }),
+    );
+    renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Taschengeld" },
+    });
+    const share = choice(/^OGS sieht die Antwort/);
+    expect(share).toBeChecked();
+    fireEvent.click(share);
+    expect(share).not.toBeChecked();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+    await waitFor(() =>
+      expect(mockSave).toHaveBeenCalledWith("5", [
+        expect.objectContaining({ key: "taschengeld", share_with_host: false }),
+      ]),
+    );
+  });
+
+  it("keeps saved questions unshared when adding a new question (#5470)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({ ...form(), version: 2, fields }),
+    );
+    renderEditor(
+      form([
+        { key: "alt", label: "Alte Frage", type: "text", sort_order: 0 },
+        {
+          key: "privat",
+          label: "Nicht freigegeben",
+          type: "text",
+          sort_order: 1,
+          share_with_host: false,
+        },
+      ]),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    fireEvent.change(questionInputs()[2]!, {
+      target: { value: "Neue Frage" },
+    });
+    expect(choice(/^OGS sieht die Antwort/, 2)).toBeChecked();
+    expect(choice(/^OGS sieht die Antwort/)).not.toBeChecked();
+    expect(choice(/^OGS sieht die Antwort/, 1)).not.toBeChecked();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+    await waitFor(() =>
+      expect(mockSave).toHaveBeenCalledWith("5", [
+        expect.objectContaining({ key: "alt", share_with_host: false }),
+        expect.objectContaining({ key: "privat", share_with_host: false }),
+        expect.objectContaining({ key: "neue_frage", share_with_host: true }),
+      ]),
+    );
   });
 
   it("confirms a saved version with a toast that survives the remount (#5466)", async () => {

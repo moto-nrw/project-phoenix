@@ -218,6 +218,7 @@ export const nodeLogicTestFiles = [
   "src/lib/server-metrics.test.ts",
   "src/lib/server-runtime-env.test.ts",
   "src/lib/service-worker.test.ts",
+  "src/lib/swr/generation-server.test.ts",
   "src/lib/session-access.test.ts",
   "src/lib/settings-broadcast.test.ts",
   "src/lib/sftp-export-api.test.ts",

@@ -40,6 +40,7 @@ import {
   isCurrentSWRError,
   isCurrentSWRValue,
   isDiscardedAnswer,
+  isVisibleSWRValue,
   isFallbackVisible,
   noteFallbackShown,
   isStillCurrent,
@@ -49,6 +50,8 @@ import {
   requestGenerationOf,
   startOf,
   preloadSWR,
+  expireIntentPreload,
+  type SWRMutationRun,
 } from "./generation";
 import {
   authGeneration,
@@ -141,23 +144,49 @@ const generationLockMiddleware: Middleware =
     return useSWRNext(key, locked, {
       ...config,
       compare,
-      isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
+      isPaused: () => {
+        // SWR checks this before invoking its built-in preload consumer.
+        // Read-time expiry also covers suspended background-tab timers.
+        if (typeof key === "string") expireIntentPreload(key);
+        return isSWRSessionPending() || config.isPaused?.() === true;
+      },
       onError,
       onErrorRetry,
     });
   };
 
 /**
- * The value a mutate resolves to, only while it belongs to the key's current
- * generation: after a discarded revalidation SWR resolves to whatever the
- * cache still holds.
+ * The value a revalidation or clear resolves to, only while it belongs to
+ * the key's current generation: after a discarded revalidation SWR resolves
+ * to whatever the cache still holds.
  */
 function currentResult<V>(
   key: string,
   result: Promise<V>,
 ): Promise<V | undefined> {
   return Promise.resolve(result).then((value) =>
-    isCurrentSWRValue(key, value) === false ? undefined : value,
+    isVisibleSWRValue(key, value) ? value : undefined,
+  );
+}
+
+/**
+ * The result of a data mutation, only while its own run still counts (G25):
+ * judged by the run's start token, never by the result equalling a value
+ * stamped since. A run ended by a scope or data bump resolves to undefined.
+ */
+function runResult<V>(
+  run: SWRMutationRun,
+  result: Promise<V>,
+): Promise<V | undefined> {
+  return Promise.resolve(result).then(
+    (value) => {
+      run.done();
+      return run.isCurrent() ? value : undefined;
+    },
+    (error: unknown) => {
+      run.done();
+      throw error;
+    },
   );
 }
 
@@ -296,15 +325,12 @@ function lockBoundMutate<T>(
       );
       return currentResult(key, mutate(key, undefined, clear as never));
     }
-    const [locked, lockedOptions] = lockMutation(
+    const [locked, lockedOptions, run] = lockMutation(
       key,
       args[0],
       mutationOptions(args[1]),
     );
-    return currentResult(
-      key,
-      mutate(key, locked as never, lockedOptions as never),
-    );
+    return runResult(run, mutate(key, locked as never, lockedOptions as never));
   }) as SWRResponse<T>["mutate"];
 }
 
@@ -334,7 +360,7 @@ function useScopedSWR<T, E>(
   base: SWRConfiguration = swrConfig,
 ): ScopedSWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
-  const { cache, mutate: cacheMutate } = useSWRConfig();
+  const { cache, mutate: cacheMutate, fallback } = useSWRConfig();
   const fullKey =
     key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null;
   // Renders again whenever values stop counting (scope or data bump).
@@ -369,8 +395,10 @@ function useScopedSWR<T, E>(
   // - a value ~/lib/swr produced (fetch, preload, mutation, seed) by its
   //   stamp;
   // - previous data of an earlier key only under the keep guard above;
-  // - anything else (`fallbackData`, a provider fallback, a raw write) by
+  // - the caller's `fallbackData` or a provider fallback without a stamp by
   //   the key's fallback state, which a drop ends until fresh data came;
+  // - any other value without a stamp (its stamp released at a scope
+  //   boundary, #5223) only while no release or drop could have hit it;
   // - without a session nothing, not even `fallbackData`; a key the caller
   //   left out keeps SWR's own behaviour under the keep guard;
   // - a failure by its stamp; a discarded answer is no failure.
@@ -384,9 +412,17 @@ function useScopedSWR<T, E>(
       visible = stamped;
     } else if (keep && raw === lastShown.current) {
       visible = true;
-    } else {
+    } else if (
+      Object.is(raw, options?.fallbackData) ||
+      Object.is(
+        raw,
+        (fallback as Record<string, unknown> | undefined)?.[fullKey],
+      )
+    ) {
       visible = isFallbackVisible(fullKey);
       fallbackShown = visible;
+    } else {
+      visible = isVisibleSWRValue(fullKey, raw);
     }
   }
   const fallbackGeneration = fullKey ? dataGenerationOf(fullKey) : 0;
@@ -543,12 +579,7 @@ export function useImmutableSWR<T, E = Error>(
  */
 export function useTenantMutate() {
   const { prefix } = useSWRScope();
-  useSyncExternalStore(
-    subscribeSWRDataGeneration,
-    currentSWRDataGeneration,
-    currentSWRDataGeneration,
-  );
-  const originatingGeneration = currentSWRGeneration();
+  const origin = useDataOrigin();
 
   return useCallback(
     (
@@ -562,23 +593,42 @@ export function useTenantMutate() {
       // A retained action or passive effect must not restamp captured data
       // after a layout-effect reset. Only this key's data bumps count, so
       // an unrelated drop (including `except`) leaves the callback usable.
-      if (dataGenerationOf(cacheKey) > originatingGeneration)
+      if (dataGenerationOf(cacheKey) > origin.generation)
         return Promise.resolve(undefined);
       if (data === undefined) {
         return currentResult(cacheKey, swrMutate(cacheKey));
       }
       // A write that settles after the generation moved is not kept.
-      const [locked, lockedOptions] = lockMutation(
+      const [locked, lockedOptions, run] = lockMutation(
         cacheKey,
         data,
         mutationOptions(options),
       );
-      return currentResult(
-        cacheKey,
+      return runResult(
+        run,
         swrMutate(cacheKey, locked, lockedOptions as never),
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, origin],
+  );
+}
+
+/**
+ * The generation a callback of this render originates in (G21), renewed only
+ * when values stop counting (scope or data bump). A request bump moves the
+ * generation counter but ends no value, so it keeps the object and with it
+ * the identity of every callback built on it (#5223). The callbacks take any
+ * key: a data bump of any key renews them, a retained one keeps its origin.
+ */
+function useDataOrigin(): { readonly generation: number } {
+  const moved = useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  return useMemo(
+    () => ({ moved, generation: currentSWRGeneration() }),
+    [moved],
   );
 }
 
@@ -803,24 +853,45 @@ export function useSWRCacheKey() {
 /** Hover/intent preload, held to the same session and generation as mounted readers. */
 export function useSWRPreload() {
   const { prefix } = useSWRScope();
-  useSyncExternalStore(
-    subscribeSWRDataGeneration,
-    currentSWRDataGeneration,
-    currentSWRDataGeneration,
-  );
-  const originatingGeneration = currentSWRGeneration();
+  const { cache } = useSWRConfig();
+  const origin = useDataOrigin();
   return useCallback(
-    <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
+    <T>(
+      key: string,
+      fetcher: () => Promise<T>,
+      options?: { intent: true },
+    ): Promise<T | undefined> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
       const fullKey = scopedSWRKey(prefix, key);
-      if (dataGenerationOf(fullKey) > originatingGeneration)
+      if (dataGenerationOf(fullKey) > origin.generation)
+        return Promise.resolve(undefined);
+      const entry = cache.get(fullKey);
+      // A mounted reader already owns this request; never start a parallel
+      // speculative copy while its answer is still missing.
+      if (options?.intent && entry?.isValidating)
+        return Promise.resolve(undefined);
+      const cached = entry?.data as T | undefined;
+      if (
+        options?.intent &&
+        cached !== undefined &&
+        isCurrentSWRValue(fullKey, cached) === true
+      )
         return Promise.resolve(undefined);
       const start = startOf(fullKey);
-      return preloadSWR(fullKey, fetcher).then(
+      return preloadSWR(
+        fullKey,
+        async () => {
+          // The consumed-intent fallback must obey the original request's
+          // generation and the live session gate, just like the first load.
+          if (isSWRSessionPending() || !isStillCurrent(fullKey, start))
+            throw new DiscardedAnswer();
+          return fetcher();
+        },
+        options?.intent,
+      ).then(
         (value) =>
-          isStillCurrent(fullKey, start) &&
-          isCurrentSWRValue(fullKey, value) !== false
+          isStillCurrent(fullKey, start) && isVisibleSWRValue(fullKey, value)
             ? value
             : undefined,
         (error: unknown) => {
@@ -834,7 +905,7 @@ export function useSWRPreload() {
         },
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, origin, cache],
   );
 }
 

@@ -34,6 +34,7 @@ export function mealCatererTopic(): HelpTopic {
       "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
       "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
       "Sein Passwort ändert der Caterer selbst. Er öffnet oben rechts sein Menü und wählt `Konto`. Hat er es vergessen, wählt er bei der Anmeldung `Passwort vergessen?`.",
+      "Im `Konto` kann der Caterer auch die `Zwei-Faktor-Anmeldung` einschalten. Das ist freiwillig. Dann gibt er bei der Anmeldung zusätzlich einen Code aus seiner E-Mail ein. Statt Passwort und Code kann er auch einen Passkey nutzen.",
       "Die Belieferung beenden Sie auf der Karte `Caterer` über das Menü mit den drei Punkten: `Belieferung beenden`. moto fragt vorher nach. Danach sieht der Caterer Ihre Schule nicht mehr, und Sie können einen neuen Caterer einladen.",
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
@@ -41,6 +42,7 @@ export function mealCatererTopic(): HelpTopic {
       "Kam keine E-Mail an? Widerrufen Sie die Einladung unter `Offene Einladungen` im Menü mit den drei Punkten mit `Widerrufen`. Senden Sie dann eine neue.",
       "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
       "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
+      "Kommt Ihr Caterer nicht mehr an den Code für die Zwei-Faktor-Anmeldung? Dann meldet er sich beim moto-Team. Sie als Schule können sie nicht zurücksetzen, weil ein Caterer mehrere Schulen beliefern kann.",
     ],
     related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };

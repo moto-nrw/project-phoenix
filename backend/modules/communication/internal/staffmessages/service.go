@@ -597,6 +597,7 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 
 func (s *Service) appendLockedMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
 	message := &StaffMessage{
+		ClientMessageID: deliveryPorts.MessageSendID(ctx),
 		ThreadID:        threadID,
 		SenderAccountID: accountID,
 		SenderName:      s.resolveSenderName(ctx, accountID),
@@ -604,6 +605,9 @@ func (s *Service) appendLockedMessage(ctx context.Context, threadID, accountID i
 	}
 	if err := s.MessageRepo.Create(ctx, message); err != nil {
 		return nil, err
+	}
+	if message.SendReplayed {
+		return message, nil
 	}
 	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
 		return nil, err

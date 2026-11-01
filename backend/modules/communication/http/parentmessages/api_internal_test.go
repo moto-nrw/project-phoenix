@@ -204,3 +204,14 @@ func TestGroupThreadReadersWireContract(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"target_type":"class","target_label":"Klasse 3a","recipient_count":17}`, string(body))
 }
+
+func TestParentMessageCorrelationOnlyBelongsToItsAuthor(t *testing.T) {
+	t.Parallel()
+	messages := []communication.ParentMessage{{ID: 7, SenderAccountID: 12, ClientMessageID: "same-key"}}
+	require.Equal(t, "same-key", toMessageResponses(messages, 12)[0].ClientMessageID)
+	require.Empty(t, toMessageResponses(messages, 34)[0].ClientMessageID)
+	require.Empty(t, toMessageResponses(messages)[0].ClientMessageID)
+	group := &communication.ParentGroupThreadDetail{Messages: []communication.ParentGroupMessage{{ID: 7, SenderAccountID: 12, ClientMessageID: "same-key"}}}
+	require.Equal(t, "same-key", toGroupThreadDetail(group, 12).Messages[0].ClientMessageID)
+	require.Empty(t, toGroupThreadDetail(group, 34).Messages[0].ClientMessageID)
+}

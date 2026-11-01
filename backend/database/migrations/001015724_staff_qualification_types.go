@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	staffQualificationTypesVersion     = "1.15.722"
+	staffQualificationTypesVersion     = "1.15.724"
 	staffQualificationTypesDescription = "Nachweisarten der Schule, Zuordnung der Qualifikationen und Erinnerungsstand (#4808)"
 )
 
@@ -18,7 +18,7 @@ func init() {
 		Version:     staffQualificationTypesVersion,
 		Description: staffQualificationTypesDescription,
 		DependsOn: []string{
-			schoolVacationsVersion, // the last migration before this one, whose erasure functions this extends
+			"1.15.723", // the last migration before this one; extends the 1.15.721 erasure functions
 		},
 	})
 	Migrations.MustRegister(staffQualificationTypesUp, staffQualificationTypesDown)

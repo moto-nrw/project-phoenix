@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -26,6 +27,8 @@ func NewMessageStore(database Database) *MessageStore {
 }
 
 type parentMessageRow struct {
+	ClientMessageID  string `bun:"client_message_id,nullzero"`
+	SendReplayed     bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel    `bun:"table:users.parent_messages,alias:parent_message"`
 	ID               int64          `bun:"id,pk,autoincrement"`
 	TenantID         int64          `bun:"tenant_id,notnull"`
@@ -59,7 +62,7 @@ func (r *parentMessageRow) value() *domain.ParentMessage {
 	return &domain.ParentMessage{
 		ID: r.ID, TenantID: r.TenantID, ThreadID: r.ThreadID, StudentID: r.StudentID,
 		SenderAccountID: r.SenderAccountID, SenderKind: r.SenderKind, SenderName: r.SenderName,
-		StaffNameVisible: r.StaffNameVisible, Body: r.Body, Kind: r.Kind,
+		StaffNameVisible: r.StaffNameVisible, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, Body: r.Body, Kind: r.Kind,
 		EventType: r.EventType, EventActorKind: r.EventActorKind,
 		RequestType: r.RequestType, RequestStatus: r.RequestStatus, Payload: r.Payload,
 		RefTable: r.RefTable, RefID: r.RefID, AppliedAt: r.AppliedAt, AppliedBy: r.AppliedBy,
@@ -72,7 +75,7 @@ func messageRow(value *domain.ParentMessage) *parentMessageRow {
 		ID: value.ID, TenantID: value.TenantID, ThreadID: value.ThreadID, StudentID: value.StudentID,
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		SenderAccountID: value.SenderAccountID, SenderKind: value.SenderKind, SenderName: value.SenderName,
-		StaffNameVisible: value.StaffNameVisible, Body: value.Body, Kind: value.Kind,
+		StaffNameVisible: value.StaffNameVisible, ClientMessageID: value.ClientMessageID, SendReplayed: value.SendReplayed, Body: value.Body, Kind: value.Kind,
 		EventType: value.EventType, EventActorKind: value.EventActorKind,
 		RequestType: value.RequestType, RequestStatus: value.RequestStatus, Payload: value.Payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt, AppliedBy: value.AppliedBy,
@@ -95,13 +98,25 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.ParentMessage
 		message.TenantID = scope.TenantID
 	}
 	row := messageRow(message)
-	if _, err := db.NewInsert().
+	result, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(parentMessageTable).
-		Returning("id, created_at, updated_at").
-		Exec(ctx); err != nil {
+		On("CONFLICT (tenant_id, sender_account_id, client_message_id) WHERE client_message_id IS NOT NULL DO UPDATE").
+		Set("client_message_id = EXCLUDED.client_message_id").
+		Where("parent_messages.thread_id = EXCLUDED.thread_id AND parent_messages.body = EXCLUDED.body AND COALESCE(parent_messages.group_thread_id, 0) = COALESCE(EXCLUDED.group_thread_id, 0) AND parent_messages.sender_kind = EXCLUDED.sender_kind").
+		Returning("parent_messages.*, (xmax <> 0) AS send_replayed").
+		Exec(ctx)
+	if err != nil {
 		return fmt.Errorf("create parent message: %w", err)
 	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return communication.ErrMessageSendConflict
+	}
+	message.ClientMessageID, message.SendReplayed = row.ClientMessageID, row.SendReplayed
 	message.ID = row.ID
 	message.CreatedAt = row.CreatedAt
 	message.UpdatedAt = row.UpdatedAt

@@ -1,5 +1,7 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import {
   useCallback,
   useEffect,
@@ -145,6 +147,7 @@ export function OgsConversation({
     clear: clearLoadError,
   } = useApiLoadError();
   const [draft, setDraft] = useState("");
+  const draftRevision = useRef(0);
   const care = useChildCare(studentId);
   const [today, setToday] = useState<ChildToday>(UNKNOWN_CHILD_TODAY);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
@@ -336,15 +339,34 @@ export function OgsConversation({
     // view (#5011).
   }, [thread, care.loading, sendError]);
 
+  const attempt = useMessageSendAttempt(conversationKey);
   const { run: runSend, dismiss: dismissFailedSend } = send;
   const handleSend = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending) return;
+    const clientMessageId = attempt.begin(body);
     clearSendError();
     // A new attempt replaces the bubble marked as not sent.
     dismissFailedSend();
     setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
     const outcome = await runSend({
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        clearSendError();
+      },
+      confirmed: (current) =>
+        current.messages.some(
+          (message) =>
+            message.client_message_id === clientMessageId &&
+            message.sender_kind === "guardian",
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -359,7 +381,8 @@ export function OgsConversation({
           },
         ],
       }),
-      request: () => postChildMessage(studentId, body, undefined, audience),
+      request: () =>
+        postChildMessage(studentId, body, undefined, audience, clientMessageId),
       // Claim the token AFTER the POST resolves so this authoritative result
       // wins. A successful send means the thread is loadable, so clear any
       // stale load error left by an earlier failed background refresh. A
@@ -380,15 +403,24 @@ export function OgsConversation({
       },
     });
     if (outcome.status === "done") {
+      attempt.complete(clientMessageId);
       // Sending advances the reader's own cursor (any prior staff messages
       // are now read), so refresh the sidebar badge.
       nudgeUnreadBadge();
       return;
     }
-    if (outcome.status !== "failed") return;
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
+      return;
+    failed = true;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // The text goes back into the field unless a new one is there.
-    setDraft((current) => (current === "" ? body : current));
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
     logger.warn("ogs_message_send_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -427,6 +459,7 @@ export function OgsConversation({
     runSend,
     dismissFailedSend,
     conversationKey,
+    attempt,
   ]);
   // The retry sends the current draft, not the one of the failed attempt.
   const sendRef = useRef(handleSend);
@@ -681,7 +714,10 @@ export function OgsConversation({
               ) : null}
               <MessageComposer
                 value={draft}
-                onChange={setDraft}
+                onChange={(value) => {
+                  draftRevision.current += 1;
+                  setDraft(value);
+                }}
                 onSend={() => void handleSend()}
                 sending={sending}
                 placeholder={tm(

@@ -1603,6 +1603,7 @@ export async function postChildMessage(
   body: string,
   groupThreadId?: string,
   audience: MessageAudience = "team",
+  clientMessageId?: string,
 ): Promise<ThreadView> {
   // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
@@ -1610,6 +1611,7 @@ export async function postChildMessage(
     // JSON drops undefined keys: a team message sends only its body.
     {
       body,
+      client_message_id: clientMessageId,
       group_thread_id: groupThreadId,
       audience: groupThreadId || audience === "team" ? undefined : audience,
     },

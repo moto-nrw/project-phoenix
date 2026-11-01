@@ -1,12 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useParams,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
@@ -433,7 +428,6 @@ function StudentDetailPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const navRouter = useRouter();
   const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
   const referrer = resolveStudentReferrer(searchParams.get("from"));
@@ -449,15 +443,12 @@ function StudentDetailPageContent() {
   const weekendFollowsFriday = useWeekendFollowsFriday();
   const berlinToday = useBerlinToday();
 
-  // Switch tabs by updating the `?tab=` query param in place (preserves the
-  // `from` referrer). We echo the current `usePathname` back verbatim and only
-  // swap the query string, so no manual slug prefixing is needed: in subdomain
-  // mode `usePathname` is already slug-free (`/students/1`) and in path mode it
-  // already carries the slug (`/school-a/students/1`). This is the same
-  // browser-visible-path behaviour that `sidebar.tsx` relies on (it strips
-  // `/${tenantSlug}/` only when present) — verified against that precedent, so
-  // there is no double-slug risk in either mode. scroll:false keeps the
-  // viewport steady when switching sections.
+  // Tabs are already mounted; only their visibility and ?tab= change.
+  // Native history synchronizes Next's useSearchParams without a new RSC
+  // navigation. With prefetched data the page is usable before cold server
+  // routes finish compiling, so waiting for that navigation can strand a tour.
+  // Preserve the browser-visible tenant path and referrer, replace the history
+  // entry as before, and leave the scroll position untouched.
   const handleTabChange = useCallback(
     (next: string) => {
       const query = new URLSearchParams(searchParams.toString());
@@ -467,9 +458,13 @@ function StudentDetailPageContent() {
         query.set("tab", next);
       }
       const qs = query.toString();
-      navRouter.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      window.history.replaceState(
+        null,
+        "",
+        qs ? `${pathname}?${qs}` : pathname,
+      );
     },
-    [navRouter, pathname, searchParams],
+    [pathname, searchParams],
   );
 
   // Start at the top instead of inheriting the search list's scroll position

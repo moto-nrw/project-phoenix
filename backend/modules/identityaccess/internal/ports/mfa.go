@@ -120,6 +120,12 @@ type MFAMail interface {
 	NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail, deviceID int64) error
 }
 
+// CatererMFAResetNotice mails the caterer the operator's reset of its
+// second factor (#4497) in the reset's transaction.
+type CatererMFAResetNotice interface {
+	NotifyCatererMFAReset(ctx context.Context, message domain.CatererMFAResetMail, resetKey string) error
+}
+
 // MFAAuditTrail appends to the authentication and operator ledgers on the
 // caller's transaction. Operator audit failures roll back the audited change.
 type MFAAuditTrail interface {

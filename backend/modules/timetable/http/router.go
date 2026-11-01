@@ -39,6 +39,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		rs.mountOperationRoutes(r, withTx)
 		rs.mountTemplateRoutes(r, withTx)
 		rs.mountOfferingGapRoutes(r, withTx)
+		rs.mountBookingLeftoverRoutes(r, withTx)
 		rs.mountPlanningTrackRoutes(r, withTx)
 	})
 
@@ -365,6 +366,16 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 		Post("/templates/{id}/offering-connection", rs.connectTemplateOfferingSource)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Put("/templates/{id}/manual-roster", rs.setTemplateManualRoster)
+}
+
+// mountBookingLeftoverRoutes registers the children a hand-maintained
+// Regeltermin keeps after a booking change (#5102), found again after a
+// reload, and "Bleibt so". "Entfernen" is the remove-days route.
+func (rs *Resource) mountBookingLeftoverRoutes(r chi.Router, withTx common.Middleware) {
+	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+		Get("/templates/booking-leftovers", rs.listBookingLeftovers)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Put("/templates/{id}/students/{studentId}/kept-days", rs.setKeptStudentTemplateDays)
 }
 
 // mountOfferingGapRoutes registers the offerings without a matching

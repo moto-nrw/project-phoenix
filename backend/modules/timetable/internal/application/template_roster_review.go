@@ -92,7 +92,13 @@ func (r *templateRosterReview) PlannedRosters(ctx context.Context, templateIDs [
 func plannedRosterEntry(row *activityContract.StudentEnrollment) timetable.TemplateRosterEntry {
 	entry := timetable.TemplateRosterEntry{
 		StudentID: row.StudentID, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday,
-		SelectedWeekdays: slices.Clone(row.SelectedWeekdays),
+		SelectedWeekdays: slices.Clone(row.SelectedWeekdays), FromBooking: row.EnrollmentRequestChildID != nil,
+	}
+	for weekday, date := range row.KeptWithoutBooking {
+		if entry.KeptWithoutBooking == nil {
+			entry.KeptWithoutBooking = make(map[int]calendar.Date, len(row.KeptWithoutBooking))
+		}
+		entry.KeptWithoutBooking[weekday] = calendar.Date(date)
 	}
 	if !row.ValidFrom.IsZero() {
 		entry.ValidFrom = new(calendar.Date(row.ValidFrom))

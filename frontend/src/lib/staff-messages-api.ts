@@ -27,6 +27,7 @@ import {
  */
 
 export interface StaffMessage {
+  client_message_id?: string;
   id: string;
   sender_account_id: string;
   sender_name: string;
@@ -224,7 +225,11 @@ export interface StaffMessagesApi {
   /** Open (or create) the conversation with one colleague. */
   openThread(accountId: string): Promise<StaffThreadDetail>;
   /** Send one message into a conversation. */
-  postMessage(threadId: string, body: string): Promise<StaffMessage>;
+  postMessage(
+    threadId: string,
+    body: string,
+    clientMessageId?: string,
+  ): Promise<StaffMessage>;
   /** Start a group chat (#4776). OGS portal only. */
   createGroup(name: string, accountIds: string[]): Promise<StaffThreadDetail>;
   /** Rename a group chat. OGS portal only. */
@@ -301,11 +306,11 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
       return result.data;
     },
 
-    async postMessage(threadId, body) {
+    async postMessage(threadId, body, clientMessageId) {
       const fallback = "Die Nachricht konnte nicht gesendet werden";
       const result = await postEnvelope<StaffMessage>(
         `${basePath}/threads/${encodeURIComponent(threadId)}`,
-        { body },
+        { body, client_message_id: clientMessageId },
         fallback,
       );
       if (!result.data) {

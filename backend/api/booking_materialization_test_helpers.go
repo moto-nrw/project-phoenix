@@ -15,6 +15,7 @@ import (
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -234,18 +235,22 @@ func newBookingMaterialization(deps careplanCompose.BookingMaterializationDepend
 
 // NewStudentTemplateDaysTestModule composes Timetable's student template days
 // (#5102) over the test database; today bounds the removal, nil is the real
-// calendar day.
-func NewStudentTemplateDaysTestModule(db transactionruntime.Database, today func() calendar.Date) timetable.StudentTemplateDays {
-	return mustStudentTemplateDays(db, NewEnrollmentTimetableRows(db), today)
+// calendar day. An optional staffing announcer records the wake-ups.
+func NewStudentTemplateDaysTestModule(db transactionruntime.Database, today func() calendar.Date, staffing ...timetablePorts.StaffingAnnouncer) timetable.StudentTemplateDays {
+	return mustStudentTemplateDays(db, NewEnrollmentTimetableRows(db), today, staffing...)
 }
 
 // mustStudentTemplateDays binds the student template days over the test
 // rows; a nil today is the real calendar day.
-func mustStudentTemplateDays(db transactionruntime.Database, rows owners.TimetableTestRepositories, today func() calendar.Date) timetable.StudentTemplateDays {
+func mustStudentTemplateDays(db transactionruntime.Database, rows owners.TimetableTestRepositories, today func() calendar.Date, staffing ...timetablePorts.StaffingAnnouncer) timetable.StudentTemplateDays {
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, rows.CalendarPeriod, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default())
+	var announcer timetablePorts.StaffingAnnouncer
+	if len(staffing) > 0 {
+		announcer = staffing[0]
+	}
+	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, rows.CalendarPeriod, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default(), announcer)
 	if err != nil {
 		panic(fmt.Sprintf("student template days test module: %v", err))
 	}

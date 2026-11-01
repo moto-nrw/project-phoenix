@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.722 (#4808): the 1.15.721 (#5345) preview with users.staff_qualification_types.
+// 1.15.724 (#4808): the 1.15.721 (#5345) preview with users.staff_qualification_types.
 func installStaffQualificationTypeErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, staffQualificationTypeErasurePreviewSQL)
 	return err

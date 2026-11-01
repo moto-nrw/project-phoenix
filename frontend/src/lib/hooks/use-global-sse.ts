@@ -935,6 +935,10 @@ export function useGlobalSSE(): SSEHookState {
             // staffing_deviation_changed (#5017).
             key.includes("active-supervision-dashboard-") ||
             key.includes("database-calendar-periods-list") ||
+            // Children planned by hand without a booking (#5102): a removal,
+            // „Bleibt so“ and every series write announce this event, and the
+            // home task disables focus revalidation.
+            key.includes("booking-leftovers-") ||
             // the per-child Betreuungsplan renders these activity instances
             key.includes("care-plan-day-") ||
             key.includes("care-plan-week-")),

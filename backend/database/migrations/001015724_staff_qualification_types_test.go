@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestStaffQualificationTypeGrants pins 1.15.722 (#4808): kinds are school
+// TestStaffQualificationTypeGrants pins 1.15.724 (#4808): kinds are school
 // data under row-level security that are archived, never deleted.
 func TestStaffQualificationTypeGrants(t *testing.T) {
 	t.Parallel()
@@ -48,7 +48,7 @@ func TestStaffQualificationTypeNamesAreUniqueWhileLive(t *testing.T) {
 	assert.NoError(t, insert("Hygieneschulung"))
 }
 
-// TestStaffQualificationTypesMigrationRoundTrip rolls 1.15.722 back and
+// TestStaffQualificationTypesMigrationRoundTrip rolls 1.15.724 back and
 // forward: the down drops the kinds and restores the 1.15.721 erasure plan,
 // the up puts the kinds back into it after the qualifications.
 func TestStaffQualificationTypesMigrationRoundTrip(t *testing.T) {

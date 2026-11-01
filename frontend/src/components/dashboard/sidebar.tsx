@@ -83,7 +83,8 @@ import {
 } from "~/components/dashboard/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -116,6 +117,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { accountsConcept } from "~/lib/concepts/accounts";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { calendarConcept } from "~/lib/concepts/calendar";
@@ -413,6 +415,14 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Konten",
         icon: navigationIcons.profile,
         concept: accountsConcept,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/caterers",
+        label: "Caterer",
+        icon: navigationIcons.profile,
+        concept: mealPlanConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -1120,45 +1130,34 @@ function SidebarContent({
 
   const renderNavIcon = (item: NavItem) => {
     const concept = item.concept ?? null;
-    const isActive = !item.comingSoon && isActiveLink(item.href);
     if (concept) {
-      if (isActive) {
-        return (
-          <MotoDuotoneIcon
-            icon={concept.icon}
-            tone={concept.tone}
-            size={20}
-            className={SIDEBAR_ICON_CLASSES}
-          />
-        );
-      }
-
-      const ConceptIcon = concept.icon;
       return (
-        <ConceptIcon
-          size={20}
-          weight="regular"
-          className={getIconClasses(item)}
-          aria-hidden="true"
+        <MotoNavIcon
+          scene
+          concept={concept}
+          active={!item.comingSoon && isActiveLink(item.href)}
+          className={SIDEBAR_ICON_CLASSES}
         />
       );
     }
 
     return (
-      <svg
-        className={getIconClasses(item)}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d={item.icon ?? ""}
-        />
-      </svg>
+      <NavSceneFallback>
+        <svg
+          className={getIconClasses(item)}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d={item.icon ?? ""}
+          />
+        </svg>
+      </NavSceneFallback>
     );
   };
 

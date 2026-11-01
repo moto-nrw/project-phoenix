@@ -32,9 +32,21 @@ void invalidateFamily(rooms.family);
    `stampSWRSeeds` and `writeSWRSeeds` carry a server snapshot. Do not restamp
    old data as a fresh fallback. A partial seed must still revalidate;
    `revalidateIfStale: false` would suppress the request in SWR 2.5.1.
+   Stamps live as long as their scope generation (#5223): a session boundary
+   releases them, and a value without a stamp counts only on a page where no
+   boundary released one yet. After that, a fallback without a stamp waits
+   for fresh data of its key. The server stamps nothing.
 3. The callback returned by `useTenantMutate()` supports optimistic
    data, rollback and `populateCache` under the generation lock. Prefer the
-   reader's bound `mutate` when it already owns that key. For an action the
+   reader's bound `mutate` when it already owns that key. Its identity, like
+   that of `useSWRPreload()`, survives revalidations; a scope or data bump
+   hands out a new one. A revalidation of the key does not drop a running
+   mutation, a scope or data bump does. Whether a run still counts is bound
+   to the token it took at its start, never to its result equalling a value
+   stamped since: a dropped run resolves to `undefined` even when its result
+   equals the fresh value. Only values SWR writes into the cache are stamped
+   (an overtaken run's result is not), and the committed value an optimistic
+   run rolls back to keeps its stamp until SWR finished that run (#5485). For an action the
    user should see at once (send, check in, toggle), use
    `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
    expected result is an overlay on the confirmed data per scoped key and
@@ -221,3 +233,38 @@ before handling either success or failure, without turning a GET into an
 optimistic action. The guard exposes no cache or writer and does not change
 SWR's view-bound `onSuccess` semantics. Keep each refused resource's existing
 factory-key predicate; do not clear other readable schools.
+
+## Navigation intent
+
+Navigation data preloads must use `useSWRPreload` with the destination's exact
+factory key and fetcher. Code prefetch and data prefetch are independent:
+data waits for about 300 ms of pointer intent or keyboard focus (blur cancels).
+Touch starts no load: only a completed single-finger tap, with at most 8 px of
+movement, starts data intent; swipes and cancelled gestures do not.
+Do not preload audited reads, inaccessible resources, or speculative detail
+fields. A failed speculative request must not become the destination's load
+error. Scope changes discard pending answers, including work queued before
+the change. Respect Save-Data, `prefers-reduced-data` and slow connections; bound concurrency.
+
+`preload(key, fetcher, { intent: true })` is the speculative variant of the
+same locked writer. It skips an already current cached response and removes
+only its own failed preload promise atomically before rejecting, so a later
+page cannot take a promise between failure and cleanup. It runs its ordinary
+loader instead.
+If a mounted reader already consumed the promise, its first speculative failure
+instead runs the same canonical fetcher once inside the original generation
+lock. No retry occurs without a handoff, after a generation change, or while
+the session is unconfirmed. The reader stays loading until that ordinary load
+settles; only its failure reaches the normal error path.
+It never mutates response data directly, bypasses a generation check, or
+removes a replacement promise. Unconsumed intent promises expire after 45 s.
+Expiry is checked again before SWR consumes a promise, even when background-tab
+timers were suspended. Timer cleanup requires the original promise identity,
+and an expired pending request cannot trigger a handoff fallback. Expiry only
+evicts intent registry entries, never response data. General preloads retain
+their existing contract.
+The protected tenant shell shares thin fetchers, not page hooks, so data
+intent does not wait for another code chunk. It starts data only after intent. Its queue runs at most three resources concurrently
+and holds at most twelve waiting resources. New intent replaces older queued
+work and unresolved resource selection; queued work waits at most 5 s. Account/school/generation changes
+invalidate the captured writer even while code is loading or work is queued.

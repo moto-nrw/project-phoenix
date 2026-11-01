@@ -36,6 +36,7 @@ import {
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
+import { _resetSWRFallbacksForTests } from "./generation";
 import { resetSWRScope, resumeSWRSession } from "./scope";
 import { SWRScopeBoundary } from "./scope-boundary";
 import { expectIdleRenderBudget } from "~/test/render-budget";
@@ -105,6 +106,8 @@ function cacheKeys(): string[] {
 }
 
 beforeEach(() => {
+  // Every case starts like a fresh page: no stamp released yet (#5223).
+  _resetSWRFallbacksForTests();
   resetSWRScope({ revalidate: false });
   mockAnnounce.mockClear();
   rendered = [];

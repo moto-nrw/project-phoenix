@@ -86,6 +86,7 @@ import { TemplateList } from "~/components/timetable/template-list";
 import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
 import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
 import { OfferingGapHints } from "~/components/timetable/offering-gap-hints";
+import { BookingLeftoverHints } from "~/components/timetable/booking-leftover-hints";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 import type { OfferingGap } from "~/lib/offering-gap";
 import type { SeriesSourcePrefill } from "~/components/timetable/event-form/form-model";
@@ -2632,6 +2633,14 @@ function TimetablesContent() {
           periodId={templatePeriodID}
           canManage={canManageSchedules}
           onCreateSeries={openSeriesCreateForGap}
+          templatesVersion={templateData}
+        />
+      )}
+
+      {view === "series" && (
+        <BookingLeftoverHints
+          periodId={templatePeriodID}
+          canManage={canManageSchedules}
           templatesVersion={templateData}
         />
       )}

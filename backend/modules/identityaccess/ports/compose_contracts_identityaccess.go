@@ -120,6 +120,9 @@ type PasskeyDependencies struct {
 	// OperatorFrontendURL is the operator portal the operator ceremonies are
 	// pinned to.
 	OperatorFrontendURL string
+	// CatererFrontendURL is the caterer portal the caterer's ceremonies are
+	// pinned to (#4497); empty leaves them unavailable.
+	CatererFrontendURL string
 }
 
 // MFADependencies compose the account and operator MFA flows (#3331). They
@@ -127,10 +130,13 @@ type PasskeyDependencies struct {
 // compositions without them report ErrAccountMFAUnavailable and
 // ErrOperatorMFAUnavailable.
 type MFADependencies struct {
-	Settings      MFASettings
-	Codec         MFAChallengeCodec
-	Codes         ShortCodeHasher
-	Mail          MFAMail
+	Settings MFASettings
+	Codec    MFAChallengeCodec
+	Codes    ShortCodeHasher
+	Mail     MFAMail
+	// ResetNotice mails the caterer the operator's reset of its second
+	// factor (#4497); nil leaves the reset unavailable.
+	ResetNotice   CatererMFAResetNotice
 	OperatorAudit OperatorActionLog
 	// JWTSecret derives the trusted-device HMAC key, so the cookie signature
 	// and the JWT signing key stay independent.
