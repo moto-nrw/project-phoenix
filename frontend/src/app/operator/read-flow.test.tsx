@@ -1,10 +1,12 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   OrganizationSummary,
   SchoolSummary,
@@ -183,6 +185,36 @@ describe("operator reads with real SWR", () => {
       );
     },
   );
+
+  describe.each([
+    ["accounts", AccountsPage, api.listSchoolAccounts, "die Liste der Konten"],
+    ["devices", DevicesPage, api.listSchoolDevices, "die Liste der Geräte"],
+  ] as const)("%s load failures", (_name, Page, read, object) => {
+    it.each(["pending", "failed"])(
+      "shows the active school request error and retries while school options are %s",
+      async (optionsState) => {
+        if (optionsState === "pending") {
+          api.listSchools.mockReturnValue(new Promise(() => undefined));
+        } else {
+          state.query = "orgId=1&schoolId=10";
+          api.listSchools.mockRejectedValue(new ApiError("down", 503));
+        }
+        read.mockRejectedValueOnce(new ApiError("down", 503));
+        renderPage(<Page />);
+
+        const message = await screen.findByText(
+          catalogText("general.unavailable", object),
+        );
+        expect(message).toBeInTheDocument();
+        const retry = within(
+          message.closest<HTMLElement>('[role="alert"]')!,
+        ).getByRole("button", { name: "Wiederholen" });
+        expect(read).toHaveBeenCalledWith("10");
+        act(() => retry.click());
+        await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+      },
+    );
+  });
 
   it("starts school and organization lookups together, then accounts and usage together", async () => {
     const organizations = deferred<OrganizationSummary[]>();

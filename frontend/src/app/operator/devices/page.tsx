@@ -103,7 +103,7 @@ function OperatorDevicesPageContent() {
 
   // Only one of the three lists is active at a time.
   const devicesLoadError = useSwrLoadError(
-    selectedSchool
+    urlSchoolId
       ? schoolDevicesError
       : filterOrgId
         ? orgDevicesError

@@ -113,7 +113,7 @@ function OperatorAccountsPageContent() {
 
   // Only one of the three lists is active at a time.
   const accountsLoadError = useSwrLoadError(
-    selectedSchool
+    urlSchoolId
       ? schoolAccountsError
       : filterOrgId
         ? orgAccountsError
