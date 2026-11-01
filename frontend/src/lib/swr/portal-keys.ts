@@ -165,6 +165,14 @@ export const studentKeys = {
 export const timetableKeys = {
   offeringGaps: (periodId: string) =>
     `offering-gaps-${encodeURIComponent(periodId)}`,
+  // Schulferien (#5345): der Hinweis und die Liste eines Fensters.
+  schoolVacationHints: (today?: string) =>
+    today
+      ? `timetable-school-vacation-hints-${today}`
+      : "timetable-school-vacation-hints",
+  schoolVacationsFamily: "school-vacations-",
+  schoolVacations: (from: string, to: string) =>
+    `${timetableKeys.schoolVacationsFamily}${from}-${to}`,
 } as const;
 
 // School portal (Lehrkräfte).

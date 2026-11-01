@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.721 (#4807): the 1.15.720 preflight with the wage types and surcharge rules.
+// 1.15.722 (#4807): the 1.15.721 (#5345) preflight with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreflightSQL)
 	return err
@@ -107,6 +107,7 @@ const payrollWageTypeErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.
     calendar.appointments,
     calendar.parent_conference_bookings,
     calendar.parent_conferences,
+    calendar.school_vacation_acknowledgements,
     calendar.recurrence_rules,
     calendar.staff_feed_tombstones,
     config.home_block_policies,
@@ -309,7 +310,7 @@ const payrollWageTypeErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'fdb30c054fa87e124f1f8db3fbe68426f490a75344615766f295d6ba7bfc5ec5' THEN
+    ) AS edge) <> '8469d4e056674a097964edb90658709fe7716734f4710600fc1e361ccc367fa3' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

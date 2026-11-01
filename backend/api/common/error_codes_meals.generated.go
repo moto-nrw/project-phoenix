@@ -12,6 +12,7 @@ const CodeMealsInvalidParticipation = "meals.invalid_participation"
 const CodeMealsNotSupplied = "meals.not_supplied"
 const CodeMealsOrderNotFound = "meals.order_not_found"
 const CodeMealsParticipationCutoffPassed = "meals.participation_cutoff_passed"
+const CodeMealsParticipationManageDenied = "meals.participation_manage_denied"
 const CodeMealsParticipationOutOfRange = "meals.participation_out_of_range"
 const CodeMealsPlanDisabled = "meals.plan_disabled"
 const CodeMealsPlanWeekOutOfRange = "meals.plan_week_out_of_range"
@@ -30,6 +31,7 @@ var errorCodeClassesMeals = []errorCodeClass{
 	{CodeMealsNotSupplied, "permission"},
 	{CodeMealsOrderNotFound, "input"},
 	{CodeMealsParticipationCutoffPassed, "business_rejection"},
+	{CodeMealsParticipationManageDenied, "permission"},
 	{CodeMealsParticipationOutOfRange, "input"},
 	{CodeMealsPlanDisabled, "permission"},
 	{CodeMealsPlanWeekOutOfRange, "input"},

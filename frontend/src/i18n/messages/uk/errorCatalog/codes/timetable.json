@@ -83,6 +83,7 @@
   "reopen_student_active": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "reopen_supervision_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "room_occupied": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "school_vacation_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "series_end_before_start": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "series_end_outside_period": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "sick_absence_scope_locked": "Не вдалося змінити: {object}. Перевірте поточний стан.",

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.721 (#4807): the 1.15.720 delete with the wage types and surcharge rules.
+// 1.15.722 (#4807): the 1.15.721 (#5345) delete with the wage types and surcharge rules.
 func installPayrollWageTypeErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasureDeleteSQL)
 	return err
@@ -74,8 +74,7 @@ const payrollWageTypeErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sch
    SELECT count(*) INTO v_count FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.payroll_dispatches', v_count);
-   SELECT count(*) INTO v_count FROM active.payroll_surcharge_rules AS r WHERE r.tenant_id = p_school_id; DELETE FROM active.payroll_surcharge_rules AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('active.payroll_surcharge_rules', v_count);
-   SELECT count(*) INTO v_count FROM active.payroll_wage_types AS r WHERE r.tenant_id = p_school_id; DELETE FROM active.payroll_wage_types AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('active.payroll_wage_types', v_count);
+   SELECT count(*) INTO v_count FROM active.payroll_surcharge_rules AS r WHERE r.tenant_id = p_school_id; DELETE FROM active.payroll_surcharge_rules AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('active.payroll_surcharge_rules', v_count); SELECT count(*) INTO v_count FROM active.payroll_wage_types AS r WHERE r.tenant_id = p_school_id; DELETE FROM active.payroll_wage_types AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('active.payroll_wage_types', v_count);
    SELECT count(*) INTO v_count FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.staff_month_balance_snapshots', v_count);
@@ -253,6 +252,7 @@ const payrollWageTypeErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sch
    SELECT count(*) INTO v_count FROM calendar.parent_conferences AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM calendar.parent_conferences AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('calendar.parent_conferences', v_count);
+   SELECT count(*) INTO v_count FROM calendar.school_vacation_acknowledgements AS r WHERE r.tenant_id = p_school_id; DELETE FROM calendar.school_vacation_acknowledgements AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('calendar.school_vacation_acknowledgements', v_count);
    SELECT count(*) INTO v_count FROM calendar.appointment_occurrence_overrides AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM calendar.appointment_occurrence_overrides AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('calendar.appointment_occurrence_overrides', v_count);

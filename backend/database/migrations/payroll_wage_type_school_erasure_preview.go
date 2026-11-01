@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.721 (#4807): the 1.15.720 preview with the wage types and surcharge rules.
+// 1.15.722 (#4807): the 1.15.721 (#5345) preview with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreviewSQL)
 	return err
@@ -110,6 +110,7 @@ const payrollWageTypeErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('calendar.appointments',(SELECT count(*) FROM calendar.appointments AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.parent_conference_bookings',(SELECT count(*) FROM calendar.parent_conference_bookings AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.parent_conferences',(SELECT count(*) FROM calendar.parent_conferences AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('calendar.school_vacation_acknowledgements',(SELECT count(*) FROM calendar.school_vacation_acknowledgements AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.recurrence_rules',(SELECT count(*) FROM calendar.recurrence_rules AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.staff_feed_tombstones',(SELECT count(*) FROM calendar.staff_feed_tombstones AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('config.home_block_policies',(SELECT count(*) FROM config.home_block_policies AS r WHERE r.tenant_id = p_school));

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	payrollWageTypesVersion     = "1.15.721"
+	payrollWageTypesVersion     = "1.15.722"
 	payrollWageTypesDescription = "Eigene Lohnarten und Zuschläge für Nacht-, Sonntags- und Feiertagsarbeit im DATEV-Export (#4807)"
 )
 
@@ -18,7 +18,7 @@ func init() {
 		Version:     payrollWageTypesVersion,
 		Description: payrollWageTypesDescription,
 		DependsOn: []string{
-			parentConferencesVersion, // the last migration before this one, whose erasure functions this extends
+			schoolVacationsVersion,   // the last migration before this one, whose erasure functions this extends
 			staffAbsenceTypesVersion, // the absence types that gain a wage type
 		},
 	})
@@ -178,16 +178,16 @@ func payrollWageTypesUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// payrollWageTypesDown reinstalls the 1.15.720 erasure before it drops the
+// payrollWageTypesDown reinstalls the 1.15.721 erasure before it drops the
 // tables, so the installed plan never names a missing table.
 func payrollWageTypesDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
-			installParentConferenceErasurePlan, installParentConferenceErasurePreflight, installParentConferenceErasureResidual,
-			installParentConferenceErasureDelete, installParentConferenceErasurePreview,
+			installSchoolVacationErasurePlan, installSchoolVacationErasurePreflight, installSchoolVacationErasureResidual,
+			installSchoolVacationErasureDelete, installSchoolVacationErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
-				return fmt.Errorf("restore the school erasure of 1.15.720: %w", err)
+				return fmt.Errorf("restore the school erasure of 1.15.721: %w", err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, payrollWageTypesDownSQL); err != nil {

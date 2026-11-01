@@ -185,6 +185,8 @@ var tableRetentions = map[string]tableRetention{
 	"calendar.parent_conference_bookings":                   parent("calendar.parent_conferences"),
 	"calendar.parent_conferences":                           own("nightly retention step parent_conference_retention, ParentConferences.DeleteParentConferencesBefore (days before the start of the running school year on 1 August, with their bookings; the booked appointments go through AppointmentRetention.DeleteParentConferenceAppointmentsBefore, #4801)"),
 	"calendar.recurrence_rules":                             notPersonal("recurrence configuration"),
+	"calendar.school_vacation_acknowledgements":             notPersonal("a school's decision to plan care in one vacation window (#5345); only the acknowledging account reference, ON DELETE SET NULL"),
+	"calendar.school_vacations":                             notPersonal("public school vacations per federal state; the daily sync replaces them (#5345)"),
 	"calendar.staff_feed_tombstones":                        own("nightly timetable-cleanup step CleanupExpiredFeedTombstones -> StaffFeedTombstoneRepo.DeleteFeedCancellationsBefore (90 days)"),
 	"config.home_block_policies":                            notPersonal("home dashboard block policy configuration"),
 	"config.home_layouts":                                   parent("auth.accounts"),

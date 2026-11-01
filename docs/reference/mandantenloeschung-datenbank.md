@@ -165,6 +165,12 @@ Probelauf erneut mit den acht schulbezogenen Mittagessen-Tabellen
 Migration `1.15.681` ergänzt ebenso die drei Tabellen der Feriengäste der
 ausrichtenden OGS (Wahl der Feriengruppe, Feriengast, Kontakte; #4666,
 ADR 0120) samt neuem FK-Fingerabdruck.
+Migration `1.15.721` ergänzt ebenso
+`calendar.school_vacation_acknowledgements` (bestätigte Ferienbetreuung, #5345)
+samt neuem FK-Fingerabdruck; die Ferientabelle selbst hat keine Schule.
+Migration `1.15.722` ergänzt ebenso `active.payroll_wage_types` und
+`active.payroll_surcharge_rules` (eigene Lohnarten und Zuschläge, #4807)
+samt neuem FK-Fingerabdruck.
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).

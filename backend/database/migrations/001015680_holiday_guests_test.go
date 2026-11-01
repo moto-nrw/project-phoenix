@@ -126,9 +126,12 @@ func TestHolidayGuestContactsReachOnlyTheHostOfAConfirmedGuest(t *testing.T) {
 // the school erasure functions without the holiday guest tables.
 func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
 	t.Helper()
-	// The wage types (1.15.721, #4807) extend the erasure functions of
-	// 1.15.720; they go first.
+	// The wage types (1.15.722, #4807) extend the erasure functions of
+	// 1.15.721; they go first.
 	require.NoError(t, payrollWageTypesDown(t.Context(), db))
+	// The school vacations (1.15.721, #5345) extend the erasure functions of
+	// 1.15.720; they go next.
+	require.NoError(t, schoolVacationsDown(t.Context(), db))
 	// The Elternsprechtag (1.15.720, #4801) extends the erasure functions of
 	// 1.15.719; it goes next.
 	require.NoError(t, parentConferencesDown(t.Context(), db))
