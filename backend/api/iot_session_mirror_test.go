@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	deviceScan "github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
 	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
@@ -93,7 +92,7 @@ func TestKioskSessionMirrorAtBerlinMidnight(t *testing.T) {
 			startedAt, err := time.Parse(time.RFC3339, instant)
 			require.NoError(t, err)
 			require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context) error {
-				mirror.MirrorSession(ctx, deviceScan.LifecycleSession{ID: group.ID, RoomID: group.RoomID, StartTime: startedAt}, nil)
+				mirrorKioskSessionAt(ctx, mirror, group.ID, group.RoomID, startedAt)
 				instance, err := instances.FindByActiveGroupID(ctx, group.ID)
 				require.NoError(t, err)
 				require.NotNil(t, instance, "a successful start persists its timetable mirror at midnight")
