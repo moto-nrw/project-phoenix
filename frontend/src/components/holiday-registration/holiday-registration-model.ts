@@ -26,8 +26,8 @@ export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
 // backend/modules/enrollment/internal/application/holiday_registrations.go.
 // The offer does not expose these limits.
-export const MAX_EMERGENCY_CONTACTS = 3;
-export const MAX_PICKUP_PERSONS = 5;
+const MAX_EMERGENCY_CONTACTS = 3;
+const MAX_PICKUP_PERSONS = 5;
 export const MAX_CONTACTS = MAX_EMERGENCY_CONTACTS + MAX_PICKUP_PERSONS;
 
 /** The school choice of a child who attends no school of the Träger. */
