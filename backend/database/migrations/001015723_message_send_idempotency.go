@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	MigrationRegistry.Register(&Migration{Version: "1.15.722", Description: "Idempotent message send attempts (#5419)", DependsOn: []string{schoolVacationsVersion}})
+	MigrationRegistry.Register(&Migration{Version: "1.15.723", Description: "Idempotent message send attempts (#5419)", DependsOn: []string{keptWithoutBookingVersion}})
 	Migrations.MustRegister(messageSendIdempotencyUp, messageSendIdempotencyDown)
 }
 
