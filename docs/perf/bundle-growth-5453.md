@@ -4,8 +4,10 @@
 
 Keine pauschale Budgeterhöhung: #5408 hat den historischen Zuwachs auf den
 16 App-Routen bereits mehr als ausgeglichen. Nur `/help/[[...topic]]` benötigt
-eine neue Referenz. Die Hilfe enthält zusätzliche Artikel und Symbole; ihr
-alter Deckel wird noch um rund 1 kB überschritten. Delta-Toleranz und die
+eine neue Referenz. Die Routensumme enthält sowohl gemeinsame Fehlerdarstellung als auch
+zusätzliche Hilfeartikel und Symbole; ihr alter Deckel wird noch um rund 1 kB
+überschritten. Ohne die zusätzlichen Hilfemodule und Hilfe-Icons läge sie
+rechnerisch unter dem alten Deckel. Delta-Toleranz und die
 Behandlung geerbter Überschreitungen als Warnung bleiben unverändert.
 
 Eine experimentelle Zusammenlegung der Fehlercode-Module spart entgegen der
@@ -21,24 +23,63 @@ einzelne Beiträge dem jeweiligen Feature zu. Die drei Zahlen sind Tenant-Start,
 Hilfe und Eltern-Login. Sie sind **keine addierbare Zeitreihe**: Features wurden
 auf unterschiedlichen Merge-Basen gemessen und Chunk-Grenzen ändern sich.
 
-| Änderung / Commit | Module und Zweck | Delta Start / Hilfe / Eltern-Login | Linux-Run |
-|---|---|---:|---|
-| #5182, `81a68c7792`, `86dd587225` | `swr/scope`, `swr/generation`, `swr/hooks`: Cache je Schule/Konto und Schutz vor alten Antworten | +4164 / −26 / +3949 B | [40754352528](https://github.com/moto-nrw/project-phoenix/actions/runs/40754352528) |
-| #5227, `7d3e77effe` | Fehlercodes/-texte für Leitungsnachrichten | +283 / +283 / +370 B | [40874459376](https://github.com/moto-nrw/project-phoenix/actions/runs/40874459376) |
-| #5249, `33dd08b12d`, `07c3d4b219` | Nachrichtenstatus, Mitlesende, Hilfe | 0 / +526 / +1027 B | [40874487582](https://github.com/moto-nrw/project-phoenix/actions/runs/40874487582) |
-| #5339, `9e34667661` | Unfallanzeige: Fehlerkatalog, Hilfeartikel, FirstAidKit-Icon | +321 / +1673 / +344 B | [40971185508](https://github.com/moto-nrw/project-phoenix/actions/runs/40971185508) |
-| #5259, `1a5af59c2e` | gemeinsame Kontoprüfung, `session-account-binding` | +781 / +234 / +1046 B | [41081035949](https://github.com/moto-nrw/project-phoenix/actions/runs/41081035949) |
-| #5377, `349dad55fc` | Wochenprotokolle: Hilfe, Notebook-Icon in der damaligen vollständigen Konzept-Registry, Fehlertexte | +243 / +1600 / +324 B | [41193004602](https://github.com/moto-nrw/project-phoenix/actions/runs/41193004602) |
-| #5109, `e60fec635f` | Elternsprechtag: Fehlercodes/-texte und Hilfe | +843 / +1788 / +1045 B | [41206397194](https://github.com/moto-nrw/project-phoenix/actions/runs/41206397194) |
-| #5258, `3318cbcb7b`, `67c3942ac1` | gemeinsame SWR-Key-Factories und geschlossene Cache-Zugriffe | +612 / +20 / +1496 B | [41206620338](https://github.com/moto-nrw/project-phoenix/actions/runs/41206620338) |
-| #5403, `74e9584142` | sitzungsgebundene Antwortsperre, `session-end-barrier`, Portal-Provider | +345 / +176 / +1357 B | [41251067700](https://github.com/moto-nrw/project-phoenix/actions/runs/41251067700) |
-| #5445, `ec26ae4be1` | eigenes Delta des ursprünglichen Vergleichs, nicht die Altlast | +18 / 0 / +18 B | [41256428322](https://github.com/moto-nrw/project-phoenix/actions/runs/41256428322) |
+Die Tabelle enthält alle 22 archivierten Feature-Zwei-Baum-Vergleiche aus
+`featureComparisons` der Evidenzdatei. #5433 und #5456 liegen nach #5408 und
+zeigen den späteren Stand, nicht zusätzliche Ursachen des historischen Zuwachses.
 
-Bei #5182 stimmen die archivierten Quellbäume exakt mit den aufeinanderfolgenden
-Merges `7d898cb22d` und `a3a1d0de26` überein. Für die weiteren Zeilen enthält
-die Evidenzdatei beide Quellidentitäten, Revisionen und die Deltas aller 17 Routen.
-Die genannten Implementierungscommits erklären den Codepfad; die Delta-Zahlen
-gehören zum gesamten jeweiligen Feature-Head, nicht isoliert zu einem Commit.
+| PR / gemessener Feature-Head | Module und Zweck | Delta Start / Hilfe / Eltern-Login | Linux-Run |
+|---|---|---:|---|
+| #5227, `d4742c5ed3` | Fehlercodes/-texte für Leitungsnachrichten | +283 / +283 / +370 B | [40874459376](https://github.com/moto-nrw/project-phoenix/actions/runs/40874459376) |
+| #5249, `05a6eaef97` | Nachrichtenstatus, Mitlesende, Hilfe | 0 / +526 / +1027 B | [40874487582](https://github.com/moto-nrw/project-phoenix/actions/runs/40874487582) |
+| #5276, `38203a072f` | Nachweis-Upload in Ferienanmeldungen und zugehörige Hilfe | 0 / +179 / 0 B | [40883123180](https://github.com/moto-nrw/project-phoenix/actions/runs/40883123180) |
+| #5288, `1611e5f9dd` | Passwort-Zurücksetzen im Träger-Portal, Fehlertexte und Hilfe | +51 / +80 / +91 B | [40866854951](https://github.com/moto-nrw/project-phoenix/actions/runs/40866854951) |
+| #5292, `ab891e83a7` | Belegung nach Uhrzeit und zugehörige Hilfe | 0 / +197 / 0 B | [40880423418](https://github.com/moto-nrw/project-phoenix/actions/runs/40880423418) |
+| #5298, `1946a9d92c` | Betreuungsplan-Auswirkung mit UI-Kit-Bausteinen | 0 / +11 / 0 B | [40885705026](https://github.com/moto-nrw/project-phoenix/actions/runs/40885705026) |
+| #5315, `c9d10d4d15` | Soll-/Ist-Betreuungszeiten und zugehörige Hilfe | 0 / +643 / +30 B | [41013625443](https://github.com/moto-nrw/project-phoenix/actions/runs/41013625443) |
+| #5339, `7a22749894` | Unfallanzeige: Fehlerkatalog, Hilfeartikel, FirstAidKit-Icon | +321 / +1673 / +344 B | [40971185508](https://github.com/moto-nrw/project-phoenix/actions/runs/40971185508) |
+| #5259, `796eee6b24` | gemeinsame Kontoprüfung, `session-account-binding` | +781 / +234 / +1046 B | [41081035949](https://github.com/moto-nrw/project-phoenix/actions/runs/41081035949) |
+| #5376, `e8da421c1f` | Lohnbüro-Versand und zugehörige Hilfe | +125 / +585 / +107 B | [41092916445](https://github.com/moto-nrw/project-phoenix/actions/runs/41092916445) |
+| #5377, `9b7d8bb876` | Wochenprotokolle: Hilfe, Notebook-Icon in der damaligen vollständigen Konzept-Registry, Fehlertexte | +243 / +1600 / +324 B | [41193004602](https://github.com/moto-nrw/project-phoenix/actions/runs/41193004602) |
+| #5132, `621cf148ca` | Fehlzeitenliste und zugehörige Hilfe | +120 / +685 / +143 B | [41198465692](https://github.com/moto-nrw/project-phoenix/actions/runs/41198465692) |
+| #5109, `3f18a6ca23` | Elternsprechtag: Fehlercodes/-texte und Hilfe | +843 / +1788 / +1045 B | [41206397194](https://github.com/moto-nrw/project-phoenix/actions/runs/41206397194) |
+| #5258, `2898931d59` | gemeinsame SWR-Key-Factories und geschlossene Cache-Zugriffe | +612 / +20 / +1496 B | [41206620338](https://github.com/moto-nrw/project-phoenix/actions/runs/41206620338) |
+| #5413, `c5f1145ffd` | Optimistisches Senden von Nachrichten und SWR-Generationsgrenzen | +160 / 0 / +184 B | [41217148254](https://github.com/moto-nrw/project-phoenix/actions/runs/41217148254) |
+| #5414, `bf18105151` | Listendaten als Detail-Vorschau und paralleles Nachladen | +115 / 0 / +115 B | [41218795958](https://github.com/moto-nrw/project-phoenix/actions/runs/41218795958) |
+| #5421, `7e2f468f9f` | Nachrichtenstatus bei ausgeschaltetem Elternnachrichten-Modul | +216 / +270 / +216 B | [41235802160](https://github.com/moto-nrw/project-phoenix/actions/runs/41235802160) |
+| #5425, `ea39911c95` | Optimistische Alltagsaktionen und zugehörige Hilfe | 0 / +57 / -101 B | [41245601351](https://github.com/moto-nrw/project-phoenix/actions/runs/41245601351) |
+| #5403, `db6099854c` | sitzungsgebundene Antwortsperre, `session-end-barrier`, Portal-Provider | +345 / +176 / +1357 B | [41251067700](https://github.com/moto-nrw/project-phoenix/actions/runs/41251067700) |
+| #5427, `800e119579` | Vorabladen von Nachrichtendetails und Vorschau-Wechsel | 0 / 0 / 0 B | [41242468797](https://github.com/moto-nrw/project-phoenix/actions/runs/41242468797) |
+| #5433, `156f45c6d9` | Gemeinsamer Ressourcen-Cache im Eltern-Portal, nach #5408 | +55 / 0 / +1990 B | [41277751229](https://github.com/moto-nrw/project-phoenix/actions/runs/41277751229) |
+| #5456, `1eec6b529f` | SSE-/Polling-Abgleich und Zeitfenstergrenzen, nach #5408 | +1320 / 0 / +629 B | [41276170050](https://github.com/moto-nrw/project-phoenix/actions/runs/41276170050) |
+
+Zusätzliche Messnachweise außerhalb dieser 22 Feature-Paare:
+
+- #5182 (`81a68c7792`, `86dd587225`): Der direkte Vergleich der
+  aufeinanderfolgenden Merges `7d898cb22d` → `a3a1d0de26` misst
+  +4164 / −26 / +3949 B. Beide archivierten Quellbäume stimmen exakt mit
+  diesen Merges überein ([40754352528](https://github.com/moto-nrw/project-phoenix/actions/runs/40754352528)).
+- #5445 (`ec26ae4be1`): +18 / 0 / +18 B eigenes PR-Delta, nicht die Altlast
+  ([41256428322](https://github.com/moto-nrw/project-phoenix/actions/runs/41256428322)).
+
+Für die 22 Feature-Paare enthält die Evidenzdatei beide Quellidentitäten,
+Revisionen und die Deltas aller 17 Routen. Die Tabelle nennt die gemessenen
+Feature-Heads; ihre Zahlen sind keine isolierten Kosten eines einzelnen Commits.
+
+### Grenze der commitweisen Zuordnung
+
+Gemessen sind **21 von 79 Frontend-Merges** im historischen Bereich
+`a9da0bcbc0` → `cb4d7d12e2`: 20 Feature-Paare vor #5408 und der direkte
+Vergleich für #5182. Gezählt werden First-Parent-Merges mit Änderungen unter
+`frontend/src/`; reine Änderungen an Frontend-Werkzeugen, Budgets oder anderer
+Dokumentation zählen nicht zu diesen 79. Das ist keine vollständige Zuordnung
+des historischen Zuwachses zu allen Commits.
+
+Grenze auf den App-Routen: Auf der Tenant-Startseite und den Eltern-Routen
+bleiben **4,8 bis 8,5 kB (grob 25 bis 45 %)** als „Übrige
+Shell-/Seiten-/Chunk-Änderungen“ ohne Zahlen je Commit. Für
+`/[tenant]/display` weist die Bilanz zusätzlich einen Rest von 4125 B aus.
+Die folgenden Modulgruppen schließen die Größenbilanz, ersetzen aber keinen
+commitweisen Nachweis dieser verbleibenden Anteile.
 
 ### Modulbilanz der historischen Endpunkte
 
@@ -46,8 +87,11 @@ Kalter Vergleich `8d02dc39a4` → `cb4d7d12e2`, Linux ARM64. Gemeinsamer
 Fehlercode-Registeranteil: +1009 B; Fehlertextkatalog: +3137 B auf jeder der
 17 Routen. `220a468ae0` (#5243) führte die Registeraufteilung ein; neue
 Fehlercodes und übersetzte Meldungen aus den oben genannten Features wachsen
-zusätzlich mit. Der Importpfad ist `error-presentation` → Register/Katalog;
-globale Fehlerdarstellung erklärt die gemeinsame Last, nicht ein neues Layout-Paket.
+zusätzlich mit. `ToastContext.tsx` lädt `error-presentation` per dynamischem
+`import()` erst bei Bedarf; von dort werden Register und Katalog eingebunden.
+`bundle-routes.mjs` zählt alle Client-Chunks einer Route, einschließlich der
+dynamisch erreichbaren Chunks. Diese gemeinsame Last in der Routensumme ist
+also kein Beleg für einen entsprechenden initialen JavaScript-Transfer.
 
 | Route | Register | Fehlertexte | SWR-Helfer | Hilfemodule | Phosphor | Übrige Shell-/Seiten-/Chunk-Änderungen | Gesamt |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -112,6 +156,21 @@ auf `1eec6b529f` belegt; #5433 trägt dort 0 B bei
 ([41277751229](https://github.com/moto-nrw/project-phoenix/actions/runs/41277751229)).
 Die neue Obergrenze ist `Math.round(731013 * 1.02) = 745633` B.
 `/help/nfc/erste-schritte` im gleichen Budgetdokument bleibt unverändert.
+
+Die Referenz wächst gegenüber 715670 B um **15343 B**. Rund **4,1 kB** davon
+entfallen auf das gemeinsame Fehlercode-Register und den Fehlertextkatalog
+(+1009 B und +3137 B im historischen Modulvergleich). Dieser Anteil wird aus
+`ToastContext.tsx` dynamisch geladen und mitgezählt, weil der Bundle-Parser
+alle Client-Chunks erfasst, nicht nur die beim ersten Seitenaufruf geladenen.
+Die Budgetbegründung darf daher nicht den gesamten Zuwachs als Hilfeinhalt
+oder initiale Last darstellen.
+
+Den Ausschlag für den benötigten höheren Deckel geben die zusätzlichen
+**Hilfemodule (+9824 B)** und **Hilfe-Icons (+1555 B)**. Ohne diese Beiträge
+läge die Route rechnerisch bei `731013 - 9824 - 1555 = 719634` B, also unter
+dem alten Deckel von 729983 B. Das ist eine Größen-Gegenrechnung der gemessenen
+Anteile, kein zusätzlicher Build mit entfernten Funktionen.
+
 Die benötigten Inhalte betreffen u. a. Unfallanzeigen, Wochenprotokolle,
 Elternsprechtage, Leitungsnachrichten und Ferienanmeldungen. Sie werden für
 Artikelauswahl und Hilfesuche genutzt; entfernt werden weder Artikel noch Suche.
