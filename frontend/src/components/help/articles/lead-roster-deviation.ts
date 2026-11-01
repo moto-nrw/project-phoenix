@@ -34,8 +34,10 @@ export function leadRosterDeviationTopic(): HelpTopic {
     result:
       "Der Regeltermin zeigt `Automatisch`. An- und Abmeldungen im Angebot kommen ab dem nächsten Termin von selbst in die Kinderliste.",
     notes: [
-      // #5139: mehrere Angebote zusammen als Quelle.
-      "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto beide vor. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+      // #5139, #5342: mehrere Angebote zusammen als Quelle.
+      "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto alle vor, die bis zum Ende des Regeltermins dauern. Das erkennt moto an der Abholzeit des Angebots. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+      // #5342: ohne Abholzeit schlägt moto nur die nötigen Angebote vor.
+      "Ein Angebot ohne Abholzeit schlägt moto nur vor, wenn ein Kind es braucht. Prüfen Sie dann unter `Angebote`, ob ein Angebot fehlt.",
       "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
       "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
       "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
