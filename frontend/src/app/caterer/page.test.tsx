@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
   within,
+  type RenderOptions,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -114,6 +115,50 @@ describe("CatererOverviewPage (#3873)", () => {
     const north = within(table).getByText("OGS Nord").closest("tr")!;
     expect(within(north).getByText("50")).toBeInTheDocument();
     expect(within(north).getByText("+1")).toBeInTheDocument();
+  });
+
+  it("keeps expanded orders and confirmation buttons after school revalidation fails", async () => {
+    let refresh!: ReturnType<typeof useInvalidateMatching>;
+    function Revalidation() {
+      refresh = useInvalidateMatching();
+      return null;
+    }
+    render(
+      <>
+        <Revalidation />
+        <CatererOverviewPage />
+      </>,
+    );
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    const north = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section")!;
+    const button = within(north).getAllByRole("button", {
+      name: "Erhalten bestätigen",
+    })[0]!;
+    expect(button).toBeVisible();
+    // Let the real shared presenter finish loading before the failed refresh.
+    await act(async () => {
+      await import("~/lib/error-presentation");
+    });
+    mocks.fetchCatererSchools.mockRejectedValueOnce(
+      new ApiError("unavailable", 503),
+    );
+    await act(async () => {
+      await refresh((key) => key === catererKeys.schools());
+    });
+    await waitFor(() =>
+      expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(2),
+    );
+    // Anker: derselbe gemountete Bestätigen-Knopf bleibt nutzbar.
+    expect(button).toBeVisible();
+    expect(
+      within(north).getAllByRole("button", { name: "Erhalten bestätigen" })[0],
+    ).toBe(button);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shares schools and orders on return without a loading replacement", async () => {
@@ -848,6 +893,8 @@ import { SWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import type { Session } from "next-auth";
 import type { ReactElement } from "react";
+import { useInvalidateMatching } from "~/lib/swr";
+import { catererKeys } from "~/lib/swr/portal-keys";
 const sessionState = vi.hoisted(() => ({ data: null as Session | null }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -856,15 +903,17 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
-function render(ui: ReactElement, _options?: unknown) {
+function render(ui: ReactElement, options?: RenderOptions) {
+  const Wrapper = options?.wrapper ?? ToastProvider;
   const cache = new Map();
   return rtlRender(ui, {
+    ...options,
     wrapper: ({ children }) => (
       <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
-        <ToastProvider>
+        <Wrapper>
           <SWRScopeBoundary />
           {children}
-        </ToastProvider>
+        </Wrapper>
       </SWRConfig>
     ),
   });

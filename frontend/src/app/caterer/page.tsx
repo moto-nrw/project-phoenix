@@ -237,6 +237,7 @@ export default function CatererOverviewPage() {
     schoolResponse.error ?? response.error,
     schoolResponse.error ? "Ihre Schulen" : "die Bestellungen",
     schoolResponse.error ? schoolResponse.mutate : response.mutate,
+    schoolResponse.error ? schoolResponse.data : response.data,
   );
   const mutateOrders = response.mutate;
   const [exporting, setExporting] = useState<string | null>(null);

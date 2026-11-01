@@ -8,14 +8,17 @@ import { useApiLoadError } from "~/contexts/ToastContext";
  * Shows the error of a failed SWR load where the data is missing (#2514):
  * catalog text, retry and request ID through `useApiLoadError`. Render the
  * returned value in `LoadErrorAlert` or TenantPage `error`. A successful
- * reload clears it.
+ * reload clears it. With data, background failures are logged by the shared
+ * SWR reader only: content and open dialogs must stay mounted.
  */
 export function useSwrLoadError(
   error: unknown,
   object: string,
   retry: () => unknown,
+  data?: unknown,
 ) {
   const { error: shown, show, clear } = useApiLoadError();
+  const loadError = data === undefined ? error : undefined;
   // The retry closes over the latest mutate, not the one of the failed load.
   const retryRef = useRef(retry);
   useLayoutEffect(() => {
@@ -27,14 +30,14 @@ export function useSwrLoadError(
   const shownRef = useRef(false);
 
   useEffect(() => {
-    if (error) {
+    if (loadError) {
       shownRef.current = true;
-      void show(error, { object, retry: () => void retryRef.current() });
+      void show(loadError, { object, retry: () => void retryRef.current() });
     } else if (shownRef.current) {
       shownRef.current = false;
       clear();
     }
-  }, [error, object, show, clear]);
+  }, [loadError, object, show, clear]);
 
-  return shown;
+  return loadError ? shown : null;
 }
