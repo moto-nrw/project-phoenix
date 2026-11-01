@@ -730,9 +730,10 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	assert.Nil(t, successorRows[0].EnrollmentRequestChildID)
 }
 
-// A source whose Anmeldephase reaches beyond the template's Kalenderzeitraum
-// could never materialize its children, so the template save rejects it
-// instead of persisting a dead rule (#2137).
+// A source whose Anmeldephase lies entirely outside the template's
+// Kalenderzeitraum could never materialize its children, so the template save
+// rejects it instead of persisting a dead rule (#2137). A phase that only
+// reaches past the period counts for the overlap and is accepted.
 func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testing.T) {
 	t.Parallel()
 
@@ -742,6 +743,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 
 	fitting := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
 	overhanging := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate).AddDays(30))
+	outside := createSourceCareOffering(t, s, calendar.Date(s.period.EndDate).AddDays(1), calendar.Date(s.period.EndDate).AddDays(30))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	createInput := timetable.CreateTemplateCommand{
@@ -755,7 +757,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 		MaxParticipants:       20,
 		CalendarPeriodID:      &s.period.ID,
 		TargetGroupType:       activityContract.TargetGroupTypeAngebot,
-		SourceCareOfferingIDs: []int64{overhanging.ID},
+		SourceCareOfferingIDs: []int64{outside.ID},
 		RosterValidFrom:       monday.AddDays(-30),
 		GradeLevelMax:         testpkg.MaxSchoolGradeLevel,
 	}
@@ -764,8 +766,16 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
-	sourced := templatesSourcingOffering(t, s, overhanging.ID)
+	sourced := templatesSourcingOffering(t, s, outside.ID)
 	assert.Empty(t, sourced)
+
+	// A phase reaching past the period end is clipped to the overlap.
+	createInput.Name = name + "-ueberhang"
+	createInput.SourceCareOfferingIDs = []int64{overhanging.ID}
+	overhangResult, err := s.timetableData.Templates.CreateTemplate(s.ctx, createInput)
+	require.NoError(t, err, "an overlapping phase must be accepted")
+	registerSourcedTemplateCleanup(t, s, overhangResult.TemplateID, overhangResult.TimeframeID)
+	createInput.Name = name
 
 	// Same rule on the edit path: an existing sourced template cannot be
 	// re-pointed at an offering that does not fit its period.
@@ -784,7 +794,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 			MaxParticipants:       20,
 			CalendarPeriodID:      &s.period.ID,
 			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
-			SourceCareOfferingIDs: []int64{overhanging.ID},
+			SourceCareOfferingIDs: []int64{outside.ID},
 		},
 		Weekdays:         []int{activityContract.WeekdayMonday},
 		TimeframeID:      result.TimeframeID,
@@ -835,7 +845,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 }
 
 // A split may re-pin the successor to another Kalenderzeitraum. Carrying the
-// inherited source into a period the offering's phase does not fit would
+// inherited source into a period the offering's phase does not overlap would
 // persist a state create/update reject, so the split must refuse it too
 // (#2147 review).
 func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.T) {
@@ -845,7 +855,8 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	s := makeScenario(t, activityContract.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
+	// The phase ends the day before the late period below starts.
+	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.StartDate).AddDays(59))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
@@ -867,8 +878,8 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	// A period starting after the offering's phase begins — the phase no
-	// longer fits, so the successor could never materialize the source.
+	// A period starting after the offering's phase ends: no overlap, so the
+	// successor could never materialize the source.
 	latePeriod := fixtures.NewCalendarPeriod(func(fixtureRow *fixtures.CalendarPeriod) {
 		fixtureRow.Name = fmt.Sprintf("Spaetzeitraum-%d", time.Now().UnixNano())
 		fixtureRow.PeriodType = fixtures.PeriodTypeSchoolYear()

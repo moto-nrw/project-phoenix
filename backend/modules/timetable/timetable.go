@@ -280,7 +280,7 @@ type ActivityGroupCommand interface {
 
 // TemplateRosterReviewUpdate is a roster review write (#5103). Source turns
 // the segment's Zielgruppe into the offering source in place;
-// ManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the series
+// ManualRosterConfirmed stores "Liste so lassen" on the series
 // root. A nil field stays untouched.
 type TemplateRosterReviewUpdate struct {
 	Source                *OfferingSourceInput

@@ -1638,7 +1638,7 @@ function TimetablesContent() {
     ],
   );
 
-  // „Bleibt von Hand gepflegt“ und „Hinweis wieder zeigen“ (#5103). Kein
+  // „Liste so lassen“ und „Hinweis wieder zeigen“ (#5103). Kein
   // Dialog ist offen, deshalb kommt ein Fehler als Toast mit Katalogtext.
   const handleManualRoster = useCallback(
     async (template: TimetableTemplate, confirmed: boolean) => {
@@ -1647,7 +1647,7 @@ function TimetablesContent() {
         await timetableService.setManualRosterConfirmed(template.id, confirmed);
         toast.success(
           confirmed
-            ? `„${template.name}“ bleibt von Hand gepflegt.`
+            ? `Die Kinderliste von „${template.name}“ bleibt so.`
             : `Der Hinweis zu „${template.name}“ wird wieder gezeigt.`,
         );
         if (templatePeriodID) {

@@ -433,7 +433,7 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 			return fmt.Errorf("create %s planning variant: %w", body["target_group_type"], err)
 		}
 		// The AG is a Klasse Regeltermin the school keeps by hand on purpose
-		// ("Bleibt von Hand gepflegt", #5103): its roster is no booking.
+		// ("Liste so lassen", #5103): its roster is no booking.
 		if body["name"] == "AG Klasse 1a" {
 			if err := confirmSeedManualRoster(rt, raw); err != nil {
 				return err
@@ -483,8 +483,8 @@ func seedClassStudentIDs(fs *FixedSeeder, class string) []int64 {
 	return ids
 }
 
-// confirmSeedManualRoster marks the created Regeltermin "Bleibt von Hand
-// gepflegt".
+// confirmSeedManualRoster marks the created Regeltermin "Liste so lassen"
+// (the roster stays as it is).
 func confirmSeedManualRoster(rt *Runtime, created []byte) error {
 	var response struct {
 		Data struct {

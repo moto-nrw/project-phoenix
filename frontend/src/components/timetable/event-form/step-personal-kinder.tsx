@@ -12,6 +12,7 @@ import { Field } from "./field";
 import {
   conflictWarningText,
   shiftCoverageWarningText,
+  targetCohortExtraText,
   type EventFormState,
   rosterForWeekday,
   type PersonOption,
@@ -353,18 +354,28 @@ export function StepPersonalKinder({
       </div>
     );
   } else {
+    const cohortExtra = targetCohortExtraText(
+      targetCohort,
+      form.studentIds,
+      students,
+    );
     studentRosterField = (
-      <MultiSelectField
-        label="Kinder"
-        options={students}
-        value={form.studentIds}
-        onChange={(ids) => update("studentIds", ids)}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-        protectedValues={form.protectedStudentAssignments.flatMap(
-          (assignment) => assignment.studentIds,
-        )}
-      />
+      <div className="flex flex-col gap-1">
+        <MultiSelectField
+          label="Kinder"
+          options={students}
+          value={form.studentIds}
+          onChange={(ids) => update("studentIds", ids)}
+          metadata="student"
+          bulkOptions={studentBulkOptions}
+          protectedValues={form.protectedStudentAssignments.flatMap(
+            (assignment) => assignment.studentIds,
+          )}
+        />
+        {cohortExtra ? (
+          <p className="text-xs text-gray-600">{cohortExtra}</p>
+        ) : null}
+      </div>
     );
   }
 
@@ -830,6 +841,7 @@ export function StepPersonalKinder({
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
+          targetCohort={targetCohort}
         />
       )}
 
