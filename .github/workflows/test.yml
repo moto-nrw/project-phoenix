@@ -104,7 +104,7 @@ jobs:
           printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
 
   test-backend:
-    name: Backend tests${{ inputs.backend-race && ' with race detector' || '' }} (${{ matrix.shard }})
+    name: Backend tests (${{ matrix.shard }})
     needs: plan-backend
     if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
@@ -374,6 +374,7 @@ jobs:
           detailed_summary: true
 
   test-frontend:
+    name: Frontend tests (${{ matrix.project }})
     if: ${{ inputs.run-frontend }}
     # The existing Vitest projects are independent, but groupOrder runs Node
     # before DOM in one process. Split them without raising worker counts or
@@ -474,7 +475,7 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke (${{ matrix.scenario }})
+    name: Seed and simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
     strategy:
       fail-fast: false

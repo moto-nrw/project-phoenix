@@ -21,6 +21,7 @@ permissions: {}
 
 jobs:
   test:
+    name: Test with race detector
     permissions:
       contents: read
       checks: write
@@ -36,6 +37,7 @@ jobs:
       full-frontend-suite: true
 
   lint:
+    name: Lint
     permissions:
       contents: read
       actions: read
@@ -49,6 +51,7 @@ jobs:
   # License and vulnerability scans depend on dependency changes and on new
   # advisories, not on each pull request's code, so they run once a night.
   dependency-scan:
+    name: Dependency scan
     runs-on: ubuntu-latest
     permissions:
       contents: read

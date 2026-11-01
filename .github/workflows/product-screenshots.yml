@@ -1,4 +1,4 @@
-name: Produkt-Screenshots
+name: Product screenshots
 
 # Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
 # `vollbetrieb` seeden und den Tag simulieren, alle Shots aus frontend/scripts/product-screenshots/
@@ -69,7 +69,7 @@ env:
 
 jobs:
   capture:
-    name: Fotografieren und rahmen
+    name: Capture and frame
     # Ältere Releases mit Tags wie pr-1768-… sind QA-Ablagen, keine Versionen.
     if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     # Standard-Runner sind für dieses öffentliche Repository kostenlos; auf die
@@ -427,7 +427,7 @@ jobs:
           kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
 
   release-asset:
-    name: Ans GitHub-Release hängen
+    name: Attach to GitHub release
     needs: capture
     # Nur main und Tags vX.Y.Z, wie zuvor die Drive-Environment.
     if: >-
