@@ -234,3 +234,34 @@ it("streams even when native EventSource is unavailable", async () => {
   await waitFor(() => expect(result.current.isConnected).toBe(true));
   expect(sentAccount()).toBe("A");
 });
+
+it("keeps an open stream when the provider confirms the same account (#5017)", async () => {
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage }),
+  );
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  const signal = fetchMock.mock.calls[0]![1]!.signal!;
+  // Every session poll hands a new object for the same account.
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(signal.aborted).toBe(false);
+  expect(result.current.isConnected).toBe(true);
+});
+
+it("retries a stream out of retries when the provider answers again", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage, maxReconnectAttempts: 0 }),
+  );
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  expect(result.current.status).toBe("failed");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(sentAccount(1)).toBe("A");
+});
