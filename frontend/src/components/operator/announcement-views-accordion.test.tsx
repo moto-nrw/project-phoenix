@@ -1,14 +1,37 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { resumeSWRSession } from "~/lib/swr/scope";
+import { SWRConfig } from "~/lib/swr/testing";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+import type { Session } from "next-auth";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
+vi.unmock("swr");
+vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
+const { sessionState } = vi.hoisted(() => ({
+  sessionState: { data: null as Session | null, status: "authenticated" },
+}));
+vi.mock("next-auth/react", () => ({ useSession: () => sessionState }));
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+
 function render(ui: React.ReactElement) {
-  return renderPlain(ui, { wrapper: ToastProvider });
+  const cache = new Map();
+  return renderPlain(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, errorRetryCount: 0 }}>
+        <ToastProvider>
+          <SWRScopeBoundary />
+          {children}
+        </ToastProvider>
+      </SWRConfig>
+    ),
+  });
 }
 
 import {
   render as renderPlain,
+  act,
   screen,
   fireEvent,
   waitFor,
@@ -20,6 +43,7 @@ import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helper
 const { mockOperatorAnnouncementsService } = vi.hoisted(() => ({
   mockOperatorAnnouncementsService: {
     fetchViewDetails: vi.fn(),
+    fetchStats: vi.fn(async () => ({ dismissed_count: 3 })),
   },
 }));
 
@@ -33,34 +57,45 @@ vi.mock("~/lib/format-utils", () => ({
   getInitial: vi.fn((name: string) => name.charAt(0).toUpperCase()),
 }));
 
+afterEach(() => resumeSWRSession());
+
 describe("AnnouncementViewsAccordion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: 3,
+    });
+    sessionState.data = {
+      user: { id: "operator-a", scope: "platform" },
+      expires: "2099-01-01",
+    };
+    sessionState.status = "authenticated";
   });
 
-  it("does not render when dismissedCount is 0", () => {
-    const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
-    );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("renders accordion header when dismissedCount > 0", () => {
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={5} />,
-    );
-
-    expect(screen.getByText("Lesebestätigungen")).toBeInTheDocument();
-    expect(screen.getByText("(5)")).toBeInTheDocument();
+  it.each([0, 5])("shows count %d only while opened", async (count) => {
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: count,
+    });
+    mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    const toggle = screen.getByRole("button", { name: "Lesebestätigungen" });
+    // Anker: the collapsed card is available without a statistics response.
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).not.toHaveTextContent(/\(\d+\)/);
+    expect(mockOperatorAnnouncementsService.fetchStats).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    expect(await screen.findByText(`(${count})`)).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    // Anker: the same card remains present after closing.
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).not.toHaveTextContent(`(${count})`);
   });
 
   it("toggles accordion on header click", async () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
@@ -79,9 +114,7 @@ describe("AnnouncementViewsAccordion", () => {
       () => new Promise((resolve) => setTimeout(() => resolve([]), 100)),
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -96,9 +129,7 @@ describe("AnnouncementViewsAccordion", () => {
       .mockRejectedValueOnce(new ApiError("Network error", 503))
       .mockResolvedValueOnce([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={3} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -136,9 +167,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={2} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -169,9 +198,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -182,18 +209,38 @@ describe("AnnouncementViewsAccordion", () => {
     });
   });
 
-  it("shows empty state when no confirmations", async () => {
+  it("shows an explicit empty state for zero confirmations after opening", async () => {
+    mockOperatorAnnouncementsService.fetchStats.mockResolvedValue({
+      dismissed_count: 0,
+    });
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    fireEvent.click(screen.getByRole("button", { name: "Lesebestätigungen" }));
+    expect(
+      await screen.findByText("Noch keine Lesebestätigungen."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("(0)")).toBeInTheDocument();
+  });
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
+  it("stops statistics polling after closing", async () => {
+    vi.useFakeTimers();
+    mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    fireEvent.click(screen.getByRole("button", { name: "Lesebestätigungen" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText("(3)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Lesebestätigungen/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30001);
+    });
+    expect(
+      screen.getByRole("button", { name: "Lesebestätigungen" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(mockOperatorAnnouncementsService.fetchStats).toHaveBeenCalledTimes(
+      1,
     );
-
-    // Component should not render at all
-    const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={0} />,
-    );
-    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows empty state message when all users not dismissed", async () => {
@@ -210,9 +257,7 @@ describe("AnnouncementViewsAccordion", () => {
       mockViewDetails,
     );
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
     fireEvent.click(button);
@@ -228,7 +273,7 @@ describe("AnnouncementViewsAccordion", () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
     const { container } = renderPlain(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
+      <AnnouncementViewsAccordion announcementId="42" />,
     );
 
     const button = screen.getByRole("button");
@@ -246,9 +291,7 @@ describe("AnnouncementViewsAccordion", () => {
   it("only loads data once", async () => {
     mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([]);
 
-    render(
-      <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />,
-    );
+    render(<AnnouncementViewsAccordion announcementId="42" />);
 
     const button = screen.getByRole("button");
 
@@ -277,13 +320,73 @@ describe("AnnouncementViewsAccordion", () => {
     });
   });
 
+  it.each(["account", "logout", "other-tab-account", "other-tab-logout"])(
+    "withdraws confirmations on %s while the component stays mounted",
+    async (change) => {
+      mockOperatorAnnouncementsService.fetchViewDetails.mockResolvedValue([
+        {
+          userId: "1",
+          userName: "Person A",
+          seenAt: "2026-09-09T10:00:00Z",
+          dismissed: true,
+        },
+      ]);
+      const view = render(<AnnouncementViewsAccordion announcementId="42" />);
+      fireEvent.click(
+        screen.getByRole("button", { name: /Lesebestätigungen/ }),
+      );
+      expect(await screen.findByText("Person A")).toBeInTheDocument();
+      mockOperatorAnnouncementsService.fetchViewDetails.mockImplementation(
+        () => new Promise(() => undefined),
+      );
+      act(() => {
+        if (change.startsWith("other-tab")) {
+          globalThis.dispatchEvent(
+            new StorageEvent("storage", {
+              key: "moto:personal-storage-owner",
+              newValue: change.endsWith("logout") ? null : "account:operator-b",
+            }),
+          );
+        } else {
+          sessionState.data =
+            change === "logout"
+              ? null
+              : {
+                  user: { id: "operator-b", scope: "platform" },
+                  expires: "2099-01-01",
+                };
+          sessionState.status =
+            change === "logout" ? "unauthenticated" : "authenticated";
+          view.rerender(<AnnouncementViewsAccordion announcementId="42" />);
+        }
+      });
+      // Anker: the same mounted, expanded accordion remains available.
+      expect(
+        screen.getByRole("button", { name: /Lesebestätigungen/ }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Person A")).not.toBeInTheDocument();
+    },
+  );
+
+  it("starts neither details nor statistics before opening", () => {
+    render(<AnnouncementViewsAccordion announcementId="42" />);
+    // Anker: the loaded card offers its confirmations before any stats exist.
+    expect(
+      screen.getByRole("button", { name: /Lesebestätigungen/ }),
+    ).toBeInTheDocument();
+    expect(
+      mockOperatorAnnouncementsService.fetchViewDetails,
+    ).not.toHaveBeenCalled();
+    expect(mockOperatorAnnouncementsService.fetchStats).not.toHaveBeenCalled();
+  });
+
   it("stops event propagation on accordion", () => {
     const parentClick = vi.fn();
 
     render(
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
       <div onClick={parentClick} role="presentation">
-        <AnnouncementViewsAccordion announcementId="42" dismissedCount={1} />
+        <AnnouncementViewsAccordion announcementId="42" />
       </div>,
     );
 

@@ -167,3 +167,23 @@ A changed relationship set also drops derived resources, so removing and later
 re-adding a relationship cannot resurrect its former flags. The shell remounts
 remaining local-state sections at account/scope and relationship boundaries.
 No cache internals, persistent storage or new lint exceptions are involved.
+
+## Operator portal
+
+The backend session scope `platform` maps to `operator:{accountId}`. Operators
+read across schools, so there is no school in that session prefix. A school or
+organization ID belongs to the resource factory key, not to the session scope.
+All-school summaries stay under `schoolSummaries()`; consumers filter after
+reading and never put a cross-school response under a school-specific key.
+
+Use URL `schoolId` for list requests, independently of filter-option loading.
+The organization detail uses `organizationSchoolSummaries(id)` and its audited
+organization-specific endpoint, never the all-school response. The school detail
+loads organization and all-school summaries in parallel; only its ID-dependent
+requests wait for that resolution. Summary invalidation covers both all-school
+and organization-filtered responses. Account/device writes use their factory
+families; person deletion/merging uses `personChanges` to refresh person lists
+and every school/organization counter.
+Announcement statistics and confirmation details run only while expanded.
+The operator auth guard also keys local page/modal state to its confirmed scope
+and hides it while another tab's session change is being confirmed.
