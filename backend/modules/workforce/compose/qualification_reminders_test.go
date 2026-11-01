@@ -318,6 +318,6 @@ func TestQualificationReminderCaughtUpAfterExpirySaysLapsed(t *testing.T) {
 	assert.True(t, deliveries.mails[0].Content.Lapsed)
 
 	var standardTypes int
-	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_qualification_types`).Scan(ctx, &standardTypes))
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_qualification_types WHERE tenant_id = ?`, testpkg.Tenant(t)).Scan(ctx, &standardTypes))
 	assert.Equal(t, 3, standardTypes, "the reminder read initializes the school's standard types")
 }
