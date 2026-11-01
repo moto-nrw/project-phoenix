@@ -1,6 +1,7 @@
-import { it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useSSE } from "./use-sse";
+import { SSE_IDLE_TIMEOUT_MS } from "~/lib/fetch-event-source";
 import {
   bindSessionAccount,
   SESSION_ACCOUNT_HEADER,
@@ -342,4 +343,52 @@ it("keeps the stream for reordered permissions and roles and profile changes", a
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(signal.aborted).toBe(false);
   expect(result.current.isConnected).toBe(true);
+});
+
+describe("heartbeat watchdog (#5017)", () => {
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("counts a silent stream as dropped and reconnects", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { result } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+    );
+    await advance(0);
+    expect(result.current.isConnected).toBe(true);
+    const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+    // A half-open connection: no heartbeat, no data.
+    await advance(SSE_IDLE_TIMEOUT_MS - 1);
+    expect(result.current.isConnected).toBe(true);
+    await advance(1);
+    expect(signal.aborted).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.status).toBe("reconnecting");
+
+    await advance(5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentAccount(1)).toBe("A");
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("keeps a stream alive while heartbeats arrive", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+    );
+    await advance(0);
+    expect(result.current.isConnected).toBe(true);
+    for (let beat = 0; beat < 10; beat++) {
+      await advance(30_000);
+      act(() => streams[0]!.enqueue(encoder.encode(": heartbeat\n\n")));
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.isConnected).toBe(true);
+    expect(onMessage).not.toHaveBeenCalled();
+  });
 });
