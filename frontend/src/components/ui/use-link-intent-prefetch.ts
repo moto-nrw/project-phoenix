@@ -64,7 +64,10 @@ export function useLinkIntentPrefetch({
 
   const startPrefetch = () => {
     cancelHover();
-    if (canPrefetch) setIntent({ href, target, prefetch: true });
+    if (canPrefetch) {
+      dataIntent.prepare();
+      setIntent({ href, target, prefetch: true });
+    }
   };
 
   return {

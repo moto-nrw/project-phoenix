@@ -8,7 +8,10 @@ export interface PrefetchResource {
 }
 
 export const DataPrefetchContext = createContext<
-  ((href: string, resources?: readonly PrefetchResource[]) => void) | null
+  | (((href: string, resources?: readonly PrefetchResource[]) => void) & {
+      prepare: (href: string) => void;
+    })
+  | null
 >(null);
 
 const DATA_HOVER_DELAY_MS = 300;
@@ -30,6 +33,9 @@ export function useDataPrefetchIntent(
     if (href) preload?.(href, resources);
   };
   return {
+    prepare: () => {
+      if (href && !resources) preload?.prepare(href);
+    },
     onPointerEnter: (event: { pointerType: string }) => {
       cancel();
       if (!preload || !href) return;
