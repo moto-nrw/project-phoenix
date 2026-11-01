@@ -205,16 +205,16 @@ func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
 	require.NoError(t, err, "portal access still permits reading meal participation")
 
 	_, err = svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
-	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+	require.EqualError(t, err, "parent: meal participation management not permitted")
 
 	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date, true)
-	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+	require.EqualError(t, err, "parent: meal participation management not permitted")
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date)
-	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+	require.EqualError(t, err, "parent: meal participation management not permitted")
 
 	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, date, false)
-	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+	require.EqualError(t, err, "parent: meal participation management not permitted")
 
 	flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)

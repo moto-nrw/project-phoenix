@@ -195,6 +195,7 @@ for (const scenario of scenarios) {
     it.each([
       "offline",
       "display.disabled",
+      "display.manage_forbidden",
       "identity.session_account_mismatch",
     ])("nimmt %s zurück, ohne die Liste zu verwerfen", async (code) => {
       const { pending, submit } = await setup();
@@ -207,37 +208,43 @@ for (const scenario of scenarios) {
             ? new TypeError("offline")
             : new ApiError("diag", 403, {
                 code: code as
-                  "display.disabled" | "identity.session_account_mismatch",
+                  | "display.disabled"
+                  | "display.manage_forbidden"
+                  | "identity.session_account_mismatch",
               }),
         );
       });
       expect(rows()).toBe(before);
       expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(mocks.list).toHaveBeenCalledTimes(1);
+      expect(scenario.request).toHaveBeenCalledTimes(1);
     });
-    // No code of these routes refuses the list (everyday-action-refusals.ts):
-    // a 403 may leave it readable (display:read), a 404 names one display.
-    // The action rolls back and the list loads again (#5423).
-    it.each([
-      [403, "general.permission"],
-      [404, "general.input"],
-    ] as const)(
-      "nimmt %s %s zurück und lädt die Liste neu, statt sie zu verwerfen",
-      async (status, code) => {
-        const { pending, submit } = await setup();
-        submit();
-        expectOptimistic();
-        // The reload shows what the server now has: the display is gone.
-        mocks.list.mockResolvedValue([neighbour]);
-        await act(async () => {
-          pending.reject(new ApiError("diag", status, { code }));
-        });
-        expect(await screen.findByRole("alert")).toBeInTheDocument();
-        await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
-        // Anker: die Liste steht nach dem Neuladen weiter da.
-        expect(await screen.findByText("Mensa")).toBeInTheDocument();
-        await waitFor(() => expect(rows()).not.toContain("Eingang"));
-      },
-    );
+    it("verwirft die Liste bei verlorenem Lesezugriff ohne weiteren Abruf", async () => {
+      const { pending, submit } = await setup();
+      submit();
+      expectOptimistic();
+      await act(async () => {
+        pending.reject(
+          new ApiError("diag", 403, { code: "general.permission" }),
+        );
+      });
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      await waitFor(() => expect(rows()).not.toContain("Eingang"));
+      expect(mocks.list).toHaveBeenCalledTimes(1);
+    });
+    it("nimmt ein gelöschtes Display zurück und lädt die Liste neu", async () => {
+      const { pending, submit } = await setup();
+      submit();
+      expectOptimistic();
+      mocks.list.mockResolvedValue([neighbour]);
+      await act(async () => {
+        pending.reject(new ApiError("diag", 404, { code: "general.input" }));
+      });
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
+      expect(await screen.findByText("Mensa")).toBeInTheDocument();
+      await waitFor(() => expect(rows()).not.toContain("Eingang"));
+    });
     it.each(["Erfolg", "Fehler"])(
       "zeigt nach Scope-Wechsel keine alte Antwort: %s",
       async (end) => {

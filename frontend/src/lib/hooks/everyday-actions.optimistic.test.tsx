@@ -290,8 +290,8 @@ const cases = [
     useCase: useDay,
     request: mocks.day,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -299,8 +299,8 @@ const cases = [
     useCase: useWeek,
     request: mocks.week,
     reply: { changed: ["2026-09-09"], locked: [] },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -308,8 +308,8 @@ const cases = [
     useCase: useSchedule,
     request: mocks.schedule,
     reply: { effective_from: "2026-09-09" },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -317,8 +317,8 @@ const cases = [
     useCase: useCancelDay,
     request: mocks.day,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -326,8 +326,8 @@ const cases = [
     useCase: useResetDay,
     request: mocks.clear,
     reply: undefined,
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -335,8 +335,8 @@ const cases = [
     useCase: useCancelWeek,
     request: mocks.week,
     reply: { changed: ["2026-09-09"], locked: [] },
-    refused: "care.child_not_linked",
-    business: [403, "care.guardian_permission_denied"],
+    refused: "care.guardian_permission_denied",
+    business: [403, "meals.participation_manage_denied"],
     recheck: mocks.meals,
   },
   {
@@ -613,7 +613,7 @@ for (const scenario of cases) {
       expect(result.current.data).toBe(before);
       if (scenario.recheck) {
         await waitFor(() =>
-          expect(scenario.recheck!.mock.calls.length).toBe(reads + 1),
+          expect(scenario.recheck!.mock.calls.length).toBe(reads),
         );
       }
     });
