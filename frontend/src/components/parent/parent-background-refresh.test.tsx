@@ -98,6 +98,14 @@ async function failChildrenRefresh() {
   });
   await waitFor(() => expect(api.listMyChildren).toHaveBeenCalledTimes(2));
 }
+async function failResourceRefresh(source: "children" | "features") {
+  if (source === "children") return failChildrenRefresh();
+  vi.mocked(api.getChildFeatures).mockRejectedValue(unavailable);
+  await act(async () => {
+    window.dispatchEvent(new CustomEvent("parent-child-status-refresh"));
+  });
+  await waitFor(() => expect(api.getChildFeatures).toHaveBeenCalledTimes(2));
+}
 function mount(page: ReactNode) {
   return render(
     <>
@@ -108,27 +116,33 @@ function mount(page: ReactNode) {
   );
 }
 describe("parent background refresh preserves mounted content", () => {
-  it("keeps the child page and the open sickness dialog's draft after a 503", async () => {
-    mount(<ChildPage studentId="42" />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Felix abmelden/ }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    const draft = within(dialog).getByRole("textbox");
-    fireEvent.change(draft, { target: { value: "Arzttermin am Vormittag" } });
-    await failChildrenRefresh();
-    expect(screen.getByTestId("child-profile-icon")).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(draft).toHaveValue("Arzttermin am Vormittag");
-  });
-  it("keeps the single-child conversation and its draft after a 503", async () => {
-    mount(<ParentMessagesPage />);
-    const draft = await screen.findByRole("textbox", { name: "Nachricht" });
-    fireEvent.change(draft, { target: { value: "Noch nicht gesendet" } });
-    await failChildrenRefresh();
-    expect(screen.getByRole("textbox", { name: "Nachricht" })).toBe(draft);
-    expect(draft).toHaveValue("Noch nicht gesendet");
-  });
+  it.each(["children", "features"] as const)(
+    "keeps the sickness draft after a %s 503",
+    async (source) => {
+      mount(<ChildPage studentId="42" />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Felix abmelden/ }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      const draft = within(dialog).getByRole("textbox");
+      fireEvent.change(draft, { target: { value: "Arzttermin am Vormittag" } });
+      await failResourceRefresh(source);
+      expect(screen.getByTestId("child-profile-icon")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBe(dialog);
+      expect(draft).toHaveValue("Arzttermin am Vormittag");
+    },
+  );
+  it.each(["children", "features"] as const)(
+    "keeps the single-child chat draft after a %s 503",
+    async (source) => {
+      mount(<ParentMessagesPage />);
+      const draft = await screen.findByRole("textbox", { name: "Nachricht" });
+      fireEvent.change(draft, { target: { value: "Noch nicht gesendet" } });
+      await failResourceRefresh(source);
+      expect(screen.getByRole("textbox", { name: "Nachricht" })).toBe(draft);
+      expect(draft).toHaveValue("Noch nicht gesendet");
+    },
+  );
 });
 
 function SharedLoadErrorFixture() {

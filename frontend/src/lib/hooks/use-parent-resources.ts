@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ApiError } from "~/lib/api-error";
@@ -175,6 +181,24 @@ class ParentResourceFailure<T> extends Error {
       : undefined;
   }
 }
+// Failed background probes keep only the wrapper's current confirmed values.
+// No independent ref/cache: scope and access discards must erase this fallback.
+function useParentBatchData<T>(
+  confirmed: Record<string, T> | undefined,
+  error: unknown,
+  batch: ParentResourceFailure<T> | undefined,
+) {
+  return useMemo(() => {
+    if (!error || !batch) return confirmed;
+    const data = { ...confirmed, ...batch.partial };
+    for (const id of Object.keys(batch.failures)) {
+      const previous = confirmed?.[id];
+      if (previous !== undefined) data[id] = previous;
+    }
+    return data;
+  }, [confirmed, error, batch]);
+}
+
 const NO_FEATURE_FAILURES: Readonly<Record<string, unknown>> = {};
 
 /** Every relationship is probed, including siblings at the same school. */
@@ -229,9 +253,10 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
     resource.error instanceof ParentResourceFailure
       ? (resource.error as ParentResourceFailure<ChildFeatures>)
       : undefined;
+  const data = useParentBatchData(resource.data, resource.error, batch);
   return {
     ...resource,
-    data: resource.error ? batch?.partial : resource.data,
+    data,
     hasConfirmedData: resource.data !== undefined,
     error: batch ? Object.values(batch.failures)[0] : resource.error,
     errorsByChild: batch?.failures ?? NO_FEATURE_FAILURES,
@@ -291,9 +316,10 @@ export function useParentToday(children: readonly Child[] | undefined) {
     resource.error instanceof ParentResourceFailure
       ? (resource.error as ParentResourceFailure<ChildToday>)
       : undefined;
+  const data = useParentBatchData(resource.data, resource.error, batch);
   return {
     ...resource,
-    data: resource.error ? batch?.partial : resource.data,
+    data,
     hasConfirmedData: resource.data !== undefined,
     error: batch ? Object.values(batch.failures)[0] : resource.error,
   };

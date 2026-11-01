@@ -86,7 +86,7 @@ describe("shared parent relationship features", () => {
     expect(result.current.master.error).toBeNull();
     expect(result.current.care.features).toEqual(features);
   });
-  it("withdraws previously confirmed capabilities when revalidation fails", async () => {
+  it("keeps confirmed capabilities when background revalidation fails without access refusal", async () => {
     const { result } = mount();
     await waitFor(() =>
       expect(result.current.master.features).toEqual(features),
@@ -99,8 +99,8 @@ describe("shared parent relationship features", () => {
       result.current.care.refresh();
     });
     await waitFor(() => expect(result.current.master.error).not.toBeNull());
-    expect(result.current.master.features).toBeNull();
-    expect(result.current.care.features.sick_note_enabled).toBe(false);
+    expect(result.current.master.features).toEqual(features);
+    expect(result.current.care.features.sick_note_enabled).toBe(true);
   });
   it("keeps another child's confirmed features when one relationship lookup fails", async () => {
     vi.mocked(api.getChildFeatures).mockImplementation(async (id) => {
@@ -166,7 +166,7 @@ describe("shared parent daily status", () => {
     });
   });
 
-  it("replaces stale attendance only for failed children and clears errors on recovery", async () => {
+  it("keeps confirmed attendance for failed children while updating successful siblings", async () => {
     const request = vi.spyOn(api, "getChildToday").mockResolvedValue(present);
     const { result } = renderHook(() => useParentToday(linked), {
       wrapper: ParentResourceTestProvider,
@@ -181,7 +181,7 @@ describe("shared parent daily status", () => {
     });
     expect(result.current.error).toBe(failure);
     expect(result.current.data).toEqual({
-      "42": api.UNKNOWN_CHILD_TODAY,
+      "42": present,
       "43": left,
     });
     request.mockResolvedValue(left);

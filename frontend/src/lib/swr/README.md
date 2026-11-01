@@ -133,13 +133,15 @@ status use the sorted `(tenant_id, student_id)` relationship set in their
 factory key, together with the Berlin calendar day for date-dependent flags
 and status. Each relationship is fetched, including siblings at the same
 school; a school's flags never stand in for another child's permissions.
-A failed lookup hides only that relationship's flags, never a previously
-confirmed stale value; other successful children stay available. Daily status
-lookups likewise preserve successful siblings, replace only failed children's
-statuses with `UNKNOWN_CHILD_TODAY`, and keep the load error visible. Partial
-results are read only through the wrapper's current-error gate (G19). The
-private batch failure is not an `ApiError`, and refusals use the original API
-errors, so discarding cannot restamp partial results into a newer generation.
+A non-refusal background failure preserves that child's confirmed features and
+status from the wrapper's current data; successful siblings use their fresh
+answers. Without a confirmed value, failed feature lookups stay off and failed
+status lookups use `UNKNOWN_CHILD_TODAY`. Errors remain available for logging
+and cold-load error presentation. Partial results are read only through the
+wrapper's current-error gate (G19). No separate fallback cache is retained:
+access refusal, logout, account or relationship changes discard confirmed and
+partial values together. The private batch failure is not an `ApiError`, so
+refusals cannot restamp its partial results into a newer generation.
 The authenticated wrapper adds `parent:-:<account>`: the parents JWT has no
 school, and account-wide lists can span schools. They must not use a tenant,
 school or operator session. News, message lists and the start-page calendar
