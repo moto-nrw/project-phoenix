@@ -35,12 +35,12 @@ import (
 // for the Kämmerei (#4672, ADR 0122), and the mail of the letters as mails
 // of the Träger on Delivery's outbox and their print in one file (#4670,
 // ADR 0123).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, logger *slog.Logger) {
-	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
+func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
+	rules, holiday := NewParentBillingHTTP(organizations, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
-	runs := NewBillingRunHTTP(settings, delivery)
+	runs := NewBillingRunHTTP(settings, delivery, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 }
@@ -49,9 +49,9 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // Enrollment's holiday periods and the review of their registrations, their
 // letters to the master data and branding settings of the Träger, and the
 // mail of the letters to Delivery and the letterhead of the Träger.
-func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability) *parentBillingHTTP.BillingRunResource {
+func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher) *parentBillingHTTP.BillingRunResource {
 	registrations := parentBillingBillingRegistrations{
-		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(),
+		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
 	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
@@ -196,10 +196,10 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 // NewParentBillingHTTP binds the Elternabrechnung's routes to the Träger
 // rights and its holiday contribution to Enrollment's holiday
 // registrations.
-func NewParentBillingHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
+func NewParentBillingHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
 	registrations := parentBillingHolidayRegistrations{
-		links:  newHolidayRegistrations(organizations, delivery, logger.With("service", "parent-billing-holiday-registrations")),
-		review: enrollmentCompose.NewHolidayRegistrationReview(),
+		links:  newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-billing-holiday-registrations")),
+		review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))

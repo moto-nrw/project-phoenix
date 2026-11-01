@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/spf13/viper"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -241,7 +243,7 @@ func mountSchoolRoutes(
 	holidaySchools HolidayHostSchools, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
-	appEnv string, weekProtocolSeed schedulerPorts.WeekProtocolEvenings,
+	appEnv string, weekProtocolSeed schedulerPorts.WeekProtocolEvenings, healthData enrollmentOwner.HolidayHealthCipher,
 ) {
 	mountWeekProtocolRoutes(tenant, timetableOwner, logger, caller, holidayAccessLog, persons, appEnv, weekProtocolSeed)
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(facilities, roomsHTTPAdapter.Dependencies{
@@ -257,7 +259,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
-	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, users, holidayAccessLog)
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, users, holidayAccessLog, healthData)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

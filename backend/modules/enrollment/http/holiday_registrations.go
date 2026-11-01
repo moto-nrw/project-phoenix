@@ -142,7 +142,8 @@ type holidayContactRequest struct {
 // guest. form_version names the version of the form the parent filled in;
 // custom_data holds the answers per family, children[].custom_data those
 // per child (#5198). benefits_proof_tokens name the uploaded proofs of the
-// benefits (#5238).
+// benefits (#5238). consent_version names the version of the consent texts
+// the parent agreed to (#4722).
 type HolidayRegistrationRequest struct {
 	Guardian          holidayGuardianRequest    `json:"guardian"`
 	SecondGuardian    *holidayGuardianRequest   `json:"second_guardian"`
@@ -158,6 +159,7 @@ type HolidayRegistrationRequest struct {
 	FormVersion       int                       `json:"form_version"`
 	CustomData        capability.HolidayAnswers `json:"custom_data"`
 	LegalAcceptances  map[string]bool           `json:"legal_acceptances"`
+	ConsentVersion    int                       `json:"consent_version"`
 }
 
 // Bind accepts the body; the Owner validates the registration as a whole.
@@ -189,7 +191,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		PickupPersons:     holidayContacts(req.PickupPersons),
 		PrivacyConsent:    req.PrivacyConsent, HealthConsent: req.HealthConsent, BindingConfirmed: req.BindingConfirmed,
 		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
-		FormVersion: req.FormVersion, CustomData: req.CustomData,
+		FormVersion: req.FormVersion, CustomData: req.CustomData, ConsentVersion: req.ConsentVersion,
 	}
 }
 

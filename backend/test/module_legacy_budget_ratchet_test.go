@@ -231,7 +231,9 @@ var moduleComposeBudgets = map[string]int{
 	// holiday registration review constructor (+7); by ADR 0116: the
 	// participant list constructor (+7); by ADR 0120: the holiday guest
 	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
-	"modules/enrollment/compose":                   598,
+	// #4722 shortened its comments by 7 LOC for the field cipher of
+	// modules/securityruntime/compose.
+	"modules/enrollment/compose":                   591,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -264,7 +266,10 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose": 196,
 	"modules/schoolsetup/compose":      56,
-	"modules/schoolstructure/compose":  593,
+	// #4722: the field cipher of the health information, construction only;
+	// the 7 LOC come out of modules/enrollment/compose, the total stays.
+	"modules/securityruntime/compose": 7,
+	"modules/schoolstructure/compose": 593,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
 	"modules/settings/compose":             322,
 	"modules/studentdirectoryview/compose": 9,

@@ -31,9 +31,12 @@ const (
 type HolidayReviewStore interface {
 	// ReadHolidayReview reads the registrations of a period, or the one
 	// registrationID names, with children and bookings; a booking names
-	// only its week and time model. health adds the health information.
+	// only its week and time model. It reads no health information.
 	// The second result is the freeze override of each registration.
-	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64, health bool) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
+	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
+	// ReadHolidaySealedHealth reads the sealed health information of one
+	// registration of the period; found is false outside it (#4722).
+	ReadHolidaySealedHealth(ctx context.Context, organizationID, periodID, registrationID int64) (enrollment.HolidaySealedRegistrationHealth, bool, error)
 	ReadHolidayContacts(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationContact, error)
 	// ReadHolidayAnswers reads the form version and the answers of the
 	// registrations of a period, or of the one registrationID names, by
@@ -61,22 +64,26 @@ type HolidayRegistrationReview struct {
 	store   HolidayReviewStore
 	periods HolidayPeriodStore
 	forms   HolidayFormStore
+	health  enrollment.HolidayHealthCipher
 	today   func() calendar.Date
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 
 // NewHolidayRegistrationReview builds the review; forms reads the form
-// versions the answers belong to (#5198). A nil today uses the Berlin
-// calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date) *HolidayRegistrationReview {
+// versions the answers belong to (#5198), health opens the health
+// information (#4722). A nil today uses the Berlin calendar day.
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date) *HolidayRegistrationReview {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
+	}
+	if health == nil {
+		panic(errHolidayHealthCipherRequired)
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationReview{store: store, periods: periods, forms: forms, today: today}
+	return &HolidayRegistrationReview{store: store, periods: periods, forms: forms, health: health, today: today}
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -196,8 +203,8 @@ func holidayChildCustomData(answers enrollment.HolidayRegistrationAnswers, child
 	return nil
 }
 
-// HolidayRegistration returns one registration with its health information,
-// contacts and history, and records the read.
+// HolidayRegistration returns one registration with its contacts and
+// history, without its health information, and records the read.
 func (h *HolidayRegistrationReview) HolidayRegistration(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
 	if err := holidayReviewKey(reviewer, periodID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
@@ -311,7 +318,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	if err := h.requireChangeable(period, current); err != nil {
 		return nil, err
 	}
-	read, _, err := h.store.ReadHolidayReview(ctx, organizationID, period.ID, current.ID, false)
+	read, _, err := h.store.ReadHolidayReview(ctx, organizationID, period.ID, current.ID)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
 	}
@@ -430,7 +437,7 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 	if err != nil {
 		return enrollment.HolidayPeriod{}, nil, err
 	}
-	read, overrides, err := h.store.ReadHolidayReview(ctx, reviewer.OrganizationID, periodID, 0, false)
+	read, overrides, err := h.store.ReadHolidayReview(ctx, reviewer.OrganizationID, periodID, 0)
 	if err != nil {
 		return enrollment.HolidayPeriod{}, nil, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
@@ -439,7 +446,7 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 }
 
 func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
-	read, overrides, err := h.store.ReadHolidayReview(ctx, reviewer.OrganizationID, period.ID, registrationID, true)
+	read, overrides, err := h.store.ReadHolidayReview(ctx, reviewer.OrganizationID, period.ID, registrationID)
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration: %w", err)
 	}
@@ -457,9 +464,6 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	if detail.BenefitsProofs, err = h.store.ReadHolidayProofs(ctx, reviewer.OrganizationID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration proofs: %w", err)
 	}
-	if detail.Health == nil {
-		detail.Health = []enrollment.HolidayRegistrationHealth{}
-	}
 	if err := h.detailAnswers(ctx, reviewer.OrganizationID, period.ID, &detail); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
@@ -467,8 +471,8 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 }
 
 // detailAnswers adds the version of the form the registration was submitted
-// with and every answer, health information included: the detail is the
-// one place that shows them (ADR 0114 point 7).
+// with and every answer without health information; the health read adds
+// those (#4722).
 func (h *HolidayRegistrationReview) detailAnswers(ctx context.Context, organizationID, periodID int64, detail *enrollment.HolidayRegistrationDetail) error {
 	answers, err := h.store.ReadHolidayAnswers(ctx, organizationID, periodID, detail.ID)
 	if err != nil {

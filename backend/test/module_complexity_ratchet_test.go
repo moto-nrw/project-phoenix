@@ -80,7 +80,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"cmd/devtools/demo_scheduler.go:(*demoScheduler).drain":                                                   20,
 	"cmd/devtools/demo_scheduler.go:runDemoSchools":                                                           16,
 	"cmd/serve.go:scrubSentryEvent":                                                                           20,
-	"cmd/serve.go:validateServeConfig":                                                                        18,
 	// ADR 0087.
 	"database/migrations/001006002_create_admin_account.go:createAdminAccount": 16,
 	// ADR 0087.

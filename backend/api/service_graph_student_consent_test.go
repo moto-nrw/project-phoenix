@@ -27,6 +27,7 @@ func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		TraegerURL:       "http://traeger.localhost:3000",
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
+		HealthDataKeys:   testpkg.TestHealthDataKeys,
 	}
 
 	observedAppends := 0

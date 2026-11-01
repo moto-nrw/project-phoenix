@@ -857,6 +857,22 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "binding_digest": "7b14ba527384298625a1f4a321e5be41",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.SetHolidayGuestHealthInfo",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ApplyEnrollmentProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "binding_digest": "1da910d9aa38e5513bde118ff46d26ae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.SetHolidayGuestHealthInfo",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ApplyEnrollmentProfile",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
       "binding_digest": "0a08e1e5472089c1eb4d0cb9a3eb92af",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
@@ -921,6 +937,22 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
+      "binding_digest": "f9ed55d97ea06c7ce2dd2e9041a5de6b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Seal",
+      "binding_digest": "d4d924ed8d1ab6110adbd13e744575df",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
       "binding_digest": "0570fe658f51fe2116e6faaeb9250b67",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
@@ -938,7 +970,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "binding_digest": "f2103d8deed3752c58ebf9cf90a888ac",
+      "binding_digest": "f5d7ab6844bfa45310dc3bb2a4447a72",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -946,7 +978,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "binding_digest": "50e47623149ec664d2563fc7ee79765f",
+      "binding_digest": "070192aea726241d57833dfde0709589",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -954,7 +986,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "binding_digest": "cb64ea41e42ba408ec5b1dd164eb73df",
+      "binding_digest": "3fd6a223f1b983fdaa0f96e7da4c5b09",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
@@ -962,8 +994,40 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "binding_digest": "913c94284c3c90178e1cead32dbf7413",
+      "binding_digest": "437cf17a7e365743d212ff74fb17fe25",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayParticipantAccess",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "binding_digest": "3a0cab7ebcd0179f09e99470fb2ae4fc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "binding_digest": "bfd709773a79f509f8376b2d4d46b82d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "binding_digest": "6a718d56cc91536cea24831acb7684ad",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "binding_digest": "e981b17aaea3fefc6ae8c510f238b149",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -983,6 +1047,38 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.Schools",
       "target_owner": "traeger-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "binding_digest": "0e0ccec8613e87edeb1adf32ec845393",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "binding_digest": "f0139cf74b6d2114d73ee61e2b5e3b96",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ReadEnrollmentStudent",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "binding_digest": "9954bf1c09da7d788c3e768bb3ffb21a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayStudentIdentities.HolidayStudentIdentity",
+      "binding_digest": "a9adb764d1d35db1f9b51455beca0637",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentIdentities.HolidayStudentIdentity",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ReadEnrollmentStudent",
+      "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",

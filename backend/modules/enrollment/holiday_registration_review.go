@@ -43,6 +43,9 @@ const (
 	// HolidayAuditProof records a proof of benefits the Träger-Büro opened
 	// (#5238).
 	HolidayAuditProof = "proof"
+	// HolidayAuditHealth records a read of the health information of a
+	// registration (#4722).
+	HolidayAuditHealth = "health"
 )
 
 var (
@@ -127,13 +130,16 @@ type HolidayRegistrationList struct {
 	StatusCounts  map[string]int               `json:"status_counts"`
 }
 
-// HolidayRegistrationHealth is the health information of one child. Only
-// the detail of a registration shows it.
+// HolidayRegistrationHealth is the health information of one child: the
+// fixed health fields and the answers to the child questions marked as
+// health information. Only the health read of a registration shows it
+// (#4722).
 type HolidayRegistrationHealth struct {
-	ChildID     int64  `json:"child_id"`
-	Allergies   string `json:"allergies"`
-	Medication  string `json:"medication"`
-	HealthNotes string `json:"health_notes"`
+	ChildID     int64          `json:"child_id"`
+	Allergies   string         `json:"allergies"`
+	Medication  string         `json:"medication"`
+	HealthNotes string         `json:"health_notes"`
+	CustomData  HolidayAnswers `json:"custom_data"`
 }
 
 // HolidayRegistrationContact is an emergency contact or a person allowed to
@@ -186,25 +192,29 @@ type HolidayRegistrationAnswers struct {
 }
 
 // HolidayRegistrationDetail is one registration with everything the parent
-// entered, its consents and its history. Form is the version of the
-// period's form the registration was submitted with; CustomData and
-// ChildCustomData are the answers to its questions, health information
-// included (#5198). BenefitsProofs are the proofs of benefits the parents
-// attached (#5238); only the detail names them.
+// entered except the health information, its consents and its history. Form
+// is the version of the period's form the registration was submitted with;
+// CustomData and ChildCustomData are the answers to its questions without
+// health information (#5198); the health read returns those (#4722).
+// BenefitsProofs are the proofs of benefits the parents attached (#5238);
+// only the detail names them.
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
-	LegalAcceptances   map[string]time.Time         `json:"legal_acceptances"`
-	SecondGuardian     *HolidayGuardianInput        `json:"second_guardian,omitempty"`
-	Health             []HolidayRegistrationHealth  `json:"health"`
-	Form               *HolidayPeriodForm           `json:"form"`
-	CustomData         HolidayAnswers               `json:"custom_data"`
-	ChildCustomData    []HolidayChildAnswers        `json:"child_custom_data"`
-	Contacts           []HolidayRegistrationContact `json:"contacts"`
-	PrivacyConsentAt   time.Time                    `json:"privacy_consent_at"`
-	HealthConsentAt    *time.Time                   `json:"health_consent_at"`
-	BindingConfirmedAt *time.Time                   `json:"binding_confirmed_at"`
-	BenefitsProofs     []HolidayRegistrationProof   `json:"benefits_proofs"`
-	History            []HolidayRegistrationEvent   `json:"history"`
+	LegalAcceptances map[string]time.Time         `json:"legal_acceptances"`
+	SecondGuardian   *HolidayGuardianInput        `json:"second_guardian,omitempty"`
+	Form             *HolidayPeriodForm           `json:"form"`
+	CustomData       HolidayAnswers               `json:"custom_data"`
+	ChildCustomData  []HolidayChildAnswers        `json:"child_custom_data"`
+	Contacts         []HolidayRegistrationContact `json:"contacts"`
+	PrivacyConsentAt time.Time                    `json:"privacy_consent_at"`
+	HealthConsentAt  *time.Time                   `json:"health_consent_at"`
+	// ConsentVersion is the version of the consent texts the parents agreed
+	// to; 0 for a registration before #4722, which shares no health
+	// information with the hosting school.
+	ConsentVersion     int                        `json:"consent_version"`
+	BindingConfirmedAt *time.Time                 `json:"binding_confirmed_at"`
+	BenefitsProofs     []HolidayRegistrationProof `json:"benefits_proofs"`
+	History            []HolidayRegistrationEvent `json:"history"`
 }
 
 // HolidayRegistrationExportRow is one booking of the export: one row per
@@ -243,6 +253,10 @@ type HolidayReviewer struct {
 type HolidayRegistrationReview interface {
 	ListHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter) (HolidayRegistrationList, error)
 	HolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistrationDetail, error)
+	// HolidayRegistrationHealth opens the health information of one
+	// registration and records the read (#4722). The route lets only the
+	// right traeger_health:read call it.
+	HolidayRegistrationHealth(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistrationHealthDetail, error)
 	// ExportHolidayRegistrations lists one row per booking of the filter, for
 	// the CSV and Excel export. format names the file format in the audit
 	// trail.

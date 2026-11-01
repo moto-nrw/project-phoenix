@@ -53,5 +53,29 @@
       "name": "users.student_compatibility_writes",
       "write_owner": "migrations"
     }
+  ],
+  "rules": [
+    {
+      "id": "migrations.security-runtime.compose",
+      "description": "The health data migration (#4722) seals existing holiday registrations with the field cipher Security Runtime composes, the same one the server opens them with.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "migrations",
+      "source_role": "migration",
+      "target_owner": "security-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "migrations.internal-test.security-runtime.compose",
+      "description": "The test of the health data migration (#4722) opens what it sealed with the same field cipher.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "migrations",
+      "source_role": "module-internal-test",
+      "target_owner": "security-runtime",
+      "target_role": "compose"
+    }
   ]
 }

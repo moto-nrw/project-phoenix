@@ -67,10 +67,16 @@ const HOLIDAY_FREE_QUESTION_NOTE = {
 /** Marks a health question and a question the hosting OGS sees in the preview. */
 function questionBadge(field: FormField) {
   const question = field as HolidayFormField;
-  if (question.health) return <StatusBadge tone="orange" label="Gesundheit" />;
-  return question.share_with_host ? (
+  const shared = question.share_with_host ? (
     <StatusBadge tone="blue" label="OGS sieht es" />
   ) : null;
+  if (!question.health) return shared;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      <StatusBadge tone="orange" label="Gesundheit" />
+      {shared}
+    </span>
+  );
 }
 
 export function HolidayFormEditor({

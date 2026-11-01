@@ -20,11 +20,11 @@ import (
 var _ enrollment.HolidayAccessTrail = (*HolidayRegistrationStore)(nil)
 
 // holidayAccessEntries is one row per entry of the audit trail with its
-// kind: the actions list, read, export and proof read personal data, the
+// kind: the actions list, read, export, proof and health read personal data, the
 // others change it. The data is the action with a prefix, so the access log
 // tells it apart from the resource types of a school.
 const holidayAccessEntries = `SELECT entry.id, entry.occurred_at, entry.actor_account_id,
-		CASE WHEN entry.action IN ('list', 'read', 'export', 'proof') THEN 'read' ELSE 'change' END AS kind,
+		CASE WHEN entry.action IN ('list', 'read', 'export', 'proof', 'health') THEN 'read' ELSE 'change' END AS kind,
 		'holiday_registration_' || entry.action AS data
 	FROM enrollment.holiday_registration_audit AS entry
 	WHERE entry.organization_id = ?0 AND entry.occurred_at >= ?1 AND entry.occurred_at < ?2`

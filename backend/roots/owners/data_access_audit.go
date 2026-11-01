@@ -101,6 +101,10 @@ type holidayParticipantAccessLog struct {
 func (a holidayParticipantAccessLog) RecordHolidayParticipantAccess(ctx context.Context, access enrollmentOwner.HolidayParticipantAccess) error {
 	resourceType := auditModels.ResourceTypeHolidayParticipants
 	metadata := map[string]any{"week_id": access.WeekID, "participants": access.Participants}
+	if access.HealthParticipants > 0 {
+		// The list showed health information of these children (#4722).
+		metadata["health_participants"] = access.HealthParticipants
+	}
 	if access.Format != "" {
 		resourceType = auditModels.ResourceTypeHolidayParticipantsExport
 		metadata["format"] = access.Format
@@ -109,6 +113,18 @@ func (a holidayParticipantAccessLog) RecordHolidayParticipantAccess(ctx context.
 		ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: resourceType,
 		RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(),
 		Metadata: metadata,
+	})
+}
+
+// RecordHolidayStudentHealthAccess records a read of what the holiday
+// registrations give as health information for a child of the hosting school
+// (#4722). The entry names the child and spans the weeks.
+func (a holidayParticipantAccessLog) RecordHolidayStudentHealthAccess(ctx context.Context, access enrollmentOwner.HolidayStudentHealthAccess) error {
+	studentID := access.StudentID
+	return a.writer.Create(ctx, &auditModels.DataAccessLog{
+		ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: auditModels.ResourceTypeHolidayStudentHealth,
+		StudentID: &studentID, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(),
+		Metadata: map[string]any{"week_ids": access.WeekIDs},
 	})
 }
 

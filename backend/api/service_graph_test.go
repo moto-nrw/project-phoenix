@@ -27,6 +27,7 @@ func testServiceConfig() owners.ServiceConfig {
 		TraegerURL:       "http://traeger.localhost:3000",
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
+		HealthDataKeys:   testpkg.TestHealthDataKeys,
 	}
 }
 
@@ -231,6 +232,7 @@ func TestServiceGraph_PortalURLs_Required(t *testing.T) {
 		{"school", "SCHOOL_URL", func(cfg *owners.ServiceConfig) { cfg.SchoolURL = "" }},
 		{"caterer", "CATERER_URL", func(cfg *owners.ServiceConfig) { cfg.CatererURL = "" }},
 		{"traeger", "TRAEGER_URL", func(cfg *owners.ServiceConfig) { cfg.TraegerURL = "" }},
+		{"health data keys", "HEALTH_DATA_KEYS", func(cfg *owners.ServiceConfig) { cfg.HealthDataKeys = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testServiceConfig()

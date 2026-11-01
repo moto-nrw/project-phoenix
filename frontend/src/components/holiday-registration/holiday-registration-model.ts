@@ -22,6 +22,13 @@ import type {
   HolidayRegistrationPayload,
 } from "~/lib/holiday-registration-api";
 
+/**
+ * Version of the consent texts the form shows (#4722). Version 2 names the
+ * OGS that hosts a holiday week as a reader of the health information; the
+ * backend shares health information only for registrations under it.
+ */
+const HOLIDAY_CONSENT_VERSION = 2;
+
 export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
 // backend/modules/enrollment/internal/application/holiday_registrations.go.
@@ -601,6 +608,7 @@ export function payloadFromDraft(
       : [],
     captcha_token: captchaToken,
     form_version: offer.form.version,
+    consent_version: HOLIDAY_CONSENT_VERSION,
     custom_data: familyAnswersToSend(draft, offer.form),
   };
 }

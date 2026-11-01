@@ -199,3 +199,53 @@ Gespeicherte Formularversionen und abgegebene Anmeldungen bleiben unverändert.
 Eine Freigabe wirkt weiterhin erst ab der Version, die sie setzt. Bis zur
 Umsetzung von #4722 bleiben Gesundheitsfragen von der Freigabe ausgeschlossen.
 Die Empfänger, Berechtigungen, Zugriffsprotokolle und Fristen ändern sich nicht.
+
+## Nachtrag 2026-11-01: Gesundheitsangaben für die ausrichtende OGS (#4722)
+
+Der Nutzer hat am 01.11.2026 entschieden: keine Datensilos, Option C aus
+[#5202](https://github.com/moto-nrw/project-phoenix/issues/5202) sofort mit
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Eine
+Gesundheitsangabe für die Ferienbetreuung kommt dort an, wo das Kind betreut
+wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
+(„Keine Gesundheitsangaben“) gelten mit dieser Änderung:
+
+- **Was die OGS sieht.** Je bestätigtem Kind ihrer Woche Allergien,
+  Medikamente, weitere Hinweise zur Gesundheit und die Antworten auf die
+  Gesundheitsfragen, die die Version der Anmeldung mit `share_with_host`
+  freigibt (ein fehlendes oder unklares Gesundheitskennzeichen gilt als
+  Gesundheitsfrage). Liste und Feriengast zeigen sie unter „Gesundheit“.
+  Die Liste öffnet sie nur für ein Konto mit `users:read`, dem Recht, das
+  auch das Gesundheitsfeld eines Kindes öffnet; ohne es bleibt die Spalte
+  leer.
+- **Nur mit neuer Einwilligung.** Die Angaben gehen nur weiter, wenn die
+  Eltern der Gesundheitsangabe zugestimmt haben und die Anmeldung unter den
+  Einwilligungstexten der Version 2 kam (`consent_version`), die die OGS als
+  Leserin nennen. Ältere Anmeldungen geben nichts weiter.
+- **Verschlüsselt bis in die Schul-Transaktion.**
+  `enrollment.holiday_host_participants` liefert die verschlüsselten Werte
+  und die Definition der freigegebenen Gesundheitsfragen, nie Klartext.
+  Enrollment entschlüsselt sie erst in der Tenant-Transaktion der
+  ausrichtenden Schule.
+- **Dauer.** Wie die übrigen Angaben: von der Bestätigung bis zum letzten Tag
+  der Woche (Punkt 4).
+- **Kein Gesundheitsexport.** CSV und Excel bleiben ohne Gesundheitsspalten;
+  die Liste im Browser reicht.
+- **Eigene Kinder der Schule.** Für ein Kind der ausrichtenden Schule zeigt
+  die Kindakte die Angaben als „Angaben aus der Ferienanmeldung“
+  (`GET /api/holiday-weeks/students/{studentId}/health`, Recht `users:read`
+  wie das Gesundheitsfeld). Zugeordnet wird über Heimatschule, Vor- und
+  Nachname und Geburtsdatum. Das Gesundheitsfeld der Schule bleibt
+  unverändert; weichen die Angaben ab, steht beides untereinander.
+- **Zugriffsprotokoll.** Der Eintrag einer Liste nennt mit
+  `health_participants`, wie viele Kinder mit Gesundheitsangaben sie zeigte;
+  das Lesen am eigenen Kind schreibt `holiday_student_health` mit dem Kind.
+- **Baukasten.** Das Verbot `enrollment.holiday_form_field_not_allowed` für
+  `share_with_host` an einer Gesundheitsfrage entfällt; die Standardvorlage
+  gibt ihre Gesundheitsfragen frei. Damit endet auch der Ausschluss aus dem
+  Nachtrag zu #5470: Neue Fragen starten freigegeben, Gesundheitsfragen
+  eingeschlossen.
+- **Register.** Migration `1.15.722` verschlüsselt die bestehenden Zeilen,
+  entfernt die Klartextspalten und ersetzt die Funktion; der Down-Pfad stellt
+  Klartext und Funktion von #5202 wieder her. Neue Route im Schul-Router
+  (lesend, keine Nutzungsanalyse). Keine neue Tabelle, keine neue Regel in
+  `policy.json` außer der Regel für die Migration auf Security Runtime.

@@ -23,12 +23,13 @@ import (
 // link of a published holiday period, without an account. Turnstile is
 // always required there. The Elternabrechnung (#4664) mounts beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
-	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings); err != nil {
+	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, delivery deliveryRuntime.Capability, keys TurnstileKeys,
+	healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) error {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
-	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", logger).Router())
-	mountParentBillingRoutes(root, organizations, settings, delivery, logger)
+	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
+	mountParentBillingRoutes(root, organizations, settings, delivery, healthData, logger)
 	return nil
 }
 
@@ -47,10 +48,11 @@ type HolidayOrganizations interface {
 }
 
 // NewHolidayRegistrationHTTP binds the public holiday registration to
-// Organisation & Tenancy, Delivery and Turnstile. An empty verifyURL uses
-// Turnstile's endpoint; tests point it at a local provider.
-func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
-	registrations := newHolidayRegistrations(organizations, delivery, logger.With("service", "holiday-registrations"))
+// Organisation & Tenancy, Delivery and Turnstile; healthData seals the health
+// information (#4722). An empty verifyURL uses Turnstile's endpoint; tests
+// point it at a local provider.
+func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
+	registrations := newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "holiday-registrations"))
 	captcha := enrollmentCompose.NewCaptcha(holidayCaptchaSettings(keys), verifyURL, logger.With("service", "holiday-registration-captcha"))
 	return enrollmentAPI.NewHolidayRegistrationResource(registrations, holidayProofUnits{registrations: registrations}, captcha)
 }
@@ -120,16 +122,17 @@ type parentHolidayRegistrationLinks struct {
 
 // newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
 // link resolution over the same Träger directory as the public link.
-func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
-	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, logger.With("service", "parent-holiday-registrations"))}
+func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
+	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-holiday-registrations"))}
 }
 
 // newHolidayRegistrations binds Enrollment's holiday registrations to the
 // Träger directory, the Träger's mail and Security Runtime's entropy and
-// fingerprint for the tokens of uploaded proofs (#5238).
-func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
+// fingerprint for the tokens of uploaded proofs (#5238), and the health
+// information to the root's cipher (#4722).
+func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
 	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
+		holidayTraegerMail{delivery: delivery}, healthData, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
 }
 
 func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {

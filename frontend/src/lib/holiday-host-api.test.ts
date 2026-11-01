@@ -4,6 +4,7 @@ import {
   assignHolidayGuestGroup,
   downloadHolidayParticipants,
   fetchHolidayGuestSheet,
+  fetchHolidayStudentHealth,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
   formatHolidayHostAnswer,
@@ -112,6 +113,7 @@ describe("holiday host api", () => {
       timeModelId: "61",
       secondGuardian: null,
       answers: [],
+      health: null,
     });
     expect(list.questions).toEqual([]);
   });
@@ -318,8 +320,48 @@ describe("holiday host api", () => {
       ],
       pickupContacts: [],
       answers: [],
+      health: null,
       readOnly: false,
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/91");
+  });
+
+  it("maps the health information and the own child's health (#4722)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: [
+          {
+            week_id: 51,
+            period_name: "Sommerferien",
+            starts_on: "2026-09-14",
+            ends_on: "2026-09-18",
+            health: {
+              allergies: "Erdnüsse",
+              medication: "",
+              health_notes: "Brille",
+              answers: null,
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(fetchHolidayStudentHealth("7")).resolves.toEqual([
+      {
+        weekId: "51",
+        periodName: "Sommerferien",
+        startsOn: "2026-09-14",
+        endsOn: "2026-09-18",
+        health: {
+          allergies: "Erdnüsse",
+          medication: "",
+          healthNotes: "Brille",
+          answers: [],
+        },
+      },
+    ]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/holiday-weeks/students/7/health",
+    );
   });
 });

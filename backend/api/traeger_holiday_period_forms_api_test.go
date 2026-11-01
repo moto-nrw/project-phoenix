@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -272,13 +273,27 @@ func TestHolidayRegistrationChecksTheAnswersAgainstItsForm(t *testing.T) {
 	assert.Equal(t, 2, stored.FormVersion, "the registration keeps the version it was checked against")
 	assert.JSONEq(t, `{"abholung_hinweis": "Oma Muster"}`, string(stored.CustomData), "trimmed, and no answer outside the form")
 	assert.True(t, stored.Health)
-	var children []json.RawMessage
-	require.NoError(t, f.db.NewRaw(`SELECT custom_data FROM enrollment.holiday_registration_children
+	var children []struct {
+		OrganizationID int64           `bun:"organization_id"`
+		Position       int             `bun:"position"`
+		CustomData     json.RawMessage `bun:"custom_data,type:jsonb"`
+		HealthData     []byte          `bun:"health_data"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT organization_id, position, custom_data, health_data FROM enrollment.holiday_registration_children
 		WHERE holiday_registration_id = ? ORDER BY position`, id).Scan(context.Background(), &children))
 	require.Len(t, children, 3)
-	assert.JSONEq(t, `{"tetanus_impfschutz": "ja", "darf_allein_nach_hause": true, "allein_ab": "15 Uhr", "lieblingsessen": "Nudeln"}`, string(children[0]))
-	assert.JSONEq(t, `{"tetanus_impfschutz": "nein", "darf_allein_nach_hause": false}`, string(children[1]), "the answer to a hidden question is dropped")
-	assert.JSONEq(t, `{"tetanus_impfschutz": "weiss_nicht"}`, string(children[2]), "an empty text is no answer")
+	// The answer to the health question is sealed (#4722): it stays out of
+	// the plaintext answers and opens only with the key ring.
+	assert.JSONEq(t, `{"darf_allein_nach_hause": true, "allein_ab": "15 Uhr", "lieblingsessen": "Nudeln"}`, string(children[0].CustomData))
+	assert.JSONEq(t, `{"darf_allein_nach_hause": false}`, string(children[1].CustomData), "the answer to a hidden question is dropped")
+	assert.JSONEq(t, `{}`, string(children[2].CustomData), "an empty text is no answer")
+	for i, tetanus := range []string{"ja", "nein", "weiss_nicht"} {
+		assert.NotContains(t, string(children[i].HealthData), tetanus, "no plaintext health answer in the table")
+		opened, err := testHealthCipher().Open(children[i].HealthData,
+			enrollment.HolidayChildHealthContext(children[i].OrganizationID, id, children[i].Position))
+		require.NoError(t, err)
+		assert.JSONEq(t, fmt.Sprintf(`{"answers": {"tetanus_impfschutz": %q}}`, tetanus), string(opened))
+	}
 }
 
 // TestHolidayPeriodWithoutQuestionsServesTheFormOfBefore pins the migration
@@ -309,7 +324,10 @@ func TestHolidayPeriodWithoutQuestionsServesTheFormOfBefore(t *testing.T) {
 	assert.Equal(t, 1, version)
 }
 
-func TestHolidayRegistrationKeepsItsFormVersionAndHealthAnswersStayInTheDetail(t *testing.T) {
+// TestHolidayRegistrationKeepsItsFormVersionAndHealthAnswersStayInTheHealthRead
+// pins that the detail names every answer without health information and the
+// health read, behind traeger_health:read, the health answers (#4722).
+func TestHolidayRegistrationKeepsItsFormVersionAndHealthAnswersStayInTheHealthRead(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Formular Einzelansicht")
 	fields := []map[string]any{
@@ -363,8 +381,15 @@ func TestHolidayRegistrationKeepsItsFormVersionAndHealthAnswersStayInTheDetail(t
 	assert.Equal(t, map[string]any{"familie_hinweis": "Familienhinweis-FAM"}, detail.CustomData)
 	require.Len(t, detail.ChildCustomData, 2)
 	assert.Equal(t, detail.Children[0].ID, detail.ChildCustomData[0].ChildID)
-	assert.Equal(t, "Laktose-GESUND", detail.ChildCustomData[0].CustomData["lebensmittelunvertraeglichkeiten"], "the detail shows every answer")
+	assert.NotContains(t, detail.ChildCustomData[0].CustomData, "lebensmittelunvertraeglichkeiten", "the detail carries no health answer")
+	assert.Equal(t, "Spaghetti-ESSEN", detail.ChildCustomData[0].CustomData["lieblingsessen"], "the detail shows every other answer")
 	assert.Equal(t, false, detail.ChildCustomData[1].CustomData["darf_an_ausfluegen_teilnehmen"])
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(id, "/health"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	health := decodeSchoolPortalData[enrollment.HolidayRegistrationHealthDetail](t, rec.Body.Bytes())
+	require.Len(t, health.Children, 2)
+	assert.JSONEq(t, `"Laktose-GESUND"`, string(health.Children[0].CustomData["lebensmittelunvertraeglichkeiten"]), "the health read shows the health answer")
+	assert.Empty(t, health.Children[1].CustomData)
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.path(""), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

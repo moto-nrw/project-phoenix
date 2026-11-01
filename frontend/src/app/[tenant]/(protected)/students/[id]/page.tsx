@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
+import { HolidayStudentHealthSection } from "~/components/students/holiday-student-health-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -1777,6 +1778,12 @@ function StudentDetailPageContent() {
         <HolidayGuestSection
           studentId={studentId}
           canRead={sessionReadsChildDetails}
+        />
+      )}
+      {!isHolidayGuest && hasFullAccess && (
+        <HolidayStudentHealthSection
+          studentId={studentId}
+          schoolHealthInfo={student?.health_info ?? null}
         />
       )}
       {!isHolidayGuest && hasFullAccess && (

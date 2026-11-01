@@ -179,6 +179,7 @@ type serveConfig struct {
 	DatabaseDSN, TestDatabaseDSN                               string
 	SentryDSN, SentryPyrePortalDSN                             string
 	TurnstileSiteKey, TurnstileSecretKey                       string
+	HealthDataKeys                                             string
 	LogLevel                                                   string
 	LogTextLogging, EnableCORS                                 bool
 }
@@ -194,7 +195,8 @@ func currentServeConfig() serveConfig {
 		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
 		SentryDSN: viper.GetString("sentry_dsn"), SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
 		TurnstileSiteKey: viper.GetString("turnstile_site_key"), TurnstileSecretKey: viper.GetString("turnstile_secret_key"),
-		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
+		HealthDataKeys: viper.GetString("health_data_keys"),
+		LogLevel:       viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
 	}
 }
 
@@ -208,6 +210,9 @@ func validateServeConfig(config serveConfig) error {
 		// One Cloudflare Turnstile widget protects the public enrollment
 		// form of every school.
 		"TURNSTILE_SITE_KEY": config.TurnstileSiteKey, "TURNSTILE_SECRET_KEY": config.TurnstileSecretKey,
+		// The health information of the holiday registrations is sealed
+		// with this key ring (#4722); without it nothing could open it.
+		"HEALTH_DATA_KEYS": config.HealthDataKeys,
 	}
 
 	var missing []string
@@ -243,6 +248,14 @@ func validateServeConfig(config serveConfig) error {
 			appEnv, strings.Join(sentryEnvironments, ", "))
 	}
 
+	return validateServeSecrets(config)
+}
+
+// validateServeSecrets checks the health key ring and the JWT settings.
+func validateServeSecrets(config serveConfig) error {
+	if _, err := api.HealthDataCipher(config.HealthDataKeys); err != nil {
+		return err
+	}
 	if config.JWTSecret == "random" {
 		return fmt.Errorf("AUTH_JWT_SECRET=random is not allowed for serve; set an explicit secret")
 	}
