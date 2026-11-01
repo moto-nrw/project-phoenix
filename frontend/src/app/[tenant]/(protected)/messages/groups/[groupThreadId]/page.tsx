@@ -1,10 +1,12 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
 import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
 
-import { useCallback, useMemo, useState } from "react";
+import { useRef, useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { GROUP_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
@@ -99,20 +101,38 @@ function GroupMessageContent() {
   });
 
   const [draft, setDraft] = useState("");
+  const draftRevision = useRef(0);
   const sending = sendAction.pending;
   const sendError = useApiFormError();
   const [confirmClose, setConfirmClose] = useState(false);
   const [closing, setClosing] = useState(false);
   const { show: showActionError } = useApiErrorDisplay();
 
+  const attempt = useMessageSendAttempt(messageKeys.groupMessage(threadId));
   const send = async () => {
     const body = draft.trim();
     if (!body || sending || !messagingEnabled) return;
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     sendAction.dismiss();
     setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
     const outcome = await sendAction.run({
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        sendError.clear();
+      },
+      confirmed: (current) =>
+        current.messages.some(
+          (message) => message.client_message_id === clientMessageId,
+        ),
       optimistic: (current, { id }) => ({
         ...current,
         messages: [
@@ -120,7 +140,7 @@ function GroupMessageContent() {
           { id, sender_name: "", body, created_at: "" },
         ],
       }),
-      request: () => postGroupMessage(threadId, body),
+      request: () => postGroupMessage(threadId, body, clientMessageId),
       commit: (next) => void mutate(next, { revalidate: false }),
       keepFailed: true,
       refusal: {
@@ -130,10 +150,19 @@ function GroupMessageContent() {
           key === messageKeys.groupMessages(),
       },
     });
-    if (outcome.status !== "failed") return;
+    if (outcome.status === "done") attempt.complete(clientMessageId);
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
+      return;
+    failed = true;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
     const err = outcome.error;
     // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
-    setDraft((current) => (current === "" ? body : current));
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
     logger.error("group_message_send_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -270,7 +299,10 @@ function GroupMessageContent() {
           ) : messagingEnabled ? (
             <MessageComposer
               value={draft}
-              onChange={setDraft}
+              onChange={(value) => {
+                draftRevision.current += 1;
+                setDraft(value);
+              }}
               onSend={() => void send()}
               sending={sending}
               placeholder="Weitere Nachricht an alle Eltern…"

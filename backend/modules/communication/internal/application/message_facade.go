@@ -347,8 +347,8 @@ func mapParentMessage(row *ParentMessage) (communication.ParentMessage, error) {
 		payload = encoded
 	}
 	return communication.ParentMessage{
-		ID: row.ID, SenderKind: row.SenderKind, SenderName: row.SenderName,
-		Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType,
+		ID: row.ID, SenderAccountID: row.SenderAccountID, SenderKind: row.SenderKind, SenderName: row.SenderName,
+		ClientMessageID: row.ClientMessageID, SendReplayed: row.SendReplayed, Body: row.Body, CreatedAt: row.CreatedAt, Kind: row.Kind, EventType: row.EventType,
 		RequestType: row.RequestType, RequestStatus: row.RequestStatus, Payload: payload,
 		RefTable: row.RefTable, RefID: row.RefID, AppliedAt: row.AppliedAt, AppliedBy: row.AppliedBy,
 		DecisionReason: row.DecisionReason, ReadByStaff: row.ReadByStaff, ReadByGuardian: row.ReadByGuardian,
@@ -358,7 +358,7 @@ func mapParentMessage(row *ParentMessage) (communication.ParentMessage, error) {
 func mapStaffMessage(message *StaffMessage) communication.StaffMessage {
 	return communication.StaffMessage{
 		ID: message.ID, SenderAccountID: message.SenderAccountID, SenderName: message.SenderName,
-		Body: message.Body, CreatedAt: message.CreatedAt,
+		ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body, CreatedAt: message.CreatedAt,
 	}
 }
 func MapParentMessagingError(err error, kinds ParentMessageErrors) error {

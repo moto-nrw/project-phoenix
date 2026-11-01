@@ -83,7 +83,7 @@ func BuildIdentityAccess(
 	}
 	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityBindingPorts.PasskeyDependencies{
 		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
-		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL, CatererFrontendURL: links.CatererURL,
 	}, authLogger)
 	if err != nil {
 		return nil, nil, err

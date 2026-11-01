@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"reflect"
+
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
@@ -18,6 +20,7 @@ const (
 
 // GroupThreadStore is the persistence of the group threads (#4784).
 type GroupThreadStore interface {
+	FindSend(context.Context, int64, string) (*deliveryPorts.ParentGroupThread, string, error)
 	CreateThread(ctx context.Context, target deliveryPorts.ParentGroupTarget, title string, createdBy *int64) (*deliveryPorts.ParentGroupThread, error)
 	FindThread(ctx context.Context, id int64, lock bool) (*deliveryPorts.ParentGroupThread, error)
 	AppendMessage(ctx context.Context, threadID int64, sender *int64, senderName, body string, recipients []deliveryPorts.ParentGroupRecipient) (*deliveryPorts.ParentGroupMessage, error)
@@ -99,6 +102,16 @@ func (s *Service) CreateParentGroupThread(ctx context.Context, input deliveryPor
 		return nil, deliveryPorts.ErrParentGroupMessagingDisabled
 	}
 	accountID := s.accountID(ctx)
+	previous, previousBody, err := s.GroupThreads.FindSend(ctx, accountID, deliveryPorts.MessageSendID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if previous != nil {
+		if previousBody != body || previous.Title != title || !reflect.DeepEqual(previous.Target, target) {
+			return nil, deliveryPorts.ErrMessageSendConflict
+		}
+		return s.groupThreadDetail(ctx, previous)
+	}
 	thread, err := s.GroupThreads.CreateThread(ctx, target, title, optionalAccount(accountID))
 	if err != nil {
 		return nil, fmt.Errorf("messaging: create group thread: %w", err)
@@ -125,6 +138,19 @@ func (s *Service) PostParentGroupMessage(ctx context.Context, threadID int64, bo
 	body, err := normalizeGroupBody(body)
 	if err != nil {
 		return nil, err
+	}
+	if err := s.requireGroupAuthor(ctx); err != nil {
+		return nil, err
+	}
+	previous, previousBody, err := s.GroupThreads.FindSend(ctx, s.accountID(ctx), deliveryPorts.MessageSendID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if previous != nil {
+		if previous.ID != threadID || previousBody != body {
+			return nil, deliveryPorts.ErrMessageSendConflict
+		}
+		return s.groupThreadDetail(ctx, previous)
 	}
 	thread, err := s.loadGroupThread(ctx, threadID, true)
 	if err != nil {
@@ -197,6 +223,9 @@ func (s *Service) sendGroupMessage(ctx context.Context, thread *deliveryPorts.Pa
 	message, err := s.GroupThreads.AppendMessage(ctx, thread.ID, optionalAccount(accountID), s.resolveStaffName(ctx, accountID), body, recipients)
 	if err != nil {
 		return fmt.Errorf("messaging: append group message: %w", err)
+	}
+	if message.SendReplayed {
+		return nil
 	}
 	thread.LastMessageAt = &message.CreatedAt
 	if err := s.notifyGroupRecipients(ctx, thread, message.ID, recipients); err != nil {

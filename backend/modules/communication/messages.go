@@ -89,23 +89,26 @@ func StaffGroupTooLargeMaxMembers(err error) (int, bool) {
 // Payload is raw JSON so the public contract does not leak an ORM model or an
 // unbounded map while the HTTP adapter can preserve the existing JSON object.
 type ParentMessage struct {
-	ID             int64
-	SenderKind     string
-	SenderName     string
-	Body           string
-	CreatedAt      time.Time
-	Kind           string
-	EventType      string
-	RequestType    string
-	RequestStatus  string
-	Payload        json.RawMessage
-	RefTable       string
-	RefID          *int64
-	AppliedAt      *time.Time
-	AppliedBy      *int64
-	DecisionReason string
-	ReadByStaff    bool
-	ReadByGuardian bool
+	SenderAccountID int64
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
+	ID              int64
+	SenderKind      string
+	SenderName      string
+	Body            string
+	CreatedAt       time.Time
+	Kind            string
+	EventType       string
+	RequestType     string
+	RequestStatus   string
+	Payload         json.RawMessage
+	RefTable        string
+	RefID           *int64
+	AppliedAt       *time.Time
+	AppliedBy       *int64
+	DecisionReason  string
+	ReadByStaff     bool
+	ReadByGuardian  bool
 	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
 	// message answers (#4784).
 	GroupThreadID    *int64
@@ -218,6 +221,8 @@ type ParentMessagingCapability interface {
 }
 
 type StaffMessage struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
 	ID              int64
 	SenderAccountID int64
 	SenderName      string

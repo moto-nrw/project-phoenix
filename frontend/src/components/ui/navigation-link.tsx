@@ -60,6 +60,7 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
     const intentProps = useLinkIntentPrefetch({
       href,
       target,
+      onClick: navigationHandlers.onClick,
       onPointerEnter,
       onPointerLeave,
       onFocus,
@@ -77,8 +78,8 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
         ref={ref}
         href={href}
         target={target}
-        {...intentProps}
         {...navigationHandlers}
+        {...intentProps}
       />
     );
   },

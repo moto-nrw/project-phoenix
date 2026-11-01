@@ -8,7 +8,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
@@ -80,7 +80,6 @@ export function SidebarAccordionSection({
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
   const conceptDefinition = concept ?? null;
-  const ConceptIcon = conceptDefinition?.icon;
   const showActiveIcon = isIconActive ?? isActive;
   // Im Streifen ist der Bereichsinhalt nie offen.
   const bodyExpanded = isExpanded && !collapsed;
@@ -119,41 +118,35 @@ export function SidebarAccordionSection({
       >
         {variant === "portal" && concept ? (
           <MotoNavIcon
+            scene
             concept={concept}
             active={showActiveIcon}
             className={`${PORTAL_ICON_CLASSES} ${showActiveIcon ? "" : "text-gray-400"}`}
           />
-        ) : conceptDefinition && ConceptIcon ? (
-          showActiveIcon ? (
-            <MotoDuotoneIcon
-              icon={conceptDefinition.icon}
-              tone={conceptDefinition.tone}
-              size={20}
-              className={SIDEBAR_ICON_CLASSES}
-            />
-          ) : (
-            <ConceptIcon
-              size={20}
-              weight="regular"
-              className={SIDEBAR_ICON_CLASSES}
-              aria-hidden="true"
-            />
-          )
+        ) : conceptDefinition ? (
+          <MotoNavIcon
+            scene
+            concept={conceptDefinition}
+            active={showActiveIcon}
+            className={SIDEBAR_ICON_CLASSES}
+          />
         ) : (
-          <svg
-            className={`${SIDEBAR_ICON_CLASSES} ${iconColorClass}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={icon}
-            />
-          </svg>
+          <NavSceneFallback>
+            <svg
+              className={`${SIDEBAR_ICON_CLASSES} ${iconColorClass}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d={icon}
+              />
+            </svg>
+          </NavSceneFallback>
         )}
         {labelsMounted && (
           <>

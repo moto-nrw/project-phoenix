@@ -40,6 +40,23 @@ export const SIDEBAR_NAV_PADDING = "p-2.5";
 export const SIDEBAR_NAV_GAP = "space-y-1";
 
 /**
+ * Rückmeldung jeder anklickbaren Zeile: Farbe und Hintergrund blenden in
+ * 150ms über, beim Drücken gibt die Zeile kurz nach (`motion-safe` lässt das
+ * bei prefers-reduced-motion weg). Gesperrte Zeilen tragen kein Nachgeben.
+ *
+ * `--nav-row-bg` ist die aktuelle Hintergrundfarbe der Zeile. Die Szenen der
+ * Icons (`NavSceneIcon`) füllen damit Teile, die etwas dahinter verdecken
+ * (Sprechblasen, Ablage, Buchseite); ohne sie stünde dort beim Überfahren
+ * ein weißer Fleck auf grauem Grund.
+ */
+const ROW_TRANSITION =
+  "transition-[color,background-color,scale] duration-150 ease-out";
+const ROW_PRESS = "motion-safe:active:scale-[0.98]";
+const ROW_BG_IDLE =
+  "[--nav-row-bg:var(--color-white)] hover:[--nav-row-bg:var(--color-gray-50)]";
+const ROW_BG_ACTIVE = "[--nav-row-bg:var(--color-gray-100)]";
+
+/**
  * Grundriss jeder Navigationszeile: 40px hoch, 12px Innenabstand, gleiche
  * Rundung für Links und Bereichs-Schalter. Ohne Breakpoint-Varianten — ein
  * Raster für alle Desktop-Breiten, sonst wechselt die Zeilenhöhe zwischen
@@ -53,12 +70,10 @@ export const SIDEBAR_NAV_GAP = "space-y-1";
 // justify-start steht ausdrücklich hier: der Bereichs-Schalter ist ein
 // Kit-Button, und dessen Grundklassen zentrieren den Inhalt. Beide Zeilenarten
 // beginnen links am Icon.
-const ROW_BASE =
-  "group relative flex h-10 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+const ROW_BASE = `group relative flex h-10 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-sm ${ROW_TRANSITION} focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
 
-const ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
-const ROW_INACTIVE =
-  "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+const ROW_ACTIVE = `bg-gray-100 font-semibold text-gray-900 ${ROW_BG_ACTIVE} ${ROW_PRESS}`;
+const ROW_INACTIVE = `font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${ROW_BG_IDLE} ${ROW_PRESS}`;
 const ROW_DISABLED = "font-medium text-gray-400";
 
 /**
@@ -81,8 +96,7 @@ export function sidebarRowClasses(options?: {
  * keine Seite. Im Streifen bleibt nur ihr Icon übrig; weil px-3 gleich
  * ist, sitzt es auf derselben Achse wie die Zeilen-Icons.
  */
-export const SIDEBAR_GROUP_HEADING_CLASSES =
-  "group relative flex h-8 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+export const SIDEBAR_GROUP_HEADING_CLASSES = `group relative flex h-8 w-full items-center justify-start overflow-hidden rounded-lg px-3 text-left text-gray-600 ${ROW_TRANSITION} ${ROW_PRESS} ${ROW_BG_IDLE} hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
 
 /** 20px-Icon, feste Größe in beiden Zuständen. */
 export const SIDEBAR_ICON_CLASSES = "h-5 w-5 shrink-0 transition-colors";
@@ -104,15 +118,12 @@ export function sidebarLabelClasses(isVisible: boolean): string {
  * 10px Navigationsabstand + 12px Zeilenabstand + 20px Icon + 12px = 54px,
  * abzüglich des Navigationsabstands also 44px (pl-11).
  */
-export const SIDEBAR_SUB_ITEM_CLASSES =
-  "flex h-8 items-center justify-between overflow-hidden rounded-lg pr-3 pl-11 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+export const SIDEBAR_SUB_ITEM_CLASSES = `flex h-8 items-center justify-between overflow-hidden rounded-lg pr-3 pl-11 text-sm ${ROW_TRANSITION} motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none`;
 
 /** Responsive row geometry shared by portal links and accordion headers. */
-const PORTAL_ROW =
-  "flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm";
-const PORTAL_ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
-const PORTAL_ROW_IDLE =
-  "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+const PORTAL_ROW = `flex items-center rounded-lg px-3 py-2.5 text-sm ${ROW_TRANSITION} ${ROW_PRESS} focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm`;
+const PORTAL_ROW_ACTIVE = `bg-gray-100 font-semibold text-gray-900 ${ROW_BG_ACTIVE}`;
+const PORTAL_ROW_IDLE = `font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${ROW_BG_IDLE}`;
 export const PORTAL_ICON_CLASSES =
   "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5";
 
@@ -121,5 +132,4 @@ export function portalSidebarRowClasses(isActive: boolean): string {
 }
 
 /** Align portal child links with the header label at each desktop width. */
-export const PORTAL_SUB_ITEM_CLASSES =
-  "flex items-center rounded-lg py-1.5 pr-3 pl-11 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:pl-13 xl:pl-11";
+export const PORTAL_SUB_ITEM_CLASSES = `flex items-center rounded-lg py-1.5 pr-3 pl-11 text-sm ${ROW_TRANSITION} motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:pl-13 xl:pl-11`;

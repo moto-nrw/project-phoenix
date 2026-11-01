@@ -165,6 +165,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "communication.parent_messaging_disabled"
+    },
+    {
+      "code": "communication.message_send_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.message_send_conflict"
     }
   ]
 }

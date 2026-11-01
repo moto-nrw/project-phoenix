@@ -107,7 +107,6 @@ type CatererAccessEngine interface {
 	// CatererSchools names the caterer of an account and the schools it
 	// supplies now.
 	CatererSchools(ctx context.Context, accountID int64) (Caterer, []int64, error)
-	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	// ChangeCatererPassword replaces a signed-in caterer's password after
 	// checking the current one like a login, and ends every session of the
 	// account (#4496).
@@ -115,13 +114,19 @@ type CatererAccessEngine interface {
 }
 
 // CatererAccess is the capability of the caterer flows, separate from the
-// wide module capability: the school's invitation, the public acceptance and
-// the caterer's login.
-type CatererAccess struct{ CatererAccessEngine }
+// wide module capability: the school's invitation, the public acceptance,
+// the caterer's sign-in with its second factor (#4497), the caterer's own
+// management of it, and the operator's reset.
+type CatererAccess struct {
+	CatererAccessEngine
+	CatererSignIn
+	CatererSecondFactor
+	CatererMFAAdministration
+}
 
-func NewCatererAccess(engine CatererAccessEngine) *CatererAccess {
-	if engine == nil {
-		panic("caterer access requires an engine")
+func NewCatererAccess(engine CatererAccessEngine, signIn CatererSignIn, secondFactor CatererSecondFactor, administration CatererMFAAdministration) *CatererAccess {
+	if engine == nil || signIn == nil || secondFactor == nil || administration == nil {
+		panic("caterer access requires every part")
 	}
-	return &CatererAccess{CatererAccessEngine: engine}
+	return &CatererAccess{CatererAccessEngine: engine, CatererSignIn: signIn, CatererSecondFactor: secondFactor, CatererMFAAdministration: administration}
 }

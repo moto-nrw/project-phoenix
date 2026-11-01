@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -18,6 +19,9 @@ func BindParentConversationCore(source communication.PortalConversationCore, lea
 		result0 := source.PortalAppendMessage(ctx, ownerMsg)
 		if msg != nil && ownerMsg != nil {
 			*msg = ParentMessagingFromOwnerParentMessage(*ownerMsg)
+		}
+		if errors.Is(result0, communication.ErrMessageSendConflict) {
+			return parentportal.ErrMessageSendConflict
 		}
 		return result0
 	},

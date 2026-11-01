@@ -1,8 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { ApiError } from "~/lib/api-error";
 import { SWRConfig } from "~/lib/swr/testing";
 import { catalogText } from "~/test/error-catalog-text";
@@ -126,6 +133,53 @@ describe("Gruppennachricht senden: Ablehnung je Code", () => {
     mockPostGroupMessage.mockReset();
     tenantFlags.messagingEnabled = true;
   });
+
+  it.each([false, true])(
+    "reconciles a saved send after a lost response (edited: %s)",
+    async (edited) => {
+      mockPostGroupMessage.mockRejectedValueOnce(
+        new ApiError("response lost", 503, { code: "general.unavailable" }),
+      );
+      await typeAndSend("Danke");
+      await screen.findByText("Nicht gesendet");
+      const key = mockPostGroupMessage.mock.calls[0]?.[2];
+      expect(key).toEqual(expect.any(String));
+      if (edited)
+        fireEvent.change(screen.getByLabelText("Nachricht"), {
+          target: { value: "Neuer Entwurf" },
+        });
+      const saved = {
+        id: "saved",
+        sender_kind: "staff",
+        sender_name: "Ich",
+        body: "Danke",
+        kind: "message",
+        created_at: "2026-09-09T10:05:00Z",
+        client_message_id: key,
+      };
+      mockFetchGroupThread.mockResolvedValue({
+        ...detail,
+        messages: [...detail.messages, saved],
+      });
+      const refresh = vi
+        .mocked(useMessagesActivity)
+        .mock.calls.at(-1)?.[0].onMatch;
+      expect(refresh).toBeTypeOf("function");
+      await act(async () => {
+        refresh?.();
+      });
+      await waitFor(() => {
+        expect(screen.getAllByText("Danke", { selector: "span" })).toHaveLength(
+          1,
+        );
+        expect(screen.queryByText("Nicht gesendet")).not.toBeInTheDocument();
+      });
+      expect(screen.getByLabelText("Nachricht")).toHaveValue(
+        edited ? "Neuer Entwurf" : "",
+      );
+      expect(mockPostGroupMessage).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("behält den Verlauf und sperrt Senden, wenn die Schule Nachrichten ausschaltet", async () => {
     mockPostGroupMessage.mockRejectedValue(
