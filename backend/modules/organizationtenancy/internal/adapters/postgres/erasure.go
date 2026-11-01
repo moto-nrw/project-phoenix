@@ -12,22 +12,21 @@ import (
 )
 
 type ErasureStore struct{ db *bun.DB }
-type erasureConnectionKey struct{}
 
 func NewErasureStore(db *bun.DB) (*ErasureStore, error) {
 	if db == nil {
 		return nil, errors.New("erasure: database required")
 	}
+	if db.Stats().MaxOpenConnections == 1 {
+		return nil, errors.New("erasure: pool requires at least two connections for coordination and work")
+	}
 	return &ErasureStore{db: db}, nil
 }
 
 // Each SQL function call commits independently using PostgreSQL autocommit.
-// The session is reserved for the workflow, then physically discarded: neither
-// SET ROLE, session timeouts nor the coordination lock can leak into the pool.
+// Each step uses its own session, separate from the workflow coordination lock.
+// Physically discard sessions so SET ROLE and timeouts cannot leak into the pool.
 func (s *ErasureStore) withConnection(ctx context.Context, fn func(context.Context, bun.Conn) error) error {
-	if conn, ok := ctx.Value(erasureConnectionKey{}).(bun.Conn); ok {
-		return fn(ctx, conn)
-	}
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return errors.New("erasure: database session unavailable")
@@ -39,7 +38,7 @@ func (s *ErasureStore) withConnection(ctx context.Context, fn func(context.Conte
 	if _, err = conn.ExecContext(ctx, `SET ROLE phoenix_school_erasure`); err != nil {
 		return errors.New("erasure: dedicated role unavailable")
 	}
-	return fn(context.WithValue(ctx, erasureConnectionKey{}, conn), conn)
+	return fn(ctx, conn)
 }
 
 func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(context.Context) error) error {
@@ -52,24 +51,26 @@ func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(con
 		if !locked {
 			return errors.New("erasure: school already running")
 		}
-		// Closing a socket does not wait for PostgreSQL to release session locks.
-		// Acknowledge the unlock before a connected caller can start the next run,
-		// even if this run failed or its caller cancelled. Still discard the session.
+		lock := &erasureLock{conn: conn, lastConfirmed: time.Now()}
 		defer func() {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			var unlocked bool
-			err := conn.NewRaw(`SELECT pg_advisory_unlock(hashtextextended('school-erasure-cli:' || ?::text,0))`, id).Scan(cleanupCtx, &unlocked)
-			if err != nil || !unlocked {
-				runErr = errors.Join(runErr, errors.New("erasure: coordination release failed"))
+			if releaseErr := lock.release(cleanupCtx, id); releaseErr != nil && !errors.Is(runErr, releaseErr) {
+				runErr = errors.Join(runErr, releaseErr)
 			}
 		}()
-		// DB-function transactions are deliberately not nested in the lock.
-		return fn(ctx)
+		// Never lend the coordination session to a work step: pgdriver closes
+		// its socket on 57014 in ExecContext. Keep the lock through the entire
+		// callback, including file and ledger work, and acknowledge its release.
+		// DB-function transactions remain independent of the lock session.
+		return fn(context.WithValue(ctx, erasureLockKey{}, lock))
 	})
 }
 
 func (s *ErasureStore) Call(ctx context.Context, lockTimeout, statementTimeout time.Duration, operation string, args ...any) (json.RawMessage, error) {
+	if err := s.CheckSchoolLock(ctx); err != nil {
+		return nil, err
+	}
 	var result string
 	err := s.withConnection(ctx, func(ctx context.Context, conn bun.Conn) error {
 		if _, err := conn.ExecContext(ctx, `SELECT set_config('lock_timeout',?,false),set_config('statement_timeout',?,false)`, strconv.FormatInt(lockTimeout.Milliseconds(), 10)+"ms", strconv.FormatInt(statementTimeout.Milliseconds(), 10)+"ms"); err != nil {

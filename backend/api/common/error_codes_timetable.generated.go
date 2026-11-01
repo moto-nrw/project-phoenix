@@ -85,6 +85,7 @@ const CodeTimetableReopenStaffBusy = "timetable.reopen_staff_busy"
 const CodeTimetableReopenStudentActive = "timetable.reopen_student_active"
 const CodeTimetableReopenSupervisionChanged = "timetable.reopen_supervision_changed"
 const CodeTimetableRoomOccupied = "timetable.room_occupied"
+const CodeTimetableSchoolVacationNotFound = "timetable.school_vacation_not_found"
 const CodeTimetableSeriesEndBeforeStart = "timetable.series_end_before_start"
 const CodeTimetableSeriesEndOutsidePeriod = "timetable.series_end_outside_period"
 const CodeTimetableSickAbsenceScopeLocked = "timetable.sick_absence_scope_locked"
@@ -228,6 +229,7 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableReopenStudentActive, "business_rejection"},
 	{CodeTimetableReopenSupervisionChanged, "business_rejection"},
 	{CodeTimetableRoomOccupied, "business_rejection"},
+	{CodeTimetableSchoolVacationNotFound, "business_rejection"},
 	{CodeTimetableSeriesEndBeforeStart, "input"},
 	{CodeTimetableSeriesEndOutsidePeriod, "input"},
 	{CodeTimetableSickAbsenceScopeLocked, "business_rejection"},

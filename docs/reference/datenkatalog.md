@@ -41,6 +41,14 @@ Migration 1.15.706 ergänzt den Elternsprechtag (#4801):
 löscht Tage und Buchungen zum Beginn des neuen Schuljahres (1. August)
 zusammen mit den Terminen der Buchungen.
 
+Migration 1.15.721 ergänzt die Schulferien (#5345, ADR 0144):
+`calendar.school_vacations` (Ferien je Bundesland aus der OpenHolidays API) ist
+`platform`: dieselben Zeilen gelten für jede Schule eines Bundeslands, sie
+gehören keiner Schule und werden nicht zurückgegeben.
+`calendar.school_vacation_acknowledgements` (die Schule plant in einem
+Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
+wird zurückgegeben und mit der Schule gelöscht.
+
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.

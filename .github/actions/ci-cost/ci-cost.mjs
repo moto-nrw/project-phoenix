@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Estimates the runner cost of all CI runs of a pull request and keeps it in
-// one comment, created once and then edited. Runs on a workflow_run event and
+// Estimates the runner cost of all CI runs of a pull request and shows it as a
+// neutral check run on the PR head. A check run sends no notification mail,
+// unlike a comment, which mails the PR author. Runs on a workflow_run event and
 // reads GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_TOKEN and GITHUB_API_URL.
-// The comment caches the minutes of every completed run, so an event fetches
+// The check run caches the minutes of every completed run, so an event fetches
 // jobs only for new or re-run runs.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,11 @@ import { fileURLToPath } from 'node:url';
 export const BLACKSMITH_X64_2VCPU = 0.004;
 export const BLACKSMITH_ARM_2VCPU = 0.0025;
 const MARKER = 'ci-cost-state';
-const BOT = 'github-actions[bot]';
+export const CHECK_NAME = 'CI-Kosten';
+// Only check runs that a workflow of this repo created may seed the cache.
+const OWN_APP = 'github-actions';
+// The cache is a shortcut; without it every run is fetched again.
+const CACHE_LOOKBACK_COMMITS = 20;
 
 // GitHub-hosted standard runners are free for public repositories. Larger
 // runners and self-hosted labels have no price here and stay out of the sum.
@@ -156,10 +161,9 @@ export function render({ runs, running, prices, trigger }) {
   const unpriced = [...runners.keys()].filter(label => pricePerMinute(label, prices) === null);
   const count = Object.keys(runs).length;
 
+  const title = `${approx(total)} für ${count} ${count === 1 ? 'Run' : 'Runs'}`;
   const lines = [
-    '### CI-Kosten dieses PRs',
-    '',
-    `**${approx(total)}** für ${count} ${count === 1 ? 'Run' : 'Runs'}, davon ${number(paidMinutes)} bezahlte Runner-Minuten.`
+    `**${title}**, davon ${number(paidMinutes)} bezahlte Runner-Minuten.`
       + (running ? ` ${running} ${running === 1 ? 'Run läuft' : 'Runs laufen'} noch.` : ''),
     '',
     '| Workflow | Runs | Ø pro Run | Kosten |',
@@ -190,7 +194,7 @@ export function render({ runs, running, prices, trigger }) {
     '',
     encodeState(runs),
   );
-  return `${lines.join('\n')}\n`;
+  return { title, summary: `${lines.join('\n')}\n` };
 }
 
 export function githubApi({ token, baseUrl = 'https://api.github.com', fetchImpl = fetch }) {
@@ -223,6 +227,23 @@ export function githubApi({ token, baseUrl = 'https://api.github.com', fetchImpl
   };
 }
 
+async function ownCheck(api, repo, sha) {
+  const query = new URLSearchParams({ check_name: CHECK_NAME, filter: 'latest' });
+  const { check_runs: checks } = await api.get(`/repos/${repo}/commits/${sha}/check-runs?${query}`);
+  return checks.find(check => check.app?.slug === OWN_APP) ?? null;
+}
+
+// After a push the head has no check run yet; the newest earlier one holds the cache.
+async function previousCheck(api, repo, pr) {
+  const commits = await api.paginate(`/repos/${repo}/pulls/${pr.number}/commits?per_page=100`);
+  const earlier = commits.map(commit => commit.sha).filter(sha => sha !== pr.head.sha).reverse();
+  for (const sha of earlier.slice(0, CACHE_LOOKBACK_COMMITS)) {
+    const check = await ownCheck(api, repo, sha);
+    if (check) return check;
+  }
+  return null;
+}
+
 export async function main(env, api) {
   const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
   const run = event.workflow_run;
@@ -233,13 +254,22 @@ export async function main(env, api) {
     console.log(`No open pull request for ${run.head_branch}.`);
     return null;
   }
-  const comments = await api.paginate(`/repos/${repo}/issues/${pr.number}/comments?per_page=100`);
-  // Only our own comment may seed the cache; anyone can post a marker.
-  const previous = comments.findLast(c => c.user?.login === BOT && c.body?.includes(MARKER));
-  const { runs, running } = await collectRuns(api, repo, pr, decodeState(previous?.body), prices);
-  const body = render({ runs, running, prices, trigger: run });
-  if (!previous) await api.send('POST', `/repos/${repo}/issues/${pr.number}/comments`, { body });
-  else if (previous.body !== body) await api.send('PATCH', `/repos/${repo}/issues/comments/${previous.id}`, { body });
+  const head = await ownCheck(api, repo, pr.head.sha);
+  const previous = head ?? await previousCheck(api, repo, pr);
+  const { runs, running } = await collectRuns(api, repo, pr, decodeState(previous?.output?.summary), prices);
+  const output = render({ runs, running, prices, trigger: run });
+  if (!head) {
+    await api.send('POST', `/repos/${repo}/check-runs`, {
+      name: CHECK_NAME,
+      head_sha: pr.head.sha,
+      status: 'completed',
+      conclusion: 'neutral',
+      completed_at: new Date().toISOString(),
+      output,
+    });
+  } else if (head.output?.summary !== output.summary) {
+    await api.send('PATCH', `/repos/${repo}/check-runs/${head.id}`, { output });
+  }
   return pr.number;
 }
 

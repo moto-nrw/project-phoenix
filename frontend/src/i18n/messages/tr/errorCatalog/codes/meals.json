@@ -14,5 +14,6 @@
   "delivery_range_too_long": "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
   "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
   "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
-  "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
+  "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
+  "participation_manage_denied": "Yemek kayıtlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul sonrası bakım ekibine başvurun."
 }

@@ -83,6 +83,7 @@
   "reopen_student_active": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "reopen_supervision_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "room_occupied": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "school_vacation_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "series_end_before_start": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "series_end_outside_period": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "sick_absence_scope_locked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

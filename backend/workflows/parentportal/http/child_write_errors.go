@@ -36,6 +36,8 @@ func renderParentCareWriteError(w http.ResponseWriter, r *http.Request, err erro
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeMealsPlanWeekOutOfRange))
 	case errors.Is(err, parentService.ErrMealRegistrationDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeMealsRegistrationDisabled))
+	case errors.Is(err, parentService.ErrMealParticipationManageDenied):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeMealsParticipationManageDenied))
 	case errors.Is(err, parentService.ErrMealParticipationOutOfRange):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeMealsParticipationOutOfRange))
 	case errors.Is(err, parentService.ErrMealParticipationCutoff):

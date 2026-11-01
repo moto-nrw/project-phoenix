@@ -33,3 +33,9 @@ type CalendarRows struct {
 	Dateframe             ports.DateframeRecords
 	ClassArrivalException ports.ClassArrivalExceptionRecords
 }
+
+// NewSchoolVacationHints composes the vacation hint (#5345) over the
+// Timetable rows and the School Calendar; nil today is the Berlin day.
+func NewSchoolVacationHints(rows application.SchoolVacationHintRows, days application.SchoolVacationDays, vacations application.SchoolVacationReader, today func() string) (timetable.SchoolVacationHintQuery, error) {
+	return application.NewSchoolVacationHints(rows, days, vacations, today)
+}

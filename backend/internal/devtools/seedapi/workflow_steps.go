@@ -324,6 +324,9 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		// Before the parents' invitations queue up in the outbox.
 		seedMealCatererInvitationStep{seeder: seeder},
 		seedShiftSeriesStep{},
+		// After the shift series: its autumn holiday period is the seeded
+		// autumn vacation (#5345).
+		seedSchoolVacationsStep{},
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
 		seedStaffMasterDataStep{},

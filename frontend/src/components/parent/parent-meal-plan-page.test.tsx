@@ -616,7 +616,7 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
-  it("hides participation and the open editor when the follow-up read denies access", async () => {
+  it("hides participation and the open editor immediately when the write denies read access", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,
       meal_registration_enabled: true,
@@ -658,16 +658,19 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() =>
-      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2),
-    );
-    await waitFor(() =>
       expect(
         screen.queryByRole("checkbox", { name: "Dienstag" }),
       ).not.toBeInTheDocument(),
     );
-    // Anker: Der Speiseplan und der Ladefehler bleiben sichtbar, nicht die Teilnahmedaten.
+    expect(mocks.getMealParticipation).toHaveBeenCalledTimes(1);
+    expect(mocks.replaceMealParticipationSchedule).toHaveBeenCalledTimes(1);
+    // Anker: Speiseplan und Fehler bleiben sichtbar, nicht die Teilnahmedaten.
     expect(screen.getByText("Gemüse-Reis")).toBeInTheDocument();
-    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Nächste Woche" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("Nicht zum Mittagessen angemeldet"),
     ).not.toBeInTheDocument();
