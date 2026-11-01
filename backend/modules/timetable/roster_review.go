@@ -40,7 +40,7 @@ type TemplateRosterReview interface {
 	// every series segment with days on or after the effective date, in
 	// place and in one unit of work.
 	ConnectOfferingSource(ctx context.Context, cmd ConnectOfferingSourceCommand) (ConnectOfferingSourceResult, error)
-	// SetManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the
+	// SetManualRosterConfirmed stores "Liste so lassen" on the
 	// series; ErrTemplateSegmentNotEditable when the template is unknown.
 	SetManualRosterConfirmed(ctx context.Context, templateID int64, confirmed bool) error
 }
