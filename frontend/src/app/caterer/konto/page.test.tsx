@@ -34,7 +34,7 @@ vi.mock("~/components/settings/trusted-devices-section", () => ({
   TrustedDevicesSection: () => null,
 }));
 
-vi.mock("~/lib/caterer-api", () => ({
+vi.mock("~/lib/caterer-mfa-api", () => ({
   fetchCatererMFAStatus: () => mfa.status(),
   startCatererMFA: () => mfa.start(),
   confirmCatererMFA: (...args: unknown[]) => mfa.confirm(...args),

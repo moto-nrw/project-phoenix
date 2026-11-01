@@ -34,7 +34,7 @@ import {
   disableCatererMFA,
   fetchCatererMFAStatus,
   startCatererMFA,
-} from "~/lib/caterer-api";
+} from "~/lib/caterer-mfa-api";
 import { createLogger } from "~/lib/logger";
 import { useShellAuth } from "~/lib/shell-auth-context";
 
