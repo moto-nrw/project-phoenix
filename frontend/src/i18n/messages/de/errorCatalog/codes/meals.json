@@ -14,5 +14,6 @@
   "delivery_range_too_long": "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
   "not_supplied": "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
   "order_not_found": "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
-  "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung."
+  "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
+  "participation_manage_denied": "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS."
 }

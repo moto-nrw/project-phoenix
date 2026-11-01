@@ -205,20 +205,45 @@ func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
 	require.NoError(t, err, "portal access still permits reading meal participation")
 
 	_, err = svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
-	require.EqualError(t, err, "parent: meal participation management not permitted")
+	require.ErrorIs(t, err, parentService.ErrMealParticipationManageDenied)
 
 	err = svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date, true)
-	require.EqualError(t, err, "parent: meal participation management not permitted")
+	require.ErrorIs(t, err, parentService.ErrMealParticipationManageDenied)
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date)
-	require.EqualError(t, err, "parent: meal participation management not permitted")
+	require.ErrorIs(t, err, parentService.ErrMealParticipationManageDenied)
 
 	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, date, false)
-	require.EqualError(t, err, "parent: meal participation management not permitted")
+	require.ErrorIs(t, err, parentService.ErrMealParticipationManageDenied)
 
 	flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, flags.MealRegistrationEnabled)
+}
+
+func TestMealParticipationWrites_RequirePortalAccessEvenWithManagePermission(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
+		UPDATE auth.guardian_student_access AS a
+		SET permissions = '{"meal_participation.manage": true}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	date := calendar.NewDate(2026, 8, 25)
+	_, err = svc.MealParticipation(ctx, chain.AccountID, chain.StudentID, date, date)
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
+	_, err = svc.ReplaceMealParticipationSchedule(ctx, chain.AccountID, chain.StudentID, []parentService.MealWeekday{1})
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
+	require.ErrorIs(t, svc.SetMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date, true), parentService.ErrChildNotLinked)
+	require.ErrorIs(t, svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date), parentService.ErrChildNotLinked)
+	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, date, false)
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
 func TestClearMealParticipationDay_PassesGuardianAccountID(t *testing.T) {

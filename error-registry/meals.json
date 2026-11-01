@@ -67,6 +67,12 @@
       "legacy": "meal_participation_cutoff_passed"
     },
     {
+      "code": "meals.participation_manage_denied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meals.participation_manage_denied"
+    },
+    {
       "code": "meals.participation_out_of_range",
       "class": "input",
       "parameters": [],

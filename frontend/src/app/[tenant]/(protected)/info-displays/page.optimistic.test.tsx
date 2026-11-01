@@ -131,8 +131,10 @@ beforeEach(() => {
   mocks.list.mockResolvedValue([display, neighbour]);
 });
 afterEach(() => {
-  resumeSWRSession();
-  resetSWRScope({ revalidate: false });
+  act(() => {
+    resumeSWRSession();
+    resetSWRScope({ revalidate: false });
+  });
 });
 for (const scenario of scenarios) {
   describe(scenario.name, () => {
@@ -229,7 +231,7 @@ for (const scenario of scenarios) {
         );
       });
       expect(await screen.findByRole("alert")).toBeInTheDocument();
-      await waitFor(() => expect(rows()).not.toContain("Eingang"));
+      await waitFor(() => expect(screen.queryAllByRole("row")).toHaveLength(0));
       expect(mocks.list).toHaveBeenCalledTimes(1);
     });
     it("nimmt ein gelöschtes Display zurück und lädt die Liste neu", async () => {

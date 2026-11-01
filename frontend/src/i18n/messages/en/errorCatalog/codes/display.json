@@ -1,3 +1,4 @@
 {
-  "disabled": "You cannot access {object}. Please contact the school."
+  "disabled": "You cannot access {object}. Please contact the school.",
+  "manage_forbidden": "You can view info displays, but cannot change them. Please contact your school management."
 }
