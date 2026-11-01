@@ -1,0 +1,275 @@
+package postgres_test
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"maps"
+	"regexp"
+	"slices"
+	"testing"
+
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// Notifications cross processes as an ID (#5504). The receiving API loads
+// title, body and link itself, inside the school's transaction, and shows
+// them only to the recipients the stored notification names.
+
+const (
+	relayedTitle = "Neue Nachricht im Team-Chat"
+	relayedBody  = "Bitte öffnen Sie den Chat."
+	relayedLink  = "/staff-messages"
+)
+
+type everyGuardianStillPermitted struct{}
+
+func (everyGuardianStillPermitted) FilterAccountsWithStudentAccess(_ context.Context, accounts, _ []int64, _ int64, _ string) ([]int64, error) {
+	return accounts, nil
+}
+
+type notificationDeliverer interface {
+	Deliver(context.Context, deliveryCompose.NotificationEvent) error
+}
+
+// notificationChannel builds the SSE channel every process composes over its
+// hub. In an API it also loads the notifications other processes relay.
+func notificationChannel(t *testing.T, db *bun.DB, hub *realtime.Hub) notificationDeliverer {
+	t.Helper()
+	channel, err := deliveryCompose.NewTenantSSEChannel(testpkg.TenantRuntime(t, db), hub, db, everyGuardianStillPermitted{}, slog.Default())
+	require.NoError(t, err)
+	return channel
+}
+
+func staffNotification(schoolID int64, accountIDs ...int64) deliveryCompose.NotificationEvent {
+	return deliveryCompose.NotificationEvent{
+		Type:     "test",
+		Audience: deliveryCompose.NotificationAudience{TenantID: schoolID, Scope: deliveryCompose.NotificationAudienceScope("staff"), StaffAccountIDs: accountIDs},
+		Priority: "normal", Title: relayedTitle, Body: relayedBody, DeepLink: relayedLink,
+		Data: map[string]string{"thread_id": "7"},
+	}
+}
+
+func guardianNotification(schoolID, guardianAccountID int64) deliveryCompose.NotificationEvent {
+	event := staffNotification(schoolID)
+	event.Audience = deliveryCompose.NotificationAudience{TenantID: schoolID, Scope: deliveryCompose.NotificationAudienceScope("guardian"), GuardianAccountIDs: []int64{guardianAccountID}}
+	return event
+}
+
+func staffClient(t *testing.T, hub *realtime.Hub, schoolID, accountID int64) *realtime.Client {
+	t.Helper()
+	client := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: accountID, SubscribedGroups: make(map[string]bool)}
+	hub.Register(client, schoolID, nil)
+	t.Cleanup(func() { hub.Unregister(client) })
+	return client
+}
+
+func parentClient(t *testing.T, hub *realtime.Hub, guardianAccountID int64) *realtime.Client {
+	t.Helper()
+	client := &realtime.Client{Channel: make(chan realtime.Event, 16), UserID: guardianAccountID, AccountID: guardianAccountID}
+	hub.RegisterParent(client)
+	t.Cleanup(func() { hub.Unregister(client) })
+	return client
+}
+
+func requireRelayedNotification(t *testing.T, client *realtime.Client) {
+	t.Helper()
+	event := receiveTransportEvent(t, client)
+	require.Equal(t, realtime.EventNotification, event.Type)
+	require.NotNil(t, event.Data.Title)
+	require.Equal(t, relayedTitle, *event.Data.Title)
+	require.NotNil(t, event.Data.Body)
+	require.Equal(t, relayedBody, *event.Data.Body)
+	require.NotNil(t, event.Data.DeepLink)
+	require.Equal(t, relayedLink, *event.Data.DeepLink)
+	require.Equal(t, map[string]string{"thread_id": "7"}, event.Data.NotificationData)
+}
+
+func TestWorkerNotificationReachesEveryAPI(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	worker := transportHub(t, db, false)
+	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
+	workerChannel := notificationChannel(t, db, worker)
+	notificationChannel(t, db, apiA)
+	notificationChannel(t, db, apiB)
+	schoolID := testpkg.Tenant(t)
+	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-addressed@example.com")
+	bystander := testpkg.CreateTestAccount(t, db, "relay-notification-bystander@example.com")
+	guardian := testpkg.CreateTestAccount(t, db, "relay-notification-guardian@example.com")
+	a, b := staffClient(t, apiA, schoolID, addressed.ID), staffClient(t, apiB, schoolID, addressed.ID)
+	other := staffClient(t, apiA, schoolID, bystander.ID)
+	parent := parentClient(t, apiB, guardian.ID)
+
+	require.NoError(t, workerChannel.Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
+	requireRelayedNotification(t, a)
+	requireRelayedNotification(t, b)
+	require.Empty(t, other.Channel, "a colleague who was not addressed saw the notification")
+	require.Empty(t, parent.Channel, "a guardian saw a staff notification")
+
+	require.NoError(t, workerChannel.Deliver(context.Background(), guardianNotification(schoolID, guardian.ID)))
+	requireRelayedNotification(t, parent)
+	require.Empty(t, a.Channel, "staff saw a guardian notification")
+	require.Empty(t, other.Channel)
+}
+
+func TestAPINotificationIsDeliveredOnceLocallyAndRelayedToOtherAPIs(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
+	channelA := notificationChannel(t, db, apiA)
+	notificationChannel(t, db, apiB)
+	schoolID := testpkg.Tenant(t)
+	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-once@example.com")
+	a, b := staffClient(t, apiA, schoolID, addressed.ID), staffClient(t, apiB, schoolID, addressed.ID)
+
+	require.NoError(t, channelA.Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
+	requireRelayedNotification(t, a)
+	requireRelayedNotification(t, b)
+	// The marker travels behind the notification through the same FIFO
+	// publisher and listener: an echo of the own signal would arrive first.
+	require.NoError(t, apiA.BroadcastToStaffAccounts(schoolID, []int64{addressed.ID}, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{})))
+	require.Equal(t, realtime.EventStaffTimeTrackingChanged, receiveTransportEvent(t, b).Type)
+	require.Equal(t, realtime.EventStaffTimeTrackingChanged, receiveTransportEvent(t, a).Type, "the producing API showed its own notification twice")
+	require.Empty(t, a.Channel)
+}
+
+func TestNotificationSignalCarriesNoContent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var payloads []string
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	require.NoError(t, err)
+	schoolID := testpkg.Tenant(t)
+	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-wire@example.com")
+
+	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
+	require.Len(t, payloads, 1)
+	for _, content := range []string{relayedTitle, relayedBody, relayedLink, "thread_id", "Bitte", "normal"} {
+		require.NotContains(t, payloads[0], content)
+	}
+	var wire map[string]any
+	require.NoError(t, json.Unmarshal([]byte(payloads[0]), &wire))
+	require.Equal(t, []string{"account_ids", "audience", "ids", "origin", "school_id", "type"}, slices.Sorted(maps.Keys(wire)))
+	require.Equal(t, "notification", wire["type"])
+	require.Equal(t, "staff_accounts", wire["audience"])
+	ids, ok := wire["ids"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, []string{"notification_id"}, slices.Sorted(maps.Keys(ids)))
+	require.Regexp(t, regexp.MustCompile(`^[1-9][0-9]*$`), ids["notification_id"])
+}
+
+func TestForgedNotificationSignalsShowNothing(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var payloads []string
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	require.NoError(t, err)
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	require.NoError(t, err)
+	notificationChannel(t, db, api)
+	schoolID := testpkg.Tenant(t)
+	foreignSchool := testpkg.NewTenantScope(t, db).TenantID
+	addressed := testpkg.CreateTestAccount(t, db, "relay-forged-addressed@example.com")
+	bystander := testpkg.CreateTestAccount(t, db, "relay-forged-bystander@example.com")
+	clients := []*realtime.Client{
+		staffClient(t, api, schoolID, addressed.ID),
+		staffClient(t, api, schoolID, bystander.ID),
+		staffClient(t, api, foreignSchool, addressed.ID),
+		staffClient(t, api, foreignSchool, bystander.ID),
+		parentClient(t, api, addressed.ID),
+		parentClient(t, api, bystander.ID),
+	}
+	// The foreign school has a genuine notification of its own, so its ID is
+	// real, only not for this school.
+	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), staffNotification(foreignSchool, addressed.ID)))
+	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
+	require.Len(t, payloads, 2)
+	foreignID := signalNotificationID(t, payloads[0])
+	genuine := decodeSignal(t, payloads[1])
+
+	forged := map[string]map[string]any{
+		"unknown ID":                      withSignal(genuine, map[string]any{"ids": map[string]any{"notification_id": "9223372036854775806"}}),
+		"ID of another school":            withSignal(genuine, map[string]any{"ids": map[string]any{"notification_id": foreignID}}),
+		"another school":                  withSignal(genuine, map[string]any{"school_id": foreignSchool}),
+		"another recipient":               withSignal(genuine, map[string]any{"account_ids": []int64{bystander.ID}}),
+		"another portal":                  withSignal(genuine, map[string]any{"audience": "school_accounts"}),
+		"the whole school":                withSignal(genuine, map[string]any{"audience": "tenant", "account_ids": nil}),
+		"the school's administrators":     withSignal(genuine, map[string]any{"audience": "admins", "account_ids": nil}),
+		"a guardian":                      withSignal(genuine, map[string]any{"audience": "guardian", "guardian_id": addressed.ID, "account_ids": nil}),
+		"content without an ID":           withSignal(genuine, map[string]any{"ids": map[string]any{"title": "Gefälscht", "deep_link": "/forged"}}),
+		"invalid ID":                      withSignal(genuine, map[string]any{"ids": map[string]any{"notification_id": "-1"}}),
+		"group audience with the same ID": withSignal(genuine, map[string]any{"audience": "group", "topic": "1", "account_ids": nil}),
+	}
+	for name, signal := range forged {
+		payload, err := json.Marshal(signal)
+		require.NoError(t, err)
+		_ = api.ReceiveSignal(string(payload))
+		for _, client := range clients {
+			require.Empty(t, client.Channel, "forged signal (%s) reached a client", name)
+		}
+	}
+
+	require.NoError(t, api.ReceiveSignal(payloads[1]))
+	requireRelayedNotification(t, clients[0])
+	for _, client := range clients[1:] {
+		require.Empty(t, client.Channel, "the genuine signal reached a client it does not address")
+	}
+
+	// A recorded signal replayed after the notification expired shows nothing.
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.realtime_notifications SET created_at = NOW() - INTERVAL '1 hour' WHERE tenant_id = ?`, schoolID)
+	require.NoError(t, err)
+	_ = api.ReceiveSignal(payloads[1])
+	for _, client := range clients {
+		require.Empty(t, client.Channel, "an expired notification was shown again")
+	}
+}
+
+func TestNotificationStaysLocalWhenItCannotBeStored(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupClosableTestDB(t)
+	var published []string
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { published = append(published, payload); return nil })
+	require.NoError(t, err)
+	channel := notificationChannel(t, db, hub)
+	schoolID := testpkg.Tenant(t)
+	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-offline@example.com")
+	client := staffClient(t, hub, schoolID, addressed.ID)
+	require.NoError(t, db.Close())
+
+	require.NoError(t, channel.Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
+	requireRelayedNotification(t, client)
+	require.Empty(t, published, "an unstored notification has no ID another API could load")
+}
+
+func decodeSignal(t *testing.T, payload string) map[string]any {
+	t.Helper()
+	var signal map[string]any
+	require.NoError(t, json.Unmarshal([]byte(payload), &signal))
+	return signal
+}
+
+func signalNotificationID(t *testing.T, payload string) string {
+	t.Helper()
+	ids, ok := decodeSignal(t, payload)["ids"].(map[string]any)
+	require.True(t, ok)
+	id, ok := ids["notification_id"].(string)
+	require.True(t, ok)
+	return id
+}
+
+func withSignal(signal, changes map[string]any) map[string]any {
+	result := maps.Clone(signal)
+	for key, value := range changes {
+		if value == nil {
+			delete(result, key)
+			continue
+		}
+		result[key] = value
+	}
+	return result
+}
