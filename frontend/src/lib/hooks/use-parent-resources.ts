@@ -181,22 +181,27 @@ class ParentResourceFailure<T> extends Error {
       : undefined;
   }
 }
-// Failed background probes keep only the wrapper's current confirmed values.
-// No independent ref/cache: scope and access discards must erase this fallback.
+// Both inputs come from the wrapper's live generation gate, not a local ref.
+function parentBatchValues<T>(
+  confirmed: Record<string, T> | undefined,
+  error: unknown,
+): Record<string, T> {
+  const partial =
+    error instanceof ParentResourceFailure
+      ? (error as ParentResourceFailure<T>).partial
+      : undefined;
+  return { ...confirmed, ...partial };
+}
+
 function useParentBatchData<T>(
   confirmed: Record<string, T> | undefined,
   error: unknown,
   batch: ParentResourceFailure<T> | undefined,
 ) {
-  return useMemo(() => {
-    if (!error || !batch) return confirmed;
-    const data = { ...confirmed, ...batch.partial };
-    for (const id of Object.keys(batch.failures)) {
-      const previous = confirmed?.[id];
-      if (previous !== undefined) data[id] = previous;
-    }
-    return data;
-  }, [confirmed, error, batch]);
+  return useMemo(
+    () => (error && batch ? parentBatchValues(confirmed, batch) : confirmed),
+    [confirmed, error, batch],
+  );
 }
 
 const NO_FEATURE_FAILURES: Readonly<Record<string, unknown>> = {};
@@ -210,12 +215,17 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
     session?.user.scope === "parent" && children
       ? parentKeys.features(children, day)
       : null,
-    async () => {
+    async (): Promise<Record<string, ChildFeatures>> => {
+      const current = resource.readCurrent?.();
+      const previous = parentBatchValues<ChildFeatures>(
+        current?.data,
+        current?.error,
+      );
       const list = children ?? [];
       const responses = await Promise.allSettled(
         list.map((child) => getChildFeatures(child.student_id)),
       );
-      const partial: Record<string, ChildFeatures> = {};
+      const partial: Record<string, ChildFeatures> = { ...previous };
       const failures: Record<string, unknown> = {};
       responses.forEach((response, index) => {
         const child = list[index];
@@ -271,12 +281,17 @@ export function useParentToday(children: readonly Child[] | undefined) {
     session?.user.scope === "parent" && children
       ? parentKeys.today(children, day)
       : null,
-    async () => {
+    async (): Promise<Record<string, ChildToday>> => {
+      const current = resource.readCurrent?.();
+      const previous = parentBatchValues<ChildToday>(
+        current?.data,
+        current?.error,
+      );
       const list = children ?? [];
       const responses = await Promise.allSettled(
         list.map((child) => getChildToday(child.student_id)),
       );
-      const partial: Record<string, ChildToday> = {};
+      const partial: Record<string, ChildToday> = { ...previous };
       const failures: Record<string, unknown> = {};
       responses.forEach((response, index) => {
         const child = list[index];
@@ -284,7 +299,7 @@ export function useParentToday(children: readonly Child[] | undefined) {
         if (response.status === "fulfilled") {
           partial[child.student_id] = response.value;
         } else {
-          partial[child.student_id] = UNKNOWN_CHILD_TODAY;
+          partial[child.student_id] ??= UNKNOWN_CHILD_TODAY;
           failures[child.student_id] = response.reason;
         }
       });

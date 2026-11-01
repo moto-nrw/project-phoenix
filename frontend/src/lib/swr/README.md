@@ -133,9 +133,15 @@ status use the sorted `(tenant_id, student_id)` relationship set in their
 factory key, together with the Berlin calendar day for date-dependent flags
 and status. Each relationship is fetched, including siblings at the same
 school; a school's flags never stand in for another child's permissions.
-A non-refusal background failure preserves that child's confirmed features and
-status from the wrapper's current data; successful siblings use their fresh
-answers. Without a confirmed value, failed feature lookups stay off and failed
+A non-refusal background failure preserves that child's latest confirmed
+features and status; successful siblings use their fresh answers. Alternating
+partial failures retain successful per-child updates in the current batch error,
+not only the last wholly successful batch. At request start, `readCurrent()` on
+the authenticated reader supplies generation-checked data/error snapshots.
+This capability exposes no cache and immediately returns empty values after a
+scope/data drop or session suspension, including before a React rerender.
+It is optional in the structural response type for compatibility with standard
+SWR-shaped consumers; real authenticated readers always implement it. Without a confirmed value, failed feature lookups stay off and failed
 status lookups use `UNKNOWN_CHILD_TODAY`. Errors remain available for logging
 and cold-load error presentation. Partial results are read only through the
 wrapper's current-error gate (G19). No separate fallback cache is retained:

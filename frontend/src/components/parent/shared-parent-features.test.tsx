@@ -301,3 +301,56 @@ describe("shared parent rate-limit recovery", () => {
     expect(result.current.today.error).toBeUndefined();
   });
 });
+
+describe("alternating partial parent refreshes", () => {
+  const linked = [
+    ...children,
+    { student_id: "43", tenant_id: "7" } as api.Child,
+  ];
+  it.each(["features", "today"] as const)(
+    "keeps the latest successful %s value per child",
+    async (kind) => {
+      const request =
+        kind === "features"
+          ? vi.mocked(api.getChildFeatures)
+          : vi.spyOn(api, "getChildToday");
+      const initial =
+        kind === "features" ? features : { at_ogs: true, state: "present" };
+      const fresh =
+        kind === "features"
+          ? { ...features, sick_note_enabled: false }
+          : { at_ogs: false, state: "left" };
+      const failure = new ApiError("offline", 503, {
+        code: "general.unavailable",
+      });
+      request.mockResolvedValue(initial as api.ChildFeatures & api.ChildToday);
+      const { result } = renderHook(
+        () => ({
+          features: useParentFeatures(linked),
+          today: useParentToday(linked),
+        }),
+        { wrapper: ParentResourceTestProvider },
+      );
+      await waitFor(() =>
+        expect(result.current[kind].data?.["42"]).toEqual(initial),
+      );
+      request.mockImplementation(async (id) => {
+        if (id === "43") throw failure;
+        return fresh as api.ChildFeatures & api.ChildToday;
+      });
+      await act(async () => {
+        await result.current[kind].mutate();
+      });
+      expect(result.current[kind].data?.["42"]).toEqual(fresh);
+      request.mockImplementation(async (id) => {
+        if (id === "42") throw failure;
+        return fresh as api.ChildFeatures & api.ChildToday;
+      });
+      await act(async () => {
+        await result.current[kind].mutate();
+      });
+      expect(result.current[kind].error).toBe(failure);
+      expect(result.current[kind].data).toEqual({ "42": fresh, "43": fresh });
+    },
+  );
+});
