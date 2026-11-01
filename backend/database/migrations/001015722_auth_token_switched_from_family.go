@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	authTokenSwitchedFromFamilyVersion     = "1.15.721"
-	authTokenSwitchedFromFamilyDescription = "Record the family a school switch minted its refresh family from (#5422)"
+	authTokenSwitchedFromFamilyVersion     = "1.15.722"
+	authTokenSwitchedFromFamilyDescription = "Record the origin of a refresh family's school-switch or Absprung lineage (#5422)"
 )
 
 func init() {
@@ -17,7 +17,7 @@ func init() {
 		Version:     authTokenSwitchedFromFamilyVersion,
 		Description: authTokenSwitchedFromFamilyDescription,
 		DependsOn: []string{
-			parentConferencesVersion,       // the last migration before this one
+			schoolVacationsVersion,         // the last migration before this one
 			AuthTokenFamilyVersion,         // family_id the new column names
 			backfillSessionFamiliesVersion, // every live chain carries a family
 		},
