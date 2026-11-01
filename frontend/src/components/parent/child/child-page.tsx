@@ -32,6 +32,7 @@ import {
   useChildMasterData,
 } from "~/components/parent/child-master-data";
 import GuardiansPanel from "~/components/parent/guardians-panel";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -100,38 +101,11 @@ export function ChildPage({
   const loading =
     (!childResource.data && !childResource.error) ||
     (!studentId && children.length > 1 && !statuses.data && !statuses.error);
-  const failed = !childResource.data && !!childResource.error;
-  const hasChildren = childResource.data !== undefined;
-  const { error: childError, mutate: reloadChildren } = childResource;
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-  useEffect(() => {
-    if (!childError || hasChildren) {
-      if (childError)
-        logger.warn("parent_children_background_refresh_failed", {
-          error:
-            childError instanceof Error
-              ? childError.message
-              : String(childError),
-        });
-      clearLoadError();
-      return;
-    }
-    void showLoadError(childError, {
-      object: t("errorObject"),
-      retry: () => void reloadChildren(),
-    });
-  }, [
-    childError,
-    hasChildren,
-    reloadChildren,
-    clearLoadError,
-    showLoadError,
-    t,
-  ]);
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [childResource],
+    t("errorObject"),
+    () => childResource.mutate(),
+  );
 
   const active = useMemo(() => {
     if (children.length === 0) return null;
@@ -155,7 +129,7 @@ export function ChildPage({
     return <ParentPageSkeleton rows={2} />;
   }
 
-  if (failed) return <LoadErrorAlert error={loadError} />;
+  if (failure) return <LoadErrorAlert error={loadError} />;
 
   if (children.length === 0) {
     return (

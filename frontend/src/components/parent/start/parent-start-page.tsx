@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -15,7 +15,6 @@ import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
-import { createLogger } from "~/lib/logger";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   UNKNOWN_CHILD_TODAY,
@@ -35,7 +34,7 @@ import {
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useApiLoadError } from "~/contexts/ToastContext";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
@@ -53,7 +52,6 @@ import {
 } from "~/lib/hooks/use-parent-resources";
 
 /** Wie weit nach vorn Termineinladungen fuer "Zu erledigen" gesucht werden. */
-const logger = createLogger({ component: "ParentStartPage" });
 
 const APPOINTMENT_LOOKAHEAD_DAYS = 90;
 
@@ -182,44 +180,17 @@ export function ParentStartPage() {
     today: todayResource.data ?? EMPTY_DATA.today,
     firstName: accountProfile.data?.first_name?.trim() ?? "",
   };
-  const failure =
-    (!childrenResource.data ? childrenResource.error : undefined) ??
-    (!featuresResource.hasConfirmedData ? featuresResource.error : undefined) ??
-    (!todayResource.hasConfirmedData ? todayResource.error : undefined);
-  const backgroundError =
-    (childrenResource.data ? childrenResource.error : undefined) ??
-    (featuresResource.hasConfirmedData ? featuresResource.error : undefined) ??
-    (todayResource.hasConfirmedData ? todayResource.error : undefined);
-  useEffect(() => {
-    if (backgroundError)
-      logger.warn("parent_start_children_background_refresh_failed", {
-        error:
-          backgroundError instanceof Error
-            ? backgroundError.message
-            : String(backgroundError),
-      });
-  }, [backgroundError]);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [childrenResource, featuresResource, todayResource],
+    t("errorObject"),
+    load,
+  );
   const loading =
     (!!failure && !loadError) ||
     (!childrenResource.data && !childrenResource.error) ||
     (!!childrenResource.data &&
       ((!featuresResource.data && !featuresResource.error) ||
         (!todayResource.data && !todayResource.error)));
-  useEffect(() => {
-    if (!failure) {
-      clearLoadError();
-      return;
-    }
-    void showLoadError(failure, {
-      object: t("errorObject"),
-      retry: () => void load(),
-    });
-  }, [failure, clearLoadError, showLoadError, load, t]);
 
   const greeting = useMemo(() => {
     const key = greetingKey(berlinHour());
@@ -388,11 +359,6 @@ function StartTodoSection() {
     () => invalidate(parentKeys.isResource),
     [invalidate],
   );
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
   const [openAnnouncementId, setOpenAnnouncementId] = useState<string | null>(
     null,
   );
@@ -426,38 +392,16 @@ function StartTodoSection() {
     }),
     [announcements.data, threads.data, calendar.data],
   );
-  const failure =
-    (!announcements.data ? announcements.error : undefined) ??
-    (!threads.data ? threads.error : undefined) ??
-    (!calendar.data ? calendar.error : undefined);
-  const backgroundError =
-    (announcements.data ? announcements.error : undefined) ??
-    (threads.data ? threads.error : undefined) ??
-    (calendar.data ? calendar.error : undefined);
-  useEffect(() => {
-    if (backgroundError)
-      logger.warn("parent_start_tasks_background_refresh_failed", {
-        error:
-          backgroundError instanceof Error
-            ? backgroundError.message
-            : String(backgroundError),
-      });
-  }, [backgroundError]);
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [announcements, threads, calendar],
+    t("todo.errorObject"),
+    load,
+  );
   const loaded =
     (!!announcements.data || !!announcements.error) &&
     (!!threads.data || !!threads.error) &&
     (!!calendar.data || !!calendar.error) &&
     (!failure || !!loadError);
-  useEffect(() => {
-    if (!failure) {
-      clearLoadError();
-      return;
-    }
-    void showLoadError(failure, {
-      object: t("todo.errorObject"),
-      retry: () => void load(),
-    });
-  }, [failure, clearLoadError, showLoadError, load, t]);
 
   const { mutate: mutateAnnouncements } = announcements;
   const applyAnnouncementPatch = useCallback(

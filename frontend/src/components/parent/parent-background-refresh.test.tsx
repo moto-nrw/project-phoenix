@@ -9,6 +9,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
+import { useParentChildren } from "~/lib/hooks/use-parent-resources";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import * as api from "~/lib/parent-api";
 import { ChildPage } from "./child/child-page";
@@ -125,5 +128,30 @@ describe("parent background refresh preserves mounted content", () => {
     await failChildrenRefresh();
     expect(screen.getByRole("textbox", { name: "Nachricht" })).toBe(draft);
     expect(draft).toHaveValue("Noch nicht gesendet");
+  });
+});
+
+function SharedLoadErrorFixture() {
+  const resource = useParentChildren();
+  const { error, failure } = useSwrResourceLoadError([resource], "Kinder", () =>
+    resource.mutate(),
+  );
+  if (failure) return <LoadErrorAlert error={error} />;
+  return <output>{resource.data ? "loaded" : "loading"}</output>;
+}
+
+describe("shared SWR load error semantics", () => {
+  it("shows the error card when the initial request has no data", async () => {
+    vi.mocked(api.listMyChildren).mockRejectedValue(unavailable);
+    mount(<SharedLoadErrorFixture />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+  it("treats a confirmed empty list as data during a failed revalidation", async () => {
+    vi.mocked(api.listMyChildren).mockResolvedValue([]);
+    mount(<SharedLoadErrorFixture />);
+    const content = await screen.findByText("loaded");
+    await failChildrenRefresh();
+    expect(screen.getByText("loaded")).toBe(content);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

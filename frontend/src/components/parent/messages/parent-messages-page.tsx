@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiLoadError } from "~/contexts/ToastContext";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -23,7 +23,6 @@ import {
   parentThreadPreviewI18nDescriptor,
 } from "~/lib/messaging-status";
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
-import { createLogger } from "~/lib/logger";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import {
   useParentChildren,
@@ -47,7 +46,6 @@ import { messagesConcept } from "~/lib/concepts/messages";
  */
 
 const EMPTY_CHILDREN: Child[] = [];
-const logger = createLogger({ component: "ParentMessagesPage" });
 
 interface ChildConversation {
   readonly studentId: string;
@@ -149,63 +147,20 @@ export function ParentMessagesPage() {
   const loading =
     (!childResource.data && !childResource.error) ||
     (children.length > 1 && !threads.data && !threads.error);
-  const {
-    error,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-  const {
-    error: groupThreadsError,
-    show: showGroupThreadsLoadError,
-    clear: clearGroupThreadsLoadError,
-  } = useApiLoadError();
   const invalidate = useInvalidateMatching();
   const refreshThreads = useCallback(() => {
     void invalidate(parentKeys.isResource);
   }, [invalidate]);
-  const failure =
-    (!childResource.data ? childResource.error : undefined) ??
-    (children.length > 1 && !threads.data ? threads.error : undefined);
-  const backgroundError =
-    (childResource.data ? childResource.error : undefined) ??
-    (threads.data ? threads.error : undefined) ??
-    (groups.data ? groups.error : undefined);
-  useEffect(() => {
-    if (backgroundError)
-      logger.warn("parent_messages_background_refresh_failed", {
-        error:
-          backgroundError instanceof Error
-            ? backgroundError.message
-            : String(backgroundError),
-      });
-  }, [backgroundError]);
-  useEffect(() => {
-    if (!failure) {
-      clearLoadError();
-      return;
-    }
-    void showLoadError(failure, {
-      object: t("errorObjectList"),
-      retry: refreshThreads,
-    });
-  }, [failure, clearLoadError, showLoadError, refreshThreads, t]);
-  useEffect(() => {
-    if (!groups.error || groups.data) {
-      clearGroupThreadsLoadError();
-      return;
-    }
-    void showGroupThreadsLoadError(groups.error, {
-      object: tGroupThreads("errorObjectList"),
-      retry: refreshThreads,
-    });
-  }, [
-    groups.error,
-    groups.data,
-    clearGroupThreadsLoadError,
-    showGroupThreadsLoadError,
+  const { error, failure } = useSwrResourceLoadError(
+    children.length > 1 ? [childResource, threads] : [childResource],
+    t("errorObjectList"),
     refreshThreads,
-    tGroupThreads,
-  ]);
+  );
+  const { error: groupThreadsError } = useSwrResourceLoadError(
+    [groups],
+    tGroupThreads("errorObjectList"),
+    refreshThreads,
+  );
 
   if (loading) {
     return (
@@ -260,7 +215,7 @@ export function ParentMessagesPage() {
             <GroupThreadsSection
               threads={groupThreads}
               compact
-              error={groups.data ? null : groupThreadsError}
+              error={groupThreadsError}
             />
           </div>
         )}
@@ -304,10 +259,7 @@ export function ParentMessagesPage() {
           </li>
         ))}
       </ul>
-      <GroupThreadsSection
-        threads={groupThreads}
-        error={groups.data ? null : groupThreadsError}
-      />
+      <GroupThreadsSection threads={groupThreads} error={groupThreadsError} />
     </ParentPage>
   );
 }

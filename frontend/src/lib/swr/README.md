@@ -148,6 +148,12 @@ also have one factory key per response.
 Batch readers expose `hasConfirmedData` for a complete, successful response;
 partial error values are not a confirmed initial response. Pages keep loaded
 content and dialogs mounted after background failures and log those failures.
+Use `useSwrResourceLoadError` from `~/lib/hooks/use-swr-load-error` for this
+shared presentation rule: it accepts SWR resources, blocks only on errors without
+confirmed data, and logs background failures. Empty lists are confirmed data.
+Pass batch readers with their `hasConfirmedData` flag so partial failure payloads
+do not hide an initial load error. Access/scope discards remain the resource
+boundary’s responsibility; the presenter never retains discarded data.
 The load-error path remains for resources that have never loaded successfully.
 
 Warm mounts use confirmed data immediately. Revalidating readers refresh an
