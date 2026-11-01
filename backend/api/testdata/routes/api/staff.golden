@@ -1,3 +1,5 @@
+DELETE /api/staff/time-tracking/payroll-rules/surcharge-rules/{ruleId}
+DELETE /api/staff/time-tracking/payroll-rules/wage-types/{wageTypeId}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
 DELETE /api/staff/{id}/documents/{documentId}
@@ -24,6 +26,7 @@ GET /api/staff/time-tracking/export/sftp-status
 GET /api/staff/time-tracking/month-close
 GET /api/staff/time-tracking/overview
 GET /api/staff/time-tracking/payroll-dispatch
+GET /api/staff/time-tracking/payroll-rules
 GET /api/staff/{id}
 GET /api/staff/{id}/absences
 GET /api/staff/{id}/avatar
@@ -54,6 +57,8 @@ POST /api/staff/externals/{id}/invitation
 POST /api/staff/qualification-types
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
+POST /api/staff/time-tracking/payroll-rules/surcharge-rules
+POST /api/staff/time-tracking/payroll-rules/wage-types
 POST /api/staff/{id}/absences
 POST /api/staff/{id}/absences/rebook
 POST /api/staff/{id}/documents
@@ -66,6 +71,9 @@ POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/staff/{id}/vacation/opening
 PUT /api/staff/qualification-types/{typeId}
+PUT /api/staff/time-tracking/payroll-rules/absence-types/{absenceTypeId}
+PUT /api/staff/time-tracking/payroll-rules/surcharge-rules/{ruleId}
+PUT /api/staff/time-tracking/payroll-rules/wage-types/{wageTypeId}
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/planned-exit

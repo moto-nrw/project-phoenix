@@ -54,7 +54,7 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 	side, err := newTimeTracking(repos.Workforce, workforceCompose.TimeTrackingPorts{
 		Absences: repos.StaffAbsence, AbsenceAudits: repos.Workforce,
 		Staff:        owners.WorkSessionStaff(staffRows, employment, membership),
-		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays,
+		Supervisions: presence.GroupSupervisor, SessionRecords: presence.ActiveGroup, Holidays: graph.Holidays, StatutoryHolidays: graph.Holidays,
 		Events: graph.Events, Logger: graph.Logger, Today: graph.Today, AbsenceEmail: absenceEmail,
 	}, graph.Audits, staffRows, graph.People, employment, owners.NewStaffWorkScheduleRepository(repos.Workforce), owners.NewWorkTimeModelRepository(repos.Workforce),
 		settings, payroll, db,

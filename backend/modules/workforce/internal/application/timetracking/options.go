@@ -3,6 +3,8 @@ package timetracking
 import (
 	"context"
 	"log/slog"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The retained services take their optional collaborators at construction.
@@ -142,6 +144,12 @@ func WithAdjustmentEvents(publisher EventPublisher) StaffBalanceAdjustmentOption
 // StaffMonthCloseOption configures optional month-close collaborators.
 type StaffMonthCloseOption func(*staffMonthCloseService)
 
+// WithMonthClosePayrollRules freezes the school's wage types and rules into
+// every snapshot of a close (#4807).
+func WithMonthClosePayrollRules(reader workforce.PayrollRuleSetReader) StaffMonthCloseOption {
+	return func(s *staffMonthCloseService) { s.payrollRules = reader }
+}
+
 // WithMonthCloseEvents binds the time-account change notification.
 func WithMonthCloseEvents(publisher EventPublisher) StaffMonthCloseOption {
 	return func(s *staffMonthCloseService) { s.broadcaster = publisher }
@@ -153,6 +161,16 @@ type StaffOverviewOption func(*staffOverviewService)
 // WithOverviewHolidays supplies the non-working-day resolver.
 func WithOverviewHolidays(reader HolidayDatesReader) StaffOverviewOption {
 	return func(s *staffOverviewService) { s.holidayReader = reader }
+}
+
+// WithOverviewPayrollRules supplies the school's wage types and surcharge
+// rules and its statutory holidays (no closing days) for the month export
+// (#4807).
+func WithOverviewPayrollRules(rules workforce.PayrollRuleSetReader, statutoryHolidays HolidayDatesReader) StaffOverviewOption {
+	return func(s *staffOverviewService) {
+		s.payrollRules = rules
+		s.statutoryHolidays = statutoryHolidays
+	}
 }
 
 // WithOverviewTargetOverrides supplies the Sonderarbeitszeiten (#3259), loaded

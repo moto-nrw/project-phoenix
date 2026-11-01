@@ -43,8 +43,9 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 
-	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
-	// 1.15.721; they go first.
+	// The wage types (1.15.725, #4807) and the Nachweisarten (1.15.724,
+	// #4808) extend this erasure; they go first.
+	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	var exists bool
@@ -61,6 +62,8 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	}
 	assert.True(t, names["calendar.school_vacation_acknowledgements"])
 	assert.False(t, names["calendar.school_vacations"], "the vacations hold for every school and are no school data")
+	require.NoError(t, staffQualificationTypesUp(ctx, db))
+	require.NoError(t, payrollWageTypesUp(ctx, db))
 }
 
 // TestSchoolVacationAcknowledgementIsUniquePerWindow keeps one confirmation

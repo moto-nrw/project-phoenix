@@ -44,10 +44,10 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	insertParentConference(t, db)
 
-	// The school vacations (1.15.721, #5345) extend the erasure functions of
-	// 1.15.720; they go first.
-	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
-	// 1.15.721; they go first.
+	// The wage types (1.15.725, #4807), the Nachweisarten (1.15.724, #4808)
+	// and the school vacations (1.15.721, #5345) extend this erasure; they go
+	// first.
+	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
@@ -67,6 +67,9 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	}
 	assert.True(t, names["calendar.parent_conferences"])
 	assert.True(t, names["calendar.parent_conference_bookings"])
+	require.NoError(t, schoolVacationsUp(ctx, db))
+	require.NoError(t, staffQualificationTypesUp(ctx, db))
+	require.NoError(t, payrollWageTypesUp(ctx, db))
 
 	// Like school_erasure_assert_empty, only the erasure itself calls the
 	// key freeze: no application role may execute it directly.

@@ -76,4 +76,7 @@ var (
 	ComposeCapability func(t *testing.T, db *bun.DB, now func() time.Time) workforce.Capability
 	// ComposeRows composes the retained rows over db.
 	ComposeRows func(t *testing.T, db *bun.DB) Rows
+	// ComposePayrollRules composes the wage type maintenance of /payroll
+	// over db with the root's settings audit (#4807).
+	ComposePayrollRules func(t *testing.T, db *bun.DB) workforce.PayrollRules
 )

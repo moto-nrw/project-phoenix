@@ -138,5 +138,25 @@
   ],
   "api/staff/time-tracking/payroll-dispatch": [
     "GET tenant /api/staff/time-tracking/payroll-dispatch"
+  ],
+  "api/staff/time-tracking/payroll-rules": [
+    "GET tenant /api/staff/time-tracking/payroll-rules"
+  ],
+  "api/staff/time-tracking/payroll-rules/absence-types/[absenceTypeId]": [
+    "PUT tenant /api/staff/time-tracking/payroll-rules/absence-types/absenceTypeId%2F1"
+  ],
+  "api/staff/time-tracking/payroll-rules/surcharge-rules": [
+    "POST tenant /api/staff/time-tracking/payroll-rules/surcharge-rules"
+  ],
+  "api/staff/time-tracking/payroll-rules/surcharge-rules/[ruleId]": [
+    "DELETE tenant /api/staff/time-tracking/payroll-rules/surcharge-rules/ruleId%2F1",
+    "PUT tenant /api/staff/time-tracking/payroll-rules/surcharge-rules/ruleId%2F1"
+  ],
+  "api/staff/time-tracking/payroll-rules/wage-types": [
+    "POST tenant /api/staff/time-tracking/payroll-rules/wage-types"
+  ],
+  "api/staff/time-tracking/payroll-rules/wage-types/[wageTypeId]": [
+    "DELETE tenant /api/staff/time-tracking/payroll-rules/wage-types/wageTypeId%2F1",
+    "PUT tenant /api/staff/time-tracking/payroll-rules/wage-types/wageTypeId%2F1"
   ]
 }

@@ -12,16 +12,27 @@ import PayrollPage from "./page";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mutateMock, setSettingValueMock, swrData, swrKeys } = vi.hoisted(
-  () => ({
-    mutateMock: vi.fn(),
-    setSettingValueMock: vi.fn(),
-    // Per SWR key: the page loads the status, the latest dispatch and, for
-    // the SFTP way, whether the counterpart is ready.
-    swrData: {} as Record<string, { data?: unknown; error?: unknown }>,
-    swrKeys: [] as Array<string | null>,
-  }),
-);
+const {
+  mutateMock,
+  setSettingValueMock,
+  updateWageTypeMock,
+  updateSurchargeRuleMock,
+  archiveWageTypeMock,
+  setAbsenceTypeWageTypeMock,
+  swrData,
+  swrKeys,
+} = vi.hoisted(() => ({
+  mutateMock: vi.fn(),
+  setSettingValueMock: vi.fn(),
+  updateWageTypeMock: vi.fn(),
+  updateSurchargeRuleMock: vi.fn(),
+  archiveWageTypeMock: vi.fn(),
+  setAbsenceTypeWageTypeMock: vi.fn(),
+  // Per SWR key: the page loads the status, the latest dispatch and, for
+  // the SFTP way, whether the counterpart is ready.
+  swrData: {} as Record<string, { data?: unknown; error?: unknown }>,
+  swrKeys: [] as Array<string | null>,
+}));
 
 function payrollStatus(dispatch: Record<string, unknown> = {}) {
   return {
@@ -71,6 +82,14 @@ vi.mock("~/lib/hooks/use-require-permission", () => ({
     isReady: true,
     isLoading: false,
   }),
+}));
+
+vi.mock("~/lib/payroll-rules-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/payroll-rules-api")>()),
+  updateWageType: updateWageTypeMock,
+  updateSurchargeRule: updateSurchargeRuleMock,
+  archiveWageType: archiveWageTypeMock,
+  setAbsenceTypeWageType: setAbsenceTypeWageTypeMock,
 }));
 
 vi.mock("~/lib/payroll-api", async (importOriginal) => ({
@@ -407,6 +426,228 @@ describe("PayrollPage Versand an das Lohnbüro (#4805)", () => {
       screen.getByText(
         "Noch nichts gesendet. Der erste Versand startet nach dem nächsten Monatsabschluss.",
       ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
+  function payrollRules(overrides: Record<string, unknown> = {}) {
+    return {
+      wageTypes: [
+        { id: "7", name: "Nachtzuschlag", number: "", unit: "stunden" },
+      ],
+      surchargeRules: [
+        {
+          id: "8",
+          kind: "nacht",
+          windowStartMinute: 1200,
+          windowEndMinute: 360,
+          rateType: "prozent",
+          rateHundredths: 2500,
+          wageTypeId: "7",
+        },
+      ],
+      absenceTypes: [
+        { id: "9", name: "Sonderurlaub", isActive: true, wageTypeId: null },
+      ],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    swrKeys.length = 0;
+    mutateMock.mockResolvedValue(undefined);
+    updateWageTypeMock.mockResolvedValue(undefined);
+    updateSurchargeRuleMock.mockResolvedValue(undefined);
+    archiveWageTypeMock.mockResolvedValue(undefined);
+    setAbsenceTypeWageTypeMock.mockResolvedValue(undefined);
+    resetSwr();
+    swrData["payroll-rules"] = { data: payrollRules() };
+  });
+
+  it("zeigt die eigenen Lohnarten, die Zuschläge und die Abwesenheitsarten", () => {
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Eigene Lohnarten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Zuschläge" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Eigene Abwesenheitsarten" }),
+    ).toBeInTheDocument();
+    // Die Vollständigkeit nennt die Lohnart ohne Nummer.
+    expect(
+      screen.getByText(
+        /Ohne Lohnartnummer, fehlen im DATEV-Export: Nachtzuschlag/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("speichert die Nummer einer eigenen Lohnart beim Verlassen des Felds", async () => {
+    render(<PayrollPage />);
+
+    const [input] = screen.getAllByRole("textbox", {
+      name: "Lohnartnummer Nachtzuschlag",
+    });
+    fireEvent.change(input!, { target: { value: "310" } });
+    fireEvent.blur(input!);
+
+    await waitFor(() => {
+      expect(updateWageTypeMock).toHaveBeenCalledWith("7", {
+        name: "Nachtzuschlag",
+        number: "310",
+        unit: "stunden",
+      });
+    });
+    await waitFor(() => expect(mutateMock).toHaveBeenCalled());
+  });
+
+  it("behält eine vorher gespeicherte Feldänderung bei schnellen Änderungen", async () => {
+    const firstSave = deferred<void>();
+    updateWageTypeMock
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValueOnce(undefined);
+    render(<PayrollPage />);
+
+    const [name] = screen.getAllByRole("textbox", {
+      name: "Bezeichnung Nachtzuschlag",
+    });
+    const [number] = screen.getAllByRole("textbox", {
+      name: "Lohnartnummer Nachtzuschlag",
+    });
+    fireEvent.change(name!, { target: { value: "Nacht neu" } });
+    fireEvent.blur(name!);
+
+    await waitFor(() => expect(updateWageTypeMock).toHaveBeenCalledTimes(1));
+    fireEvent.change(number!, { target: { value: "310" } });
+    fireEvent.blur(number!);
+    expect(updateWageTypeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstSave.promise;
+    });
+
+    await waitFor(() => expect(updateWageTypeMock).toHaveBeenCalledTimes(2));
+    expect(updateWageTypeMock).toHaveBeenNthCalledWith(1, "7", {
+      name: "Nacht neu",
+      number: "",
+      unit: "stunden",
+    });
+    expect(updateWageTypeMock).toHaveBeenNthCalledWith(2, "7", {
+      name: "Nacht neu",
+      number: "310",
+      unit: "stunden",
+    });
+  });
+
+  it("serialisiert schnelle Änderungen an derselben Zuschlagsregel", async () => {
+    const firstSave = deferred<void>();
+    updateSurchargeRuleMock
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValueOnce(undefined);
+    render(<PayrollPage />);
+
+    const [rate] = screen.getAllByRole("textbox", {
+      name: "Höhe Nachtarbeit in Prozent",
+    });
+    fireEvent.change(rate!, { target: { value: "30" } });
+    fireEvent.blur(rate!);
+
+    await waitFor(() =>
+      expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(1),
+    );
+    const [from] = screen.getAllByLabelText("Nachtarbeit von");
+    fireEvent.change(from!, { target: { value: "21:00" } });
+    fireEvent.blur(from!);
+    expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstSave.promise;
+    });
+
+    await waitFor(() =>
+      expect(updateSurchargeRuleMock).toHaveBeenCalledTimes(2),
+    );
+    expect(updateSurchargeRuleMock).toHaveBeenNthCalledWith(1, "8", {
+      id: "8",
+      kind: "nacht",
+      windowStartMinute: 1200,
+      windowEndMinute: 360,
+      rateType: "prozent",
+      rateHundredths: 3000,
+      wageTypeId: "7",
+    });
+    expect(updateSurchargeRuleMock).toHaveBeenNthCalledWith(2, "8", {
+      id: "8",
+      kind: "nacht",
+      windowStartMinute: 1260,
+      windowEndMinute: 360,
+      rateType: "prozent",
+      rateHundredths: 3000,
+      wageTypeId: "7",
+    });
+  });
+
+  it("zeigt einen Fehler beim Speichern über den Karten", async () => {
+    updateWageTypeMock.mockRejectedValueOnce(
+      new ApiError("conflict", 409, {
+        code: "workforce.payroll_wage_type_name_taken",
+      }),
+    );
+    render(<PayrollPage />);
+
+    const [input] = screen.getAllByRole("textbox", {
+      name: "Bezeichnung Nachtzuschlag",
+    });
+    fireEvent.change(input!, { target: { value: "Sonntag" } });
+    fireEvent.blur(input!);
+
+    expect(
+      await screen.findByText(
+        catalogText("workforce.payroll_wage_type_name_taken", "die Lohnart"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("archiviert eine Lohnart erst nach der Rückfrage", async () => {
+    render(<PayrollPage />);
+
+    const [menu] = screen.getAllByRole("button", {
+      name: "Aktionen für Nachtzuschlag",
+    });
+    fireEvent.click(menu!);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Archivieren" }),
+    );
+    expect(archiveWageTypeMock).not.toHaveBeenCalled();
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/Abgeschlossene Monate behalten/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Archivieren" }),
+    );
+
+    await waitFor(() => expect(archiveWageTypeMock).toHaveBeenCalledWith("7"));
+  });
+
+  it("verlangt für eine Zuschlagsregel zuerst eine eigene Lohnart", () => {
+    swrData["payroll-rules"] = {
+      data: payrollRules({ wageTypes: [], surchargeRules: [] }),
+    };
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByRole("button", { name: "Zuschlagsregel anlegen" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/Legen Sie zuerst oben eine Lohnart an/),
     ).toBeInTheDocument();
   });
 });

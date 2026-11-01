@@ -4437,6 +4437,11 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/payrollRuleAudit.RecordPayrollRuleChange",
+      "reason": "Root translation of Workforce's payroll rule audit port onto the settings audit (#4807): resolves the tenant, maps the actor onto changed_by and builds the setting audit entry; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/payrollTransfer.RecordEmail",
       "reason": "Root translation of Workforce's journal port onto Export Transfer's e-mail record (#4805): sets the export kind and the failure reason code; no forwarding without translation."
     },

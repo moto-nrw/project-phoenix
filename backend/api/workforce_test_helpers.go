@@ -42,6 +42,9 @@ type WorkforceTestModule struct {
 	// PayrollDispatch is a school without the automatic send (#4805): the
 	// month close queues nothing. The dispatch has its own tests.
 	PayrollDispatch workforce.PayrollDispatch
+	// PayrollRules maintains the school's own wage types (#4807) with the
+	// root's settings audit.
+	PayrollRules workforce.PayrollRules
 }
 
 // payrollDispatchOff is the Lohnbüro of a school that never switched the
@@ -164,7 +167,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, shiftPlanSyncer, tenant.NewTransactionRunner().RunInTx)
-	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}}, usersService, err
+	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}, PayrollRules: testPayrollRules(repos.Workforce, db)}, usersService, err
 }
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
@@ -206,3 +209,13 @@ type (
 	StaffAbsenceRow      = workforceCompose.StaffAbsence
 	AbsenceRequestFilter = workforceCompose.AbsenceRequestFilter
 )
+
+// testPayrollRules composes the wage type maintenance (#4807) with the root's
+// settings audit. It fails only without an audit, which the root always binds.
+func testPayrollRules(workTime workforce.Capability, db transactionruntime.Database) workforce.PayrollRules {
+	rules, err := owners.BuildPayrollRules(workTime, db)
+	if err != nil {
+		panic(err)
+	}
+	return rules
+}

@@ -29,6 +29,10 @@ const CodeWorkforceNoSessionForToday = "workforce.no_session_for_today"
 const CodeWorkforceOpeningBalanceAlreadyExists = "workforce.opening_balance_already_exists"
 const CodeWorkforcePayrollConfigIncomplete = "workforce.payroll_config_incomplete"
 const CodeWorkforcePayrollDownloadUnavailable = "workforce.payroll_download_unavailable"
+const CodeWorkforcePayrollRuleInvalid = "workforce.payroll_rule_invalid"
+const CodeWorkforcePayrollRuleNotFound = "workforce.payroll_rule_not_found"
+const CodeWorkforcePayrollWageTypeInUse = "workforce.payroll_wage_type_in_use"
+const CodeWorkforcePayrollWageTypeNameTaken = "workforce.payroll_wage_type_name_taken"
 const CodeWorkforcePersonnelNumberInvalid = "workforce.personnel_number_invalid"
 const CodeWorkforcePersonnelNumberTaken = "workforce.personnel_number_taken"
 const CodeWorkforceQualificationTypeNameTaken = "workforce.qualification_type_name_taken"
@@ -102,6 +106,10 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceOpeningBalanceAlreadyExists, "business_rejection"},
 	{CodeWorkforcePayrollConfigIncomplete, "business_rejection"},
 	{CodeWorkforcePayrollDownloadUnavailable, "business_rejection"},
+	{CodeWorkforcePayrollRuleInvalid, "input"},
+	{CodeWorkforcePayrollRuleNotFound, "business_rejection"},
+	{CodeWorkforcePayrollWageTypeInUse, "business_rejection"},
+	{CodeWorkforcePayrollWageTypeNameTaken, "business_rejection"},
 	{CodeWorkforcePersonnelNumberInvalid, "input"},
 	{CodeWorkforcePersonnelNumberTaken, "business_rejection"},
 	{CodeWorkforceQualificationTypeNameTaken, "business_rejection"},
