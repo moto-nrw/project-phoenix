@@ -65,6 +65,8 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
 import {
   MAX_FLUSH_WAIT_MS,
   RECONCILE_MIN_GAP_MS,
+  STARTUP_RECONCILE_DELAY_MS,
+  STARTUP_RECONCILE_JITTER_MS,
   useGlobalSSE,
 } from "./use-global-sse";
 
@@ -285,7 +287,41 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     },
   );
 
-  it("does not reconcile on the first connection", () => {
+  it("reconciles once, a moment after the first connection", () => {
+    setStatus("idle");
+    const view = renderHook(() => useGlobalSSE());
+    setStatus("connected");
+    view.rerender();
+    // Not at once: the page just loaded these caches.
+    act(() => vi.advanceTimersByTime(STARTUP_RECONCILE_DELAY_MS - 1));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(invalidatedFamilies).toEqual([]);
+    // Then once, for the events of the first seconds.
+    act(() => vi.advanceTimersByTime(1));
+    expect(matchedKeys()).toEqual(INVENTORY.slice(0, 5));
+    expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(10 * RECONCILE_MIN_GAP_MS));
+    expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(1);
+  });
+
+  it("spreads the first reconcile of many tabs by its jitter", () => {
+    vi.mocked(Math.random).mockReturnValue(0.5);
+    setStatus("idle");
+    const view = renderHook(() => useGlobalSSE());
+    setStatus("connected");
+    view.rerender();
+    act(() =>
+      vi.advanceTimersByTime(
+        STARTUP_RECONCILE_DELAY_MS + STARTUP_RECONCILE_JITTER_MS / 2 - 1,
+      ),
+    );
+    expect(invalidatedFamilies).toEqual([]);
+    act(() => vi.advanceTimersByTime(1));
+    expect(invalidatedFamilies).toContain(OWN);
+  });
+
+  it("defers the first reconcile of a hidden tab until it is visible", () => {
+    setVisibility("hidden");
     setStatus("idle");
     const view = renderHook(() => useGlobalSSE());
     setStatus("connected");
@@ -293,10 +329,18 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     act(() => vi.advanceTimersByTime(RECONCILE_MIN_GAP_MS));
     expect(mutate).not.toHaveBeenCalled();
     expect(invalidatedFamilies).toEqual([]);
+    setVisibility("visible");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(invalidatedFamilies).toContain(OWN);
   });
 
-  it("does not reconcile the first stream of a new account", () => {
+  it("gives a new account's first stream one delayed reconcile, not an immediate one", () => {
     const view = renderConnected();
+    act(() => vi.advanceTimersByTime(STARTUP_RECONCILE_DELAY_MS));
+    vi.mocked(mutate).mockClear();
+    invalidatedFamilies.length = 0;
     session.current = { ...session.current, id: "account-8" };
     view.rerender();
     // useSSE replaces the stream for the new account.
@@ -304,13 +348,15 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     view.rerender();
     setStatus("connected");
     view.rerender();
-    act(() => vi.advanceTimersByTime(RECONCILE_MIN_GAP_MS));
     expect(mutate).not.toHaveBeenCalled();
     expect(invalidatedFamilies).toEqual([]);
+    act(() => vi.advanceTimersByTime(RECONCILE_MIN_GAP_MS));
+    expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(1);
 
-    // A later drop of that stream does reconcile.
+    // A later drop of that stream reconciles again, within the throttle.
     reconnect(view);
-    expect(invalidatedFamilies).toContain(OWN);
+    act(() => vi.advanceTimersByTime(RECONCILE_MIN_GAP_MS));
+    expect(invalidatedFamilies.filter((f) => f === OWN)).toHaveLength(2);
   });
 
   it("waits until a hidden tab is visible again", () => {

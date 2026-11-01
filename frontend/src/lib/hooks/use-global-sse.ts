@@ -78,6 +78,13 @@ export const MAX_FLUSH_WAIT_MS = 1000;
 // A stream that keeps dropping and reopening reconciles at most once per this
 // window; a reconnect inside it reconciles once at its end (#5017).
 export const RECONCILE_MIN_GAP_MS = 30_000;
+// The first stream of a binding opens a moment after the page loaded its
+// data (and after the server snapshot was rendered): an event in that gap
+// would wait for the five-minute reconcile. One reconcile follows the first
+// open after this delay plus up to STARTUP_RECONCILE_JITTER_MS, so the
+// schools' tabs do not reload in step after a deploy (#5017).
+export const STARTUP_RECONCILE_DELAY_MS = 3_000;
+export const STARTUP_RECONCILE_JITTER_MS = 2_000;
 
 // The dashboard caches that reflect live check-in/out counts. Deliberately an
 // explicit list instead of the old `key.includes("dashboard")`: that substring
@@ -1446,6 +1453,9 @@ export function useGlobalSSE(): SSEHookState {
   // most once per RECONCILE_MIN_GAP_MS.
   const lastReconcileAt = useRef<number | null>(null);
   const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupReconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const reconcileWhenVisible = useRef(false);
   const reconcileRef = useRef<() => void>(() => undefined);
   const reconcile = useCallback(() => {
@@ -1528,6 +1538,10 @@ export function useGlobalSSE(): SSEHookState {
         clearTimeout(reconcileTimer.current);
         reconcileTimer.current = null;
       }
+      if (startupReconcileTimer.current) {
+        clearTimeout(startupReconcileTimer.current);
+        startupReconcileTimer.current = null;
+      }
     };
   }, []);
 
@@ -1548,6 +1562,10 @@ export function useGlobalSSE(): SSEHookState {
       connectedReconnectKeyRef.current = reconnectKey;
       hasConnectedRef.current = false;
       missedEventsPossibleRef.current = false;
+      if (startupReconcileTimer.current) {
+        clearTimeout(startupReconcileTimer.current);
+        startupReconcileTimer.current = null;
+      }
       return;
     }
     if (connectedReconnectKeyRef.current !== reconnectKey) {
@@ -1563,6 +1581,16 @@ export function useGlobalSSE(): SSEHookState {
     if (sseState.status === "connected") {
       if (hasConnectedRef.current && missedEventsPossibleRef.current) {
         reconcileRef.current();
+      } else if (!hasConnectedRef.current && !startupReconcileTimer.current) {
+        // Math.random is fine here: load-spreading jitter, no security context.
+        startupReconcileTimer.current = setTimeout(
+          () => {
+            startupReconcileTimer.current = null;
+            reconcileRef.current();
+          },
+          STARTUP_RECONCILE_DELAY_MS +
+            Math.random() * STARTUP_RECONCILE_JITTER_MS,
+        );
       }
       hasConnectedRef.current = true;
       missedEventsPossibleRef.current = false;
