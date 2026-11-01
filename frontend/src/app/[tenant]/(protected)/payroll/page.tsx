@@ -394,13 +394,14 @@ function LohnartenCard({
     >
       <DataTable
         // Auf dem Handy untereinander: die Auswahl der Einheit lag sonst
-        // rechts außerhalb der Karte (#4975).
+        // rechts außerhalb der Karte (#4975). Als Formular: Beschriftung
+        // über dem Feld, alle Felder gleich breit (#4807).
         stackedOnMobile
+        stackedLayout="form"
         columns={lohnartColumns(onSave)}
         rows={status.categories}
         getRowKey={(cat) => cat.id}
         rowHasInteractiveControls
-        caption="Lohnartnummern je Kategorie"
       />
     </SectionCard>
   );
@@ -438,10 +439,10 @@ function lohnartColumns(
                 void onSave(cat.unitSettingKey, next);
               }
             }}
-            triggerClassName="moto-content-surface h-9 w-auto min-w-[10rem] hover:border-gray-300"
+            triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
           />
         ) : (
-          <span className="text-xs text-gray-400">Stunden (fest)</span>
+          <span className="text-sm text-gray-600">Stunden (fest)</span>
         ),
     },
   ];
@@ -460,7 +461,7 @@ function LohnartNumberCell({
   const valid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
 
   return (
-    <div className="max-w-[10rem]">
+    <div className="w-full md:max-w-[10rem]">
       <Input
         aria-label={`Lohnartnummer ${cat.label}`}
         value={number}
@@ -1027,7 +1028,7 @@ function WageTypesCard({
               );
             }
           }}
-          triggerClassName="moto-content-surface h-9 w-auto min-w-[10rem] hover:border-gray-300"
+          triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
         />
       ),
     },
@@ -1035,6 +1036,7 @@ function WageTypesCard({
       key: "actions",
       header: "",
       align: "right",
+      stacked: "meta",
       render: (wageType) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${wageType.name}`}
@@ -1067,11 +1069,12 @@ function WageTypesCard({
       ) : (
         <DataTable
           stackedOnMobile
+          stackedLayout="form"
+          stackedTitle={(wageType) => wageType.name}
           columns={columns}
           rows={[...wageTypes]}
           getRowKey={(wageType) => wageType.id}
           rowHasInteractiveControls
-          caption="Bezeichnung, Nummer und Einheit je Lohnart"
         />
       )}
     </SectionCard>
@@ -1101,7 +1104,13 @@ function WageTypeTextCell({
         : "1 bis 4 Ziffern.";
 
   return (
-    <div className={field === "number" ? "max-w-[10rem]" : "max-w-[18rem]"}>
+    <div
+      className={
+        field === "number"
+          ? "w-full md:max-w-[10rem]"
+          : "w-full md:max-w-[18rem]"
+      }
+    >
       <Input
         aria-label={
           field === "name"
@@ -1189,7 +1198,7 @@ function SurchargeRulesCard({
                 );
               }
             }}
-            triggerClassName="moto-content-surface h-9 w-auto min-w-[10rem] hover:border-gray-300"
+            triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
           />
         );
       },
@@ -1198,6 +1207,7 @@ function SurchargeRulesCard({
       key: "actions",
       header: "",
       align: "right",
+      stacked: "meta",
       render: (rule) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${SURCHARGE_KIND_LABELS[rule.kind]}`}
@@ -1237,11 +1247,11 @@ function SurchargeRulesCard({
       ) : (
         <DataTable
           stackedOnMobile
+          stackedLayout="form"
           columns={columns}
           rows={[...rules.surchargeRules]}
           getRowKey={(rule) => rule.id}
           rowHasInteractiveControls
-          caption="Zuschlagsregeln"
         />
       )}
     </SectionCard>
@@ -1285,14 +1295,14 @@ function NightWindowCell({
   };
 
   return (
-    <div className="flex flex-wrap items-start gap-2">
+    <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 md:flex md:w-auto">
       <Input
         aria-label="Nachtarbeit von"
         type="time"
         value={from}
         onChange={(event) => setFrom(event.target.value)}
         onBlur={commit}
-        className="h-9 w-28 py-1 text-sm"
+        className="h-9 w-full py-1 text-sm md:w-28"
       />
       <span className="pt-2 text-sm text-gray-600">bis</span>
       <Input
@@ -1301,7 +1311,7 @@ function NightWindowCell({
         value={until}
         onChange={(event) => setUntil(event.target.value)}
         onBlur={commit}
-        className="h-9 w-28 py-1 text-sm"
+        className="h-9 w-full py-1 text-sm md:w-28"
         error={valid ? undefined : "Zwei verschiedene Uhrzeiten."}
       />
     </div>
@@ -1325,10 +1335,11 @@ function RateCell({
   const value = parseRate(text);
 
   return (
-    <div className="flex items-start gap-2">
-      <div className="max-w-[7rem]">
+    // Die Einheit steht im Feld: So bleibt es so breit wie die anderen.
+    <div className="relative w-full md:max-w-[11rem]">
+      <div>
         <Input
-          aria-label={`Höhe ${SURCHARGE_KIND_LABELS[rule.kind]}`}
+          aria-label={`Höhe ${SURCHARGE_KIND_LABELS[rule.kind]} in ${rule.rateType === "prozent" ? "Prozent" : "Euro je Stunde"}`}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onBlur={() => {
@@ -1342,11 +1353,14 @@ function RateCell({
             }
           }}
           inputMode="decimal"
-          className="h-9 py-1 text-sm tabular-nums"
+          className={`h-9 py-1 text-sm tabular-nums ${rule.rateType === "prozent" ? "pr-8" : "pr-28"}`}
           error={value === null ? "Eine Zahl größer als 0." : undefined}
         />
       </div>
-      <span className="pt-2 text-sm text-gray-600">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 right-4 flex h-9 items-center text-sm whitespace-nowrap text-gray-500"
+      >
         {rule.rateType === "prozent" ? "%" : "€ je Stunde"}
       </span>
     </div>
@@ -1400,7 +1414,7 @@ function AbsenceTypeWageTypesCard({
               );
             }
           }}
-          triggerClassName="moto-content-surface h-9 w-auto min-w-[12rem] hover:border-gray-300"
+          triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[12rem]"
         />
       ),
     },
@@ -1427,11 +1441,11 @@ function AbsenceTypeWageTypesCard({
       ) : (
         <DataTable
           stackedOnMobile
+          stackedLayout="form"
           columns={columns}
           rows={[...rules.absenceTypes]}
           getRowKey={(absenceType) => absenceType.id}
           rowHasInteractiveControls
-          caption="Lohnart je Abwesenheitsart"
         />
       )}
     </SectionCard>
