@@ -41,18 +41,6 @@ export function ResourcePrefetchProvider({
   const scheduler = useRef({ active: 0, queue: [] as (() => Promise<void>)[] });
   const intent = useMemo(() => {
     const pending = new Set<string>();
-    // Resolve code/descriptors alongside the route at 80 ms, not after the
-    // 300-ms data timer. Contains no responses and starts no data requests.
-    const prepared = new Map<string, Promise<readonly PrefetchResource[]>>();
-    const resolve = (href: string) => {
-      let result = prepared.get(href);
-      if (!result) {
-        result = resourcesFor(href);
-        if (prepared.size >= 12) prepared.delete(prepared.keys().next().value!);
-        prepared.set(href, result);
-      }
-      return result;
-    };
     const drain = () => {
       const state = scheduler.current;
       while (state.active < 3 && state.queue.length > 0) {
@@ -64,11 +52,11 @@ export function ResourcePrefetchProvider({
         });
       }
     };
-    const run = (href: string, explicit?: readonly PrefetchResource[]) => {
+    return (href: string, explicit?: readonly PrefetchResource[]) => {
       if (!mayPrefetch()) return;
-      // Capture the locked callback BEFORE importing resources. A scope change
-      // while the chunk loads or the queue waits cannot rebind old intent.
-      void (explicit ? Promise.resolve(explicit) : resolve(href))
+      // Capture the locked callback before resolving resources or waiting in
+      // the queue. Old intent cannot bind itself to a new scope.
+      void (explicit ? Promise.resolve(explicit) : resourcesFor(href))
         .then((resources) => {
           if (!mounted.current) return;
           for (const resource of resources) {
@@ -95,11 +83,6 @@ export function ResourcePrefetchProvider({
         })
         .catch(() => undefined);
     };
-    return Object.assign(run, {
-      prepare: (href: string) => {
-        if (mayPrefetch()) void resolve(href).catch(() => undefined);
-      },
-    });
   }, [preload, resourcesFor]);
   return <DataPrefetchContext value={intent}>{children}</DataPrefetchContext>;
 }

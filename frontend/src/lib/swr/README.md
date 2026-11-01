@@ -222,7 +222,7 @@ same locked writer. It skips an already current cached response and removes
 only its own failed preload promise, so a later page runs its ordinary loader.
 It never mutates response data directly, bypasses a generation check, or
 removes a replacement promise. General preloads keep their existing contract.
-The protected tenant shell prepares fetcher code beside route code, but starts
-data only after intent. Its queue runs at most three resources concurrently
+The protected tenant shell shares thin fetchers, not page hooks, so data
+intent does not wait for another code chunk. It starts data only after intent. Its queue runs at most three resources concurrently
 and holds at most twelve waiting resources; account/school/generation changes
 invalidate the captured writer even while code is loading or work is queued.

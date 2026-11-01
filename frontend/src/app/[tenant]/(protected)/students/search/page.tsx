@@ -1646,12 +1646,7 @@ function SearchPageContent() {
         view: "slim" as const,
       };
 
-      return fetchStudentSearch(
-        filters,
-        selectedDate,
-        isToday,
-        studentService.getStudents,
-      );
+      return fetchStudentSearch(filters, selectedDate, isToday);
     },
     {
       // Keep previous data while fetching (prevents loading flash)

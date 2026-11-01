@@ -789,7 +789,7 @@ export function useSWRPreload() {
         cached !== undefined &&
         isCurrentSWRValue(fullKey, cached) === true
       )
-        return Promise.resolve(cached);
+        return Promise.resolve(undefined);
       const start = startOf(fullKey);
       return preloadSWR(fullKey, fetcher, options?.intent).then(
         (value) =>

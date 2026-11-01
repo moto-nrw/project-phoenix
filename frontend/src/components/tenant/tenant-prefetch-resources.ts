@@ -1,3 +1,5 @@
+import { fetchSupervisionDashboard } from "~/components/active-supervisions/supervision-dashboard-resource";
+import { fetchStudentDetail } from "~/lib/student-detail-resource";
 import type { Session } from "next-auth";
 import type { PrefetchResource } from "~/components/ui/data-prefetch-intent";
 import {
@@ -7,19 +9,13 @@ import {
 } from "~/lib/auth-utils";
 import { canReadStudents } from "~/lib/student-access";
 import { canReviewChangeRequests } from "~/lib/change-request-access";
-import { groupKeys as groups } from "~/lib/swr/groups-keys";
-import { roomKeys as rooms } from "~/lib/swr/rooms-keys";
+import { groups } from "~/lib/swr/groups";
+import { rooms } from "~/lib/swr/rooms";
 import { studentKeys, homeLayoutKeys } from "~/lib/swr/portal-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { fetchStudentSearch } from "~/lib/student-search-resource";
 import { berlinTodayISO } from "~/lib/date-helpers";
-import {
-  getStudents,
-  getStudent,
-  getSchoolClasses,
-  getGroups,
-  getRooms,
-} from "~/lib/api";
+import { studentService } from "~/lib/api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import { courseWaitlistKeys } from "~/lib/swr/course-waitlist-keys";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
@@ -87,7 +83,6 @@ export async function tenantPrefetchResources(
                   },
                   date,
                   true,
-                  getStudents,
                 ),
             },
           ]
@@ -95,25 +90,19 @@ export async function tenantPrefetchResources(
     return [
       ...main,
       ...(hasPermission(session, "groups:read")
-        ? [
-            {
-              key: groups.key(),
-              fetcher: () => getGroups({}, { strict: true }),
-            },
-          ]
+        ? [{ key: groups.key(), fetcher: groups.fetcher }]
         : []),
       ...(hasPermission(session, "rooms:read")
         ? [
             {
               key: rooms.key({ page: 1, pageSize: 1000 }),
-              fetcher: () =>
-                getRooms({ page: 1, pageSize: 1000 }, { strict: true }),
+              fetcher: () => rooms.fetcher({ page: 1, pageSize: 1000 }),
             },
           ]
         : []),
       {
         key: studentKeys.schoolClasses(),
-        fetcher: () => getSchoolClasses(),
+        fetcher: () => studentService.getSchoolClasses(),
       },
     ];
   }
@@ -131,8 +120,6 @@ export async function tenantPrefetchResources(
     !params.has("session") &&
     !params.has("room")
   ) {
-    const { fetchSupervisionDashboard } =
-      await import("~/components/active-supervisions/supervision-dashboard-resource");
     return [
       {
         key: dashboardKeys.supervision(session.user.id),
@@ -143,13 +130,8 @@ export async function tenantPrefetchResources(
   const student = /^\/students\/([1-9]\d*)$/.exec(path ?? "");
   if (student?.[1] && canReadStudents(session)) {
     const id = student[1];
-    const { fetchStudentDetail } =
-      await import("~/lib/student-detail-resource");
     return [
-      {
-        key: studentKeys.detail(id),
-        fetcher: () => fetchStudentDetail(id, getStudent),
-      },
+      { key: studentKeys.detail(id), fetcher: () => fetchStudentDetail(id) },
     ];
   }
   if (path === "/home")

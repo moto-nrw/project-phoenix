@@ -302,3 +302,22 @@ describe("protected current reader snapshots", () => {
     },
   );
 });
+
+it("hands no cached value to an intent caller after its scope ends", async () => {
+  const key = roomKeys.key();
+  const tools = renderHook(() => ({
+    preload: useSWRPreload(),
+    reader: useSWRAuth(key, async () => ["old room"]),
+  }));
+  await waitFor(() =>
+    expect(tools.result.current.reader.data).toEqual(["old room"]),
+  );
+  let pending: Promise<string[] | undefined> | undefined;
+  await act(async () => {
+    pending = tools.result.current.preload(key, async () => ["fresh room"], {
+      intent: true,
+    });
+    resetSWRScope({ revalidate: false });
+  });
+  await expect(pending).resolves.toBeUndefined();
+});

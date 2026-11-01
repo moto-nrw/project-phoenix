@@ -1,4 +1,4 @@
-import type { studentService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "StudentSearch" });
 /** Same bounded page walk for the destination and navigation intent. */
@@ -6,10 +6,9 @@ export async function fetchStudentSearch(
   filters: NonNullable<Parameters<typeof studentService.getStudents>[0]>,
   requestDate: string,
   requestIsToday: boolean,
-  loadPage: typeof studentService.getStudents,
 ) {
   const MAX_STUDENT_SEARCH_PAGES = 20;
-  const result = await loadPage(filters);
+  const result = await studentService.getStudents(filters);
   const students = [...result.students];
 
   // Walk the remaining pages when the selection is larger than one page.
@@ -24,7 +23,7 @@ export async function fetchStudentSearch(
   const totalPages = result.pagination?.total_pages ?? 1;
   const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
   for (let page = 2; page <= lastPage; page++) {
-    const nextPage = await loadPage({ ...filters, page });
+    const nextPage = await studentService.getStudents({ ...filters, page });
     students.push(...nextPage.students);
   }
   // Past the bound the list is incomplete, and everything downstream — the

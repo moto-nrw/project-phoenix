@@ -7,6 +7,7 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { tenantPrefetchResources } from "./tenant-prefetch-resources";
 import { ResourcePrefetchProvider } from "./resource-prefetch-provider";
 
 /** The tenant alone supplies permissions and exact destination selection. */
@@ -28,8 +29,6 @@ export function TenantDataPrefetch({
   const resourcesFor = useCallback(
     async (href: string) => {
       if (!session || !slug) return [];
-      const { tenantPrefetchResources } =
-        await import("./tenant-prefetch-resources");
       return tenantPrefetchResources(href, {
         session,
         photoState,
