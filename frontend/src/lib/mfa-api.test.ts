@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
-import { enrollConfirm, login, resendChallenge, verifyMFA } from "./mfa-api";
+import {
+  enrollConfirm,
+  listTrustedDevices,
+  login,
+  resendChallenge,
+  revokeTrustedDevice,
+  verifyMFA,
+} from "./mfa-api";
 
 describe("login error bodies", () => {
   const originalFetch = global.fetch;
@@ -84,11 +91,13 @@ describe("caterer second factor (#4497)", () => {
     global.fetch = originalFetch;
   });
 
-  it("uses the caterer MFA routes", async () => {
+  it("uses the caterer MFA and trusted-device routes", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ status: "authenticated" }))
-      .mockResolvedValueOnce(Response.json({ challenge_token: "renewed" }));
+      .mockResolvedValueOnce(Response.json({ challenge_token: "renewed" }))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     global.fetch = fetchMock as unknown as typeof global.fetch;
 
     await expect(
@@ -101,10 +110,14 @@ describe("caterer second factor (#4497)", () => {
     await expect(
       resendChallenge("caterer", { challengeToken: "c" }),
     ).resolves.toBe("renewed");
+    await listTrustedDevices("caterer");
+    await revokeTrustedDevice("caterer", 7);
 
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
       "/api/caterer/auth/mfa/verify",
       "/api/caterer/auth/mfa/resend",
+      "/api/caterer/auth/mfa/trusted-devices",
+      "/api/caterer/auth/mfa/trusted-devices/7",
     ]);
   });
 });
