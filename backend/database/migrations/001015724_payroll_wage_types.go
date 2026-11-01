@@ -41,8 +41,8 @@ func init() {
 //     onto a wage type; NULL keeps the category it had.
 //   - active.staff_month_balance_snapshots.payroll_rules freezes the wage
 //     types, rules and mapping in force at the close, so a closed month keeps
-//     them. NULL (every close before this migration) books with the current
-//     ones.
+//     them. NULL (every close before this migration) has no own payroll
+//     rules, so later wage types and rules do not reach that closed month.
 //
 // Both references to a wage type carry the tenant, so neither can point into
 // another school.
