@@ -952,7 +952,7 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
     ),
   },
   UserCircleGearIcon: {
-    description: "das Zahnrad dreht sich am Profil",
+    description: "das Zahnrad dreht sich weg, ein Haken gibt frei",
     render: () => (
       <>
         <path d="M168,212A96,96,0,1,1,212,168" />
@@ -962,6 +962,11 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
           <circle cx="208" cy="208" r="16" />
           <path d="M208,176v8M208,232v8M176,208h8M232,208h8M185.4,185.4l5.6,5.6M225,225l5.6,5.6M185.4,230.6l5.6-5.6M225,191l5.6-5.6" />
         </g>
+        <path
+          className="ns-ghost ns-check"
+          pathLength={1}
+          d="M186,208l15,15l29-30"
+        />
       </>
     ),
   },
