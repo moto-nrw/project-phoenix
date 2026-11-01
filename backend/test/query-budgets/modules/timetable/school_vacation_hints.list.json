@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.school_vacation_hints.list",
+  "max": 8,
+  "exact": true,
+  "description": "modules/timetable/compose/httpintegration — vacation hints with 3 and 8 returned windows: tenant transaction plus batched instance, series, holiday-period and closing-day reads. Statutory holidays are calculated locally."
+}

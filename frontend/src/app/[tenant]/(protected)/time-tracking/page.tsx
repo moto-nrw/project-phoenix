@@ -101,6 +101,7 @@ import {
   type PeriodMetrics,
 } from "~/lib/hooks/use-period-metrics";
 import {
+  useLiveRefreshInterval,
   useSWRAuth,
   useTenantMutate,
   useTenantMutateMatching,
@@ -1635,6 +1636,9 @@ function OwnZeiterfassungSection({
   // (#1842). The backend derives its month from timezone.TodayDate().
   const todayISO = useBerlinToday();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
+  // staff_time_tracking_changed invalidates these keys; the interval follows
+  // the growing Ist of an open block (#5017).
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
   const visibleFrom = useMemo(() => {
     if (viewMode === "month") {
       return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
@@ -1692,7 +1696,7 @@ function OwnZeiterfassungSection({
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
-      refreshInterval: isSessionOpen ? OPEN_MONTH_REFRESH_MS : 0,
+      refreshInterval: isSessionOpen ? openMonthRefreshMs : 0,
     },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
@@ -1791,7 +1795,7 @@ function OwnZeiterfassungSection({
       ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
       : null,
     () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
-    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+    { refreshInterval: isCurrentMonth ? openMonthRefreshMs : 0 },
   );
 
   const {
@@ -3146,6 +3150,7 @@ function TimeTrackingContent() {
     authSession,
     "time_tracking:manage",
   );
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
 
   const toast = useToast();
   const todayISO = useBerlinToday();
@@ -3364,7 +3369,7 @@ function TimeTrackingContent() {
       revalidateOnFocus: false,
       errorRetryCount: 1,
       refreshInterval:
-        currentSession?.checkOutTime === null ? OPEN_MONTH_REFRESH_MS : 0,
+        currentSession?.checkOutTime === null ? openMonthRefreshMs : 0,
     },
   );
 

@@ -1,135 +1,90 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
+import { useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
 import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type Mock,
-} from "vitest";
+  listMyChildren,
+  getChildFeatures,
+  listAnnouncements,
+  type Child,
+} from "~/lib/parent-api";
+import { useParentMealPlanEnabled } from "./use-parent-meal-plan-enabled";
 
-vi.mock("~/lib/swr");
-
+vi.unmock("swr");
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
   getChildFeatures: vi.fn(),
+  listAnnouncements: vi.fn(),
 }));
-
-import { useSWRAuth as useSWR, type SWRResponse } from "~/lib/swr";
-import { useParentMealPlanEnabled } from "./use-parent-meal-plan-enabled";
-import { getChildFeatures, listMyChildren } from "~/lib/parent-api";
-
-const mockedUseSWR = useSWR as unknown as Mock;
-const mockedListChildren = listMyChildren as unknown as Mock;
-const mockedGetFeatures = getChildFeatures as unknown as Mock;
-
-function swrResult(data: boolean | undefined): SWRResponse<boolean> {
-  return {
-    data,
-    error: undefined,
-    isLoading: false,
-    isValidating: false,
-    mutate: vi.fn(),
-  } as unknown as SWRResponse<boolean>;
-}
-
-function child(tenantId: string, studentId: string) {
-  return { tenant_id: tenantId, student_id: studentId };
-}
-
-// Pull the fetcher useSWR was invoked with so we can exercise the resolution
-// logic (dedup-by-tenant + some-enabled) directly.
-type Fetcher = () => Promise<boolean>;
-function capturedFetcher(): Fetcher {
-  const call = mockedUseSWR.mock.calls.at(-1);
-  return call?.[1] as Fetcher;
-}
-
+const children = [
+  { tenant_id: "1", student_id: "10" },
+  { tenant_id: "1", student_id: "11" },
+  { tenant_id: "2", student_id: "20" },
+] as Child[];
 beforeEach(() => {
-  mockedUseSWR.mockReset();
-  mockedListChildren.mockReset();
-  mockedGetFeatures.mockReset();
-  mockedUseSWR.mockReturnValue(swrResult(undefined));
-});
-
-afterEach(() => {
   vi.clearAllMocks();
+  vi.mocked(listMyChildren).mockResolvedValue(children);
+  vi.mocked(getChildFeatures).mockResolvedValue({
+    meal_plan_enabled: false,
+  } as Awaited<ReturnType<typeof getChildFeatures>>);
+  vi.mocked(listAnnouncements).mockResolvedValue([]);
 });
-
-describe("useParentMealPlanEnabled", () => {
-  it("passes a null key (no fetch) when disabled", () => {
-    renderHook(() => useParentMealPlanEnabled(false));
-    expect(mockedUseSWR).toHaveBeenCalled();
-    // First arg is the SWR key: null in disabled mode so the fetcher never runs.
-    expect(mockedUseSWR.mock.calls.at(-1)?.[0]).toBeNull();
+function mount(enabled = true) {
+  return renderHook(
+    () => ({
+      enabled: useParentMealPlanEnabled(enabled),
+      refresh: useInvalidateMatching(),
+    }),
+    { wrapper: ParentResourceTestProvider },
+  );
+}
+describe("useParentMealPlanEnabled with real SWR", () => {
+  it("does not fetch in another portal or disabled mode", () => {
+    const { result } = mount(false);
+    expect(result.current.enabled).toBe(false);
+    expect(listMyChildren).not.toHaveBeenCalled();
+    expect(getChildFeatures).not.toHaveBeenCalled();
   });
-
-  it("passes a stable key when enabled", () => {
-    renderHook(() => useParentMealPlanEnabled(true));
-    expect(mockedUseSWR.mock.calls.at(-1)?.[0]).toBe(
-      "parent-meal-plan-enabled",
+  it("checks every relationship, including siblings at the same school", async () => {
+    vi.mocked(getChildFeatures).mockImplementation(
+      async (id) =>
+        ({ meal_plan_enabled: id === "11" }) as Awaited<
+          ReturnType<typeof getChildFeatures>
+        >,
     );
+    const { result } = mount();
+    await waitFor(() => expect(result.current.enabled).toBe(true));
+    expect(getChildFeatures).toHaveBeenCalledTimes(3);
+    expect(getChildFeatures).toHaveBeenCalledWith("10");
+    expect(getChildFeatures).toHaveBeenCalledWith("11");
+    expect(getChildFeatures).toHaveBeenCalledWith("20");
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
   });
-
-  it("returns true only when SWR has resolved data === true", () => {
-    mockedUseSWR.mockReturnValue(swrResult(true));
-    const { result: on } = renderHook(() => useParentMealPlanEnabled(true));
-    expect(on.current).toBe(true);
-
-    mockedUseSWR.mockReturnValue(swrResult(false));
-    const { result: off } = renderHook(() => useParentMealPlanEnabled(true));
-    expect(off.current).toBe(false);
-
-    mockedUseSWR.mockReturnValue(swrResult(undefined));
-    const { result: loading } = renderHook(() =>
-      useParentMealPlanEnabled(true),
-    );
-    // Still loading → hidden (false), never undefined.
-    expect(loading.current).toBe(false);
+  it("stays hidden until availability is confirmed", async () => {
+    const { result } = mount();
+    await waitFor(() => expect(getChildFeatures).toHaveBeenCalledTimes(3));
+    expect(result.current.enabled).toBe(false);
   });
-});
-
-describe("fetchAnyMealPlanEnabled (via the captured SWR fetcher)", () => {
-  it("resolves true when at least one linked school runs a meal plan", async () => {
-    renderHook(() => useParentMealPlanEnabled(true));
-    mockedListChildren.mockResolvedValue([child("1", "10"), child("2", "20")]);
-    mockedGetFeatures.mockImplementation(async (studentId: string) => ({
-      meal_plan_enabled: studentId === "20",
-    }));
-
-    await expect(capturedFetcher()()).resolves.toBe(true);
+  it("does not cache a failed lookup as false and recovers on revalidation", async () => {
+    vi.mocked(getChildFeatures).mockRejectedValue(new Error("offline"));
+    const { result } = mount();
+    await waitFor(() => expect(getChildFeatures).toHaveBeenCalledTimes(3));
+    expect(result.current.enabled).toBe(false);
+    vi.mocked(getChildFeatures).mockResolvedValue({
+      meal_plan_enabled: true,
+    } as Awaited<ReturnType<typeof getChildFeatures>>);
+    await act(async () => {
+      await result.current.refresh(parentKeys.isResource);
+    });
+    await waitFor(() => expect(result.current.enabled).toBe(true));
   });
-
-  it("queries only one representative student per tenant", async () => {
-    renderHook(() => useParentMealPlanEnabled(true));
-    mockedListChildren.mockResolvedValue([
-      child("1", "10"),
-      child("1", "11"), // same tenant → deduped
-      child("2", "20"),
-    ]);
-    mockedGetFeatures.mockResolvedValue({ meal_plan_enabled: false });
-
-    await expect(capturedFetcher()()).resolves.toBe(false);
-    expect(mockedGetFeatures).toHaveBeenCalledTimes(2);
-    const askedStudents = mockedGetFeatures.mock.calls.map((c) => c[0]);
-    expect(askedStudents).toEqual(["10", "20"]);
-  });
-
-  it("resolves false when no linked school runs a meal plan", async () => {
-    renderHook(() => useParentMealPlanEnabled(true));
-    mockedListChildren.mockResolvedValue([child("1", "10")]);
-    mockedGetFeatures.mockResolvedValue({ meal_plan_enabled: false });
-
-    await expect(capturedFetcher()()).resolves.toBe(false);
-  });
-
-  it("rejects (does not swallow) when a feature lookup fails", async () => {
-    renderHook(() => useParentMealPlanEnabled(true));
-    mockedListChildren.mockResolvedValue([child("1", "10")]);
-    mockedGetFeatures.mockRejectedValue(new Error("500"));
-
-    // A rejected fetch must propagate so SWR can retry, not cache `false`.
-    await expect(capturedFetcher()()).rejects.toThrow("500");
+  it("has no discoverable feature without children or feed", async () => {
+    vi.mocked(listMyChildren).mockResolvedValue([]);
+    const { result } = mount();
+    await waitFor(() => expect(listMyChildren).toHaveBeenCalledOnce());
+    expect(result.current.enabled).toBe(false);
+    expect(getChildFeatures).not.toHaveBeenCalled();
   });
 });

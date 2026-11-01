@@ -341,6 +341,7 @@ export function SettingsField({
   const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
+  const [serverValue, setServerValue] = useState<unknown>(setting.value);
   // Hint from a check before sending (range, missing legal text, a setting
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
@@ -448,11 +449,13 @@ export function SettingsField({
     };
   }, [categoryItems, isDirty, localValue, setting]);
 
-  // Sync local state when setting value changes from server.
-  useEffect(() => {
-    setLocalValue(setting.value);
-    setIsDirty(false);
-  }, [setting.value]);
+  // A schema revalidation may arrive while this field is being edited.
+  // Observe each server value once; only pristine fields adopt it. Clearing
+  // isDirty after a save must not restore an older server value.
+  if (!Object.is(serverValue, setting.value)) {
+    setServerValue(setting.value);
+    if (!isDirty) setLocalValue(setting.value);
+  }
 
   const cleanupPendingSave = useEffectEvent((pending: PendingSettingSave) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

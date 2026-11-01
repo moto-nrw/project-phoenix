@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";

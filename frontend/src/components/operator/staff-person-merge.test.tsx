@@ -9,7 +9,7 @@ vi.mock("next-auth/react", () => ({
 }));
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { StaffMergeCandidate } from "~/lib/operator/staff-person-merge-api";

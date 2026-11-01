@@ -20,6 +20,7 @@
 
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { preload as swrPreload } from "swr";
+import { cache, SWRGlobalState } from "swr/_internal";
 
 const SPECIAL_KEY = /^\$(inf|sub)\$/;
 
@@ -257,6 +258,25 @@ export function isStillCurrent(key: string, start: SWRStart): boolean {
 // takes the preloaded answer judges it by that start, not by its own.
 const preloadStarts = new WeakMap<object, SWRStart>();
 
+const INTENT_PRELOAD_TTL_MS = 45_000;
+const intentPreloads = new WeakMap<
+  object,
+  { expiresAt: number; expired: boolean }
+>();
+
+/** Evict only a registered intent promise, never cached response data. */
+export function expireIntentPreload(key: string, expected?: object): void {
+  const preloads = SWRGlobalState.get(cache)?.[3];
+  if (!preloads) return;
+  const promise: unknown = preloads[key];
+  if (!isObject(promise) || (expected !== undefined && promise !== expected))
+    return;
+  const intent = intentPreloads.get(promise);
+  if (!intent || Date.now() < intent.expiresAt) return;
+  intent.expired = true;
+  delete preloads[key];
+}
+
 /**
  * Wraps a fetcher of `key` in the generation lock: an answer or failure
  * that started in an older generation is replaced by DiscardedAnswer, a
@@ -296,10 +316,57 @@ export function lockFetcher<A extends unknown[], T>(
 export function preloadSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
+  intent = false,
 ): Promise<T> {
   const start = startOf(key);
-  const request = swrPreload(key, lockFetcher(key, fetcher)) as Promise<T>;
+  let request: Promise<T>;
+  let created = false;
+  if (intent) expireIntentPreload(key);
+  const load = intent
+    ? async () => {
+        created = true;
+        try {
+          // SWR registers the promise after invoking this loader. Defer
+          // even synchronous throws until that registration has completed.
+          return await Promise.resolve().then(fetcher);
+        } catch (error) {
+          const preloads = SWRGlobalState.get(cache)?.[3];
+          if (preloads?.[key] === request) {
+            // Remove an unconsumed failure atomically with the decision not
+            // to retry, before a reader can take the rejecting promise.
+            delete preloads[key];
+            throw error;
+          }
+          // SWR deletes an entry when a reader takes its promise. Only that
+          // handoff earns one ordinary load, not an unconsumed speculation.
+          // Cleanup also deletes entries, but ends the generation first.
+          if (
+            !preloads ||
+            preloads[key] !== undefined ||
+            isDiscardedAnswer(error) ||
+            intentPreloads.get(request)?.expired === true ||
+            !isStillCurrent(key, start)
+          )
+            throw error;
+          return fetcher();
+        }
+      }
+    : fetcher;
+  request = swrPreload(key, lockFetcher(key, load)) as Promise<T>;
   preloadStarts.set(request, start);
+  if (intent && created) {
+    intentPreloads.set(request, {
+      expiresAt: Date.now() + INTENT_PRELOAD_TTL_MS,
+      expired: false,
+    });
+    setTimeout(() => expireIntentPreload(key, request), INTENT_PRELOAD_TTL_MS);
+  }
+  if (intent)
+    void request.catch(() => {
+      const preloads = SWRGlobalState.get(cache)?.[3];
+      // Do not remove a replacement from a later generation.
+      if (preloads?.[key] === request) delete preloads[key];
+    });
   return request;
 }
 

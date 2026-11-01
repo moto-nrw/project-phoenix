@@ -58,6 +58,28 @@ export function calendarPeriodsTopic(): HelpTopic {
         ],
       },
       {
+        title: "Die Schulferien sehen",
+        description:
+          "moto holt die Schulferien Ihres Bundeslands jeden Tag aus dem öffentlichen Ferienkalender OpenHolidays. Ferien sind keine Schließtage.",
+        steps: [
+          "Öffnen Sie `Schuljahr und Kalender`.",
+          "Gehen Sie zum Abschnitt `Schulferien`.",
+          "Die Liste ist nur zur Information. Ob die OGS in den Ferien schließt, tragen Sie als Schließtag ein.",
+        ],
+      },
+      {
+        title: "Regeltermine in den Ferien prüfen",
+        description:
+          "Stehen in den Schulferien der nächsten acht Wochen Regeltermine im Plan, zeigt moto den Hinweis `Termine in den Ferien prüfen`. Sie sehen ihn im Betreuungsplan, auf `Schuljahr und Kalender` und auf der Startseite.",
+        steps: [
+          "Lesen Sie, welche Ferien es sind und wie viele Regeltermine geplant sind.",
+          "Hat die OGS zu? Wählen Sie `Schließtage eintragen` und legen Sie die Schließtage an.",
+          "Sollen die Termine ausfallen? Wählen Sie `Termine absagen`. moto schlägt die Ferien als Zeitraum vor.",
+          "Findet in den Ferien Betreuung statt? Wählen Sie `Betreuung ist geplant`. Der Hinweis verschwindet für diese Ferien, für alle in Ihrer OGS.",
+        ],
+        ordered: false,
+      },
+      {
         title: "Termine an Schließtagen absagen",
         description: "Für Termine, die schon vor dem Schließtag geplant waren.",
         steps: [
@@ -79,6 +101,7 @@ export function calendarPeriodsTopic(): HelpTopic {
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
       "Termine ohne Schließtag absagen: Wählen Sie im Betreuungsplan im Menü `Termine im Zeitraum absagen`.",
+      "Der Hinweis zu den Ferien zählt nur Termine, die schon im Plan stehen. Serien mit `Auch an Schließtagen planen` und Serien in einem Zeitraum der Art `Ferien` zählt er nicht mit.",
     ],
     differences: [
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",

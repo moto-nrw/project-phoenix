@@ -83,6 +83,7 @@
   "reopen_student_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "reopen_supervision_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "room_occupied": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "school_vacation_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "series_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "series_end_outside_period": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sick_absence_scope_locked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

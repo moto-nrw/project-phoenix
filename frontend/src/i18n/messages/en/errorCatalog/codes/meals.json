@@ -14,5 +14,6 @@
   "delivery_range_too_long": "The delivery list covers at most seven days. Please choose a shorter period.",
   "not_supplied": "You no longer supply this school. Please ask the school.",
   "order_not_found": "This order does not exist. Please reload the page.",
-  "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."
+  "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
+  "participation_manage_denied": "You can view meal registrations, but cannot change them. Please contact the after-school care team."
 }

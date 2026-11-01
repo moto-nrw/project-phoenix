@@ -244,7 +244,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1410
+// Lowered by #5017: the timetable template update announces its change after
+// commit and is no pass-through any more (-1).
+const modulePassthroughOwnerBudgetTotal = 1409
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -298,7 +300,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0131: the kiosk count revision read (+1).
 	// Raised by ADR 0133: the kiosk room count revision read (+1).
 	"modules/studentpresence": 122,
-	"modules/timetable":       204,
+	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
 	"modules/workforce":      140,
 	"workflows/openroommove": 1,

@@ -23,12 +23,6 @@ import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
 import { accountsConcept } from "~/lib/concepts/accounts";
 
-const ACCOUNT_SWR_PREFIXES = [
-  "operator-all-accounts",
-  "operator-school-accounts-",
-  "operator-org-accounts-",
-];
-
 function OperatorAccountsPageContent() {
   useSetBreadcrumb({ pageTitle: "Konten" });
 
@@ -37,6 +31,7 @@ function OperatorAccountsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -63,19 +58,21 @@ function OperatorAccountsPageContent() {
     SchoolAccount | OrgAccount | null
   >(null);
 
-  const refreshFamily = useTenantMutateMatching(ACCOUNT_SWR_PREFIXES);
+  const refreshFamily = useTenantMutateMatching(
+    operatorProvisioningKeys.accountFamilies,
+  );
 
   const {
     data: schoolAccounts,
     error: schoolAccountsError,
     isLoading: schoolAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolAccounts(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolAccounts(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolAccounts(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolAccounts(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -86,12 +83,12 @@ function OperatorAccountsPageContent() {
     error: orgAccountsError,
     isLoading: orgAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && filterOrgId && !selectedSchool
+    isAuthenticated && filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.orgAccounts(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationAccounts(filterOrgId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -102,12 +99,12 @@ function OperatorAccountsPageContent() {
     error: allAccountsError,
     isLoading: allAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && !filterOrgId && !selectedSchool
+    isAuthenticated && !filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.allAccounts()
       : null,
     () => operatorProvisioningService.listAllAccounts(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -117,7 +114,7 @@ function OperatorAccountsPageContent() {
 
   // Only one of the three lists is active at a time.
   const accountsLoadError = useSwrLoadError(
-    selectedSchool
+    urlSchoolId
       ? schoolAccountsError
       : filterOrgId
         ? orgAccountsError
@@ -200,7 +197,7 @@ function OperatorAccountsPageContent() {
       <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={accountsLoadError} className="mb-4" />
 
-      {!selectedSchool && filterOrgId && (
+      {!urlSchoolId && filterOrgId && (
         <>
           {!orgAccountsError &&
           !orgAccountsLoading &&
@@ -223,7 +220,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && (
+      {!urlSchoolId && !filterOrgId && (
         <>
           {!allAccountsError &&
           !allAccountsLoading &&

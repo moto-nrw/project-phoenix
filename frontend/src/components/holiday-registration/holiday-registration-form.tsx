@@ -25,13 +25,13 @@ import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
   childContext,
+  contactFieldFromPayload,
   emptyChild,
   familyContext,
   type FieldErrorKey,
   hasHealthInfo,
   MAX_CHILDREN,
-  MAX_EMERGENCY_CONTACTS,
-  MAX_PICKUP_PERSONS,
+  MAX_CONTACTS,
   payloadFromDraft,
   type RegistrationDraft,
   registrationFromFamily,
@@ -134,6 +134,12 @@ export function HolidayRegistrationForm({
       // The parent uploads the proof again; the old token claims nothing.
       if (err instanceof ApiError && err.code === UPLOAD_EXPIRED) {
         setDraft((current) => ({ ...current, benefitsProofs: [] }));
+      }
+      if (err instanceof ApiError && err.errors) {
+        err.errors = err.errors.map((error) => ({
+          ...error,
+          field: contactFieldFromPayload(error.field, draft.contacts),
+        }));
       }
       void errorPath.show(err, { object: t("errorObject") });
     } finally {
@@ -341,20 +347,10 @@ export function HolidayRegistrationForm({
       ) : null}
 
       <ContactList
-        kind="emergency_contacts"
-        contacts={draft.emergencyContacts}
-        max={MAX_EMERGENCY_CONTACTS}
+        contacts={draft.contacts}
+        max={MAX_CONTACTS}
         fieldError={fieldError}
-        onChange={(emergencyContacts) =>
-          setDraft({ ...draft, emergencyContacts })
-        }
-      />
-      <ContactList
-        kind="pickup_persons"
-        contacts={draft.pickupPersons}
-        max={MAX_PICKUP_PERSONS}
-        fieldError={fieldError}
-        onChange={(pickupPersons) => setDraft({ ...draft, pickupPersons })}
+        onChange={(contacts) => setDraft({ ...draft, contacts })}
       />
 
       <HolidayRegistrationLegal

@@ -3,9 +3,8 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/school/elternsprechtag": {
-      "referenceBytes": 874935,
-      "maxBytes": 892434,
-      "_reason": "#4801: Neue Elternsprechtag-Seite. Referenz aus der Branch-Messung übernommen; unverändert 2 % Toleranz."
+      "referenceBytes": 785970,
+      "maxBytes": 801689
     }
   }
 }

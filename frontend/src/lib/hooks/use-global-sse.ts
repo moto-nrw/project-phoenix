@@ -22,11 +22,24 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useInvalidateFamily } from "~/lib/swr";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  useInvalidateFamily,
+  useLiveEventScope,
+  usePublishLiveChannel,
+} from "~/lib/swr";
 import { mutate } from "~/lib/swr/mutate";
-import { SWR_FAMILIES } from "~/lib/swr/shell-keys";
-import { dashboardKeys } from "~/lib/swr/shell-keys";
+import {
+  SWR_FAMILIES,
+  dashboardKeys,
+  ownSupervisionKeys,
+} from "~/lib/swr/shell-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useTenantSafe } from "~/lib/tenant-context";
@@ -62,6 +75,16 @@ export const FLUSH_JITTER_MS = 1000;
 // Upper bound on how long a sustained event stream (morning check-in rush) can
 // keep postponing the flush. Measured from the first event of a burst.
 export const MAX_FLUSH_WAIT_MS = 1000;
+// A stream that keeps dropping and reopening reconciles at most once per this
+// window; a reconnect inside it reconciles once at its end (#5017).
+export const RECONCILE_MIN_GAP_MS = 30_000;
+// The first stream of a binding opens a moment after the page loaded its
+// data (and after the server snapshot was rendered): an event in that gap
+// would wait for the five-minute reconcile. One reconcile follows the first
+// open after this delay plus up to STARTUP_RECONCILE_JITTER_MS, so the
+// schools' tabs do not reload in step after a deploy (#5017).
+export const STARTUP_RECONCILE_DELAY_MS = 3_000;
+export const STARTUP_RECONCILE_JITTER_MS = 2_000;
 
 // The dashboard caches that reflect live check-in/out counts. Deliberately an
 // explicit list instead of the old `key.includes("dashboard")`: that substring
@@ -122,11 +145,13 @@ const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
 // Reasons the substitution module puts on active_supervision_changed when the
 // supervisors of a running session change (#2806, #4763): someone was added,
 // handed the supervision over or released it. Both people's sidebars list
-// their supervisions from it.
+// their supervisions from it. Presence names every other supervisor write
+// (claim, add, edit, end, replace) supervisors_changed (#5017).
 const SUPERVISOR_CHANGE_REASONS: ReadonlySet<string> = new Set([
   "additional_supervisor_assigned",
   "supervision_handed_over",
   "supervision_released",
+  "supervisors_changed",
 ]);
 
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
@@ -309,6 +334,22 @@ export function useGlobalSSE(): SSEHookState {
     (!tenant || tenantID === tenant.tenantId) &&
     (hasStaffRole || hasAdminWildcard);
 
+  // Every event acts only for the school and account its stream is bound to
+  // (#5017). The stream follows the session's account and school (useSSE,
+  // reconnectKey), and the binding follows them as well, so an event a
+  // replaced stream still delivers, or one arriving while another tab's
+  // session change is being confirmed, invalidates and loads nothing.
+  const { scope: boundScope, accepts } = useLiveEventScope();
+  const boundScopeRef = useRef(boundScope);
+  // The scope of the pending burst; a flush for another scope is dropped.
+  const burstScopeRef = useRef<string | null>(null);
+  // A reconcile spares the sidebar's own periodic resync, but must still
+  // deliver notifications from real events queued before the reconnect.
+  const reconcilingRef = useRef<{
+    groupAccess: boolean;
+    activity: boolean;
+  } | null>(null);
+
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   // (+ per-burst jitter). pendingGroupIds holds ACTIVE-group ids (activity
   // session topics); pendingEduGroupIds holds EDUCATIONAL (OGS) group ids from
@@ -365,7 +406,36 @@ export function useGlobalSSE(): SSEHookState {
 
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
   // All matchers must use includes() instead of startsWith() to match regardless of prefix.
+  const resetPending = useCallback(() => {
+    pendingGroupIds.current.clear();
+    pendingStudentIds.current.clear();
+    pendingOpenStudentIds.current.clear();
+    pendingEduGroupIds.current.clear();
+    hasPendingBroadOgsEvent.current = false;
+    hasPendingActivityEvent.current = false;
+    hasPendingActiveSupervisionEvent.current = false;
+    hasPendingUnscopedActiveEvent.current = false;
+    hasPendingRemoteRosterEvent.current = false;
+    hasPendingDashboardEvent.current = false;
+    hasPendingStaffTimeTrackingEvent.current = false;
+    hasPendingDailyCheckoutDashboardEvent.current = false;
+    hasPendingArrivalScheduleEvent.current = false;
+    hasPendingPickupScheduleEvent.current = false;
+    hasPendingStudentUpdateEvent.current = false;
+    hasPendingCompanionEvent.current = false;
+    hasPendingTimetableEvent.current = false;
+    hasPendingGroupAccessEvent.current = false;
+    hasPendingGroupSubscriptionRefresh.current = false;
+    burstScopeRef.current = null;
+  }, []);
+
   const flushInvalidations = useCallback(() => {
+    if (!accepts(burstScopeRef.current)) {
+      // Collected for another school or account, or while another tab's
+      // session change is being confirmed: nothing of it may load.
+      resetPending();
+      return;
+    }
     const families = new Set<string>();
     if (hasPendingGroupAccessEvent.current) {
       families.add(SWR_FAMILIES.groups);
@@ -387,6 +457,23 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0
     ) {
       families.add(SWR_FAMILIES.rooms);
+    }
+    // „Aktuelle Aufsicht" without groups:read (#4573) lists the caller's own
+    // planned blocks, their rosters and running sessions. Session lifecycle,
+    // supervisor and timetable changes rewrite the lists; a remote check-in
+    // or a changed arrival, pickup or child rewrites a roster (#5017). Not
+    // the tenant-wide count refresh: it reaches every tab on each check-in
+    // in the school and names no block of the caller.
+    if (
+      hasPendingActivityEvent.current ||
+      hasPendingTimetableEvent.current ||
+      hasPendingGroupAccessEvent.current ||
+      hasPendingRemoteRosterEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingPickupScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
+    ) {
+      families.add(ownSupervisionKeys.family);
     }
     for (const family of families) {
       void invalidateFamily(family).catch((err) => {
@@ -729,7 +816,11 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current ||
-      hasPendingDashboardEvent.current;
+      hasPendingDashboardEvent.current ||
+      // The aggregate lists the caller's educational groups; a handover or
+      // Vertretung changes them and announces only group_access_changed
+      // (#5017).
+      hasPendingGroupAccessEvent.current;
     if (
       hasPendingActivityEvent.current ||
       hasPendingActiveSupervisionEvent.current
@@ -801,7 +892,10 @@ export function useGlobalSSE(): SSEHookState {
       // exactly what a colleague looks at after a handover, so announce
       // staleness and let the provider refetch (same decoupling as reminders
       // and the care-schedule editor above).
-      if (typeof window !== "undefined") {
+      if (
+        typeof window !== "undefined" &&
+        (reconcilingRef.current?.groupAccess ?? true)
+      ) {
         window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
       }
     }
@@ -810,7 +904,11 @@ export function useGlobalSSE(): SSEHookState {
       setGroupAccessRevision((revision) => revision + 1);
     }
 
-    if (hasPendingActivityEvent.current && typeof window !== "undefined") {
+    if (
+      hasPendingActivityEvent.current &&
+      (reconcilingRef.current?.activity ?? true) &&
+      typeof window !== "undefined"
+    ) {
       window.dispatchEvent(
         new CustomEvent("phoenix:supervision-stale", {
           detail: { groupsOnly: false },
@@ -831,6 +929,11 @@ export function useGlobalSSE(): SSEHookState {
             // The card disables focus revalidation, making this its only live
             // update path.
             key.includes("time-tracking-own-assignments-") ||
+            // The Aktuelle-Aufsicht aggregate carries planned_now: the
+            // blocks startable now, their staffing and child counts. A
+            // created, edited or deleted planned block announces only
+            // staffing_deviation_changed (#5017).
+            key.includes("active-supervision-dashboard-") ||
             key.includes("database-calendar-periods-list") ||
             // the per-child Betreuungsplan renders these activity instances
             key.includes("care-plan-day-") ||
@@ -884,27 +987,8 @@ export function useGlobalSSE(): SSEHookState {
       }
     }
 
-    // Reset pending state
-    pendingGroupIds.current.clear();
-    pendingStudentIds.current.clear();
-    pendingOpenStudentIds.current.clear();
-    pendingEduGroupIds.current.clear();
-    hasPendingBroadOgsEvent.current = false;
-    hasPendingActivityEvent.current = false;
-    hasPendingActiveSupervisionEvent.current = false;
-    hasPendingUnscopedActiveEvent.current = false;
-    hasPendingRemoteRosterEvent.current = false;
-    hasPendingDashboardEvent.current = false;
-    hasPendingStaffTimeTrackingEvent.current = false;
-    hasPendingDailyCheckoutDashboardEvent.current = false;
-    hasPendingArrivalScheduleEvent.current = false;
-    hasPendingPickupScheduleEvent.current = false;
-    hasPendingStudentUpdateEvent.current = false;
-    hasPendingCompanionEvent.current = false;
-    hasPendingTimetableEvent.current = false;
-    hasPendingGroupAccessEvent.current = false;
-    hasPendingGroupSubscriptionRefresh.current = false;
-  }, [invalidateFamily]);
+    resetPending();
+  }, [accepts, invalidateFamily, resetPending]);
 
   const scheduleFlush = useCallback(() => {
     const now = Date.now();
@@ -918,6 +1002,7 @@ export function useGlobalSSE(): SSEHookState {
       // jitter window (#2057 — every client receives the same broadcast at
       // the same instant, so a fixed delay produced synchronized herds).
       burstStartedAt.current = now;
+      burstScopeRef.current = boundScopeRef.current;
       // Math.random is fine here: load-spreading jitter, no security context.
       burstJitter.current = Math.random() * FLUSH_JITTER_MS;
     }
@@ -996,6 +1081,10 @@ export function useGlobalSSE(): SSEHookState {
         // lists of the person who joined and of the one who left are stale.
         // No child moved, so no attendance event follows.
         hasPendingActivityEvent.current = true;
+      } else if (event.data.reason === "timetable_attendance_updated") {
+        // The operations attendance patch rewrote a block's roster; the own
+        // supervision lists it with its children (#5017).
+        hasPendingRemoteRosterEvent.current = true;
       }
     },
     [collectEduGroupScope],
@@ -1300,6 +1389,36 @@ export function useGlobalSSE(): SSEHookState {
     [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],
   );
 
+  // Whether this binding's stream was open before, and whether it may have
+  // missed events since (reconcile below).
+  const hasConnectedRef = useRef(false);
+  const missedEventsPossibleRef = useRef(false);
+
+  // A new school or account drops what the previous binding collected.
+  useLayoutEffect(() => {
+    if (boundScopeRef.current === boundScope) return;
+    boundScopeRef.current = boundScope;
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    resetPending();
+  }, [boundScope, resetPending]);
+
+  // The binding is part of the handler: a stream for another school or
+  // account is a new stream (useSSE reconnects on a new handler), and an
+  // event still delivered by the old one finds its binding outdated.
+  const onMessage = useCallback(
+    (event: SSEEvent) => {
+      if (!accepts(boundScope)) {
+        logger.debug("sse_event_ignored", { event_type: event.type });
+        return;
+      }
+      handleSSEEvent(event);
+    },
+    [accepts, boundScope, handleSSEEvent],
+  );
+
   // Use the underlying SSE hook with global event handler.
   // reconnectKey ensures the EventSource tears down and reconnects with a
   // fresh JWT whenever the user switches tenant, and refreshes the server's
@@ -1309,25 +1428,144 @@ export function useGlobalSSE(): SSEHookState {
       ? tenantID
       : `${tenantID ?? ""}:${groupAccessRevision}`;
   const sseState = useSSE(SSE_ENDPOINT, {
-    onMessage: handleSSEEvent,
+    onMessage,
     enabled: isAuthenticated,
     reconnectKey,
   });
+  // Readers of this scope reconcile every five minutes instead of polling
+  // every minute while the stream is connected (useLiveRefreshInterval).
+  usePublishLiveChannel(
+    boundScope,
+    isAuthenticated && sseState.status === "connected",
+  );
 
-  // SSE has no replay buffer. If the connection drops exactly while a
-  // colleague changes live supervision state, that event is gone even after
-  // EventSource reconnects. Reconcile the aggregate once after a previously
-  // connected stream comes back so an open "Aktuelle Aufsicht" page cannot
-  // remain on the pre-disconnect snapshot until its safety poll runs.
+  // SSE has no replay buffer. If the connection drops, every event of the gap
+  // is gone even after the stream reopens. Reconcile what the events keep
+  // fresh once the stream is back (#5017): every cache an event refreshes,
+  // as if each kind of event had arrived, plus the unread and request
+  // counters. Not the companion bus, whose listeners discard form drafts,
+  // not the group subscription, which would reopen the stream again, and not
+  // the sidebar lists, which SupervisionContext resyncs itself. The backend
+  // closes the stream when its token expires, so this runs about once per
+  // token lifetime (AUTH_JWT_EXPIRY) and after every real outage.
+  // Hidden tabs wait until they are visible; a flapping stream reconciles at
+  // most once per RECONCILE_MIN_GAP_MS.
+  const lastReconcileAt = useRef<number | null>(null);
+  const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startupReconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const reconcileWhenVisible = useRef(false);
+  const reconcileRef = useRef<() => void>(() => undefined);
+  const reconcile = useCallback(() => {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      reconcileWhenVisible.current = true;
+      return;
+    }
+    reconcileWhenVisible.current = false;
+    const now = Date.now();
+    const wait =
+      lastReconcileAt.current === null
+        ? 0
+        : lastReconcileAt.current + RECONCILE_MIN_GAP_MS - now;
+    if (wait > 0) {
+      reconcileTimer.current ??= setTimeout(() => {
+        reconcileTimer.current = null;
+        reconcileRef.current();
+      }, wait);
+      return;
+    }
+    if (!accepts(boundScopeRef.current)) return;
+    lastReconcileAt.current = now;
+    const pendingSidebarEvents = {
+      groupAccess:
+        accepts(burstScopeRef.current) && hasPendingGroupAccessEvent.current,
+      activity:
+        accepts(burstScopeRef.current) && hasPendingActivityEvent.current,
+    };
+    hasPendingBroadOgsEvent.current = true;
+    hasPendingActivityEvent.current = true;
+    hasPendingActiveSupervisionEvent.current = true;
+    hasPendingUnscopedActiveEvent.current = true;
+    hasPendingRemoteRosterEvent.current = true;
+    hasPendingDashboardEvent.current = true;
+    hasPendingStaffTimeTrackingEvent.current = true;
+    hasPendingDailyCheckoutDashboardEvent.current = true;
+    hasPendingArrivalScheduleEvent.current = true;
+    hasPendingPickupScheduleEvent.current = true;
+    hasPendingStudentUpdateEvent.current = true;
+    hasPendingTimetableEvent.current = true;
+    hasPendingGroupAccessEvent.current = true;
+    const openStudentId = currentStudentDetailId();
+    if (openStudentId) pendingOpenStudentIds.current.add(openStudentId);
+    // One flush for the gap and any burst that was still waiting.
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    burstScopeRef.current = boundScopeRef.current;
+    reconcilingRef.current = pendingSidebarEvents;
+    try {
+      flushInvalidations();
+    } finally {
+      reconcilingRef.current = null;
+    }
+    window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+    window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));
+    window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+  }, [accepts, flushInvalidations]);
+  useLayoutEffect(() => {
+    reconcileRef.current = reconcile;
+  }, [reconcile]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (
+        document.visibilityState === "visible" &&
+        reconcileWhenVisible.current
+      ) {
+        reconcileRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reconcileTimer.current) {
+        clearTimeout(reconcileTimer.current);
+        reconcileTimer.current = null;
+      }
+      if (startupReconcileTimer.current) {
+        clearTimeout(startupReconcileTimer.current);
+        startupReconcileTimer.current = null;
+      }
+    };
+  }, []);
+
   const connectedTenantRef = useRef<number | undefined>(tenantID);
+  const connectedScopeRef = useRef(boundScope);
   const connectedReconnectKeyRef = useRef(reconnectKey);
-  const hasConnectedRef = useRef(false);
-  const missedEventsPossibleRef = useRef(false);
   useEffect(() => {
     if (connectedTenantRef.current !== tenantID) {
       connectedTenantRef.current = tenantID;
       hasConnectedRef.current = false;
       missedEventsPossibleRef.current = false;
+    }
+    // A new account binds a new stream whose readers load afresh: its first
+    // connection reconciles nothing. The status of this render still
+    // describes the replaced stream.
+    if (connectedScopeRef.current !== boundScope) {
+      connectedScopeRef.current = boundScope;
+      connectedReconnectKeyRef.current = reconnectKey;
+      hasConnectedRef.current = false;
+      missedEventsPossibleRef.current = false;
+      if (startupReconcileTimer.current) {
+        clearTimeout(startupReconcileTimer.current);
+        startupReconcileTimer.current = null;
+      }
+      return;
     }
     if (connectedReconnectKeyRef.current !== reconnectKey) {
       connectedReconnectKeyRef.current = reconnectKey;
@@ -1341,14 +1579,24 @@ export function useGlobalSSE(): SSEHookState {
     }
     if (sseState.status === "connected") {
       if (hasConnectedRef.current && missedEventsPossibleRef.current) {
-        revalidateKeyParts(["active-supervision-dashboard-"], "sse_reconnect");
+        reconcileRef.current();
+      } else if (!hasConnectedRef.current && !startupReconcileTimer.current) {
+        // Math.random is fine here: load-spreading jitter, no security context.
+        startupReconcileTimer.current = setTimeout(
+          () => {
+            startupReconcileTimer.current = null;
+            reconcileRef.current();
+          },
+          STARTUP_RECONCILE_DELAY_MS +
+            Math.random() * STARTUP_RECONCILE_JITTER_MS,
+        );
       }
       hasConnectedRef.current = true;
       missedEventsPossibleRef.current = false;
       return;
     }
     if (hasConnectedRef.current) missedEventsPossibleRef.current = true;
-  }, [isAuthenticated, reconnectKey, sseState.status, tenantID]);
+  }, [boundScope, isAuthenticated, reconnectKey, sseState.status, tenantID]);
 
   return sseState;
 }

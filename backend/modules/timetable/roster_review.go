@@ -40,7 +40,7 @@ type TemplateRosterReview interface {
 	// every series segment with days on or after the effective date, in
 	// place and in one unit of work.
 	ConnectOfferingSource(ctx context.Context, cmd ConnectOfferingSourceCommand) (ConnectOfferingSourceResult, error)
-	// SetManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the
+	// SetManualRosterConfirmed stores "Liste so lassen" on the
 	// series; ErrTemplateSegmentNotEditable when the template is unknown.
 	SetManualRosterConfirmed(ctx context.Context, templateID int64, confirmed bool) error
 }
@@ -58,6 +58,10 @@ type TemplateFutureRoster struct {
 	// OfferingKind restricts which offerings may explain the roster; the
 	// zero value admits every offering.
 	OfferingKind RosterOfferingKind
+	// Ends are the Regeltermin's latest end ("HH:MM") per ISO weekday; a
+	// weekday without one has no known end. With the offerings' pickup
+	// times they tell which offerings carry the Regeltermin (#5342).
+	Ends map[int]string
 }
 
 // TemplatePlannedRoster is who a Regeltermin plans, as materialization

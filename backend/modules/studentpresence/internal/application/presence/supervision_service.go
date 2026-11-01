@@ -48,6 +48,7 @@ func (s *service) createGroupSupervisor(ctx context.Context, supervisor *ports.G
 	if s.SupervisorRepo.Create(ctx, supervisor) != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
+	s.queueSupervisionRefresh(ctx, supervisor.GroupID, activeSupervisionReasonSupervisorsChanged)
 
 	// Taking over a supervision that starts today means the staff member is
 	// working right now — auto-open their work session so they show as
@@ -96,6 +97,10 @@ func (s *service) updateGroupSupervisorLocked(ctx context.Context, original, sup
 	if err := s.SupervisorRepo.Update(ctx, supervisor); err != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
+	s.queueSupervisionRefresh(ctx, original.GroupID, activeSupervisionReasonSupervisorsChanged)
+	if supervisor.GroupID != original.GroupID {
+		s.queueSupervisionRefresh(ctx, supervisor.GroupID, activeSupervisionReasonSupervisorsChanged)
+	}
 	return nil
 }
 
@@ -125,6 +130,7 @@ func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
 		if err := s.SupervisorRepo.Delete(txCtx, id); err != nil {
 			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
 		}
+		s.queueSupervisionRefresh(txCtx, supervision.GroupID, activeSupervisionReasonSupervisorsChanged)
 		return nil
 	})
 }
@@ -158,6 +164,7 @@ func (s *service) EndSupervision(ctx context.Context, id int64) error {
 		if err := s.SupervisorRepo.EndSupervision(txCtx, id); err != nil {
 			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
 		}
+		s.queueSupervisionRefresh(txCtx, supervision.GroupID, activeSupervisionReasonSupervisorsChanged)
 		return nil
 	})
 }

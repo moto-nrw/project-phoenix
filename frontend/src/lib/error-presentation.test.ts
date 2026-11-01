@@ -3,6 +3,39 @@ import { ApiError } from "./api-error";
 import { presentError } from "./error-presentation";
 
 describe("presentError", () => {
+  it.each([
+    [
+      "display.manage_forbidden",
+      "Sie dürfen Info-Displays ansehen, aber nicht ändern. Bitte fragen Sie Ihre Schulleitung.",
+    ],
+    [
+      "meals.participation_manage_denied",
+      "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS.",
+    ],
+  ] as const)(
+    "explains read-only access for %s without retry",
+    (code, message) => {
+      const error = new ApiError("internal permission diagnostic", 403, {
+        code,
+      });
+      expect(presentError(error, "Änderung")).toMatchObject({
+        kind: "api",
+        errorClass: "permission",
+        message,
+        retryable: false,
+        requiresLogin: false,
+      });
+      for (const locale of ["en", "pl", "ru", "sq", "tr", "uk"] as const) {
+        const translated = presentError(error, "Änderung", locale);
+        expect(translated.retryable).toBe(false);
+        expect(translated.message).not.toBe(message);
+        expect(translated.message).not.toContain(
+          "internal permission diagnostic",
+        );
+      }
+    },
+  );
+
   it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
     "names the rejected upload in %s without exposing backend diagnostics",
     (locale) => {

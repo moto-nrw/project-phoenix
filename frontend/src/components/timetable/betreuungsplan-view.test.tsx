@@ -178,6 +178,22 @@ vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
   useTimetableDayHours: () => ({ dayStartHour: 9, dayEndHour: 17 }),
 }));
 
+// Die Sammelabsage (#3594) hat eigene Tests; hier zählt nur, womit sie öffnet.
+vi.mock("~/components/timetable/bulk-cancel-appointments-modal", () => ({
+  BulkCancelAppointmentsModal: (props: {
+    initialFrom: string;
+    initialTo: string;
+    onClose: () => void;
+  }) => (
+    <div role="dialog" aria-label="Termine im Zeitraum absagen">
+      {props.initialFrom} bis {props.initialTo}
+      <button type="button" onClick={props.onClose}>
+        Termine behalten
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
     getWeek: vi.fn(),
@@ -1669,28 +1685,23 @@ describe("BetreuungsplanView", () => {
     });
   });
 
-  it("opens the Regeltermin for editing when no offering matches", async () => {
+  it("explains instead of opening the editor when no offering matches", async () => {
     setUrl("view=serien&verbinden=7");
     setupSWR({ rosterDeviations: [] });
     render(<BetreuungsplanView />);
 
-    await waitFor(() =>
-      expect(mockEventModalProps).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          isOpen: true,
-          initialSeries: expect.objectContaining({ id: "7" }),
-        }),
-      ),
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "moto findet für „Yoga“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.",
     );
-    // Anker: der Bearbeiten-Dialog des Regeltermins ist offen.
-    expect(screen.getByText("event-close")).toBeInTheDocument();
-    expect(mockToastInfo).toHaveBeenCalledWith(
-      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    // Anker: die Serienansicht bleibt stehen, ohne Dialog und ohne Editor.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
     );
     expect(
       screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
     ).not.toBeInTheDocument();
-    expect(urlParams().has("verbinden")).toBe(false);
   });
 
   it("opens nothing for readers without planning rights", async () => {
@@ -1707,6 +1718,49 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(
       screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the bulk cancellation with the vacation linked from the home hint (#5345)", async () => {
+    setUrl("d=2026-10-20&absagen=2026-10-20&absagenBis=2026-10-31");
+    render(<BetreuungsplanView />);
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Termine im Zeitraum absagen",
+    });
+    expect(dialog).toHaveTextContent("2026-10-20 bis 2026-10-31");
+    expect(urlParams().get("absagen")).toBe("2026-10-20");
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Termine behalten" }),
+    );
+    await waitFor(() => expect(urlParams().has("absagen")).toBe(false));
+    expect(urlParams().has("absagenBis")).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an invalid linked cancellation range and readers without planning rights (#5345)", () => {
+    setUrl("absagen=2026-10-31&absagenBis=2026-10-20");
+    const { unmount } = render(<BetreuungsplanView />);
+    // Anker: der Plan ist geladen.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read", "users:read"] } },
+    });
+    setUrl("absagen=2026-10-20&absagenBis=2026-10-31");
+    render(<BetreuungsplanView />);
+    // Anker: die Leseansicht ist geladen.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
     ).not.toBeInTheDocument();
   });
 

@@ -431,6 +431,17 @@ func NewTestTimetable(db transactionruntime.Database, logger *slog.Logger, clock
 	_, _, _, _, _, _, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, err
 }
+
+// NewTestTimetableWithHub is NewTestTimetable plus the realtime hub its
+// writes announce on, so a test can listen for their after-commit events.
+func NewTestTimetableWithHub(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (
+	owners.TimetableLifecycle, TimetablePlanning, timetable.MaterializationCapability, studentpresence.Presence, owners.CarePlanSchedules,
+	carePlanModule.CareOfferingCapability, studentpresence.StatusDays, *realtime.Hub, error,
+) {
+	_, _, _, _, _, hub, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, hub, err
+}
+
 func currentTestServiceConfig() owners.ServiceConfig {
 	cfg := CurrentServiceConfig()
 	cfg.PublicAPIURL = "http://api.test"

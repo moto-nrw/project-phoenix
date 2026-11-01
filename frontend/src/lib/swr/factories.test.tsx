@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSWRConfig } from "swr";
 import { SWRGlobalState } from "swr/_internal";
+import { bumpDataGeneration } from "./generation";
 import { roomKeys } from "./rooms-keys";
 import { groupKeys } from "./groups-keys";
 import { staffKeys } from "./staff-keys";
@@ -28,6 +29,7 @@ const { owner } = vi.hoisted(() => ({
     id: "account-7",
     scope: "tenant",
     tenantId: 42,
+    orgId: 84,
     slug: "school-a" as string | null,
   },
 }));
@@ -48,6 +50,7 @@ beforeEach(() => {
     id: "account-7",
     scope: "tenant",
     tenantId: 42,
+    orgId: 84,
     slug: "school-a",
   });
 });
@@ -75,7 +78,7 @@ describe("shared resource factories", () => {
   });
 
   it.each(["parent", "org", "platform", "school", "caterer", ""])(
-    "puts school and account in every %s portal key",
+    "puts the portal boundary and account in every %s portal key",
     async (scope) => {
       Object.assign(owner, { scope, slug: null });
       for (const factory of factories) {
@@ -88,7 +91,9 @@ describe("shared resource factories", () => {
           expect(result.current.reader.data).toEqual({ name: scope }),
         );
         expect(result.current.key).toBe(
-          `${scope || "tenant"}:42:account-7:${factory.key()}`,
+          scope === "platform"
+            ? `operator:account-7:${factory.key()}`
+            : `${scope === "org" ? "traeger:84" : scope === "caterer" ? "caterer" : `${scope || "tenant"}:42`}:account-7:${factory.key()}`,
         );
         unmount();
       }
@@ -273,4 +278,46 @@ describe("shared resource factories", () => {
       messageKeys.messagesInbox(false),
     );
   });
+});
+
+describe("protected current reader snapshots", () => {
+  it.each(["scope", "entity", "pending"] as const)(
+    "blocks retained snapshot reads immediately after %s invalidation",
+    async (boundary) => {
+      const fresh = { id: "7", name: "Aula" };
+      const request = vi.fn(async () => fresh);
+      const { result } = renderHook(() => useSWRAuth(roomKeys.key(), request));
+      await waitFor(() => expect(result.current.data).toEqual(fresh));
+      const retainedRead = result.current.readCurrent;
+      expect(retainedRead?.()).toEqual({ data: fresh, error: undefined });
+      _setSWRCleanupForTests(false);
+      act(() => {
+        if (boundary === "scope") resetSWRScope({ revalidate: false });
+        else if (boundary === "entity")
+          bumpDataGeneration((key) => key.endsWith(roomKeys.key()));
+        else suspendSWRSession();
+        expect(retainedRead?.()).toEqual({ data: undefined, error: undefined });
+      });
+      resumeSWRSession();
+    },
+  );
+});
+
+it("hands no cached value to an intent caller after its scope ends", async () => {
+  const key = roomKeys.key();
+  const tools = renderHook(() => ({
+    preload: useSWRPreload(),
+    reader: useSWRAuth(key, async () => ["old room"]),
+  }));
+  await waitFor(() =>
+    expect(tools.result.current.reader.data).toEqual(["old room"]),
+  );
+  let pending: Promise<string[] | undefined> | undefined;
+  await act(async () => {
+    pending = tools.result.current.preload(key, async () => ["fresh room"], {
+      intent: true,
+    });
+    resetSWRScope({ revalidate: false });
+  });
+  await expect(pending).resolves.toBeUndefined();
 });

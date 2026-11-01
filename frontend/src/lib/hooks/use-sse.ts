@@ -39,6 +39,19 @@ export function useSSE(
   } = options;
 
   const { data: session } = useSession();
+  // The stream is bound to the tab's account (#5385). A provider answer for
+  // the same account and authorization leaves an open stream alone (#5017).
+  // Otherwise every session poll would create a gap to reconcile. It still
+  // restarts a stream that is down, refused or out of retries
+  // (restartIfDownRef).
+  const sessionAccount = session?.user?.id ?? null;
+  // The server snapshots authorization when opening the stream. Replace it
+  // when rights change, but not for fresh arrays or a different array order.
+  const sessionAuthorization = JSON.stringify([
+    session?.user?.isAdmin ?? false,
+    [...(session?.user?.roles ?? [])].sort(),
+    [...(session?.user?.permissions ?? [])].sort(),
+  ]);
 
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +62,9 @@ export function useSSE(
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
   const reconnectKeyRef = useRef(reconnectKey);
-  const confirmedSessionRef = useRef(session);
+  const confirmedAccountRef = useRef(sessionAccount);
+  const confirmedAuthorizationRef = useRef(sessionAuthorization);
+  const restartIfDownRef = useRef<() => void>(() => undefined);
 
   // Stable onMessage callback
   const stableOnMessage = useCallback(
@@ -77,8 +92,10 @@ export function useSSE(
   useEffect(() => {
     const reconnectKeyChanged =
       reconnectKeyRef.current !== reconnectKey ||
-      confirmedSessionRef.current !== session;
-    confirmedSessionRef.current = session;
+      confirmedAccountRef.current !== sessionAccount ||
+      confirmedAuthorizationRef.current !== sessionAuthorization;
+    confirmedAccountRef.current = sessionAccount;
+    confirmedAuthorizationRef.current = sessionAuthorization;
     reconnectKeyRef.current = reconnectKey;
 
     if (!enabled) {
@@ -342,12 +359,23 @@ export function useSSE(
       handleWakeReconnect();
     };
 
+    // A confirmed provider session resumes a refused stream and retries one
+    // that is down or out of retries; an open or opening stream stays.
+    restartIfDownRef.current = () => {
+      if (!mountedRef.current) return;
+      const readyState = eventSourceRef.current?.readyState;
+      if (readyState === 0 || readyState === 1) return;
+      sessionRefused = false;
+      handleWakeReconnect();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     globalThis.addEventListener("online", handleOnline);
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
+      restartIfDownRef.current = () => undefined;
 
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       globalThis.removeEventListener("online", handleOnline);
@@ -370,8 +398,17 @@ export function useSSE(
     maxReconnectAttempts,
     enabled,
     reconnectKey,
-    session,
+    sessionAccount,
+    sessionAuthorization,
   ]);
+
+  // Every provider answer (lookup, poll, update()) confirms the session.
+  const confirmedSessionRef = useRef(session);
+  useEffect(() => {
+    if (confirmedSessionRef.current === session) return;
+    confirmedSessionRef.current = session;
+    restartIfDownRef.current();
+  }, [session]);
 
   // Compute connection status based on state
   const status = useMemo<ConnectionStatus>(() => {

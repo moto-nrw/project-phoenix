@@ -5,7 +5,6 @@
 
 import { CalendarDays, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import {
   formatDateRange,
   formatWeeks,
@@ -16,12 +15,9 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriods, type HolidayPeriod } from "~/lib/traeger-api";
+import type { HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriods } from "~/components/traeger/use-traeger-resources";
 import { traegerPath } from "~/lib/traeger-url";
-
-const logger = createLogger({ component: "TraegerHolidayPeriodsPage" });
 
 const COLUMNS: DataTableColumn<HolidayPeriod>[] = [
   {
@@ -64,33 +60,8 @@ const COLUMNS: DataTableColumn<HolidayPeriod>[] = [
 
 export default function TraegerHolidayPeriodsPage() {
   const router = useRouter();
-  const [periods, setPeriods] = useState<HolidayPeriod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const periodsLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = periodsLoad;
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setPeriods(await fetchHolidayPeriods());
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_holiday_periods_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setPeriods([]);
-      await showLoadError(err, {
-        object: "die Liste der Ferienzeiträume",
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data, isLoading: loading, loadError } = useTraegerHolidayPeriods();
+  const periods = data ?? [];
 
   const newHref = traegerPath("/traeger/ferien/neu");
 
@@ -117,7 +88,7 @@ export default function TraegerHolidayPeriodsPage() {
         ) : null
       }
       statsLoading={loading}
-      error={periodsLoad.error}
+      error={loadError}
       actions={
         <ButtonLink href={newHref} variant="primary" size="md">
           <Plus className="h-4 w-4" aria-hidden="true" />

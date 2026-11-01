@@ -114,9 +114,14 @@ the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 without AI/tool branding or `Co-Authored-By: Claude`. PR bodies follow
 [the PR template](.github/PULL_REQUEST_TEMPLATE.md) also with `gh pr create --body`;
 they open with its user TL;DR: who notices what, or „Keine Änderung für Nutzer“.
-Every PR description, including CLI-created PRs and updates, must fill in the
-template's **Backend-Architektur** section with concrete evidence of adherence
-to the backend target architecture, or explain why the backend is unaffected.
+Keep descriptions focused on the problem, key decisions, verification and
+review-relevant risks. Link lasting design detail and check logs instead of
+repeating them. Add only applicable optional sections; omit empty headings and
+"not applicable" declarations. Backend changes require **Backend-Architektur**
+with concrete boundary rationale and evidence per the template; other PRs omit
+it. Required implementation and verification rules remain unchanged.
+Visible product changes require PR screenshots, refreshed when later fixes alter
+what they show; follow [PR screenshot rules](docs/agents/operations.md#pr-screenshots-and-qa-evidence).
 
 Use named and task-relevant skills; load their `SKILL.md` through the available
 skill tool or read the file directly. The runtime catalog is the discovery

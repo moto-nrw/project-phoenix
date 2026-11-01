@@ -1,6 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { ApiError } from "~/lib/api-error";
 import type {
   HolidayForm,
@@ -54,6 +62,19 @@ function renderEditor(initial: HolidayForm = form()) {
   return onSaved;
 }
 
+// Mirrors the page: the editor remounts with each saved version.
+function RemountingPage({ initial }: Readonly<{ initial: HolidayForm }>) {
+  const [current, setCurrent] = useState(initial);
+  return (
+    <HolidayFormEditor
+      key={current.version}
+      periodId="5"
+      form={current}
+      onSaved={setCurrent}
+    />
+  );
+}
+
 function questionInputs(): HTMLInputElement[] {
   return screen.getAllByRole("textbox", {
     name: "Frage im Elternformular",
@@ -67,6 +88,22 @@ function choice(name: RegExp, index = 0): HTMLElement {
 describe("HolidayFormEditor (#5198)", () => {
   beforeEach(() => {
     mockSave.mockReset();
+  });
+
+  it("names the preview sections like the parent form (#5467)", () => {
+    renderEditor();
+    expect(
+      screen.getByText(germanMessages.childQuestionsTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(germanMessages.familyQuestionsTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Fragen oder Infos zum Kind"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Fragen oder Infos zur Familie"),
+    ).toBeInTheDocument();
   });
 
   it("inserts the missing questions of the standard template once", () => {
@@ -104,6 +141,70 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.queryByText(/oder dieses Feld pro Kind angezeigt wird/),
     ).not.toBeInTheDocument();
+  });
+
+  it("explains that a lone yes/no question needs another question", () => {
+    renderEditor(form([TEMPLATE[1]!]));
+
+    expect(
+      screen.getByText(
+        "Legen Sie zuerst eine andere Ja/Nein- oder Auswahlfrage mit Fragetext an. Diese Frage kann dann von deren Antwort abhängen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("explains why a family question cannot depend on a child question", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        TEMPLATE[1]!,
+      ]),
+    );
+
+    expect(
+      screen.getByText(
+        "Eine Frage zur Familie kann nicht von einer Frage je Kind abhängen. Legen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie an. Schreiben Sie auch den Fragetext dazu.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("asks for the missing text of a family question even with a child question present", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        { key: "", label: "", type: "boolean", sort_order: 1 },
+        TEMPLATE[1]!,
+      ]),
+    );
+
+    const familyQuestion = within(screen.getAllByRole("article")[0]!);
+    expect(
+      familyQuestion.getByText(
+        "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a condition once the other yes/no question has text", () => {
+    renderEditor(
+      form([
+        { key: "family", label: "Familienfrage", type: "text", sort_order: 0 },
+        { key: "", label: "", type: "boolean", sort_order: 1 },
+      ]),
+    );
+    expect(
+      screen.getByText(/Schreiben Sie zuerst den Fragetext/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(questionInputs()[1]!, {
+      target: { value: "Weitere Angaben nötig?" },
+    });
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Nur unter einer Bedingung anzeigen/,
+      }),
+    ).toBeEnabled();
   });
 
   it("saves questions per child, required, health, condition and order as a new version", async () => {
@@ -230,6 +331,56 @@ describe("HolidayFormEditor (#5198)", () => {
       { key: "taschengeld", health: false, share_with_host: true },
       { key: "forderbedarf", health: true, share_with_host: false },
     ]);
+  });
+
+  it("confirms a saved version with a toast that survives the remount (#5466)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({ ...form(), version: 4, fields }),
+    );
+    render(
+      <ToastProvider>
+        <RemountingPage initial={{ ...form([TEMPLATE[1]!]), version: 3 }} />
+      </ToastProvider>,
+    );
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Ausflüge erlaubt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Das Anmeldeformular ist als Version 4 gespeichert.",
+      ),
+    ).toBeInTheDocument();
+    // The remounted editor shows the saved version, not a draft.
+    expect(questionInputs()[0]).toHaveValue("Ausflüge erlaubt");
+    expect(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    ).toBeDisabled();
+  });
+
+  it("shows no success toast when saving fails (#5466)", async () => {
+    mockSave.mockRejectedValue(new ApiError("boom", 500, {}));
+    const onSaved = renderEditor(form([TEMPLATE[1]!]));
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Ausflüge erlaubt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Als neue Version speichern" }),
+      ).toBeEnabled(),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Das Anmeldeformular ist als Version/),
+    ).not.toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
   });
 
   it("marks a question without text instead of saving", async () => {

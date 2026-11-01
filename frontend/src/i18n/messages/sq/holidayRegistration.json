@@ -97,11 +97,20 @@
     "health": "Ju lutemi jepni pëlqimin ose fshini të dhënat shëndetësore.",
     "binding": "Ju lutemi konfirmoni që regjistrimi është detyrues.",
     "yesNo": "Ju lutemi zgjidhni po ose jo.",
-    "choose": "Ju lutemi zgjidhni një përgjigje."
+    "choose": "Ju lutemi zgjidhni një përgjigje.",
+    "contactRole": "Ju lutemi zgjidhni të paktën një rol.",
+    "emergencyRequired": "Ju lutemi zgjidhni të paktën një kontakt urgjence.",
+    "emergencyLimit": "Mund të shënoni deri në tre kontakte urgjence.",
+    "pickupLimit": "Mund të autorizoni deri në pesë persona për të marrë fëmijët.",
+    "contactLimit": "Mund të shënoni deri në tetë persona."
   },
-  "childQuestionsTitle": "Të dhëna të tjera",
-  "familyQuestionsTitle": "Të dhëna të tjera për familjen",
+  "childQuestionsTitle": "Pyetje dhe informacione për fëmijën",
+  "familyQuestionsTitle": "Pyetje dhe informacione për familjen",
   "legalTitle": "Njoftime dhe pëlqime",
   "legalAccepted": "Konfirmuar",
-  "legalNotAccepted": "Jo e konfirmuar"
+  "legalNotAccepted": "Jo e konfirmuar",
+  "contactsTitle": "Kontaktet",
+  "contactsText": "Shënoni çdo person tjetër vetëm një herë. Zgjidhni rolet e tij. Duhet të ketë të paktën një kontakt urgjence me numër telefoni.",
+  "emergencyRole": "Kontakt urgjence",
+  "pickupRole": "Mund t’i marrë fëmijët"
 }

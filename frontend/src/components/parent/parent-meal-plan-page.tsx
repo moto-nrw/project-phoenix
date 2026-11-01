@@ -41,7 +41,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { useMealParticipation } from "~/lib/hooks/use-meal-participation";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { usedMealAllergens } from "~/lib/meal-allergens";
 import {
@@ -500,8 +500,8 @@ function ParticipationWeek({
   );
   const participation = meal.data;
   const loading = meal.isLoading;
-  const loadError = useSwrLoadError(
-    meal.error,
+  const { error: loadError } = useSwrResourceLoadError(
+    [meal],
     t("errorObjectParticipation"),
     () => meal.mutate(),
   );
@@ -550,7 +550,10 @@ function ParticipationWeek({
         setSaving(false);
         return;
       }
-      if (outcome.status === "failed") throw outcome.error;
+      if (outcome.status === "failed") {
+        if (outcome.refused) setEditingRegularDays(false);
+        throw outcome.error;
+      }
     } catch (err) {
       logger.error("parent_meal_participation_schedule_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -624,7 +627,10 @@ function ParticipationWeek({
         setSaving(false);
         return;
       }
-      if (outcome.status === "failed") throw outcome.error;
+      if (outcome.status === "failed") {
+        if (outcome.refused) cancelDayEdit();
+        throw outcome.error;
+      }
     } catch (err) {
       logger.error("parent_meal_participation_day_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -787,7 +793,11 @@ function ParticipationWeek({
         {loadError ? (
           <LoadErrorAlert error={loadError} className="mt-4" />
         ) : null}
-        {!participation && loadError ? null : loading || !participation ? (
+        {!participation && !loadError ? (
+          <FormErrorAlert message={saveError} className="mt-4" />
+        ) : null}
+        {!participation && (loadError || saveError) ? null : loading ||
+          !participation ? (
           <div
             className="mt-4 rounded-xl bg-gray-50 p-4"
             aria-label={t("participationLoading")}

@@ -1,6 +1,8 @@
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -222,3 +224,16 @@ describe("TraegerHolidayRegistrationsPage", () => {
     ).toBeInTheDocument();
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));

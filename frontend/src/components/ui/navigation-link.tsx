@@ -1,5 +1,6 @@
 "use client";
 
+import type { PrefetchResource } from "./data-prefetch-intent";
 import NextLink from "next/link";
 import { forwardRef, type ComponentProps } from "react";
 import { useNavigationLinkProgress } from "~/components/ui/use-navigation-link-progress";
@@ -12,6 +13,7 @@ type NavigationLinkProps = Omit<
   "href" | "prefetch"
 > & {
   readonly href: string;
+  readonly resources?: readonly PrefetchResource[];
 };
 
 /**
@@ -40,6 +42,12 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       onPointerEnter,
       onPointerLeave,
       onFocus,
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
+      onBlur,
+      resources,
       ...props
     },
     ref,
@@ -55,6 +63,12 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       onPointerEnter,
       onPointerLeave,
       onFocus,
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
+      onBlur,
+      resources,
     });
 
     return (
