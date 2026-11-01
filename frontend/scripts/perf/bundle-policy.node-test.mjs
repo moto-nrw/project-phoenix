@@ -24,12 +24,13 @@ const approved = new Map([
 
 /**
  * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
- * #5260 room detail (logout safeguards).
- * #5013 recalibrates the parents' children pages from a cold Linux measurement
- * with exactly 2 % headroom, replacing #5399's additional 1 KiB allowance.
+ * #5260 room detail (logout safeguards) and #5399: the parents'
+ * Elternsprechtag page (#4801) was budgeted without room for the
+ * session-end barrier every signed-in page carries.
  */
 const increases = new Map([
   ["/[tenant]/rooms/[id]", 2_048],
+  ["/parents/children/[id]/elternsprechtag", 1_024],
 ]);
 
 test("bundle policy retains migration ceilings except the explicit increases", () => {

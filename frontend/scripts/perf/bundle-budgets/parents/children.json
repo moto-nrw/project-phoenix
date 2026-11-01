@@ -3,19 +3,17 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/parents/children": {
-      "referenceBytes": 936795,
-      "maxBytes": 955531,
-      "_reason": "#5013: Gemeinsamer Eltern-Cache mit Konto-/Beziehungsentzug über Tabs, Tages-Keys und geteilter Fehlerbehandlung. Linux-CI 41251163294: 936795 Bytes (bisherige Referenz 918122); eigenes Delta zur Merge-Basis nur 2315 Bytes. Referenz aus dieser kalten Messung, Obergrenze exakt round(ref × 1,02)."
+      "referenceBytes": 918122,
+      "maxBytes": 936484
     },
     "/parents/children/[id]": {
-      "referenceBytes": 936795,
-      "maxBytes": 955531,
-      "_reason": "#5013: Gemeinsamer Eltern-Cache mit Konto-/Beziehungsentzug über Tabs, Tages-Keys und geteilter Fehlerbehandlung. Linux-CI 41251163294: 936795 Bytes (bisherige Referenz 918122); eigenes Delta zur Merge-Basis nur 2315 Bytes. Referenz aus dieser kalten Messung, Obergrenze exakt round(ref × 1,02)."
+      "referenceBytes": 918122,
+      "maxBytes": 936484
     },
     "/parents/children/[id]/elternsprechtag": {
-      "referenceBytes": 811550,
-      "maxBytes": 827781,
-      "_reason": "#5013: Gemeinsamer Eltern-Cache mit Konto-/Beziehungsentzug über Tabs, Tages-Keys und geteilter Fehlerbehandlung. Linux-CI 41251163294: 811550 Bytes (bisherige Referenz 794710); eigenes Delta zur Merge-Basis nur 2010 Bytes. Referenz aus dieser kalten Messung, Obergrenze exakt round(ref × 1,02)."
+      "referenceBytes": 794710,
+      "maxBytes": 811628,
+      "_reason": "#4801: Neue Elternsprechtag-Seite. Referenz aus der Branch-Messung übernommen; unverändert 2 % Toleranz. #5399: +1 KiB für die Abmelde-Sperre, die jede angemeldete Eltern-Seite trägt."
     }
   }
 }
