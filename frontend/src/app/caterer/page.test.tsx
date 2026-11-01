@@ -348,6 +348,78 @@ describe("CatererOverviewPage (#3873)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["meals.order_not_found", 404, "Diese Bestellung gibt es nicht."],
+    ["meals.not_supplied", 403, "Sie beliefern diese Schule nicht mehr."],
+  ] as const)(
+    "keeps unrelated readable windows after confirmation returns %s",
+    async (code, status, message) => {
+      function OtherSchoolWindow() {
+        const { data } = useSWRAuth<ReturnType<typeof week>>(
+          catererKeys.orders(["2"], "2026-09-07", "2026-09-11"),
+          () => mocks.fetchCatererOrders("2", "2026-09-07", "2026-09-11"),
+        );
+        return (
+          <p>
+            {data
+              ? `Andere Schule: ${data.days[0]!.total}`
+              : "Andere Schule lädt"}
+          </p>
+        );
+      }
+      let failedPost = false;
+      mocks.fetchCatererOrders.mockImplementation((schoolId: string) =>
+        Promise.resolve(
+          week(
+            schoolId === "1"
+              ? failedPost
+                ? [20, 20, 20, 20, 20]
+                : [10, 10, 10, 10, 10]
+              : [5, 5, 5, 5, 5],
+          ),
+        ),
+      );
+      mocks.confirmCatererOrder.mockImplementationOnce(async () => {
+        failedPost = true;
+        throw new ApiError("confirmation failed", status, { code });
+      });
+      render(
+        <>
+          <OtherSchoolWindow />
+          <CatererOverviewPage />
+        </>,
+      );
+      expect(await screen.findByText("Andere Schule: 5")).toBeVisible();
+      await screen.findByText("Bestellungen für Küche am Markt");
+      fireEvent.click(
+        screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+      );
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+      );
+      expect(await screen.findByText(new RegExp(message))).toBeVisible();
+      // Anker: das unabhängige Fenster der lesbaren Schule bleibt geladen.
+      expect(screen.getByText("Andere Schule: 5")).toBeVisible();
+      if (code === "meals.order_not_found") {
+        const north = within(screen.getAllByRole("table")[0]!)
+          .getByText("OGS Nord")
+          .closest("tr")!;
+        expect(await within(north).findByText("100")).toBeVisible();
+        expect(
+          screen.getAllByRole("button", { name: "Erhalten bestätigen" }).length,
+        ).toBeGreaterThan(0);
+        expect(
+          mocks.fetchCatererOrders.mock.calls.filter(([id]) => id === "1"),
+        ).toHaveLength(2);
+      } else {
+        expect(
+          screen.queryByRole("button", { name: "Erhalten bestätigen" }),
+        ).not.toBeInTheDocument();
+      }
+      expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("rolls back a failed confirmation without removing the loaded orders", async () => {
     const pending = deferred<void>();
     mocks.confirmCatererOrder.mockReturnValueOnce(pending.promise);
@@ -893,7 +965,7 @@ import { SWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import type { Session } from "next-auth";
 import type { ReactElement } from "react";
-import { useInvalidateMatching } from "~/lib/swr";
+import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { catererKeys } from "~/lib/swr/portal-keys";
 const sessionState = vi.hoisted(() => ({ data: null as Session | null }));
 vi.mock("next-auth/react", () => ({

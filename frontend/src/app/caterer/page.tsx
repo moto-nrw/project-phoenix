@@ -31,7 +31,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { ApiError, apiErrorFromResponse } from "~/lib/api-error";
 import {
   downloadCatererDeliveries,
   confirmCatererOrder,
@@ -206,13 +206,15 @@ export default function CatererOverviewPage() {
   );
   const discardRefused = useDiscardRefusedEntity();
   useEffect(() => {
-    for (const cause of Object.values(response.data?.failures ?? {})) {
+    for (const [schoolId, cause] of Object.entries(
+      response.data?.failures ?? {},
+    )) {
       // The current window already contains the per-school error, never old orders.
       // Other cached windows must not reopen data whose access was just refused.
       discardRefused(cause, {
-        codes: ["meals.not_supplied", "meals.order_not_found"],
+        codes: ["meals.not_supplied"],
         matches: (key) =>
-          key.startsWith("caterer-orders-") && key !== ordersKey,
+          catererKeys.containsSchool(key, schoolId) && key !== ordersKey,
       });
     }
   }, [response.data, ordersKey, discardRefused]);
@@ -256,8 +258,8 @@ export default function CatererOverviewPage() {
         optimistic: (current) => current,
         request: () => fetchCatererOrders(school.id, from, to),
         refusal: {
-          codes: ["meals.not_supplied", "meals.order_not_found"],
-          matches: (key) => key.startsWith("caterer-orders-"),
+          codes: ["meals.not_supplied"],
+          matches: (key) => catererKeys.containsSchool(key, school.id),
         },
         commit: (loaded) => {
           if (retries.current.get(school.id) !== ticket) return;
@@ -276,7 +278,7 @@ export default function CatererOverviewPage() {
       });
       if (outcome.status === "discarded") return;
       if (outcome.status === "failed" && outcome.refused) {
-        // The action cleared every cached window; its error is not a reader error.
+        // The action cleared this school's cached windows; this is not a reader error.
         void showActionError(outcome.error, {
           object: "die Bestellungen",
           retry: () => void invalidate((key) => key === ordersKey),
@@ -351,18 +353,33 @@ export default function CatererOverviewPage() {
         // Inactive windows have no reader to refresh them: never leave stale action data there.
         void invalidate(
           (key) =>
-            key.startsWith("caterer-orders-") &&
+            catererKeys.containsSchool(key, school.id) &&
             key !== ordersKey &&
             key !== visible.key,
           { clear: true },
         );
       },
       refusal: {
-        codes: ["meals.not_supplied", "meals.order_not_found"],
-        matches: (key) => key.startsWith("caterer-orders-"),
+        codes: ["meals.not_supplied"],
+        matches: (key) => catererKeys.containsSchool(key, school.id),
       },
     });
-    if (outcome.status === "failed") throw outcome.error;
+    if (outcome.status === "failed") {
+      if (
+        outcome.error instanceof ApiError &&
+        outcome.error.code === "meals.order_not_found"
+      ) {
+        // A missing order is not lost read access. Reconcile this school's
+        // current orders, then let the existing action path show the failure.
+        if (currentWindow.current.scopedKey === scopedKey)
+          void retrySchool(school);
+        void invalidate(
+          (key) =>
+            catererKeys.containsSchool(key, school.id) && key !== ordersKey,
+        );
+      }
+      throw outcome.error;
+    }
     if (outcome.status === "discarded") {
       // The session/window no longer owns this action: no toast or reload.
       return;

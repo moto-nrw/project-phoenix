@@ -253,11 +253,30 @@ export const traegerKeys = {
   },
 } as const;
 
+const catererOrdersFamily = "caterer-orders-";
+
 /** Caterer sessions span schools; every order response still names its school. */
 export const catererKeys = {
+  family: catererOrdersFamily,
+  containsSchool(key: string, schoolId: string): boolean {
+    if (!key.startsWith(catererOrdersFamily)) return false;
+    try {
+      const params: unknown = JSON.parse(key.slice(catererOrdersFamily.length));
+      return (
+        params !== null &&
+        typeof params === "object" &&
+        "schoolIds" in params &&
+        Array.isArray(params.schoolIds) &&
+        params.schoolIds.includes(schoolId)
+      );
+    } catch {
+      // Not a factory-built order window.
+      return false;
+    }
+  },
   schools: () => "caterer-schools",
   orders: (schoolIds: readonly string[], from: string, to: string) =>
-    resourceKey("caterer-orders-", {
+    resourceKey(catererOrdersFamily, {
       schoolIds: [...schoolIds].sort(),
       from,
       to,
