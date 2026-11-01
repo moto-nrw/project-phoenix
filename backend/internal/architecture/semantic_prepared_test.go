@@ -33,6 +33,10 @@ func Reassigned(ctx context.Context, db *sql.DB) {
  stmt, _ = db.PrepareContext(ctx, "DELETE FROM beta.records")
  stmt.ExecContext(ctx)
 }
+func RangeReassigned(ctx context.Context, db *sql.DB, statements []*sql.Stmt) {
+ stmt, _ := db.PrepareContext(ctx, "SELECT 1")
+ for _, stmt = range statements { stmt.ExecContext(ctx) }
+}
 func Parameter(ctx context.Context, stmt *sql.Stmt) { stmt.ExecContext(ctx) }
 func ParameterRebound(ctx context.Context, db *sql.DB, stmt *sql.Stmt) {
  stmt.ExecContext(ctx)
@@ -66,7 +70,7 @@ func Escaped(ctx context.Context, db *sql.DB) {
 		}
 	}
 	slices.Sort(got)
-	want := []string{"tables.foreign-read|Foreign", "tables.foreign-write|Foreign", "tables.unresolved|Dynamic", "tables.unresolved|Escaped", "tables.unresolved|InitializedThenRebound", "tables.unresolved|Parameter", "tables.unresolved|ParameterRebound", "tables.unresolved|Reassigned"}
+	want := []string{"tables.foreign-read|Foreign", "tables.foreign-write|Foreign", "tables.unresolved|Dynamic", "tables.unresolved|Escaped", "tables.unresolved|InitializedThenRebound", "tables.unresolved|Parameter", "tables.unresolved|ParameterRebound", "tables.unresolved|RangeReassigned", "tables.unresolved|Reassigned"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("prepared statement findings = %v, want %v", got, want)
 	}

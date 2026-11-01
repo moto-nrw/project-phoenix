@@ -96,3 +96,11 @@ LISTEN-Pakete an der TCP-Grenze zurück und weist nach, dass der Konstruktor
 bis zur tatsächlichen Bereitschaft wartet. Ereignisse selbst werden nicht
 wiederholt; Verlust bei späteren Verbindungsabbrüchen bleibt durch Polling
 abgedeckt. Worker ohne Listener führen keinen Handshake aus.
+
+Für `staff_message` bleibt die numerische Absender-Konto-ID als `source`
+erhalten. Der Teamchat benötigt sie, damit ein anderer Tab desselben Senders
+nicht durch ein unnötiges Nachladen unbeabsichtigt einen Lesecursor vorzieht.
+Andere Quellen sowie nicht numerischer Freitext bleiben ausgeschlossen.
+Die Statement-Analyse zählt auch Zuweisungen an `range`-Ziele: Eine dort
+ersetzte Statement-Variable darf nicht weiter anhand ihres ursprünglichen
+konstanten SQL-Texts freigegeben werden.

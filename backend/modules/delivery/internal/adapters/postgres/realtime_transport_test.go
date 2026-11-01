@@ -261,3 +261,26 @@ func receiveTransportEvent(t *testing.T, client *realtime.Client) realtime.Event
 		return realtime.Event{}
 	}
 }
+
+func TestStaffMessageRelayPreservesOnlyNumericSenderSource(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	sender := testpkg.CreateTestAccount(t, db, "relay-source@example.com")
+	var payload string
+	worker, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	require.NoError(t, err)
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	require.NoError(t, err)
+	client := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: sender.ID}
+	api.Register(client, testpkg.Tenant(t), nil)
+	defer api.Unregister(client)
+	event := realtime.NewStaffMessageEvent(sender.ID, 0)
+	require.NoError(t, worker.BroadcastToStaffAccounts(client.TenantID, []int64{sender.ID}, event))
+	require.NoError(t, api.ReceiveSignal(payload))
+	require.Equal(t, event.Data.Source, receiveTransportEvent(t, client).Data.Source, "other API tabs must retain their own-source read filter")
+	event.Data.Source = stringPointer("untrusted source text")
+	require.NoError(t, worker.BroadcastToStaffAccounts(client.TenantID, []int64{sender.ID}, event))
+	require.NotContains(t, payload, "untrusted source text")
+	require.NoError(t, api.ReceiveSignal(payload))
+	require.Nil(t, receiveTransportEvent(t, client).Data.Source)
+}

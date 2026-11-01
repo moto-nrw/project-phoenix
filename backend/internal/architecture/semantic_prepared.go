@@ -42,6 +42,8 @@ func singleStatementPreparation(pkg *packages.Package, object types.Object) *ast
 				if ok && node.Op == token.AND && pkg.TypesInfo.ObjectOf(id) == object {
 					escaped = true
 				}
+			case *ast.RangeStmt:
+				writes += statementRangeWrites(pkg, object, node)
 			case *ast.AssignStmt:
 				count, declaration := statementAssignment(pkg, object, node)
 				writes += count
@@ -97,4 +99,14 @@ func preparedSQLLiteral(pkg *packages.Package, preparation *ast.CallExpr) (strin
 		return "", false
 	}
 	return constantString(pkg.TypesInfo, preparation.Args[index])
+}
+
+func statementRangeWrites(pkg *packages.Package, object types.Object, loop *ast.RangeStmt) int {
+	writes := 0
+	for _, target := range []ast.Expr{loop.Key, loop.Value} {
+		if id, ok := target.(*ast.Ident); ok && pkg.TypesInfo.ObjectOf(id) == object {
+			writes++
+		}
+	}
+	return writes
 }

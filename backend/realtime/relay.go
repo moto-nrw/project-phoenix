@@ -89,7 +89,7 @@ func (h *Hub) ReceiveSignal(payload string) error {
 	if s.Origin == h.origin {
 		return nil
 	}
-	event := NewEvent(s.Type, s.ActiveGroupID, s.Data.eventData())
+	event := NewEvent(s.Type, s.ActiveGroupID, s.Data.eventData(s.Type))
 	switch s.Audience {
 	case audienceGroup:
 		return h.localBroadcastToGroup(s.SchoolID, s.Topic, event)
@@ -210,7 +210,7 @@ func (h *Hub) publishSignal(signal signal, event Event) error {
 	signal.Origin = h.origin
 	signal.Type = event.Type
 	signal.ActiveGroupID = event.ActiveGroupID
-	signal.Data = invalidationFromEvent(event.Data)
+	signal.Data = invalidationFromEvent(event.Type, event.Data)
 	if err := signal.Validate(); err != nil {
 		return err
 	}
@@ -234,22 +234,34 @@ type invalidationData struct {
 	InstanceID *string   `json:"instance_id,omitempty"`
 	ThreadID   *string   `json:"thread_id,omitempty"`
 	Reason     *string   `json:"reason,omitempty"`
+	Source     *string   `json:"source,omitempty"`
 }
 
-func invalidationFromEvent(data EventData) invalidationData {
+func invalidationFromEvent(kind EventType, data EventData) invalidationData {
 	return invalidationData{
 		StudentID: numericID(data.StudentID), StudentIDs: numericIDs(data.StudentIDs),
 		GroupIDs: numericIDs(data.GroupIDs), InstanceID: numericID(data.InstanceID),
 		ThreadID: numericID(data.ThreadID), Reason: invalidationReason(data.Reason),
+		Source: staffMessageSource(kind, data.Source),
 	}
 }
 
-func (data invalidationData) eventData() EventData {
+func (data invalidationData) eventData(kind EventType) EventData {
 	return EventData{
 		StudentID: numericID(data.StudentID), StudentIDs: numericIDs(data.StudentIDs),
 		GroupIDs: numericIDs(data.GroupIDs), InstanceID: numericID(data.InstanceID),
 		ThreadID: numericID(data.ThreadID), Reason: invalidationReason(data.Reason),
+		Source: staffMessageSource(kind, data.Source),
 	}
+}
+
+// Only staff messages need the numeric sender for read-cursor suppression.
+// Other sources remain local; arbitrary source text is never relayed.
+func staffMessageSource(kind EventType, source *string) *string {
+	if kind != EventStaffMessage {
+		return nil
+	}
+	return numericID(source)
 }
 
 func numericID(id *string) *string {
