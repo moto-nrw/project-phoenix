@@ -197,6 +197,9 @@ type ManualRosterTemplate struct {
 	Name       string
 	Weekdays   []int
 	ViaTarget  bool
+	// Until is the day a later booking carries the Regeltermin again
+	// (exclusive, #5497); nil when none does.
+	Until *calendar.Date
 }
 
 // UpdateChildOfferingsInput is an admin's correction of a child's bookings.

@@ -56,6 +56,10 @@ type StudentDayBooking struct {
 	// PickupTime is the offering's pickup time on the weekday as "HH:MM" or
 	// "HH:MM:SS"; empty when the offering sets none for that day.
 	PickupTime string
+	// From is the day the booking starts when that lies after the query's
+	// From (#5497); nil when it is in force then. A later booking does not
+	// keep the change's date, but it ends the gap of a weekday it carries.
+	From *calendar.Date
 }
 
 // ManualStudentPlan is one Regeltermin series that keeps planning the student
@@ -72,15 +76,22 @@ type ManualStudentPlan struct {
 	// series includes the student: occurrences created later add the child
 	// again.
 	ViaTarget bool
+	// Until is the day a later booking carries the series again on all of
+	// Weekdays (exclusive end, #5497); nil when none does. A removal ends
+	// there.
+	Until *calendar.Date
 }
 
 // StudentTemplateDaysRemoval takes a student off a Regeltermin series on the
-// given ISO weekdays from From on.
+// given ISO weekdays from From on, until Until (exclusive) when set: from
+// then a later booking carries the series again and the student stays
+// planned there (#5497).
 type StudentTemplateDaysRemoval struct {
 	TemplateID int64
 	StudentID  int64
 	Weekdays   []int
 	From       calendar.Date
+	Until      *calendar.Date
 }
 
 // StudentTemplateDaysKeep records the school's "Bleibt so" (#5102): the
@@ -113,9 +124,10 @@ type StudentTemplateDays interface {
 	ManualStudentPlan(ctx context.Context, query ManualStudentPlanQuery) ([]ManualStudentPlan, error)
 	// RemoveStudentTemplateDays narrows the student's hand roster rows of the
 	// series and removes the student from its planned occurrences on the
-	// weekdays from From on. Booking-created rows, earlier days, other
-	// weekdays and rows recording attendance or a hand decision stay. It
-	// takes the tenant recurrence gate. From must not lie in the past.
+	// weekdays from From on, up to Until when set. Booking-created rows,
+	// earlier and later days, other weekdays and rows recording attendance or
+	// a hand decision stay. It takes the tenant recurrence gate. From must not
+	// lie in the past, and Until must lie after From.
 	RemoveStudentTemplateDays(ctx context.Context, removal StudentTemplateDaysRemoval) (StudentTemplateDaysRemoved, error)
 	// KeepStudentTemplateDays marks or unmarks, on exactly these weekdays,
 	// every hand row of the student in the series that plans one of them and

@@ -33,7 +33,13 @@ const impact: RosterImpact = {
     },
   ],
   notAdjusted: [
-    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: false },
+    {
+      templateId: "9",
+      name: "RDST 1b",
+      weekdays: [5],
+      viaTarget: false,
+      until: null,
+    },
   ],
 };
 
@@ -42,7 +48,13 @@ const classImpact: RosterImpact = {
   effectiveFrom: "2027-05-31",
   adjusted: [],
   notAdjusted: [
-    { templateId: "11", name: "Klasse 2a", weekdays: [3], viaTarget: true },
+    {
+      templateId: "11",
+      name: "Klasse 2a",
+      weekdays: [3],
+      viaTarget: true,
+      until: null,
+    },
   ],
 };
 
@@ -51,9 +63,27 @@ const twoClassesImpact: RosterImpact = {
   effectiveFrom: "2027-05-31",
   adjusted: [],
   notAdjusted: [
-    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: false },
-    { templateId: "11", name: "Klasse 2a", weekdays: [3], viaTarget: true },
-    { templateId: "12", name: "Jahrgang 1", weekdays: [3], viaTarget: true },
+    {
+      templateId: "9",
+      name: "RDST 1b",
+      weekdays: [5],
+      viaTarget: false,
+      until: null,
+    },
+    {
+      templateId: "11",
+      name: "Klasse 2a",
+      weekdays: [3],
+      viaTarget: true,
+      until: null,
+    },
+    {
+      templateId: "12",
+      name: "Jahrgang 1",
+      weekdays: [3],
+      viaTarget: true,
+      until: null,
+    },
   ],
 };
 
@@ -141,6 +171,7 @@ describe("CarePlanImpact", () => {
         studentId: "42",
         weekdays: [5],
         effectiveFrom: "2027-05-31",
+        effectiveUntil: null,
       }),
     );
     expect(await screen.findByText("Entfernt")).toBeInTheDocument();
@@ -148,6 +179,50 @@ describe("CarePlanImpact", () => {
     expect(
       screen.queryByRole("button", { name: /^Dort auch entfernen/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("removes only until another booking carries the day again (#5497)", async () => {
+    mocks.removeStudentTemplateDays.mockResolvedValue(undefined);
+    renderImpact({
+      effectiveFrom: "2027-05-31",
+      adjusted: [],
+      notAdjusted: [
+        {
+          templateId: "9",
+          name: "RDST 1b",
+          weekdays: [5],
+          viaTarget: false,
+          until: "2027-06-14",
+        },
+      ],
+    });
+
+    expect(screen.getByText(/freitags bis 13\.06\.2027:/)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/vom 31\.05\.2027 bis 13\.06\.2027 freitags/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /Ab 14\.06\.2027 passt eine andere Buchung wieder\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Jetzt entfernen" }),
+    );
+    await waitFor(() =>
+      expect(mocks.removeStudentTemplateDays).toHaveBeenCalledWith({
+        templateId: "9",
+        studentId: "42",
+        weekdays: [5],
+        effectiveFrom: "2027-05-31",
+        effectiveUntil: "2027-06-14",
+      }),
+    );
   });
 
   it("says who may remove the child when the person cannot edit the plan", () => {

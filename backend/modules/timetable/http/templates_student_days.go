@@ -19,6 +19,9 @@ import (
 type removeStudentTemplateDaysRequest struct {
 	Weekdays      []int  `json:"weekdays"`
 	EffectiveFrom string `json:"effective_from"`
+	// EffectiveUntil is optional (#5497): the day a later booking carries
+	// the Regeltermin again (exclusive). The child stays planned from then.
+	EffectiveUntil string `json:"effective_until,omitempty"`
 }
 
 func (req *removeStudentTemplateDaysRequest) Bind(_ *http.Request) error {
@@ -59,8 +62,12 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_from format, expected YYYY-MM-DD")))
 		return
 	}
+	until, ok := optionalRequestDate(w, r, req.EffectiveUntil, "effective_until")
+	if !ok {
+		return
+	}
 	result, err := rs.StudentTemplateDays.RemoveStudentTemplateDays(r.Context(), timetableModule.StudentTemplateDaysRemoval{
-		TemplateID: templateID, StudentID: studentID, Weekdays: req.Weekdays, From: from,
+		TemplateID: templateID, StudentID: studentID, Weekdays: req.Weekdays, From: from, Until: until,
 	})
 	switch {
 	case errors.Is(err, timetableModule.ErrGroupNotFound):
@@ -76,4 +83,17 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 			RosterRows: result.RosterRows, Occurrences: result.Occurrences,
 		}, "Student removed from template days")
 	}
+}
+
+// optionalRequestDate parses an optional YYYY-MM-DD body field; empty is nil.
+func optionalRequestDate(w http.ResponseWriter, r *http.Request, value, field string) (*calendar.Date, bool) {
+	if value == "" {
+		return nil, true
+	}
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid "+field+" format, expected YYYY-MM-DD")))
+		return nil, false
+	}
+	return &date, true
 }

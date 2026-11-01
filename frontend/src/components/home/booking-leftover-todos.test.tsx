@@ -43,6 +43,7 @@ function leftover(studentId: string, kept = false): BookingLeftover {
     studentName: `Kind ${studentId}`,
     weekdays: [3],
     bookingEndedOn: "2026-09-07",
+    until: null,
     from: "2026-09-10",
     kept,
   };
