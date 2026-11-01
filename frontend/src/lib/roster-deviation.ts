@@ -41,7 +41,7 @@ export interface RosterDeviation {
   ambiguous: boolean;
 }
 
-export interface RosterDeviationChild {
+interface RosterDeviationChild {
   studentId: string;
   name: string;
   /** ISO weekdays on which the child deviates, ascending. */
