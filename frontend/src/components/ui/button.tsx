@@ -1,5 +1,6 @@
 "use client";
 
+import type { PrefetchResource } from "./data-prefetch-intent";
 import Link from "next/link";
 import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
 import { cn } from "~/lib/utils";
@@ -37,6 +38,7 @@ interface ButtonLinkProps extends Omit<
   "className" | "href"
 > {
   readonly href: string;
+  readonly resources?: readonly PrefetchResource[];
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
@@ -145,9 +147,10 @@ export function ButtonLink({
   variant = "primary",
   size = "base",
   className = "",
+  resources,
   ...props
 }: Readonly<ButtonLinkProps>) {
-  const intentProps = useLinkIntentPrefetch(props);
+  const intentProps = useLinkIntentPrefetch({ ...props, resources });
   return (
     <Link
       className={buttonClassName({ variant, size, className })}

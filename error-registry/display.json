@@ -5,6 +5,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "display.disabled"
+    },
+    {
+      "code": "display.manage_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "display.manage_forbidden"
     }
   ]
 }

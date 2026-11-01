@@ -679,6 +679,7 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(null, "", "/students/1");
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     vi.mocked(useSession).mockReturnValue({
@@ -2927,33 +2928,37 @@ describe("StudentDetailPage", () => {
 
       selectTab("Historie");
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1?tab=historie", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1?tab=historie",
+      );
+      expect(mockReplace).not.toHaveBeenCalled();
     });
 
     it("drops the tab param when returning to the default tab", () => {
       mockSearchParams.set("tab", "historie");
 
+      window.history.replaceState(null, "", "/students/1?tab=historie");
+
       render(<StudentDetailPage />);
 
       selectTab("Stammdaten");
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     it("preserves the from referrer when switching tabs", () => {
       mockSearchParams.set("from", "/my-room");
 
+      window.history.replaceState(null, "", "/students/1?from=%2Fmy-room");
+
       render(<StudentDetailPage />);
 
       selectTab("Historie");
 
-      expect(mockReplace).toHaveBeenCalledWith(
+      expect(window.location.pathname + window.location.search).toBe(
         "/students/1?from=%2Fmy-room&tab=historie",
-        { scroll: false },
       );
     });
 
@@ -2983,23 +2988,27 @@ describe("StudentDetailPage", () => {
       mockSearchParams.set("tab", "betreuungszeiten");
       mockUseStudentData.mockReturnValue(limitedAccess);
 
+      window.history.replaceState(null, "", "/students/1?tab=betreuungszeiten");
+
       render(<StudentDetailPage />);
 
       // Clamped to the default tab, so the bogus param is stripped from the URL
       // rather than left advertising a tab the user can't open.
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     it("rewrites the URL to drop an unknown tab value", () => {
       mockSearchParams.set("tab", "nonsense");
 
+      window.history.replaceState(null, "", "/students/1?tab=nonsense");
+
       render(<StudentDetailPage />);
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     // Regression guard for the Rules-of-Hooks ordering bug: the tab self-heal

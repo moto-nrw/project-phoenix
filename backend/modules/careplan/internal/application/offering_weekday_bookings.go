@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// OfferingWeekdayBookings lists, per active offering fitting the period,
+// OfferingWeekdayBookings lists, per active offering overlapping the period,
 // each approved child with the weekdays its bookings plan on or after from
 // (#5103). The Regeltermin hint compares them with a hand-kept roster. The
 // weekdays follow the resync's rule (effectiveOfferingDaysForEnrollment): a

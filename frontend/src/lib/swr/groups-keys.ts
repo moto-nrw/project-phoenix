@@ -7,5 +7,6 @@ export type GroupFilters = {
 };
 export const groupKeys = {
   family: SWR_FAMILIES.groups,
+  live: (id: string | null) => `ogs-students-${id ?? "auto"}`,
   key: (params: GroupFilters = {}) => resourceKey("groups-list-", params),
 } as const;

@@ -57,7 +57,12 @@ describe("useRosterDeviations deep links", () => {
     );
     expect(result.current.settled).toBe(false);
     await waitFor(() =>
-      expect(timetableService.getRosterDeviations).toHaveBeenCalledWith("5"),
+      // Der Link nennt seinen Regeltermin: er wird auch geprüft, wenn er
+      // von Hand gepflegt bleibt.
+      expect(timetableService.getRosterDeviations).toHaveBeenCalledWith(
+        "5",
+        "7",
+      ),
     );
     await act(async () => {
       resolve([deviation]);

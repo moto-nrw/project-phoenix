@@ -60,14 +60,17 @@ var seedCoverageExemptions = map[string]string{
 	"active.class_handover_children": "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
 	// The Elternsprechtag (#4801) is offered only by a Lehrkraft for an
 	// assigned class through moto schule, and families book only such a day.
-	"calendar.parent_conferences":          "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class offers it, and the seeder seeds none",
-	"calendar.parent_conference_bookings":  "not in prod yet (migration newer than the deployed image); needs a Sprechtag of a Lehrkraft, which the seeder seeds none of",
-	"active.combined_groups":               "empty in prod too",
-	"active.group_mappings":                "empty in prod too",
-	"active.scheduled_checkouts":           "empty in prod too",
-	"active.staff_month_balance_snapshots": "empty in prod too",
-	"active.payroll_dispatches":            "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
-	"active.staff_vacation_openings":       "empty in prod too",
+	"calendar.parent_conferences":         "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class offers it, and the seeder seeds none",
+	"calendar.parent_conference_bookings": "not in prod yet (migration newer than the deployed image); needs a Sprechtag of a Lehrkraft, which the seeder seeds none of",
+	// The confirmation of planned vacation care (#5345) is a decision the
+	// school takes on the vacation hint; the seed leaves the hint visible.
+	"calendar.school_vacation_acknowledgements": "not in prod yet (migration newer than the deployed image); only a planner's confirmation on the vacation hint writes it, and the seed keeps the hint visible",
+	"active.combined_groups":                    "empty in prod too",
+	"active.group_mappings":                     "empty in prod too",
+	"active.scheduled_checkouts":                "empty in prod too",
+	"active.staff_month_balance_snapshots":      "empty in prod too",
+	"active.payroll_dispatches":                 "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
+	"active.staff_vacation_openings":            "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",

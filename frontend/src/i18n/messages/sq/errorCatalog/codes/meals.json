@@ -14,5 +14,6 @@
   "delivery_range_too_long": "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
   "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
   "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
-  "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."
+  "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
+  "participation_manage_denied": "Mund t’i shikoni regjistrimet për ushqim, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni ekipin e kujdesit pas shkollës."
 }

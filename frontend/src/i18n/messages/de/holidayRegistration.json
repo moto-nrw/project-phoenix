@@ -97,11 +97,20 @@
     "health": "Bitte stimmen Sie zu oder löschen Sie die Gesundheitsangaben.",
     "binding": "Bitte bestätigen Sie, dass die Anmeldung verbindlich ist.",
     "yesNo": "Bitte wählen Sie Ja oder Nein.",
-    "choose": "Bitte wählen Sie eine Antwort."
+    "choose": "Bitte wählen Sie eine Antwort.",
+    "contactRole": "Bitte wählen Sie mindestens eine Aufgabe.",
+    "emergencyRequired": "Bitte wählen Sie mindestens einen Notfallkontakt.",
+    "emergencyLimit": "Sie können höchstens drei Notfallkontakte angeben.",
+    "pickupLimit": "Sie können höchstens fünf Abholpersonen angeben.",
+    "contactLimit": "Sie können höchstens acht Personen angeben."
   },
-  "childQuestionsTitle": "Weitere Angaben",
-  "familyQuestionsTitle": "Weitere Angaben zur Familie",
+  "childQuestionsTitle": "Fragen und Infos zum Kind",
+  "familyQuestionsTitle": "Fragen und Infos zur Familie",
   "legalTitle": "Hinweise und Einwilligungen",
   "legalAccepted": "Bestätigt",
-  "legalNotAccepted": "Nicht bestätigt"
+  "legalNotAccepted": "Nicht bestätigt",
+  "contactsTitle": "Kontakte",
+  "contactsText": "Tragen Sie jede weitere Person einmal ein. Wählen Sie ihre Aufgaben. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
+  "emergencyRole": "Notfallkontakt",
+  "pickupRole": "Darf die Kinder abholen"
 }

@@ -8,7 +8,6 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import {
-  confirmCatererOrder,
   type CatererOrderChild,
   type CatererOrderDay,
   type CatererOrders,
@@ -175,11 +174,11 @@ type OrderRow =
 export function CatererSchoolOrders({
   school,
   orders,
-  onConfirmed,
+  onConfirm,
 }: Readonly<{
   school: CatererSchool;
   orders: CatererOrders;
-  onConfirmed: () => Promise<void>;
+  onConfirm: (orderId: string) => Promise<void>;
 }>) {
   const [confirming, setConfirming] = useState<string | null>(null);
   // Die Namen eines Tages sind zugeklappt: ausgeschrieben machen sie die
@@ -201,8 +200,7 @@ export function CatererSchoolOrders({
     async (orderId: string) => {
       setConfirming(orderId);
       try {
-        await confirmCatererOrder(school.id, orderId);
-        await onConfirmed();
+        await onConfirm(orderId);
       } catch (cause) {
         logger.error("caterer_order_confirm_failed", {
           error: cause instanceof Error ? cause.message : String(cause),
@@ -212,7 +210,7 @@ export function CatererSchoolOrders({
         setConfirming(null);
       }
     },
-    [onConfirmed, school.id, showActionError],
+    [onConfirm, showActionError],
   );
 
   const days = useMemo(() => orders?.days ?? [], [orders]);

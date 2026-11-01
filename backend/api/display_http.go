@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // newDisplayHTTPResource wires the display routes to the shared inbound middleware.
@@ -25,9 +26,12 @@ func newDisplayHTTPResource(displays devicefleet.Capability, displayEnabled func
 
 func displayHTTPRuntime(displayEnabled func(context.Context) (bool, error)) displayHTTP.Runtime {
 	return displayHTTP.Runtime{
-		Protected:      displayProtectedRoutes,
-		AnyPermission:  apiCommon.RequiresAnyPermission,
-		Permission:     apiCommon.RequiresPermission,
+		Protected:     displayProtectedRoutes,
+		AnyPermission: apiCommon.RequiresAnyPermission,
+		HasPermission: func(ctx context.Context, permission string) bool {
+			principal, err := apiCommon.CurrentPrincipal(ctx)
+			return err == nil && principal.HasPermission(permission)
+		},
 		ParseID:        apiCommon.ParseInt64IDWithError,
 		Failure:        renderDisplayFailure,
 		FeatureEnabled: displayEnabled,
@@ -62,6 +66,11 @@ func renderDisplayFailure(
 	case displayHTTP.FailureInvalid:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 	case displayHTTP.FailureForbidden:
+		if errors.Is(err, displayHTTP.ErrManageForbidden) {
+			securityruntime.ObserveAuthorization(r.Context(), securityruntime.AuthorizationEvent{Reason: "permission_denied"})
+			apiCommon.RenderError(w, r, apiCommon.ErrorForbiddenWithCode(err, apiCommon.CodeDisplayManageForbidden))
+			return
+		}
 		if errors.Is(err, displayHTTP.ErrFeatureDisabled) {
 			apiCommon.RenderError(w, r, apiCommon.ErrorForbiddenWithCode(err, apiCommon.CodeDisplayDisabled))
 			return

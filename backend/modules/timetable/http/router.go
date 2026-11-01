@@ -75,6 +75,18 @@ func (rs *Resource) mountCalendarRoutes(r chi.Router, withTx common.Middleware) 
 	// period page (schedules:read) both read them, without a time-tracking
 	// permission.
 	r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.CalendarOwn), withTx).Get("/holidays", rs.listHolidays)
+
+	// School vacations of the school's federal state (#5345), read from the
+	// daily sync. The list holds for the whole school like the holidays; the
+	// hint and its confirmation belong to the people who plan.
+	r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.CalendarOwn), withTx).Get("/school-vacations", rs.listSchoolVacations)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Get("/school-vacation-hints", rs.listSchoolVacationHints)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Post("/school-vacation-hints/acknowledgements", rs.acknowledgeSchoolVacation)
+	if rs.IsLocalSeed != nil {
+		// No tenant transaction: the seed writes the vacations of every
+		// state in its own administrative transaction.
+		r.With(common.RequiresPermission(permissions.SchedulesManage)).Post("/school-vacations/seed", rs.seedSchoolVacations)
+	}
 }
 
 // mountInstancePlanningRoutes registers the planner's reads and writes of
@@ -344,7 +356,7 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 		Delete("/templates/{id}", rs.archiveTemplate)
 	// Roster review (#5103): hand-kept Regeltermine that drift from the
 	// bookings, the preview and the switch to a Betreuungsangebot as
-	// source, and "Bleibt von Hand gepflegt".
+	// source, and "Liste so lassen".
 	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 		Get("/templates/roster-deviations", rs.listTemplateRosterDeviations)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).

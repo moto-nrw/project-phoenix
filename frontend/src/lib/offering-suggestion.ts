@@ -29,6 +29,8 @@ export interface OfferingSuggestionQuery {
   type: string;
   listKind?: string;
   roster: DraftRoster;
+  /** Planned end ("HH:MM"); tells which offerings carry the block (#5342). */
+  endTime?: string;
   schoolClasses: string[];
   gradeLevels: number[];
 }
@@ -67,6 +69,7 @@ export function suggestionQuery(
   params.set("period_id", query.periodId);
   params.set("type", query.type);
   if (query.listKind) params.set("list_kind", query.listKind);
+  if (query.endTime) params.set("end_time", query.endTime);
   appendRoster(params, query.roster);
   if (query.schoolClasses.length > 0) {
     params.set("school_classes", query.schoolClasses.join(","));

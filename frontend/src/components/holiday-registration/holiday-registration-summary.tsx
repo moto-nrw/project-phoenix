@@ -185,11 +185,20 @@ export function HolidayRegistrationSummary({
           <DataField label={t("phone")}>
             {draft.guardian.phone.trim()}
           </DataField>
-          <DataField label={t("emergencyTitle")}>
-            {draft.emergencyContacts.map(contactLine).join("; ")}
-          </DataField>
-          <DataField label={t("pickupTitle")}>
-            {draft.pickupPersons.map(contactLine).join("; ") || t("noPickup")}
+          <DataField label={t("contactsTitle")}>
+            <ul className="space-y-2">
+              {draft.contacts.map((contact) => (
+                <li key={contact.key}>
+                  {contactLine(contact)} ·{" "}
+                  {[
+                    contact.emergency && t("emergencyRole"),
+                    contact.pickup && t("pickupRole"),
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </li>
+              ))}
+            </ul>
           </DataField>
           <AnswerFields
             questions={visibleFamilyQuestions(draft, offer.form)}

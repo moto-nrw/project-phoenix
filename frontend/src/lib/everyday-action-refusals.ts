@@ -1,4 +1,3 @@
-import { ApiError } from "~/lib/api-error";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 
 /**
@@ -15,11 +14,8 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
  * own (`ErrorClassCode`, `RequiresPermission`); `general.input` with status
  * 404 is the class code of a not-found answer.
  *
- * Some write routes answer a business state with the same code as a
- * refusal: the caller may still read, but not write. Those codes are not
- * refusals. They are listed under `RECHECK`: the action rolls back and the
- * view loads the resource again, so a read that is refused too shows as
- * the reader's load error (#5423).
+ * Write-only denials have their own codes and only roll back the action.
+ * They do not discard readable data or trigger another read (#5423).
  */
 
 /**
@@ -43,56 +39,24 @@ export const STAMP_REFUSALS: readonly ErrorCode[] = ["general.permission"];
 export const HOME_LAYOUT_REFUSALS: readonly ErrorCode[] = [];
 
 /**
- * PATCH/DELETE /api/displays/{id} (`api/display/api.go`, `renderError`;
- * `api/display_http.go`, `renderDisplayFailure`): none for the list. The
- * list is readable with `display:read` or `display:manage`; a write needs
- * `display:manage`. Its 403 `general.permission` therefore also comes for an
- * account that may still read the list, and 404 `general.input` names one
- * display, not the list. `display.disabled` is a business state.
+ * Display writes need display:manage. Without display:read either, the list
+ * is refused with general.permission. Read-only access instead answers with
+ * display.manage_forbidden and keeps the confirmed list. A 404 general.input
+ * names one deleted display, not the list; display.disabled is a state.
  */
-export const DISPLAY_REFUSALS: readonly ErrorCode[] = [];
-export const DISPLAY_RECHECK: readonly ErrorCode[] = [
-  "general.permission",
-  "general.input",
-];
+export const DISPLAY_REFUSALS: readonly ErrorCode[] = ["general.permission"];
 
 /**
- * PUT/DELETE /api/parent/me/children/{id}/meal-participation[/{date},
- * /weeks/{date}] (`workflows/parentportal/http/child_write_errors.go`,
- * `renderParentCareWriteError`): the relationship to the child is gone
- * (`care.child_not_linked`, also on the read) or the parent token has no
- * account (401, class code).
- *
- * `care.guardian_permission_denied` is not a refusal: the write needs
- * `meal_participation.manage`, the read only `parent_portal.access`, and both
- * answer with this code. `care.child_care_ended`, `meals.registration_disabled`
- * and `meals.plan_disabled` are business states.
+ * Meal participation reads and writes both require parent_portal.access on
+ * the child's relationship. Read denial is care.guardian_permission_denied
+ * or care.child_not_linked when the link projection filters inaccessible links.
+ * Missing only
+ * meal_participation.manage answers with meals.participation_manage_denied:
+ * the action rolls back, but the plan stays readable. Ended care and disabled
+ * registration or meal plans also remain business states.
  */
 export const MEAL_PARTICIPATION_REFUSALS: readonly ErrorCode[] = [
   "general.permission",
   "care.child_not_linked",
-];
-// On GET this code confirms lost read access, rather than a write-only limit.
-export const MEAL_PARTICIPATION_READ_REFUSALS: readonly ErrorCode[] = [
-  ...MEAL_PARTICIPATION_REFUSALS,
   "care.guardian_permission_denied",
 ];
-export const MEAL_PARTICIPATION_RECHECK: readonly ErrorCode[] = [
-  "care.guardian_permission_denied",
-];
-
-const RECHECK_STATUSES = new Set([401, 403, 404]);
-
-/** Whether a failed write leaves it open if the resource is still readable. */
-export function needsRecheck(
-  error: unknown,
-  codes: readonly ErrorCode[],
-): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status !== undefined &&
-    RECHECK_STATUSES.has(error.status) &&
-    error.code !== undefined &&
-    codes.includes(error.code)
-  );
-}

@@ -87,6 +87,7 @@ export function swrScopePrefix(
   if (scope === "org") {
     return orgId == null ? null : `traeger:${orgId}:${id}`;
   }
+  if (scope === "caterer") return `caterer:${id}`;
   if (tenantSlug) return tenantSWRScope(tenantSlug, id);
   if (scope === "school") {
     return tenantId == null ? null : `school:${tenantId}:${id}`;

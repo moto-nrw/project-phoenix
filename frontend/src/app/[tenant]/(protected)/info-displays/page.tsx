@@ -21,12 +21,9 @@ import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { displayKeys } from "~/lib/swr/portal-keys";
-import {
-  DISPLAY_RECHECK,
-  DISPLAY_REFUSALS,
-  needsRecheck,
-} from "~/lib/everyday-action-refusals";
+import { DISPLAY_REFUSALS } from "~/lib/everyday-action-refusals";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -142,9 +139,13 @@ function InfoDisplaysPageContent() {
       });
       if (outcome.status === "discarded") return { ok: false };
       if (outcome.status === "done") return { ok: true, value: outcome.result };
-      // A 403 may leave the list readable, a 404 names one display (#5423):
-      // load the list again instead of dropping it.
-      if (needsRecheck(outcome.error, DISPLAY_RECHECK)) void mutate();
+      // A 404 names one deleted display, not lost access to the list.
+      if (
+        outcome.error instanceof ApiError &&
+        outcome.error.status === 404 &&
+        outcome.error.code === wireErrorCode("general.input")
+      )
+        void mutate();
       logger.error(failEvent, {
         error:
           outcome.error instanceof Error

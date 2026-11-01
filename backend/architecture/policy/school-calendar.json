@@ -22,6 +22,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolcalendar/internal/adapters/openholidays",
+      "owner": "school-calendar",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/schoolcalendar/internal/adapters/postgres",
       "owner": "school-calendar",
       "role": "postgres",
@@ -96,6 +103,14 @@
     },
     {
       "name": "calendar.staff_feed_tombstones",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.school_vacation_acknowledgements",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.school_vacations",
       "write_owner": "school-calendar"
     },
     {

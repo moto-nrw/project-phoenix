@@ -130,7 +130,7 @@ func TestLoadOfferingSources_SkipInactiveKeepsEveryOtherRefusal(t *testing.T) {
 	requireRefusal(t, err, ports.OfferingSourceMixedPhases)
 
 	outside := newInactiveSourceCatalog()
-	outside.period.period.EndDate = calendar.NewDate(2027, 6, 30)
+	outside.period.period.EndDate = calendar.NewDate(2026, 8, 31)
 	_, err = outside.load(t, []int64{1, 2}, &period, skipInactiveSources)
 	requireRefusal(t, err, ports.OfferingSourceOutsidePeriod)
 
@@ -252,7 +252,7 @@ func TestSourceRefusalProblem(t *testing.T) {
 	assert.Equal(t, careplan.SourcedTemplateMixedPhases, sourceRefusalProblem(err))
 
 	outside := newInactiveSourceCatalog()
-	outside.period.period.EndDate = calendar.NewDate(2027, 6, 30)
+	outside.period.period.EndDate = calendar.NewDate(2026, 8, 31)
 	_, err = outside.load(t, []int64{2}, &period, skipInactiveSources)
 	assert.Equal(t, careplan.SourcedTemplateOutsidePeriod, sourceRefusalProblem(err))
 

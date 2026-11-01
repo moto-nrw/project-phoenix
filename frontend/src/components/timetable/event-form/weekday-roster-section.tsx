@@ -24,6 +24,7 @@ import {
   WEEKDAY_LABELS,
   WEEKDAY_SHORT_LABELS,
   rosterForWeekday,
+  targetCohortExtraText,
   weekdayDeviatesFromBaseline,
   type EventFormState,
   type PersonOption,
@@ -52,6 +53,8 @@ export interface WeekdayRosterSectionProps {
     label: string;
     memberIds: string[];
   }>;
+  /** The Klasse, Jahrgang or Gruppe target that adds children every day. */
+  targetCohort: { label: string | null; memberIds: string[] };
 }
 
 export function WeekdayRosterSection({
@@ -66,6 +69,7 @@ export function WeekdayRosterSection({
   staff,
   students,
   studentBulkOptions,
+  targetCohort,
 }: Readonly<WeekdayRosterSectionProps>) {
   const deviatingWeekdays = weekdays.filter((weekday) =>
     weekdayDeviatesFromBaseline(form, weekday, weekdays),
@@ -168,6 +172,7 @@ export function WeekdayRosterSection({
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
+          targetCohort={targetCohort}
           protectedStudentIds={
             form.protectedStudentAssignments.find(
               (assignment) => assignment.weekday === activeWeekday,
@@ -187,6 +192,7 @@ function WeekdayRosterFields({
   staff,
   students,
   studentBulkOptions,
+  targetCohort,
   protectedStudentIds,
 }: Readonly<{
   roster: WeekdayRosterState;
@@ -200,9 +206,13 @@ function WeekdayRosterFields({
     label: string;
     memberIds: string[];
   }>;
+  targetCohort: { label: string | null; memberIds: string[] };
   protectedStudentIds: readonly string[];
 }>) {
   const dayLabel = WEEKDAY_LABELS[weekday] ?? "";
+  const cohortExtra = showStudents
+    ? targetCohortExtraText(targetCohort, roster.studentIds, students)
+    : null;
   return (
     <div className="flex flex-col gap-3 border-t border-gray-200 pt-3">
       <MultiSelectField
@@ -252,6 +262,9 @@ function WeekdayRosterFields({
           protectedValues={protectedStudentIds}
         />
       )}
+      {cohortExtra ? (
+        <p className="text-xs text-gray-600">{cohortExtra}</p>
+      ) : null}
 
       {roster.staffIds.length === 0 && (
         <Alert

@@ -206,3 +206,53 @@ and every school/organization counter.
 Announcement statistics and confirmation details run only while expanded.
 The operator auth guard also keys local page/modal state to its confirmed scope
 and hides it while another tab's session change is being confirmed.
+
+### Completion effects of batch readers
+
+A batch reader processes supply/access refusals when its request settles,
+not only in an effect of the currently selected view. Call
+`useSWRRequestGuard()` (from `hooks`) in the component body. Call its returned
+request starter at the beginning of the fetcher, before awaiting the request.
+Run synchronous refusal handling through the resulting completion callback. It
+checks the session, scope and request generation even after the user changes
+keys. A stale completion becomes `DiscardedAnswer`, which the existing SWR
+wrapper suppresses. Imperative reads can check the callback’s `isCurrent()`
+before handling either success or failure, without turning a GET into an
+optimistic action. The guard exposes no cache or writer and does not change
+SWR's view-bound `onSuccess` semantics. Keep each refused resource's existing
+factory-key predicate; do not clear other readable schools.
+
+## Navigation intent
+
+Navigation data preloads must use `useSWRPreload` with the destination's exact
+factory key and fetcher. Code prefetch and data prefetch are independent:
+data waits for about 300 ms of pointer intent or keyboard focus (blur cancels).
+Touch starts no load: only a completed single-finger tap, with at most 8 px of
+movement, starts data intent; swipes and cancelled gestures do not.
+Do not preload audited reads, inaccessible resources, or speculative detail
+fields. A failed speculative request must not become the destination's load
+error. Scope changes discard pending answers, including work queued before
+the change. Respect Save-Data, `prefers-reduced-data` and slow connections; bound concurrency.
+
+`preload(key, fetcher, { intent: true })` is the speculative variant of the
+same locked writer. It skips an already current cached response and removes
+only its own failed preload promise atomically before rejecting, so a later
+page cannot take a promise between failure and cleanup. It runs its ordinary
+loader instead.
+If a mounted reader already consumed the promise, its first speculative failure
+instead runs the same canonical fetcher once inside the original generation
+lock. No retry occurs without a handoff, after a generation change, or while
+the session is unconfirmed. The reader stays loading until that ordinary load
+settles; only its failure reaches the normal error path.
+It never mutates response data directly, bypasses a generation check, or
+removes a replacement promise. Unconsumed intent promises expire after 45 s.
+Expiry is checked again before SWR consumes a promise, even when background-tab
+timers were suspended. Timer cleanup requires the original promise identity,
+and an expired pending request cannot trigger a handoff fallback. Expiry only
+evicts intent registry entries, never response data. General preloads retain
+their existing contract.
+The protected tenant shell shares thin fetchers, not page hooks, so data
+intent does not wait for another code chunk. It starts data only after intent. Its queue runs at most three resources concurrently
+and holds at most twelve waiting resources. New intent replaces older queued
+work and unresolved resource selection; queued work waits at most 5 s. Account/school/generation changes
+invalidate the captured writer even while code is loading or work is queued.

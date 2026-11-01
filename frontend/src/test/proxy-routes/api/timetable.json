@@ -164,6 +164,15 @@
   "api/timetable/planning-tracks/order": [
     "PUT tenant /api/timetable/planning-tracks/order"
   ],
+  "api/timetable/school-vacation-hints": [
+    "GET tenant /api/timetable/school-vacation-hints"
+  ],
+  "api/timetable/school-vacation-hints/acknowledgements": [
+    "POST tenant /api/timetable/school-vacation-hints/acknowledgements"
+  ],
+  "api/timetable/school-vacations": [
+    "GET tenant /api/timetable/school-vacations"
+  ],
   "api/timetable/shift-coverage": [
     "POST tenant /api/timetable/shift-coverage"
   ],

@@ -40,6 +40,7 @@ import { CalendarX, Printer } from "lucide-react";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
+import { SchoolVacationHints } from "~/components/timetable/school-vacation-hints";
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
@@ -205,9 +206,22 @@ const ALLOWED_URL_PARAMS = [
   "verbinden",
   // Zeitraum-ID des verlinkten Regeltermins (#5137).
   "zeitraum",
+  // „Termine absagen“ aus dem Ferienhinweis der Startseite (#5345): Erster
+  // und letzter Tag, mit denen die Sammelabsage öffnet.
+  "absagen",
+  "absagenBis",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
+
+/** Gültiger Zeitraum aus `absagen`/`absagenBis`, sonst `null`. */
+function linkedBulkCancelRange(
+  from: string | null,
+  to: string | null,
+): { from: string; to: string } | null {
+  if (!from || !to || !isValidISODate(from) || !isValidISODate(to)) return null;
+  return from <= to ? { from, to } : null;
+}
 
 // Leerzustand eines gefilterten Plans (#4766): nichts geplant heißt hier
 // „nichts für diese Auswahl“, nicht „nichts in dieser Woche“.
@@ -367,6 +381,12 @@ function TimetablesContent() {
   const [exportOpen, setExportOpen] = useState(false);
   // „Termine im Zeitraum absagen“ (#3594).
   const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
+  // Vom Ferienhinweis der Startseite verlinkt (#5345): die Sammelabsage ist
+  // offen, solange der Zeitraum in der URL steht.
+  const linkedCancelRange = linkedBulkCancelRange(
+    params.absagen,
+    params.absagenBis,
+  );
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
   // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
   // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
@@ -1035,9 +1055,9 @@ function TimetablesContent() {
   );
   const reviewOnly = params.pruefen === "1";
   // „Mit Angebot verbinden“ aus der Rückmeldung nach einer Buchungsänderung
-  // (#5137): öffnet einmal den Dialog des Regeltermins. Findet moto kein
-  // passendes Angebot, öffnet der Regeltermin zum Bearbeiten; dort lässt sich
-  // ein Angebot als Quelle wählen.
+  // (#5137): öffnet einmal den Dialog des Regeltermins, auch wenn er von Hand
+  // gepflegt bleibt; Verbinden beendet das. Findet moto kein passendes
+  // Angebot, sagt es das und nennt den Weg über „Bearbeiten“.
   useEffect(() => {
     if (!connectTemplateID || status !== "authenticated") return;
     // Ohne Planungsrecht gibt es weder Serienansicht noch Dialog.
@@ -1092,13 +1112,8 @@ function TimetablesContent() {
       setConnecting({ template, deviation });
       return;
     }
-    setEditingInstance(null);
-    setConvertingInstance(null);
-    setEditingTemplate(template);
-    setEventDefaultRepeat("weekly");
-    setEventModalOpen(true);
-    toast.info(
-      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    showConnectMessage(
+      `moto findet für „${template.name}“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.`,
     );
   }, [
     connectTemplateID,
@@ -1119,7 +1134,6 @@ function TimetablesContent() {
     templates,
     canManageSchedules,
     updateUrlParams,
-    toast,
     showConnectMessage,
   ]);
   const modalCalendarPeriods = useMemo(() => {
@@ -1624,7 +1638,7 @@ function TimetablesContent() {
     ],
   );
 
-  // „Bleibt von Hand gepflegt“ und „Hinweis wieder zeigen“ (#5103). Kein
+  // „Liste so lassen“ und „Hinweis wieder zeigen“ (#5103). Kein
   // Dialog ist offen, deshalb kommt ein Fehler als Toast mit Katalogtext.
   const handleManualRoster = useCallback(
     async (template: TimetableTemplate, confirmed: boolean) => {
@@ -1633,7 +1647,7 @@ function TimetablesContent() {
         await timetableService.setManualRosterConfirmed(template.id, confirmed);
         toast.success(
           confirmed
-            ? `„${template.name}“ bleibt von Hand gepflegt.`
+            ? `Die Kinderliste von „${template.name}“ bleibt so.`
             : `Der Hinweis zu „${template.name}“ wird wieder gezeigt.`,
         );
         if (templatePeriodID) {
@@ -2275,12 +2289,22 @@ function TimetablesContent() {
           dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
       {/* #3594: geplante Termine eines Zeitraums absagen, z. B. Ferien, die
           erst nach der Planung als Schließtag eingetragen wurden. */}
-      {canManageSchedules && bulkCancelOpen && (
+      {canManageSchedules && (bulkCancelOpen || linkedCancelRange) && (
         <BulkCancelAppointmentsModal
           isOpen
-          initialFrom={fetchFromISO < todayISO ? todayISO : fetchFromISO}
-          initialTo={fetchToISO < todayISO ? todayISO : fetchToISO}
-          onClose={() => setBulkCancelOpen(false)}
+          initialFrom={
+            linkedCancelRange?.from ??
+            (fetchFromISO < todayISO ? todayISO : fetchFromISO)
+          }
+          initialTo={
+            linkedCancelRange?.to ??
+            (fetchToISO < todayISO ? todayISO : fetchToISO)
+          }
+          onClose={() => {
+            setBulkCancelOpen(false);
+            if (linkedCancelRange)
+              updateUrlParams({ absagen: null, absagenBis: null });
+          }}
         />
       )}
 
@@ -2491,6 +2515,8 @@ function TimetablesContent() {
       <LoadErrorAlert error={gapsLoadError} />
       <LoadErrorAlert error={namesLoadError} />
       {canManageSchedules && <LoadErrorAlert error={ackLoadError} />}
+      {/* #5345: Regeltermine in den nächsten Schulferien. */}
+      <SchoolVacationHints enabled={canManageSchedules} />
 
       {canManageSchedules && shouldLoadInstances && (
         <ConflictWarningsBanner
@@ -2628,7 +2654,9 @@ function TimetablesContent() {
           onConnect={(template, deviation) =>
             setConnecting({ template, deviation })
           }
-          onKeepManual={(template) => void handleManualRoster(template, true)}
+          onSetManualRoster={(template, confirmed) =>
+            void handleManualRoster(template, confirmed)
+          }
           reviewOnly={reviewOnly}
           onReviewOnlyChange={(next) =>
             updateUrlParams({ pruefen: next ? "1" : null })

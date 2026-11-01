@@ -1,3 +1,4 @@
 {
-  "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+  "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "manage_forbidden": "Mund t’i shikoni ekranet informuese, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni drejtuesit e shkollës."
 }

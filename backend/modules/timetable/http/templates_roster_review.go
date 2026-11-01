@@ -16,6 +16,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -28,12 +30,23 @@ type rosterDeviationResponse struct {
 	SchoolClasses []string                                    `json:"school_classes"`
 	UnbookedCount int                                         `json:"unbooked_count"`
 	MissingCount  int                                         `json:"missing_count"`
-	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
+	// Unbooked / Missing name the counted children with their weekdays,
+	// only for callers who may read children; otherwise they are empty and
+	// the counts stand alone.
+	Unbooked   []rosterDeviationChildResponse              `json:"unbooked"`
+	Missing    []rosterDeviationChildResponse              `json:"missing"`
+	Candidates []templateRosterMaintenanceOfferingResponse `json:"candidates"`
 	// Combinations are the equal choices when Ambiguous, else empty.
 	Combinations [][]templateRosterMaintenanceOfferingResponse `json:"combinations"`
 	// Ambiguous: other offerings fit as well as suggested ones; the school
 	// picks.
 	Ambiguous bool `json:"ambiguous"`
+}
+
+type rosterDeviationChildResponse struct {
+	StudentID int64  `json:"student_id"`
+	Name      string `json:"name"`
+	Weekdays  []int  `json:"weekdays"`
 }
 
 type rosterDeviationsResponse struct {
@@ -43,7 +56,10 @@ type rosterDeviationsResponse struct {
 // listTemplateRosterDeviations handles GET /templates/roster-deviations: the
 // Regeltermine of the period that are not maintained automatically, not
 // confirmed as hand-kept and whose children obviously follow an offering's
-// bookings. Every read is batched over the period's templates.
+// bookings. Every read is batched over the period's templates. An optional
+// template_id also reviews that series when it is confirmed as hand-kept:
+// „Mit Angebot verbinden“ names it explicitly, and connecting ends the
+// hand-kept state. The rest of the period stays in the answer.
 func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.Request) {
 	if rs.TimetableData == nil || rs.RosterReview == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable roster review not wired")))
@@ -57,7 +73,11 @@ func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required")))
 		return
 	}
-	deviations, err := rs.templateRosterDeviations(r.Context(), *periodID)
+	namedTemplateID, ok := rosterDeviationTemplateIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	deviations, err := rs.templateRosterDeviations(r.Context(), *periodID, namedTemplateID, rs.callerReadsStudents(r))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list roster deviations failed", err))
 		return
@@ -65,10 +85,51 @@ func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, rosterDeviationsResponse{Deviations: deviations}, "Roster deviations retrieved")
 }
 
-func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64) ([]rosterDeviationResponse, error) {
-	result := []rosterDeviationResponse{}
+func rosterDeviationTemplateIDFromRequest(w http.ResponseWriter, r *http.Request) (*int64, bool) {
+	raw := r.URL.Query().Get("template_id")
+	if raw == "" {
+		return nil, true
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("template_id must be a positive integer")))
+		return nil, false
+	}
+	return &id, true
+}
+
+// templateRosterDeviations finds the deviations of the period; withNames
+// adds the names of the counted children, resolved in one batch.
+func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64, namedTemplateID *int64, withNames bool) ([]rosterDeviationResponse, error) {
+	detected, err := rs.detectTemplateRosterDeviations(ctx, periodID, namedTemplateID)
+	if err != nil {
+		return nil, err
+	}
+	names := map[int64]string{}
+	if withNames && len(detected) > 0 {
+		studentIDs := []int64{}
+		for _, entry := range detected {
+			studentIDs = append(studentIDs, deviationStudentIDs(entry.deviation)...)
+		}
+		if names, err = rs.studentNames(ctx, studentIDs, rs.todayDate()); err != nil {
+			return nil, err
+		}
+	}
+	result := make([]rosterDeviationResponse, 0, len(detected))
+	for _, entry := range detected {
+		result = append(result, rosterDeviationResponseFrom(entry.templateID, entry.deviation, names))
+	}
+	return result, nil
+}
+
+type templateRosterDeviation struct {
+	templateID int64
+	deviation  *timetable.RosterDeviation
+}
+
+func (rs *Resource) detectTemplateRosterDeviations(ctx context.Context, periodID int64, namedTemplateID *int64) ([]templateRosterDeviation, error) {
 	if rs.OfferingSourceOptions == nil {
-		return result, nil
+		return nil, nil
 	}
 	ratio := rs.childrenPerStaffRatio(ctx)
 	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio, nil)
@@ -77,43 +138,101 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 	}
 	templates := mapTemplateRows(rows, ratio, nil)
 	rs.attachRosterMaintenance(ctx, templates, &periodID)
-	reviewed := reviewableTemplateIDs(templates)
+	reviewed := reviewableTemplateIDs(templates, namedTemplateID)
 	if len(reviewed) == 0 {
-		return result, nil
+		return nil, nil
 	}
 	today := rs.todayDate()
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, today)
 	if err != nil || len(bookings) == 0 {
-		return result, err
+		return nil, err
 	}
 	rosters, err := rs.RosterReview.FutureRosters(ctx, reviewed, today)
 	if err != nil {
 		return nil, err
 	}
 	kinds := make(map[int64]timetable.RosterOfferingKind, len(templates))
+	ends := make(map[int64]map[int]string, len(templates))
 	for _, template := range templates {
 		kinds[template.ID] = timetable.RosterOfferingKindFor(template.Type, template.ListKind)
+		ends[template.ID] = templateWeekdayEnds(template.Schedules, today)
 	}
+	detected := []templateRosterDeviation{}
 	for _, templateID := range reviewed {
 		roster, found := rosters[templateID]
 		if !found {
 			continue
 		}
 		roster.OfferingKind = kinds[templateID]
+		roster.Ends = ends[templateID]
 		if deviation := timetable.DetectRosterDeviation(roster, bookings); deviation != nil {
-			result = append(result, rosterDeviationResponseFrom(templateID, deviation))
+			detected = append(detected, templateRosterDeviation{templateID: templateID, deviation: deviation})
 		}
 	}
-	return result, nil
+	return detected, nil
+}
+
+// callerReadsStudents reports whether the caller may read children's names,
+// as the participant lists decide it: administrators and verified staff.
+func (rs *Resource) callerReadsStudents(r *http.Request) bool {
+	ctx := r.Context()
+	return rs.People != nil &&
+		securityruntime.CanReadStudent(ctx, sessiontoken.PermissionsFromCtx(ctx), readableStudent{}, rs.UserContextService)
+}
+
+func deviationStudentIDs(deviation *timetable.RosterDeviation) []int64 {
+	ids := make([]int64, 0, len(deviation.Unbooked)+len(deviation.Missing))
+	for _, child := range slices.Concat(deviation.Unbooked, deviation.Missing) {
+		ids = append(ids, child.StudentID)
+	}
+	return ids
+}
+
+// namedDeviationChildren keeps the children with a readable name, sorted by
+// name.
+func namedDeviationChildren(children []timetable.RosterDeviationChild, names map[int64]string) []rosterDeviationChildResponse {
+	result := make([]rosterDeviationChildResponse, 0, len(children))
+	for _, child := range children {
+		if name, found := names[child.StudentID]; found {
+			result = append(result, rosterDeviationChildResponse{StudentID: child.StudentID, Name: name, Weekdays: child.Weekdays})
+		}
+	}
+	slices.SortFunc(result, func(left, right rosterDeviationChildResponse) int {
+		return strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name))
+	})
+	return result
+}
+
+// templateWeekdayEnds names the latest end per ISO weekday of the schedules
+// that still run on or after today; it tells which offerings carry the
+// Regeltermin (#5342).
+func templateWeekdayEnds(schedules []templateScheduleResponse, today calendar.Date) map[int]string {
+	ends := make(map[int]string)
+	latest := make(map[int]int)
+	for _, schedule := range schedules {
+		if schedule.ValidUntil != "" {
+			if until, err := calendar.ParseDate(schedule.ValidUntil); err == nil && !until.After(today) {
+				continue
+			}
+		}
+		end, ok := timetable.ParseOfferingGapClock(schedule.EndTime)
+		if previous, seen := latest[schedule.Weekday]; ok && (!seen || end > previous) {
+			latest[schedule.Weekday] = end
+			ends[schedule.Weekday] = schedule.EndTime
+		}
+	}
+	return ends
 }
 
 // reviewableTemplateIDs keeps the Regeltermine with children whose upkeep is
 // not automatic and that the school has not confirmed as hand-kept. Without
-// the indicator nothing is reviewed: the hint must not contradict it.
-func reviewableTemplateIDs(templates []templateResponse) []int64 {
+// the indicator nothing is reviewed: the hint must not contradict it. The
+// named series is reviewed even when it is confirmed as hand-kept.
+func reviewableTemplateIDs(templates []templateResponse, named *int64) []int64 {
 	ids := make([]int64, 0, len(templates))
 	for _, template := range templates {
-		if template.Type == timetable.GroupTypeDuty || template.ManualRosterConfirmed ||
+		confirmed := template.ManualRosterConfirmed && (named == nil || template.ID != *named)
+		if template.Type == timetable.GroupTypeDuty || confirmed ||
 			template.RosterMaintenance == nil || template.RosterMaintenance.Mode == "automatic" {
 			continue
 		}
@@ -122,7 +241,7 @@ func reviewableTemplateIDs(templates []templateResponse) []int64 {
 	return ids
 }
 
-func rosterDeviationResponseFrom(templateID int64, deviation *timetable.RosterDeviation) rosterDeviationResponse {
+func rosterDeviationResponseFrom(templateID int64, deviation *timetable.RosterDeviation, names map[int64]string) rosterDeviationResponse {
 	gradeLevels := deviation.GradeLevels
 	if gradeLevels == nil {
 		gradeLevels = []int{}
@@ -138,6 +257,8 @@ func rosterDeviationResponseFrom(templateID int64, deviation *timetable.RosterDe
 		SchoolClasses: schoolClasses,
 		UnbookedCount: deviation.UnbookedCount,
 		MissingCount:  deviation.MissingCount,
+		Unbooked:      namedDeviationChildren(deviation.Unbooked, names),
+		Missing:       namedDeviationChildren(deviation.Missing, names),
 		Candidates:    rosterMaintenanceOfferings(deviation.Candidates),
 		Combinations:  rosterMaintenanceCombinations(deviation.Combinations),
 		Ambiguous:     deviation.Ambiguous,
@@ -248,7 +369,7 @@ func (rs *Resource) offeringSourcePreview(ctx context.Context, templateID int64,
 		return offeringPreviewResponse{}, err
 	}
 	changes := timetable.PreviewOfferingSource(rosters[living.TemplateID], filter, bookings)
-	names, err := rs.previewStudentNames(ctx, changes, from)
+	names, err := rs.studentNames(ctx, changedStudentIDs(changes), from)
 	if err != nil {
 		return offeringPreviewResponse{}, err
 	}
@@ -259,14 +380,19 @@ func (rs *Resource) offeringSourcePreview(ctx context.Context, templateID int64,
 	}, nil
 }
 
-// previewStudentNames resolves the names of every child the preview names in
-// two reads.
-func (rs *Resource) previewStudentNames(ctx context.Context, changes []timetable.OfferingSourceWeekdayChange, day calendar.Date) (map[int64]string, error) {
+func changedStudentIDs(changes []timetable.OfferingSourceWeekdayChange) []int64 {
 	studentIDs := make([]int64, 0)
 	for _, change := range changes {
 		studentIDs = append(studentIDs, change.Added...)
 		studentIDs = append(studentIDs, change.Removed...)
 	}
+	return studentIDs
+}
+
+// studentNames resolves the names of the children who attend on day in two
+// reads; the others drop out.
+func (rs *Resource) studentNames(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]string, error) {
+	studentIDs = slices.Clone(studentIDs)
 	slices.Sort(studentIDs)
 	studentIDs = slices.Compact(studentIDs)
 	names := make(map[int64]string, len(studentIDs))
@@ -446,8 +572,8 @@ type manualRosterResponse struct {
 	ManualRosterConfirmed bool `json:"manual_roster_confirmed"`
 }
 
-// setTemplateManualRoster handles PUT /templates/{id}/manual-roster: "Bleibt
-// von Hand gepflegt" for the whole series, or its undo.
+// setTemplateManualRoster handles PUT /templates/{id}/manual-roster: "Liste
+// so lassen" for the whole series, or its undo.
 func (rs *Resource) setTemplateManualRoster(w http.ResponseWriter, r *http.Request) {
 	id, ok := templateIDFromRequest(w, r)
 	if !ok {

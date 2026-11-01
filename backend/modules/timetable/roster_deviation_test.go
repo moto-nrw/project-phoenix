@@ -70,6 +70,12 @@ func TestDetectRosterDeviationSchuleAmBerg(t *testing.T) {
 	// has no booking at all: 1 + 7 children.
 	assert.Equal(t, 8, deviation.UnbookedCount)
 	assert.Equal(t, 1, deviation.MissingCount, "child 2001 is booked on Monday but not planned")
+	// The hint names each child with its weekdays (#5103 review): class[12]
+	// lacks a booking Tuesday to Friday only.
+	require.Len(t, deviation.Unbooked, 8)
+	assert.Equal(t, timetable.RosterDeviationChild{StudentID: class[12], Weekdays: []int{2, 3, 4, 5}}, deviation.Unbooked[0])
+	assert.Equal(t, timetable.RosterDeviationChild{StudentID: class[13], Weekdays: []int{1, 2, 3, 4, 5}}, deviation.Unbooked[1])
+	assert.Equal(t, []timetable.RosterDeviationChild{{StudentID: 2001, Weekdays: []int{1}}}, deviation.Missing)
 	assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
 	assert.False(t, deviation.Ambiguous, "one candidate is a clear suggestion")
 }
@@ -923,4 +929,115 @@ func TestSuggestOfferingSourceSearchBoundRetainsQualifyingOffering(t *testing.T)
 	assert.Equal(t, 1, suggestion.UnbookedCount)
 	assert.Zero(t, suggestion.MissingCount)
 	assert.Equal(t, [][]timetable.OfferingRef{suggestion.Offerings}, suggestion.Combinations)
+}
+
+// TestSuggestOfferingSourceTakesEveryCarryingOffering: six class Randstunden
+// (11:45 to 12:45) of one school are the same kind of list. In 2a and 2c
+// every child booking "Ganztag bis 16 Uhr" also books the Randstunde today,
+// so the fewest offerings that explain the roster leave it out. A later
+// child booking only that Ganztag would then drop out of the Randstunde.
+// Every offering of the Klasse that carries the Regeltermin by the rule of
+// #5342 (fitting kind, pickup time no earlier than the end) joins; one that
+// is picked up before the end does not, even if it would cover a child.
+func TestSuggestOfferingSourceTakesEveryCarryingOffering(t *testing.T) {
+	t.Parallel()
+	const (
+		ganztag1430ID = int64(304)
+		ganztag16ID   = int64(305)
+		musicID       = int64(306)
+	)
+	weekdays := []int{1, 2, 3, 4, 5}
+	class := studentRange(1001, 20)
+	care := func(offeringID int64, name, pickup string, studentID int64, days ...int) timetable.OfferingWeekdayBooking {
+		entry := booking(offeringID, name, studentID, "2a", days...)
+		entry.CountsAsCare = true
+		entry.PhaseID = 7
+		entry.PickupTimes = map[int]string{}
+		for _, day := range weekdays {
+			entry.PickupTimes[day] = pickup
+		}
+		return entry
+	}
+	roster := func() timetable.TemplateFutureRoster {
+		roster := classRoster(weekdays, class, "2a")
+		roster.OfferingKind = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, nil)
+		roster.Ends = map[int]string{1: "12:45", 2: "12:45", 3: "12:45", 4: "12:45", 5: "12:45"}
+		return roster
+	}
+	classBookings := func() []timetable.OfferingWeekdayBooking {
+		bookings := []timetable.OfferingWeekdayBooking{}
+		// Randstunde: 1001-1012; Ganztag bis 14.30 without Randstunde:
+		// 1013-1016; Ganztag bis 16 Uhr: 1005-1008, all with Randstunde.
+		for _, studentID := range class[:12] {
+			bookings = append(bookings, care(randstundeID, "Randstunde", "12:45", studentID, weekdays...))
+		}
+		for _, studentID := range class[12:16] {
+			bookings = append(bookings, care(ganztag1430ID, "Ganztag bis 14.30", "14:30", studentID, weekdays...))
+		}
+		for _, studentID := range class[4:8] {
+			bookings = append(bookings, care(ganztag16ID, "Ganztag bis 16 Uhr", "16:00", studentID, weekdays...))
+		}
+		return bookings
+	}
+	allCarrying := []timetable.OfferingRef{
+		{ID: randstundeID, Name: "Randstunde"},
+		{ID: ganztag1430ID, Name: "Ganztag bis 14.30"},
+		{ID: ganztag16ID, Name: "Ganztag bis 16 Uhr"},
+	}
+
+	t.Run("2c: a Ganztag adding nobody today joins", func(t *testing.T) {
+		t.Parallel()
+		suggestion := timetable.SuggestOfferingSource(roster(), classBookings())
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous)
+		assert.ElementsMatch(t, allCarrying, suggestion.Offerings)
+		assert.Equal(t, 4, suggestion.UnbookedCount, "1017 to 1020 book nothing")
+		assert.Zero(t, suggestion.MissingCount)
+	})
+
+	t.Run("2a: an offering picked up before the end stays out", func(t *testing.T) {
+		t.Parallel()
+		bookings := classBookings()
+		// Monday care until the private music lesson at 12:15 books 1017.
+		music := care(musicID, "Montags: Betreuung bis zum Beginn des privaten Musikunterrichts", "12:15", class[16], 1)
+		bookings = append(bookings, music)
+
+		suggestion := timetable.SuggestOfferingSource(roster(), bookings)
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous)
+		assert.ElementsMatch(t, allCarrying, suggestion.Offerings)
+		assert.NotContains(t, suggestion.Candidates, timetable.OfferingRef{ID: musicID, Name: music.OfferingName})
+
+		changes := timetable.PreviewOfferingSource(roster(), timetable.OfferingSourceFilter{
+			OfferingIDs: []int64{randstundeID, ganztag1430ID, ganztag16ID}, SchoolClasses: suggestion.SchoolClasses,
+		}, append(bookings, care(ganztag16ID, "Ganztag bis 16 Uhr", "16:00", 1021, weekdays...)))
+		for _, change := range changes {
+			assert.Equal(t, []int64{1021}, change.Added, "a later Ganztag-only child stays in the Randstunde, weekday %d", change.Weekday)
+			assert.Equal(t, []int64{1017, 1018, 1019, 1020}, change.Removed, "weekday %d", change.Weekday)
+		}
+	})
+
+	t.Run("without a known end the fewest offerings stay", func(t *testing.T) {
+		t.Parallel()
+		withoutEnd := roster()
+		withoutEnd.Ends = nil
+
+		suggestion := timetable.SuggestOfferingSource(withoutEnd, classBookings())
+
+		require.NotNil(t, suggestion)
+		assert.ElementsMatch(t, allCarrying[:2], suggestion.Offerings)
+	})
+
+	t.Run("a hand-picked list without Klasse takes no extra offering", func(t *testing.T) {
+		t.Parallel()
+		handPicked := roster()
+		handPicked.TargetSchoolClasses = nil
+
+		suggestion := timetable.SuggestOfferingSource(handPicked, classBookings())
+
+		require.NotNil(t, suggestion)
+		assert.ElementsMatch(t, allCarrying[:2], suggestion.Offerings)
+	})
 }
