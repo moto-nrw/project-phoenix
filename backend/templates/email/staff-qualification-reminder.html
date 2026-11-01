@@ -2,7 +2,7 @@
 {{template "header" .}}
 
 <div class="email-body">
-    {{template "moto-brand" .}}
+    {{template "school-brand" .}}
     <h1>{{if .Lapsed}}Nachweis ist abgelaufen{{else if .ExpiryDay}}Nachweis läuft heute ab{{else}}Nachweis läuft bald ab{{end}}</h1>
 
     <p>Hallo {{.FirstName}},</p>
