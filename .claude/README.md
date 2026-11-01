@@ -106,8 +106,9 @@ isolated Git repositories without running expensive analyzers.
   concrete inline document pointers, path casing, symlinks, and skill mirrors.
   It does not prove instructions are correct or automatically loaded.
 - Size limits live in `scripts/check-agent-context.budget.json`: entry files,
-  rules, and canonical skill frontmatter. Run the checker with `--update-budget`
-  to lock in cuts and add/remove surfaces; it never raises existing budgets.
+  rules, and canonical skill frontmatter. Each budget is the size plus 5 %
+  (at least 256 bytes) slack. Run the checker with `--update-budget` to lock in
+  cuts and add/remove surfaces; it never raises existing budgets.
   Raise budgets by hand with a reason in the PR body. Codex's 32768-byte chain
   cap and the 1024-character skill-description limit cannot be raised.
 - Check changed hook behavior separately. For reminder changes, check valid

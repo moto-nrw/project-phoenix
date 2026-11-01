@@ -251,6 +251,11 @@ function measureContext(root, errors) {
   return { sizes, codex };
 }
 
+// Budgets sit a little above the measured size, so a one-line edit needs no
+// budget change and PRs that merge without rebasing onto this check (branch
+// protection does not require an up-to-date branch) do not turn development red.
+const slack = bytes => Math.max(256, Math.ceil(bytes * 0.05));
+
 function checkBudgets(root, sizes, errors, updateBudget) {
   const target = path.join(root, budgetFile);
   let budgets = {};
@@ -269,7 +274,7 @@ function checkBudgets(root, sizes, errors, updateBudget) {
   }
   if (updateBudget) {
     const updated = Object.fromEntries(Object.entries(sizes).sort(([a], [b]) => a.localeCompare(b))
-      .map(([surface, current]) => [surface, Object.hasOwn(budgets, surface) ? Math.min(current, budgets[surface]) : current]));
+      .map(([surface, current]) => [surface, Object.hasOwn(budgets, surface) ? Math.min(current + slack(current), budgets[surface]) : current + slack(current)]));
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, `${JSON.stringify(updated, null, 2)}\n`);
     budgets = updated;
@@ -278,7 +283,7 @@ function checkBudgets(root, sizes, errors, updateBudget) {
   for (const [surface, current] of Object.entries(sizes)) {
     if (!Object.hasOwn(budgets, surface)) errors.push(`${surface}: new surface has no budget; run node scripts/check-agent-context.mjs --update-budget`);
     else if (current > budgets[surface]) errors.push(`${surface}: current ${current} bytes, budget ${budgets[surface]} bytes, delta +${current - budgets[surface]} bytes; cut it, or raise the budget in this PR with a reason in the PR body`);
-    else if (current < budgets[surface]) hints.push(`${surface}: current ${current} bytes is below budget ${budgets[surface]}; run node scripts/check-agent-context.mjs --update-budget to lock in the cut`);
+    else if (current + slack(current) < budgets[surface]) hints.push(`${surface}: current ${current} bytes leaves budget ${budgets[surface]} more than the slack; run node scripts/check-agent-context.mjs --update-budget to lock in the cut`);
   }
   for (const surface of Object.keys(budgets)) {
     if (!Object.hasOwn(sizes, surface)) errors.push(`${surface}: budgeted surface no longer exists; run node scripts/check-agent-context.mjs --update-budget`);

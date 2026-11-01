@@ -251,6 +251,7 @@ test('skill descriptions enforce 1024 characters for plain, quoted and block sca
 
 test('over-budget surfaces report current, budget, delta and the review instruction', t => {
   const root = fixture(t, { 'CLAUDE.md': 'abc' });
+  budget(root, { ...budget(root), 'CLAUDE.md': 3 });
   fs.appendFileSync(path.join(root, 'CLAUDE.md'), 'ä');
   assert.deepEqual(checkContext(root).errors, [
     'CLAUDE.md: current 5 bytes, budget 3 bytes, delta +2 bytes; cut it, or raise the budget in this PR with a reason in the PR body',
@@ -276,21 +277,23 @@ test('deleted budgeted surfaces fail, while unused headroom only hints', t => {
   assert.deepEqual(result.errors, [
     '.claude/rules/old.md: budgeted surface no longer exists; run node scripts/check-agent-context.mjs --update-budget',
   ]);
-  assert.match(result.hints[0], /CLAUDE.md: current 1 bytes is below budget 3.*--update-budget/);
+  assert.match(result.hints[0], /CLAUDE.md: current 1 bytes leaves budget 259 more than the slack.*--update-budget/);
 });
 
-test('--update-budget lowers, adds and removes entries but never raises an existing budget', t => {
+test('--update-budget sets size plus slack, lowers, adds and removes entries but never raises an existing budget', t => {
   const root = fixture(t, { 'CLAUDE.md': 'abc', '.claude/rules/old.md': '# Old' });
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'a');
   fs.rmSync(path.join(root, '.claude/rules/old.md'));
   fs.writeFileSync(path.join(root, '.claude/rules/new.md'), '# New');
   assert.equal(cli(root, '--update-budget').status, 0);
-  assert.deepEqual(budget(root), { '.claude/rules/new.md': 5, 'CLAUDE.md': 1, 'skill-catalog': 0 });
+  assert.deepEqual(budget(root), { '.claude/rules/new.md': 261, 'CLAUDE.md': 257, 'skill-catalog': 256 });
   const saved = fs.readFileSync(path.join(root, budgetFile), 'utf8');
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'ab');
+  assert.deepEqual(checkContext(root).errors, [], 'a small edit fits the slack');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'a'.repeat(258));
   const result = cli(root, '--update-budget');
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /CLAUDE.md: current 2 bytes, budget 1 bytes, delta \+1 bytes/);
+  assert.match(result.stderr, /CLAUDE.md: current 258 bytes, budget 257 bytes, delta \+1 bytes/);
   assert.equal(fs.readFileSync(path.join(root, budgetFile), 'utf8'), saved);
   assert.equal(cli(root, '--update-budget', root).status, 1);
 });
@@ -322,7 +325,6 @@ test('catalog counts canonical frontmatter bytes once across all root and area s
   assert.deepEqual(result.errors, []);
   fs.appendFileSync(path.join(root, '.agents/skills/root-agents/SKILL.md'), '\nExtra body text');
   assert.equal(checkContext(root).sizes['skill-catalog'], result.sizes['skill-catalog']);
-  const current = budget(root);
-  budget(root, { ...current, 'skill-catalog': current['skill-catalog'] - 1 });
+  budget(root, { ...budget(root), 'skill-catalog': result.sizes['skill-catalog'] - 1 });
   assert.match(checkContext(root).errors[0], /skill-catalog: current .*delta \+1 bytes/);
 });
