@@ -334,6 +334,9 @@ export function useGlobalSSE(): SSEHookState {
   const boundScopeRef = useRef(boundScope);
   // The scope of the pending burst; a flush for another scope is dropped.
   const burstScopeRef = useRef<string | null>(null);
+  // Set while a reconnect reconcile flushes: SupervisionContext resyncs its
+  // sidebar lists every five minutes on its own, so the reconcile spares it.
+  const reconcilingRef = useRef(false);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   // (+ per-burst jitter). pendingGroupIds holds ACTIVE-group ids (activity
@@ -873,7 +876,7 @@ export function useGlobalSSE(): SSEHookState {
       // exactly what a colleague looks at after a handover, so announce
       // staleness and let the provider refetch (same decoupling as reminders
       // and the care-schedule editor above).
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && !reconcilingRef.current) {
         window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
       }
     }
@@ -882,7 +885,11 @@ export function useGlobalSSE(): SSEHookState {
       setGroupAccessRevision((revision) => revision + 1);
     }
 
-    if (hasPendingActivityEvent.current && typeof window !== "undefined") {
+    if (
+      hasPendingActivityEvent.current &&
+      !reconcilingRef.current &&
+      typeof window !== "undefined"
+    ) {
       window.dispatchEvent(
         new CustomEvent("phoenix:supervision-stale", {
           detail: { groupsOnly: false },
@@ -1413,7 +1420,10 @@ export function useGlobalSSE(): SSEHookState {
   // fresh once the stream is back (#5017): every cache an event refreshes,
   // as if each kind of event had arrived, plus the unread and request
   // counters. Not the companion bus, whose listeners discard form drafts,
-  // and not the group subscription, which would reopen the stream again.
+  // not the group subscription, which would reopen the stream again, and not
+  // the sidebar lists, which SupervisionContext resyncs itself. The backend
+  // closes the stream when its token expires, so this runs about once per
+  // token lifetime (AUTH_JWT_EXPIRY) and after every real outage.
   // Hidden tabs wait until they are visible; a flapping stream reconciles at
   // most once per RECONCILE_MIN_GAP_MS.
   const lastReconcileAt = useRef<number | null>(null);
@@ -1464,7 +1474,12 @@ export function useGlobalSSE(): SSEHookState {
       debounceTimer.current = null;
     }
     burstScopeRef.current = boundScopeRef.current;
-    flushInvalidations();
+    reconcilingRef.current = true;
+    try {
+      flushInvalidations();
+    } finally {
+      reconcilingRef.current = false;
+    }
     window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));
     window.dispatchEvent(new CustomEvent("change-requests-refresh"));

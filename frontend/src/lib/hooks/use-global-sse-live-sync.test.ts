@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SSEEvent, SSEHookOptions, SSEHookState } from "~/lib/sse-types";
 
-const { session, sse, invalidatedFamilies } = vi.hoisted(() => ({
+const { session, sse, invalidatedFamilies, useSSESpy } = vi.hoisted(() => ({
   session: {
     current: { id: "account-7", tenantId: 1, roles: ["user"] } as {
       id: string;
@@ -20,6 +20,7 @@ const { session, sse, invalidatedFamilies } = vi.hoisted(() => ({
     handlers: [] as ((event: SSEEvent) => void)[],
   },
   invalidatedFamilies: [] as string[],
+  useSSESpy: { lastReconnectKey: undefined as string | number | undefined },
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -37,6 +38,7 @@ vi.mock("~/lib/hooks/use-sse", () => ({
     if (options.onMessage && sse.handlers.at(-1) !== options.onMessage) {
       sse.handlers.push(options.onMessage);
     }
+    useSSESpy.lastReconnectKey = options.reconnectKey;
     return sse.state;
   },
 }));
@@ -59,6 +61,7 @@ import {
 } from "~/lib/swr";
 import { resumeSWRSession, suspendSWRSession } from "~/lib/swr/scope";
 import { ownSupervisionKeys } from "~/lib/swr/shell-keys";
+import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
 import {
   MAX_FLUSH_WAIT_MS,
   RECONCILE_MIN_GAP_MS,
@@ -191,6 +194,34 @@ describe("useGlobalSSE: reconcile after a reconnect (#5017)", () => {
     // No timer: the reconcile does not wait for the event debounce.
     expect(matchedKeys()).toEqual(INVENTORY.slice(0, 5));
     expect(invalidatedFamilies).toContain(OWN);
+  });
+
+  it("refreshes the counters but spares form drafts, sidebar and subscription", () => {
+    const view = renderConnected();
+    const reconnectKey = useSSESpy.lastReconnectKey;
+    const formDrafts = vi.fn();
+    const unsubscribe = subscribeStudentCompanionsChanged(formDrafts);
+    const dispatched: string[] = [];
+    const dispatch = vi
+      .spyOn(window, "dispatchEvent")
+      .mockImplementation((e: Event) => {
+        dispatched.push(e.type);
+        return true;
+      });
+    reconnect(view);
+    expect(dispatched).toEqual(
+      expect.arrayContaining([
+        "messages-unread-refresh",
+        "team-messages-unread-refresh",
+        "change-requests-refresh",
+        "phoenix:reminders-stale",
+      ]),
+    );
+    expect(dispatched).not.toContain("phoenix:supervision-stale");
+    expect(formDrafts).not.toHaveBeenCalled();
+    expect(useSSESpy.lastReconnectKey).toBe(reconnectKey);
+    dispatch.mockRestore();
+    unsubscribe();
   });
 
   it("does not reconcile on the first connection", () => {
