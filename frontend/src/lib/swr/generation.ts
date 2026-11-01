@@ -297,12 +297,32 @@ export function lockFetcher<A extends unknown[], T>(
 export function preloadSWR<T>(
   key: string,
   fetcher: () => Promise<T>,
-  discardFailure = false,
+  intent = false,
 ): Promise<T> {
   const start = startOf(key);
-  const request = swrPreload(key, lockFetcher(key, fetcher)) as Promise<T>;
+  const load = intent
+    ? async () => {
+        try {
+          return await fetcher();
+        } catch (error) {
+          const preloads = SWRGlobalState.get(cache)?.[3];
+          // SWR deletes an entry when a reader takes its promise. Only that
+          // handoff earns one ordinary load, not an unconsumed speculation.
+          // Cleanup also deletes entries, but ends the generation first.
+          if (
+            !preloads ||
+            preloads[key] !== undefined ||
+            isDiscardedAnswer(error) ||
+            !isStillCurrent(key, start)
+          )
+            throw error;
+          return fetcher();
+        }
+      }
+    : fetcher;
+  const request = swrPreload(key, lockFetcher(key, load)) as Promise<T>;
   preloadStarts.set(request, start);
-  if (discardFailure)
+  if (intent)
     void request.catch(() => {
       const preloads = SWRGlobalState.get(cache)?.[3];
       // Do not remove a replacement from a later generation.

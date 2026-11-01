@@ -7,6 +7,7 @@ import {
   _setSWRCleanupForTests,
   resetSWRScope,
   resumeSWRSession,
+  suspendSWRSession,
 } from "~/lib/swr/scope";
 import { roomKeys } from "~/lib/swr/rooms-keys";
 import { ResourcePrefetchProvider } from "./resource-prefetch-provider";
@@ -205,6 +206,168 @@ describe("locked navigation data intent", () => {
     expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
     expect(screen.queryByText("failed")).not.toBeInTheDocument();
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("keeps a consumed speculative failure out of the destination while its own load runs", async () => {
+    let rejectIntent!: (error: Error) => void;
+    let finishPage!: (value: { name: string }) => void;
+    fetcher
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectIntent = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishPage = resolve;
+          }),
+      );
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.focus(link);
+    await advance(0);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fireEvent.click(link);
+    await advance(0);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await act(async () =>
+      rejectIntent(new Error("intent failed after navigation")),
+    );
+    await advance(10);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    // Anker: die geöffnete Zielseite wartet auf ihren eigenen Abruf.
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    expect(screen.queryByText("failed")).not.toBeInTheDocument();
+    await act(async () => finishPage({ name: "page rooms" }));
+    await advance(10);
+    expect(screen.getByText("page rooms")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("shows the destination failure if its handoff fallback fails too", async () => {
+    let rejectIntent!: (error: Error) => void;
+    fetcher
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectIntent = reject;
+          }),
+      )
+      .mockRejectedValueOnce(new Error("page is offline too"));
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.focus(link);
+    await advance(0);
+    fireEvent.click(link);
+    await advance(0);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await act(async () =>
+      rejectIntent(new Error("intent failed after navigation")),
+    );
+    await advance(10);
+    expect(screen.getByText("failed")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("does not retry consumed speculation after an account and school change", async () => {
+    let rejectIntent!: (error: Error) => void;
+    fetcher.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectIntent = reject;
+        }),
+    );
+    const view = render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.focus(link);
+    await advance(0);
+    fireEvent.click(link);
+    await advance(0);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await act(async () => {
+      owner.id = "account-2";
+      owner.slug = "school-b";
+      resetSWRScope({ revalidate: false });
+    });
+    view.rerender(<Harness />);
+    await advance(10);
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => rejectIntent(new Error("old intent failed")));
+    await advance(10);
+    // Anker: die neue Schule zeigt weiterhin ihre bestätigten Daten.
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(screen.queryByText("failed")).not.toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards a handoff fallback that finishes after the scope changes", async () => {
+    let rejectIntent!: (error: Error) => void;
+    let finishOldPage!: (value: { name: string }) => void;
+    fetcher
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectIntent = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOldPage = resolve;
+          }),
+      );
+    const view = render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.focus(link);
+    await advance(0);
+    fireEvent.click(link);
+    await advance(0);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await act(async () =>
+      rejectIntent(new Error("intent failed after navigation")),
+    );
+    await advance(10);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      owner.id = "account-2";
+      owner.slug = "school-b";
+      resetSWRScope({ revalidate: false });
+    });
+    view.rerender(<Harness />);
+    await advance(10);
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    await act(async () => finishOldPage({ name: "old fallback secret" }));
+    await advance(10);
+    // Anker: auch nach dem späten Fallback steht die Antwort der neuen Schule da.
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(screen.queryByText("old fallback secret")).not.toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+  it("does not retry consumed speculation while the session is being confirmed", async () => {
+    let rejectIntent!: (error: Error) => void;
+    fetcher.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectIntent = reject;
+        }),
+    );
+    const view = render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.focus(link);
+    await advance(0);
+    fireEvent.click(link);
+    await advance(0);
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await act(async () => suspendSWRSession());
+    view.rerender(<Harness />);
+    await act(async () =>
+      rejectIntent(new Error("intent failed while confirming")),
+    );
+    await advance(10);
+    // Anker: die Zielseite wartet auf die bestätigte Session.
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    expect(screen.queryByText("failed")).not.toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 

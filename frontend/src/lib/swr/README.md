@@ -235,6 +235,11 @@ the change. Respect Save-Data and slow connections and bound concurrency.
 `preload(key, fetcher, { intent: true })` is the speculative variant of the
 same locked writer. It skips an already current cached response and removes
 only its own failed preload promise, so a later page runs its ordinary loader.
+If a mounted reader already consumed the promise, its first speculative failure
+instead runs the same canonical fetcher once inside the original generation
+lock. No retry occurs without a reader, after a generation change, or while
+the session is unconfirmed. The reader stays loading until that ordinary load
+settles; only its failure reaches the normal error path.
 It never mutates response data directly, bypasses a generation check, or
 removes a replacement promise. General preloads keep their existing contract.
 The protected tenant shell shares thin fetchers, not page hooks, so data

@@ -834,7 +834,17 @@ export function useSWRPreload() {
       )
         return Promise.resolve(undefined);
       const start = startOf(fullKey);
-      return preloadSWR(fullKey, fetcher, options?.intent).then(
+      return preloadSWR(
+        fullKey,
+        async () => {
+          // The consumed-intent fallback must obey the original request's
+          // generation and the live session gate, just like the first load.
+          if (isSWRSessionPending() || !isStillCurrent(fullKey, start))
+            throw new DiscardedAnswer();
+          return fetcher();
+        },
+        options?.intent,
+      ).then(
         (value) =>
           isStillCurrent(fullKey, start) &&
           isCurrentSWRValue(fullKey, value) !== false
