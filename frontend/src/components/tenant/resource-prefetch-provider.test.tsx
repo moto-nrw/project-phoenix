@@ -283,3 +283,40 @@ it("does not duplicate a destination request that is already in flight", async (
   await advance(10);
   expect(screen.getByText("existing answer")).toBeInTheDocument();
 });
+
+it("never lets an explicit link list bypass the authorized destination resources", async () => {
+  const unknownKey = roomKeys.key({ page: 99 });
+  const unsafeFetcher = vi.fn(async () => ({ name: "wrong projection" }));
+  const supplied = [
+    { key, fetcher: unsafeFetcher },
+    { key: unknownKey, fetcher: unsafeFetcher },
+  ];
+  const view = render(
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <ResourcePrefetchProvider resourcesFor={async () => []}>
+        <NavigationLink href="/rooms" resources={supplied}>
+          Selected rooms
+        </NavigationLink>
+      </ResourcePrefetchProvider>
+    </SWRConfig>,
+  );
+  const link = screen.getByRole("link", { name: "Selected rooms" });
+  expect(link).toBeInTheDocument();
+  fireEvent.focus(link);
+  await advance(0);
+  expect(unsafeFetcher).not.toHaveBeenCalled();
+  view.unmount();
+  render(
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <ResourcePrefetchProvider resourcesFor={resourcesFor}>
+        <NavigationLink href="/rooms" resources={supplied}>
+          Selected rooms
+        </NavigationLink>
+      </ResourcePrefetchProvider>
+    </SWRConfig>,
+  );
+  fireEvent.focus(screen.getByRole("link", { name: "Selected rooms" }));
+  await advance(0);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(unsafeFetcher).not.toHaveBeenCalled();
+});

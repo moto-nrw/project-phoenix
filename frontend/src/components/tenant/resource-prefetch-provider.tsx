@@ -56,8 +56,15 @@ export function ResourcePrefetchProvider({
       if (!mayPrefetch()) return;
       // Capture the locked callback before resolving resources or waiting in
       // the queue. Old intent cannot bind itself to a new scope.
-      void (explicit ? Promise.resolve(explicit) : resourcesFor(href))
-        .then((resources) => {
+      void resourcesFor(href)
+        .then((authorized) => {
+          // A link can select a subset, never grant access or replace the
+          // destination's canonical fetcher under the same key.
+          const selected =
+            explicit && new Set(explicit.map((item) => item.key));
+          const resources = selected
+            ? authorized.filter((item) => selected.has(item.key))
+            : authorized;
           if (!mounted.current) return;
           for (const resource of resources) {
             if (
