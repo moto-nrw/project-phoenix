@@ -39,8 +39,10 @@ import type {
   BackendSchoolPWAUsage,
   SchoolPWAUsage,
   AssignTraegerMemberRequest,
+  BackendOperatorCaterer,
   InviteTraegerMemberRequest,
   BackendTraegerMember,
+  OperatorCaterer,
   TraegerMember,
   RecordTraegerErasureOrderRequest,
   TraegerErasureOrder,
@@ -60,6 +62,7 @@ import {
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
   mapTraegerMember,
+  mapOperatorCaterer,
   isBackendTraegerErasureOrder,
   mapTraegerErasureOrder,
   mapTestTraeger,
@@ -160,6 +163,14 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/accounts`,
     );
     return data.map(mapOrgAccount);
+  }
+
+  /** The caterers with the state of their two-factor sign-in (#4497). */
+  async listCaterers(): Promise<OperatorCaterer[]> {
+    const data = await operatorFetch<BackendOperatorCaterer[]>(
+      "/api/operator/caterers",
+    );
+    return data.map(mapOperatorCaterer);
   }
 
   async listTraegerMembers(orgId: string): Promise<TraegerMember[]> {
