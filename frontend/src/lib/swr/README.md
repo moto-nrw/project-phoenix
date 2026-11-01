@@ -144,3 +144,13 @@ and every school/organization counter.
 Announcement statistics and confirmation details run only while expanded.
 The operator auth guard also keys local page/modal state to its confirmed scope
 and hides it while another tab's session change is being confirmed.
+
+## Navigation intent
+
+Navigation data preloads must use `useSWRPreload` with the destination's exact
+factory key and fetcher. Code prefetch and data prefetch are independent:
+data waits for about 300 ms of mouse intent, keyboard focus or touch start.
+Do not preload audited reads, inaccessible resources, or speculative detail
+fields. A failed speculative request must not become the destination's load
+error. Scope changes discard pending answers, including work queued before
+the change. Respect Save-Data and slow connections and bound concurrency.
