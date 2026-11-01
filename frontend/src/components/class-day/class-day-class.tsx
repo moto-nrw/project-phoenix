@@ -13,7 +13,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -61,6 +61,7 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
@@ -271,15 +272,14 @@ export function ClassDayClass({
   const weekendOpen = classes?.weekend_follows_friday === true;
   const weekend = weekendDay && !weekendOpen;
 
+  const classReportKey = schoolPortalKeys.classDayReport(schoolClass, dateISO);
   const {
     data: report,
     error,
     isLoading,
     mutate: refetchReport,
   } = useSWRAuth(
-    schoolClass && !weekend
-      ? schoolPortalKeys.classDayReport(schoolClass, dateISO)
-      : null,
+    schoolClass && !weekend ? classReportKey : null,
     async () => {
       try {
         return await fetchClassDay(schoolClass, dateISO);
@@ -297,6 +297,15 @@ export function ClassDayClass({
       keepPreviousData: false,
     },
   );
+
+  const discardRefused = useDiscardRefusedEntity();
+  useEffect(() => {
+    // Keep the refusal visible, but never reopen the previously loaded roster.
+    discardRefused(error, {
+      codes: ["general.permission"],
+      matches: (key) => key === classReportKey,
+    });
+  }, [discardRefused, error, classReportKey]);
 
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).

@@ -15,7 +15,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -45,6 +45,7 @@ import type {
 } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { countDayChanges } from "./day-changes";
 import { classDayDateParam, isWeekendISO } from "./routes";
@@ -215,8 +216,9 @@ function ClassReportLink({
   dateISO: string;
   fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
 }>) {
+  const classReportKey = schoolPortalKeys.classDayReport(klass, dateISO);
   const { data, error, isLoading, mutate } = useSWRAuth(
-    schoolPortalKeys.classDayReport(klass, dateISO),
+    classReportKey,
     () => fetchClassDay(klass, dateISO),
     {
       revalidateOnFocus: true,
@@ -224,6 +226,15 @@ function ClassReportLink({
       keepPreviousData: false,
     },
   );
+  const discardRefused = useDiscardRefusedEntity();
+  useEffect(() => {
+    // Keep the refusal visible, but never reopen the previously loaded roster.
+    discardRefused(error, {
+      codes: ["general.permission"],
+      matches: (key) => key === classReportKey,
+    });
+  }, [discardRefused, error, classReportKey]);
+
   const refresh = useCallback(() => void mutate(), [mutate]);
   useClassDayRefresh(refresh);
   const loadError = useSwrLoadError(

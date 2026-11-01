@@ -3,8 +3,10 @@ import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useInvalidateMatching } from "~/lib/swr";
 import { SWRConfig } from "~/lib/swr/testing";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { ClassDayOverview } from "./class-day-overview";
 import { ClassDayClass } from "./class-day-class";
@@ -74,6 +76,7 @@ function setup() {
   }
   return {
     wrapper: Wrapper,
+    cache,
     fetchClasses,
     fetchClassDay,
     refresh: () =>
@@ -98,6 +101,65 @@ describe("school report cache", () => {
     expect(options.fetchClasses).toHaveBeenCalledTimes(1);
     expect(options.fetchClassDay).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ["overview", 403],
+    ["class", 403],
+    ["overview", 503],
+    ["class", 503],
+  ] as const)(
+    "handles a %s refresh returning %s without exposing refused reports",
+    async (reader, status) => {
+      const options = setup();
+      const view = render(
+        reader === "overview" ? (
+          <ClassDayOverview {...options} />
+        ) : (
+          <ClassDayClass schoolClass="4a" {...options} />
+        ),
+        options,
+      );
+      // Anker: Der erfolgreiche Erstabruf zeigt den später entzogenen Report.
+      if (reader === "overview")
+        expect(await screen.findAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(
+          2,
+        );
+      else expect(await screen.findByText("Klassentag, Klara")).toBeVisible();
+
+      const failure = new ApiError("Report refresh failed", status);
+      options.fetchClassDay.mockImplementation((klass: string) =>
+        klass === "4a" ? Promise.reject(failure) : Promise.resolve(report),
+      );
+      await act(async () => {
+        await options.refresh();
+      });
+      expect(await screen.findByRole("alert")).toBeVisible();
+      const cachedReport = [...options.cache.entries()].find(([key]) =>
+        key.endsWith(`:${schoolPortalKeys.classDayReport("4a", "2026-09-09")}`),
+      )?.[1];
+      expect(cachedReport).toBeDefined();
+      expect(cachedReport.data).toBe(status === 403 ? undefined : report);
+      expect(cachedReport.error).toBe(failure);
+      if (reader === "overview")
+        expect(screen.getAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(1);
+      if (reader === "class" && status === 403)
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+
+      // Reopening must not reveal a refused cached report, even while the
+      // next request is pending. Transient failures retain the warm report.
+      options.fetchClassDay.mockImplementation(
+        () => new Promise(() => undefined),
+      );
+      view.rerender(
+        <ClassDayClass key="reopened" schoolClass="4a" {...options} />,
+      );
+      // Anker: Der neue Leser zeigt weiter den Fehler des gemeinsamen Keys.
+      expect(await screen.findByRole("alert")).toBeVisible();
+      if (status === 403)
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+      else expect(screen.getByText("Klassentag, Klara")).toBeVisible();
+    },
+  );
 
   it("starts all class reports in parallel without waiting for another report", async () => {
     const options = setup();

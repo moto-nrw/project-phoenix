@@ -18,6 +18,16 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "teacher", scope: "school", tenantId: 1 },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/swr", async () => {
   const React = await import("react");
   return {
