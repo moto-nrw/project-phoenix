@@ -47,7 +47,7 @@ import {
   HOMEWORK_DESCRIPTION_MAX_LENGTH,
   HOMEWORK_SUBJECT_MAX_LENGTH,
 } from "~/lib/homework-feedback";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassDayClasses,
@@ -61,12 +61,14 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { handoverLine, handoverRows, initialAbsentIds } from "./class-handover";
 import { countDayChanges } from "./day-changes";
 import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolReportRefusal } from "./use-school-report-refusal";
 import {
   draftMarks,
   markOpenPresent,
@@ -227,7 +229,7 @@ export function ClassDayClass({
   // still bei einem Ladefehler: dann fehlt nur dieser Knopf, die Klasse
   // selbst lädt und meldet sich unten.
   const { data: classes } = useSWRAuth(
-    fetchClasses ? "class-day-classes" : null,
+    fetchClasses ? schoolPortalKeys.classDayClasses() : null,
     async () => {
       if (!fetchClasses) {
         return {
@@ -245,7 +247,10 @@ export function ClassDayClass({
         throw err;
       }
     },
-    { revalidateOnFocus: false },
+    {
+      revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+    },
   );
   // Das Flag allein sagt nur, dass die Schule schreiben darf. Der Knopf und
   // der Dialog erscheinen nur für eine Klasse, die der Lehrkraft zugewiesen
@@ -267,13 +272,14 @@ export function ClassDayClass({
   const weekendOpen = classes?.weekend_follows_friday === true;
   const weekend = weekendDay && !weekendOpen;
 
+  const classReportKey = schoolPortalKeys.classDayReport(schoolClass, dateISO);
   const {
     data: report,
     error,
     isLoading,
     mutate: refetchReport,
   } = useSWRAuth(
-    schoolClass && !weekend ? `class-day-${schoolClass}-${dateISO}` : null,
+    schoolClass && !weekend ? classReportKey : null,
     async () => {
       try {
         return await fetchClassDay(schoolClass, dateISO);
@@ -292,6 +298,8 @@ export function ClassDayClass({
     },
   );
 
+  useSchoolReportRefusal(error, classReportKey);
+
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).
   const refreshReport = useCallback(
@@ -302,8 +310,8 @@ export function ClassDayClass({
 
   // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).
-  const loadError = useSwrLoadError(
-    error,
+  const { error: loadError } = useSwrResourceLoadError(
+    [{ data: report, error }],
     `die ${schoolClassLabel(schoolClass)}`,
     () => refetchReport(),
   );

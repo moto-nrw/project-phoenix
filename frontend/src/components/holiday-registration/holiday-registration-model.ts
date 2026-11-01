@@ -23,8 +23,12 @@ import type {
 } from "~/lib/holiday-registration-api";
 
 export const MAX_CHILDREN = 3;
-export const MAX_EMERGENCY_CONTACTS = 3;
-export const MAX_PICKUP_PERSONS = 5;
+// Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
+// backend/modules/enrollment/internal/application/holiday_registrations.go.
+// The offer does not expose these limits.
+const MAX_EMERGENCY_CONTACTS = 3;
+const MAX_PICKUP_PERSONS = 5;
+export const MAX_CONTACTS = MAX_EMERGENCY_CONTACTS + MAX_PICKUP_PERSONS;
 
 /** The school choice of a child who attends no school of the Träger. */
 export const OTHER_SCHOOL = "other";
@@ -49,6 +53,8 @@ export interface ChildDraft {
 }
 
 export interface ContactDraft {
+  readonly emergency: boolean;
+  readonly pickup: boolean;
   readonly key: string;
   readonly name: string;
   readonly phone: string;
@@ -64,8 +70,7 @@ export interface RegistrationDraft {
   };
   readonly secondGuardian: RegistrationDraft["guardian"];
   readonly children: readonly ChildDraft[];
-  readonly emergencyContacts: readonly ContactDraft[];
-  readonly pickupPersons: readonly ContactDraft[];
+  readonly contacts: readonly ContactDraft[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
@@ -95,7 +100,12 @@ export type FieldErrorKey =
   | "health"
   | "binding"
   | "yesNo"
-  | "choose";
+  | "choose"
+  | "contactRole"
+  | "emergencyRequired"
+  | "emergencyLimit"
+  | "pickupLimit"
+  | "contactLimit";
 
 let keyCounter = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
@@ -117,7 +127,14 @@ export function emptyChild(): ChildDraft {
 }
 
 export function emptyContact(): ContactDraft {
-  return { key: nextKey("contact"), name: "", phone: "", relationship: "" };
+  return {
+    key: nextKey("contact"),
+    name: "",
+    phone: "",
+    relationship: "",
+    emergency: true,
+    pickup: false,
+  };
 }
 
 export function emptyRegistration(): RegistrationDraft {
@@ -125,8 +142,7 @@ export function emptyRegistration(): RegistrationDraft {
     guardian: { firstName: "", lastName: "", email: "", phone: "" },
     secondGuardian: { firstName: "", lastName: "", email: "", phone: "" },
     children: [emptyChild()],
-    emergencyContacts: [emptyContact()],
-    pickupPersons: [],
+    contacts: [emptyContact()],
     privacyConsent: false,
     healthConsent: false,
     bindingConfirmed: false,
@@ -399,16 +415,43 @@ function requireText(
 
 function validateContacts(
   errors: Record<string, FieldErrorKey>,
-  prefix: string,
   contacts: readonly ContactDraft[],
-  phoneRequired: boolean,
 ) {
+  let emergencyCount = 0;
+  let pickupCount = 0;
   contacts.forEach((contact, index) => {
-    requireText(errors, `${prefix}.${index}.name`, contact.name);
-    if (phoneRequired) {
-      requireText(errors, `${prefix}.${index}.phone`, contact.phone);
+    const prefix = `contacts.${index}`;
+    requireText(errors, `${prefix}.name`, contact.name);
+    if (contact.emergency) {
+      requireText(errors, `${prefix}.phone`, contact.phone);
+      if (++emergencyCount > MAX_EMERGENCY_CONTACTS)
+        errors[`${prefix}.emergency`] = "emergencyLimit";
     }
+    if (contact.pickup && ++pickupCount > MAX_PICKUP_PERSONS)
+      errors[`${prefix}.pickup`] = "pickupLimit";
+    if (!contact.emergency && !contact.pickup)
+      errors[`${prefix}.emergency`] = "contactRole";
+    if (index >= MAX_CONTACTS) errors[`${prefix}.name`] = "contactLimit";
   });
+  if (emergencyCount === 0)
+    errors["contacts.0.emergency"] = "emergencyRequired";
+}
+
+/** Map the two payload lists back to the submitted person's form fields. */
+export function contactFieldFromPayload(
+  field: string,
+  contacts: readonly ContactDraft[],
+): string {
+  const match =
+    /^(emergency_contacts|pickup_persons)(?:\.(\d+)(?:\.(.+))?)?$/.exec(field);
+  if (!match) return field;
+  const role = match[1] === "emergency_contacts" ? "emergency" : "pickup";
+  if (match[2] === undefined) return `contacts.0.${role}`;
+  const indices = contacts.flatMap((contact, index) =>
+    contact[role] ? [index] : [],
+  );
+  const index = indices[Number(match[2])];
+  return index === undefined ? field : `contacts.${index}.${match[3] ?? role}`;
 }
 
 /**
@@ -466,8 +509,7 @@ export function validateRegistration(
     visibleQuestions(offer.form, false, familyContext(draft, offer.form)),
     draft.answers,
   );
-  validateContacts(errors, "emergency_contacts", draft.emergencyContacts, true);
-  validateContacts(errors, "pickup_persons", draft.pickupPersons, false);
+  validateContacts(errors, draft.contacts);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
   if (hasHealthInfo(draft, offer.form) && !draft.healthConsent) {
     errors.health_consent = "health";
@@ -539,8 +581,12 @@ export function payloadFromDraft(
         custom_data: childAnswersToSend(draft, child, offer.form),
       };
     }),
-    emergency_contacts: draft.emergencyContacts.map(contactPayload),
-    pickup_persons: draft.pickupPersons.map(contactPayload),
+    emergency_contacts: draft.contacts
+      .filter((contact) => contact.emergency)
+      .map(contactPayload),
+    pickup_persons: draft.contacts
+      .filter((contact) => contact.pickup)
+      .map(contactPayload),
     legal_acceptances: Object.fromEntries(
       (offer.form.legalBlocks ?? [])
         .filter((b) => b.enabled)

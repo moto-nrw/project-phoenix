@@ -281,7 +281,7 @@ type templateResponse struct {
 	// could not be read; the list itself still renders.
 	RosterMaintenance *templateRosterMaintenanceResponse `json:"roster_maintenance,omitempty"`
 	// ManualRosterConfirmed: the school keeps this series' children by hand
-	// on purpose ("Bleibt von Hand gepflegt", #5103), so the deviation hint
+	// on purpose ("Liste so lassen", #5103), so the deviation hint
 	// stays hidden. Read from the series root.
 	ManualRosterConfirmed bool `json:"manual_roster_confirmed"`
 }

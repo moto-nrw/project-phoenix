@@ -68,8 +68,8 @@ export function SWRScopeBoundary({
     accountId: string | null;
     /** The account this tab showed when the other tab changed the owner. */
     shownAccountId: string | null;
-    /** Org portals must confirm the Träger too, not just the same account. */
-    organizationOwner?: string | null;
+    /** School/org portals must confirm their full owner, not just the account. */
+    portalOwner?: string | null;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -83,9 +83,8 @@ export function SWRScopeBoundary({
       // (#5007).
       const confirmed =
         (accountId === waiting.accountId &&
-          (waiting.organizationOwner === undefined ||
-            personalStorageOwner(session?.user) ===
-              waiting.organizationOwner)) ||
+          (waiting.portalOwner === undefined ||
+            personalStorageOwner(session?.user) === waiting.portalOwner)) ||
         (waiting.accountId === null &&
           accountId !== null &&
           accountId === waiting.shownAccountId &&
@@ -113,21 +112,24 @@ export function SWRScopeBoundary({
         const shown = committed.current;
         if (shown === null) return;
         const nextAccount = personalStorageAccount(owner);
-        const organizationChanged =
-          shown.session?.user.scope === "org" &&
-          owner !== personalStorageOwner(shown.session.user);
+        const portalOwnerChanged =
+          ["org", "school"].includes(shown.session?.user.scope ?? "") &&
+          owner !== personalStorageOwner(shown.session?.user);
         if (
           pending.current === null &&
           nextAccount === shown.accountId &&
-          !organizationChanged
+          !portalOwnerChanged
         )
           return;
         pending.current = {
           session: shown.session,
           accountId: nextAccount,
           shownAccountId: shown.accountId,
-          organizationOwner:
-            shown.session?.user.scope === "org" ? owner : undefined,
+          portalOwner: ["org", "school"].includes(
+            shown.session?.user.scope ?? "",
+          )
+            ? owner
+            : undefined,
         };
         suspendSWRSession();
         resetSWRScope({ revalidate: false });

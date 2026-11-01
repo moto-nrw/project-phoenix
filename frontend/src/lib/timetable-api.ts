@@ -384,8 +384,16 @@ class TimetableService {
    * GET /api/timetable/templates/roster-deviations — Regeltermine whose
    * children list differs from an offering's bookings (#5103).
    */
-  async getRosterDeviations(periodId: string): Promise<RosterDeviation[]> {
+  /**
+   * `templateId` also reviews that Regeltermin when it is kept by hand:
+   * „Mit Angebot verbinden“ names it, and connecting ends that state.
+   */
+  async getRosterDeviations(
+    periodId: string,
+    templateId?: string,
+  ): Promise<RosterDeviation[]> {
     const params = new URLSearchParams({ period_id: periodId });
+    if (templateId) params.set("template_id", templateId);
     const response = await transportFetch(
       `/api/timetable/templates/roster-deviations?${params}`,
       {

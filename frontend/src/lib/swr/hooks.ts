@@ -33,6 +33,7 @@ import {
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
 import {
+  DiscardedAnswer,
   currentSWRDataGeneration,
   currentSWRGeneration,
   dataGenerationOf,
@@ -745,6 +746,48 @@ export function useDiscardRefusedEntity() {
       return true;
     },
     [prefix, cache],
+  );
+}
+
+/**
+ * Call the hook in the component; call its returned starter inside the SWR
+ * fetcher before awaiting. Its completion callback runs synchronous effects
+ * only in that request's scope and generation, even after a key change.
+ * Stale completions become the wrapper's silent DiscardedAnswer. This exposes
+ * no cache or writer, and does not change SWR's view-bound onSuccess contract.
+ */
+export function useSWRRequestGuard() {
+  const { prefix } = useSWRScope();
+  const origin = currentSWRGeneration();
+  const latestPrefix = useRef(prefix);
+  useLayoutEffect(() => {
+    latestPrefix.current = prefix;
+  }, [prefix]);
+  return useCallback(
+    (key: string | null) => {
+      if (
+        prefix === null ||
+        key === null ||
+        isSWRSessionPending() ||
+        latestPrefix.current !== prefix
+      )
+        throw new DiscardedAnswer();
+      const fullKey = scopedSWRKey(prefix, key);
+      if (dataGenerationOf(fullKey) > origin) throw new DiscardedAnswer();
+      const started = startOf(fullKey);
+      const isCurrent = () =>
+        !isSWRSessionPending() &&
+        latestPrefix.current === prefix &&
+        isStillCurrent(fullKey, started);
+      return Object.assign(
+        (complete: () => void): void => {
+          if (!isCurrent()) throw new DiscardedAnswer();
+          complete();
+        },
+        { isCurrent },
+      );
+    },
+    [prefix, origin],
   );
 }
 

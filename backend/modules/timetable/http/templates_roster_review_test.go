@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"sync"
 	"testing"
@@ -181,7 +182,12 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.True(t, decodeTemplateData[manualRosterResponse](t, w).ManualRosterConfirmed)
 
-	deviations := s.listDeviations(t, period.ID)
+	// A caller without the right to read children gets the counts only.
+	for _, deviation := range s.listDeviations(t, period.ID) {
+		assert.Empty(t, deviation.Unbooked, "names need the right to read children")
+		assert.Empty(t, deviation.Missing)
+	}
+	deviations := s.listDeviationsAs(t, period.ID, "*:*")
 
 	require.Len(t, deviations, 1, "only the hand-kept Klasse Regeltermin deviates: %+v", deviations)
 	got := deviations[0]
@@ -193,7 +199,31 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	assert.Empty(t, got.GradeLevels)
 	assert.Equal(t, 1, got.UnbookedCount, "class[4] books Ganztag; only class[5] books nothing")
 	assert.Zero(t, got.MissingCount)
+	// The hint names that child and its weekdays.
+	require.Len(t, got.Unbooked, 1)
+	assert.Equal(t, class[5], got.Unbooked[0].StudentID)
+	assert.Contains(t, got.Unbooked[0].Name, "Review-1a-5-")
+	assert.Equal(t, []int{timetableModule.WeekdayMonday, timetableModule.WeekdayWednesday}, got.Unbooked[0].Weekdays)
+	assert.Empty(t, got.Missing)
 	assert.Equal(t, got.Offerings, got.Candidates, "no other offering passes the rule")
+
+	// „Mit Angebot verbinden“ from a booking change names one series: it is
+	// reviewed although it is kept by hand, so the link reaches the dialog.
+	// The rest of the period stays in the answer for the cards.
+	named := func(templateID int64) []int64 {
+		w := doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=%d", period.ID, templateID), nil)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		ids := []int64{}
+		for _, deviation := range decodeTemplateData[rosterDeviationsResponse](t, w).Deviations {
+			ids = append(ids, deviation.TemplateID)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	assert.Equal(t, []int64{deviating, confirmed}, named(confirmed), "the named hand-kept series is reviewed")
+	assert.Equal(t, []int64{deviating}, named(automatic), "naming an automatic series reviews nothing more")
+	w = doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=x", period.ID), nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 
 	// The list carries the decision; undoing it brings the hint back.
 	list := decodeTemplateData[listTemplatesResponse](t,
@@ -209,6 +239,17 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	}
 	slices.Sort(ids)
 	assert.Equal(t, []int64{deviating, confirmed}, ids)
+}
+
+// listDeviationsAs reads the hints as a caller with these permissions.
+func (s *rosterReviewSetup) listDeviationsAs(t *testing.T, periodID int64, granted ...string) []rosterDeviationResponse {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", periodID), nil)
+	req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	return decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
 }
 
 func (s *rosterReviewSetup) listDeviations(t *testing.T, periodID int64) []rosterDeviationResponse {
@@ -439,22 +480,39 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 			created++
 		}
 	}
-	run := func() int {
+	// granted empty: a caller without the right to read children, who gets
+	// the counts only; "*:*": an administrator, who also gets the names.
+	run := func(granted ...string) int {
 		counter.Reset()
-		w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
+		req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
-		require.Len(t, decodeTemplateData[rosterDeviationsResponse](t, w).Deviations, created)
+		deviations := decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
+		require.Len(t, deviations, created)
+		named := 0
+		if len(granted) > 0 {
+			named = 1 // class[4] books nothing
+		}
+		for _, deviation := range deviations {
+			assert.Len(t, deviation.Unbooked, named)
+		}
 		return counter.Total()
 	}
 
 	addTemplates(3)
-	small := run()
+	small, smallNamed := run(), run("*:*")
 	addTemplates(5)
 	large := run()
+	unnamed := counter.Queries()
+	largeNamed := run("*:*")
 
-	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
+	t.Logf("query budget: 3 templates → %d (named %d) queries, 8 templates → %d (named %d) queries", small, smallNamed, large, largeNamed)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
-	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", counter.Queries())
+	assert.Equal(t, smallNamed, largeNamed, "the names are read in one batch for every Regeltermin")
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", unnamed)
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations.named", counter.Queries())
 }
 
 // TestTemplateRosterDeviationsTiedCombinations (review of #5363): two

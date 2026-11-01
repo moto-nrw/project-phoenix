@@ -96,10 +96,7 @@ function summary(rows, failures, warnings, baseStatus) {
   );
   for (const failure of failures) lines.push(`- ${failure}`);
   if (warnings.length > 0) {
-    lines.push(
-      "",
-      "### Bereits auf der Merge-Basis überschrittene absolute Budgets (Warnung)",
-    );
+    lines.push("", "### Bundle-Policy-Warnungen");
     for (const warning of warnings) lines.push(`- ${warning}`);
     for (const warning of warnings)
       process.stdout.write(`::warning::${warning}\n`);

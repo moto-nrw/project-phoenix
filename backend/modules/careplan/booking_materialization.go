@@ -95,7 +95,7 @@ type SourcedRosters interface {
 // OfferingSourceEditor serves the Regeltermin editor (#2137, #3140).
 type OfferingSourceEditor interface {
 	// ListOfferingSourceOptions lists the offerings a template may source
-	// from, restricted to those fitting the calendar period when one is given.
+	// from, restricted to those whose phase overlaps the calendar period.
 	ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]OfferingSourceOption, error)
 	// CombinedOfferingSourceCounts validates a selection like a save would
 	// and counts its distinct approved children.
@@ -104,7 +104,7 @@ type OfferingSourceEditor interface {
 	// roster indicator with a constant number of reads.
 	TemplateRosterMaintenanceFeeds(ctx context.Context, templates []TemplateRosterFeedQuery) (map[int64]TemplateRosterFeeds, error)
 	// OfferingWeekdayBookings lists the approved bookings of the active
-	// offerings fitting the calendar period with the weekdays they plan on or
+	// offerings overlapping the calendar period with the weekdays they plan on or
 	// after from (#5103). Empty while the school has Betreuungsangebote
 	// switched off. A constant number of reads.
 	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)

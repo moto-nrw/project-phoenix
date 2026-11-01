@@ -102,6 +102,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "useSWRAuth",
     "useSWRCacheKey",
     "useSWRPreload",
+    "useSWRRequestGuard",
     "useSWRWithId",
     "useScopedSWRKey",
     "useTenantMutate",
@@ -113,6 +114,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   "course-waitlist-keys": ["activityWaitlistKeys", "courseWaitlistKeys"],
   "portal-keys": [
     "announcementKeys",
+    "catererKeys",
     "dashboardKeys",
     "databaseKeys",
     "displayKeys",

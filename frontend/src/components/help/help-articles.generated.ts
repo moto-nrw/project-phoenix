@@ -3712,8 +3712,9 @@ export const leadMissingMenuTopic = function leadMissingMenuTopic(): HelpTopic {
 /**
  * Regeltermine, deren Kinderliste von den Anmeldungen abweicht (#5103):
  * Hinweis an der Karte, „Zu prüfen“, „Mit Angebot verbinden“ mit Vorschau
- * und „Bleibt von Hand gepflegt“; mehrere Angebote zusammen (#5139). Beschriftungen aus
- * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx.
+ * und „Liste so lassen“; mehrere Angebote zusammen (#5139). Beschriftungen aus
+ * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx,
+ * weekday-roster-section.tsx.
  */
 export const leadRosterDeviationTopic =
   function leadRosterDeviationTopic(): HelpTopic {
@@ -3734,7 +3735,7 @@ export const leadRosterDeviationTopic =
       steps: [
         "Öffnen Sie `Betreuungsplan` und wählen Sie oben `Serien`.",
         "Wählen Sie `Zu prüfen`. Dann sehen Sie nur Regeltermine mit dem Hinweis `Weicht von Anmeldungen ab`.",
-        "Lesen Sie den Hinweis. Er nennt die passenden Angebote und die Kinder, die dort nicht angemeldet sind.",
+        "Lesen Sie den Hinweis. Er nennt die passenden Angebote. Er nennt auch die Kinder, die für keines davon angemeldet sind, mit Wochentag. Bei mehreren Kindern klappen Sie die Namen mit dem Pfeil auf.",
         "Wählen Sie `Mit Angebot verbinden`.",
         "Prüfen Sie unter `Angebote` die gewählten Angebote. Sie können weitere Angebote dazu wählen oder abwählen.",
         "Prüfen Sie die Vorschau. Sie zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",
@@ -3743,11 +3744,14 @@ export const leadRosterDeviationTopic =
       result:
         "Der Regeltermin zeigt `Automatisch`. An- und Abmeldungen im Angebot kommen ab dem nächsten Termin von selbst in die Kinderliste.",
       notes: [
-        // #5139: mehrere Angebote zusammen als Quelle.
-        "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto beide vor. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+        // #5139, #5342: mehrere Angebote zusammen als Quelle.
+        "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto alle vor, die bis zum Ende des Regeltermins dauern. Das erkennt moto an der Abholzeit des Angebots. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+        // #5342: ohne Abholzeit schlägt moto nur die nötigen Angebote vor.
+        "Ein Angebot ohne Abholzeit schlägt moto nur vor, wenn ein Kind es braucht. Prüfen Sie dann unter `Angebote`, ob ein Angebot fehlt.",
         "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
-        "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
-        "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
+        "Soll die Kinderliste so bleiben? Wählen Sie `Liste so lassen`. Dann verschwindet der Hinweis für diesen Regeltermin.",
+        "Die Karte des Regeltermins zeigt dann `Die Kinderliste bleibt bewusst so.` Den Hinweis holen Sie zurück: Wählen Sie dort oder in einem Termin des Regeltermins `Hinweis wieder zeigen`.",
+        "Kommen Kinder über `Klasse` oder `Jahrgang` in den Regeltermin? Beim Bearbeiten steht unter der Kinderliste, wer so außerdem kommt.",
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
@@ -3759,7 +3763,8 @@ export const leadRosterDeviationTopic =
         // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
         "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
-        "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
+        "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Das gilt auch für einen Regeltermin mit `Liste so lassen`. Verbinden Sie ihn, folgt seine Kinderliste wieder den Anmeldungen.",
+        "Findet moto kein passendes Angebot, sagt moto das. Öffnen Sie dann den Regeltermin mit `Bearbeiten`. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
       differences: [
         "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
@@ -6010,9 +6015,9 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
-        "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
+        "Tragen Sie `Ihre Angaben` ein.",
         "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
-        "Tragen Sie unter `Wer darf die Kinder abholen?` alle Personen außer Ihnen ein.",
+        "Tragen Sie unter `Kontakte` jede weitere Person einmal ein. Wählen Sie `Notfallkontakt`, `Darf die Kinder abholen` oder beides. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
         "Setzen Sie die Haken unter `Einverständnis`.",
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
@@ -9598,7 +9603,7 @@ export const traegerBillingRunTopic =
         {
           title: "Schreiben per Mail senden und drucken",
           description:
-            "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Für Familien ohne Internet drucken Sie es.",
+            "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
             "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
@@ -9839,8 +9844,10 @@ export const traegerHolidayFormTopic =
         {
           title: "Frage nur unter einer Bedingung zeigen",
           steps: [
-            "Legen Sie zuerst eine Frage mit `Ja/Nein` oder `Auswahl` an.",
-            "Wählen Sie bei der anderen Frage `Nur unter einer Bedingung anzeigen`.",
+            "Legen Sie zuerst eine andere Frage mit `Ja/Nein` oder `Auswahl` an.",
+            "Schreiben Sie auch den Fragetext dazu.",
+            "Gehen Sie zu der Frage, die nur manchmal erscheinen soll.",
+            "Wählen Sie dort `Nur unter einer Bedingung anzeigen`.",
             "Wählen Sie die Frage und die Antwort, bei der sie erscheinen soll.",
           ],
         },
@@ -9861,7 +9868,9 @@ export const traegerHolidayFormTopic =
       ],
       troubleshootingDetails: [
         "`OGS sieht die Antwort` lässt sich nicht wählen? Die Frage ist eine `Gesundheitsangabe`. Gesundheitsangaben bleiben beim Träger.",
-        "`Nur unter einer Bedingung anzeigen` lässt sich nicht wählen? Es gibt noch keine Frage mit `Ja/Nein` oder `Auswahl`. Eine Frage zur Familie kann nicht von einer Frage zum Kind abhängen.",
+        "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
+        "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
+        "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
         "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
       ],
       related: [
