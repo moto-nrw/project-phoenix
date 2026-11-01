@@ -28,6 +28,10 @@ type StudentEnrollment struct {
 	SelectedWeekdays         []int     `json:"selected_weekdays,omitempty"`
 	AttendanceStatus         *string   `json:"attendance_status,omitempty"`
 	Weekday                  *int      `json:"weekday,omitempty"`
+	// KeptWithoutBooking marks per ISO weekday the day (YYYY-MM-DD) up to
+	// which the school keeps the child on this hand row although ended
+	// bookings no longer carry it (#5102).
+	KeptWithoutBooking map[int]string `json:"kept_without_booking,omitempty"`
 }
 
 type StudentEnrollmentInput struct {
@@ -40,6 +44,9 @@ type StudentEnrollmentInput struct {
 	SelectedWeekdays         []int
 	AttendanceStatus         *string
 	Weekday                  *int
+	// KeptWithoutBooking is copied onto a row that continues a marked hand
+	// row; updates do not write it.
+	KeptWithoutBooking map[int]string
 }
 
 type StudentEnrollmentFilter struct {
@@ -65,6 +72,11 @@ type StudentEnrollmentCommand interface {
 	DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, error)
 	CapActiveStudentEnrollments(context.Context, int64, string) (int64, error)
 	SetStudentEnrollmentValidUntil(context.Context, int64, string) error
+	// SetStudentEnrollmentsKeptWithoutBooking marks the student's hand rows
+	// as kept without a carrying booking on the ISO weekdays through the
+	// date (YYYY-MM-DD); nil clears those weekdays only.
+	// ErrStudentEnrollmentNotFound for any other row.
+	SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, weekdays []int, through *string) error
 	CloseOpenStudentEnrollments(context.Context, int64, *int64, string) error
 }
 

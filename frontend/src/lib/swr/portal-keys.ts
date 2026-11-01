@@ -180,6 +180,8 @@ export const timetableKeys = {
   schoolVacationsFamily: "school-vacations-",
   schoolVacations: (from: string, to: string) =>
     `${timetableKeys.schoolVacationsFamily}${from}-${to}`,
+  bookingLeftovers: (periodId: string) =>
+    `booking-leftovers-${encodeURIComponent(periodId)}`,
 } as const;
 
 // School portal (Lehrkräfte).
@@ -207,6 +209,8 @@ export const payrollKeys = {
 
 export const databaseKeys = {
   counts: () => "/api/database/counts",
+  // The SSE hook revalidates every key containing this name.
+  calendarPeriods: () => "database-calendar-periods-list",
 } as const;
 
 export const homeLayoutKeys = {

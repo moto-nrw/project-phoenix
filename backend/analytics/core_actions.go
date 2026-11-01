@@ -489,6 +489,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/timetable/offering-gaps/{offeringId}/acknowledgement"}:                        notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/offering-connection"}:                               event("template_offering_connected"),
 	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
+	{http.MethodPut, "/api/timetable/templates/{id}/students/{studentId}/kept-days"}:                     notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,
 	{http.MethodDelete, "/api/users/{id}"}:                                                               notCaptured,
 	{http.MethodPut, "/api/users/{id}"}:                                                                  notCaptured,

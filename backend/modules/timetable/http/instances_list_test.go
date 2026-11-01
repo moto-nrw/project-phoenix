@@ -39,6 +39,9 @@ type stubOfferingSources struct {
 	// decisions records the template-gap decisions (#5140) by offering and
 	// planning period, as Care Plan stores them.
 	decisions map[offeringPeriod][]string
+	// bookingsFrom records the from of every bookings read; Care Plan
+	// returns only links still in force on or after it.
+	bookingsFrom []calendar.Date
 }
 
 type offeringPeriod struct{ offeringID, periodID int64 }
@@ -111,8 +114,9 @@ func (s *stubOfferingSources) TemplateRosterMaintenance(
 func (s *stubOfferingSources) OfferingWeekdayBookings(
 	_ context.Context,
 	periodID *int64,
-	_ calendar.Date,
+	from calendar.Date,
 ) ([]timetable.OfferingWeekdayBooking, error) {
+	s.bookingsFrom = append(s.bookingsFrom, from)
 	if s.decisions == nil || periodID == nil {
 		return s.bookings, s.err
 	}
