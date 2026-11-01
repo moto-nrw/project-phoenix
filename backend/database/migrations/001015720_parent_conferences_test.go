@@ -46,6 +46,9 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 
 	// The school vacations (1.15.721, #5345) extend the erasure functions of
 	// 1.15.720; they go first.
+	// The Nachweisarten (1.15.722, #4808) extend the erasure functions of
+	// 1.15.721; they go first.
+	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
 	var exists bool

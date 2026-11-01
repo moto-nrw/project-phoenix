@@ -3255,12 +3255,14 @@ describe("staff-api", () => {
       expect(result.qualifikationen).toEqual([
         {
           id: "3",
+          typeId: null,
           name: "Erste-Hilfe-Kurs",
           acquiredOn: "2023-03-10",
           expiresOn: "2026-03-10",
         },
         {
           id: null,
+          typeId: null,
           name: "Schwimmschein",
           acquiredOn: null,
           expiresOn: null,
@@ -3382,7 +3384,7 @@ describe("staff-api", () => {
       });
     });
 
-    it("sends the full qualification list without client-side ids", async () => {
+    it("sends the full qualification list with the row ids and kinds (#4808)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({ ok: true } as Response);
 
@@ -3391,12 +3393,14 @@ describe("staff-api", () => {
         [
           {
             id: "3",
-            name: "Erste-Hilfe-Kurs",
+            typeId: "11",
+            name: "",
             acquiredOn: "2023-03-10",
             expiresOn: "2026-03-10",
           },
           {
             id: null,
+            typeId: null,
             name: "Schwimmschein",
             acquiredOn: null,
             expiresOn: null,
@@ -3410,11 +3414,18 @@ describe("staff-api", () => {
       expect(JSON.parse(init.body as string)).toEqual({
         qualifikationen: [
           {
-            name: "Erste-Hilfe-Kurs",
+            id: 3,
+            type_id: 11,
+            name: "",
             acquired_on: "2023-03-10",
             expires_on: "2026-03-10",
           },
-          { name: "Schwimmschein", acquired_on: null, expires_on: null },
+          {
+            type_id: null,
+            name: "Schwimmschein",
+            acquired_on: null,
+            expires_on: null,
+          },
         ],
         note: "Nachweise",
       });

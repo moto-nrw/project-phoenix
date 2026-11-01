@@ -112,6 +112,11 @@ type StammdatenArbeitsvertragInput struct {
 // StammdatenQualificationInput is one row of the submitted qualification
 // list.
 type StammdatenQualificationInput struct {
+	// ID continues an existing row, so assigning a kind keeps its identity
+	// (#4808); nil adds a row.
+	ID *int64
+	// TypeID names the kind of proof; nil is "Sonstiges" with Name.
+	TypeID     *int64
 	Name       string
 	AcquiredOn *string
 	ExpiresOn  *string

@@ -79,6 +79,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// A planned staff exit is the staff administration of moto Basis
 	// (#4809).
 	"planned-staff-exits": jobScopeBasis,
+	// The Nachweise of the staff are the personnel record of moto Basis
+	// (#4808).
+	"staff-qualification-reminders": jobScopeBasis,
 	// The weekly protocol of a group (#4769) is the group's planning of
 	// moto Basis, like the timetable it records.
 	"week-protocols": jobScopeBasis,

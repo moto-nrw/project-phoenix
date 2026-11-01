@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -101,24 +102,11 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 	if staffID <= 0 {
 		return nil, invalidStaffRecord("staff ID is required")
 	}
-	converted := make([]domain.StaffQualification, 0, len(values))
-	for _, value := range values {
-		converted = append(converted, domain.StaffQualification{
-			ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Name: value.Name,
-			AcquiredOn: value.AcquiredOn, ExpiresOn: value.ExpiresOn, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		})
+	rows, err := qualificationRowsFor(staffID, values)
+	if err != nil {
+		return qualificationsToPublic(nil), mapStaffRecordError(err)
 	}
-	storedValues := converted
 	var result []domain.StaffQualification
-	var err error
-	rows := make([]domain.StaffQualification, 0, len(storedValues))
-	for _, value := range storedValues {
-		value.StaffID = staffID
-		if validationErr := value.Validate(); validationErr != nil {
-			return qualificationsToPublic(nil), mapStaffRecordError(validationErr)
-		}
-		rows = append(rows, value)
-	}
 	err = s.run(ctx, "replace_staff_qualifications", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			if lockErr := s.transaction.LockStaffQualifications(txCtx, staffID); lockErr != nil {
@@ -129,7 +117,11 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 			if listErr != nil {
 				return listErr
 			}
-			result, err = s.applyQualificationPlan(txCtx, staffID, planQualificationReplace(live, rows), stats)
+			resolved, resolveErr := s.resolveQualificationTypes(txCtx, rows, live, stats)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			result, err = s.applyQualificationPlan(txCtx, staffID, planQualificationReplace(live, resolved), stats)
 			return err
 		})
 	})
@@ -164,7 +156,7 @@ func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, pla
 			}
 			// A writer outside this replacement path may have retired the row.
 			pending = append(pending, pendingInsert{index: index, value: domain.StaffQualification{
-				StaffID: staffID, SortOrder: row.value.SortOrder, Name: row.value.Name,
+				StaffID: staffID, SortOrder: row.value.SortOrder, TypeID: row.value.TypeID, Name: row.value.Name,
 				AcquiredOn: row.value.AcquiredOn, ExpiresOn: row.value.ExpiresOn,
 			}})
 		case qualificationInsert:
@@ -220,20 +212,11 @@ type qualificationReplacePlan struct {
 func planQualificationReplace(live, submitted []domain.StaffQualification) qualificationReplacePlan {
 	plan := qualificationReplacePlan{rows: make([]plannedQualification, len(submitted))}
 	paired := make(map[int64]bool, len(live))
-	pair := func(match func(live, submitted domain.StaffQualification) bool, action qualificationAction) {
-		for index, row := range submitted {
-			if plan.rows[index].action != qualificationInsert {
-				continue
-			}
-			if candidate, ok := firstUnpaired(live, paired, row, match); ok {
-				paired[candidate.ID] = true
-				candidate.AcquiredOn, candidate.ExpiresOn = row.AcquiredOn, row.ExpiresOn
-				plan.rows[index] = plannedQualification{action: action, value: candidate}
-			}
-		}
-	}
-	pair(sameQualification, qualificationKeep)
-	pair(sameQualificationName, qualificationUpdate)
+	// A submitted row naming a live row continues it, so assigning a kind to
+	// a free-text entry keeps its identity (#4808).
+	plan.pair(live, submitted, paired, sameQualificationID, qualificationKeep)
+	plan.pair(live, submitted, paired, sameQualification, qualificationKeep)
+	plan.pair(live, submitted, paired, sameQualificationName, qualificationUpdate)
 	for index, row := range submitted {
 		if plan.rows[index].action == qualificationInsert {
 			plan.rows[index].value = row
@@ -246,6 +229,28 @@ func planQualificationReplace(live, submitted []domain.StaffQualification) quali
 		}
 	}
 	return plan
+}
+
+// pair lets every still unpaired submitted row continue the first unpaired
+// live row match accepts. A kept row that differs becomes an update.
+func (plan *qualificationReplacePlan) pair(live, submitted []domain.StaffQualification, paired map[int64]bool, match func(live, submitted domain.StaffQualification) bool, action qualificationAction) {
+	for index, row := range submitted {
+		if plan.rows[index].action != qualificationInsert {
+			continue
+		}
+		candidate, ok := firstUnpaired(live, paired, row, match)
+		if !ok {
+			continue
+		}
+		paired[candidate.ID] = true
+		rowAction := action
+		if rowAction == qualificationKeep && !sameQualification(candidate, row) {
+			rowAction = qualificationUpdate
+		}
+		candidate.TypeID, candidate.Name = row.TypeID, row.Name
+		candidate.AcquiredOn, candidate.ExpiresOn = row.AcquiredOn, row.ExpiresOn
+		plan.rows[index] = plannedQualification{action: rowAction, value: candidate}
+	}
 }
 
 func firstUnpaired(live []domain.StaffQualification, paired map[int64]bool, submitted domain.StaffQualification, match func(live, submitted domain.StaffQualification) bool) (domain.StaffQualification, bool) {
@@ -261,8 +266,77 @@ func sameQualificationName(live, submitted domain.StaffQualification) bool {
 	return live.Name == submitted.Name
 }
 
+func sameQualificationID(live, submitted domain.StaffQualification) bool {
+	return submitted.ID > 0 && live.ID == submitted.ID
+}
+
 func sameQualification(live, submitted domain.StaffQualification) bool {
-	return sameQualificationName(live, submitted) && live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
+	return sameQualificationName(live, submitted) && sameQualificationType(live.TypeID, submitted.TypeID) &&
+		live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
+}
+
+func sameQualificationType(a, b *int64) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+// qualificationRowsFor converts and validates the submitted rows of one staff
+// member. A row of a kind takes the kind's name in the unit of work.
+func qualificationRowsFor(staffID int64, values []workforce.StaffQualification) ([]domain.StaffQualification, error) {
+	rows := make([]domain.StaffQualification, 0, len(values))
+	for _, value := range values {
+		row := domain.StaffQualification{
+			ID: value.ID, TenantID: value.TenantID, StaffID: staffID, TypeID: value.TypeID, Name: value.Name,
+			AcquiredOn: value.AcquiredOn, ExpiresOn: value.ExpiresOn, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		}
+		check := row
+		if check.TypeID != nil && check.Name == "" {
+			check.Name = "-"
+		}
+		if err := check.Validate(); err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (s *Service) resolveQualificationTypes(ctx context.Context, rows, live []domain.StaffQualification, stats *domain.OperationStats) ([]domain.StaffQualification, error) {
+	types, typeStats, err := s.store.ListQualificationTypes(ctx)
+	stats.Add(typeStats)
+	if err != nil {
+		return nil, err
+	}
+	return resolveQualificationTypes(rows, live, types)
+}
+
+// resolveQualificationTypes checks the kind of every submitted row against
+// the school's kinds and gives it the kind's current name. An archived kind
+// is offered no longer; a row that already had it may keep it.
+func resolveQualificationTypes(rows, live []domain.StaffQualification, types []domain.QualificationType) ([]domain.StaffQualification, error) {
+	byID := make(map[int64]domain.QualificationType, len(types))
+	for _, kind := range types {
+		byID[kind.ID] = kind
+	}
+	had := make(map[int64]*int64, len(live))
+	for _, row := range live {
+		had[row.ID] = row.TypeID
+	}
+	resolved := make([]domain.StaffQualification, len(rows))
+	for index, row := range rows {
+		if row.TypeID != nil {
+			kind, ok := byID[*row.TypeID]
+			if !ok {
+				return nil, fmt.Errorf("%w: unknown qualification type", domain.ErrStaffStammdatenInvalid)
+			}
+			keepsArchived := row.ID > 0 && sameQualificationType(had[row.ID], row.TypeID)
+			if kind.Archived() && !keepsArchived {
+				return nil, fmt.Errorf("%w: qualification type is archived", domain.ErrStaffStammdatenInvalid)
+			}
+			row.Name = kind.Name
+		}
+		resolved[index] = row
+	}
+	return resolved, nil
 }
 
 // --- financial data ---

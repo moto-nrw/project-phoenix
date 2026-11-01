@@ -2067,6 +2067,8 @@ export interface StammdatenArbeitsvertrag {
 
 export interface StammdatenQualifikation {
   id: string | null;
+  /** Nachweisart (#4808); null ist „Sonstiges“ mit freiem Namen. */
+  typeId: string | null;
   name: string;
   acquiredOn: string | null;
   expiresOn: string | null;
@@ -2118,6 +2120,7 @@ interface BackendStammdaten {
   };
   qualifikationen: {
     id?: number;
+    type_id?: number | null;
     name: string;
     acquired_on: string | null;
     expires_on: string | null;
@@ -2151,6 +2154,7 @@ function mapStammdatenResponse(data: BackendStammdaten): StaffStammdaten {
     },
     qualifikationen: (data.qualifikationen ?? []).map((q) => ({
       id: q.id != null ? q.id.toString() : null,
+      typeId: q.type_id != null ? q.type_id.toString() : null,
       name: q.name,
       acquiredOn: q.acquired_on,
       expiresOn: q.expires_on,
@@ -2256,6 +2260,8 @@ class StaffStammdatenService {
   ): Promise<void> {
     await this.putSection(staffId, "qualifikationen", {
       qualifikationen: qualifikationen.map((q) => ({
+        ...(q.id !== null ? { id: Number(q.id) } : {}),
+        type_id: q.typeId !== null ? Number(q.typeId) : null,
         name: q.name,
         acquired_on: q.acquiredOn,
         expires_on: q.expiresOn,

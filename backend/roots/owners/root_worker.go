@@ -505,7 +505,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			planExport = BuildPlanExport(env, shifts, workTime, timetableRows, rooms, people, timetableOwner, calendar, renderer)
 			workforce, err = BuildWorkforcePlanning(db, env, hub, workTime, membership, persons, shifts, planExport, side,
 				lifecycle, timetableRows, audit, settings.Service)
-			return
+			return workforce.WithQualificationReminders(err, db, env, notifications, people.Staff, delivery.Enqueuer(), mailFrom, mailIdentity, organizations)
 		},
 		func() (err error) {
 			staffAdmin, err = BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)

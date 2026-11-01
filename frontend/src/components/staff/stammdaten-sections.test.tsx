@@ -91,11 +91,18 @@ const stammdaten: StaffStammdaten = {
   qualifikationen: [
     {
       id: "1",
+      typeId: null,
       name: "Erste-Hilfe-Kurs",
       acquiredOn: "2019-03-10",
       expiresOn: "2020-03-10",
     },
-    { id: "2", name: "Schwimmschein", acquiredOn: null, expiresOn: null },
+    {
+      id: "2",
+      typeId: null,
+      name: "Schwimmschein",
+      acquiredOn: null,
+      expiresOn: null,
+    },
   ],
 };
 

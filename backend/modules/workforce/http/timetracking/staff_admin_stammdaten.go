@@ -53,7 +53,10 @@ type StammdatenArbeitsvertragPayload struct {
 
 // StammdatenQualificationPayload is one qualification row on the wire.
 type StammdatenQualificationPayload struct {
-	ID         *int64         `json:"id,omitempty"`
+	ID *int64 `json:"id,omitempty"`
+	// TypeID names the kind of proof (#4808); null is "Sonstiges" with the
+	// free-text name.
+	TypeID     *int64         `json:"type_id"`
 	Name       string         `json:"name"`
 	AcquiredOn *calendar.Date `json:"acquired_on"`
 	ExpiresOn  *calendar.Date `json:"expires_on"`
@@ -112,7 +115,7 @@ type StammdatenQualifikationenRequest struct {
 
 func (r *StammdatenQualifikationenRequest) Bind(_ *http.Request) error {
 	for _, q := range r.Qualifikationen {
-		if strings.TrimSpace(q.Name) == "" {
+		if q.TypeID == nil && strings.TrimSpace(q.Name) == "" {
 			return errors.New("qualification name is required")
 		}
 	}
@@ -194,6 +197,7 @@ func newStammdatenResponse(data *workforce.StaffStammdaten) *StammdatenResponse 
 		qualID := q.ID
 		resp.Qualifikationen = append(resp.Qualifikationen, StammdatenQualificationPayload{
 			ID:         &qualID,
+			TypeID:     q.TypeID,
 			Name:       q.Name,
 			AcquiredOn: optionalDate(q.AcquiredOn),
 			ExpiresOn:  optionalDate(q.ExpiresOn),
@@ -298,6 +302,8 @@ func (rs *StaffAdminResource) updateStammdatenQualifikationen(w http.ResponseWri
 		inputs := make([]workforce.StammdatenQualificationInput, 0, len(req.Qualifikationen))
 		for _, q := range req.Qualifikationen {
 			inputs = append(inputs, workforce.StammdatenQualificationInput{
+				ID:         q.ID,
+				TypeID:     q.TypeID,
 				Name:       q.Name,
 				AcquiredOn: optionalDateString(q.AcquiredOn),
 				ExpiresOn:  optionalDateString(q.ExpiresOn),

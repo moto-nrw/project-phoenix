@@ -72,6 +72,8 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "database/groups/page.tsx": "sammlung",
   "database/permissions/page.tsx": "sammlung",
   "database/personal/page.tsx": "sammlung",
+  "database/qualification-types/page.tsx": "sammlung",
+  "database/qualifications/page.tsx": "sammlung",
   "database/planning-tracks/page.tsx": "sammlung",
   "database/roles/page.tsx": "sammlung",
   "database/rooms/page.tsx": "sammlung",

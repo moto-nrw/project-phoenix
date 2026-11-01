@@ -183,6 +183,18 @@
       "legacy": "personnel_number_taken"
     },
     {
+      "code": "workforce.qualification_type_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.qualification_type_name_taken"
+    },
+    {
+      "code": "workforce.qualification_type_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.qualification_type_not_found"
+    },
+    {
       "code": "workforce.rebooking_before_vacation_opening",
       "class": "business_rejection",
       "parameters": [

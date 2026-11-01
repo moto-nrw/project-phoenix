@@ -67,5 +67,7 @@
   "vacation_quota_reason_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "vacation_request_in_past": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "work_session_overlap": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-  "payroll_download_unavailable": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "payroll_download_unavailable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "qualification_type_name_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "qualification_type_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
 }

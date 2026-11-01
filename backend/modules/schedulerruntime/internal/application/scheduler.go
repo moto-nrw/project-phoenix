@@ -25,57 +25,58 @@ var errWorkerTraceStart = errors.New("start worker trace")
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService              ports.SessionMaintenance
-	cleanupService             ports.PresenceCleanup
-	authCleanup                ports.AuthCleanup
-	invitationCleanup          ports.InvitationCleaner
-	workSessionCleanup         ports.WorkSessionCleaner
-	breakAutoEnder             ports.BreakAutoEnder
-	autoCheckouter             ports.AutoCheckouter
-	feedbackCleaner            ports.FeedbackCleaner
-	retention                  RetentionRun
-	cleanupRuns                ports.CleanupRunLedger
-	cleanupClock               func() time.Time
-	cleanupFailures            sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
-	staffDocumentFileCleaner   ports.StaffDocumentFileCleaner
-	studentDocumentFileCleaner ports.StudentDocumentFileCleaner
-	fileStoreCleaner           ports.FileStoreCleaner
-	materializer               ports.TimetableMaterializer
-	timetableCleanup           ports.TimetableCleanup
-	calendarFeedCleanup        ports.CalendarFeedCleaner
-	timeTrackingCleanup        ports.TimeTrackingCleanupService
-	studentChangeLogCleanup    ports.StudentChangeLogCleanup
-	pwaUsageCleanup            ports.PWAUsageCleanup
-	staffMessageCleanup        ports.StaffMessageCleanup
-	bookingConsistency         ports.BookingConsistencyAudit
-	holidayGuests              ports.HolidayGuestReconciliation
-	plannedStaffExits          ports.PlannedStaffExits
-	weekProtocols              ports.WeekProtocolEvenings
-	payrollDispatch            ports.PayrollDispatch
-	mealOrders                 ports.MealOrderSettlement
-	schoolVacations            ports.SchoolVacationSync
-	enrollmentRejectedCleanup  ports.RejectedEnrollmentCleaner
-	autoStart                  ports.InstanceAutoStart
-	autoEnd                    ports.InstanceAutoEnd
-	settings                   ports.SettingsResolver
-	schoolRepo                 ports.TenantDirectory
-	tenantRuntime              ports.TenantRuntime
-	tenantRuntimeObserver      func(entryPoint, outcome string)
-	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
-	workerTracer               ports.WorkerTracer
-	tenantBatchCursors         sync.Map // job ID → last successful tenant ID
-	minuteSnapshotMu           sync.Mutex
-	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
-	minuteSnapshotNow          func() time.Time
-	materializationNow         func() time.Time
-	minuteSnapshotLoader       func(context.Context) (*schedulerMinuteSnapshot, error)
-	allTenantIDsLoader         func(context.Context) ([]int64, error)
-	cleanupJobs                []CleanupJob
-	registry                   *Registry
-	tasks                      map[string]*ScheduledTask
-	mu                         sync.RWMutex
-	logger                     *slog.Logger
-	getenv                     func(string) string
+	activeService               ports.SessionMaintenance
+	cleanupService              ports.PresenceCleanup
+	authCleanup                 ports.AuthCleanup
+	invitationCleanup           ports.InvitationCleaner
+	workSessionCleanup          ports.WorkSessionCleaner
+	breakAutoEnder              ports.BreakAutoEnder
+	autoCheckouter              ports.AutoCheckouter
+	feedbackCleaner             ports.FeedbackCleaner
+	retention                   RetentionRun
+	cleanupRuns                 ports.CleanupRunLedger
+	cleanupClock                func() time.Time
+	cleanupFailures             sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
+	staffDocumentFileCleaner    ports.StaffDocumentFileCleaner
+	studentDocumentFileCleaner  ports.StudentDocumentFileCleaner
+	fileStoreCleaner            ports.FileStoreCleaner
+	materializer                ports.TimetableMaterializer
+	timetableCleanup            ports.TimetableCleanup
+	calendarFeedCleanup         ports.CalendarFeedCleaner
+	timeTrackingCleanup         ports.TimeTrackingCleanupService
+	studentChangeLogCleanup     ports.StudentChangeLogCleanup
+	pwaUsageCleanup             ports.PWAUsageCleanup
+	staffMessageCleanup         ports.StaffMessageCleanup
+	bookingConsistency          ports.BookingConsistencyAudit
+	holidayGuests               ports.HolidayGuestReconciliation
+	plannedStaffExits           ports.PlannedStaffExits
+	staffQualificationReminders ports.StaffQualificationReminders
+	weekProtocols               ports.WeekProtocolEvenings
+	payrollDispatch             ports.PayrollDispatch
+	mealOrders                  ports.MealOrderSettlement
+	schoolVacations             ports.SchoolVacationSync
+	enrollmentRejectedCleanup   ports.RejectedEnrollmentCleaner
+	autoStart                   ports.InstanceAutoStart
+	autoEnd                     ports.InstanceAutoEnd
+	settings                    ports.SettingsResolver
+	schoolRepo                  ports.TenantDirectory
+	tenantRuntime               ports.TenantRuntime
+	tenantRuntimeObserver       func(entryPoint, outcome string)
+	unitOfWorkObserver          func(entryPoint, kind, result string, duration time.Duration, retries int)
+	workerTracer                ports.WorkerTracer
+	tenantBatchCursors          sync.Map // job ID → last successful tenant ID
+	minuteSnapshotMu            sync.Mutex
+	minuteSnapshotLoad          *schedulerMinuteSnapshotLoad
+	minuteSnapshotNow           func() time.Time
+	materializationNow          func() time.Time
+	minuteSnapshotLoader        func(context.Context) (*schedulerMinuteSnapshot, error)
+	allTenantIDsLoader          func(context.Context) ([]int64, error)
+	cleanupJobs                 []CleanupJob
+	registry                    *Registry
+	tasks                       map[string]*ScheduledTask
+	mu                          sync.RWMutex
+	logger                      *slog.Logger
+	getenv                      func(string) string
 	schedulerLifecycle
 	// leadership gates every job run on the Worker lease (#2726). It keeps
 	// renewing while Stop drains the jobs and releases the lease afterwards.
@@ -216,7 +217,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:     deps.AutoCheckouter,
 		materializer:       deps.Materializer,
 		bookingConsistency: deps.BookingConsistency,
-		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
+		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
 		mealOrders:             deps.MealOrders,
 		autoStart:              deps.AutoStart,
 		autoEnd:                deps.AutoEnd,

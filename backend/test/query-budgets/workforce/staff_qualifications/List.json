@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.staff_qualifications.list",
+  "max": 6,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET /api/staff/qualifications\n(#4808): the tenant-transaction statements, ONE read of the school's\nNachweisarten and ONE read of every live qualification. The staff names\ncome from the People Directory port. Flat in people and rows."
+}

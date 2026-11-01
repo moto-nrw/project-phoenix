@@ -1,0 +1,35 @@
+{{define "staff-qualification-reminder.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>{{if .Lapsed}}Nachweis ist abgelaufen{{else if .ExpiryDay}}Nachweis läuft heute ab{{else}}Nachweis läuft bald ab{{end}}</h1>
+
+    <p>Hallo {{.FirstName}},</p>
+
+    {{if .Own}}
+    <p>{{if .Lapsed}}Ihr Nachweis „{{.QualificationName}}“ galt bis {{.ExpiresOn}}.{{else if .ExpiryDay}}Ihr Nachweis „{{.QualificationName}}“ gilt nur noch heute.{{else}}Ihr Nachweis „{{.QualificationName}}“ gilt bis {{.ExpiresOn}}.{{end}}</p>
+    <p>Bitte kümmern Sie sich um einen neuen Nachweis und geben Sie ihn bei der Leitung ab.</p>
+    {{else}}
+    <p>{{if .Lapsed}}Ein Nachweis von {{.StaffName}} ist abgelaufen.{{else if .ExpiryDay}}Heute läuft ein Nachweis von {{.StaffName}} ab.{{else}}Bald läuft ein Nachweis von {{.StaffName}} ab.{{end}}</p>
+    <div class="highlight-box">
+        <p>{{.QualificationName}}: gültig bis {{.ExpiresOn}}</p>
+    </div>
+    <p>Tragen Sie den neuen Nachweis im Profil der Person ein, sobald er vorliegt.</p>
+    {{end}}
+
+    {{if .LinkURL}}
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.LinkURL}}">{{if .Own}}Profil öffnen{{else}}Person öffnen{{end}}</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.LinkURL}}">{{.LinkURL}}</a>
+    </div>
+    {{end}}
+
+    <p>{{.SchoolName}}</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

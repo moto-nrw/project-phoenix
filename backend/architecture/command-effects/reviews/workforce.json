@@ -3892,6 +3892,179 @@
       "target_owner": "school-calendar"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/internal/notifications.Notifier.Notify (delivery-platform) through roots/owners.qualificationNotifier for the Nachweis reminders (#4808). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "reason": "Read-only target of the Nachweis reminders (#4808): workforce reaches modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut (delivery-platform) through roots/owners.qualificationNotifier. No persistent, lock or scope effect.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Qualifications.RunDue",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationReminders.RunDue",
+      "reason": "Read-only target of the Nachweis reminders (#4808): workforce reaches modules/delivery/internal/notifications.PreferenceService.FilterOptedIn (delivery-platform) through roots/owners.qualificationNotifier. No persistent, lock or scope effect.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterOptedIn",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Read-only already reviewed target: workforce reaches modules/peopledirectory.Staff.SetTenantID (people-directory) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Read-only already reviewed target: workforce reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Read-only newly exposed target: workforce reaches modules/schoolmembership.ExternalCaregiver (school-membership) through roots/owners.qualificationStaff.ListStaffMembers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.ListStaffMembers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.ListStaffMembers",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffContact; modules/staffdirectoryview/contacts.go:13. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffContact",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.GetStaffContactInfo; modules/peopledirectory/ports/repository_contracts.go:266. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.GetStaffContactInfo",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StaffContact",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StaffContact",
+      "reason": "Read or pure value helper reached by the Nachweis reminders (#4808): workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.qualificationStaff.StaffContact. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "reason": "Read or pure value helper reached by the Nachweis reminders (#4808): workforce reaches modules/staffdirectoryview.Directory.StaffWithPermission (staff-directory-view) through roots/owners.qualificationStaff.StammdatenManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "reason": "Read or pure value helper reached by the Nachweis reminders (#4808): workforce reaches modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission (people-directory) through roots/owners.qualificationStaff.StammdatenManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationStaff.StammdatenManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationStaff.StammdatenManagers",
+      "reason": "Read or pure value helper reached by the Nachweis reminders (#4808): workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.qualificationStaff.StammdatenManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0117",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceAccounts",
