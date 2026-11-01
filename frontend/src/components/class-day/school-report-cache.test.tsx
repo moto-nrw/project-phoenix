@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -240,6 +241,90 @@ describe("school report cache", () => {
     ).toEqual(failedLinks);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(options.fetchClassDay).toHaveBeenCalledTimes(4);
+  });
+
+  it("separates denied and unavailable classes and retries only the unavailable report", async () => {
+    const options = setup();
+    options.fetchClasses.mockResolvedValue({
+      classes: ["4a", "4b", "4c"],
+      weekend_follows_friday: false,
+    });
+    let recovered = false;
+    options.fetchClassDay.mockImplementation(async (klass: string) => {
+      if (klass === "4a") throw new ApiError("denied", 403);
+      if (klass === "4b" && !recovered) throw new ApiError("down", 503);
+      return report;
+    });
+    render(<ClassDayOverview {...options} />, options);
+    const healthy = await screen.findByRole("link", {
+      name: /Klasse 4c.*1 Kinder/,
+    });
+    const denied = (
+      await screen.findByText(
+        /Für die Übersicht für Klasse 4a fehlt Ihnen die Berechtigung/,
+      )
+    ).closest<HTMLElement>('[role="alert"]')!;
+    const unavailable = (
+      await screen.findByText(
+        /Die Übersicht für Klasse 4b ist gerade nicht erreichbar/,
+      )
+    ).closest<HTMLElement>('[role="alert"]')!;
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(
+      within(denied).queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
+    const retry = within(unavailable).getByRole("button", {
+      name: "Wiederholen",
+    });
+    expect(denied).not.toHaveTextContent("4c");
+    expect(unavailable).not.toHaveTextContent("4c");
+    recovered = true;
+    fireEvent.click(retry);
+    expect(
+      await screen.findByRole("link", { name: /Klasse 4b.*1 Kinder/ }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: /Klasse 4c.*1 Kinder/ })).toBe(
+      healthy,
+    );
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(options.fetchClassDay.mock.calls.map(([klass]) => klass)).toEqual([
+      "4a",
+      "4b",
+      "4c",
+      "4b",
+    ]);
+  });
+
+  it("does not show a class heading or grid after the initial class-list load fails", async () => {
+    const options = setup();
+    options.fetchClasses.mockRejectedValue(new ApiError("down", 503));
+    render(<ClassDayOverview {...options} />, options);
+    const failure = await screen.findByRole("alert");
+    expect(failure).toHaveTextContent(
+      "Die Liste Ihrer Klassen ist gerade nicht erreichbar",
+    );
+    expect(
+      within(failure).getByRole("button", { name: "Wiederholen" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Ihre Klassen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      failure.parentElement?.querySelector(".grid"),
+    ).not.toBeInTheDocument();
+    expect(options.fetchClassDay).not.toHaveBeenCalled();
+    options.fetchClasses.mockResolvedValue({
+      classes: ["4a", "4b"],
+      weekend_follows_friday: false,
+    });
+    fireEvent.click(
+      within(failure).getByRole("button", { name: "Wiederholen" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Ihre Klassen" }),
+    ).toBeVisible();
+    expect(await screen.findAllByText(/1 Kinder · 1 bleiben/)).toHaveLength(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("groups denied reports without a retry and recovers on later revalidation", async () => {

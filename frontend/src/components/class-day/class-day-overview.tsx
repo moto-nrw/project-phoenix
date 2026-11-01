@@ -36,7 +36,8 @@ import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
-import { schoolClassLabel } from "~/lib/school-class-label";
+import { schoolClassLabel, schoolClassesLabel } from "~/lib/school-class-label";
+import { ApiError } from "~/lib/api-error";
 import type {
   AbsenceReportStatus,
   ClassDayClasses,
@@ -256,7 +257,24 @@ interface ClassReportFailure {
   retry: () => unknown;
 }
 
-/** Parallel canonical readers, with one shared notice outside the stable tiles. */
+function ClassReportError({
+  classes,
+  failures,
+}: Readonly<{
+  classes: readonly string[];
+  failures: readonly ClassReportFailure[];
+}>) {
+  const { error } = useSwrResourceLoadError(
+    [{ error: failures[0]?.cause }],
+    `die Übersicht für ${schoolClassesLabel(classes)}`,
+    () => Promise.all(failures.map((failure) => failure.retry())),
+  );
+  return (
+    <LoadErrorAlert error={error} className="mt-4" actionLayout="responsive" />
+  );
+}
+
+/** Parallel readers, with one notice per error identity outside stable tiles. */
 function ClassReports({
   classes,
   dateISO,
@@ -281,12 +299,22 @@ function ClassReports({
     },
     [],
   );
-  const missing = Object.values(failures);
-  const { error: loadError } = useSwrResourceLoadError(
-    [{ error: missing[0]?.cause }],
-    "die Klassenberichte",
-    () => Promise.all(missing.map((failure) => failure.retry())),
-  );
+  const groups = new Map<
+    string,
+    { classes: string[]; failures: ClassReportFailure[] }
+  >();
+  for (const klass of classes) {
+    const failure = failures[klass];
+    if (!failure) continue;
+    const identity =
+      failure.cause instanceof ApiError
+        ? (failure.cause.code ?? String(failure.cause.status))
+        : "crash";
+    const group = groups.get(identity) ?? { classes: [], failures: [] };
+    group.classes.push(klass);
+    group.failures.push(failure);
+    groups.set(identity, group);
+  }
   return (
     <>
       <div className="mt-2 grid gap-3 lg:grid-cols-2">
@@ -300,11 +328,9 @@ function ClassReports({
           />
         ))}
       </div>
-      <LoadErrorAlert
-        error={loadError}
-        className="mt-4"
-        actionLayout="responsive"
-      />
+      {[...groups].map(([identity, group]) => (
+        <ClassReportError key={identity} {...group} />
+      ))}
     </>
   );
 }
@@ -753,30 +779,34 @@ export function ClassDayOverview({
                       )}
                     </>
                   )}
-                  <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
-                  </h3>
-                  {schoolMode ? (
-                    <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                      {(classes ?? []).map((klass) => (
-                        <ClassLink
-                          key={klass}
-                          klass={klass}
-                          report={reports[klass] ?? null}
-                          failed={false}
-                          weekend={weekend}
+                  {classes !== undefined && (
+                    <>
+                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
+                      </h3>
+                      {schoolMode ? (
+                        <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                          {classes.map((klass) => (
+                            <ClassLink
+                              key={klass}
+                              klass={klass}
+                              report={reports[klass] ?? null}
+                              failed={false}
+                              weekend={weekend}
+                              dateISO={dateISO}
+                              openList={openList}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <ClassReports
+                          key={JSON.stringify([dateISO, classes])}
+                          classes={classes}
                           dateISO={dateISO}
-                          openList={openList}
+                          fetchClassDay={fetchClassDay}
                         />
-                      ))}
-                    </div>
-                  ) : (
-                    <ClassReports
-                      key={JSON.stringify([dateISO, classes])}
-                      classes={classes ?? []}
-                      dateISO={dateISO}
-                      fetchClassDay={fetchClassDay}
-                    />
+                      )}
+                    </>
                   )}
                 </>
               )}
