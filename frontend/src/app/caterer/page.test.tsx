@@ -205,6 +205,57 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4);
   });
 
+  it("keeps a cached period when its background failure arrives after a period switch", async () => {
+    let refresh!: ReturnType<typeof useInvalidateMatching>;
+    function Revalidation() {
+      refresh = useInvalidateMatching();
+      return null;
+    }
+    render(
+      <>
+        <Revalidation />
+        <CatererOverviewPage />
+      </>,
+    );
+    await screen.findByText("Bestellungen für Küche am Markt");
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("50"),
+    ).toBeVisible();
+    const north = deferred<ReturnType<typeof week>>();
+    const south = deferred<ReturnType<typeof week>>();
+    mocks.fetchCatererOrders
+      .mockReturnValueOnce(north.promise)
+      .mockReturnValueOnce(south.promise);
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = refresh(
+        (key) =>
+          key === catererKeys.orders(["1", "2"], "2026-09-07", "2026-09-11"),
+      );
+    });
+    await waitFor(() =>
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(4),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+    await waitFor(() =>
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(6),
+    );
+    await act(async () => {
+      north.reject(new ApiError("north unavailable", 503));
+      south.reject(new ApiError("south unavailable", 503));
+      await pending;
+    });
+    // The next visit must use the old period's existing data, not a fresh GET.
+    mocks.fetchCatererOrders.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Diese Woche" }));
+    // Anker: beide gespeicherten Wochenbestellungen bleiben sofort lesbar.
+    const table = within(screen.getAllByRole("table")[0]!);
+    expect(table.getByText("50")).toBeVisible();
+    expect(table.getByText("25")).toBeVisible();
+  });
+
   it("shares schools and orders on return without a loading replacement", async () => {
     const view = render(<CatererOverviewPage />);
     await screen.findByText("Bestellungen für Küche am Markt");

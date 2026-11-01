@@ -189,7 +189,10 @@ export default function CatererOverviewPage() {
   }>({ scopedKey: null });
   const response = useSWRAuth<CatererOrderWindow>(
     ordersKey,
-    async () => {
+    async (): Promise<CatererOrderWindow> => {
+      // This reader belongs to the requested key even if the visible period
+      // changes before its background requests settle.
+      const requestedSnapshot = response.data;
       const results = await Promise.allSettled(
         schoolIds.map((schoolId) => fetchCatererOrders(schoolId, from, to)),
       );
@@ -209,7 +212,7 @@ export default function CatererOverviewPage() {
           const previous =
             orderSnapshot.current.scopedKey === scopedKey
               ? orderSnapshot.current.data
-              : undefined;
+              : requestedSnapshot;
           orders[schoolId] = refused
             ? null
             : (previous?.orders[schoolId] ?? null);
