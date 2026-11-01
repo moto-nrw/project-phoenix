@@ -64,6 +64,9 @@ bisher in 150 ms, die Zeile gibt beim Klick auf 98 % nach (`sidebar-geometry.ts`
 - Durchrollen: `<clipPath id={uid}>` um den Bereich (`uid` aus `render`), Inhalt
   bei 45 % hinaus, bei 46 % von der Gegenseite herein.
 - Drehen ohne Endsprung: Endwinkel = Symmetriewinkel (Zahnrad 90°, Sonne 45°).
+- Mitbewegen: Ein Element trägt höchstens eine bewegte Klasse, sonst ersetzt die
+  spätere Regel die ganze `animation`. Teile, die gemeinsam steigen und sich
+  dabei zeichnen, kommen in ein `<g>` mit der äußeren Bewegung.
 - Staffelung: Klassen `ns-i0`…`ns-i9` setzen `--ns-i`, die Regel rechnet
   `calc(var(--ns-i,0)*90ms)`.
 

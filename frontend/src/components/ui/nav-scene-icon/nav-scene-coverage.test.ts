@@ -110,7 +110,7 @@ describe("Icon-Szenen der Seitenleisten", () => {
   });
 
   it.each(Object.entries(NAV_SCENES))(
-    "%s bewegt mindestens ein Teil des Icons",
+    "%s bewegt Teile, jedes Element mit höchstens einer Bewegung",
     (glyph, scene) => {
       expect(scene.description.trim()).not.toBe("");
       const markup = renderToStaticMarkup(
@@ -125,6 +125,21 @@ describe("Icon-Szenen der Seitenleisten", () => {
         animatedClasses.get(glyph)?.has(name),
       );
       expect(moving, `${glyph}: kein Teil mit Animation`).not.toEqual([]);
+
+      // Zwei Bewegungen auf einem Element: Die spätere Regel ersetzt die
+      // ganze `animation`, die frühere fällt still weg. Teile, die sich
+      // gemeinsam bewegen, gehören in ein `<g>` mit der äußeren Bewegung.
+      const doubled = [...markup.matchAll(/class="([^"]+)"/g)]
+        .map((match) =>
+          (match[1] ?? "")
+            .split(/\s+/)
+            .filter((name) => animatedClasses.get(glyph)?.has(name)),
+        )
+        .filter((names) => names.length > 1)
+        .map((names) => names.join(" "));
+      expect(doubled, `${glyph}: zwei Bewegungen auf einem Element`).toEqual(
+        [],
+      );
     },
   );
 

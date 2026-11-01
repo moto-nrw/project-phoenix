@@ -669,15 +669,18 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
     render: () => (
       <>
         <path d="M32,96L128,32l96,64" />
-        <rect
-          className="ns-peek ns-mask"
-          x="72"
-          y="64"
-          width="112"
-          height="88"
-          rx="4"
-        />
-        <path className="ns-peek ns-draw ns-i1" pathLength="1" d="M96,92h64" />
+        {/* Blatt und Zeile steigen zusammen; die Zeile zeichnet sich dabei. */}
+        <g className="ns-peek">
+          <rect
+            className="ns-mask"
+            x="72"
+            y="64"
+            width="112"
+            height="88"
+            rx="4"
+          />
+          <path className="ns-draw ns-i1" pathLength="1" d="M96,92h64" />
+        </g>
         <path
           className="ns-mask"
           stroke="none"
