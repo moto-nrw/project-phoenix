@@ -244,7 +244,7 @@ wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
   gibt ihre Gesundheitsfragen frei. Damit endet auch der Ausschluss aus dem
   Nachtrag zu #5470: Neue Fragen starten freigegeben, Gesundheitsfragen
   eingeschlossen.
-- **Register.** Migration `1.15.723` verschlüsselt die bestehenden Zeilen,
+- **Register.** Migration `1.15.724` verschlüsselt die bestehenden Zeilen,
   entfernt die Klartextspalten und ersetzt die Funktion; der Down-Pfad stellt
   Klartext und Funktion von #5202 wieder her. Neue Route im Schul-Router
   (lesend, keine Nutzungsanalyse). Keine neue Tabelle, keine neue Regel in
