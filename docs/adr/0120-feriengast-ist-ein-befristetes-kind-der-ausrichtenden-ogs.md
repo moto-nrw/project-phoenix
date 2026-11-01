@@ -178,3 +178,21 @@ zu ADR 0116) gilt Punkt 4 mit dieser Erweiterung:
   `1.15.713` ergänzt die Prüfung beim Lesen. Der Eintrag
   `enrollment.holiday_guests` im Datenkatalog nennt die Antworten. Keine neue
   Tabelle, kein neuer `data_objects`-Eintrag.
+
+## Nachtrag 2026-11-01: Informationsfluss statt Datensilos
+
+Der [Nachtrag zu ADR 0116](0116-ausrichtende-ogs-liest-ihre-teilnehmer-in-der-schul-transaktion.md#nachtrag-2026-11-01-informationsfluss-statt-datensilos)
+ersetzt auch hier „keine Gesundheitsangaben“ aus Punkt 4 und dem Nachtrag
+vom 28.10.2026 als dauerhaftes Produktziel. Die für die Betreuung benötigten
+Angaben aus der Ferienanmeldung sollen dem berechtigten Team am Feriengast
+im Betreuungsalltag zur Verfügung stehen, statt nur beim Träger zu bleiben.
+
+Die Umsetzung läuft mit
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Die dort
+unterschiedenen Fälle Feriengast und eigenes Kind der ausrichtenden OGS
+bleiben getrennt: Angaben für eine Ferienbetreuung überschreiben nicht
+stillschweigend die Stammdaten eines eigenen Kindes. Rechtsgrundlage,
+Zugriffsschutz und die bestehende Befristung gelten auch für diese Angaben.
+Dieser Dokumentationsnachtrag ändert noch keine Kopie, Lesefunktion oder
+Löschroutine; die bisherigen Gesundheitsfilter bleiben bis zur
+nachgewiesenen Umsetzung wirksam.
