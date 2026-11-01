@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -13,16 +13,24 @@ const job = (labels, start, end, runner = 'runner-1') =>
 const run = (id, attempt = 1, status = 'completed', repoId = 1) =>
   ({ id, run_attempt: attempt, status, workflow_id: 9, path: '.github/workflows/ci.yml', head_repository: { id: repoId } });
 
-// Answers paginate/get by path prefix and records every requested path.
+// Answers paginate/get by path prefix, records every requested path and
+// every write.
 function fakeApi(routes) {
   const calls = [];
+  const sent = [];
   const answer = path => {
     calls.push(path);
     const route = Object.keys(routes).find(prefix => path.startsWith(prefix));
     assert.ok(route, `unexpected request ${path}`);
     return typeof routes[route] === 'function' ? routes[route](path) : routes[route];
   };
-  return { calls, get: async path => answer(path), paginate: async path => answer(path) };
+  return {
+    calls,
+    sent,
+    get: async path => answer(path),
+    paginate: async path => answer(path),
+    send: async (method, path, body) => sent.push({ method, path, body }),
+  };
 }
 
 test('prices Blacksmith by vCPU and GitHub-hosted runners as free only in public repos', () => {
@@ -101,24 +109,49 @@ test('renders totals per workflow and marks unpriced runners', () => {
   assert.match(body, /fehlen in der Summe/);
 });
 
-test('main seeds the cache only from the bot comment and resolves fork pull requests by head', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'ci-cost-'));
-  const event = join(dir, 'event.json');
-  writeFileSync(event, JSON.stringify({
-    repository: { private: false },
-    workflow_run: { id: 1, run_number: 3, pull_requests: [], head_branch: 'feat/x', head_repository: { owner: { login: 'fork' } } },
-  }));
+function eventFile(workflowRun) {
+  const path = join(mkdtempSync(join(tmpdir(), 'ci-cost-')), 'event.json');
+  writeFileSync(path, JSON.stringify({ repository: { private: false }, workflow_run: workflowRun }));
+  return { GITHUB_EVENT_PATH: path, GITHUB_REPOSITORY: repo };
+}
+
+const runRoutes = {
+  [`/repos/${repo}/actions/runs?`]: [run(1)],
+  [`/repos/${repo}/actions/runs/1/jobs`]: [job(['blacksmith-2vcpu-ubuntu-2404'], '00:00', '01:00')],
+  [`/repos/${repo}/actions/workflows`]: [{ id: 9, name: 'CI' }],
+};
+
+test('main ignores forged state, posts its own comment and resolves fork pull requests by head', async () => {
   const forged = encodeState({ 1: { attempt: 1, workflow: 'CI', minutes: { 'blacksmith-32vcpu-ubuntu-2404': 999 } } });
   const api = fakeApi({
+    ...runRoutes,
     [`/repos/${repo}/pulls?state=open&head=fork%3Afeat%2Fx`]: [pr],
-    [`/repos/${repo}/issues/7/comments`]: [{ user: { login: 'mallory' }, body: forged }],
-    [`/repos/${repo}/actions/runs?`]: [run(1)],
-    [`/repos/${repo}/actions/runs/1/jobs`]: [job(['blacksmith-2vcpu-ubuntu-2404'], '00:00', '01:00')],
-    [`/repos/${repo}/actions/workflows`]: [{ id: 9, name: 'CI' }],
+    [`/repos/${repo}/issues/7/comments`]: [{ id: 50, user: { login: 'mallory' }, body: forged }],
   });
-  const env = { GITHUB_EVENT_PATH: event, GITHUB_REPOSITORY: repo, CI_COST_OUTPUT: join(dir, 'out.md'), GITHUB_OUTPUT: join(dir, 'gh-out') };
+  const env = eventFile({ id: 1, run_number: 3, pull_requests: [], head_branch: 'feat/x', head_repository: { owner: { login: 'fork' } } });
 
   assert.equal(await main(env, api), 7);
-  assert.match(readFileSync(env.CI_COST_OUTPUT, 'utf8'), /\*\*< 0,01 \$\*\* für 1 Run, davon 1 bezahlte Runner-Minuten/);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, 'utf8'), 'pr=7\n');
+  assert.equal(api.sent.length, 1);
+  assert.equal(api.sent[0].method, 'POST');
+  assert.equal(api.sent[0].path, `/repos/${repo}/issues/7/comments`);
+  assert.match(api.sent[0].body.body, /\*\*< 0,01 \$\*\* für 1 Run, davon 1 bezahlte Runner-Minuten/);
+});
+
+test('main edits its existing comment and skips an unchanged one', async () => {
+  const env = eventFile({ id: 1, run_number: 3, pull_requests: [{ number: 7 }] });
+  const update = async body => {
+    const api = fakeApi({
+      ...runRoutes,
+      [`/repos/${repo}/pulls/7`]: pr,
+      [`/repos/${repo}/issues/7/comments`]: [{ id: 51, user: { login: 'github-actions[bot]' }, body }],
+    });
+    await main(env, api);
+    return api.sent;
+  };
+
+  const [edit, ...rest] = await update('<!-- ci-cost-state e30= -->');
+  assert.deepEqual(rest, []);
+  assert.equal(edit.method, 'PATCH');
+  assert.equal(edit.path, `/repos/${repo}/issues/comments/51`);
+  assert.deepEqual(await update(edit.body.body), []);
 });

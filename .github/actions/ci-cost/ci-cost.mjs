@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Estimates the runner cost of all CI runs of a pull request and writes the
-// sticky comment that action.yml posts. Runs on a workflow_run event and reads
-// GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_TOKEN and GITHUB_API_URL.
+// Estimates the runner cost of all CI runs of a pull request and keeps it in
+// one comment, created once and then edited. Runs on a workflow_run event and
+// reads GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_TOKEN and GITHUB_API_URL.
 // The comment caches the minutes of every completed run, so an event fetches
 // jobs only for new or re-run runs.
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // List prices in USD per minute, checked 2026-11-01 on blacksmith.sh/pricing
@@ -194,19 +194,22 @@ export function render({ runs, running, prices, trigger }) {
 }
 
 export function githubApi({ token, baseUrl = 'https://api.github.com', fetchImpl = fetch }) {
-  async function request(url) {
+  async function request(url, method = 'GET', body) {
     const response = await fetchImpl(url.startsWith('https://') ? url : baseUrl + url, {
+      method,
       headers: {
         accept: 'application/vnd.github+json',
         authorization: `Bearer ${token}`,
         'x-github-api-version': '2022-11-28',
       },
+      body: body && JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`GitHub API ${response.status} for ${url}: ${await response.text()}`);
     return response;
   }
   return {
     get: async path => (await request(path)).json(),
+    send: async (method, path, body) => (await request(path, method, body)).json(),
     async paginate(path, key) {
       const items = [];
       for (let url = path; url;) {
@@ -234,8 +237,9 @@ export async function main(env, api) {
   // Only our own comment may seed the cache; anyone can post a marker.
   const previous = comments.findLast(c => c.user?.login === BOT && c.body?.includes(MARKER));
   const { runs, running } = await collectRuns(api, repo, pr, decodeState(previous?.body), prices);
-  writeFileSync(env.CI_COST_OUTPUT, render({ runs, running, prices, trigger: run }));
-  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `pr=${pr.number}\n`);
+  const body = render({ runs, running, prices, trigger: run });
+  if (!previous) await api.send('POST', `/repos/${repo}/issues/${pr.number}/comments`, { body });
+  else if (previous.body !== body) await api.send('PATCH', `/repos/${repo}/issues/comments/${previous.id}`, { body });
   return pr.number;
 }
 
