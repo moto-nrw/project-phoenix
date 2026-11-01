@@ -45,6 +45,9 @@ import {
   type RoomSnapshotExportFormat,
 } from "~/lib/room-export-api";
 import { RoomsGridSkeleton } from "./page-skeleton";
+import { childrenConcept } from "~/lib/concepts/children";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -122,14 +125,14 @@ function RoomTile({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                   {room.studentCount !== undefined && room.studentCount > 0 && (
                     <span className="flex items-center gap-1">
-                      <MotoConceptIcon concept="children" size={16} />
+                      <MotoConceptIcon concept={childrenConcept} size={16} />
                       {room.studentCount}{" "}
                       {room.studentCount === 1 ? "Kind" : "Kinder"}
                     </span>
                   )}
                   {room.supervisorName && (
                     <span className="flex items-center gap-1">
-                      <MotoConceptIcon concept="staff" size={16} />
+                      <MotoConceptIcon concept={staffConcept} size={16} />
                       {room.supervisorName}
                     </span>
                   )}
@@ -529,7 +532,7 @@ function RoomsPageContent() {
     !showSkeleton && !showTransitAssignment && filteredRooms.length === 0
       ? hasActiveFilters
         ? {
-            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
             title: "Keine Räume gefunden",
             description:
               "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
@@ -540,7 +543,7 @@ function RoomsPageContent() {
             ),
           }
         : {
-            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
             title: "Keine Räume gefunden",
             description:
               "Für diese Schule ist noch kein Raum angelegt. Räume legen Sie in der Datenverwaltung an.",

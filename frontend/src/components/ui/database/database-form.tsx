@@ -2,7 +2,7 @@
 
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -245,7 +245,7 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
 }
 
 /** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */

@@ -34,11 +34,13 @@ export function leadRosterDeviationTopic(): HelpTopic {
     result:
       "Der Regeltermin zeigt `Automatisch`. An- und Abmeldungen im Angebot kommen ab dem nächsten Termin von selbst in die Kinderliste.",
     notes: [
-      // #5139: mehrere Angebote zusammen als Quelle.
-      "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto beide vor. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+      // #5139, #5342: mehrere Angebote zusammen als Quelle.
+      "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto alle vor, die bis zum Ende des Regeltermins dauern. Das erkennt moto an der Abholzeit des Angebots. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+      // #5342: ohne Abholzeit schlägt moto nur die nötigen Angebote vor.
+      "Ein Angebot ohne Abholzeit schlägt moto nur vor, wenn ein Kind es braucht. Prüfen Sie dann unter `Angebote`, ob ein Angebot fehlt.",
       "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
       "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
-      "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
+      "Die Karte des Regeltermins zeigt dann `Sie pflegen die Kinder hier bewusst selbst.` Den Hinweis holen Sie zurück: Wählen Sie dort oder in einem Termin des Regeltermins `Hinweis wieder zeigen`.",
       "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
       "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
       "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
@@ -50,7 +52,8 @@ export function leadRosterDeviationTopic(): HelpTopic {
       // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
       "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
       // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
-      "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
+      "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Das gilt auch für einen Regeltermin, der von Hand gepflegt bleibt. Verbinden Sie ihn, pflegen Sie die Kinder nicht mehr selbst.",
+      "Findet moto kein passendes Angebot, sagt moto das. Öffnen Sie dann den Regeltermin mit `Bearbeiten`. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
     ],
     differences: [
       "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",

@@ -34,6 +34,7 @@ import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { formatDate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   type ChildFeatures,
@@ -50,7 +51,10 @@ import {
 } from "~/components/parent/shell/parent-section";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
-import { useChildRequests } from "~/components/parent/child-requests-context";
+import {
+  useChildRequests,
+  useSharedParentFeatures,
+} from "~/components/parent/child-requests-context";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
 import {
@@ -58,6 +62,10 @@ import {
   RequestSharingSelector,
 } from "~/components/parent/request-sharing-control";
 import { RequestEditModal } from "~/components/parent/request-edit-modal";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { childrenConcept } from "~/lib/concepts/children";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -185,6 +193,8 @@ export function useChildMasterData(
 ): ChildMasterDataState {
   const [data, setData] = useState<ChildMasterData | null>(null);
   const [features, setFeatures] = useState<ChildFeatures | null>(null);
+  const sharedFeatures = useSharedParentFeatures();
+  const hasSharedFeatures = sharedFeatures !== null;
   const [loading, setLoading] = useState(true);
   const t = useTranslations("parentMasterData");
   const { error, show, clear } = useApiLoadError();
@@ -196,7 +206,9 @@ export function useChildMasterData(
     try {
       const [md, feats] = await Promise.all([
         getChildMasterData(studentId),
-        childRequests.features(studentId),
+        hasSharedFeatures
+          ? Promise.resolve(null)
+          : childRequests.features(studentId),
       ]);
       setData(md);
       setFeatures(feats);
@@ -212,7 +224,7 @@ export function useChildMasterData(
     } finally {
       setLoading(false);
     }
-  }, [clear, childRequests, show, studentId, t]);
+  }, [clear, childRequests, hasSharedFeatures, show, studentId, t]);
   // The retry runs the latest load, not the one of the failed attempt.
   const loadRef = useRef(load);
   useLayoutEffect(() => {
@@ -224,7 +236,33 @@ export function useChildMasterData(
     void load();
   }, [enabled, load]);
 
-  return { data, features, loading, error, setData };
+  const sharedFailure =
+    sharedFeatures?.errorsByChild[studentId] ??
+    (sharedFeatures && !sharedFeatures.data?.[studentId]
+      ? sharedFeatures.error
+      : undefined);
+  const reloadFeatures = sharedFeatures?.mutate;
+  const { error: featureError } = useSwrResourceLoadError(
+    [
+      {
+        data: sharedFeatures?.data?.[studentId],
+        error: enabled ? sharedFailure : undefined,
+      },
+    ],
+    t("errorObject"),
+    () => reloadFeatures?.(),
+  );
+  return {
+    data,
+    features: sharedFeatures
+      ? (sharedFeatures.data?.[studentId] ?? null)
+      : features,
+    loading:
+      loading ||
+      (!!sharedFeatures && !sharedFeatures.data && !sharedFeatures.error),
+    error: error ?? featureError,
+    setData,
+  };
 }
 
 function ChildMasterDataContent({
@@ -314,7 +352,7 @@ function ChildMasterDataContent({
     <ParentSection
       title={t("sections.contact")}
       description={t("editableHint")}
-      concept="accounts"
+      concept={accountsConcept}
       actions={<OgsVisibleBadge />}
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -401,7 +439,7 @@ function ChildMasterDataContent({
       <ParentSection
         title={t("sections.health")}
         description={t("healthDirectHint")}
-        concept="sick"
+        concept={sickConcept}
       >
         <AutoSaveField
           label={t("fields.healthInfo")}
@@ -496,7 +534,7 @@ function IdentitySection({
     <ParentSection
       title={t("sections.child")}
       description={t("identityDescription")}
-      concept="children"
+      concept={childrenConcept}
       actions={
         requestable ? (
           <Button
@@ -836,7 +874,7 @@ function DepartureSection({
     <ParentSection
       title={t("sections.departure", { name: childName })}
       description={t("departureDescription")}
-      concept="pickup"
+      concept={pickupConcept}
       actions={
         requestable && !isEditing ? (
           <Button

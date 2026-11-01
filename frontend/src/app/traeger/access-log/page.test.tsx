@@ -1,9 +1,11 @@
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
 import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -320,3 +322,16 @@ describe("TraegerAccessLogPage", () => {
     },
   );
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));

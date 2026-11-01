@@ -79,6 +79,11 @@ expand_refs() {
 
 load_env() {
   local line key val shell_env_keys=$'\n'
+  # A linked worktree without its own ports gets them first (stderr keeps
+  # `env` output to key names).
+  if [ -f "$ROOT/scripts/worktree-ports.sh" ]; then
+    bash "$ROOT/scripts/worktree-ports.sh" >&2 || die "could not assign this worktree's ports"
+  fi
   # `export -p`, not `compgen -e`: Devbox's Bash lacks programmable completion.
   while IFS= read -r line; do
     [[ $line =~ ^(declare\ -x|export)\ ([A-Za-z_][A-Za-z0-9_]*) ]] &&

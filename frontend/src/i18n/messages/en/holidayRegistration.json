@@ -99,8 +99,8 @@
     "yesNo": "Please choose yes or no.",
     "choose": "Please choose an answer."
   },
-  "childQuestionsTitle": "More details",
-  "familyQuestionsTitle": "More details about your family",
+  "childQuestionsTitle": "Questions and info about the child",
+  "familyQuestionsTitle": "Questions and info about your family",
   "legalTitle": "Notices and consent",
   "legalAccepted": "Confirmed",
   "legalNotAccepted": "Not confirmed"

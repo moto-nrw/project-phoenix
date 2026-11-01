@@ -128,6 +128,13 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access, unknownRefresh, portal)
 			require.Error(t, err)
+			// #5399: without a refresh token the access token's family is
+			// read too. The BFF asks this before it writes a session cookie or
+			// shows a session, so an answer of a logged-out family sets none.
+			_, err = service.ValidateSessionTokens(ctx, access, "", portal)
+			require.NoError(t, err, "a live family validates without its refresh token")
+			_, err = service.ValidateSessionTokens(ctx, wrongFamily, "", portal)
+			require.Error(t, err, "an access token of another family is refused")
 			if portal == "platform" {
 				require.NoError(t, sessions.DeleteOperatorSession(ctx, tokenID))
 			} else {
@@ -135,6 +142,8 @@ func TestValidateSessionTokens(t *testing.T) {
 			}
 			_, err = service.ValidateSessionTokens(ctx, access, refresh, portal)
 			require.Error(t, err)
+			_, err = service.ValidateSessionTokens(ctx, access, "", portal)
+			require.ErrorIs(t, err, identityaccess.ErrInvalidToken, "a revoked family is refused without its refresh token")
 		})
 	}
 }

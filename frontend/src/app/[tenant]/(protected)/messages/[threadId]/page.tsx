@@ -69,6 +69,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -529,7 +530,7 @@ function MessageThreadContent() {
               className="flex-shrink-0"
             >
               <MotoConceptIcon
-                concept="children"
+                concept={childrenConcept}
                 size={18}
                 className="mr-1.5"
               />

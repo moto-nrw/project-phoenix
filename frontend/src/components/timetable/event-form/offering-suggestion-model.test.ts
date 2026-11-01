@@ -63,11 +63,13 @@ describe("suggestion queries", () => {
       periodId: "4",
       type: "care",
       listKind: "edge_hours",
+      endTime: "12:45",
       roster: { 3: ["11", "12"], 1: ["11"] },
       schoolClasses: ["1b"],
       gradeLevels: [],
     });
     expect(query.get("period_id")).toBe("4");
+    expect(query.get("end_time")).toBe("12:45");
     expect(query.get("type")).toBe("care");
     expect(query.get("list_kind")).toBe("edge_hours");
     expect(query.getAll("roster")).toEqual(["1:11", "3:11,12"]);

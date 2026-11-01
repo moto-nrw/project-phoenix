@@ -3,6 +3,7 @@
 import type { DashboardPickupBucket } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 interface PickupTimesPanelProps {
   readonly buckets: DashboardPickupBucket[];
@@ -16,7 +17,7 @@ export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
       <div className="mb-5 flex items-center gap-4">
-        <ConceptIconTile concept="pickup" variant="display" />
+        <ConceptIconTile concept={pickupConcept} variant="display" />
         <h2 className="text-3xl font-bold text-gray-900">
           Nächste Abholzeiten
         </h2>

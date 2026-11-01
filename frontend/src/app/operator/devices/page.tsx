@@ -22,12 +22,7 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
-
-const DEVICE_SWR_PREFIXES = [
-  "operator-all-devices",
-  "operator-school-devices-",
-  "operator-org-devices-",
-];
+import { devicesConcept } from "~/lib/concepts/devices";
 
 function OperatorDevicesPageContent() {
   useSetBreadcrumb({ pageTitle: "Geräte" });
@@ -38,6 +33,7 @@ function OperatorDevicesPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -52,19 +48,21 @@ function OperatorDevicesPageContent() {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
-  const refreshFamily = useTenantMutateMatching(DEVICE_SWR_PREFIXES);
+  const refreshFamily = useTenantMutateMatching(
+    operatorProvisioningKeys.deviceFamilies,
+  );
 
   const {
     data: schoolDevices,
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolDevices(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolDevices(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolDevices(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolDevices(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -75,12 +73,12 @@ function OperatorDevicesPageContent() {
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && filterOrgId && !selectedSchool
+    isAuthenticated && filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.orgDevices(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationDevices(filterOrgId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -91,12 +89,12 @@ function OperatorDevicesPageContent() {
     error: allDevicesError,
     isLoading: allDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && !filterOrgId && !selectedSchool
+    isAuthenticated && !filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.allDevices()
       : null,
     () => operatorProvisioningService.listAllDevices(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -106,7 +104,7 @@ function OperatorDevicesPageContent() {
 
   // Only one of the three lists is active at a time.
   const devicesLoadError = useSwrLoadError(
-    selectedSchool
+    urlSchoolId
       ? schoolDevicesError
       : filterOrgId
         ? orgDevicesError
@@ -165,7 +163,7 @@ function OperatorDevicesPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Geräte"
-        concept="devices"
+        concept={devicesConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}
@@ -185,7 +183,7 @@ function OperatorDevicesPageContent() {
       <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={devicesLoadError} className="mb-4" />
 
-      {!selectedSchool && filterOrgId && (
+      {!urlSchoolId && filterOrgId && (
         <>
           {!orgDevicesError &&
           !orgDevicesLoading &&
@@ -208,7 +206,7 @@ function OperatorDevicesPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && (
+      {!urlSchoolId && !filterOrgId && (
         <>
           {!allDevicesError &&
           !allDevicesLoading &&

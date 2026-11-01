@@ -70,7 +70,16 @@ func (a *templateAdministration) CreateTemplate(ctx context.Context, cmd timetab
 }
 
 func (a *templateAdministration) UpdateTemplate(ctx context.Context, cmd timetable.UpdateTemplateCommand) error {
-	return a.templates.UpdateTemplate(ctx, templateUpdateInput(cmd))
+	if err := a.templates.UpdateTemplate(ctx, templateUpdateInput(cmd)); err != nil {
+		return err
+	}
+	// An edit rewrites the planned occurrences the planner, „Aktuelle
+	// Aufsicht" and the own supervision show: times, room, staff and the
+	// materialized rosters, including the offering-source reconciliation
+	// (#5017). Inside an outer transaction the announcement waits for its
+	// commit.
+	announceStaffingChanged(ctx, a.templates.deps.Staffing, a.templates.getLogger(), "template_update")
+	return nil
 }
 
 func (a *templateAdministration) SplitTemplate(ctx context.Context, cmd timetable.SplitTemplateCommand) (*timetable.SplitTemplateResult, error) {

@@ -60,6 +60,7 @@ import { PARENT_PORTAL_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -466,7 +467,7 @@ export function OgsConversation({
                   title={tm("aboutChild", { name: thread.student_name })}
                 >
                   <MotoConceptIcon
-                    concept="children"
+                    concept={childrenConcept}
                     size={16}
                     aria-hidden="true"
                   />

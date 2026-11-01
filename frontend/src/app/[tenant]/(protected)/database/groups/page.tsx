@@ -17,7 +17,6 @@ import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -34,6 +33,7 @@ import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
@@ -271,8 +271,8 @@ function GroupsPageContent() {
                   : "Legen Sie die erste Gruppe an, um Kinder zuzuordnen.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
+                  icon={groupsConcept.icon}
+                  tone={groupsConcept.tone}
                   size={48}
                 />
               ),
@@ -334,8 +334,8 @@ function GroupsPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.groups.icon}
-                tone={MOTO_CONCEPTS.groups.tone}
+                icon={groupsConcept.icon}
+                tone={groupsConcept.tone}
                 size={20}
               />
             ),

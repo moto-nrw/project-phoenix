@@ -4,8 +4,32 @@ import { resourceKey } from "./resource-key";
 export { announcementKeys, dashboardKeys } from "./shell-keys";
 export { parentKeys } from "./parent-keys";
 
+const operatorSummaryPrefixes = [
+  "operator-school-summaries",
+  "operator-organization-summaries",
+  "operator-organization-school-summaries-",
+] as const;
+
 /** Unscoped family factories. Only the shared hooks turn these into cache keys. */
 export const operatorProvisioningKeys = {
+  summaryChanges: (key: string): boolean =>
+    operatorSummaryPrefixes.some((prefix) => key.startsWith(prefix)),
+  personChanges: (key: string): boolean =>
+    key.startsWith("operator-school-persons-") ||
+    key.startsWith("operator-org-persons-") ||
+    operatorSummaryPrefixes.some((prefix) => key.startsWith(prefix)),
+  accountFamilies: [
+    "operator-all-accounts",
+    "operator-school-accounts-",
+    "operator-org-accounts-",
+    ...operatorSummaryPrefixes,
+  ],
+  deviceFamilies: [
+    "operator-all-devices",
+    "operator-school-devices-",
+    "operator-org-devices-",
+    ...operatorSummaryPrefixes,
+  ],
   schoolDevices: (id: string | undefined) =>
     `operator-school-devices-${encodeURIComponent(id ?? "")}`,
   orgDevices: (id: string | undefined) =>
@@ -43,6 +67,8 @@ export const operatorProvisioningKeys = {
 
 export const operatorAnnouncementKeys = {
   list: () => "operator-announcements",
+  views: (id: string) =>
+    `operator-announcement-views-${encodeURIComponent(id)}`,
   stats: (id: string | undefined) =>
     `announcement-stats-${encodeURIComponent(id ?? "")}`,
 } as const;
@@ -152,6 +178,9 @@ export const timetableKeys = {
 // School portal (Lehrkräfte).
 export const schoolPortalKeys = {
   classDayClasses: () => "class-day-my-classes",
+  classDayReport: (schoolClass: string, date: string) =>
+    resourceKey("school-class-day-report-", { schoolClass, date }),
+  schoolDay: (date: string) => `school-day-${date}`,
   parentConferences: () => "school-parent-conferences",
   absenceList: (schoolClass: string, from = "", to = "") =>
     `school-absence-list-${schoolClass}-${from}-${to}`,
@@ -215,4 +244,49 @@ export const parentAnnouncementKeys = {
 export const displayKeys = { list: () => "info-displays" } as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
+} as const;
+
+/** Träger metadata only. Registrations, people and audit logs are never cached. */
+export const traegerKeys = {
+  schools: () => "traeger-schools",
+  periodsFamily: "traeger-holiday-period-",
+  periods: () => "traeger-holiday-period-list",
+  period: (id: string) =>
+    `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
+  settings: () => "traeger-settings-schema",
+  periodPreview(data: unknown, id: string): ListPreview | undefined {
+    const row = previewRow(data, id);
+    const name = previewText(row?.name);
+    return name ? { id, name } : undefined;
+  },
+} as const;
+
+const catererOrdersFamily = "caterer-orders-";
+
+/** Caterer sessions span schools; every order response still names its school. */
+export const catererKeys = {
+  family: catererOrdersFamily,
+  containsSchool(key: string, schoolId: string): boolean {
+    if (!key.startsWith(catererOrdersFamily)) return false;
+    try {
+      const params: unknown = JSON.parse(key.slice(catererOrdersFamily.length));
+      return (
+        params !== null &&
+        typeof params === "object" &&
+        "schoolIds" in params &&
+        Array.isArray(params.schoolIds) &&
+        params.schoolIds.includes(schoolId)
+      );
+    } catch {
+      // Not a factory-built order window.
+      return false;
+    }
+  },
+  schools: () => "caterer-schools",
+  orders: (schoolIds: readonly string[], from: string, to: string) =>
+    resourceKey(catererOrdersFamily, {
+      schoolIds: [...schoolIds].sort(),
+      from,
+      to,
+    }),
 } as const;

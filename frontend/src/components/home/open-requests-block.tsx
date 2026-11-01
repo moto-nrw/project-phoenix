@@ -12,6 +12,7 @@ import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-request
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { requestsConcept } from "~/lib/concepts/requests";
 
 /**
  * Baustein „Offene Anfragen" (#2180): was auf eine Entscheidung wartet und
@@ -74,7 +75,7 @@ export function OpenRequestsBlock() {
   return (
     <SectionCard
       title="Offene Anfragen"
-      leading={<HomeCardIcon concept="requests" />}
+      leading={<HomeCardIcon concept={requestsConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions

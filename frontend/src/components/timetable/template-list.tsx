@@ -11,6 +11,7 @@ import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 type ReviewFilter = "all" | "review";
 
@@ -25,7 +26,8 @@ interface TemplateListProps {
   /** Abweichungen von den Anmeldungen je Regeltermin-ID (#5103). */
   deviations?: ReadonlyMap<string, RosterDeviation>;
   onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
-  onKeepManual?: (template: TimetableTemplate) => void;
+  /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
+  onSetManualRoster?: (template: TimetableTemplate, confirmed: boolean) => void;
   /** „Zu prüfen“: nur Regeltermine mit erkannter Abweichung. */
   reviewOnly?: boolean;
   onReviewOnlyChange?: (reviewOnly: boolean) => void;
@@ -40,7 +42,7 @@ export function TemplateList({
   canManage = true,
   deviations,
   onConnect,
-  onKeepManual,
+  onSetManualRoster,
   reviewOnly = false,
   onReviewOnlyChange,
 }: TemplateListProps) {
@@ -66,7 +68,7 @@ export function TemplateList({
         <EmptyState
           icon={
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <MotoConceptIcon concept="carePlan" size={28} />
+              <MotoConceptIcon concept={carePlanConcept} size={28} />
             </span>
           }
           title="Keine Regeltermine in diesem Zeitraum"
@@ -121,7 +123,7 @@ export function TemplateList({
               canManage={canManage}
               deviation={deviations?.get(template.id)}
               onConnect={onConnect}
-              onKeepManual={onKeepManual}
+              onSetManualRoster={onSetManualRoster}
             />
           ))}
         </div>

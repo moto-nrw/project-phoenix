@@ -4,6 +4,8 @@
 # Expensive whole-repo analysis (build, ratchets, deadcode, architecture,
 # react-doctor) and tests run in CI; license and vulnerability scans nightly.
 # PHX_PREPUSH=skip skips the gate; CI still checks the push.
+# --worktree checks uncommitted and untracked changes too, without result
+# caching (scripts/check-changed.sh uses it while an agent iterates).
 set -euo pipefail
 if [[ "${PHX_PREPUSH:-}" == skip ]]; then
   echo 'Pre-push skipped (PHX_PREPUSH=skip). CI still checks this push.'
@@ -18,7 +20,11 @@ while IFS= read -r git_variable; do
 done < <(git rev-parse --local-env-vars)
 source "$root/scripts/quality-timing.sh"
 head=$(git rev-parse HEAD)
-if [[ "${1:-}" == --hook ]]; then
+worktree=false
+if [[ "${1:-}" == --worktree ]]; then
+  worktree=true
+  shift
+elif [[ "${1:-}" == --hook ]]; then
   shift
   updates=false
   pushed_remote=
@@ -62,8 +68,15 @@ workspace=$(mktemp -d "$workspace_parent/work.XXXXXX")
 trap 'rm -r -- "$workspace"' EXIT
 export TMPDIR="${TMPDIR:-$workspace}"
 changed="$workspace/changed"
-git diff --name-only -z "$merge_base" "$head" > "$changed"
+if [[ "$worktree" == true ]]; then
+  { git diff --no-renames --name-only -z "$merge_base"; git ls-files --others --exclude-standard -z; } > "$changed"
+else
+  git diff --no-renames --name-only -z "$merge_base" "$head" > "$changed"
+fi
 while IFS= read -r -d '' file; do
+  case "$file" in
+    backend/.agents/*|backend/.claude/*|frontend/.agents/*|frontend/.claude/*) context=true ;;
+  esac
   case "$file" in
     *.md) context=true ;;
     backend/*|scripts/backend-*|scripts/check-backend-quality.sh|scripts/check-deadcode*) backend=true ;;
@@ -74,7 +87,7 @@ while IFS= read -r -d '' file; do
     .agents/*|.claude/*|.codex/*|scripts/check-agent-context*) context=true ;;
   esac
 done < "$changed"
-if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ "$worktree" == false && -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo 'Pre-push requires a clean working tree. Commit or stash changes, then push again.' >&2
   exit 1
 fi
@@ -95,9 +108,17 @@ cached() {
   local stage=$1
   shift
   # Keyed by the merge-base, so new base commits keep results for the same diff.
-  node scripts/pre-push-cache.mjs "$stage" "$merge_base" "$@"
+  if [[ "$worktree" == true ]]; then
+    quality_step "$stage" "$@"
+  else
+    node scripts/pre-push-cache.mjs "$stage" "$merge_base" "$@"
+  fi
 }
-quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
+if [[ "$worktree" == true ]]; then
+  quality_step secrets bash scripts/check-secrets.sh worktree "$base"
+else
+  quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
+fi
 require_pinned node
 if [[ "$context" == true || "$hooks" == true ]]; then
   quality_step context node scripts/check-agent-context.mjs
@@ -126,7 +147,7 @@ if [[ "$frontend" == true ]]; then
 fi
 # Integration/affected tests run in CI, not on every push. Explicit pre-push
 # verification by contributors still uses scripts/test-changed.sh.
-if [[ "$(git rev-parse HEAD)" != "$head" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ "$worktree" == false ]] && [[ "$(git rev-parse HEAD)" != "$head" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo 'Source changed during pre-push. Commit or stash changes and retry.' >&2
   exit 1
 fi

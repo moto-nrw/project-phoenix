@@ -26,6 +26,7 @@ import {
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { rfidConcept } from "~/lib/concepts/rfid";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -39,6 +40,7 @@ function OperatorUnregisteredTagsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -55,32 +57,27 @@ function OperatorUnregisteredTagsPageContent() {
   const { show: showResolveError, clear: clearResolveError } = resolveErrors;
   const [resolving, setResolving] = useState(false);
 
-  const swrKey = useMemo(() => {
-    if (!isAuthenticated) return null;
-    const orgPart = filterOrgId || "all-orgs";
-    const schoolPart = selectedSchool?.id ?? "all-schools";
-    return operatorProvisioningKeys.unregisteredTags(
-      resolvedFilter,
-      orgPart,
-      schoolPart,
-    );
-  }, [filterOrgId, isAuthenticated, resolvedFilter, selectedSchool?.id]);
-
   const {
     data: scans,
     error: scansError,
     isLoading,
     mutate,
   } = useSWRAuth(
-    swrKey,
+    isAuthenticated
+      ? operatorProvisioningKeys.unregisteredTags(
+          resolvedFilter,
+          filterOrgId,
+          urlSchoolId,
+        )
+      : null,
     () =>
       operatorProvisioningService.listUnregisteredTagScans({
         organizationId: filterOrgId || undefined,
-        schoolId: selectedSchool?.id,
+        schoolId: urlSchoolId || undefined,
         resolved: resolvedFilter,
       }),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -174,7 +171,7 @@ function OperatorUnregisteredTagsPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Unbekannte RFID"
-        concept="rfid"
+        concept={rfidConcept}
         tabs={tabs}
         filters={filters}
       />

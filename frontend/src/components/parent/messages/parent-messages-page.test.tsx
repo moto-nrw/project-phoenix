@@ -1,3 +1,15 @@
+import { IsolatedSWRCache } from "~/lib/swr";
+vi.unmock("swr");
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: {
+      user: { id: "parent-test", scope: "parent" },
+      expires: "2099-01-01",
+    },
+  }),
+}));
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";
@@ -18,6 +30,7 @@ vi.mock("~/lib/parent-url", () => ({
 vi.mock("~/lib/parent-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   listMyChildren: vi.fn(),
+  getChildFeatures: vi.fn().mockResolvedValue({}),
   listMessageThreads: vi.fn(),
   listGroupThreads: vi.fn(),
 }));
@@ -51,9 +64,11 @@ const mia = { ...felix, student_id: "43", first_name: "Mia" };
 
 function renderPage() {
   return render(
-    <NextIntlClientProvider locale="de" messages={deMessages}>
-      <ParentMessagesPage />
-    </NextIntlClientProvider>,
+    <IsolatedSWRCache>
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ParentMessagesPage />
+      </NextIntlClientProvider>
+    </IsolatedSWRCache>,
   );
 }
 

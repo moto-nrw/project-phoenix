@@ -1669,28 +1669,23 @@ describe("BetreuungsplanView", () => {
     });
   });
 
-  it("opens the Regeltermin for editing when no offering matches", async () => {
+  it("explains instead of opening the editor when no offering matches", async () => {
     setUrl("view=serien&verbinden=7");
     setupSWR({ rosterDeviations: [] });
     render(<BetreuungsplanView />);
 
-    await waitFor(() =>
-      expect(mockEventModalProps).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          isOpen: true,
-          initialSeries: expect.objectContaining({ id: "7" }),
-        }),
-      ),
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "moto findet für „Yoga“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.",
     );
-    // Anker: der Bearbeiten-Dialog des Regeltermins ist offen.
-    expect(screen.getByText("event-close")).toBeInTheDocument();
-    expect(mockToastInfo).toHaveBeenCalledWith(
-      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    // Anker: die Serienansicht bleibt stehen, ohne Dialog und ohne Editor.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
     );
     expect(
       screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
     ).not.toBeInTheDocument();
-    expect(urlParams().has("verbinden")).toBe(false);
   });
 
   it("opens nothing for readers without planning rights", async () => {

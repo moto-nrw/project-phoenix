@@ -10,7 +10,16 @@
  */
 import type { Session } from "next-auth";
 import { hasPermission } from "~/lib/auth-utils";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { billingConcept } from "~/lib/concepts/billing";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { contributionsConcept } from "~/lib/concepts/contributions";
+import { documentsConcept } from "~/lib/concepts/documents";
+import { helpConcept } from "~/lib/concepts/help";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { peopleConcept } from "~/lib/concepts/people";
+import { schoolsConcept } from "~/lib/concepts/schools";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 /** Das Recht, das die Seite „Personen" öffnet (ADR 0084, #4650). */
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
@@ -32,7 +41,7 @@ export interface TraegerNavItem {
   /** Pfad mit /traeger-Präfix; die Leisten schreiben ihn per `traegerPath` um. */
   readonly href: string;
   readonly label: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   /** Das Recht, ohne das der Eintrag fehlt; `null` für jede Person. */
   readonly right: string | null;
 }
@@ -42,35 +51,35 @@ const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
     key: "schulen",
     href: "/traeger",
     label: "Schulen",
-    concept: "schools",
+    concept: schoolsConcept,
     right: null,
   },
   {
     key: "ferien",
     href: "/traeger/ferien",
     label: "Ferien",
-    concept: "holidayWeeks",
+    concept: holidayWeeksConcept,
     right: ENROLLMENT_RIGHT,
   },
   {
     key: "beitraege",
     href: "/traeger/beitraege",
     label: "Beiträge",
-    concept: "contributions",
+    concept: contributionsConcept,
     right: BILLING_RIGHT,
   },
   {
     key: "abrechnung",
     href: "/traeger/abrechnung",
     label: "Abrechnung",
-    concept: "billing",
+    concept: billingConcept,
     right: BILLING_RIGHT,
   },
   {
     key: "personen",
     href: "/traeger/accounts",
     label: "Personen",
-    concept: "people",
+    concept: peopleConcept,
     right: ACCOUNTS_RIGHT,
   },
 ];
@@ -83,7 +92,7 @@ const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
 export const TRAEGER_SETTINGS_NAV = {
   key: "einstellungen-bereich",
   label: "Einstellungen",
-  concept: "settings",
+  concept: settingsConcept,
 } as const satisfies Omit<TraegerNavItem, "href" | "right">;
 
 const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
@@ -91,21 +100,21 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "briefkopf",
     href: "/traeger/briefkopf",
     label: "Briefkopf",
-    concept: "documents",
+    concept: documentsConcept,
     right: OVERVIEW_RIGHT,
   },
   {
     key: "einstellungen",
     href: "/traeger/einstellungen",
     label: "Einstellungen",
-    concept: "settings",
+    concept: settingsConcept,
     right: OVERVIEW_RIGHT,
   },
   {
     key: "zugriffsprotokoll",
     href: "/traeger/access-log",
     label: "Zugriffsprotokoll",
-    concept: "changeHistory",
+    concept: changeHistoryConcept,
     right: ACCESS_LOG_RIGHT,
   },
 ];
@@ -119,7 +128,7 @@ export const TRAEGER_HELP_NAV = {
   key: "help",
   href: "/help?role=traeger",
   label: "Hilfe",
-  concept: "help",
+  concept: helpConcept,
 } as const satisfies Omit<TraegerNavItem, "right">;
 
 /** Die Arbeitsbereiche, die diese Person sehen darf, in der Reihenfolge der Liste. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -15,15 +15,12 @@ import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
-import { createLogger } from "~/lib/logger";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   UNKNOWN_CHILD_TODAY,
   fetchParentProfile,
-  getChildFeatures,
-  getChildToday,
   listAnnouncements,
   listMessageThreads,
-  listMyChildren,
   type Child,
   type ChildFeatures,
   type ChildToday,
@@ -37,11 +34,25 @@ import {
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useApiLoadError } from "~/contexts/ToastContext";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { pollsConcept } from "~/lib/concepts/polls";
+import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 
-const logger = createLogger({ component: "ParentStartPage" });
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
+import {
+  useParentChildren,
+  useParentFeatures,
+  useParentToday,
+  PARENT_RESOURCE_OPTIONS,
+} from "~/lib/hooks/use-parent-resources";
 
 /** Wie weit nach vorn Termineinladungen fuer "Zu erledigen" gesucht werden. */
+
 const APPOINTMENT_LOOKAHEAD_DAYS = 90;
 
 const TODO_TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
@@ -151,91 +162,35 @@ const EMPTY_DATA: StartData = {
 export function ParentStartPage() {
   const t = useTranslations("parentStart");
   const { profile } = useShellAuth();
-  const [data, setData] = useState<StartData>(EMPTY_DATA);
-  const [loading, setLoading] = useState(true);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-
-  const load = useCallback(async () => {
-    try {
-      const [children, accountProfile] = await Promise.all([
-        listMyChildren(),
-        // The greeting falls back to the session name, so a failed profile
-        // read changes nothing the parent could act on.
-        fetchParentProfile().catch(() => undefined),
-      ]);
-      // A failed child detail still renders the card in its unknown state;
-      // the first failure is shown above the cards so it stays visible.
-      let childFailure: unknown;
-      const perChild = await Promise.all(
-        children.map(async (child) => {
-          const [features, today] = await Promise.all([
-            getChildFeatures(child.student_id).catch((err: unknown) => {
-              childFailure ??= err;
-              return undefined;
-            }),
-            getChildToday(child.student_id).catch((err: unknown) => {
-              childFailure ??= err;
-              return UNKNOWN_CHILD_TODAY;
-            }),
-          ]);
-          return [child.student_id, features, today] as const;
-        }),
-      );
-      setData({
-        children,
-        features: Object.fromEntries(
-          perChild
-            .filter(([, features]) => features !== undefined)
-            .map(([id, features]) => [id, features as ChildFeatures]),
-        ),
-        today: Object.fromEntries(perChild.map(([id, , today]) => [id, today])),
-        firstName: accountProfile?.first_name?.trim() ?? "",
-      });
-      if (childFailure === undefined) {
-        clearLoadError();
-      } else {
-        logger.warn("parent_start_child_details_failed", {
-          error:
-            childFailure instanceof Error
-              ? childFailure.message
-              : String(childFailure),
-        });
-        await showLoadError(childFailure, {
-          object: t("errorObject"),
-          retry: () => void load(),
-        });
-      }
-    } catch (err) {
-      logger.warn("parent_start_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Awaited so the empty state never flashes before the error arrives.
-      await showLoadError(err, {
-        object: t("errorObject"),
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError, t]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const refresh = () => void load();
-    window.addEventListener("parent-child-status-refresh", refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("parent-child-status-refresh", refresh);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [load]);
+  const childrenResource = useParentChildren();
+  const featuresResource = useParentFeatures(childrenResource.data);
+  const todayResource = useParentToday(childrenResource.data);
+  const accountProfile = useSWRAuth(parentKeys.profile(), fetchParentProfile, {
+    ...PARENT_RESOURCE_OPTIONS,
+    revalidateIfStale: false,
+  });
+  const invalidate = useInvalidateMatching();
+  const load = useCallback(
+    () => invalidate(parentKeys.isResource),
+    [invalidate],
+  );
+  const data: StartData = {
+    children: childrenResource.data ?? EMPTY_DATA.children,
+    features: featuresResource.data ?? EMPTY_DATA.features,
+    today: todayResource.data ?? EMPTY_DATA.today,
+    firstName: accountProfile.data?.first_name?.trim() ?? "",
+  };
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [childrenResource, featuresResource, todayResource],
+    t("errorObject"),
+    load,
+  );
+  const loading =
+    (!!failure && !loadError) ||
+    (!childrenResource.data && !childrenResource.error) ||
+    (!!childrenResource.data &&
+      ((!featuresResource.data && !featuresResource.error) ||
+        (!todayResource.data && !todayResource.error)));
 
   const greeting = useMemo(() => {
     const key = greetingKey(berlinHour());
@@ -328,7 +283,7 @@ function StartPickupSummary({ time }: Readonly<{ time: string }>) {
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
-        concept="pickup"
+        concept={pickupConcept}
         size={28}
         className="mt-0.5 shrink-0"
         aria-hidden="true"
@@ -399,96 +354,67 @@ const EMPTY_SOURCES: TodoSources = {
 function StartTodoSection() {
   const t = useTranslations("parentStart");
   const locale = useLocale();
-  const [sources, setSources] = useState<TodoSources>(EMPTY_SOURCES);
-  const [loaded, setLoaded] = useState(false);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
+  const invalidate = useInvalidateMatching();
+  const load = useCallback(
+    () => invalidate(parentKeys.isResource),
+    [invalidate],
+  );
   const [openAnnouncementId, setOpenAnnouncementId] = useState<string | null>(
     null,
   );
 
-  const load = useCallback(async () => {
-    const from = parseISODate(berlinTodayISO());
-    const to = new Date(from);
-    to.setDate(to.getDate() + APPOINTMENT_LOOKAHEAD_DAYS);
-    const [announcements, threads, calendar] = await Promise.allSettled([
-      listAnnouncements(),
-      listMessageThreads(),
-      getParentCalendar(from, to),
-    ]);
-    let failure: unknown;
-    let failed = false;
-    const next = { ...EMPTY_SOURCES } as {
-      announcements: readonly ParentAnnouncement[];
-      threads: readonly ThreadSummary[];
-      appointments: readonly CalendarEvent[];
-    };
-    if (announcements.status === "fulfilled") {
-      next.announcements = announcements.value;
-    } else {
-      if (!failed) failure = announcements.reason;
-      failed = true;
-      logger.warn("parent_start_news_failed", {
-        error: String(announcements.reason),
-      });
-    }
-    if (threads.status === "fulfilled") {
-      next.threads = threads.value;
-    } else {
-      if (!failed) failure = threads.reason;
-      failed = true;
-      logger.warn("parent_start_threads_failed", {
-        error: String(threads.reason),
-      });
-    }
-    if (calendar.status === "fulfilled") {
-      next.appointments = calendar.value.events;
-    } else {
-      if (!failed) failure = calendar.reason;
-      failed = true;
-      logger.warn("parent_start_calendar_failed", {
-        error: String(calendar.reason),
-      });
-    }
-    setSources(next);
-    if (failed) {
-      // Awaited so "Alles erledigt" never shows for an incomplete list.
-      await showLoadError(failure, {
-        object: t("todo.errorObject"),
-        retry: () => void load(),
-      });
-    } else {
-      clearLoadError();
-    }
-    setLoaded(true);
-  }, [clearLoadError, showLoadError, t]);
+  const today = useBerlinToday();
+  const announcements = useSWRAuth(
+    parentKeys.announcements(),
+    listAnnouncements,
+    PARENT_RESOURCE_OPTIONS,
+  );
+  const threads = useSWRAuth(
+    parentKeys.messages(),
+    listMessageThreads,
+    PARENT_RESOURCE_OPTIONS,
+  );
+  const calendar = useSWRAuth(
+    parentKeys.calendar(today),
+    async () => {
+      const from = parseISODate(today);
+      const to = new Date(from);
+      to.setDate(to.getDate() + APPOINTMENT_LOOKAHEAD_DAYS);
+      return getParentCalendar(from, to);
+    },
+    PARENT_RESOURCE_OPTIONS,
+  );
+  const sources: TodoSources = useMemo(
+    () => ({
+      announcements: announcements.data ?? EMPTY_SOURCES.announcements,
+      threads: threads.data ?? EMPTY_SOURCES.threads,
+      appointments: calendar.data?.events ?? EMPTY_SOURCES.appointments,
+    }),
+    [announcements.data, threads.data, calendar.data],
+  );
+  const { error: loadError, failure } = useSwrResourceLoadError(
+    [announcements, threads, calendar],
+    t("todo.errorObject"),
+    load,
+  );
+  const loaded =
+    (!!announcements.data || !!announcements.error) &&
+    (!!threads.data || !!threads.error) &&
+    (!!calendar.data || !!calendar.error) &&
+    (!failure || !!loadError);
 
-  useEffect(() => {
-    void load();
-    const refresh = () => void load();
-    window.addEventListener("parent-threads-refresh", refresh);
-    window.addEventListener("parent-news-unread-refresh", refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("parent-threads-refresh", refresh);
-      window.removeEventListener("parent-news-unread-refresh", refresh);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [load]);
-
+  const { mutate: mutateAnnouncements } = announcements;
   const applyAnnouncementPatch = useCallback(
     (id: string, patch: Partial<ParentAnnouncement>) => {
-      setSources((prev) => ({
-        ...prev,
-        announcements: prev.announcements.map((item) =>
-          item.id === id ? { ...item, ...patch } : item,
-        ),
-      }));
+      void mutateAnnouncements(
+        (current) =>
+          current?.map((item) =>
+            item.id === id ? { ...item, ...patch } : item,
+          ),
+        { revalidate: false },
+      );
     },
-    [],
+    [mutateAnnouncements],
   );
 
   const items = useMemo(
@@ -615,12 +541,12 @@ function todoFromAnnouncement(
   return {
     key: `announcement-${item.id}`,
     concept: declaration
-      ? "confirmations"
+      ? confirmationsConcept
       : asPoll
-        ? "polls"
+        ? pollsConcept
         : needsAcknowledgement
-          ? "confirmations"
-          : "parentMessages",
+          ? confirmationsConcept
+          : parentMessagesConcept,
     title: item.title,
     meta: formatTodoTimestamp(item.published_at, locale, t("todo.today")),
     unread: !item.read,
@@ -644,7 +570,7 @@ function todoFromAppointment(
 ): TodoItem {
   return {
     key: `appointment-${event.id}`,
-    concept: "calendar",
+    concept: calendarConcept,
     title: event.title,
     meta: formatAppointmentTimestamp(
       event,
@@ -668,7 +594,7 @@ function todoFromThread(
 ): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
-    concept: "parentConversations",
+    concept: parentConversationsConcept,
     title:
       thread.unread === 1
         ? t("todo.messageTitleOne")

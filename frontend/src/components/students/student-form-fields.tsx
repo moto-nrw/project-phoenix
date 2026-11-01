@@ -6,7 +6,6 @@
 import { useId } from "react";
 import { Bus } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Student } from "@/lib/api";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -34,6 +33,8 @@ import type {
   CompanionWeekday,
   StudentCompanion,
 } from "~/lib/student-companion-api";
+import { childrenConcept } from "~/lib/concepts/children";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 interface SelectOption {
   value: string;
@@ -75,8 +76,8 @@ export function PersonalInfoSection({
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.children.icon}
-          tone={MOTO_CONCEPTS.children.tone}
+          icon={childrenConcept.icon}
+          tone={childrenConcept.tone}
           size={18}
         />
         Persönliche Daten
@@ -405,8 +406,8 @@ export function PrivacyConsentSection({
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.permissions.icon}
-          tone={MOTO_CONCEPTS.permissions.tone}
+          icon={permissionsConcept.icon}
+          tone={permissionsConcept.tone}
           size={18}
         />
         Datenschutz

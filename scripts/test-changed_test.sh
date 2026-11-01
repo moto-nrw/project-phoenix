@@ -204,6 +204,7 @@ guards=(
   src/app/api/proxy-routes.test.ts
   src/app/api/route-cache-policy.test.ts
   src/server/auth/route-handler-coverage.test.ts
+  src/app/api/auth/session-cookie-inventory.test.ts
   src/lib/app-route-invariants.test.ts
   src/lib/analytics-routes.test.ts
   src/lib/help-topics.test.ts
@@ -215,6 +216,7 @@ guards=(
   src/components/ui/plan-design-guards.test.ts
   src/components/settings/settings-filter.test.ts
   src/components/school-setup/setup-tour-targets.test.ts
+  src/components/auth/session-end-barrier.test.tsx
   src/lib/hooks/use-sse.test.ts
   src/lib/service-worker.test.ts
   src/styles/moto-token-drift.test.ts
@@ -226,6 +228,7 @@ guards=(
   src/sentry.config.test.ts
   src/test/phosphor-imports-plugin.test.ts
   src/test/proxy-routes.table.test.ts
+  src/lib/moto-concepts.test.ts
   scripts/opaque.test.ts
 )
 # CI validates the real inventory and AST regressions in the frontend node job

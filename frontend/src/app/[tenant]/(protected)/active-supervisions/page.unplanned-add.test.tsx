@@ -273,6 +273,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,

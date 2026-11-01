@@ -2,6 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 
+import { createLogger } from "~/lib/logger";
+
 import { useApiLoadError } from "~/contexts/ToastContext";
 
 /**
@@ -37,4 +39,44 @@ export function useSwrLoadError(
   }, [error, object, show, clear]);
 
   return shown;
+}
+
+interface SwrLoadResource {
+  readonly data?: unknown;
+  readonly error?: unknown;
+  /** Partial failure payloads are not confirmed initial data. */
+  readonly hasConfirmedData?: boolean;
+}
+
+const logger = createLogger({ component: "SwrLoadError" });
+
+/**
+ * A failed revalidation must not unmount confirmed content or open dialogs.
+ * Only failures without confirmed data block rendering. Scope/access discards
+ * still remove the data at the resource boundary, not in this presenter.
+ */
+export function useSwrResourceLoadError(
+  resources: readonly SwrLoadResource[],
+  object: string,
+  retry: () => unknown,
+) {
+  const hasData = (resource: SwrLoadResource) =>
+    resource.hasConfirmedData ?? resource.data !== undefined;
+  const failure = resources.find((item) => item.error && !hasData(item))?.error;
+  const backgroundError = resources.find(
+    (item) => item.error && hasData(item),
+  )?.error;
+  useEffect(() => {
+    if (backgroundError)
+      logger.warn("swr_background_refresh_failed", {
+        object,
+        error:
+          backgroundError instanceof Error
+            ? backgroundError.message
+            : String(backgroundError),
+      });
+  }, [backgroundError, object]);
+  const error = useSwrLoadError(failure, object, retry);
+  // Hide a previous presentation synchronously, even before its effect clears.
+  return { error: failure ? error : null, failure };
 }

@@ -57,7 +57,8 @@ test('Lefthook forwards every push to the runner and CI shares its quality comma
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'phoenix-pre-push-'));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }));
-  const env = gitTestEnvironment();
+  // Cache-hit verification is sampled; tests choose it explicitly.
+  const env = { ...gitTestEnvironment(), PHX_CACHE_VERIFY_RATE: '0' };
   function run(command, args, options = {}) {
     return spawnSync(command, args, { cwd: root, env, encoding: 'utf8', ...options });
   }
@@ -125,6 +126,24 @@ test('docs-only branch does not buy backend or frontend compute', t => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /backend=false frontend=false/);
   assert.doesNotMatch(result.stdout, /run-go-toolchain|check-quality.sh|pnpm/);
+});
+
+test('budget JSON and every skill directory select the context gate', async t => {
+  for (const path of [
+    'scripts/check-agent-context.budget.json',
+    '.agents/skills/example/reference.json', '.claude/skills/example/reference.json',
+    'backend/.agents/skills/example/reference.json', 'backend/.claude/skills/example/reference.json',
+    'frontend/.agents/skills/example/reference.json', 'frontend/.claude/skills/example/reference.json',
+  ]) {
+    await t.test(path, t => {
+      const f = fixture(t);
+      f.commit(path, '{}\n');
+      const result = f.check();
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, /\[context\]/);
+      assert.match(result.stdout, /\[context-tests\]/);
+    });
+  }
 });
 
 test('hook stdin validates the whole branch even if only the docs tip is pushed', t => {
@@ -443,6 +462,40 @@ test('changed installed tools invalidate results; missing tools also fail on a w
   assert.equal(f.check({ FAIL_QUALITY: '1' }).status, 9);
   rmSync(join(f.root, '.devbox/nix/profile/default/bin/golangci-lint'));
   assert.match(f.check().stderr, /Pinned golangci-lint is missing/);
+});
+
+test('a sampled cache hit runs the check again and forgets a pass that no longer holds', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  assert.match(f.check().stdout, /\[backend-lint\] cache hit \(/);
+  const verified = f.check({ PHX_CACHE_VERIFY_RATE: '1' });
+  assert.equal(verified.status, 0, verified.stderr);
+  assert.match(verified.stdout, /\[backend-lint\] cache hit; running anyway to verify it/);
+  assert.match(verified.stdout, /\[backend-lint\] cache hit verified/);
+  const wrong = f.check({ PHX_CACHE_VERIFY_RATE: '1', FAIL_QUALITY: '1' });
+  assert.equal(wrong.status, 9);
+  assert.match(wrong.stderr, /\[backend-lint\] the cached pass for these inputs was wrong; entry removed/);
+  assert.match(f.check().stdout, /\[backend-lint\] cache miss/);
+});
+
+test('worktree mode checks uncommitted and untracked changes without caching', t => {
+  const f = fixture(t);
+  f.write('backend/untracked.go', 'package example\n');
+  const result = f.run('bash', ['scripts/pre-push.sh', '--worktree', 'base'], { env: f.env });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /backend=true frontend=false/);
+  assert.match(result.stdout, /\[backend-lint\] starting/);
+  assert.doesNotMatch(result.stdout, /cache (hit|miss)/);
+  assert.doesNotMatch(result.stderr, /clean working tree/);
+  f.git('add', 'backend/untracked.go');
+  f.git('commit', '-qm', 'backend');
+  f.commit('frontend/widget.tsx', 'export {};\n');
+  f.git('branch', '-f', 'base');
+  f.git('mv', 'frontend/widget.tsx', 'widget.tsx');
+  const moved = f.run('bash', ['scripts/pre-push.sh', '--worktree', 'base'], { env: f.env });
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.match(moved.stdout, /frontend=true/, 'moving a file out of frontend/ still selects frontend checks');
 });
 
 test('a warm cache cannot hide dirty source or source changes during validation', t => {

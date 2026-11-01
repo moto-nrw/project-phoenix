@@ -99,12 +99,26 @@ export function TenantGuard(props: TenantGuardProps) {
   return <GuardedTenant {...props} />;
 }
 
+/** The school's login page, subdomain or path mode. */
+function isLoginEntryPath(
+  pathname: string | null,
+  tenantSlug: string | undefined,
+): boolean {
+  if (pathname === null) return false;
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return path === "/" || (!!tenantSlug && path === `/${tenantSlug}`);
+}
+
 function GuardedTenant({
   children,
   redirect = browserRedirect,
 }: TenantGuardProps) {
   const { data: session, status, update } = useSession();
   const { tenant, tenantSlug, routingMode } = useTenant();
+  // The login page clears an ended session itself and shows its form. Sending
+  // it there again looped when the cookie could not be deleted, for a
+  // session of a revoked family that the server reads as ended (#5399).
+  const onLoginEntry = isLoginEntryPath(usePathname(), tenantSlug);
   const switchAttempts = useRef({
     targetTenantId: null as number | null,
     count: 0,
@@ -299,7 +313,7 @@ function GuardedTenant({
   // confusing forbidden screens.
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (sessionHasAccess) return;
+    if (sessionHasAccess || onLoginEntry) return;
     // A second tab can echo this logout's storage invalidation through its
     // provider. The explicit exit already owns cookie deletion/navigation.
     if (isTenantSessionEnding()) return;
@@ -331,7 +345,7 @@ function GuardedTenant({
         if (!isTenantSessionEnding()) redirect("/?error=SessionExpired");
       }
     })();
-  }, [status, sessionHasAccess, sessionError, redirect]);
+  }, [status, sessionHasAccess, sessionError, redirect, onLoginEntry]);
 
   // Operator session on tenant subdomain — sign out immediately
   useEffect(() => {
@@ -567,9 +581,10 @@ function GuardedTenant({
   const switchFailed = failedTenantId === urlTenantId;
 
   if (
-    signingOutExpiredSession ||
-    (status === "authenticated" && !sessionHasAccess) ||
-    (isTenantSessionEnding() && !sessionHasAccess)
+    (signingOutExpiredSession ||
+      (status === "authenticated" && !sessionHasAccess) ||
+      (isTenantSessionEnding() && !sessionHasAccess)) &&
+    !onLoginEntry
   ) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
@@ -588,9 +603,11 @@ function GuardedTenant({
     );
   }
 
-  // Show switching state during mismatch auto-switch
+  // Show switching state during mismatch auto-switch. Like its effect, only
+  // for a session with access: an ended one belongs to the login page.
   if (
     status === "authenticated" &&
+    sessionHasAccess &&
     tenant &&
     sessionTenantId !== undefined &&
     sessionTenantId !== urlTenantId

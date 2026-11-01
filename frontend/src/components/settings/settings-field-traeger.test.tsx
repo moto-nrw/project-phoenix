@@ -50,6 +50,39 @@ function renderField(
 }
 
 describe("SettingsField at the school, with a Träger value", () => {
+  it.each([false, true])(
+    "preserves dirty text while a refreshed schema updates pristine fields (dirty=%s)",
+    (dirty) => {
+      const setting = makeSetting({
+        key: "branding.letterhead_text",
+        label: "Absender",
+        type: "textarea",
+        value: "Gespeichert",
+        default: "",
+      });
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      const field = (value: string) => (
+        <ToastProvider>
+          <SettingsField
+            setting={{ ...setting, value }}
+            audience="traeger"
+            onSave={onSave}
+            onReset={vi.fn()}
+          />
+        </ToastProvider>
+      );
+      const view = render(field("Gespeichert"));
+      if (dirty)
+        fireEvent.change(screen.getByLabelText("Absender"), {
+          target: { value: "Mein Entwurf" },
+        });
+      view.rerender(field("Neuer Serverwert"));
+      expect(screen.getByLabelText("Absender")).toHaveValue(
+        dirty ? "Mein Entwurf" : "Neuer Serverwert",
+      );
+    },
+  );
+
   it("says the Träger decided the value and when", () => {
     renderField(makeSetting());
 

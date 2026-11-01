@@ -1,10 +1,14 @@
 "use client";
 
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 import { confirmSessionSnapshot } from "~/lib/session-cache";
 import { hasSessionAccess } from "~/lib/session-access";
 import { bindSessionAccount } from "~/lib/session-account";
+import {
+  isSessionBarrierClosed,
+  subscribeSessionBarrier,
+} from "~/lib/session-end-state";
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 
 // Installed when the module loads: the portal's pages fetch before any
@@ -34,4 +38,19 @@ export function SessionAccountBinding() {
   }, [status, accountId, session]);
 
   return null;
+}
+
+/**
+ * The SessionProvider's `refetchInterval`: none while a logout runs (#5399).
+ * Its timer stops at once instead of asking for the ending session. Lives
+ * beside the binding, which every portal's providers already load.
+ */
+export function useSessionPollInterval(seconds: number): number {
+  return useSyncExternalStore(
+    subscribeSessionBarrier,
+    isSessionBarrierClosed,
+    () => false,
+  )
+    ? 0
+    : seconds;
 }

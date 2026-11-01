@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { checkContext } from './check-agent-context.mjs';
+import { fileURLToPath } from 'node:url';
+
+const budgetFile = 'scripts/check-agent-context.budget.json';
 
 function fixture(t, files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-context-'));
@@ -13,7 +17,20 @@ function fixture(t, files) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, body);
   }
+  checkContext(root, { updateBudget: true });
   return root;
+}
+
+function budget(root, values) {
+  const target = path.join(root, budgetFile);
+  if (values) fs.writeFileSync(target, `${JSON.stringify(values, null, 2)}\n`);
+  return JSON.parse(fs.readFileSync(target, 'utf8'));
+}
+
+function cli(root, ...args) {
+  return spawnSync(process.execPath, [fileURLToPath(new URL('./check-agent-context.mjs', import.meta.url)), ...args], {
+    cwd: root, encoding: 'utf8',
+  });
 }
 
 test('accepts doc-relative links, repo-root inline pointers and canonical mirrors', t => {
@@ -26,7 +43,9 @@ test('accepts doc-relative links, repo-root inline pointers and canonical mirror
   fs.mkdirSync(path.join(root, '.claude/skills'), { recursive: true });
   fs.symlinkSync('../../.agents/skills/example', path.join(root, '.claude/skills/example'));
   fs.symlinkSync('CLAUDE.md', path.join(root, 'AGENTS.md'));
-  assert.deepEqual(checkContext(root), { documents: 4, errors: [] });
+  const result = checkContext(root);
+  assert.equal(result.documents, 4);
+  assert.deepEqual(result.errors, []);
 });
 
 test('reports missing links and inline pointers with line numbers', t => {
@@ -95,7 +114,9 @@ test('ignores examples, remote links, optional and external paths', t => {
     ].join('\n'),
     '.claude/worktrees/old/CLAUDE.md': '[Old](missing.md)',
   });
-  assert.deepEqual(checkContext(root), { documents: 1, errors: [] });
+  const result = checkContext(root);
+  assert.equal(result.documents, 1);
+  assert.deepEqual(result.errors, []);
 });
 
 test('validates standalone imports relative to their containing file', t => {
@@ -186,4 +207,124 @@ test('reports ADRs that claim a number another file already holds', t => {
     'docs/adr/0002-third.md: ADR number 0002 already taken by 0002-second.md',
     'docs/adr/2-fourth.md: ADR number 2 already taken by 0002-second.md',
   ]);
+});
+
+test('Codex cap counts resolved root and area AGENTS.md bytes, including a real frontend file', t => {
+  const root = fixture(t, {
+    'CLAUDE.md': 'ä'.repeat(8192),
+    'backend/CLAUDE.md': 'b'.repeat(16384),
+    'frontend/AGENTS.md': 'f'.repeat(16385),
+  });
+  fs.symlinkSync('CLAUDE.md', path.join(root, 'AGENTS.md'));
+  fs.symlinkSync('CLAUDE.md', path.join(root, 'backend/AGENTS.md'));
+  const result = checkContext(root);
+  assert.deepEqual(result.codex, { root: 16384, backend: 32768, frontend: 32769 });
+  assert.deepEqual(result.errors, [
+    'frontend AGENTS.md chain: 32769 bytes exceeds the 32768-byte cap; Codex would silently drop the rest',
+  ]);
+  fs.appendFileSync(path.join(root, 'backend/CLAUDE.md'), 'b');
+  assert.ok(checkContext(root, { updateBudget: true }).errors.some(error => /^backend AGENTS.md chain: 32769 bytes.*32768.*Codex would silently drop the rest/.test(error)));
+});
+
+test('Codex also enforces the root-only cap', t => {
+  const root = fixture(t, { 'CLAUDE.md': 'x'.repeat(32769) });
+  fs.symlinkSync('CLAUDE.md', path.join(root, 'AGENTS.md'));
+  assert.match(checkContext(root).errors[0], /^root AGENTS.md chain: 32769 bytes.*32768.*Codex would silently drop the rest/);
+});
+
+test('skill descriptions enforce 1024 characters for plain, quoted and block scalars', t => {
+  const descriptions = [
+    'x'.repeat(1025),
+    `"${'x'.repeat(1025)}"`,
+    `'${'x'.repeat(1025)}'`,
+    `>-\n  ${'x'.repeat(512)}\n  ${'x'.repeat(512)}`,
+    `|-\n  ${'x'.repeat(512)}\n  ${'x'.repeat(512)}`,
+    `${'x'.repeat(512)}\n  ${'x'.repeat(512)}`,
+  ];
+  for (const [index, description] of descriptions.entries()) {
+    const root = fixture(t, { [`.agents/skills/example-${index}/SKILL.md`]: `---\nname: example\ndescription: ${description}\n---\n# Skill` });
+    assert.match(checkContext(root).errors[0], /skill description is 1025 characters; spec limit is 1024 characters/);
+  }
+  const root = fixture(t, { '.agents/skills/example/SKILL.md': `---\nname: example\ndescription: "${'😀'.repeat(1024)}"\n---\n${'body'.repeat(1024)}` });
+  assert.deepEqual(checkContext(root).errors, []);
+});
+
+test('over-budget surfaces report current, budget, delta and the review instruction', t => {
+  const root = fixture(t, { 'CLAUDE.md': 'abc' });
+  budget(root, { ...budget(root), 'CLAUDE.md': 3 });
+  fs.appendFileSync(path.join(root, 'CLAUDE.md'), 'ä');
+  assert.deepEqual(checkContext(root).errors, [
+    'CLAUDE.md: current 5 bytes, budget 3 bytes, delta +2 bytes; cut it, or raise the budget in this PR with a reason in the PR body',
+  ]);
+});
+
+test('new nested rule surfaces need a budget and symlink bytes come from the target', t => {
+  const root = fixture(t, { 'reference.md': 'ä' });
+  fs.mkdirSync(path.join(root, '.claude/rules/security'), { recursive: true });
+  fs.symlinkSync('../../../reference.md', path.join(root, '.claude/rules/security/new.md'));
+  const result = checkContext(root);
+  assert.equal(result.sizes['.claude/rules/security/new.md'], 2);
+  assert.deepEqual(result.errors, [
+    '.claude/rules/security/new.md: new surface has no budget; run node scripts/check-agent-context.mjs --update-budget',
+  ]);
+});
+
+test('deleted budgeted surfaces fail, while unused headroom only hints', t => {
+  const root = fixture(t, { 'CLAUDE.md': 'abc', '.claude/rules/old.md': '# Old' });
+  fs.rmSync(path.join(root, '.claude/rules/old.md'));
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'a');
+  const result = checkContext(root);
+  assert.deepEqual(result.errors, [
+    '.claude/rules/old.md: budgeted surface no longer exists; run node scripts/check-agent-context.mjs --update-budget',
+  ]);
+  assert.match(result.hints[0], /CLAUDE.md: current 1 bytes leaves budget 259 more than the slack.*--update-budget/);
+});
+
+test('--update-budget sets size plus slack, lowers, adds and removes entries but never raises an existing budget', t => {
+  const root = fixture(t, { 'CLAUDE.md': 'abc', '.claude/rules/old.md': '# Old' });
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'a');
+  fs.rmSync(path.join(root, '.claude/rules/old.md'));
+  fs.writeFileSync(path.join(root, '.claude/rules/new.md'), '# New');
+  assert.equal(cli(root, '--update-budget').status, 0);
+  assert.deepEqual(budget(root), { '.claude/rules/new.md': 261, 'CLAUDE.md': 257, 'skill-catalog': 256 });
+  const saved = fs.readFileSync(path.join(root, budgetFile), 'utf8');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'ab');
+  assert.deepEqual(checkContext(root).errors, [], 'a small edit fits the slack');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), 'a'.repeat(258));
+  const result = cli(root, '--update-budget');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /CLAUDE.md: current 258 bytes, budget 257 bytes, delta \+1 bytes/);
+  assert.equal(fs.readFileSync(path.join(root, budgetFile), 'utf8'), saved);
+  assert.equal(cli(root, '--update-budget', root).status, 1);
+});
+
+test('missing or malformed budgets fail instead of silently disabling the gate', t => {
+  const root = fixture(t, { 'CLAUDE.md': '# Root' });
+  fs.rmSync(path.join(root, budgetFile));
+  assert.match(checkContext(root).errors[0], /missing budget file/);
+  assert.deepEqual(checkContext(root, { updateBudget: true }).errors, []);
+  for (const invalid of ['{', 'null', '[]', '{"CLAUDE.md": -1}', '{"CLAUDE.md": "100"}']) {
+    fs.writeFileSync(path.join(root, budgetFile), invalid);
+    assert.match(checkContext(root, { updateBudget: true }).errors[0], /expected an object of non-negative integer byte budgets/);
+    assert.equal(fs.readFileSync(path.join(root, budgetFile), 'utf8'), invalid);
+  }
+});
+
+test('catalog counts canonical frontmatter bytes once across all root and area skill directories', t => {
+  const frontmatter = '---\nname: example\ndescription: Grüße\n---\n';
+  const files = {};
+  for (const area of ['', 'backend/', 'frontend/']) {
+    for (const directory of ['.agents/skills', '.claude/skills']) {
+      files[`${area}${directory}/${area.replace('/', '') || 'root'}-${directory.slice(1, 7)}/SKILL.md`] = `${frontmatter}# Body`;
+    }
+  }
+  const root = fixture(t, files);
+  fs.symlinkSync('../../.agents/skills/root-agents', path.join(root, '.claude/skills/mirror'));
+  const result = checkContext(root);
+  assert.equal(result.sizes['skill-catalog'], Buffer.byteLength(frontmatter) * 6);
+  assert.deepEqual(result.errors, []);
+  fs.appendFileSync(path.join(root, '.agents/skills/root-agents/SKILL.md'), '\nExtra body text');
+  assert.equal(checkContext(root).sizes['skill-catalog'], result.sizes['skill-catalog']);
+  budget(root, { ...budget(root), 'skill-catalog': result.sizes['skill-catalog'] - 1 });
+  assert.match(checkContext(root).errors[0], /skill-catalog: current .*delta \+1 bytes/);
 });

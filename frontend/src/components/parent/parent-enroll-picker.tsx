@@ -22,6 +22,8 @@ import {
   formatLocalizedDate,
   formatLocalizedDateTime,
 } from "~/lib/localized-date-format";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -164,7 +166,7 @@ function SchoolCard({
     <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <MotoConceptIcon concept="schools" size={22} />
+          <MotoConceptIcon concept={schoolsConcept} size={22} />
         </span>
         <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
           {group.schoolName}
@@ -236,7 +238,7 @@ function PhaseRow({
         <p className="mt-1 text-sm text-gray-600">{range}</p>
         {phase.enrollment_close_at && (
           <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
-            <MotoConceptIcon concept="calendar" size={16} />
+            <MotoConceptIcon concept={calendarConcept} size={16} />
             {t("closesAt", {
               date: formatLocalizedDateTime(phase.enrollment_close_at, locale),
             })}
@@ -256,7 +258,7 @@ function EmptyPhases() {
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-        <MotoConceptIcon concept="schools" size={22} />
+        <MotoConceptIcon concept={schoolsConcept} size={22} />
       </span>
       <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>
     </div>

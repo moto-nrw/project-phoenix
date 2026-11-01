@@ -38,7 +38,7 @@ import {
   navigationEntryTarget,
   OGS_GROUPS_LABEL,
 } from "~/lib/ogs-groups-navigation";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
 import {
@@ -93,6 +93,38 @@ import { LogoutModal } from "~/components/ui/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
+import { databaseConcept } from "~/lib/concepts/database";
+import { dayReportConcept } from "~/lib/concepts/dayReport";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { filesConcept } from "~/lib/concepts/files";
+import { groupAccessConcept } from "~/lib/concepts/groupAccess";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { helpConcept } from "~/lib/concepts/help";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { logoutConcept } from "~/lib/concepts/logout";
+import { operatorsConcept } from "~/lib/concepts/operators";
+import { organizationsConcept } from "~/lib/concepts/organizations";
+import { peopleConcept } from "~/lib/concepts/people";
+import { reportsConcept } from "~/lib/concepts/reports";
+import { requestsConcept } from "~/lib/concepts/requests";
+import { rfidConcept } from "~/lib/concepts/rfid";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { schoolsConcept } from "~/lib/concepts/schools";
+import { settingsConcept } from "~/lib/concepts/settings";
+import { staffConcept } from "~/lib/concepts/staff";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { supervisionConcept } from "~/lib/concepts/supervision";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -117,7 +149,7 @@ function MobileNavIcon({
   readonly active: boolean;
   readonly className?: string;
 }) {
-  const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
+  const concept = item.concept ?? null;
   if (!concept) {
     return (
       <Icon
@@ -170,7 +202,7 @@ interface NavItem {
   href: string;
   label: string;
   iconKey: keyof typeof navigationIcons;
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   requiresAdmin?: boolean;
   requiresGroups?: boolean;
   requiresSupervision?: boolean;
@@ -192,7 +224,7 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
     // von „Startseite" (#2180), wie „Suchen" für „Alle Kinder".
     label: "Start",
     iconKey: "home",
-    concept: "dashboard",
+    concept: dashboardConcept,
     alwaysShow: true,
   },
   {
@@ -205,14 +237,14 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
-    concept: "activities",
+    concept: activitiesConcept,
     alwaysShow: true,
   },
   {
     href: "/rooms",
     label: "Räume",
     iconKey: "rooms",
-    concept: "rooms",
+    concept: roomsConcept,
     alwaysShow: true,
   },
 ];
@@ -227,7 +259,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/home",
     label: "Start",
     iconKey: "home",
-    concept: "dashboard",
+    concept: dashboardConcept,
     alwaysShow: true,
   },
   {
@@ -237,7 +269,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: STAFF_FLAT_PAGES.tagesplan.href,
     label: STAFF_FLAT_PAGES.tagesplan.label,
     iconKey: "betreuungsplan",
-    concept: "carePlan",
+    concept: carePlanConcept,
     alwaysShow: true,
   },
   {
@@ -246,7 +278,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/ogs-groups",
     label: OGS_GROUPS_LABEL,
     iconKey: "group",
-    concept: "groups",
+    concept: groupsConcept,
     alwaysShow: true,
   },
   {
@@ -260,7 +292,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/active-supervisions",
     label: "Aufsicht",
     iconKey: "supervision",
-    concept: "supervision",
+    concept: supervisionConcept,
     alwaysShow: true,
   },
 ];
@@ -271,7 +303,7 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     href: "/operator/organizations",
     label: "Verwaltung",
     iconKey: "buildingOffice",
-    concept: "organizations",
+    concept: organizationsConcept,
     alwaysShow: true,
     // Highlight when on any of the five Verwaltung pages.
     activePaths: [
@@ -288,14 +320,14 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",
-    concept: "announcements",
+    concept: announcementsConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/operators",
     label: "Operatoren",
     iconKey: "group",
-    concept: "operators",
+    concept: operatorsConcept,
     alwaysShow: true,
   },
 ];
@@ -305,7 +337,7 @@ interface AdditionalNavItem {
   href: string;
   label: string;
   iconKey: keyof typeof navigationIcons;
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   requiresAdmin?: boolean;
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
@@ -336,42 +368,42 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     href: "/operator/schools",
     label: "Schulen",
     iconKey: "buildingOffice",
-    concept: "schools",
+    concept: schoolsConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/accounts",
     label: "Konten",
     iconKey: "profile",
-    concept: "accounts",
+    concept: accountsConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/devices",
     label: "Geräte",
     iconKey: "device",
-    concept: "devices",
+    concept: devicesConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/persons",
     label: "Personen",
     iconKey: "userSingle",
-    concept: "people",
+    concept: peopleConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/unregistered-tags",
     label: "Unbekannte RFID",
     iconKey: "security",
-    concept: "rfid",
+    concept: rfidConcept,
     alwaysShow: true,
   },
   {
     href: "/operator/billing",
     label: "Stichtagszahlen",
     iconKey: "chart",
-    concept: "reports",
+    concept: reportsConcept,
     alwaysShow: true,
   },
 ];
@@ -390,7 +422,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // Logo erreichbar.
     ...STAFF_FLAT_PAGES.dashboard,
     iconKey: "home",
-    concept: "dashboard",
+    concept: dashboardConcept,
     alwaysShow: true,
   },
   {
@@ -398,7 +430,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // schedules:read) unten in isHrefEnabled, wie beim Reiter.
     ...STAFF_FLAT_PAGES.tagesplan,
     iconKey: "betreuungsplan",
-    concept: "carePlan",
+    concept: carePlanConcept,
     hideForAdmin: true,
   },
   {
@@ -406,21 +438,21 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // ADR 0091).
     ...STAFF_FLAT_PAGES.studentSearch,
     iconKey: "search",
-    concept: "children",
+    concept: childrenConcept,
     requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     // Wie in der Seitenleiste: das Recht von GET /api/rooms (#4573).
     ...STAFF_FLAT_PAGES.rooms,
     iconKey: "rooms",
-    concept: "rooms",
+    concept: roomsConcept,
     requiresPermission: "rooms:read",
   },
   {
     // Wie in der Seitenleiste: das Recht von GET /api/activities (#4573).
     ...STAFF_FLAT_PAGES.activities,
     iconKey: "activities",
-    concept: "activities",
+    concept: activitiesConcept,
     requiresPermission: ["activities:list", "activities:read"],
   },
   {
@@ -428,7 +460,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // öffnet nur mit substitutions:read (#4573).
     ...STAFF_FLAT_PAGES.substitutions,
     iconKey: "substitutions",
-    concept: "groupAccess",
+    concept: groupAccessConcept,
     requiresPermission: "substitutions:read",
   },
   {
@@ -437,7 +469,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // users:absence+users:read-Paar nicht ausdrücken.
     ...STAFF_FLAT_PAGES.anfragen,
     iconKey: "tray",
-    concept: "requests",
+    concept: requestsConcept,
   },
   // Eltern: Nachrichten für alle, der Rest je Recht und Schulschalter
   // (isHrefEnabled), dieselben Regeln wie in der Seitenleiste.
@@ -451,20 +483,20 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // Wie in der Seitenleiste: die Route liest nur mit time_tracking:own.
     ...STAFF_FLAT_PAGES.timeTracking,
     iconKey: "clock",
-    concept: "timeTracking",
+    concept: timeTrackingConcept,
     requiresPermission: "time_tracking:own",
   },
   {
     // Eigener Dienstplan (#3821); das Modul-Gate folgt in entriesToItems.
     ...STAFF_FLAT_PAGES.ownShiftPlan,
     iconKey: "dienstplan",
-    concept: "staffPlan",
+    concept: staffPlanConcept,
     requiresPermission: "time_tracking:own",
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
     iconKey: "calendar",
-    concept: "calendar",
+    concept: calendarConcept,
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",
   },
@@ -472,7 +504,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // Wie in der Seitenleiste: dasselbe Recht wie GET /api/staff (#4573).
     ...STAFF_FLAT_PAGES.staff,
     iconKey: "staff",
-    concept: "staff",
+    concept: staffConcept,
     requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
   },
   // Team-Chat (#2598) ist Opt-in (isHrefEnabled); die Tagesinformationen
@@ -502,19 +534,19 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // (isHrefEnabled), Recht wie die Route.
     ...STAFF_FLAT_PAGES.dayLog,
     iconKey: "calendar",
-    concept: "dayReport",
+    concept: dayReportConcept,
     requiresPermission: "users:read",
   },
   {
     ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
-    concept: "reports",
+    concept: reportsConcept,
     requiresAllPermissions: ["config:read", "users:read"],
   },
   {
     ...STAFF_FLAT_PAGES.holidayWeeks,
     iconKey: "calendar",
-    concept: "holidayWeeks",
+    concept: holidayWeeksConcept,
     requiresPermission: "config:read",
   },
   {
@@ -522,34 +554,34 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     // sind, entscheidet das Backend pro Ordner.
     ...STAFF_FLAT_PAGES.dateien,
     iconKey: "book",
-    concept: "files",
+    concept: filesConcept,
     alwaysShow: true,
   },
   {
     // Info-Displays: Opt-in über display.enabled (isHrefEnabled).
     ...STAFF_FLAT_PAGES.infoDisplays,
     iconKey: "device",
-    concept: "infoDisplays",
+    concept: infoDisplaysConcept,
     requiresPermission: ["display:read", "display:manage"],
   },
   {
     // Wie in der Seitenleiste: der Export verlangt users:read (#4573).
     ...STAFF_FLAT_PAGES.emergency,
     iconKey: "emergency",
-    concept: "emergency",
+    concept: emergencyConcept,
     requiresPermission: "users:read",
   },
   {
     ...STAFF_FLAT_PAGES.help,
     iconKey: "book",
-    concept: "help",
+    concept: helpConcept,
     alwaysShow: true,
     newTab: true,
   },
   {
     ...STAFF_FLAT_PAGES.settings,
     iconKey: "settings",
-    concept: "settings",
+    concept: settingsConcept,
     // Wie in der Seitenleiste: das Recht der Einstellungsrouten (#3469).
     requiresPermission: "config:manage",
   },
@@ -578,21 +610,21 @@ const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
     href: "/ogs-groups",
     label: OGS_GROUPS_LABEL,
     iconKey: "group",
-    concept: "groups",
+    concept: groupsConcept,
     alwaysShow: true,
   },
   supervisions: {
     href: "/active-supervisions",
     label: "Aktuelle Aufsicht",
     iconKey: "supervision",
-    concept: "supervision",
+    concept: supervisionConcept,
     alwaysShow: true,
   },
   database: {
     href: DATABASE_SECTION.href,
     label: DATABASE_SECTION.label,
     iconKey: "database",
-    concept: "database",
+    concept: databaseConcept,
     requiresPermission: DATABASE_PAGE_PERMISSION_LIST,
     activePaths: DATABASE_PAGE_HREFS,
   },
@@ -600,7 +632,7 @@ const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
     href: ENROLLMENT_SECTION.href,
     label: ENROLLMENT_SECTION.label,
     iconKey: "enrollments",
-    concept: "enrollments",
+    concept: enrollmentsConcept,
     // Jede Anmeldungsroute verlangt config:manage; das Recht öffnet den
     // Bereich auch einer Leitungsrolle der Schule (#3469).
     requiresPermission: "config:manage",
@@ -825,7 +857,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             href: "/active-supervisions",
             label: "Aufsicht",
             iconKey: "supervision" as const,
-            concept: "supervision" as const,
+            concept: supervisionConcept,
             alwaysShow: true,
           },
           ...baseMain.slice(2),
@@ -1382,7 +1414,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   className="w-full justify-start gap-3 px-4"
                 >
                   <MobileNavIcon
-                    item={{ iconKey: "profile", concept: "logout" }}
+                    item={{ iconKey: "profile", concept: logoutConcept }}
                     active={false}
                     className="h-5 w-5 text-gray-600"
                   />

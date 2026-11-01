@@ -925,15 +925,33 @@ function ConditionEditor({
   };
 
   if (!canEnable && !condition) {
+    const hasQuestionWithoutText = allFields.some(
+      (f, i) =>
+        i !== index &&
+        (f.type === "boolean" || f.type === "select") &&
+        (field.applies_to_child || !f.applies_to_child) &&
+        f.key.trim() === "",
+    );
+    const hasChildQuestion = allFields.some(
+      (f, i) =>
+        i !== index &&
+        (f.type === "boolean" || f.type === "select") &&
+        f.applies_to_child,
+    );
+    const description = hasQuestionWithoutText
+      ? "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen."
+      : !field.applies_to_child && hasChildQuestion
+        ? "Eine Frage zur Familie kann nicht von einer Frage je Kind abhängen. Legen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie an. Schreiben Sie auch den Fragetext dazu."
+        : "Legen Sie zuerst eine andere Ja/Nein- oder Auswahlfrage mit Fragetext an. Diese Frage kann dann von deren Antwort abhängen.";
     return (
       <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2">
         <EmptyState
           variant="compact"
           title="Keine Sichtbarkeitsregel möglich"
-          description={`Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder Auswahlfrage gibt${
+          description={`${description}${
             field.applies_to_child || childSources.length === 0
-              ? "."
-              : " (oder dieses Feld pro Kind angezeigt wird)."
+              ? ""
+              : " Oder schalten Sie bei dieser Frage „Pro Kind abfragen“ ein."
           }`}
         />
       </div>

@@ -70,6 +70,8 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 	case err != nil:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	default:
+		// The child left the template's planned occurrences (#5017).
+		rs.broadcastStaffingDeviationChanged(r.Context(), "template_student_days")
 		common.Respond(w, r, http.StatusOK, removeStudentTemplateDaysResponse{
 			RosterRows: result.RosterRows, Occurrences: result.Occurrences,
 		}, "Student removed from template days")

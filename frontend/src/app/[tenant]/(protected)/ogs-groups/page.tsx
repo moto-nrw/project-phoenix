@@ -130,6 +130,9 @@ import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { substitutionConcept } from "~/lib/concepts/substitution";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -1085,7 +1088,7 @@ function OGSGroupPageContent() {
       <TenantPage
         title={OGS_GROUPS_LABEL}
         empty={{
-          icon: <MotoConceptIcon concept="groups" size={48} />,
+          icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
           description:
             "Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden.",
@@ -1410,7 +1413,7 @@ function OGSGroupPageContent() {
             ) : null}
             {currentGroup?.viaSubstitution ? (
               <div className="flex items-center gap-2">
-                <MotoConceptIcon concept="substitution" size={18} />
+                <MotoConceptIcon concept={substitutionConcept} size={18} />
                 <span className="text-sm font-medium text-gray-900">
                   In Vertretung
                 </span>
@@ -1467,7 +1470,7 @@ function OGSGroupPageContent() {
         empty={
           !showSkeleton && !error && students.length === 0
             ? {
-                icon: <MotoConceptIcon concept="children" size={48} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={48} />,
                 title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
                 description:
                   allGroups.length > 1

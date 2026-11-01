@@ -11944,6 +11944,17 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceEvents.SupervisionChanged",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.EventPublisher.SupervisionChanged",
+      "reason": "Platform protocol participation (notice): student-presence reaches modules/delivery/internal/application/realtimeevents.GroupEvents.QueueActiveSupervisionChanged (delivery-platform) through roots/owners.PresenceEvents.SupervisionChanged. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents.GroupEvents.QueueActiveSupervisionChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceEvents.SupervisionRefresh",
       "classification": "platform",
       "effect": "notice",

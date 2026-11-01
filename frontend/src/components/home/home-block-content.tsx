@@ -34,8 +34,21 @@ import {
   type DashboardAnalytics,
 } from "~/lib/dashboard-helpers";
 import type { HomeBlockKey } from "~/lib/home-blocks";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { useNFCEnabled } from "~/lib/tenant-context";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { homeConcept } from "~/lib/concepts/home";
+import { presentConcept } from "~/lib/concepts/present";
+import { sickConcept } from "~/lib/concepts/sick";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { schoolyardConcept } from "~/lib/concepts/schoolyard";
+import { transitConcept } from "~/lib/concepts/transit";
+import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /**
  * Der Inhalt eines Bausteins der Startseite (#2180).
@@ -74,7 +87,7 @@ function ListCard({
   children,
 }: Readonly<{
   title: string;
-  concept: MotoConceptKey;
+  concept: MotoConcept;
   href?: string;
   linkText?: string;
   children: ReactNode;
@@ -126,7 +139,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
   const activities = data.analytics?.recentActivity;
   const { shown } = useHomeCardRows(activities ?? [], MAX_LIST_ROWS);
   return (
-    <ListCard title="Letzte Bewegungen" concept="changeHistory">
+    <ListCard title="Letzte Bewegungen" concept={changeHistoryConcept}>
       {data.analyticsLoading ? (
         <RowSkeleton />
       ) : !activities || activities.length === 0 ? (
@@ -176,7 +189,7 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
   return (
     <ListCard
       title="Laufende Aktivitäten"
-      concept="activities"
+      concept={activitiesConcept}
       href={data.tenantPath("/activities")}
     >
       {data.analyticsLoading ? (
@@ -248,7 +261,7 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
   return (
     <ListCard
       title="Laufende Betreuung"
-      concept="groups"
+      concept={groupsConcept}
       href={data.tenantPath("/ogs-groups")}
     >
       {data.analyticsLoading ? (
@@ -311,37 +324,37 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
  */
 const STUDENT_STATUS_ROWS: readonly {
   readonly label: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly status: string;
   readonly count: (analytics: DashboardAnalytics) => number;
 }[] = [
   {
     label: "Anwesend",
-    concept: "present",
+    concept: presentConcept,
     status: "anwesend",
     count: (a) => a.studentsPresent,
   },
   {
     label: "Schule",
-    concept: "atSchool",
+    concept: atSchoolConcept,
     status: "schule",
     count: (a) => a.studentsAtSchool,
   },
   {
     label: "Zuhause",
-    concept: "home",
+    concept: homeConcept,
     status: "abwesend",
     count: (a) => a.studentsHome,
   },
   {
     label: "Krank",
-    concept: "sick",
+    concept: sickConcept,
     status: "krank",
     count: (a) => a.studentsSick,
   },
   {
     label: "Entschuldigt",
-    concept: "excused",
+    concept: excusedConcept,
     status: "entschuldigt-klassenfahrt",
     count: (a) => a.studentsExcused,
   },
@@ -352,7 +365,7 @@ function StudentsCard({ data }: { readonly data: HomeBlockData }) {
   return (
     <ListCard
       title="Kinder"
-      concept="children"
+      concept={childrenConcept}
       href={data.tenantPath("/students/search")}
       linkText="Alle Kinder"
     >
@@ -392,7 +405,7 @@ function StatBlock({
   const tile = (
     label: string,
     value: string | number,
-    concept: keyof typeof MOTO_CONCEPTS,
+    concept: MotoConcept,
     href?: string,
   ) => (
     <StatCard
@@ -401,12 +414,7 @@ function StatBlock({
       // Die Zahl in der Textfarbe der Seite: das Symbol daneben trägt die
       // Bedeutung, und ein Steingrau ließ die Kennzahlen blass aussehen.
       tone="neutral"
-      icon={
-        <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS[concept].icon}
-          tone={MOTO_CONCEPTS[concept].tone}
-        />
-      }
+      icon={<MotoDuotoneIcon icon={concept.icon} tone={concept.tone} />}
       loading={data.analyticsLoading}
       href={href}
     />
@@ -417,63 +425,63 @@ function StatBlock({
       return tile(
         "Kinder anwesend",
         analytics?.studentsPresent ?? 0,
-        "present",
+        presentConcept,
         studentSearchHref("/students/search"),
       );
     case "tile.students_in_rooms":
       return tile(
         "In Räumen",
         analytics?.studentsInRooms ?? 0,
-        "rooms",
+        roomsConcept,
         studentSearchHref("/students/search"),
       );
     case "tile.students_in_transit":
       return tile(
         "Unterwegs",
         analytics?.studentsInTransit ?? 0,
-        "transit",
+        transitConcept,
         studentSearchHref("/students/search?status=unterwegs"),
       );
     case "tile.students_on_playground":
       return tile(
         "Schulhof",
         analytics?.studentsOnPlayground ?? 0,
-        "schoolyard",
+        schoolyardConcept,
         studentSearchHref("/students/search?status=schulhof"),
       );
     case "tile.students_sick":
       return tile(
         "Krank",
         analytics?.studentsSick ?? 0,
-        "sick",
+        sickConcept,
         studentSearchHref("/students/search?status=krank"),
       );
     case "tile.students_excused":
       return tile(
         "Entschuldigt",
         analytics?.studentsExcused ?? 0,
-        "excused",
+        excusedConcept,
         studentSearchHref("/students/search?status=entschuldigt"),
       );
     case "tile.students_at_school":
       return tile(
         "Schule",
         analytics?.studentsAtSchool ?? 0,
-        "atSchool",
+        atSchoolConcept,
         studentSearchHref("/students/search?status=schule"),
       );
     case "tile.students_home":
       return tile(
         "Zuhause",
         analytics?.studentsHome ?? 0,
-        "home",
+        homeConcept,
         studentSearchHref("/students/search?status=abwesend"),
       );
     case "tile.active_activities":
       return tile(
         "Aktive Aktivitäten",
         analytics?.activeActivities ?? 0,
-        "activities",
+        activitiesConcept,
         data.tenantPath("/activities"),
       );
     case "tile.capacity_utilization":
@@ -482,7 +490,7 @@ function StatBlock({
         analytics
           ? `${Math.round(analytics.capacityUtilization * 100)}%`
           : "0%",
-        "utilization",
+        utilizationConcept,
       );
     default:
       return null;

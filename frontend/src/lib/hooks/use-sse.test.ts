@@ -1,6 +1,7 @@
-import { it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useSSE } from "./use-sse";
+import { SSE_IDLE_TIMEOUT_MS } from "~/lib/fetch-event-source";
 import {
   bindSessionAccount,
   SESSION_ACCOUNT_HEADER,
@@ -233,4 +234,161 @@ it("streams even when native EventSource is unavailable", async () => {
   const { result } = renderHook(() => useSSE("/api/sse/events", { onMessage }));
   await waitFor(() => expect(result.current.isConnected).toBe(true));
   expect(sentAccount()).toBe("A");
+});
+
+it("keeps an open stream when the provider confirms the same account (#5017)", async () => {
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage }),
+  );
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  const signal = fetchMock.mock.calls[0]![1]!.signal!;
+  // Every session poll hands a new object for the same account.
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(signal.aborted).toBe(false);
+  expect(result.current.isConnected).toBe(true);
+});
+
+it("retries a stream out of retries when the provider answers again", async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage, maxReconnectAttempts: 0 }),
+  );
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  expect(result.current.status).toBe("failed");
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(sentAccount(1)).toBe("A");
+});
+
+it.each([
+  [
+    "permissions granted",
+    { permissions: [] },
+    { permissions: ["users:read", "parent_messages:read"] },
+  ],
+  [
+    "permissions revoked",
+    { permissions: ["users:read", "parent_messages:read"] },
+    { permissions: [] },
+  ],
+  ["admin granted", { isAdmin: false }, { isAdmin: true }],
+  ["admin revoked", { isAdmin: true }, { isAdmin: false }],
+  ["roles changed", { roles: ["user"] }, { roles: ["admin"] }],
+])(
+  "replaces the stream when the same account's %s",
+  async (_name, before, after) => {
+    const initial = session("A");
+    mockUseSession.mockReturnValue({
+      ...initial,
+      data: { user: { ...initial.data.user, ...before } },
+    });
+    const { result, rerender } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage }),
+    );
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+    mockUseSession.mockReturnValue({
+      ...initial,
+      data: { user: { ...initial.data.user, ...after } },
+    });
+    rerender();
+    expect(signal.aborted).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentAccount(1)).toBe("A");
+  },
+);
+
+it("keeps the stream for reordered permissions and roles and profile changes", async () => {
+  const initial = session("A");
+  mockUseSession.mockReturnValue({
+    ...initial,
+    data: {
+      user: {
+        ...initial.data.user,
+        roles: ["user", "teacher"],
+        permissions: ["users:read", "parent_messages:read"],
+        isAdmin: false,
+      },
+    },
+  });
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage }),
+  );
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+  mockUseSession.mockReturnValue({
+    ...initial,
+    data: {
+      user: {
+        ...initial.data.user,
+        roles: ["teacher", "user"],
+        permissions: ["parent_messages:read", "users:read"],
+        isAdmin: false,
+        name: "Updated name",
+      },
+    },
+  });
+  rerender();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(signal.aborted).toBe(false);
+  expect(result.current.isConnected).toBe(true);
+});
+
+describe("heartbeat watchdog (#5017)", () => {
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("counts a silent stream as dropped and reconnects", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { result } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+    );
+    await advance(0);
+    expect(result.current.isConnected).toBe(true);
+    const signal = fetchMock.mock.calls[0]![1]!.signal!;
+
+    // A half-open connection: no heartbeat, no data.
+    await advance(SSE_IDLE_TIMEOUT_MS - 1);
+    expect(result.current.isConnected).toBe(true);
+    await advance(1);
+    expect(signal.aborted).toBe(true);
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.status).toBe("reconnecting");
+
+    await advance(5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentAccount(1)).toBe("A");
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("keeps a stream alive while heartbeats arrive", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+    );
+    await advance(0);
+    expect(result.current.isConnected).toBe(true);
+    for (let beat = 0; beat < 10; beat++) {
+      await advance(30_000);
+      act(() => streams[0]!.enqueue(encoder.encode(": heartbeat\n\n")));
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.isConnected).toBe(true);
+    expect(onMessage).not.toHaveBeenCalled();
+  });
 });

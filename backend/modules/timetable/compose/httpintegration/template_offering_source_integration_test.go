@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1066,4 +1067,96 @@ func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64)
 	})
 	require.NoError(t, err)
 	return sourced
+}
+
+// A source change rewrites the materialized rosters through the offering
+// reconciliation; open planners, „Aktuelle Aufsicht" and the own supervision
+// learn about it from one tenant-wide event after the commit (#5017).
+func TestTemplateOfferingSource_UpdateAnnouncesAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	monday := futureMonday(1)
+	s := makeScenario(t, activityContract.WeekdayMonday, monday)
+	defer s.runCleanup(t)
+
+	listener := &realtime.Client{Channel: make(chan realtime.Event, 8), TenantID: s.tenantID}
+	s.hub.Register(listener, s.tenantID, nil)
+	defer s.hub.Unregister(listener)
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	elsewhere := &realtime.Client{Channel: make(chan realtime.Event, 8), TenantID: otherTenant}
+	s.hub.Register(elsewhere, otherTenant, nil)
+	defer s.hub.Unregister(elsewhere)
+
+	offering := createSourceCareOffering(t, s, calendar.Date(s.period.StartDate), calendar.Date(s.period.EndDate))
+	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
+	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+		Name:             name,
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
+		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:           s.roomID,
+		CategoryID:       s.categoryID,
+		MaxParticipants:  20,
+		CalendarPeriodID: &s.period.ID,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+	drainEvents(listener.Channel)
+
+	update := timetable.UpdateTemplateCommand{
+		TemplateID: result.TemplateID,
+		Fields: timetable.TemplateFields{
+			Name:                  name,
+			Type:                  activityContract.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activityContract.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{offering.ID},
+		},
+		Weekdays:         []int{activityContract.WeekdayMonday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.period.ID,
+		RosterValidFrom:  monday.AddDays(-30),
+		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
+	}
+	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, update))
+
+	events := drainEvents(listener.Channel)
+	require.Contains(t, eventSources(events, realtime.EventStaffingDeviationChanged), "template_update",
+		"a source change must wake the planned-block caches")
+	assert.Empty(t, elsewhere.Channel, "the announcement stays at its school")
+
+	// A refused edit commits nothing and announces nothing.
+	invalid := update
+	invalid.Fields.Name = ""
+	require.Error(t, s.timetableData.Templates.UpdateTemplate(s.ctx, invalid))
+	assert.NotContains(t, eventSources(drainEvents(listener.Channel), realtime.EventStaffingDeviationChanged), "template_update")
+}
+
+func drainEvents(ch chan realtime.Event) []realtime.Event {
+	var events []realtime.Event
+	for {
+		select {
+		case event := <-ch:
+			events = append(events, event)
+		default:
+			return events
+		}
+	}
+}
+
+func eventSources(events []realtime.Event, eventType realtime.EventType) []string {
+	var sources []string
+	for _, event := range events {
+		if event.Type == eventType && event.Data.Source != nil {
+			sources = append(sources, *event.Data.Source)
+		}
+	}
+	return sources
 }

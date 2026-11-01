@@ -3,7 +3,7 @@
 import type React from "react";
 import { SectionCard } from "~/components/ui/section-card";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 /** Einheitliche Abschnittskarte fuer die Eltern-App. */
 export function ParentSection({
@@ -24,7 +24,7 @@ export function ParentSection({
   bare?: boolean;
   /** 3 fuer Bloecke, die unter einem anderen Abschnitt haengen. */
   level?: 2 | 3;
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   prominent?: boolean;
 }>) {
   if (!bare) {

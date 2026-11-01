@@ -22,7 +22,18 @@ const approved = new Map([
   ],
 ]);
 
-test("bundle policy retains migration ceilings except the explicit #5260 room-detail increase", () => {
+/**
+ * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
+ * #5260 room detail (logout safeguards) and #5399: the parents'
+ * Elternsprechtag page (#4801) was budgeted without room for the
+ * session-end barrier every signed-in page carries.
+ */
+const increases = new Map([
+  ["/[tenant]/rooms/[id]", 2_048],
+  ["/parents/children/[id]/elternsprechtag", 1_024],
+]);
+
+test("bundle policy retains migration ceilings except the explicit increases", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
   assert.ok(budgets.size > 0);
   assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
@@ -30,27 +41,28 @@ test("bundle policy retains migration ceilings except the explicit #5260 room-de
     maxBytes: 1_049_292,
   });
   for (const [route, budget] of budgets) {
-    const increase = route === "/[tenant]/rooms/[id]" ? 2_048 : 0;
     assert.equal(
       budget.maxBytes,
-      legacyCeiling(budget.referenceBytes) + increase,
+      legacyCeiling(budget.referenceBytes) + (increases.get(route) ?? 0),
       route,
     );
   }
 });
 
-test("the #5260 room-detail policy still rejects one byte over its ceiling", () => {
-  const route = "/[tenant]/rooms/[id]";
+test("each policy still rejects one byte over its ceiling", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
-  const { maxBytes } = budgets.get(route);
-  assert.deepEqual(
-    compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
-    [],
-  );
-  assert.equal(
-    compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
-    1,
-  );
+  for (const [route, { maxBytes }] of budgets) {
+    assert.deepEqual(
+      compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
+      [],
+      route,
+    );
+    assert.equal(
+      compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
+      1,
+      route,
+    );
+  }
 });
 
 test("a significant improvement passes without lowering an observation baseline", () => {

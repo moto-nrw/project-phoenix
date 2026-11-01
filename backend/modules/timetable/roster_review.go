@@ -58,6 +58,10 @@ type TemplateFutureRoster struct {
 	// OfferingKind restricts which offerings may explain the roster; the
 	// zero value admits every offering.
 	OfferingKind RosterOfferingKind
+	// Ends are the Regeltermin's latest end ("HH:MM") per ISO weekday; a
+	// weekday without one has no known end. With the offerings' pickup
+	// times they tell which offerings carry the Regeltermin (#5342).
+	Ends map[int]string
 }
 
 // TemplatePlannedRoster is who a Regeltermin plans, as materialization

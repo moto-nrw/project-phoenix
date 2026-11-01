@@ -9,6 +9,7 @@ import {
 } from "./service-factory";
 import type { EntityConfig } from "./types";
 import { ApiError } from "~/lib/api-error";
+import { childrenConcept } from "~/lib/concepts/children";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -30,7 +31,7 @@ describe("createCrudService", () => {
       singular: "Test Entity",
       plural: "Test Entities",
     },
-    concept: "children",
+    concept: childrenConcept,
     labels: {
       createModalTitle: "Test erstellen",
       editModalTitle: "Test bearbeiten",

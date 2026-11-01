@@ -35,6 +35,7 @@ import {
   PAST_REQUEST_HINT,
   submitterLabel,
 } from "./request-copy";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "RequestDecisionRow" });
 
@@ -184,7 +185,7 @@ export function RequestDecisionRow({
               Konzeptregister, wie in den Nachrichten (#4359). */}
           {submitter ? (
             <p className="flex min-w-0 items-center gap-1.5 text-sm text-gray-700">
-              <MotoConceptIcon concept="parents" size={16} />
+              <MotoConceptIcon concept={parentsConcept} size={16} />
               <span className="truncate">Eingereicht von {submitter}</span>
             </p>
           ) : null}

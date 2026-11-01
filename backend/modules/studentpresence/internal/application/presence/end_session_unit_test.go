@@ -989,6 +989,10 @@ func (p *recordingEventPublisher) DashboardCountsChanged(context.Context, []stri
 	p.announcements++
 }
 
+func (p *recordingEventPublisher) SupervisionChanged(context.Context, int64, string) {
+	p.announcements++
+}
+
 func (m *mockVisitRepository) PrepareVisitWrites(context.Context, studentpresence.VisitWriteScope) error {
 	return nil
 }

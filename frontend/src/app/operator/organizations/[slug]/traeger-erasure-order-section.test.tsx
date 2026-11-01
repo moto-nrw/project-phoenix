@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraegerErasureOrder } from "~/lib/operator/provisioning-helpers";
 

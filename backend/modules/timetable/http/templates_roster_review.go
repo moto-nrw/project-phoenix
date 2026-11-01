@@ -43,7 +43,10 @@ type rosterDeviationsResponse struct {
 // listTemplateRosterDeviations handles GET /templates/roster-deviations: the
 // Regeltermine of the period that are not maintained automatically, not
 // confirmed as hand-kept and whose children obviously follow an offering's
-// bookings. Every read is batched over the period's templates.
+// bookings. Every read is batched over the period's templates. An optional
+// template_id also reviews that series when it is confirmed as hand-kept:
+// „Mit Angebot verbinden“ names it explicitly, and connecting ends the
+// hand-kept state. The rest of the period stays in the answer.
 func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.Request) {
 	if rs.TimetableData == nil || rs.RosterReview == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable roster review not wired")))
@@ -57,7 +60,11 @@ func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("period_id is required")))
 		return
 	}
-	deviations, err := rs.templateRosterDeviations(r.Context(), *periodID)
+	namedTemplateID, ok := rosterDeviationTemplateIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	deviations, err := rs.templateRosterDeviations(r.Context(), *periodID, namedTemplateID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list roster deviations failed", err))
 		return
@@ -65,7 +72,20 @@ func (rs *Resource) listTemplateRosterDeviations(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, rosterDeviationsResponse{Deviations: deviations}, "Roster deviations retrieved")
 }
 
-func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64) ([]rosterDeviationResponse, error) {
+func rosterDeviationTemplateIDFromRequest(w http.ResponseWriter, r *http.Request) (*int64, bool) {
+	raw := r.URL.Query().Get("template_id")
+	if raw == "" {
+		return nil, true
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("template_id must be a positive integer")))
+		return nil, false
+	}
+	return &id, true
+}
+
+func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64, namedTemplateID *int64) ([]rosterDeviationResponse, error) {
 	result := []rosterDeviationResponse{}
 	if rs.OfferingSourceOptions == nil {
 		return result, nil
@@ -77,7 +97,7 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 	}
 	templates := mapTemplateRows(rows, ratio, nil)
 	rs.attachRosterMaintenance(ctx, templates, &periodID)
-	reviewed := reviewableTemplateIDs(templates)
+	reviewed := reviewableTemplateIDs(templates, namedTemplateID)
 	if len(reviewed) == 0 {
 		return result, nil
 	}
@@ -91,8 +111,10 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 		return nil, err
 	}
 	kinds := make(map[int64]timetable.RosterOfferingKind, len(templates))
+	ends := make(map[int64]map[int]string, len(templates))
 	for _, template := range templates {
 		kinds[template.ID] = timetable.RosterOfferingKindFor(template.Type, template.ListKind)
+		ends[template.ID] = templateWeekdayEnds(template.Schedules, today)
 	}
 	for _, templateID := range reviewed {
 		roster, found := rosters[templateID]
@@ -100,6 +122,7 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 			continue
 		}
 		roster.OfferingKind = kinds[templateID]
+		roster.Ends = ends[templateID]
 		if deviation := timetable.DetectRosterDeviation(roster, bookings); deviation != nil {
 			result = append(result, rosterDeviationResponseFrom(templateID, deviation))
 		}
@@ -107,13 +130,36 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 	return result, nil
 }
 
+// templateWeekdayEnds names the latest end per ISO weekday of the schedules
+// that still run on or after today; it tells which offerings carry the
+// Regeltermin (#5342).
+func templateWeekdayEnds(schedules []templateScheduleResponse, today calendar.Date) map[int]string {
+	ends := make(map[int]string)
+	latest := make(map[int]int)
+	for _, schedule := range schedules {
+		if schedule.ValidUntil != "" {
+			if until, err := calendar.ParseDate(schedule.ValidUntil); err == nil && !until.After(today) {
+				continue
+			}
+		}
+		end, ok := timetable.ParseOfferingGapClock(schedule.EndTime)
+		if previous, seen := latest[schedule.Weekday]; ok && (!seen || end > previous) {
+			latest[schedule.Weekday] = end
+			ends[schedule.Weekday] = schedule.EndTime
+		}
+	}
+	return ends
+}
+
 // reviewableTemplateIDs keeps the Regeltermine with children whose upkeep is
 // not automatic and that the school has not confirmed as hand-kept. Without
-// the indicator nothing is reviewed: the hint must not contradict it.
-func reviewableTemplateIDs(templates []templateResponse) []int64 {
+// the indicator nothing is reviewed: the hint must not contradict it. The
+// named series is reviewed even when it is confirmed as hand-kept.
+func reviewableTemplateIDs(templates []templateResponse, named *int64) []int64 {
 	ids := make([]int64, 0, len(templates))
 	for _, template := range templates {
-		if template.Type == timetable.GroupTypeDuty || template.ManualRosterConfirmed ||
+		confirmed := template.ManualRosterConfirmed && (named == nil || template.ID != *named)
+		if template.Type == timetable.GroupTypeDuty || confirmed ||
 			template.RosterMaintenance == nil || template.RosterMaintenance.Mode == "automatic" {
 			continue
 		}
@@ -424,6 +470,8 @@ func (rs *Resource) connectTemplateOfferingSource(w http.ResponseWriter, r *http
 		renderRosterReviewError(w, r, err)
 		return
 	}
+	// Connecting the offering rewrites the materialized rosters (#5017).
+	rs.broadcastStaffingDeviationChanged(r.Context(), "template_offering_connection")
 	common.Respond(w, r, http.StatusOK, offeringConnectionResponse{
 		TemplateIDs: result.TemplateIDs, EffectiveDate: result.EffectiveDate.String(),
 	}, "Template connected to offering")

@@ -33,6 +33,7 @@ import {
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
 import {
+  DiscardedAnswer,
   currentSWRDataGeneration,
   currentSWRGeneration,
   dataGenerationOf,
@@ -321,14 +322,19 @@ function lockBoundMutate<T>(
  * logout or a discard starts empty. The marker moves once data of the
  * current key arrived.
  */
+type ScopedSWRResponse<T, E> = SWRResponse<T, E> & {
+  /** Current protected values, including between renders. Never raw cache. */
+  readCurrent?(): { data: T | undefined; error: E | undefined };
+};
+
 function useScopedSWR<T, E>(
   key: string | null,
   fetcher: () => Promise<T>,
   options: ReaderOptions<T, E> | undefined,
   base: SWRConfiguration = swrConfig,
-): SWRResponse<T, E> {
+): ScopedSWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
-  const { mutate: cacheMutate } = useSWRConfig();
+  const { cache, mutate: cacheMutate } = useSWRConfig();
   const fullKey =
     key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null;
   // Renders again whenever values stop counting (scope or data bump).
@@ -428,13 +434,31 @@ function useScopedSWR<T, E>(
     data,
     error,
     mutate,
+    readCurrent() {
+      if (
+        fullKey === null ||
+        isSWRSessionPending() ||
+        dataGenerationOf(fullKey) !== mutationGeneration
+      )
+        return { data: undefined, error: undefined };
+      const current = cache.get(fullKey);
+      return {
+        data:
+          isCurrentSWRValue(fullKey, current?.data) === true
+            ? (current?.data as T)
+            : undefined,
+        error: isCurrentSWRError(fullKey, current?.error)
+          ? (current?.error as E)
+          : undefined,
+      };
+    },
     get isValidating() {
       return response.isValidating;
     },
     get isLoading() {
       return response.isLoading || (!visible && response.isValidating);
     },
-  } as SWRResponse<T, E>;
+  } as ScopedSWRResponse<T, E>;
 }
 
 /**
@@ -461,7 +485,7 @@ export function useSWRAuth<T, E = Error>(
   key: string | null,
   fetcher: () => Promise<T>,
   options?: ReaderOptions<T, E>,
-): SWRResponse<T, E> {
+): ScopedSWRResponse<T, E> {
   // Fetches only while the session grants access (hasSessionAccess) and, in
   // the school portal, carries its school: swrScopePrefix is null otherwise.
   return useScopedSWR<T, E>(key, fetcher, options);
@@ -722,6 +746,48 @@ export function useDiscardRefusedEntity() {
       return true;
     },
     [prefix, cache],
+  );
+}
+
+/**
+ * Call the hook in the component; call its returned starter inside the SWR
+ * fetcher before awaiting. Its completion callback runs synchronous effects
+ * only in that request's scope and generation, even after a key change.
+ * Stale completions become the wrapper's silent DiscardedAnswer. This exposes
+ * no cache or writer, and does not change SWR's view-bound onSuccess contract.
+ */
+export function useSWRRequestGuard() {
+  const { prefix } = useSWRScope();
+  const origin = currentSWRGeneration();
+  const latestPrefix = useRef(prefix);
+  useLayoutEffect(() => {
+    latestPrefix.current = prefix;
+  }, [prefix]);
+  return useCallback(
+    (key: string | null) => {
+      if (
+        prefix === null ||
+        key === null ||
+        isSWRSessionPending() ||
+        latestPrefix.current !== prefix
+      )
+        throw new DiscardedAnswer();
+      const fullKey = scopedSWRKey(prefix, key);
+      if (dataGenerationOf(fullKey) > origin) throw new DiscardedAnswer();
+      const started = startOf(fullKey);
+      const isCurrent = () =>
+        !isSWRSessionPending() &&
+        latestPrefix.current === prefix &&
+        isStillCurrent(fullKey, started);
+      return Object.assign(
+        (complete: () => void): void => {
+          if (!isCurrent()) throw new DiscardedAnswer();
+          complete();
+        },
+        { isCurrent },
+      );
+    },
+    [prefix, origin],
   );
 }
 

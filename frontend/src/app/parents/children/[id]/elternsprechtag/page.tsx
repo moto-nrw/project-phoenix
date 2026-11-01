@@ -51,6 +51,7 @@ import type {
   ParentConferenceOffer,
   ParentConferenceWindow,
 } from "~/lib/parent-conferences";
+import { calendarConcept } from "~/lib/concepts/calendar";
 
 const logger = createLogger({ component: "ParentConferencePage" });
 
@@ -204,7 +205,7 @@ export default function ParentConferencePage({
     <ParentPage>
       {header}
       {offers.length === 0 ? (
-        <ParentSection title={t("title")} concept="calendar">
+        <ParentSection title={t("title")} concept={calendarConcept}>
           <EmptyState title={t("empty", { child: childName })} />
         </ParentSection>
       ) : null}
@@ -221,7 +222,7 @@ export default function ParentConferencePage({
           ]
             .filter(Boolean)
             .join(" · ")}
-          concept="calendar"
+          concept={calendarConcept}
         >
           <div className="space-y-4">
             {offer.booking ? (

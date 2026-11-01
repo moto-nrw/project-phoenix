@@ -33,6 +33,8 @@ import {
   type ChildCareSchedule,
   type OfferingChangesDisabledReason,
 } from "~/lib/parent-api";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 const logger = createLogger({ component: "BookedCareSection" });
 
@@ -243,7 +245,7 @@ export function BookedCareSection({
       ) : scheduleError ? (
         <ParentSection
           title={tc("care.weekTitle")}
-          concept="calendar"
+          concept={calendarConcept}
           prominent
         >
           <div data-parent-tour="child-care-times">
@@ -259,7 +261,7 @@ export function BookedCareSection({
             periodLabel ??
             t("careOfferings.offeringsDescription", { name: childFirstName })
           }
-          concept="carePlan"
+          concept={carePlanConcept}
           prominent
           actions={
             !careEnded && !pending && offerings.can_request ? (
@@ -500,7 +502,7 @@ export function BookedCareSection({
       ) : offeringsError ? (
         <ParentSection
           title={t("careOfferings.offeringsTitle")}
-          concept="carePlan"
+          concept={carePlanConcept}
           prominent
         >
           <LoadErrorAlert error={offeringsLoad.error} />

@@ -109,6 +109,10 @@ import {
   ChildStatusBadge,
   isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { childrenConcept } from "~/lib/concepts/children";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -362,7 +366,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       backHref={`/admin/enrollments/phases/${data.phase_id}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
-      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
       overlays={
         <>
           <ConfirmationModal
@@ -527,7 +531,7 @@ function EnrollmentSummary({
     <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-          <MotoConceptIcon concept="parents" size={16} />
+          <MotoConceptIcon concept={parentsConcept} size={16} />
         </span>
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -887,7 +891,7 @@ function DecisionPanel({
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <MotoConceptIcon concept="enrollments" size={18} />
+          <MotoConceptIcon concept={enrollmentsConcept} size={18} />
         </span>
         <div>
           <h4 className="text-sm font-semibold text-gray-900">
@@ -1069,7 +1073,7 @@ export function RequestExtraSection({
       {hasCustom && (
         <InfoSection
           title="Zusatzfragen (Eltern)"
-          icon={<MotoConceptIcon concept="parents" size={16} />}
+          icon={<MotoConceptIcon concept={parentsConcept} size={16} />}
         >
           <DataGrid>
             {guardianFields.map((f) => {
@@ -1882,7 +1886,7 @@ export function ChildOfferingAdjustment({
           }
         >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <MotoConceptIcon concept="changeHistory" size={14} />
+            <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
           </div>
           <ul className="mt-2 space-y-2">
@@ -2297,7 +2301,7 @@ export function ChildExtraFields({
     <div className="mt-3">
       <InfoSection
         title="Zusätzliche Angaben zum Kind"
-        icon={<MotoConceptIcon concept="children" size={16} />}
+        icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
       >
         <DataGrid>
           {filled.map(({ field, value }) => (

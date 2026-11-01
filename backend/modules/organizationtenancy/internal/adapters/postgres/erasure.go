@@ -43,7 +43,7 @@ func (s *ErasureStore) withConnection(ctx context.Context, fn func(context.Conte
 }
 
 func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(context.Context) error) error {
-	return s.withConnection(ctx, func(ctx context.Context, conn bun.Conn) error {
+	return s.withConnection(ctx, func(ctx context.Context, conn bun.Conn) (runErr error) {
 		var locked bool
 		err := conn.NewRaw(`SELECT pg_try_advisory_lock(hashtextextended('school-erasure-cli:' || ?::text,0))`, id).Scan(ctx, &locked)
 		if err != nil {
@@ -52,8 +52,19 @@ func (s *ErasureStore) WithSchoolLock(ctx context.Context, id int64, fn func(con
 		if !locked {
 			return errors.New("erasure: school already running")
 		}
-		// Session disposal releases this lock even after cancellation or a failed
-		// phase. DB-function transactions are deliberately not nested in it.
+		// Closing a socket does not wait for PostgreSQL to release session locks.
+		// Acknowledge the unlock before a connected caller can start the next run,
+		// even if this run failed or its caller cancelled. Still discard the session.
+		defer func() {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			var unlocked bool
+			err := conn.NewRaw(`SELECT pg_advisory_unlock(hashtextextended('school-erasure-cli:' || ?::text,0))`, id).Scan(cleanupCtx, &unlocked)
+			if err != nil || !unlocked {
+				runErr = errors.Join(runErr, errors.New("erasure: coordination release failed"))
+			}
+		}()
+		// DB-function transactions are deliberately not nested in the lock.
 		return fn(ctx)
 	})
 }

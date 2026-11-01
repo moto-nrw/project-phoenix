@@ -1,3 +1,15 @@
+import { IsolatedSWRCache } from "~/lib/swr";
+vi.unmock("swr");
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: {
+      user: { id: "parent-test", scope: "parent" },
+      expires: "2099-01-01",
+    },
+  }),
+}));
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -26,10 +38,12 @@ vi.mock("~/lib/parent-url", () => ({
 
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
+  getChildFeatures: vi.fn().mockResolvedValue({}),
   getChildToday: vi.fn().mockResolvedValue({ at_ogs: null, state: "unknown" }),
   UNKNOWN_CHILD_TODAY: { at_ogs: null, state: "unknown" },
   // Elternsprechtag (#4801): without a day the entry stays hidden.
   fetchChildParentConferences: vi.fn().mockResolvedValue([]),
+  getChildCourses: vi.fn().mockResolvedValue({ enabled: false, items: [] }),
 }));
 
 // Die schweren Abschnitte laden eigene Daten; hier zaehlt nur, DASS sie in der
@@ -149,9 +163,11 @@ const mia = { ...felix, student_id: "43", first_name: "Mia" };
 
 function renderPage(studentId?: string) {
   return render(
-    <NextIntlClientProvider locale="de" messages={deMessages}>
-      <ChildPage studentId={studentId} />
-    </NextIntlClientProvider>,
+    <IsolatedSWRCache>
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ChildPage studentId={studentId} />
+      </NextIntlClientProvider>
+    </IsolatedSWRCache>,
   );
 }
 

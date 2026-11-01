@@ -778,8 +778,10 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
   it("marks a missing required answer and skips a hidden required question", async () => {
     renderForm(null, offerWithQuestions);
     fillRegistration();
-    expect(screen.getByText("Weitere Angaben")).toBeInTheDocument();
-    expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
+    expect(screen.getByText("Fragen und Infos zum Kind")).toBeInTheDocument();
+    expect(
+      screen.getByText("Fragen und Infos zur Familie"),
+    ).toBeInTheDocument();
     // The follow-up question waits for its condition.
     expect(
       screen.queryByText("Was müssen wir bei Ausflügen beachten?"),
@@ -797,6 +799,28 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       }),
     ).toHaveAttribute("aria-invalid", "true");
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("names the family card for an information text, not only for questions (#5467)", () => {
+    renderForm(null, {
+      ...offer,
+      form: {
+        version: 4,
+        fields: [
+          {
+            key: "infotext_1",
+            label: "Bitte Sonnencreme mitgeben",
+            type: "information",
+            content: "Wir sind viel draußen.",
+            sort_order: 0,
+          },
+        ],
+      },
+    });
+    expect(screen.getByText("Bitte Sonnencreme mitgeben")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Fragen und Infos zur Familie" }),
+    ).toBeInTheDocument();
   });
 
   it("asks for the health consent when a health question is answered and sends the answers", async () => {

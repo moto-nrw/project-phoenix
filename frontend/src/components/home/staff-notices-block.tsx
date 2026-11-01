@@ -21,6 +21,7 @@ import {
   HomeMoreRow,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
+import { announcementsConcept } from "~/lib/concepts/announcements";
 
 /**
  * Baustein „Tagesinformationen" der Startseite (#2180): die Hinweise der
@@ -69,7 +70,7 @@ export function StaffNoticesBlock() {
       // stünde sie kürzer als ihre Nachbarn und die Reihe wirkt kaputt.
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
-      leading={<HomeCardIcon concept="announcements" />}
+      leading={<HomeCardIcon concept={announcementsConcept} />}
       inlineActions
       actions={
         <HomeCardLink
