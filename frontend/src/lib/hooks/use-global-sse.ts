@@ -916,6 +916,11 @@ export function useGlobalSSE(): SSEHookState {
             // The card disables focus revalidation, making this its only live
             // update path.
             key.includes("time-tracking-own-assignments-") ||
+            // The Aktuelle-Aufsicht aggregate carries planned_now: the
+            // blocks startable now, their staffing and child counts. A
+            // created, edited or deleted planned block announces only
+            // staffing_deviation_changed (#5017).
+            key.includes("active-supervision-dashboard-") ||
             key.includes("database-calendar-periods-list") ||
             // the per-child Betreuungsplan renders these activity instances
             key.includes("care-plan-day-") ||

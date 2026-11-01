@@ -176,6 +176,19 @@ describe("useGlobalSSE: own supervision family (#5017)", () => {
     },
   );
 
+  it.each(["staffing_deviation_changed", "instance_cancelled"] as const)(
+    "%s refreshes the supervision aggregate with its planned blocks",
+    (type) => {
+      renderConnected();
+      fire(event(type));
+      act(() => vi.advanceTimersByTime(MAX_FLUSH_WAIT_MS));
+      expect(matchedKeys()).toEqual([
+        "school-a:account-7:active-supervision-dashboard-0-224",
+        "school-a:account-7:timetable-week-2026-09-07",
+      ]);
+    },
+  );
+
   it("staff_time_tracking_changed refreshes exactly the time-tracking caches", () => {
     renderConnected();
     fire(event("staff_time_tracking_changed"));
