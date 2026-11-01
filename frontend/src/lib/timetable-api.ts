@@ -125,6 +125,11 @@ import {
   type RosterDeviation,
 } from "./roster-deviation";
 import {
+  mapBookingLeftovers,
+  type BackendBookingLeftoversResponse,
+  type BookingLeftover,
+} from "./booking-leftover";
+import {
   mapOfferingGaps,
   type BackendOfferingGapsResponse,
   type OfferingGap,
@@ -405,6 +410,53 @@ class TimetableService {
     return mapRosterDeviations(
       await unwrap<BackendRosterDeviationsResponse>(response),
     );
+  }
+
+  /**
+   * GET /api/timetable/templates/booking-leftovers — children a
+   * hand-maintained Regeltermin keeps after their booking of those weekdays
+   * ended (#5102).
+   */
+  async getBookingLeftovers(periodId: string): Promise<BookingLeftover[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/templates/booking-leftovers?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapBookingLeftovers(
+      await unwrap<BackendBookingLeftoversResponse>(response),
+    );
+  }
+
+  /**
+   * PUT /api/timetable/templates/{id}/students/{studentId}/kept-days —
+   * „Bleibt so“ (#5102) for the leftover, or its undo.
+   */
+  async setBookingLeftoverKept(
+    leftover: BookingLeftover,
+    kept: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${encodeURIComponent(leftover.templateId)}/students/${encodeURIComponent(leftover.studentId)}/kept-days`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          weekdays: leftover.weekdays,
+          booking_ended_on: leftover.bookingEndedOn,
+          kept,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
   }
 
   /**

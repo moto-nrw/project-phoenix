@@ -104,6 +104,10 @@ vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => {
 vi.mock("~/components/home/roster-deviation-todos", () => ({
   RosterDeviationTodos: () => null,
 }));
+// Eigene Tests in booking-leftover-todos.test.tsx, aus demselben Grund.
+vi.mock("~/components/home/booking-leftover-todos", () => ({
+  BookingLeftoverTodos: () => null,
+}));
 vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));
