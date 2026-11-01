@@ -12,7 +12,6 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -74,7 +73,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
-	hub := deliveryCompose.NewRealtimeHub(logger)
+	hub := realtime.NewHub(logger)
 	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err

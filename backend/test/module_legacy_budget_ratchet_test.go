@@ -198,7 +198,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/workforce/compose add exactly 9 LOC.
 // ADR 0144: the school vacation constructor of modules/schoolcalendar/compose
 // (+11) and the vacation hint constructor of modules/timetable/compose (+6).
-const moduleComposeBudgetTotal = 12758
+// ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
+const moduleComposeBudgetTotal = 12790
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -217,10 +218,11 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":             351,
-	"modules/dataimport/compose":                    85,
-	"modules/dataimport/compose/imports":            29,
-	"modules/delivery/compose":                      361,
+	"modules/communication/composition":  351,
+	"modules/dataimport/compose":         85,
+	"modules/dataimport/compose/imports": 29,
+	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
+	"modules/delivery/compose":                      393,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).

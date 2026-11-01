@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	"github.com/moto-nrw/project-phoenix/analytics"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -148,7 +149,7 @@ func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	env, err := newProductionEnvironment(logger, "http://api.invalid")
 	require.NoError(t, err)
-	hub := deliveryCompose.NewRealtimeHub(logger)
+	hub := realtime.NewHub(logger)
 	tracker := analytics.NewNoop()
 	worker, err := owners.ComposeWorker(db, env, hub, newRuntimeTracer(logger), tracker,
 		newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal,

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
 
 	presenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
@@ -23,7 +25,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -204,7 +205,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	logger := slog.Default()
-	hub := deliveryCompose.NewRealtimeHub(logger)
+	hub := realtime.NewHub(logger)
 	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return fail(err)
