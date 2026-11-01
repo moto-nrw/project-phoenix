@@ -136,11 +136,15 @@ type TimeExportStaffQuery interface {
 }
 
 type staffTimeExportService struct {
-	overview       StaffOverviewService
-	sessions       WorkSessionService
-	staffRepo      TimeExportStaffQuery
-	auditRepo      DataAccessAudit
-	payrollStatus  PayrollConfigurationReader
+	overview      StaffOverviewService
+	sessions      WorkSessionService
+	staffRepo     TimeExportStaffQuery
+	auditRepo     DataAccessAudit
+	payrollStatus PayrollConfigurationReader
+	// payrollRules tells whether the overview can attach own wage types to
+	// export rows. Without it, no row can make an otherwise unconfigured DATEV
+	// export valid.
+	payrollRules   workforce.PayrollRuleSetReader
 	logger         *slog.Logger
 	renderWorkbook TimeTrackingWorkbookRenderer
 

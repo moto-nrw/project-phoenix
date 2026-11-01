@@ -349,6 +349,9 @@ func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportR
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if status.ConfiguredCategories == 0 && s.payrollRules == nil {
+		return nil, nil, nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+	}
 	rows, err := s.overview.GetMonthExportRows(ctx, req.Year, req.Month)
 	if err != nil {
 		return nil, nil, nil, err

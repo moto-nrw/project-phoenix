@@ -153,6 +153,7 @@ func NewClock(deps Dependencies) (*Clock, error) {
 	// prefetch (month) and the single-staff export cells (day); every download
 	// writes an audit.data_access_logs row or fails.
 	export := NewStaffTimeExportService(overview, sessions, deps.ExportStaff, deps.DataAccessAudit, deps.Payroll, logger, deps.RenderWorkbook)
+	export.payrollRules = deps.PayrollRules
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
 	auditLog := NewTimeTrackingAuditLogService(deps.AuditReader, deps.StaffNames, deps.Settings)

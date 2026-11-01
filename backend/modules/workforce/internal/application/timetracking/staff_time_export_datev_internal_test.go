@@ -53,6 +53,12 @@ func (s payrollConfigurationStub) GetPayrollConfiguration(context.Context) (*Pay
 	return &s.configuration, nil
 }
 
+type payrollRuleSetStub struct{}
+
+func (payrollRuleSetStub) CurrentPayrollRuleSet(context.Context) (*workforce.PayrollRuleSet, error) {
+	return nil, nil
+}
+
 func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +91,7 @@ func TestDatevPreflight_UsesTheRuleSetOfTheRequestedRows(t *testing.T) {
 			svc := &staffTimeExportService{
 				overview:      datevOverviewStub{rows: test.rows},
 				payrollStatus: payrollConfigurationStub{},
+				payrollRules:  payrollRuleSetStub{},
 			}
 
 			_, _, _, err := svc.buildDatev(context.Background(), TimeExportRequest{
