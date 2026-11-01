@@ -7,20 +7,20 @@
       "maxBytes": 807443
     },
     "/parents/anmeldung/[tenantSlug]/[phaseId]": {
-      "referenceBytes": 986925,
-      "maxBytes": 1006664
+      "referenceBytes": 907414,
+      "maxBytes": 925562
     },
     "/parents/anmeldung/status/[token]": {
-      "referenceBytes": 826685,
-      "maxBytes": 843219
+      "referenceBytes": 779161,
+      "maxBytes": 794744
     },
     "/parents/anmeldung/status/[token]/adjust": {
-      "referenceBytes": 989792,
-      "maxBytes": 1009588
+      "referenceBytes": 910614,
+      "maxBytes": 928826
     },
     "/parents/anmeldung/status/[token]/edit": {
-      "referenceBytes": 989792,
-      "maxBytes": 1009588
+      "referenceBytes": 910614,
+      "maxBytes": 928826
     }
   }
 }

@@ -295,3 +295,59 @@ test("--update is rejected before analysis rather than turning measurements into
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /cannot approve bundle budgets/);
 });
+
+test("stale references warn strictly below 95 percent, without changing policy", () => {
+  const route = "/parents/children";
+  for (const bytes of [100_001, 100_000, 95_001, 95_000]) {
+    assert.deepEqual(
+      compareBudgets(approved, new Map([[route, bytes]])).warnings,
+      [],
+    );
+  }
+  for (const base of [null, new Map([[route, 94_999]])]) {
+    const result = compareBudgets(approved, new Map([[route, 94_999]]), base);
+    assert.deepEqual(result.failures, []);
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0], /Referenz.*100000.*94999.*nach unten/);
+  }
+  assert.deepEqual(approved.get(route), {
+    referenceBytes: 100_000,
+    maxBytes: legacyCeiling(100_000),
+  });
+});
+
+test("stale-reference warning cannot forgive own growth or an absolute violation", () => {
+  const route = "/parents/children";
+  const result = compareBudgets(
+    approved,
+    new Map([[route, 94_999]]),
+    new Map([[route, 60_000]]),
+  );
+  assert.equal(result.warnings.length, 1);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /eigenes PR-Delta/);
+  assert.equal(
+    compareBudgets(approved, new Map([[route, 110_241]])).failures.length,
+    1,
+  );
+});
+
+test("zero references and byte rounding do not produce stale-reference false positives", () => {
+  const route = "/tiny";
+  assert.deepEqual(
+    compareBudgets(
+      new Map([[route, { referenceBytes: 0, maxBytes: 10_240 }]]),
+      new Map([[route, 0]]),
+    ).warnings,
+    [],
+  );
+  const budgets = new Map([[route, { referenceBytes: 101, maxBytes: 10_341 }]]);
+  assert.deepEqual(
+    compareBudgets(budgets, new Map([[route, 96]])).warnings,
+    [],
+  );
+  assert.equal(
+    compareBudgets(budgets, new Map([[route, 95]])).warnings.length,
+    1,
+  );
+});

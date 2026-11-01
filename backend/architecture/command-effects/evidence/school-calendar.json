@@ -1961,6 +1961,102 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.AcknowledgeSchoolVacation",
+      "binding_digest": "b70d1e5a86bd510a43ef7debaa219b50",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.AcknowledgeSchoolVacation",
+      "binding_digest": "54bc655e8f12360bd506a19b894bd1da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.SeedSchoolVacations",
+      "binding_digest": "156a6f369b5d670351c6de900f85c9fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.SyncSchoolVacations",
+      "binding_digest": "156a6f369b5d670351c6de900f85c9fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SyncSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.TenantSchoolVacations",
+      "binding_digest": "b70d1e5a86bd510a43ef7debaa219b50",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.TenantSchoolVacations",
+      "binding_digest": "54bc655e8f12360bd506a19b894bd1da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.SeedSchoolVacations",
+      "binding_digest": "156a6f369b5d670351c6de900f85c9fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationSeed.SeedSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.SyncSchoolVacations",
+      "binding_digest": "156a6f369b5d670351c6de900f85c9fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationSync.SyncSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.AcknowledgeSchoolVacation",
+      "binding_digest": "b70d1e5a86bd510a43ef7debaa219b50",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacations.AcknowledgeSchoolVacation",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.AcknowledgeSchoolVacation",
+      "binding_digest": "54bc655e8f12360bd506a19b894bd1da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacations.AcknowledgeSchoolVacation",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.TenantSchoolVacations",
+      "binding_digest": "b70d1e5a86bd510a43ef7debaa219b50",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacations.TenantSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.SchoolVacationService.TenantSchoolVacations",
+      "binding_digest": "54bc655e8f12360bd506a19b894bd1da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacations.TenantSchoolVacations",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarCalDAVPolicy.Enabled",
       "binding_digest": "f6fc4d51f88f39e0123f8597db6422bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal.CalDAVPolicy.Enabled",

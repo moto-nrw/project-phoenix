@@ -198,6 +198,52 @@ func createDisplayViaAPI(t *testing.T, router http.Handler, adminJWT, name strin
 	return fmt.Sprintf("%d", created.Display.ID), created.Token
 }
 
+// Read-only access must not look like loss of access to the display list.
+func TestDisplayWritesDistinguishReadOnlyAccess(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := newDisplayTestTenant(t, db)
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-read-only-%d@test.local", tenantID))
+	admin := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+	id, token := createDisplayViaAPI(t, router, admin, "Eingang")
+	for _, access := range []struct {
+		name        string
+		permissions []string
+		code        string
+		readStatus  int
+	}{
+		{"read-only", []string{"display:read"}, "display.manage_forbidden", http.StatusOK},
+		{"no access", nil, "general.permission", http.StatusForbidden},
+	} {
+		t.Run(access.name, func(t *testing.T) {
+			jwt := displayTestJWT(t, account.ID, tenantID, access.permissions)
+			for _, write := range []struct{ method, path string }{
+				{http.MethodPost, "/"},
+				{http.MethodPatch, "/" + id},
+				{http.MethodDelete, "/" + id},
+				{http.MethodPost, "/" + id + "/regenerate"},
+			} {
+				rec := doDisplayRequest(t, router, write.method, write.path, jwt, map[string]any{"name": "Changed"})
+				require.Equal(t, http.StatusForbidden, rec.Code)
+				var problem struct {
+					Code   string `json:"code"`
+					Status int    `json:"status"`
+				}
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &problem))
+				assert.Equal(t, access.code, problem.Code, write.method+" "+write.path)
+				assert.Equal(t, http.StatusForbidden, problem.Status)
+			}
+			assert.Equal(t, access.readStatus, doDisplayRequest(t, router, http.MethodGet, "/", jwt, nil).Code)
+		})
+	}
+	list := doDisplayRequest(t, router, http.MethodGet, "/", admin, nil)
+	require.Equal(t, http.StatusOK, list.Code)
+	assert.Contains(t, list.Body.String(), "Eingang")
+	assert.NotContains(t, list.Body.String(), "Changed")
+	assert.Equal(t, http.StatusOK, doDashboardRequest(t, router, token).Code)
+}
+
 func TestDisplayAdminCRUD(t *testing.T) {
 	t.Parallel()
 

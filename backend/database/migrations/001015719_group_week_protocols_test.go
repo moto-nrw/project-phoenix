@@ -22,6 +22,9 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 	// The Elternsprechtag (1.15.720, #4801) extends this erasure; it goes first.
+	// The school vacations (1.15.721, #5345) extend the erasure functions of
+	// 1.15.720; they go first.
+	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
 	require.NoError(t, groupWeekProtocolsUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, groupWeekProtocolsDown(ctx, db))

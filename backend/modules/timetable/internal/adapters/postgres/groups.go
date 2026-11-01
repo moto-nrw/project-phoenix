@@ -385,7 +385,7 @@ func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields 
 // UpdateTemplateRosterReview writes a roster review (#5103) on an active
 // template row: the offering source in place of the Zielgruppe (target
 // mirror fields cleared; the caller replaces the dynamic targets and resyncs
-// the roster), and "Bleibt von Hand gepflegt" on the template's series root.
+// the roster), and "Liste so lassen" on the template's series root.
 // It reports the rows the last statement changed.
 func (s *Store) UpdateTemplateRosterReview(ctx context.Context, id int64, update timetable.TemplateRosterReviewUpdate) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)

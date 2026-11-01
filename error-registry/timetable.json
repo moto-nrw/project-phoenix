@@ -547,6 +547,12 @@
       "legacy": "timetable.room_occupied"
     },
     {
+      "code": "timetable.school_vacation_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.school_vacation_not_found"
+    },
+    {
       "code": "timetable.series_end_before_start",
       "class": "input",
       "parameters": [

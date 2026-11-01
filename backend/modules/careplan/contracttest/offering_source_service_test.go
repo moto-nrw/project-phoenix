@@ -2036,13 +2036,14 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
-	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
-	// period's end, so the template's source fails the period-fit validation.
+	// The phase's service window (2026-09-01 .. 2027-07-31) starts after this
+	// period ends, so the template's source fails the period-fit validation.
+	// A phase that merely reaches past the period end is clipped instead.
 	shortPeriod := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("drift-short"+"-"+
 		t.Name()),
 
 		calendar.NewDate(2026, 8, 1),
-		calendar.NewDate(2026, 12, 31))
+		calendar.NewDate(2026, 8, 31))
 	offering := createSourceOffering(t, env, "DriftQuelle", nil)
 	createSourcedTemplate(t, env, "DriftTermin", offering.ID, nil, shortPeriod.ID)
 

@@ -97,11 +97,20 @@
     "health": "Please agree or delete the health information.",
     "binding": "Please confirm that the registration is binding.",
     "yesNo": "Please choose yes or no.",
-    "choose": "Please choose an answer."
+    "choose": "Please choose an answer.",
+    "contactRole": "Please select at least one role.",
+    "emergencyRequired": "Please select at least one emergency contact.",
+    "emergencyLimit": "You can enter up to three emergency contacts.",
+    "pickupLimit": "You can enter up to five people who may collect the children.",
+    "contactLimit": "You can enter up to eight people."
   },
-  "childQuestionsTitle": "More details",
-  "familyQuestionsTitle": "More details about your family",
+  "childQuestionsTitle": "Questions and info about the child",
+  "familyQuestionsTitle": "Questions and info about your family",
   "legalTitle": "Notices and consent",
   "legalAccepted": "Confirmed",
-  "legalNotAccepted": "Not confirmed"
+  "legalNotAccepted": "Not confirmed",
+  "contactsTitle": "Contacts",
+  "contactsText": "Enter each additional person once. Choose their roles. At least one emergency contact with a phone number is required.",
+  "emergencyRole": "Emergency contact",
+  "pickupRole": "May collect the children"
 }

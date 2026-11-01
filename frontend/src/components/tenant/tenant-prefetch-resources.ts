@@ -1,0 +1,126 @@
+import { fetchSupervisionDashboard } from "~/components/active-supervisions/supervision-dashboard-resource";
+import { fetchStudentDetail } from "~/lib/student-detail-resource";
+import type { Session } from "next-auth";
+import type { PrefetchResource } from "~/components/ui/data-prefetch-intent";
+import { hasPermission, canReadSupervisionData } from "~/lib/auth-utils";
+import { canReadStudents } from "~/lib/student-access";
+import { groups } from "~/lib/swr/groups";
+import { rooms } from "~/lib/swr/rooms";
+import { studentKeys } from "~/lib/swr/portal-keys";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
+import {
+  buildStudentSearchFilters,
+  fetchStudentSearch,
+  type StudentSearchFilterInput,
+} from "~/lib/student-search-resource";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import { studentService } from "~/lib/api";
+import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
+
+/** Explicit opt-in destinations. Never a URL-to-API conversion or an audited read. */
+export async function tenantPrefetchResources(
+  href: string,
+  context: {
+    session: Session;
+    slug: string;
+    groupId: string | null;
+    groups: readonly string[];
+    hasSupervision: boolean;
+    detailedMode: boolean;
+    photoState: "photos-loading" | "photos-enabled" | "photos-disabled";
+  },
+): Promise<readonly PrefetchResource[]> {
+  if (!href.startsWith("/") || href.startsWith("//")) return [];
+  const [pathname, query] = href.split("?");
+  const path = pathname?.startsWith(`/${context.slug}/`)
+    ? pathname.slice(context.slug.length + 1)
+    : pathname;
+  const params = new URLSearchParams(query);
+  const { session } = context;
+  if (session.user.scope && session.user.scope !== "tenant") return [];
+
+  if (path === "/students/search" && canReadStudents(session)) {
+    const date = berlinTodayISO();
+    // Only the unfiltered link is known here. Other filters still get shared
+    // options, never a guessed main-list key. The page restores stored filters
+    // after mount; its initial unfiltered reader consumes this same request.
+    const searchParams = {
+      groupIds: [],
+      search: "",
+      schoolClasses: [],
+      roomId: "",
+      dayStatus: "all",
+      date,
+      isToday: true,
+      photoState: context.photoState,
+      bus: "all",
+      photoConsent: "all",
+      companions: false,
+      years: [],
+      pickupStatus: "all",
+    } satisfies StudentSearchFilterInput & { photoState: string };
+    const main =
+      params.size === 0
+        ? [
+            {
+              key: studentKeys.search(searchParams),
+              fetcher: () =>
+                fetchStudentSearch(
+                  buildStudentSearchFilters(searchParams),
+                  date,
+                  true,
+                ),
+            },
+          ]
+        : [];
+    return [
+      ...main,
+      ...(hasPermission(session, "groups:read")
+        ? [{ key: groups.key(), fetcher: groups.fetcher }]
+        : []),
+      ...(hasPermission(session, "rooms:read")
+        ? [
+            {
+              key: rooms.key({ page: 1, pageSize: 1000 }),
+              fetcher: () => rooms.fetcher({ page: 1, pageSize: 1000 }),
+            },
+          ]
+        : []),
+      {
+        key: studentKeys.schoolClasses(),
+        fetcher: () => studentService.getSchoolClasses(),
+      },
+    ];
+  }
+  if (path === "/ogs-groups" && canReadStudents(session)) {
+    const id = params.get("group") ?? context.groupId;
+    // Membership/supervision is confirmed by the shell, not inferred from URL.
+    if (id ? !context.groups.includes(id) : context.groups.length === 0)
+      return [];
+    return [{ key: groups.live(id), fetcher: () => fetchOgsGroupLive(id) }];
+  }
+  if (
+    path === "/active-supervisions" &&
+    context.detailedMode &&
+    canReadSupervisionData(session) &&
+    context.hasSupervision
+  ) {
+    // A cold reader starts with no retained snapshot, hence group_id=null,
+    // even for a session/room URL. Preload that exact entry aggregate, not
+    // another selection under the reader's stable key. Warm readers are skipped.
+    return [
+      {
+        key: dashboardKeys.supervision(session.user.id),
+        fetcher: () => fetchSupervisionDashboard(null),
+      },
+    ];
+  }
+  const student = /^\/students\/([1-9]\d*)$/.exec(path ?? "");
+  if (student?.[1] && canReadStudents(session)) {
+    const id = student[1];
+    return [
+      { key: studentKeys.detail(id), fetcher: () => fetchStudentDetail(id) },
+    ];
+  }
+  return [];
+}

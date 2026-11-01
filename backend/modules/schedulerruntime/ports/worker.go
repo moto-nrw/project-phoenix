@@ -45,25 +45,28 @@ type WorkerDependencies struct {
 	// RetentionSteps are the owners' deletions of a school's nightly cleanup
 	// (#3950), RetentionLog records each deletion; NewWorker builds the run
 	// over them. CleanupRuns keeps each school's last successful nightly run.
-	RetentionSteps            []RetentionStep
-	RetentionLog              RetentionLog
-	CleanupRuns               CleanupRunLedger
-	StaffDocumentCleaner      StaffDocumentFileCleaner
-	StudentDocumentCleaner    StudentDocumentFileCleaner
-	FileStoreCleaner          FileStoreCleaner
-	Materializer              TimetableMaterializer
-	TimetableCleanup          TimetableCleanup
-	CalendarFeedCleanup       CalendarFeedCleaner
-	TimeTrackingCleanup       TimeTrackingCleanupService
-	StudentChangeLogCleanup   StudentChangeLogCleanup
-	PWAUsageCleanup           PWAUsageCleanup
-	StaffMessageCleanup       StaffMessageCleanup
-	BookingConsistency        BookingConsistencyAudit
-	HolidayGuests             HolidayGuestReconciliation
-	PlannedStaffExits         PlannedStaffExits
-	WeekProtocols             WeekProtocolEvenings
-	PayrollDispatch           PayrollDispatch
-	MealOrders                MealOrderSettlement
+	RetentionSteps          []RetentionStep
+	RetentionLog            RetentionLog
+	CleanupRuns             CleanupRunLedger
+	StaffDocumentCleaner    StaffDocumentFileCleaner
+	StudentDocumentCleaner  StudentDocumentFileCleaner
+	FileStoreCleaner        FileStoreCleaner
+	Materializer            TimetableMaterializer
+	TimetableCleanup        TimetableCleanup
+	CalendarFeedCleanup     CalendarFeedCleaner
+	TimeTrackingCleanup     TimeTrackingCleanupService
+	StudentChangeLogCleanup StudentChangeLogCleanup
+	PWAUsageCleanup         PWAUsageCleanup
+	StaffMessageCleanup     StaffMessageCleanup
+	BookingConsistency      BookingConsistencyAudit
+	HolidayGuests           HolidayGuestReconciliation
+	PlannedStaffExits       PlannedStaffExits
+	WeekProtocols           WeekProtocolEvenings
+	PayrollDispatch         PayrollDispatch
+	MealOrders              MealOrderSettlement
+	// SchoolVacations renews the school vacations of every federal state
+	// (#5345); nil leaves the job out.
+	SchoolVacations           SchoolVacationSync
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 InstanceAutoStart
 	AutoEnd                   InstanceAutoEnd

@@ -148,6 +148,7 @@ var (
 	ErrMasterDataRequestDisabled        = care.ErrMasterDataRequestDisabled
 	ErrMasterDataRequestNotFound        = care.ErrMasterDataRequestNotFound
 	ErrMasterDataRequestNotPending      = care.ErrMasterDataRequestNotPending
+	ErrMealParticipationManageDenied    = care.ErrMealParticipationManageDenied
 	ErrMealParticipationCutoff          = care.ErrMealParticipationCutoff
 	ErrMealParticipationOutOfRange      = care.ErrMealParticipationOutOfRange
 	ErrMealPlanDisabled                 = care.ErrMealPlanDisabled

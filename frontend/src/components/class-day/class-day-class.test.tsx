@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
   act,
-  render,
+  render as rtlRender,
   screen,
   fireEvent,
   waitFor,
@@ -26,40 +26,21 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
-vi.mock("~/lib/swr", async () => {
-  const React = await import("react");
-  return {
-    useSWRAuth: <T,>(key: string | null, fetcher: () => Promise<T>) => {
-      const [data, setData] = React.useState<T | undefined>(undefined);
-      const [error, setError] = React.useState<unknown>(undefined);
-      const [loading, setLoading] = React.useState(true);
-      const fetcherRef = React.useRef(fetcher);
-      fetcherRef.current = fetcher;
-      const load = React.useCallback(() => {
-        if (key === null) {
-          setLoading(false);
-          return Promise.resolve(undefined);
-        }
-        return fetcherRef
-          .current()
-          .then((d) => {
-            setData(d);
-            setLoading(false);
-            return d;
-          })
-          .catch((e: unknown) => {
-            setError(e);
-            setLoading(false);
-            return undefined;
-          });
-      }, [key]);
-      React.useEffect(() => {
-        void load();
-      }, [load]);
-      return { data, error, isLoading: loading, mutate: load };
-    },
-  };
-});
+vi.unmock("swr");
+import { SWRConfig } from "~/lib/swr/testing";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { ReactElement } from "react";
+
+function render(ui: ReactElement) {
+  const cache = new Map();
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    ),
+  });
+}
 
 vi.mock("~/lib/school-url", () => ({
   schoolPath: (path: string) => path,
@@ -1208,3 +1189,15 @@ describe("ClassDayClass class trips (#4799)", () => {
     },
   );
 });
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "teacher", scope: "school", tenantId: 1 },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
+
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));

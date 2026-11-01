@@ -101,8 +101,22 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 	return plan, nil
 }
 
+// ErrMealParticipationManageDenied leaves the child's meal participation readable.
+var ErrMealParticipationManageDenied = errors.New("parent: meal participation management not permitted")
+
+func (s *Service) resolveMealParticipationWriter(ctx context.Context, accountID, studentID int64) (*Child, error) {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
+	if err != nil {
+		return nil, err
+	}
+	if !child.HasPermission(GuardianPermissionMealParticipationManage) {
+		return nil, ErrMealParticipationManageDenied
+	}
+	return child, nil
+}
+
 func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
+	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
 	if err != nil {
 		return "", err
 	}
@@ -134,7 +148,7 @@ func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studen
 // week containing date. Days past their deadline stay and come back as
 // locked.
 func (s *Service) SetMealParticipationWeek(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) (MealWeekChange, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
+	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
 	if err != nil {
 		return MealWeekChange{}, err
 	}
@@ -174,7 +188,7 @@ func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, stud
 }
 
 func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, change func(context.Context) error) error {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMealParticipationManage)
+	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
 	if err != nil {
 		return err
 	}

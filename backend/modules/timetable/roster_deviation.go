@@ -74,8 +74,10 @@ type RosterDeviation struct {
 	// explains the most planned child-weekdays, then adds the fewest
 	// unplanned ones, then needs the fewest offerings (#5139). A Randstunde
 	// for a whole Klasse is explained by Randstunde and Ganztag together;
-	// one of them alone would drop the other's children. When Ambiguous it
-	// is only the first of the equal Combinations.
+	// one of them alone would drop the other's children. For a Klasse or
+	// Jahrgang every other offering of the phase that carries the
+	// Regeltermin joins (withCarryingOfferings). When Ambiguous it is only the
+	// first of the equal Combinations.
 	Offerings []OfferingRef
 	// GradeLevels / SchoolClasses are the suggested source filter, taken
 	// from the Regeltermin's Jahrgang or Klasse targets.
@@ -87,6 +89,11 @@ type RosterDeviation struct {
 	// MissingCount counts children a suggested offering books on a weekday
 	// without being planned that weekday.
 	MissingCount int
+	// Unbooked and Missing name the children behind the counts with their
+	// weekdays, by student id; the hint names them where the caller may
+	// read the child.
+	Unbooked []RosterDeviationChild
+	Missing  []RosterDeviationChild
 	// Candidates are the suggested offerings, then every other offering
 	// passing the rule; when Ambiguous, only their equal alternatives follow.
 	Candidates []OfferingRef
@@ -99,6 +106,13 @@ type RosterDeviation struct {
 	// the school picks, nothing is preselected, and the counts belong to no
 	// named choice. The offering id never decides.
 	Ambiguous bool
+}
+
+// RosterDeviationChild is one child of a deviation and the weekdays,
+// ascending, on which it deviates.
+type RosterDeviationChild struct {
+	StudentID int64
+	Weekdays  []int
 }
 
 type rosterSlot struct {
@@ -115,6 +129,8 @@ type deviationCandidate struct {
 	// passes is the rule of #5103; a combination must retain at least one
 	// passing offering; complementary offerings need not pass alone.
 	passes bool
+	// pickupTimes are the offering's pickup times per ISO weekday.
+	pickupTimes map[int]string
 }
 
 // DetectRosterDeviation applies the rule to one roster. It returns nil when
@@ -142,6 +158,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 	if len(best) == 0 {
 		return nil
 	}
+	best = withCarryingOfferings(roster, candidates, best)
 	chosen := best[0].members
 	booked := unionBookedSlots(candidates, chosen)
 	combinations := [][]OfferingRef{}
@@ -150,12 +167,16 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 			combinations = append(combinations, candidateOfferingRefs(candidates, combination.members))
 		}
 	}
+	unbooked := slotStudents(planned, booked)
+	missing := slotStudents(booked, planned)
 	return &RosterDeviation{
 		Offerings:     candidateOfferingRefs(candidates, chosen),
 		GradeLevels:   slices.Clone(roster.TargetGradeLevels),
 		SchoolClasses: slices.Clone(roster.TargetSchoolClasses),
-		UnbookedCount: distinctSlotStudents(planned, booked),
-		MissingCount:  distinctSlotStudents(booked, planned),
+		UnbookedCount: len(unbooked),
+		MissingCount:  len(missing),
+		Unbooked:      unbooked,
+		Missing:       missing,
 		Candidates:    deviationChoices(candidates, best),
 		Combinations:  combinations,
 		Ambiguous:     len(best) > 1 || bounded,
@@ -216,7 +237,7 @@ func plannedRosterSlots(roster TemplateFutureRoster) map[rosterSlot]bool {
 func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSlot]bool, bookings []OfferingWeekdayBooking) []deviationCandidate {
 	candidates := make([]deviationCandidate, 0)
 	for _, candidate := range bookedSlotsByOffering(roster, bookings) {
-		if len(candidate.booked) > 0 {
+		if len(candidate.booked) > 0 && candidate.carriage(roster) != carriageRuledOut {
 			candidate.passes = scoreDeviationCandidate(candidate, planned)
 			candidates = append(candidates, *candidate)
 		}
@@ -249,9 +270,10 @@ func bookedSlotsByOffering(roster TemplateFutureRoster, bookings []OfferingWeekd
 		candidate := byOffering[booking.OfferingID]
 		if candidate == nil {
 			candidate = &deviationCandidate{
-				offering: OfferingRef{ID: booking.OfferingID, Name: booking.OfferingName},
-				phaseID:  booking.PhaseID,
-				booked:   make(map[rosterSlot]bool),
+				offering:    OfferingRef{ID: booking.OfferingID, Name: booking.OfferingName},
+				phaseID:     booking.PhaseID,
+				booked:      make(map[rosterSlot]bool),
+				pickupTimes: booking.PickupTimes,
 			}
 			byOffering[booking.OfferingID] = candidate
 		}
@@ -302,16 +324,22 @@ func bookingInTargetCohort(roster TemplateFutureRoster, booking OfferingWeekdayB
 	return true
 }
 
-// distinctSlotStudents counts the children with a slot in from that is not
-// in other.
-func distinctSlotStudents(from, other map[rosterSlot]bool) int {
-	students := make(map[int64]bool)
+// slotStudents lists the children with a slot in from that is not in other,
+// with those weekdays, ordered by student id.
+func slotStudents(from, other map[rosterSlot]bool) []RosterDeviationChild {
+	weekdays := make(map[int64][]int)
 	for slot := range from {
 		if !other[slot] {
-			students[slot.studentID] = true
+			weekdays[slot.studentID] = append(weekdays[slot.studentID], slot.weekday)
 		}
 	}
-	return len(students)
+	children := make([]RosterDeviationChild, 0, len(weekdays))
+	for _, studentID := range slices.Sorted(maps.Keys(weekdays)) {
+		days := weekdays[studentID]
+		slices.Sort(days)
+		children = append(children, RosterDeviationChild{StudentID: studentID, Weekdays: days})
+	}
+	return children
 }
 
 // OfferingSourceFilter is a source selection with its Jahrgang or Klassen

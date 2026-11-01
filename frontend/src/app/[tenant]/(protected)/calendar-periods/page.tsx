@@ -7,6 +7,8 @@ import {
 } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
 import { SchoolHolidaysList } from "~/components/planning/school-holidays-list";
+import { SchoolVacationsList } from "~/components/planning/school-vacations-list";
+import { SchoolVacationHints } from "~/components/timetable/school-vacation-hints";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -53,6 +55,13 @@ function CalendarPeriodsPageContent() {
       statsLoading={state.loading}
       actions={<CalendarPeriodsActions state={state} />}
     >
+      {/* Regeltermine in den nächsten Ferien (#5345): die Schließtage
+          stehen auf dieser Seite, deshalb ohne Link dorthin. */}
+      <SchoolVacationHints
+        enabled
+        showClosingDaysLink={false}
+        onAppointmentsCancelled={() => void state.reload({ silent: true })}
+      />
       <CalendarPeriodsEditor state={state} />
       {/* Abgesagte Termine ändern die Spalte „Verwendung“ (#3594). */}
       <ClosingDaysEditor
@@ -60,6 +69,11 @@ function CalendarPeriodsPageContent() {
       />
       {/* Feiertage berechnet moto aus dem Bundesland der Schule (#4775). */}
       <SchoolHolidaysList
+        periods={state.periods}
+        periodsLoading={state.loading}
+      />
+      {/* Schulferien des Bundeslands aus OpenHolidays (#5345). */}
+      <SchoolVacationsList
         periods={state.periods}
         periodsLoading={state.loading}
       />

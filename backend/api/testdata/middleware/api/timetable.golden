@@ -1,13 +1,19 @@
 # Each unindented line is a middleware chain, outermost first.
 # The indented routes below it run through exactly that chain.
 
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.#
+	POST /api/timetable/school-vacations/seed
+
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
 	GET /api/timetable/holidays
 	GET /api/timetable/offering-gaps
 	GET /api/timetable/offering-sources/preview
 	GET /api/timetable/offering-sources/suggestion
+	GET /api/timetable/school-vacation-hints
+	GET /api/timetable/school-vacations
 	GET /api/timetable/templates/roster-deviations
 	GET /api/timetable/templates/{id}/offering-preview
+	POST /api/timetable/school-vacation-hints/acknowledgements
 	POST /api/timetable/templates/{id}/offering-connection
 	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement

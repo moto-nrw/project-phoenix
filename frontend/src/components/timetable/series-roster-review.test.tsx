@@ -30,22 +30,22 @@ describe("SeriesRosterReview (#5103)", () => {
       />,
     );
 
+    expect(screen.getByText("Weicht von Anmeldungen ab")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 3 Kinder sind dort nicht angemeldet · 2 angemeldete Kinder fehlen",
-      ),
+      screen.getByText("3 Kinder sind nicht für dieses Angebot angemeldet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("2 angemeldete Kinder fehlen in der Liste."),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Mit Angebot verbinden" }),
     );
     expect(onConnect).toHaveBeenCalledWith(deviation);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bleibt von Hand gepflegt" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Liste so lassen" }));
     expect(onSetManualRoster).toHaveBeenCalledWith(true);
   });
 
-  it("lets planners undo „Bleibt von Hand gepflegt“", () => {
+  it("lets planners undo „Liste so lassen“", () => {
     const onSetManualRoster = vi.fn();
     render(
       <SeriesRosterReview
@@ -55,7 +55,7 @@ describe("SeriesRosterReview (#5103)", () => {
     );
 
     expect(
-      screen.getByText("Sie pflegen die Kinder hier bewusst selbst."),
+      screen.getByText("Die Kinderliste bleibt bewusst so."),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Hinweis wieder zeigen" }),
@@ -67,7 +67,7 @@ describe("SeriesRosterReview (#5103)", () => {
     render(<SeriesRosterReview manualRosterConfirmed />);
 
     expect(
-      screen.getByText("Sie pflegen die Kinder hier bewusst selbst."),
+      screen.getByText("Die Kinderliste bleibt bewusst so."),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Hinweis wieder zeigen" }),

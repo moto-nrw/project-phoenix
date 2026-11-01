@@ -31,15 +31,15 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { ApiError, apiErrorFromResponse } from "~/lib/api-error";
 import {
   downloadCatererDeliveries,
+  confirmCatererOrder,
   fetchCatererOrders,
   fetchCatererSchools,
   type CatererOrderDay,
   type CatererOrders,
   type CatererSchool,
-  type CatererSchools,
   type DeliveryExportFormat,
 } from "~/lib/caterer-api";
 import {
@@ -52,6 +52,12 @@ import { parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import { useSession } from "next-auth/react";
+import { useSWRAuth, useInvalidateMatching, useSWRCacheKey } from "~/lib/swr";
+import { useDiscardRefusedEntity, useSWRRequestGuard } from "~/lib/swr/hooks";
+import { catererKeys } from "~/lib/swr/portal-keys";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "CatererOverview" });
 
@@ -143,6 +149,11 @@ function SchoolLoadError({
   return <LoadErrorAlert error={error} />;
 }
 
+interface CatererOrderWindow {
+  orders: Record<string, CatererOrders | null>;
+  failures: Record<string, unknown>;
+}
+
 interface OverviewRow {
   key: string;
   school: CatererSchool | null;
@@ -156,120 +167,265 @@ export default function CatererOverviewPage() {
   const days = useMemo(() => periodDays(period, today), [period, today]);
   const from = days[0]!;
   const to = days[days.length - 1]!;
-  const [schools, setSchools] = useState<CatererSchools | null>(null);
-  const [orders, setOrders] = useState<Record<string, CatererOrders | null>>(
-    {},
+  const { data: session } = useSession();
+  const enabled = session?.user.scope === "caterer";
+  const schoolResponse = useSWRAuth(
+    enabled ? catererKeys.schools() : null,
+    fetchCatererSchools,
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: true,
+      focusThrottleInterval: 60 * 1000,
+    },
   );
-  // Why a school's orders did not load, shown in that school's card.
-  const [failures, setFailures] = useState<Record<string, unknown>>({});
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<string | null>(null);
-  const { error, show, clear } = useApiLoadError();
-  const { show: showActionError } = useApiErrorDisplay();
-  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
-
-  const generationRef = useRef(0);
-  const requestRef = useRef(0);
-  const loadOrders = useCallback(
-    async (
-      list: readonly CatererSchool[],
-      generation = generationRef.current,
-    ) => {
-      if (generation !== generationRef.current) return;
-      // Only the newest request lands: a slow answer for the previous
-      // period never overwrites the one now chosen.
-      const request = ++requestRef.current;
+  const schools = schoolResponse.data ?? null;
+  const schoolIds = schools?.schools.map((school) => school.id) ?? [];
+  const ordersKey =
+    enabled && schools ? catererKeys.orders(schoolIds, from, to) : null;
+  const scopedKey = useSWRCacheKey()(ordersKey ?? "");
+  const orderSnapshot = useRef<{
+    scopedKey: string | null;
+    data?: CatererOrderWindow;
+  }>({ scopedKey: null });
+  const retries = useRef(new Map<string, number>());
+  const guardRequest = useSWRRequestGuard();
+  const discardRefused = useDiscardRefusedEntity();
+  const response = useSWRAuth<CatererOrderWindow>(
+    ordersKey,
+    async (): Promise<CatererOrderWindow> => {
+      const complete = guardRequest(ordersKey);
+      for (const schoolId of schoolIds) {
+        retries.current.set(schoolId, (retries.current.get(schoolId) ?? 0) + 1);
+      }
+      // This reader belongs to the requested key even if the visible period
+      // changes before its background requests settle.
+      const requestedSnapshot = response.data;
       const results = await Promise.allSettled(
-        list.map((school) => fetchCatererOrders(school.id, from, to)),
+        schoolIds.map((schoolId) => fetchCatererOrders(schoolId, from, to)),
       );
-      if (
-        generation !== generationRef.current ||
-        request !== requestRef.current
-      )
-        return;
-      const next: Record<string, CatererOrders | null> = {};
-      const failed: Record<string, unknown> = {};
+      const orders: Record<string, CatererOrders | null> = {};
+      const failures: Record<string, unknown> = {};
       results.forEach((result, index) => {
-        const school = list[index]!;
-        if (result.status === "fulfilled") {
-          next[school.id] = result.value;
-        } else {
-          next[school.id] = null;
-          failed[school.id] = result.reason;
+        const schoolId = schoolIds[index]!;
+        if (result.status === "fulfilled") orders[schoolId] = result.value;
+        else {
+          // Keep a warm snapshot only for this exact scoped window. A true
+          // supply refusal must never retain previously readable orders.
+          const refused =
+            result.reason instanceof ApiError &&
+            (result.reason.status === 401 ||
+              result.reason.code === "general.permission" ||
+              result.reason.code === "meals.not_supplied");
+          const previous =
+            orderSnapshot.current.scopedKey === scopedKey
+              ? orderSnapshot.current.data
+              : requestedSnapshot;
+          orders[schoolId] = refused
+            ? null
+            : (previous?.orders[schoolId] ?? null);
+          failures[schoolId] = result.reason;
+        }
+      });
+      // A supply refusal also applies to other windows while this one is
+      // no longer selected. Never run that effect after a scope/data bump.
+      complete(() => {
+        for (const [schoolId, cause] of Object.entries(failures)) {
           logger.warn("caterer_orders_load_failed", {
-            school_id: school.id,
-            error:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
+            school_id: schoolId,
+            error: cause instanceof Error ? cause.message : String(cause),
+          });
+          discardRefused(cause, {
+            codes: ["meals.not_supplied"],
+            matches: (key) =>
+              catererKeys.containsSchool(key, schoolId) && key !== ordersKey,
           });
         }
       });
-      setOrders(next);
-      setFailures(failed);
+      return { orders, failures };
     },
-    [from, to],
+    { keepPreviousData: false },
   );
+  useLayoutEffect(() => {
+    orderSnapshot.current = { scopedKey, data: response.data };
+  });
+  const currentWindow = useRef({
+    scopedKey,
+    key: ordersKey,
+    mutate: response.mutate,
+  });
+  useLayoutEffect(() => {
+    currentWindow.current = {
+      scopedKey,
+      key: ordersKey,
+      mutate: response.mutate,
+    };
+  });
+  const action = useOptimisticAction(ordersKey, response.data);
+  const orders = action.data?.orders ?? {};
+  const failures = action.data?.failures ?? {};
+  const loading = schoolResponse.isLoading || response.isLoading;
+  const { error: schoolsLoadError } = useSwrResourceLoadError(
+    [schoolResponse],
+    "Ihre Schulen",
+    schoolResponse.mutate,
+  );
+  const { error: ordersLoadError } = useSwrResourceLoadError(
+    [response],
+    "die Bestellungen",
+    response.mutate,
+  );
+  const error = schoolsLoadError ?? ordersLoadError;
+  const mutateOrders = response.mutate;
+  const [exporting, setExporting] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
+  const invalidate = useInvalidateMatching();
 
-  // „Wiederholen“ in the card of one school asks for that school only. A
-  // newer load of the whole page wins over a retry still on its way.
   const retrySchool = useCallback(
     async (school: CatererSchool) => {
-      const generation = generationRef.current;
-      const request = requestRef.current;
-      const current = () =>
-        generation === generationRef.current && request === requestRef.current;
+      if (currentWindow.current.scopedKey !== scopedKey) return;
+      let complete: ReturnType<typeof guardRequest>;
       try {
-        const loaded = await fetchCatererOrders(school.id, from, to);
-        if (!current()) return;
-        setOrders((previous) => ({ ...previous, [school.id]: loaded }));
-        setFailures((previous) => {
-          const next = { ...previous };
-          delete next[school.id];
-          return next;
-        });
-      } catch (cause) {
-        if (!current()) return;
+        complete = guardRequest(ordersKey);
+      } catch {
+        // A handler from an obsolete session must not start a read.
+        return;
+      }
+      const ticket = (retries.current.get(school.id) ?? 0) + 1;
+      retries.current.set(school.id, ticket);
+      const isCurrent = () =>
+        complete.isCurrent() && retries.current.get(school.id) === ticket;
+      let loaded: CatererOrders;
+      try {
+        loaded = await fetchCatererOrders(school.id, from, to);
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (
+          discardRefused(error, {
+            codes: ["meals.not_supplied"],
+            matches: (key) => catererKeys.containsSchool(key, school.id),
+          })
+        ) {
+          void showActionError(error, {
+            object: "die Bestellungen",
+            retry: () => void invalidate((key) => key === ordersKey),
+          });
+          return;
+        }
         logger.warn("caterer_orders_load_failed", {
           school_id: school.id,
-          error: cause instanceof Error ? cause.message : String(cause),
+          error: error instanceof Error ? error.message : String(error),
         });
-        setFailures((previous) => ({ ...previous, [school.id]: cause }));
+        await mutateOrders(
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  failures: { ...current.failures, [school.id]: error },
+                }
+              : current,
+          { revalidate: false },
+        );
+        return;
       }
+      if (!isCurrent()) return;
+      // Merge after the GET so parallel reads of other schools survive.
+      await mutateOrders(
+        (current) =>
+          current
+            ? {
+                orders: { ...current.orders, [school.id]: loaded },
+                failures: { ...current.failures, [school.id]: undefined },
+              }
+            : current,
+        { revalidate: false },
+      );
     },
-    [from, to],
+    [
+      from,
+      to,
+      mutateOrders,
+      guardRequest,
+      discardRefused,
+      scopedKey,
+      showActionError,
+      invalidate,
+      ordersKey,
+    ],
   );
 
-  const load = useCallback(async () => {
-    // Cover the school lookup and its order requests with one generation.
-    const generation = ++generationRef.current;
-    setLoading(true);
-    clear();
-    try {
-      const loaded = await fetchCatererSchools();
-      if (generation !== generationRef.current) return;
-      setSchools(loaded);
-      await loadOrders(loaded.schools, generation);
-    } catch (cause) {
-      // Superseded loads must not show errors for the current period.
-      if (generation !== generationRef.current) return;
-      logger.error("caterer_schools_load_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void show(cause, {
-        object: "Ihre Schulen",
-        retry: () => reloadRef.current(),
-      });
-    } finally {
-      if (generation === generationRef.current) setLoading(false);
+  async function confirm(school: CatererSchool, orderId: string) {
+    const markConfirmed = (current: NonNullable<typeof response.data>) => {
+      const previous = current.orders[school.id];
+      if (!previous) return current;
+      return {
+        ...current,
+        orders: {
+          ...current.orders,
+          [school.id]: {
+            ...previous,
+            days: previous.days.map((day) =>
+              day.orderId === orderId
+                ? { ...day, status: "confirmed" as const }
+                : day,
+            ),
+          },
+        },
+      };
+    };
+    const outcome = await action.run({
+      optimistic: markConfirmed,
+      request: () => confirmCatererOrder(school.id, orderId),
+      commit: () => {
+        // The successful POST confirms the status even if the subsequent GET fails.
+        void mutateOrders(
+          (current) => (current ? markConfirmed(current) : current),
+          { revalidate: false },
+        );
+        const visible = currentWindow.current;
+        if (visible.key !== null && visible.key !== ordersKey) {
+          // A period selected while the POST ran stays visible and gets the acknowledged status.
+          void visible.mutate(
+            (current) => (current ? markConfirmed(current) : current),
+            { revalidate: true },
+          );
+        }
+        // Inactive windows have no reader to refresh them: never leave stale action data there.
+        void invalidate(
+          (key) =>
+            catererKeys.containsSchool(key, school.id) &&
+            key !== ordersKey &&
+            key !== visible.key,
+          { clear: true },
+        );
+      },
+      refusal: {
+        codes: ["meals.not_supplied"],
+        matches: (key) => catererKeys.containsSchool(key, school.id),
+      },
+    });
+    if (outcome.status === "failed") {
+      if (
+        outcome.error instanceof ApiError &&
+        outcome.error.code === "meals.order_not_found"
+      ) {
+        // A missing order is not lost read access. Reconcile this school's
+        // current orders, then let the existing action path show the failure.
+        if (currentWindow.current.scopedKey === scopedKey)
+          void retrySchool(school);
+        void invalidate(
+          (key) =>
+            catererKeys.containsSchool(key, school.id) && key !== ordersKey,
+        );
+      }
+      throw outcome.error;
     }
-  }, [clear, loadOrders, show]);
-  useEffect(() => {
-    reloadRef.current = load;
-  });
-  useEffect(() => {
-    void load();
-  }, [load]);
+    if (outcome.status === "discarded") {
+      // The session/window no longer owns this action: no toast or reload.
+      return;
+    }
+    if (currentWindow.current.scopedKey === scopedKey)
+      await retrySchool(school);
+  }
 
   async function download(format: DeliveryExportFormat) {
     setExporting(format);
@@ -509,7 +665,7 @@ export default function CatererOverviewPage() {
                   <CatererSchoolOrders
                     school={school}
                     orders={schoolOrders}
-                    onConfirmed={() => reloadRef.current()}
+                    onConfirm={(orderId) => confirm(school, orderId)}
                   />
                 ) : (
                   <SchoolLoadError

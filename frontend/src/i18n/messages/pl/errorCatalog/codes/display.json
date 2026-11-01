@@ -1,3 +1,4 @@
 {
-  "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+  "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "manage_forbidden": "Możesz przeglądać ekrany informacyjne, ale nie możesz ich zmieniać. Skontaktuj się z dyrekcją szkoły."
 }

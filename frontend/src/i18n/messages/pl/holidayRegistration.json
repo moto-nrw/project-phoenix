@@ -97,11 +97,20 @@
     "health": "Wyraź zgodę albo usuń informacje o zdrowiu.",
     "binding": "Potwierdź, że zgłoszenie jest wiążące.",
     "yesNo": "Wybierz tak lub nie.",
-    "choose": "Wybierz odpowiedź."
+    "choose": "Wybierz odpowiedź.",
+    "contactRole": "Wybierz co najmniej jedną rolę.",
+    "emergencyRequired": "Wybierz co najmniej jedną osobę do kontaktu w nagłych wypadkach.",
+    "emergencyLimit": "Możesz podać najwyżej trzy osoby do kontaktu w nagłych wypadkach.",
+    "pickupLimit": "Możesz upoważnić najwyżej pięć osób do odbioru dzieci.",
+    "contactLimit": "Możesz podać najwyżej osiem osób."
   },
-  "childQuestionsTitle": "Dodatkowe informacje",
-  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie",
+  "childQuestionsTitle": "Pytania i informacje o dziecku",
+  "familyQuestionsTitle": "Pytania i informacje o rodzinie",
   "legalTitle": "Informacje i zgody",
   "legalAccepted": "Potwierdzono",
-  "legalNotAccepted": "Nie potwierdzono"
+  "legalNotAccepted": "Nie potwierdzono",
+  "contactsTitle": "Kontakty",
+  "contactsText": "Wpisz każdą dodatkową osobę tylko raz. Wybierz jej role. Potrzebna jest co najmniej jedna osoba do kontaktu w nagłych wypadkach z numerem telefonu.",
+  "emergencyRole": "Kontakt w nagłych wypadkach",
+  "pickupRole": "Może odbierać dzieci"
 }

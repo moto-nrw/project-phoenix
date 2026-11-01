@@ -440,6 +440,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/timetable/conflict-acks/{fingerprint}"}:                                       notCaptured,
 	{http.MethodPost, "/api/timetable/instances/"}:                                                       notCaptured,
 	{http.MethodPost, "/api/timetable/instances/bulk-cancel"}:                                            notCaptured,
+	{http.MethodPost, "/api/timetable/school-vacation-hints/acknowledgements"}:                           notCaptured,
+	{http.MethodPost, "/api/timetable/school-vacations/seed"}:                                            notCaptured,
 	{http.MethodPost, "/api/timetable/instances/re-plan-week"}:                                           notCaptured,
 	{http.MethodDelete, "/api/timetable/instances/{id}"}:                                                 notCaptured,
 	{http.MethodPut, "/api/timetable/instances/{id}"}:                                                    notCaptured,

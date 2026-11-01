@@ -71,7 +71,7 @@ function renderList(props: Partial<Parameters<typeof TemplateList>[0]> = {}) {
       onApply={noop}
       onArchive={noop}
       onConnect={noop}
-      onKeepManual={noop}
+      onSetManualRoster={noop}
       reviewOnly={false}
       onReviewOnlyChange={noop}
       {...props}
@@ -119,6 +119,35 @@ describe("TemplateList with roster deviations (#5103)", () => {
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
     ).toEqual(["RDST 1b"]);
+  });
+
+  // Liste so lassen: die Karte sagt es und bietet den Rückweg.
+  it("shows a hand-kept series and lets the planner take it back", () => {
+    const onSetManualRoster = vi.fn();
+    const kept = { ...template("1", "Mensa"), manualRosterConfirmed: true };
+    renderList({
+      templates: [kept, template("2", "RDST 1b")],
+      onSetManualRoster,
+    });
+
+    const card = screen
+      .getByRole("heading", { level: 3, name: "Mensa" })
+      .closest("article")!;
+    expect(
+      within(card).getByText("Die Kinderliste bleibt bewusst so."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Hinweis wieder zeigen" }),
+    );
+    expect(onSetManualRoster).toHaveBeenCalledWith(kept, false);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Liste so lassen" }),
+    );
+    expect(onSetManualRoster).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "2" }),
+      true,
+    );
   });
 
   it("passes the deviation to the connect action", () => {

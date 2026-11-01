@@ -423,6 +423,20 @@ for (const device of VIEWPORTS) {
     test("Eltern: von der Kinderliste zur Einladung beim Kind", async ({
       page,
     }) => {
+      // Vorgeladene Kinddaten dürfen den Reiter sofort bedienbar machen.
+      // Sein UI-Zustand braucht keinen weiteren Server-Roundtrip, auf den
+      // eine Tour oder eine Person bei kalter Route warten müsste.
+      const tabNavigations: string[] = [];
+      page.on("request", (request) => {
+        const url = new URL(request.url());
+        if (
+          /\/students\/\d+$/.test(url.pathname) &&
+          url.searchParams.has("tab") &&
+          request.headers().rsc === "1"
+        ) {
+          tabNavigations.push(url.pathname + url.search);
+        }
+      });
       const tour = SETUP_TOURS.guardians!;
       await startTour(page, SCHOOL_SETUP_STEP_CONTENT.guardians.title);
       const { visited, stoppedAt } = await walkTour(page, tour);
@@ -433,6 +447,7 @@ for (const device of VIEWPORTS) {
       expect(visited).toEqual(
         expect.arrayContaining(["Kind öffnen", "Erziehungsberechtigte"]),
       );
+      expect(tabNavigations).toEqual([]);
       await closeTour(page);
     });
   });
