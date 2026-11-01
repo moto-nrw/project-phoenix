@@ -34,12 +34,12 @@ import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse } from "~/lib/api-error";
 import {
   downloadCatererDeliveries,
+  confirmCatererOrder,
   fetchCatererOrders,
   fetchCatererSchools,
   type CatererOrderDay,
   type CatererOrders,
   type CatererSchool,
-  type CatererSchools,
   type DeliveryExportFormat,
 } from "~/lib/caterer-api";
 import {
@@ -52,6 +52,11 @@ import { parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { openBlobForPrint } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import { useSession } from "next-auth/react";
+import { useSWRAuth, useInvalidateMatching, useSWRCacheKey } from "~/lib/swr";
+import { catererKeys } from "~/lib/swr/portal-keys";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "CatererOverview" });
 
@@ -156,48 +161,33 @@ export default function CatererOverviewPage() {
   const days = useMemo(() => periodDays(period, today), [period, today]);
   const from = days[0]!;
   const to = days[days.length - 1]!;
-  const [schools, setSchools] = useState<CatererSchools | null>(null);
-  const [orders, setOrders] = useState<Record<string, CatererOrders | null>>(
-    {},
+  const { data: session } = useSession();
+  const enabled = session?.user.scope === "caterer";
+  const schoolResponse = useSWRAuth(
+    enabled ? catererKeys.schools() : null,
+    fetchCatererSchools,
+    { keepPreviousData: false, revalidateIfStale: false },
   );
-  // Why a school's orders did not load, shown in that school's card.
-  const [failures, setFailures] = useState<Record<string, unknown>>({});
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<string | null>(null);
-  const { error, show, clear } = useApiLoadError();
-  const { show: showActionError } = useApiErrorDisplay();
-  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
-
-  const generationRef = useRef(0);
-  const requestRef = useRef(0);
-  const loadOrders = useCallback(
-    async (
-      list: readonly CatererSchool[],
-      generation = generationRef.current,
-    ) => {
-      if (generation !== generationRef.current) return;
-      // Only the newest request lands: a slow answer for the previous
-      // period never overwrites the one now chosen.
-      const request = ++requestRef.current;
+  const schools = schoolResponse.data ?? null;
+  const schoolIds = schools?.schools.map((school) => school.id) ?? [];
+  const ordersKey =
+    enabled && schools ? catererKeys.orders(schoolIds, from, to) : null;
+  const response = useSWRAuth(
+    ordersKey,
+    async () => {
       const results = await Promise.allSettled(
-        list.map((school) => fetchCatererOrders(school.id, from, to)),
+        schoolIds.map((schoolId) => fetchCatererOrders(schoolId, from, to)),
       );
-      if (
-        generation !== generationRef.current ||
-        request !== requestRef.current
-      )
-        return;
-      const next: Record<string, CatererOrders | null> = {};
-      const failed: Record<string, unknown> = {};
+      const orders: Record<string, CatererOrders | null> = {};
+      const failures: Record<string, unknown> = {};
       results.forEach((result, index) => {
-        const school = list[index]!;
-        if (result.status === "fulfilled") {
-          next[school.id] = result.value;
-        } else {
-          next[school.id] = null;
-          failed[school.id] = result.reason;
+        const schoolId = schoolIds[index]!;
+        if (result.status === "fulfilled") orders[schoolId] = result.value;
+        else {
+          orders[schoolId] = null;
+          failures[schoolId] = result.reason;
           logger.warn("caterer_orders_load_failed", {
-            school_id: school.id,
+            school_id: schoolId,
             error:
               result.reason instanceof Error
                 ? result.reason.message
@@ -205,71 +195,107 @@ export default function CatererOverviewPage() {
           });
         }
       });
-      setOrders(next);
-      setFailures(failed);
+      return { orders, failures };
     },
-    [from, to],
+    { keepPreviousData: false },
   );
+  const scopedKey = useSWRCacheKey()(ordersKey ?? "");
+  const currentKey = useRef(scopedKey);
+  useLayoutEffect(() => {
+    currentKey.current = scopedKey;
+  });
+  const action = useOptimisticAction(ordersKey, response.data);
+  const orders = action.data?.orders ?? {};
+  const failures = action.data?.failures ?? {};
+  const loading = schoolResponse.isLoading || response.isLoading;
+  const error = useSwrLoadError(
+    schoolResponse.error ?? response.error,
+    schoolResponse.error ? "Ihre Schulen" : "die Bestellungen",
+    schoolResponse.error ? schoolResponse.mutate : response.mutate,
+  );
+  const mutateOrders = response.mutate;
+  const [exporting, setExporting] = useState<string | null>(null);
+  const { show: showActionError } = useApiErrorDisplay();
+  const invalidate = useInvalidateMatching();
 
-  // „Wiederholen“ in the card of one school asks for that school only. A
-  // newer load of the whole page wins over a retry still on its way.
   const retrySchool = useCallback(
     async (school: CatererSchool) => {
-      const generation = generationRef.current;
-      const request = requestRef.current;
-      const current = () =>
-        generation === generationRef.current && request === requestRef.current;
-      try {
-        const loaded = await fetchCatererOrders(school.id, from, to);
-        if (!current()) return;
-        setOrders((previous) => ({ ...previous, [school.id]: loaded }));
-        setFailures((previous) => {
-          const next = { ...previous };
-          delete next[school.id];
-          return next;
-        });
-      } catch (cause) {
-        if (!current()) return;
-        logger.warn("caterer_orders_load_failed", {
-          school_id: school.id,
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
-        setFailures((previous) => ({ ...previous, [school.id]: cause }));
-      }
+      // The locked writer discards a late response after a period/session change.
+      await mutateOrders(
+        async (current) => {
+          try {
+            const loaded = await fetchCatererOrders(school.id, from, to);
+            return {
+              orders: { ...current?.orders, [school.id]: loaded },
+              failures: { ...current?.failures, [school.id]: undefined },
+            };
+          } catch (cause) {
+            return {
+              orders: { ...current?.orders, [school.id]: null },
+              failures: { ...current?.failures, [school.id]: cause },
+            };
+          }
+        },
+        { revalidate: false },
+      );
     },
-    [from, to],
+    [mutateOrders, from, to],
   );
 
-  const load = useCallback(async () => {
-    // Cover the school lookup and its order requests with one generation.
-    const generation = ++generationRef.current;
-    setLoading(true);
-    clear();
-    try {
-      const loaded = await fetchCatererSchools();
-      if (generation !== generationRef.current) return;
-      setSchools(loaded);
-      await loadOrders(loaded.schools, generation);
-    } catch (cause) {
-      // Superseded loads must not show errors for the current period.
-      if (generation !== generationRef.current) return;
-      logger.error("caterer_schools_load_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void show(cause, {
-        object: "Ihre Schulen",
-        retry: () => reloadRef.current(),
-      });
-    } finally {
-      if (generation === generationRef.current) setLoading(false);
+  async function confirm(school: CatererSchool, orderId: string) {
+    const outcome = await action.run({
+      optimistic: (current) => {
+        const previous = current.orders[school.id];
+        if (!previous) return current;
+        return {
+          ...current,
+          orders: {
+            ...current.orders,
+            [school.id]: {
+              ...previous,
+              days: previous.days.map((day) =>
+                day.orderId === orderId
+                  ? { ...day, status: "confirmed" as const }
+                  : day,
+              ),
+            },
+          },
+        };
+      },
+      request: async () => {
+        await confirmCatererOrder(school.id, orderId);
+        if (currentKey.current !== scopedKey) return undefined;
+        return fetchCatererOrders(school.id, from, to);
+      },
+      commit: (loaded) => {
+        if (loaded)
+          void response.mutate(
+            (current) =>
+              current
+                ? {
+                    ...current,
+                    orders: { ...current.orders, [school.id]: loaded },
+                  }
+                : current,
+            { revalidate: false },
+          );
+        // Other windows must not later resurrect an unconfirmed order.
+        void invalidate(
+          (key) =>
+            key.startsWith("caterer-orders-") && (!loaded || key !== ordersKey),
+        );
+      },
+      refusal: {
+        codes: ["meals.not_supplied", "meals.order_not_found"],
+        matches: (key) => key.startsWith("caterer-orders-"),
+      },
+    });
+    if (outcome.status === "failed") throw outcome.error;
+    if (outcome.status === "discarded") {
+      // The session/window no longer owns this action: no toast or reload.
+      return;
     }
-  }, [clear, loadOrders, show]);
-  useEffect(() => {
-    reloadRef.current = load;
-  });
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }
 
   async function download(format: DeliveryExportFormat) {
     setExporting(format);
@@ -509,7 +535,7 @@ export default function CatererOverviewPage() {
                   <CatererSchoolOrders
                     school={school}
                     orders={schoolOrders}
-                    onConfirmed={() => reloadRef.current()}
+                    onConfirm={(orderId) => confirm(school, orderId)}
                   />
                 ) : (
                   <SchoolLoadError

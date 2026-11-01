@@ -1,12 +1,12 @@
 import {
   act,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -72,7 +72,11 @@ function week(dayTotals: number[], change = 0) {
 
 describe("CatererOverviewPage (#3873)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    sessionState.data = {
+      user: { id: "caterer", scope: "caterer" },
+      expires: "2099-01-01",
+    } as Session;
     mocks.fetchCatererSchools.mockResolvedValue({
       catererName: "Küche am Markt",
       schools: [
@@ -111,6 +115,125 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(within(north).getByText("50")).toBeInTheDocument();
     expect(within(north).getByText("+1")).toBeInTheDocument();
   });
+
+  it("shares schools and orders on return without a loading replacement", async () => {
+    const view = render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    view.rerender(<div />);
+    view.rerender(<CatererOverviewPage />);
+    expect(screen.getByText("Bestellungen für Küche am Markt")).toBeVisible();
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+  });
+
+  it("confirms optimistically without a skeleton or school reload, then reads only that school's answer", async () => {
+    const pending = deferred<void>();
+    mocks.confirmCatererOrder.mockReturnValueOnce(pending.promise);
+    render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+    );
+    expect(screen.getAllByText("Bestätigt").length).toBeGreaterThan(0);
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    expect(screen.queryByText("Wird geladen…")).not.toBeInTheDocument();
+    expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+    await act(async () => pending.resolve());
+    expect(mocks.confirmCatererOrder).toHaveBeenCalledWith("1", "1");
+    expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(3);
+    expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
+      "1",
+      "2026-09-07",
+      "2026-09-11",
+    );
+  });
+
+  it("rolls back a failed confirmation without removing the loaded orders", async () => {
+    const pending = deferred<void>();
+    mocks.confirmCatererOrder.mockReturnValueOnce(pending.promise);
+    render(<CatererOverviewPage />);
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+    );
+    expect(screen.getAllByText("Bestätigt").length).toBeGreaterThan(0);
+    await act(async () => pending.reject(new ApiError("down", 503)));
+    expect(
+      screen.getAllByRole("button", { name: "Erhalten bestätigen" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+    ).toBeVisible();
+    expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
+    expect(mocks.fetchCatererSchools).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["account", "logout", "other-tab-account", "other-tab-logout"])(
+    "withdraws old schools, orders and pending confirmations on %s",
+    async (change) => {
+      const pending = deferred<void>();
+      mocks.confirmCatererOrder.mockReturnValueOnce(pending.promise);
+      const view = render(<CatererOverviewPage />);
+      expect(
+        await screen.findByText("Bestellungen für Küche am Markt"),
+      ).toBeVisible();
+      fireEvent.click(
+        screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+      );
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+      );
+      mocks.fetchCatererSchools.mockImplementation(
+        () => new Promise(() => undefined),
+      );
+      if (change.startsWith("other-tab")) {
+        act(() =>
+          globalThis.dispatchEvent(
+            new StorageEvent("storage", {
+              key: "moto:personal-storage-owner",
+              newValue: change.endsWith("logout") ? null : "B",
+            }),
+          ),
+        );
+      } else {
+        sessionState.data =
+          change === "logout"
+            ? null
+            : ({
+                user: { id: "B", scope: "caterer" },
+                expires: "2099-01-01",
+              } as Session);
+        view.rerender(<CatererOverviewPage />);
+      }
+      expect(
+        screen.queryByText("Bestellungen für Küche am Markt"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("OGS Nord")).not.toBeInTheDocument();
+      await act(async () => pending.resolve());
+      expect(
+        screen.queryByText("Bestellungen für Küche am Markt"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("OGS Nord")).not.toBeInTheDocument();
+      expect(mocks.fetchCatererOrders).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("prints from one button and offers the file formats in the menu", async () => {
     mocks.downloadCatererDeliveries.mockResolvedValue(undefined);
@@ -340,7 +463,7 @@ describe("CatererOverviewPage (#3873)", () => {
   });
 
   it.each(["resolve", "reject"] as const)(
-    "keeps the current period when an older school request settles last (%s)",
+    "keeps the current period when an older order request settles last (%s)",
     async (outcome) => {
       render(<CatererOverviewPage />, { wrapper: ToastProvider });
       // Die Karte zeigt die Tabelle schon beim Laden; erst die Zeile
@@ -351,11 +474,8 @@ describe("CatererOverviewPage (#3873)", () => {
         ).toBeInTheDocument(),
       );
 
-      const olderSchools = deferred<{
-        catererName: string;
-        schools: { id: string; name: string }[];
-      }>();
-      mocks.fetchCatererSchools.mockReturnValueOnce(olderSchools.promise);
+      const olderOrders = deferred<ReturnType<typeof week>>();
+      mocks.fetchCatererOrders.mockReturnValueOnce(olderOrders.promise);
       fireEvent.click(screen.getByRole("button", { name: "Nächste Woche" }));
       fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
       // Die Karte zeigt die Tabelle schon beim Laden; erst die Zeile
@@ -373,12 +493,9 @@ describe("CatererOverviewPage (#3873)", () => {
 
       await act(async () => {
         if (outcome === "resolve") {
-          olderSchools.resolve({
-            catererName: "Veralteter Stand",
-            schools: [{ id: "1", name: "Alte Schule" }],
-          });
+          olderOrders.resolve(week([99, 99, 99, 99, 99]));
         } else {
-          olderSchools.reject(new Error("Previous period failed"));
+          olderOrders.reject(new Error("Previous period failed"));
         }
       });
 
@@ -417,11 +534,8 @@ describe("CatererOverviewPage (#3873)", () => {
       "2026-09-18",
     );
 
-    const currentSchools = deferred<{
-      catererName: string;
-      schools: { id: string; name: string }[];
-    }>();
-    mocks.fetchCatererSchools.mockReturnValueOnce(currentSchools.promise);
+    const currentOrders = deferred<ReturnType<typeof week>>();
+    mocks.fetchCatererOrders.mockReturnValueOnce(currentOrders.promise);
     fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
     expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
 
@@ -431,10 +545,7 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
 
     await act(async () => {
-      currentSchools.resolve({
-        catererName: "Küche am Markt",
-        schools: [{ id: "1", name: "OGS Nord" }],
-      });
+      currentOrders.resolve(week([10, 10, 10, 10, 10]));
     });
     const north = within(screen.getAllByRole("table")[0]!)
       .getByText("OGS Nord")
@@ -477,3 +588,33 @@ describe("CatererOverviewPage (#3873)", () => {
     expect(within(north).getAllByText("10")).toHaveLength(2);
   });
 });
+
+vi.unmock("swr");
+import { SWRConfig } from "~/lib/swr/testing";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+import type { Session } from "next-auth";
+import type { ReactElement } from "react";
+const sessionState = vi.hoisted(() => ({ data: null as Session | null }));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: sessionState.data,
+    status: sessionState.data ? "authenticated" : "unauthenticated",
+  }),
+}));
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+function render(ui: ReactElement, _options?: unknown) {
+  const cache = new Map();
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>
+          <SWRScopeBoundary />
+          {children}
+        </ToastProvider>
+      </SWRConfig>
+    ),
+  });
+}
+
+import { resumeSWRSession } from "~/lib/swr/scope";
+afterEach(() => resumeSWRSession());

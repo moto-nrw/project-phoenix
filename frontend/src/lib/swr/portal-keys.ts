@@ -230,6 +230,10 @@ export const traegerKeys = {
 /** Caterer sessions span schools; every order response still names its school. */
 export const catererKeys = {
   schools: () => "caterer-schools",
-  orders: (schoolId: string, from: string, to: string) =>
-    resourceKey("caterer-orders-", { schoolId, from, to }),
+  orders: (schoolIds: readonly string[], from: string, to: string) =>
+    resourceKey("caterer-orders-", {
+      schoolIds: [...schoolIds].sort(),
+      from,
+      to,
+    }),
 } as const;
