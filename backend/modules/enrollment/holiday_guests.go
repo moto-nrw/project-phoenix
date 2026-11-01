@@ -35,12 +35,6 @@ var ErrHolidayGuestPlanAuthorMissing = errors.New("holiday guest plan author has
 // hosting school's.
 var ErrHolidayGuestGroupInvalid = errors.New("holiday guest group is not a group of the school")
 
-// HolidayGuestSchoolClass is the class of the child a guest becomes: People
-// Directory requires one, and the groups and lists of the school show it
-// where they show a class, so the staff tell a guest from their own
-// children at a glance.
-const HolidayGuestSchoolClass = "Feriengast"
-
 // HolidayGuestReadOnlyDays is how long the sheet of a guest stays readable
 // after the last day of its week (ADR 0084 section 6).
 const HolidayGuestReadOnlyDays = 7

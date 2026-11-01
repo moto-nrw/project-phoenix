@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/migrate"
 
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -192,4 +193,26 @@ func TestHolidayHostParticipantsShareHealthOnlyWithTheNewConsent(t *testing.T) {
 			FROM enrollment.holiday_host_participants(?, ?) AS participant`, f.own, f.open).Scan(ctx, &whole)
 	})
 	assert.False(t, strings.Contains(whole, "eva@example.org"), "no e-mail address leaves")
+}
+
+// TestHolidayHealthPreflightWaitsForItsSourceTables: the preflight asks every
+// pending migration against the database as it is before the release. On a
+// fresh database it asks nothing; before the answer columns of the forms
+// exist it asks the plaintext columns only.
+func TestHolidayHealthPreflightWaitsForItsSourceTables(t *testing.T) {
+	t.Parallel()
+	registrations := legacyParentMigration(t, holidayRegistrationsVersion)
+	forms := legacyParentMigration(t, holidayPeriodFormsVersion)
+	pending := withPendingMigrations(t.Context(), migrate.MigrationSlice{{Name: registrations.Name}, {Name: forms.Name}})
+	require.NoError(t, holidayHealthDataPrecondition(pending, nil), "a fresh database has no table to ask; nil proves no query runs")
+
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	require.NoError(t, holidayHealthDataDownWith(ctx, db, testHolidayHealthCipher(t)))
+	_, err := db.ExecContext(ctx, `ALTER TABLE enrollment.holiday_registration_children DROP COLUMN custom_data CASCADE;
+		ALTER TABLE enrollment.holiday_registrations DROP COLUMN custom_data CASCADE`)
+	require.NoError(t, err)
+	require.Error(t, holidayHealthDataPrecondition(ctx, db), "the full question needs the answer columns")
+	formsPending := withPendingMigrations(ctx, migrate.MigrationSlice{{Name: forms.Name}})
+	require.NoError(t, holidayHealthDataPrecondition(formsPending, db), "before the forms the plaintext columns alone hold what to seal")
 }

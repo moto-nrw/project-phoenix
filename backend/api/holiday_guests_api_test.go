@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -241,7 +242,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	}, f.careDays(t, ben), "each day of the week expects the guest with the times of its time model")
 	assert.Equal(t, waiting, ben, "the first day of the week moves the waiting copy into the group")
 	class, status, from, until, health := f.child(t, ben)
-	assert.Equal(t, enrollment.HolidayGuestSchoolClass, class)
+	assert.Equal(t, peopledirectory.HolidayGuestSchoolClass, class)
 	assert.Equal(t, "active", status)
 	assert.Equal(t, "2099-07-06", from)
 	assert.Equal(t, "2099-07-10", until)

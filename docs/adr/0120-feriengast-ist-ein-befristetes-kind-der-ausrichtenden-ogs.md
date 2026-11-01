@@ -215,7 +215,10 @@ dieser Änderung:
   `enrollment.holiday_guests.health_data`, gebunden an Schule und Kind.
 - **Ende mit der Woche.** Die Gesundheitsangaben sieht die Schule wie die
   Teilnehmerliste nur bis zum letzten Tag der Woche (Nachtrag zu ADR 0116).
-  Ab dem Tag danach zeigt das Blatt sie nicht mehr, und der stündliche
+  Ab dem Tag danach zeigen Blatt, Kindakte, Gesundheitsliste und
+  Notfallliste sie nicht mehr (People Directory liest das Gesundheitsfeld
+  eines Kindes der Klasse `Feriengast` nach seinem Betreuungsende leer, auch
+  vor dem Abgleich), und der stündliche
   Abgleich löscht Kopie und Gesundheitsfeld; die sieben Tage nur lesend aus
   Punkt 5 gelten für Kontakte und Antworten, nicht für Gesundheitsangaben.
   Eine Stornierung oder Umbuchung beendet den Gast und löscht beides beim

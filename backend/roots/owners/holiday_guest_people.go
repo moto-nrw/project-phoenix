@@ -136,7 +136,7 @@ func holidayGuestStudent(personID int64, child enrollmentOwner.HolidayGuestChild
 		status = peopledirectory.StudentStatusPending
 	}
 	return peopledirectory.EnrollmentStudent{
-		PersonID: personID, SchoolClass: enrollmentOwner.HolidayGuestSchoolClass, Status: status,
+		PersonID: personID, SchoolClass: peopledirectory.HolidayGuestSchoolClass, Status: status,
 		EnrolledFrom: child.EnrolledFrom.String(), EnrolledUntil: child.EnrolledUntil.String(),
 	}
 }

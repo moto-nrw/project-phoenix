@@ -30,7 +30,9 @@ export function HolidayStudentHealthSection({
   const entries = useSWRAuth(
     holidayKeys.studentHealth(studentId),
     () => fetchHolidayStudentHealth(studentId),
-    { revalidateOnFocus: true },
+    // Nach dem letzten Tag der Woche oder einer Stornierung verschwinden die
+    // Angaben auch in einem offenen Tab, wie beim Feriengast.
+    { revalidateOnFocus: true, refreshInterval: 60_000 },
   );
   const loadError = useSwrLoadError(
     entries.error,

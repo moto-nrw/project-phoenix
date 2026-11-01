@@ -178,6 +178,7 @@ func (s emergencySnapshotStudentRecords) ByIDs(ctx context.Context, studentIDs [
 		return nil, err
 	}
 	result := make(map[int64]emergencysnapshot.Student, len(rows))
+	today := calendar.TodayDate()
 	for id, row := range rows {
 		if row == nil {
 			continue
@@ -186,7 +187,8 @@ func (s emergencySnapshotStudentRecords) ByIDs(ctx context.Context, studentIDs [
 			ID:          id,
 			PersonID:    row.PersonID,
 			SchoolClass: row.SchoolClass,
-			HealthInfo:  owners.StringValue(row.HealthInfo),
+			// A holiday guest's health field ends with its week (#4722).
+			HealthInfo: owners.StringValue(row.HealthInfoOn(today)),
 		}
 	}
 	return result, nil

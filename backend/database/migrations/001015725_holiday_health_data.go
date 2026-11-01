@@ -295,19 +295,40 @@ func optionalHolidayHealthCipher() (holidayFieldCipher, error) {
 	return holidayHealthCipher()
 }
 
-// holidayHealthDataPrecondition refuses before the release when there is
-// health information to seal and no key to seal it with.
-func holidayHealthDataPrecondition(ctx context.Context, db *bun.DB) error {
-	var pending bool
-	if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children
+// holidayHealthToSealSQL asks for health information to seal;
+// holidayHealthToSealWithoutAnswersSQL asks the same before the answer
+// columns of the forms (holidayPeriodFormsVersion) exist.
+const (
+	holidayHealthToSealSQL = `SELECT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children
 		WHERE allergies <> '' OR medication <> '' OR health_notes <> '' OR custom_data <> '{}'::jsonb)
-		OR EXISTS (SELECT 1 FROM enrollment.holiday_registrations WHERE custom_data <> '{}'::jsonb)`).Scan(ctx, &pending); err != nil {
+		OR EXISTS (SELECT 1 FROM enrollment.holiday_registrations WHERE custom_data <> '{}'::jsonb)`
+	holidayHealthToSealWithoutAnswersSQL = `SELECT EXISTS (SELECT 1 FROM enrollment.holiday_registration_children
+		WHERE allergies <> '' OR medication <> '' OR health_notes <> '')`
+)
+
+// holidayHealthDataPrecondition refuses before the release when there is
+// health information to seal and no key to seal it with. The preflight asks
+// the database as it is before the release: tables or answer columns an
+// earlier migration of the same release creates are not there yet, and come
+// without anything to seal.
+func holidayHealthDataPrecondition(ctx context.Context, db *bun.DB) error {
+	if migrationPending(ctx, holidayRegistrationsVersion) {
+		return nil
+	}
+	var pending bool
+	var err error
+	if migrationPending(ctx, holidayPeriodFormsVersion) {
+		err = db.NewRaw(holidayHealthToSealWithoutAnswersSQL).Scan(ctx, &pending)
+	} else {
+		err = db.NewRaw(holidayHealthToSealSQL).Scan(ctx, &pending)
+	}
+	if err != nil {
 		return fmt.Errorf("check holiday health information to seal: %w", err)
 	}
 	if !pending {
 		return nil
 	}
-	_, err := holidayHealthCipher()
+	_, err = holidayHealthCipher()
 	return err
 }
 
