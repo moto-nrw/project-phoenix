@@ -56,7 +56,7 @@ func (s *StudentTemplateDays) KeepStudentTemplateDays(ctx context.Context, keep 
 		text := keep.BookingEndedOn.String()
 		through = &text
 	}
-	if err := s.deps.Enrollments.SetStudentEnrollmentsKeptWithoutBooking(ctx, keep.StudentID, ids, through); err != nil {
+	if err := s.deps.Enrollments.SetStudentEnrollmentsKeptWithoutBooking(ctx, keep.StudentID, ids, sortedWeekdays(wanted), through); err != nil {
 		return 0, fmt.Errorf("student template days: keep hand rows: %w", err)
 	}
 	return len(ids), nil

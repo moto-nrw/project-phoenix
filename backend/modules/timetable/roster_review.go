@@ -89,10 +89,10 @@ type TemplateRosterEntry struct {
 	// FromBooking marks a row a booking created; the other rows are kept by
 	// hand.
 	FromBooking bool
-	// KeptWithoutBookingThrough is the school's decision on a hand row to
-	// keep the child although bookings ending up to this day no longer
-	// carry the Regeltermin (#5102).
-	KeptWithoutBookingThrough *calendar.Date
+	// KeptWithoutBooking is the school's decision on a hand row, per ISO
+	// weekday, to keep the child although bookings ending up to that day no
+	// longer carry the Regeltermin (#5102).
+	KeptWithoutBooking map[int]calendar.Date
 }
 
 // appliesOn reports whether the row puts the child on the template's

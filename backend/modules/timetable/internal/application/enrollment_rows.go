@@ -162,9 +162,11 @@ func legacyStudentEnrollment(value timetable.StudentEnrollment) *activityContrac
 		date := activityContract.Date(*value.ValidUntil)
 		result.ValidUntil = &date
 	}
-	if value.KeptWithoutBookingThrough != nil {
-		kept := activityContract.Date(*value.KeptWithoutBookingThrough)
-		result.KeptWithoutBookingThrough = &kept
+	for weekday, date := range value.KeptWithoutBooking {
+		if result.KeptWithoutBooking == nil {
+			result.KeptWithoutBooking = make(map[int]activityContract.Date, len(value.KeptWithoutBooking))
+		}
+		result.KeptWithoutBooking[weekday] = activityContract.Date(date)
 	}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
 	result.SetTenantID(value.TenantID)
@@ -172,19 +174,32 @@ func legacyStudentEnrollment(value timetable.StudentEnrollment) *activityContrac
 }
 
 func publicStudentEnrollmentInput(value *activityContract.StudentEnrollment) timetable.StudentEnrollmentInput {
-	var validUntil, kept *string
+	var validUntil *string
 	if value.ValidUntil != nil {
 		text := value.ValidUntil.String()
 		validUntil = &text
 	}
-	if value.KeptWithoutBookingThrough != nil {
-		text := value.KeptWithoutBookingThrough.String()
-		kept = &text
-	}
 	return timetable.StudentEnrollmentInput{StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
 		ValidFrom: value.ValidFrom.String(), ValidUntil: validUntil, CalendarPeriodID: value.CalendarPeriodID,
 		EnrollmentRequestChildID: value.EnrollmentRequestChildID, SelectedWeekdays: value.SelectedWeekdays,
-		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday, KeptWithoutBookingThrough: kept}
+		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday,
+		KeptWithoutBooking: keptWeekdayStrings(value.KeptWithoutBooking, nil)}
+}
+
+// keptWeekdayStrings copies a row's per-weekday keep decision (#5102), all
+// weekdays when only is nil, else the one weekday only.
+func keptWeekdayStrings(kept map[int]activityContract.Date, only *int) map[int]string {
+	var result map[int]string
+	for weekday, date := range kept {
+		if only != nil && *only != weekday {
+			continue
+		}
+		if result == nil {
+			result = make(map[int]string, len(kept))
+		}
+		result[weekday] = date.String()
+	}
+	return result
 }
 
 func legacyStudentEnrollmentError(operation string, err error) error {

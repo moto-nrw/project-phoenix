@@ -147,31 +147,62 @@ func (s *Service) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, 
 }
 
 // SetStudentEnrollmentsKeptWithoutBooking marks or unmarks hand rows of one
-// student (#5102). Every id must name a hand row of that student: a
-// booking-created row follows its booking and never carries the mark.
-func (s *Service) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, through *string) error {
-	if studentID <= 0 || (through != nil && !timetable.ValidDate(*through)) {
+// student on the given weekdays (#5102); other weekdays keep their decision.
+// Every id must name a hand row of that student: a booking-created row
+// follows its booking and never carries the mark.
+func (s *Service) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, weekdays []int, through *string) error {
+	if studentID <= 0 || len(weekdays) == 0 || (through != nil && !timetable.ValidDate(*through)) {
 		return s.reject("set_student_enrollments_kept_without_booking", timetable.ErrInvalidStudentEnrollment)
 	}
 	return s.runWrite(ctx, "set_student_enrollments_kept_without_booking", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, err := s.store.ListStudentEnrollments(txCtx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{studentID}})
+		return s.keepHandRows(txCtx, stats, studentID, ids, weekdays, through)
+	})
+}
+
+// keepHandRows writes the merged decision onto each of the student's hand
+// rows and refuses any other row.
+func (s *Service) keepHandRows(ctx context.Context, stats *domain.OperationStats, studentID int64, ids []int64, weekdays []int, through *string) error {
+	rows, queryStats, err := s.store.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{studentID}})
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	hand := make(map[int64]timetable.StudentEnrollment, len(rows))
+	for _, row := range rows {
+		if row.EnrollmentRequestChildID == nil {
+			hand[row.ID] = row
+		}
+	}
+	for _, id := range ids {
+		row, found := hand[id]
+		if !found {
+			return timetable.ErrStudentEnrollmentNotFound
+		}
+		queryStats, err = s.store.SetStudentEnrollmentKeptWithoutBooking(ctx, id, mergeKeptWeekdays(row.KeptWithoutBooking, weekdays, through))
 		stats.Add(queryStats)
 		if err != nil {
 			return err
 		}
-		hand := make(map[int64]bool, len(rows))
-		for _, row := range rows {
-			hand[row.ID] = row.EnrollmentRequestChildID == nil
+	}
+	return nil
+}
+
+// mergeKeptWeekdays sets the weekdays to the later of their decision and
+// through, or clears them when through is nil; other weekdays stay.
+func mergeKeptWeekdays(current map[int]string, weekdays []int, through *string) map[int]string {
+	result := make(map[int]string, len(current)+len(weekdays))
+	for weekday, date := range current {
+		result[weekday] = date
+	}
+	for _, weekday := range weekdays {
+		switch {
+		case through == nil:
+			delete(result, weekday)
+		case result[weekday] < *through:
+			result[weekday] = *through
 		}
-		for _, id := range ids {
-			if !hand[id] {
-				return timetable.ErrStudentEnrollmentNotFound
-			}
-		}
-		queryStats, err = s.store.SetStudentEnrollmentsKeptWithoutBooking(txCtx, ids, through)
-		stats.Add(queryStats)
-		return err
-	})
+	}
+	return result
 }
 
 func (s *Service) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {

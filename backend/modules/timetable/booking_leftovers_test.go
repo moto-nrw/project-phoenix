@@ -122,7 +122,7 @@ func TestDetectBookingLeftoversUsesPickupTimes(t *testing.T) {
 func TestDetectBookingLeftoversRespectsTheKeepDecision(t *testing.T) {
 	t.Parallel()
 	row := handRow(leftoverChild)
-	row.KeptWithoutBookingThrough = &leftoverChange
+	row.KeptWithoutBooking = map[int]calendar.Date{4: leftoverChange}
 	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
 		[]timetable.BookingLeftoverTemplate{handTemplate(row)},
 		[]timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
@@ -130,7 +130,7 @@ func TestDetectBookingLeftoversRespectsTheKeepDecision(t *testing.T) {
 	assert.True(t, leftovers[0].Kept, "a kept leftover is listed as decided")
 
 	earlier := leftoverChange.AddDays(-7)
-	row.KeptWithoutBookingThrough = &earlier
+	row.KeptWithoutBooking = map[int]calendar.Date{4: earlier}
 	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
 		[]timetable.BookingLeftoverTemplate{handTemplate(row)},
 		[]timetable.OfferingWeekdayBooking{thursdayDropped(leftoverChild)})
@@ -207,4 +207,28 @@ func TestDetectBookingLeftoversNeedsAnOccurrenceAfterTheDrop(t *testing.T) {
 	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
 		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
 	require.Len(t, leftovers, 1, "Thursday 03.12. still runs")
+}
+
+// A row must plan the weekday on a day the series still runs (quorum review
+// of #5452): a row ending Wednesday after a Tuesday start plans no Thursday,
+// and a row starting after the series ended plans nothing.
+func TestDetectBookingLeftoversNeedsADayOfTheRow(t *testing.T) {
+	t.Parallel()
+	booking := thursdayDropped(leftoverChild) // tomorrow is Thursday 05.11.
+	endsWednesday := handRow(leftoverChild)
+	wednesday := calendar.NewDate(2026, 11, 11)
+	tuesday := calendar.NewDate(2026, 11, 10)
+	endsWednesday.ValidFrom, endsWednesday.ValidUntil = &tuesday, &wednesday
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{handTemplate(endsWednesday)}, []timetable.OfferingWeekdayBooking{booking})
+	assert.Empty(t, leftovers, "the row runs Tuesday 10.11. only, no Thursday")
+
+	afterSeries := handRow(leftoverChild)
+	late := calendar.NewDate(2026, 12, 1)
+	afterSeries.ValidFrom = &late
+	template := handTemplate(afterSeries)
+	template.WeekdayUntil = map[int]calendar.Date{4: calendar.NewDate(2026, 11, 27)}
+	leftovers = timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{template}, []timetable.OfferingWeekdayBooking{booking})
+	assert.Empty(t, leftovers, "the row starts after the last Thursday of the series")
 }

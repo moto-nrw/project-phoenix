@@ -39,9 +39,10 @@ type StudentEnrollment struct {
 	// enrollment/care-offering decision path and marks a row the template
 	// editor must not touch; Weekday is editor-owned and replaceable.
 	Weekday *int `json:"weekday,omitempty"`
-	// KeptWithoutBookingThrough marks a hand row the school keeps although
-	// bookings ending up to this day no longer carry it (#5102).
-	KeptWithoutBookingThrough *Date `json:"kept_without_booking_through,omitempty"`
+	// KeptWithoutBooking marks per ISO weekday the day up to which the school
+	// keeps the child on this hand row although ended bookings no longer
+	// carry it (#5102).
+	KeptWithoutBooking map[int]Date `json:"kept_without_booking,omitempty"`
 	// StudentAlumnus and the name fields are read projections supplied by the
 	// People Directory. They are not persisted with the enrollment row.
 	StudentAlumnus   bool   `json:"-"`

@@ -148,17 +148,13 @@ func (s *StudentTemplateDays) continueHandRow(ctx context.Context, row *activity
 		text := calendar.Date(*row.ValidUntil).String()
 		validUntil = &text
 	}
-	var kept *string
-	if row.KeptWithoutBookingThrough != nil {
-		text := row.KeptWithoutBookingThrough.String()
-		kept = &text
-	}
 	scoped := weekday
 	_, err := s.deps.Enrollments.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
 		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID,
 		ValidFrom: start.String(), ValidUntil: validUntil,
 		CalendarPeriodID: row.CalendarPeriodID, AttendanceStatus: row.AttendanceStatus, Weekday: &scoped,
-		KeptWithoutBookingThrough: kept,
+		// The weekday-scoped row keeps that weekday's decision only.
+		KeptWithoutBooking: keptWeekdayStrings(row.KeptWithoutBooking, &scoped),
 	})
 	if err != nil {
 		return fmt.Errorf("student template days: continue hand row: %w", err)

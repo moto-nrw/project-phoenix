@@ -113,13 +113,13 @@ func (rs *Resource) bookingLeftoverTemplates(ctx context.Context, periodID int64
 	if err != nil {
 		return nil, err
 	}
-	deviations, err := rs.templateRosterDeviations(ctx, periodID)
+	deviations, err := rs.detectTemplateRosterDeviations(ctx, periodID, nil)
 	if err != nil {
 		return nil, err
 	}
 	shown := make(map[int64]bool, len(deviations))
 	for _, deviation := range deviations {
-		shown[deviation.TemplateID] = true
+		shown[deviation.templateID] = true
 	}
 	templates := slices.DeleteFunc(mapTemplateRows(rows, ratio, nil), func(template templateResponse) bool {
 		return template.Type == timetable.GroupTypeDuty || shown[template.ID]

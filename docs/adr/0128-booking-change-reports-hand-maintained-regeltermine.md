@@ -178,12 +178,15 @@ Nothing is stored for the report.
 The school's answer is the only stored part. "Entfernen" is
 `RemoveStudentTemplateDays` from the later of the booking end and tomorrow.
 "Bleibt so" is Timetable's new command `KeepStudentTemplateDays`: it writes
-the booking end into the new column
-`activities.student_enrollments.kept_without_booking_through` of the
-child's hand rows of the series. A mark on or after the booking end hides
-the row's report; a later booking end shows it again. It changes no plan,
-and a continuation row of a removal keeps the mark. Booking-created rows
-never carry it.
+the booking end, per ISO weekday, into the new JSONB column
+`activities.student_enrollments.kept_without_booking` of the child's hand
+rows of the series, for example `{"4": "2026-11-02"}`. A decision on or
+after a weekday's booking end hides that weekday's report; a later booking
+end shows it again; other weekdays of the row keep their own decision, also
+on undo. It changes no plan, and a weekday-scoped continuation row of a
+removal keeps the decision of its weekday. Booking-created rows never carry
+it. A weekday counts only when the hand row and the series still have a day
+of it from the later of the booking end and tomorrow on.
 
 `RemoveStudentTemplateDays` now starts tomorrow at the earliest, also when
 asked for today: today's occurrences and rows stay as they are. The command

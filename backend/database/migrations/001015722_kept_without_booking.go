@@ -26,27 +26,28 @@ func init() {
 // keptWithoutBookingUpSQL records on a hand roster row that the school keeps
 // the child planned although a booking of that weekday ended (ADR 0128,
 // addendum for #5102). The hint "Ohne passende Buchung eingeplant" names a
-// hand row whose child lost a booking on a weekday the row plans; a date on
-// or after the day that booking ended hides it. A later booking end shows
+// hand row whose child lost a booking on a weekday the row plans. The
+// decision is kept per ISO weekday, {"4": "2026-11-02"}: a date on or after
+// the day that weekday's booking ended hides it; a later booking end shows
 // the hint again. Booking-created rows never carry it.
 const keptWithoutBookingUpSQL = `
 		ALTER TABLE activities.student_enrollments
-			ADD COLUMN IF NOT EXISTS kept_without_booking_through DATE;
+			ADD COLUMN IF NOT EXISTS kept_without_booking JSONB;
 
-		COMMENT ON COLUMN activities.student_enrollments.kept_without_booking_through IS
-			'Hand rows only: the school keeps the child planned although bookings ending up to this day no longer carry the Regeltermin (#5102).';
+		COMMENT ON COLUMN activities.student_enrollments.kept_without_booking IS
+			'Hand rows only: per ISO weekday ("1".."7") the day up to which ended bookings no longer carrying the Regeltermin are accepted; the school keeps the child planned (#5102).';
 `
 
 func keptWithoutBookingUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, keptWithoutBookingUpSQL); err != nil {
-		return fmt.Errorf("add activities.student_enrollments.kept_without_booking_through: %w", err)
+		return fmt.Errorf("add activities.student_enrollments.kept_without_booking: %w", err)
 	}
 	return nil
 }
 
 func keptWithoutBookingDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `ALTER TABLE activities.student_enrollments DROP COLUMN IF EXISTS kept_without_booking_through;`); err != nil {
-		return fmt.Errorf("drop activities.student_enrollments.kept_without_booking_through: %w", err)
+	if _, err := db.ExecContext(ctx, `ALTER TABLE activities.student_enrollments DROP COLUMN IF EXISTS kept_without_booking;`); err != nil {
+		return fmt.Errorf("drop activities.student_enrollments.kept_without_booking: %w", err)
 	}
 	return nil
 }

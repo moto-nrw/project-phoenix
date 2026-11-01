@@ -134,6 +134,59 @@ func TestBookingLeftoversSurviveTheReload(t *testing.T) {
 	assert.Empty(t, s.listLeftovers(t), "after the removal nothing is left")
 }
 
+// TestBookingLeftoversKeepOneWeekday (quorum review of #5452): one hand row
+// plans Monday to Friday; the Monday booking ends on one day, the Thursday
+// booking a week later. „Bleibt so“ for Thursday keeps Thursday only, and
+// its undo leaves Monday's decision alone.
+func TestBookingLeftoversKeepOneWeekday(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2f", 1)
+	child := children[0]
+	template := s.createHandTemplate(t, "Hausaufgaben 2f", children)
+	start, end := rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(121)
+	mondayEnds, thursdayEnds := rosterReviewMonday.AddDays(14), rosterReviewMonday.AddDays(21)
+	window := func(from, until calendar.Date, ended bool, weekdays ...int) timetableModule.OfferingBookingWindow {
+		return timetableModule.OfferingBookingWindow{ValidFrom: &from, ValidUntil: &until, Weekdays: weekdays, Ended: ended}
+	}
+	s.sources.bookings = []timetableModule.OfferingWeekdayBooking{
+		{OfferingID: leftoverGanztagID, StudentID: child, CountsAsCare: true, Weekdays: []int{1, 2, 3, 5},
+			Windows: []timetableModule.OfferingBookingWindow{window(start, end, false, 2, 3, 5), window(start, mondayEnds, true, 1)}},
+		{OfferingID: leftoverGanztagID + 1, StudentID: child, CountsAsCare: true, Weekdays: []int{4},
+			Windows: []timetableModule.OfferingBookingWindow{window(start, thursdayEnds, true, 4)}},
+	}
+	byWeekday := func() map[int]bookingLeftoverResponse {
+		result := map[int]bookingLeftoverResponse{}
+		for _, leftover := range s.listLeftovers(t) {
+			for _, weekday := range leftover.Weekdays {
+				result[weekday] = leftover
+			}
+		}
+		return result
+	}
+	keep := func(weekday int, endedOn string, kept bool) {
+		w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d/students/%d/kept-days", template, child), map[string]any{
+			"weekdays": []int{weekday}, "booking_ended_on": endedOn, "kept": kept,
+		})
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	}
+
+	before := byWeekday()
+	require.Len(t, before, 2, "Monday and Thursday each ended: %+v", before)
+	keep(1, before[1].BookingEndedOn, true)
+	keep(4, before[4].BookingEndedOn, true)
+	keep(4, before[4].BookingEndedOn, false)
+	after := byWeekday()
+	assert.True(t, after[1].Kept, "Monday stays decided")
+	assert.False(t, after[4].Kept, "only Thursday's decision was withdrawn")
+
+	keep(1, before[1].BookingEndedOn, false)
+	keep(4, before[4].BookingEndedOn, true)
+	after = byWeekday()
+	assert.False(t, after[1].Kept, "keeping Thursday does not decide Monday")
+	assert.True(t, after[4].Kept)
+}
+
 func TestBookingLeftoversKeepRefusals(t *testing.T) {
 	t.Parallel()
 	s := buildBookingLeftoversModule(t)

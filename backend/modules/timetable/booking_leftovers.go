@@ -104,11 +104,12 @@ func addLeftoverDay(
 	key := leftoverKey{templateID: template.ID, studentID: entry.StudentID, weekday: weekday}
 	for _, endedOn := range endedBookingDays(bookings, weekday) {
 		from := max(endedOn, scope.Tomorrow)
-		if !weekdayRunsFrom(template, weekday, from) || !entryPlansWeekdayFrom(entry, weekday, from, scope.PeriodID) ||
+		if !entryPlansWeekdayFrom(template, entry, weekday, from, scope.PeriodID) ||
 			bookingsCarry(bookings, template.Kind, weekday, end, from, endedOn) {
 			continue
 		}
-		kept := entry.KeptWithoutBookingThrough != nil && !entry.KeptWithoutBookingThrough.Before(endedOn)
+		decided, found := entry.KeptWithoutBooking[weekday]
+		kept := found && !decided.Before(endedOn)
 		current, found := days[key]
 		switch {
 		case !found || current.endedOn.Before(endedOn):
@@ -136,22 +137,18 @@ func endedBookingDays(bookings []OfferingWeekdayBooking, weekday int) []calendar
 	return result
 }
 
-// weekdayRunsFrom reports whether the Regeltermin still has a day of the
-// weekday on or after the date.
-func weekdayRunsFrom(template BookingLeftoverTemplate, weekday int, from calendar.Date) bool {
-	until, bounded := template.WeekdayUntil[weekday]
-	if !bounded {
-		return true
+// entryPlansWeekdayFrom reports whether the row plans its child on a day of
+// the weekday on or after the date, within the row's validity, its period
+// and the series' last day of that weekday.
+func entryPlansWeekdayFrom(template BookingLeftoverTemplate, entry TemplateRosterEntry, weekday int, from calendar.Date, periodID int64) bool {
+	if entry.ValidFrom != nil && entry.ValidFrom.After(from) {
+		from = *entry.ValidFrom
 	}
 	first := from.AddDays((weekday - calendar.ISOWeekday(from) + 7) % 7)
-	return until.After(first)
-}
-
-// entryPlansWeekdayFrom reports whether the row plans its child on the
-// weekday on some day from the date on, in the period.
-func entryPlansWeekdayFrom(entry TemplateRosterEntry, weekday int, from calendar.Date, periodID int64) bool {
+	until, bounded := template.WeekdayUntil[weekday]
 	switch {
-	case entry.ValidUntil != nil && !entry.ValidUntil.After(from),
+	case bounded && !until.After(first),
+		entry.ValidUntil != nil && !entry.ValidUntil.After(first),
 		entry.CalendarPeriodID != nil && *entry.CalendarPeriodID != periodID,
 		entry.Weekday != nil && *entry.Weekday != weekday:
 		return false
