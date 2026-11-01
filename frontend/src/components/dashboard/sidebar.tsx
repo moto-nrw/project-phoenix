@@ -83,7 +83,10 @@ import {
 } from "~/components/dashboard/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import {
+  NavConceptIcon,
+  NavSceneFallback,
+} from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -1120,45 +1123,34 @@ function SidebarContent({
 
   const renderNavIcon = (item: NavItem) => {
     const concept = item.concept ?? null;
-    const isActive = !item.comingSoon && isActiveLink(item.href);
     if (concept) {
-      if (isActive) {
-        return (
-          <MotoDuotoneIcon
-            icon={concept.icon}
-            tone={concept.tone}
-            size={20}
-            className={SIDEBAR_ICON_CLASSES}
-          />
-        );
-      }
-
-      const ConceptIcon = concept.icon;
       return (
-        <ConceptIcon
+        <NavConceptIcon
+          concept={concept}
+          active={!item.comingSoon && isActiveLink(item.href)}
           size={20}
-          weight="regular"
-          className={getIconClasses(item)}
-          aria-hidden="true"
+          className={SIDEBAR_ICON_CLASSES}
         />
       );
     }
 
     return (
-      <svg
-        className={getIconClasses(item)}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d={item.icon ?? ""}
-        />
-      </svg>
+      <NavSceneFallback>
+        <svg
+          className={getIconClasses(item)}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d={item.icon ?? ""}
+          />
+        </svg>
+      </NavSceneFallback>
     );
   };
 

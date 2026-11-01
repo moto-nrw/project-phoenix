@@ -9,7 +9,11 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive } from "./parent-nav-active";
 import type { ParentNavCounts } from "./parent-bottom-nav";
-import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavConceptIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import {
+  PORTAL_ICON_CLASSES,
+  portalSidebarRowClasses,
+} from "~/components/dashboard/sidebar-geometry";
 import {
   PARENT_MORE_NAV,
   PARENT_PRIMARY_NAV,
@@ -20,14 +24,6 @@ import { helpConcept } from "~/lib/concepts/help";
 import { logoutConcept } from "~/lib/concepts/logout";
 import { settingsConcept } from "~/lib/concepts/settings";
 import { groupsConcept } from "~/lib/concepts/groups";
-
-const ROW =
-  "flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm";
-const ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
-const ROW_IDLE =
-  "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900";
-const ICON =
-  "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5";
 
 /**
  * Die dauerhafte Seitennavigation ab 1024 px.
@@ -83,9 +79,9 @@ export function ParentSidebar({
           data-parent-nav-item={item.key}
           data-active={active ? "true" : "false"}
           aria-current={active ? "page" : undefined}
-          className={`${ROW} ${active ? ROW_ACTIVE : ROW_IDLE}`}
+          className={portalSidebarRowClasses(active)}
         >
-          <MotoNavIcon
+          <NavConceptIcon
             concept={item.concept}
             iconConcept={
               item.key === "children" && childCount !== 1
@@ -93,7 +89,7 @@ export function ParentSidebar({
                 : undefined
             }
             active={active}
-            className={`${ICON} ${active ? "" : "text-gray-400"}`}
+            className={`${PORTAL_ICON_CLASSES} ${active ? "" : "text-gray-400"}`}
           />
           <span className="flex-1">{label}</span>
           {count > 0 && (
@@ -149,12 +145,12 @@ export function ParentSidebar({
                   rel="noopener noreferrer"
                   data-parent-nav-item="help"
                   data-active="false"
-                  className={`${ROW} ${ROW_IDLE}`}
+                  className={portalSidebarRowClasses(false)}
                 >
-                  <MotoNavIcon
+                  <NavConceptIcon
                     concept={helpConcept}
                     active={false}
-                    className={`${ICON} text-gray-400`}
+                    className={`${PORTAL_ICON_CLASSES} text-gray-400`}
                   />
                   <span className="flex-1">{t("help")}</span>
                 </NavLink>
@@ -165,12 +161,12 @@ export function ParentSidebar({
                   data-parent-nav-item="settings"
                   data-active={settingsActive ? "true" : "false"}
                   aria-current={settingsActive ? "page" : undefined}
-                  className={`${ROW} ${settingsActive ? ROW_ACTIVE : ROW_IDLE}`}
+                  className={portalSidebarRowClasses(settingsActive)}
                 >
-                  <MotoNavIcon
+                  <NavConceptIcon
                     concept={settingsConcept}
                     active={settingsActive}
-                    className={`${ICON} ${settingsActive ? "" : "text-gray-400"}`}
+                    className={`${PORTAL_ICON_CLASSES} ${settingsActive ? "" : "text-gray-400"}`}
                   />
                   <span className="flex-1">{t("settings")}</span>
                 </NavLink>
@@ -181,12 +177,12 @@ export function ParentSidebar({
                   data-parent-nav-item="enroll"
                   data-active={enrollActive ? "true" : "false"}
                   aria-current={enrollActive ? "page" : undefined}
-                  className={`${ROW} ${enrollActive ? ROW_ACTIVE : ROW_IDLE}`}
+                  className={portalSidebarRowClasses(enrollActive)}
                 >
-                  <MotoNavIcon
+                  <NavConceptIcon
                     concept={enrollmentsConcept}
                     active={enrollActive}
-                    className={`${ICON} ${enrollActive ? "" : "text-gray-400"}`}
+                    className={`${PORTAL_ICON_CLASSES} ${enrollActive ? "" : "text-gray-400"}`}
                   />
                   <span className="flex-1">{t("enroll")}</span>
                 </NavLink>
@@ -196,12 +192,12 @@ export function ParentSidebar({
                   type="button"
                   data-parent-nav-item="logout"
                   onClick={() => setLogoutModalOpen(true)}
-                  className={`${ROW} ${ROW_IDLE} w-full text-left`}
+                  className={`${portalSidebarRowClasses(false)} w-full text-left`}
                 >
-                  <MotoNavIcon
+                  <NavConceptIcon
                     concept={logoutConcept}
                     active={false}
-                    className={`${ICON} text-gray-400`}
+                    className={`${PORTAL_ICON_CLASSES} text-gray-400`}
                   />
                   <span className="flex-1">{t("logout")}</span>
                 </button>
