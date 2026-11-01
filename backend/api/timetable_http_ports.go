@@ -365,7 +365,7 @@ func timetableBookingWindows(windows []careplan.OfferingBookingWindow) []timetab
 	result := make([]timetable.OfferingBookingWindow, 0, len(windows))
 	for _, window := range windows {
 		result = append(result, timetable.OfferingBookingWindow{
-			ValidFrom: window.ValidFrom, ValidUntil: window.ValidUntil, Weekdays: window.Weekdays,
+			ValidFrom: window.ValidFrom, ValidUntil: window.ValidUntil, Weekdays: window.Weekdays, Ended: window.Ended,
 		})
 	}
 	return result

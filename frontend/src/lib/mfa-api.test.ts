@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
-import { login, verifyMFA, enrollConfirm } from "./mfa-api";
+import { enrollConfirm, login, resendChallenge, verifyMFA } from "./mfa-api";
 
 describe("login error bodies", () => {
   const originalFetch = global.fetch;
@@ -74,6 +74,38 @@ describe("login error bodies", () => {
     await expect(
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({ status: 503, code: "general.unavailable" });
+  });
+});
+
+describe("caterer second factor (#4497)", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("uses the caterer MFA routes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ status: "authenticated" }))
+      .mockResolvedValueOnce(Response.json({ challenge_token: "renewed" }));
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await expect(
+      verifyMFA("caterer", {
+        challengeToken: "c",
+        code: "123456",
+        rememberDevice: true,
+      }),
+    ).resolves.toEqual({ status: "authenticated" });
+    await expect(
+      resendChallenge("caterer", { challengeToken: "c" }),
+    ).resolves.toBe("renewed");
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "/api/caterer/auth/mfa/verify",
+      "/api/caterer/auth/mfa/resend",
+    ]);
   });
 });
 

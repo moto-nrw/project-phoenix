@@ -5,6 +5,14 @@ management for schools. Go/Chi/BUN backend, Next.js/React frontend, PostgreSQL.
 Read versions and available scripts from manifests rather than this file.
 All paths below are relative to the repository root.
 
+## Product principles
+
+- **Information flow, not data silos.** Make lawfully needed information
+  available to authorized participants where their task needs it, across modules
+  and portals. Restrictions need a concrete domain or legal reason; module
+  ownership is not an access boundary. Purpose limitation, data minimization
+  and tenant isolation remain binding.
+
 ## Working agreement
 
 - Match the task: implement requested changes, diagnose reported failures,
@@ -65,6 +73,7 @@ path-scoped rules automatically.
 
 | Task or affected surface | Required guidance |
 |---|---|
+| New/changed data collection, access rules, or cross-module/portal flows | [.claude/rules/information-flow.md](.claude/rules/information-flow.md) |
 | Any backend change | [backend/CLAUDE.md](backend/CLAUDE.md), including its target architecture; inspect affected policy entries before choosing a boundary |
 | Any frontend change | [frontend/AGENTS.md](frontend/AGENTS.md) and [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT, client IP / rate limits | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |

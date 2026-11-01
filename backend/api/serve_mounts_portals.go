@@ -70,7 +70,14 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 // newOperatorIdentity binds the operator sign-in, session and account routes
 // to Identity & Access.
 func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identityaccess.Owner) operatorIdentity {
+	var caterers identityOperatorAPI.CatererMFA
+	if identity != nil {
+		if access := identity.Caterers(); access != nil {
+			caterers = access
+		}
+	}
 	return operatorIdentity{
+		caterers:    caterers,
 		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
 		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
 		access:      identity,

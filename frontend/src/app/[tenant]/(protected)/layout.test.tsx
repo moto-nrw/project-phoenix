@@ -1,10 +1,24 @@
+import type { ReactNode } from "react";
+import { SessionProvider } from "next-auth/react";
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  render as renderWithContext,
+  screen,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 vi.unmock("next-intl");
 
 import ProtectedLayout from "./layout";
+
+// The layout now includes authenticated navigation data intent. Keep the real
+// session provider; these layout-only cases have no signed-in person.
+function render(ui: ReactNode) {
+  return renderWithContext(
+    <SessionProvider session={null}>{ui}</SessionProvider>,
+  );
+}
 
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";

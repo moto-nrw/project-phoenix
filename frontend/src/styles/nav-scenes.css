@@ -1,0 +1,307 @@
+/*
+ * Szenen der Seitenleisten-Icons (NavSceneIcon).
+ *
+ * Jedes Icon spielt beim Überfahren einer Navigationszeile einmal eine kurze
+ * Szene, in der sich Teile des Icons bewegen. Regeln, Werte und das Vorgehen
+ * für neue Icons: src/components/ui/nav-scene-icon/README.md.
+ *
+ * Alle Längen sind Einheiten des 256er-Rasters (transform-box: view-box).
+ */
+.ns-icon{overflow:visible}
+.ns-icon *{transform-box:view-box}
+.ns-icon .ns-solid{fill:currentColor;stroke:none}
+.ns-icon .ns-pop{transform-box:fill-box;transform-origin:center}
+.ns-icon .ns-ghost{opacity:0}
+.ns-icon .ns-mask{fill:var(--nav-row-bg,var(--color-white))}
+.ns-icon .ns-draw{stroke-dasharray:1;stroke-dashoffset:0}
+.ns-play{--ns-o:cubic-bezier(.2,.9,.3,1)}
+.ns-icon .ns-i0{--ns-i:0}
+.ns-icon .ns-i1{--ns-i:1}
+.ns-icon .ns-i2{--ns-i:2}
+.ns-icon .ns-i3{--ns-i:3}
+.ns-icon .ns-i4{--ns-i:4}
+.ns-icon .ns-i5{--ns-i:5}
+.ns-icon .ns-i6{--ns-i:6}
+.ns-icon .ns-i7{--ns-i:7}
+.ns-icon .ns-i8{--ns-i:8}
+.ns-icon .ns-i9{--ns-i:9}
+@keyframes ns-pop{0%{transform:scale(0)}60%{transform:scale(1.5)}100%{transform:scale(1)}}
+@keyframes ns-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes ns-hop14{0%,100%{transform:none}40%{transform:translateY(-14px)}}
+/* Standardbewegung für Icons ohne eigene Szene (ganzes Icon). */
+.ns-fallback{transform-origin:50% 100%}
+.ns-play.ns-fallback{animation:ns-fallback 420ms cubic-bezier(.2,.9,.3,1) both}
+@keyframes ns-fallback{0%,100%{transform:none}18%{transform:scale(1.1,.86)}50%{transform:translateY(-12%) scale(.94,1.08)}80%{transform:scale(1.04,.96)}}
+@media (prefers-reduced-motion:reduce){.ns-play,.ns-play *{animation:none!important}}
+
+/* HouseLineIcon: Dach hüpft, Tür geht auf */
+.ns-play[data-nav-scene="HouseLineIcon"] .ns-roof{animation:ns-roof 520ms var(--ns-o) both}
+@keyframes ns-roof{0%,100%{transform:none}28%{transform:translateY(-26px)}55%{transform:translateY(5px)}78%{transform:translateY(-5px)}}
+[data-nav-scene="HouseLineIcon"] .ns-door{transform-origin:104px 216px} .ns-play[data-nav-scene="HouseLineIcon"] .ns-door{animation:ns-squeezeX 560ms var(--ns-o) 60ms both}
+@keyframes ns-squeezeX{0%,100%{transform:none}40%{transform:scaleX(.2)}}
+
+/* CalendarDotsIcon: Termine poppen nacheinander auf */
+.ns-play[data-nav-scene="CalendarDotsIcon"] .ns-rings{animation:ns-hop14 320ms var(--ns-o) both}
+.ns-play[data-nav-scene="CalendarDotsIcon"] .ns-dot{animation:ns-pop 300ms var(--ns-o) calc(var(--ns-i,0)*55ms) both}
+
+/* UserIcon: schaut sich um, zuckt mit den Schultern */
+[data-nav-scene="UserIcon"] .ns-head{transform-origin:128px 170px} .ns-play[data-nav-scene="UserIcon"] .ns-head{animation:ns-look 620ms var(--ns-o) both}
+@keyframes ns-look{0%,100%{transform:none}22%{transform:translateX(-16px) rotate(-12deg)}58%{transform:translateX(16px) rotate(12deg)}}
+.ns-play[data-nav-scene="UserIcon"] .ns-body{animation:ns-shrug 420ms var(--ns-o) 80ms both}
+@keyframes ns-shrug{0%,100%{transform:none}45%{transform:translateY(-12px)}}
+
+/* UsersThreeIcon: La-Ola von links nach rechts */
+.ns-play[data-nav-scene="UsersThreeIcon"] .ns-wave{animation:ns-wave 380ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+@keyframes ns-wave{0%,100%{transform:none}25%{transform:translateY(10px)}60%{transform:translateY(-22px)}}
+
+/* ListChecksIcon: Haken werden nacheinander gesetzt */
+.ns-play[data-nav-scene="ListChecksIcon"] .ns-draw{animation:ns-draw 260ms var(--ns-o) calc(var(--ns-i,0)*110ms) both}
+.ns-play[data-nav-scene="ListChecksIcon"] .ns-line{animation:ns-nudgeX 300ms var(--ns-o) calc(var(--ns-i,0)*110ms + 120ms) both}
+@keyframes ns-nudgeX{0%,100%{transform:none}50%{transform:translateX(12px)}}
+
+/* DoorIcon: Tür schwingt auf, dahinter wird es dunkel */
+[data-nav-scene="DoorIcon"] .ns-leaf{transform-origin:56px 0} .ns-play[data-nav-scene="DoorIcon"] .ns-leaf{animation:ns-leaf 620ms var(--ns-o) both}
+@keyframes ns-leaf{0%,100%{transform:none}35%,55%{transform:scaleX(.3)}}
+.ns-play[data-nav-scene="DoorIcon"] .ns-dark{animation:ns-dark 620ms var(--ns-o) both}
+@keyframes ns-dark{0%,100%{opacity:0}35%,55%{opacity:.18}}
+
+/* CalendarIcon: der nächste Tag rollt hoch */
+.ns-play[data-nav-scene="CalendarIcon"] .ns-day{animation:ns-roll 520ms var(--ns-o) both}
+@keyframes ns-roll{0%{transform:none}45%{transform:translateY(-130px)}46%{transform:translateY(130px)}100%{transform:none}}
+.ns-play[data-nav-scene="CalendarIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
+
+/* ClockIcon: Zeiger drehen eine Runde */
+[data-nav-scene="ClockIcon"] .ns-min,[data-nav-scene="ClockIcon"] .ns-hour{transform-origin:128px 128px}
+.ns-play[data-nav-scene="ClockIcon"] .ns-min{animation:ns-spin 620ms cubic-bezier(.4,0,.2,1) both}
+@keyframes ns-spin{0%{transform:none}85%{transform:rotate(375deg)}100%{transform:rotate(360deg)}}
+.ns-play[data-nav-scene="ClockIcon"] .ns-hour{animation:ns-hour 620ms cubic-bezier(.4,0,.2,1) both}
+@keyframes ns-hour{0%,100%{transform:none}85%{transform:rotate(34deg)}}
+
+/* TrayIcon: ein Brief fällt in die Ablage */
+.ns-play[data-nav-scene="TrayIcon"] .ns-mail{animation:ns-mail 560ms var(--ns-o) both}
+@keyframes ns-mail{0%{opacity:0;transform:translateY(-30px)}15%{opacity:1}55%{opacity:1;transform:translateY(118px)}75%,100%{opacity:0;transform:translateY(130px)}}
+[data-nav-scene="TrayIcon"] .ns-tray{transform-origin:128px 216px} .ns-play[data-nav-scene="TrayIcon"] .ns-tray{animation:ns-land 560ms var(--ns-o) both}
+@keyframes ns-land{0%,48%,100%{transform:none}62%{transform:scale(1.06,.92)}80%{transform:scale(.98,1.02)}}
+
+/* ChatsCircleIcon: hin und her, dann tippt jemand */
+.ns-play[data-nav-scene="ChatsCircleIcon"] .ns-b1{animation:ns-bob 300ms var(--ns-o) both}
+.ns-play[data-nav-scene="ChatsCircleIcon"] .ns-b2{animation:ns-bob 300ms var(--ns-o) 110ms both}
+@keyframes ns-bob{0%,100%{transform:none}45%{transform:translateY(-16px)}}
+.ns-play[data-nav-scene="ChatsCircleIcon"] .ns-typ{animation:ns-typ 640ms var(--ns-o) calc(160ms + var(--ns-i,0)*70ms) both}
+@keyframes ns-typ{0%{opacity:0;transform:none}15%{opacity:1}40%{transform:translateY(-14px)}65%{opacity:1;transform:none}100%{opacity:0}}
+
+/* ShieldWarningIcon: Schild wackelt, Ausrufezeichen fällt rein */
+[data-nav-scene="ShieldWarningIcon"] .ns-shield{transform-origin:128px 224px} .ns-play[data-nav-scene="ShieldWarningIcon"] .ns-shield{animation:ns-shake 460ms var(--ns-o) both}
+@keyframes ns-shake{0%,100%{transform:none}18%{transform:rotate(-9deg)}40%{transform:rotate(8deg)}62%{transform:rotate(-4deg)}82%{transform:rotate(2deg)}}
+.ns-play[data-nav-scene="ShieldWarningIcon"] .ns-bang{animation:ns-drop 420ms var(--ns-o) 60ms both}
+@keyframes ns-drop{0%{transform:translateY(-60px);opacity:0}50%{transform:translateY(8px);opacity:1}75%{transform:translateY(-4px)}100%{transform:none}}
+.ns-play[data-nav-scene="ShieldWarningIcon"] .ns-bdot{animation:ns-pop 300ms var(--ns-o) 220ms both}
+
+/* BookOpenIcon: eine Seite blättert um */
+[data-nav-scene="BookOpenIcon"] .ns-page{transform-origin:128px 0} .ns-play[data-nav-scene="BookOpenIcon"] .ns-page{animation:ns-page 560ms cubic-bezier(.45,0,.3,1) both}
+@keyframes ns-page{0%{opacity:1;transform:none}50%{transform:scaleX(0)}95%{opacity:1;transform:scaleX(-1)}100%{opacity:0;transform:scaleX(-1)}}
+
+/* GearIcon: holt aus und dreht weiter */
+[data-nav-scene="GearIcon"] .ns-gear{transform-origin:128px 128px} .ns-play[data-nav-scene="GearIcon"] .ns-gear{animation:ns-gear 560ms var(--ns-o) both}
+@keyframes ns-gear{0%{transform:none}18%{transform:rotate(-14deg)}75%{transform:rotate(100deg)}100%{transform:rotate(90deg)}}
+
+/* AddressBookIcon: blättert zum nächsten Kontakt */
+.ns-play[data-nav-scene="AddressBookIcon"] .ns-contact{animation:ns-swap 520ms var(--ns-o) both}
+@keyframes ns-swap{0%{transform:none}42%{transform:translateX(110px)}43%{transform:translateX(-110px)}100%{transform:none}}
+.ns-play[data-nav-scene="AddressBookIcon"] .ns-tab{animation:ns-tug 260ms var(--ns-o) calc(var(--ns-i,0)*60ms) both}
+@keyframes ns-tug{0%,100%{transform:none}50%{transform:translateX(-10px)}}
+
+/* ArrowsLeftRightIcon: zwei Pfeile tauschen aus */
+.ns-play[data-nav-scene="ArrowsLeftRightIcon"] .ns-pushR{animation:ns-pushR 460ms var(--ns-o) both}
+.ns-play[data-nav-scene="ArrowsLeftRightIcon"] .ns-pushL{animation:ns-pushL 460ms var(--ns-o) 90ms both}
+@keyframes ns-pushR{0%,100%{transform:none}35%{transform:translateX(26px)}70%{transform:translateX(-6px)}}
+@keyframes ns-pushL{0%,100%{transform:none}35%{transform:translateX(-26px)}70%{transform:translateX(6px)}}
+
+/* BriefcaseIcon: wird am Griff hochgehoben und pendelt */
+[data-nav-scene="BriefcaseIcon"] .ns-lift{transform-origin:128px 40px} .ns-play[data-nav-scene="BriefcaseIcon"] .ns-lift{animation:ns-lift 560ms var(--ns-o) both}
+@keyframes ns-lift{0%,100%{transform:none}25%{transform:translateY(-18px) rotate(-10deg)}50%{transform:translateY(-12px) rotate(7deg)}75%{transform:translateY(-4px) rotate(-3deg)}}
+.ns-play[data-nav-scene="BriefcaseIcon"] .ns-clasp{animation:ns-pop 300ms var(--ns-o) 200ms both}
+
+/* BuildingsIcon: die Lichter gehen nacheinander an */
+.ns-play[data-nav-scene="BuildingsIcon"] .ns-win{animation:ns-pop 260ms var(--ns-o) calc(var(--ns-i,0)*40ms) both}
+[data-nav-scene="BuildingsIcon"] .ns-grow{transform-origin:0 216px} .ns-play[data-nav-scene="BuildingsIcon"] .ns-grow{animation:ns-growY 420ms var(--ns-o) both}
+@keyframes ns-growY{0%,100%{transform:none}40%{transform:scaleY(.82)}75%{transform:scaleY(1.06)}}
+
+/* BuildingOfficeIcon: Fenster gehen an, Tür geht auf */
+.ns-play[data-nav-scene="BuildingOfficeIcon"] .ns-win{animation:ns-pop 280ms var(--ns-o) calc(var(--ns-i,0)*70ms) both}
+[data-nav-scene="BuildingOfficeIcon"] .ns-door2{transform-origin:112px 216px} .ns-play[data-nav-scene="BuildingOfficeIcon"] .ns-door2{animation:ns-squeezeX 520ms var(--ns-o) 120ms both}
+
+/* CalendarBlankIcon: ein Blatt wird abgerissen */
+.ns-play[data-nav-scene="CalendarBlankIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
+[data-nav-scene="CalendarBlankIcon"] .ns-sheet{transform-origin:40px 88px} .ns-play[data-nav-scene="CalendarBlankIcon"] .ns-sheet{animation:ns-tear 560ms var(--ns-o) 80ms both}
+@keyframes ns-tear{0%{opacity:1;transform:none}30%{opacity:1;transform:rotate(8deg)}100%{opacity:0;transform:translateY(70px) rotate(24deg)}}
+
+/* CalendarCheckIcon: Ringe hüpfen, der Haken wird gesetzt */
+.ns-play[data-nav-scene="CalendarCheckIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
+.ns-play[data-nav-scene="CalendarCheckIcon"] .ns-draw{animation:ns-draw 320ms var(--ns-o) calc(var(--ns-i,0)*120ms) both}
+
+/* CalendarPlusIcon: das Plus dreht sich herein */
+.ns-play[data-nav-scene="CalendarPlusIcon"] .ns-rings{animation:ns-hop14 320ms var(--ns-o) both}
+[data-nav-scene="CalendarPlusIcon"] .ns-spinIn{transform-origin:128px 160px} .ns-play[data-nav-scene="CalendarPlusIcon"] .ns-spinIn{animation:ns-spinIn 440ms var(--ns-o) 60ms both}
+@keyframes ns-spinIn{0%{transform:rotate(-90deg) scale(0)}60%{transform:rotate(10deg) scale(1.25)}100%{transform:none}}
+
+/* ChalkboardTeacherIcon: an der Tafel wird geschrieben */
+.ns-play[data-nav-scene="ChalkboardTeacherIcon"] .ns-draw{animation:ns-draw 280ms var(--ns-o) calc(120ms + var(--ns-i,0)*160ms) both}
+[data-nav-scene="ChalkboardTeacherIcon"] .ns-nod{transform-origin:64px 176px} .ns-play[data-nav-scene="ChalkboardTeacherIcon"] .ns-nod{animation:ns-nodR 600ms var(--ns-o) both}
+@keyframes ns-nodR{0%,100%{transform:none}25%{transform:rotate(14deg) translateX(4px)}55%{transform:rotate(6deg)}80%{transform:rotate(12deg)}}
+
+/* ChatCircleTextIcon: Blase ploppt auf, Text wird geschrieben */
+[data-nav-scene="ChatCircleTextIcon"] .ns-bubble{transform-origin:40px 220px} .ns-play[data-nav-scene="ChatCircleTextIcon"] .ns-bubble{animation:ns-bubble 420ms var(--ns-o) both}
+@keyframes ns-bubble{0%,100%{transform:none}30%{transform:scale(.9)}65%{transform:scale(1.06)}}
+.ns-play[data-nav-scene="ChatCircleTextIcon"] .ns-draw{animation:ns-draw 280ms var(--ns-o) calc(140ms + var(--ns-i,0)*130ms) both}
+
+/* ClipboardTextIcon: Klemme schnappt, Zeilen werden geschrieben */
+.ns-play[data-nav-scene="ClipboardTextIcon"] .ns-clip{animation:ns-snap 380ms var(--ns-o) both}
+@keyframes ns-snap{0%,100%{transform:none}35%{transform:translateY(-18px)}60%{transform:translateY(4px)}}
+.ns-play[data-nav-scene="ClipboardTextIcon"] .ns-draw{animation:ns-draw 260ms var(--ns-o) calc(160ms + var(--ns-i,0)*120ms) both}
+
+/* ClockCounterClockwiseIcon: spult die Zeit zurück */
+[data-nav-scene="ClockCounterClockwiseIcon"] .ns-rewind,[data-nav-scene="ClockCounterClockwiseIcon"] .ns-back{transform-origin:128px 128px}
+.ns-play[data-nav-scene="ClockCounterClockwiseIcon"] .ns-rewind{animation:ns-rewind 560ms var(--ns-o) both}
+@keyframes ns-rewind{0%,100%{transform:none}40%{transform:rotate(-30deg)}75%{transform:rotate(6deg)}}
+.ns-play[data-nav-scene="ClockCounterClockwiseIcon"] .ns-back{animation:ns-back 620ms cubic-bezier(.4,0,.2,1) both}
+@keyframes ns-back{0%{transform:none}85%{transform:rotate(-375deg)}100%{transform:rotate(-360deg)}}
+
+/* CoinsIcon: die hintere Münze wird geworfen */
+[data-nav-scene="CoinsIcon"] .ns-toss{transform-origin:104px 100px} .ns-play[data-nav-scene="CoinsIcon"] .ns-toss{animation:ns-toss 560ms var(--ns-o) both}
+@keyframes ns-toss{0%,100%{transform:none}35%{transform:translateY(-56px) scaleY(-1)}65%{transform:translateY(-26px) scaleY(1)}85%{transform:translateY(4px) scaleY(.85)}}
+
+/* ContactlessPaymentIcon: das Funksignal breitet sich aus */
+.ns-play[data-nav-scene="ContactlessPaymentIcon"] .ns-sig{animation:ns-sig 380ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+@keyframes ns-sig{0%,100%{opacity:1;transform:none}30%{opacity:.15;transform:translateX(-10px)}70%{opacity:1;transform:translateX(6px)}}
+
+/* DatabaseIcon: die Schichten federn nacheinander hoch */
+.ns-play[data-nav-scene="DatabaseIcon"] .ns-layer{animation:ns-stack 380ms var(--ns-o) calc((2 - var(--ns-i,0))*70ms) both}
+@keyframes ns-stack{0%,100%{transform:none}45%{transform:translateY(-14px)}}
+
+/* DevicesIcon: das Handy hüpft heraus und zurück */
+[data-nav-scene="DevicesIcon"] .ns-phone{transform-origin:200px 208px} .ns-play[data-nav-scene="DevicesIcon"] .ns-phone{animation:ns-phone 480ms var(--ns-o) both}
+@keyframes ns-phone{0%,100%{transform:none}35%{transform:translate(18px,-16px) rotate(12deg)}70%{transform:translateX(-4px) rotate(-3deg)}}
+
+/* DotsThreeIcon: die Punkte springen nacheinander */
+.ns-play[data-nav-scene="DotsThreeIcon"] .ns-jump{animation:ns-jump 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
+@keyframes ns-jump{0%,100%{transform:none}45%{transform:translateY(-40px)}}
+
+/* EnvelopeIcon: fliegt weg, ein neuer kommt */
+.ns-play[data-nav-scene="EnvelopeIcon"] .ns-fly{animation:ns-fly 560ms var(--ns-o) both}
+@keyframes ns-fly{0%{transform:none;opacity:1}38%{transform:translate(70px,-50px) rotate(-14deg) scale(.7);opacity:0}39%{transform:translate(-60px,20px) scale(.8);opacity:0}100%{transform:none;opacity:1}}
+
+/* EnvelopeOpenIcon: ein Brief schaut heraus */
+.ns-play[data-nav-scene="EnvelopeOpenIcon"] .ns-peek{animation:ns-peek 520ms var(--ns-o) both}
+@keyframes ns-peek{0%,100%{transform:none}40%,60%{transform:translateY(-40px)}}
+.ns-play[data-nav-scene="EnvelopeOpenIcon"] .ns-draw{animation:ns-draw 240ms var(--ns-o) 140ms both}
+
+/* EyeIcon: blinzelt und schaut sich um */
+[data-nav-scene="EyeIcon"] .ns-blink{transform-origin:128px 128px} .ns-play[data-nav-scene="EyeIcon"] .ns-blink{animation:ns-blink 220ms ease-in-out both}
+@keyframes ns-blink{0%,100%{transform:none}50%{transform:scaleY(.08)}}
+.ns-play[data-nav-scene="EyeIcon"] .ns-pupil{animation:ns-scan 480ms var(--ns-o) 180ms both}
+@keyframes ns-scan{0%,100%{transform:none}30%{transform:translateX(-26px)}70%{transform:translateX(26px)}}
+
+/* FileTextIcon: Ecke klappt, Zeilen werden geschrieben */
+[data-nav-scene="FileTextIcon"] .ns-fold{transform-origin:152px 88px} .ns-play[data-nav-scene="FileTextIcon"] .ns-fold{animation:ns-fold 380ms var(--ns-o) both}
+@keyframes ns-fold{0%,100%{transform:none}40%{transform:scale(.55)}70%{transform:scale(1.12)}}
+.ns-play[data-nav-scene="FileTextIcon"] .ns-draw{animation:ns-draw 260ms var(--ns-o) calc(140ms + var(--ns-i,0)*120ms) both}
+
+/* FolderOpenIcon: Mappe klappt auf, ein Blatt schaut heraus */
+.ns-play[data-nav-scene="FolderOpenIcon"] .ns-peek2{animation:ns-peek2 520ms var(--ns-o) both}
+@keyframes ns-peek2{0%,100%{transform:none}40%,60%{transform:translateY(-34px)}}
+[data-nav-scene="FolderOpenIcon"] .ns-flap{transform-origin:32px 208px} .ns-play[data-nav-scene="FolderOpenIcon"] .ns-flap{animation:ns-flap 520ms var(--ns-o) both}
+@keyframes ns-flap{0%,100%{transform:none}40%,60%{transform:scaleY(.62) skewX(-8deg)}}
+
+/* ForkKnifeIcon: Messer und Gabel stoßen an */
+[data-nav-scene="ForkKnifeIcon"] .ns-fork{transform-origin:96px 224px} [data-nav-scene="ForkKnifeIcon"] .ns-knife{transform-origin:200px 224px}
+.ns-play[data-nav-scene="ForkKnifeIcon"] .ns-fork{animation:ns-clinkL 420ms var(--ns-o) both}
+.ns-play[data-nav-scene="ForkKnifeIcon"] .ns-knife{animation:ns-clinkR 420ms var(--ns-o) both}
+@keyframes ns-clinkL{0%,100%{transform:none}25%{transform:rotate(12deg)}45%{transform:rotate(2deg)}65%{transform:rotate(10deg)}}
+@keyframes ns-clinkR{0%,100%{transform:none}25%{transform:rotate(-12deg)}45%{transform:rotate(-2deg)}65%{transform:rotate(-10deg)}}
+
+/* IdentificationCardIcon: der Ausweis dreht sich einmal */
+[data-nav-scene="IdentificationCardIcon"] .ns-flip{transform-origin:128px 128px} .ns-play[data-nav-scene="IdentificationCardIcon"] .ns-flip{animation:ns-flipX 460ms cubic-bezier(.45,0,.3,1) both}
+@keyframes ns-flipX{0%,100%{transform:none}50%{transform:scaleX(0)}75%{transform:scaleX(1.08)}}
+
+/* InvoiceIcon: der Beleg wird gedruckt */
+[data-nav-scene="InvoiceIcon"] .ns-print{transform-origin:128px 32px} .ns-play[data-nav-scene="InvoiceIcon"] .ns-print{animation:ns-print 420ms var(--ns-o) both}
+@keyframes ns-print{0%,100%{transform:none}35%{transform:scaleY(.88)}70%{transform:scaleY(1.05)}}
+.ns-play[data-nav-scene="InvoiceIcon"] .ns-draw{animation:ns-draw 220ms var(--ns-o) calc(100ms + var(--ns-i,0)*100ms) both}
+
+/* ListBulletsIcon: Punkte poppen, Zeilen fahren aus */
+.ns-play[data-nav-scene="ListBulletsIcon"] .ns-dot{animation:ns-pop 280ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+[data-nav-scene="ListBulletsIcon"] .ns-ext{transform-origin:96px 0} .ns-play[data-nav-scene="ListBulletsIcon"] .ns-ext{animation:ns-ext 320ms var(--ns-o) calc(60ms + var(--ns-i,0)*90ms) both}
+@keyframes ns-ext{0%{transform:scaleX(0)}70%{transform:scaleX(1.08)}100%{transform:none}}
+
+/* MegaphoneIcon: ruft laut, die Schallwellen gehen raus */
+[data-nav-scene="MegaphoneIcon"] .ns-shout{transform-origin:88px 128px} .ns-play[data-nav-scene="MegaphoneIcon"] .ns-shout{animation:ns-shout 460ms var(--ns-o) both}
+@keyframes ns-shout{0%,100%{transform:none}20%{transform:rotate(-10deg) scale(.94)}50%{transform:rotate(4deg) scale(1.04)}}
+.ns-play[data-nav-scene="MegaphoneIcon"] .ns-wave2{animation:ns-wave2 420ms var(--ns-o) calc(120ms + var(--ns-i,0)*90ms) both}
+@keyframes ns-wave2{0%{opacity:0;transform:translateX(-14px)}40%{opacity:1}100%{opacity:0;transform:translateX(14px)}}
+
+/* MonitorIcon: der Bildschirm schaltet sich ein */
+[data-nav-scene="MonitorIcon"] .ns-tv{transform-origin:128px 112px} .ns-play[data-nav-scene="MonitorIcon"] .ns-tv{animation:ns-tv 560ms var(--ns-o) both}
+@keyframes ns-tv{0%{opacity:.9;transform:scale(0,.06)}35%{opacity:.9;transform:scale(1,.06)}65%{opacity:.35;transform:none}100%{opacity:0;transform:none}}
+
+/* NotebookIcon: kippt an, Zeilen werden geschrieben */
+[data-nav-scene="NotebookIcon"] .ns-tilt{transform-origin:128px 224px} .ns-play[data-nav-scene="NotebookIcon"] .ns-tilt{animation:ns-tiltB 460ms var(--ns-o) both}
+@keyframes ns-tiltB{0%,100%{transform:none}35%{transform:rotate(-8deg)}70%{transform:rotate(3deg)}}
+.ns-play[data-nav-scene="NotebookIcon"] .ns-draw{animation:ns-draw 260ms var(--ns-o) calc(120ms + var(--ns-i,0)*130ms) both}
+
+/* PresentationChartIcon: die Balken wachsen nacheinander */
+[data-nav-scene="PresentationChartIcon"] .ns-bar{transform-origin:0 152px} .ns-play[data-nav-scene="PresentationChartIcon"] .ns-bar{animation:ns-bar 360ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+@keyframes ns-bar{0%{transform:scaleY(0)}65%{transform:scaleY(1.2)}100%{transform:none}}
+
+/* QuestionIcon: das Fragezeichen wundert sich */
+[data-nav-scene="QuestionIcon"] .ns-wonder{transform-origin:128px 144px} .ns-play[data-nav-scene="QuestionIcon"] .ns-wonder{animation:ns-wonder 520ms var(--ns-o) both}
+@keyframes ns-wonder{0%,100%{transform:none}25%{transform:rotate(-18deg)}55%{transform:rotate(14deg)}80%{transform:rotate(-5deg)}}
+.ns-play[data-nav-scene="QuestionIcon"] .ns-bdot{animation:ns-pop 300ms var(--ns-o) 200ms both}
+
+/* ShieldCheckIcon: Schild pulsiert, der Haken wird gesetzt */
+[data-nav-scene="ShieldCheckIcon"] .ns-pulse{transform-origin:128px 132px} .ns-play[data-nav-scene="ShieldCheckIcon"] .ns-pulse{animation:ns-pulse 420ms var(--ns-o) both}
+@keyframes ns-pulse{0%,100%{transform:none}35%{transform:scale(1.1)}70%{transform:scale(.97)}}
+.ns-play[data-nav-scene="ShieldCheckIcon"] .ns-draw{animation:ns-draw 300ms var(--ns-o) 100ms both}
+
+/* SignOutIcon: der Pfeil schießt hinaus */
+.ns-play[data-nav-scene="SignOutIcon"] .ns-shoot{animation:ns-shoot 460ms var(--ns-o) both}
+@keyframes ns-shoot{0%{transform:none;opacity:1}35%{transform:translateX(56px);opacity:0}36%{transform:translateX(-30px);opacity:0}100%{transform:none;opacity:1}}
+.ns-play[data-nav-scene="SignOutIcon"] .ns-recoil{animation:ns-recoil 300ms var(--ns-o) both}
+@keyframes ns-recoil{0%,100%{transform:none}40%{transform:translateX(-8px)}}
+
+/* SunIcon: die Strahlen drehen sich, die Sonne glüht */
+[data-nav-scene="SunIcon"] .ns-rays,[data-nav-scene="SunIcon"] .ns-glow{transform-origin:128px 128px}
+.ns-play[data-nav-scene="SunIcon"] .ns-rays{animation:ns-rays 560ms var(--ns-o) both}
+@keyframes ns-rays{0%{transform:none}75%{transform:rotate(52deg) scale(1.08)}100%{transform:rotate(45deg)}}
+.ns-play[data-nav-scene="SunIcon"] .ns-glow{animation:ns-glow 420ms var(--ns-o) both}
+@keyframes ns-glow{0%,100%{transform:none}40%{transform:scale(1.14)}}
+
+/* SunHorizonIcon: die Sonne geht unter und wieder auf */
+.ns-play[data-nav-scene="SunHorizonIcon"] .ns-rise{animation:ns-rise 620ms var(--ns-o) both}
+@keyframes ns-rise{0%,100%{transform:none}35%{transform:translateY(80px)}75%{transform:translateY(-8px)}}
+
+/* UserCheckIcon: nickt, der Haken wird gesetzt */
+[data-nav-scene="UserCheckIcon"] .ns-nodD{transform-origin:104px 200px} .ns-play[data-nav-scene="UserCheckIcon"] .ns-nodD{animation:ns-nodD 420ms var(--ns-o) both}
+@keyframes ns-nodD{0%,100%{transform:none}35%{transform:translateY(6px) rotate(-4deg)}70%{transform:translateY(-4px)}}
+.ns-play[data-nav-scene="UserCheckIcon"] .ns-draw{animation:ns-draw 300ms var(--ns-o) 120ms both}
+
+/* UserCircleGearIcon: das Zahnrad dreht sich am Profil */
+[data-nav-scene="UserCircleGearIcon"] .ns-cog{transform-origin:208px 208px} .ns-play[data-nav-scene="UserCircleGearIcon"] .ns-cog{animation:ns-gear 560ms var(--ns-o) both}
+
+/* UserPlusIcon: das Plus dreht sich herein */
+[data-nav-scene="UserPlusIcon"] .ns-spinIn2{transform-origin:208px 128px} .ns-play[data-nav-scene="UserPlusIcon"] .ns-spinIn2{animation:ns-spinIn 440ms var(--ns-o) both}
+.ns-play[data-nav-scene="UserPlusIcon"] .ns-hopS{animation:ns-hop14 340ms var(--ns-o) 120ms both}
+
+/* UserSwitchIcon: die Pfeile drehen sich um die Person */
+[data-nav-scene="UserSwitchIcon"] .ns-swirl{transform-origin:128px 128px} .ns-play[data-nav-scene="UserSwitchIcon"] .ns-swirl{animation:ns-swirl 600ms var(--ns-o) both}
+@keyframes ns-swirl{0%{transform:none}75%{transform:rotate(195deg)}100%{transform:rotate(180deg)}}
+
+/* UsersIcon: zwei Köpfe unterhalten sich */
+[data-nav-scene="UsersIcon"] .ns-lean{transform-origin:200px 200px} .ns-play[data-nav-scene="UsersIcon"] .ns-lean{animation:ns-leanL 460ms var(--ns-o) both}
+@keyframes ns-leanL{0%,100%{transform:none}35%{transform:rotate(-10deg) translateY(-6px)}}
+[data-nav-scene="UsersIcon"] .ns-lean2{transform-origin:96px 208px} .ns-play[data-nav-scene="UsersIcon"] .ns-lean2{animation:ns-leanR 460ms var(--ns-o) 140ms both}
+@keyframes ns-leanR{0%,100%{transform:none}35%{transform:rotate(8deg) translateY(-6px)}}
+
+/* UsersFourIcon: das Team hüpft reihum */
+.ns-play[data-nav-scene="UsersFourIcon"] .ns-round{animation:ns-round 300ms var(--ns-o) calc(var(--ns-i,0)*70ms) both}
+@keyframes ns-round{0%,100%{transform:none}45%{transform:translateY(-16px)}}

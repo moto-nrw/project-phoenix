@@ -1,5 +1,6 @@
 "use client";
 
+import { TenantDataPrefetch } from "~/components/tenant/tenant-data-prefetch";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { GroupAttendanceCountProvider } from "~/lib/group-attendance-count-context";
@@ -27,10 +28,12 @@ export default function ProtectedLayout({
       <TeacherShellProvider>
         <BreadcrumbProvider>
           <GroupAttendanceCountProvider>
-            <AppShell>
-              {/* Seiten nicht gebuchter Module erklären sich im Gerüst (#4894). */}
-              <NotBookedPageProvider>{children}</NotBookedPageProvider>
-            </AppShell>
+            <TenantDataPrefetch>
+              <AppShell>
+                {/* Seiten nicht gebuchter Module erklären sich im Gerüst (#4894). */}
+                <NotBookedPageProvider>{children}</NotBookedPageProvider>
+              </AppShell>
+            </TenantDataPrefetch>
           </GroupAttendanceCountProvider>
           <AnnouncementModal />
           {/* Erste Schritte für neue Schulen (#2832). Nur für Personen, die

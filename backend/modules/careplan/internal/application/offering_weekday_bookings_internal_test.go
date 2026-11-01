@@ -121,3 +121,38 @@ func TestCollectOfferingWeekdayBookingsHolidayPhase(t *testing.T) {
 	assert.False(t, byOffering[ganztag.ID].HolidayPhase, "Ganztag including holiday care stays suggestible")
 	assert.True(t, byOffering[ferien.ID].HolidayPhase)
 }
+
+// TestCollectOfferingWeekdayBookingsEnded (#5102): a window counts as ended
+// only when its link ends before the phase's last service day ends. A link
+// stored with the phase end, or wider, ends with the phase, not by a change.
+func TestCollectOfferingWeekdayBookingsEnded(t *testing.T) {
+	t.Parallel()
+	start := calendar.NewDate(2026, 8, 1)
+	end := calendar.NewDate(2027, 7, 31)
+	phase := careplan.OfferingPhase{ServiceStart: start, ServiceEnd: end}
+	offering := &careplan.CareOffering{DaysOfWeekMode: daysOfWeekModeFixed, AvailableDays: []string{"mon"}}
+	changed, withPhase, wider := calendar.NewDate(2026, 11, 2), end.AddDays(1), end.AddDays(30)
+	for _, tc := range []struct {
+		name  string
+		until *calendar.Date
+		ended bool
+	}{
+		{name: "open link"},
+		{name: "ends with the phase", until: &withPhase},
+		{name: "ends after the phase", until: &wider},
+		{name: "ended by a change", until: &changed, ended: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			bookings := collectOfferingWeekdayBookings(
+				map[int64]*careplan.CareOffering{offering.ID: offering},
+				map[int64]careplan.OfferingPhase{phase.ID: phase},
+				[]ports.ApprovedOfferingChild{{Link: careplan.BookedOffering{CareOfferingID: offering.ID, ValidUntil: tc.until}}},
+				start, nil,
+			)
+			require.Len(t, bookings, 1)
+			require.Len(t, bookings[0].Windows, 1)
+			assert.Equal(t, tc.ended, bookings[0].Windows[0].Ended)
+		})
+	}
+}

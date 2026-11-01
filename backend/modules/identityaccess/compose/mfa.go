@@ -44,7 +44,7 @@ func newMFACore(
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
 		Records: records, Settings: deps.Settings,
 		Codec: application.MFAChallengeCodec{Source: deps.Codec}, Codes: deps.Codes, Mail: application.MFAMail{Source: deps.Mail},
-		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger,
+		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger, ResetNotice: application.ResetNoticeOf(deps.ResetNotice),
 	})
 	if err != nil {
 		return application.MFAFlows{}, err

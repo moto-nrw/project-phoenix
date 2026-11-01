@@ -282,7 +282,7 @@ export function HolidayFormEditor({
                   onClick={() =>
                     setFields((current) => [
                       ...current,
-                      blankField(current.length),
+                      { ...blankField(current.length), share_with_host: true },
                     ])
                   }
                 >

@@ -47,9 +47,10 @@ export function createPortalLoginRoute(
       : `/${portal}/auth/${step}`;
   return createLoginRoute(path, {
     ...bindings[portal],
-    // Operator passkey verification returns a plain LoginResponse.
+    // Operator passkey verification returns a plain LoginResponse; the
+    // caterer's second factor (#4497) answers plain JSON after its login.
     envelope:
-      portal === "caterer" ||
+      (portal === "caterer" && step === "login") ||
       (portal === "operator" && step !== "passkeys/login/verify"),
     challenges: step === "login",
   });

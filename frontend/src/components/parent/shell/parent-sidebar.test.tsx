@@ -93,11 +93,13 @@ describe("ParentSidebar", () => {
 
     expect(screen.getByRole("link", { name: "Mein Kind" })).toBeVisible();
     expect(screen.queryByText("Meine Kinder")).not.toBeInTheDocument();
-    const expected = render(<UserIcon weight="duotone" />);
-    expect(
-      container.querySelector('[data-parent-nav-item="children"] svg')
-        ?.innerHTML,
-    ).toBe(expected.container.querySelector("svg")?.innerHTML);
+    // Die Seitenleiste zeigt die Szene des Glyphs (NavSceneIcon), aktiv im
+    // Ton des Konzepts.
+    const icon = container.querySelector(
+      '[data-parent-nav-item="children"] svg',
+    );
+    expect(icon).toHaveAttribute("data-nav-scene", UserIcon.displayName);
+    expect(icon).toHaveAttribute("data-moto-duotone-tone");
   });
 
   it("marks the current target as active and no other", () => {
@@ -107,10 +109,14 @@ describe("ParentSidebar", () => {
     const active = container.querySelectorAll('[data-active="true"]');
     expect(active).toHaveLength(1);
     expect(active[0]).toHaveAttribute("data-parent-nav-item", "children");
-    const expected = render(<UsersThreeIcon weight="duotone" />);
-    expect(active[0]?.querySelector("svg")?.innerHTML).toBe(
-      expected.container.querySelector("svg")?.innerHTML,
-    );
+    const icon = active[0]?.querySelector("svg");
+    expect(icon).toHaveAttribute("data-nav-scene", UsersThreeIcon.displayName);
+    expect(icon).toHaveAttribute("data-moto-duotone-tone");
+    for (const other of container.querySelectorAll(
+      '[data-active="false"] svg',
+    )) {
+      expect(other).not.toHaveAttribute("data-moto-duotone-tone");
+    }
   });
 
   it("marks the pinned settings target as active", () => {

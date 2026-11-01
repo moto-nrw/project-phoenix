@@ -18,7 +18,7 @@ func NewPasskeyFlowsBinding(flows MFAFlows, service *Service, auth *AccountAuthe
 	accountFlows, err := NewAccountPasskeyFlows(AccountPasskeyFlowDependencies{
 		Accounts: flows.Records, Records: accountPasskeys, MFA: flows.Account,
 		Sessions: auth, Runtime: runtime, Attach: auth.attach, RPID: deps.Passkeys.RPID, RPName: deps.Passkeys.RPName,
-		TenantDomain: deps.Passkeys.TenantDomain,
+		TenantDomain: deps.Passkeys.TenantDomain, CatererFrontendURL: deps.Passkeys.CatererFrontendURL,
 	})
 	if err != nil {
 		return MFAFlows{}, err

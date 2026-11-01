@@ -36,6 +36,7 @@ GET /api/timetable/school-vacations -> basis
 GET /api/timetable/student/{id}/day -> basis
 GET /api/timetable/student/{id}/week -> basis
 GET /api/timetable/templates -> basis
+GET /api/timetable/templates/booking-leftovers -> basis
 GET /api/timetable/templates/roster-deviations -> basis
 GET /api/timetable/templates/{id} -> basis
 GET /api/timetable/templates/{id}/offering-preview -> basis
@@ -90,3 +91,4 @@ PUT /api/timetable/planning-tracks/order -> basis
 PUT /api/timetable/planning-tracks/{id} -> basis
 PUT /api/timetable/templates/{id} -> basis
 PUT /api/timetable/templates/{id}/manual-roster -> basis
+PUT /api/timetable/templates/{id}/students/{studentId}/kept-days -> basis

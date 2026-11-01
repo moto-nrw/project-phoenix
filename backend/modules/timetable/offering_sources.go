@@ -87,6 +87,9 @@ type OfferingBookingWindow struct {
 	ValidFrom  *calendar.Date
 	ValidUntil *calendar.Date
 	Weekdays   []int
+	// Ended is true when the booking itself ends at ValidUntil, by a
+	// booking change or a withdrawal, not its phase (#5102).
+	Ended bool
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot of the editor with

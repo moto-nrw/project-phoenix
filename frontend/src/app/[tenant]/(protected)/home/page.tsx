@@ -17,6 +17,7 @@ import { HomeBlockContent } from "~/components/home/home-block-content";
 import { HomeBoard } from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
+import { BookingLeftoverTodos } from "~/components/home/booking-leftover-todos";
 import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
 import { SchoolVacationHintsCore } from "~/components/timetable/school-vacation-hints-core";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
@@ -529,6 +530,12 @@ function HomeContent() {
           Planende, deshalb fest über dem Brett. */}
       {!editing && timetableEnabled && access.has("schedules:manage") ? (
         <SchoolVacationHintsCore enabled />
+      ) : null}
+
+      {/* Kinder, die eine Buchungsänderung von Hand eingeplant zurückließ
+          (#5102): dieselbe Aufgabe für Planende. */}
+      {!editing && timetableEnabled && access.has("schedules:manage") ? (
+        <BookingLeftoverTodos enabled />
       ) : null}
 
       {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die
