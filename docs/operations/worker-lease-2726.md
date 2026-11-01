@@ -127,7 +127,9 @@ Transport invariants:
 4. Every API has one dedicated listener connection. A standalone Worker only
    publishes. Local browsers receive immediately, even if NOTIFY fails. A
    nonblocking queue holds at most 128 outbound signals and logs overflow. Own
-   origin echoes are ignored. Listeners reconnect; shutdown cancels queued
+   origin echoes are ignored. Startup waits for a content-free readiness probe
+   on the same listener before exposing the API hub; a socket write alone is
+   not proof of LISTEN registration. Listeners reconnect; shutdown cancels queued
    publications and closes the listener before the pool.
 5. Existing required database configuration is reused and still fails startup
    when missing. No new environment variable, fallback DSN, table or migration

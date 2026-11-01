@@ -12,7 +12,10 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-const realtimeChannel = "moto_realtime_v1"
+const (
+	realtimeChannel      = "moto_realtime_v1"
+	realtimeReadyChannel = "moto_realtime_ready_v1"
+)
 
 // RealtimePublisher owns a bounded, lossy queue. After-commit hooks never
 // acquire a pool connection; overflow is logged and polling reconciles loss.
@@ -66,17 +69,21 @@ func (p *RealtimePublisher) run() {
 	}
 }
 
-func (p *RealtimePublisher) notify(payload string) (err error) {
+func (p *RealtimePublisher) notify(payload string) error {
 	ctx, cancel := context.WithTimeout(p.ctx, 2*time.Second)
 	defer cancel()
+	return notifyRealtime(ctx, p.db, realtimeChannel, payload)
+}
+
+func notifyRealtime(ctx context.Context, db *bun.DB, channel, payload string) (err error) {
 	// pgdriver's ordinary ExecContext interpolates parameters. Prepare on the
 	// underlying sql.DB to use Parse/Bind instead, never SQL payload literals.
-	stmt, err := p.db.DB.PrepareContext(ctx, "SELECT pg_notify($1, $2)")
+	stmt, err := db.DB.PrepareContext(ctx, "SELECT pg_notify($1, $2)")
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, stmt.Close()) }()
-	_, err = stmt.ExecContext(ctx, realtimeChannel, payload)
+	_, err = stmt.ExecContext(ctx, channel, payload)
 	return err
 }
 
@@ -108,7 +115,11 @@ func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(strin
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	listener := pgdriver.NewListener(db)
-	if err := listener.Listen(ctx, realtimeChannel); err != nil {
+	err := listener.Listen(ctx, realtimeChannel, realtimeReadyChannel)
+	if err == nil {
+		err = awaitRealtimeReady(ctx, db, listener)
+	}
+	if err != nil {
 		_ = listener.Close()
 		return nil, fmt.Errorf("realtime listener startup failed: %w", err)
 	}
@@ -117,6 +128,9 @@ func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(strin
 	go func() {
 		defer close(done)
 		for notification := range notifications {
+			if notification.Channel != realtimeChannel {
+				continue
+			}
 			if err := receive(notification.Payload); err != nil {
 				logger.Warn("discarding invalid realtime signal")
 			}

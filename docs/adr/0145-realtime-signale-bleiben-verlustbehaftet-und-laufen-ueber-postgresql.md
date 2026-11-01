@@ -79,3 +79,20 @@ SQL, unbekannte Statement-Parameter, Neuzuweisungen und Adress-Escapes bleiben
 unaufgelöst und schlagen weiterhin fehl. Der Regressionstest umfasst erlaubte
 NOTIFY-/Owner-Abfragen sowie fremde Tabellen und diese unaufgelösten Fälle;
 es entsteht keine Policy-Ausnahme für den Transport.
+
+## Bereitschaft des Listeners beim API-Start
+
+`pgdriver.Listener.Listen` schreibt die LISTEN-Befehle nur auf den Socket;
+es wartet nicht auf die Bestätigung des Servers. Der Konstruktor bestätigt
+die Anmeldung deshalb über eine inhaltsfreie, zufällige Probe auf dem
+zusätzlichen PostgreSQL-Kanal `moto_realtime_ready_v1`. Beide LISTEN-Befehle
+laufen auf derselben Verbindung und werden dort geordnet verarbeitet. Erst
+der Empfang der eigenen Probe beweist die wirksame Anmeldung am Ereigniskanal.
+Eine Probe auf der separaten Pool-Verbindung kann die Anmeldung überholen;
+nur dieser Start-Handshake wird innerhalb der vorhandenen fünf Sekunden
+wiederholt. Danach meldet sich der Listener vom Bereitschaftskanal ab.
+Bereitschaftsproben werden niemals an Browser weitergeleitet. Ein Test hält
+LISTEN-Pakete an der TCP-Grenze zurück und weist nach, dass der Konstruktor
+bis zur tatsächlichen Bereitschaft wartet. Ereignisse selbst werden nicht
+wiederholt; Verlust bei späteren Verbindungsabbrüchen bleibt durch Polling
+abgedeckt. Worker ohne Listener führen keinen Handshake aus.
