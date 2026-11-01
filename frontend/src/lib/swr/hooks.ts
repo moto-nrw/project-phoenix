@@ -600,11 +600,10 @@ function useDataOrigin(): { readonly generation: number } {
     currentSWRDataGeneration,
     currentSWRDataGeneration,
   );
-  const origin = useRef<{ moved: number; generation: number } | null>(null);
-  if (origin.current?.moved !== moved) {
-    origin.current = { moved, generation: currentSWRGeneration() };
-  }
-  return origin.current;
+  return useMemo(
+    () => ({ moved, generation: currentSWRGeneration() }),
+    [moved],
+  );
 }
 
 /**
