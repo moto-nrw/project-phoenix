@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,31 @@ func TestParentSendRetryReturnsStoredMessageWithoutAnotherNotice(t *testing.T) {
 	require.Len(t, again, 2)
 	require.Equal(t, sent[1].ID, again[1].ID)
 	require.Equal(t, 2, parentEventCount(f.bc, realtime.EventParentMessage))
+}
+
+func TestParentReplyRetryAfterNewGuardianActivity(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, true)
+	staffCtx := adminCtx(t, f.staffAccount)
+	first, err := testpkg.TenantQuery4(t, staffCtx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo", "")
+	require.NoError(t, err)
+	ctx := communication.WithMessageSendID(staffCtx, "reply-before-guardian")
+	sent, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, first.ThreadID, "Noch eine Information", 0)
+	require.NoError(t, err)
+	createGuardianMessage(t, f.db, f.chain, first.ThreadID, "Neue Frage")
+
+	retry, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, first.ThreadID, "Noch eine Information", 0)
+	require.NoError(t, err)
+	require.Len(t, retry, 3)
+	require.Equal(t, sent[1].ID, retry[1].ID)
+	require.Equal(t, sent[1].CreatedAt, retry[1].CreatedAt)
+	require.Equal(t, 2, parentEventCount(f.bc, realtime.EventParentMessage))
+
+	_, err = testpkg.TenantQuery3(t, ctx, f.db, f.svc.PostMessage, first.ThreadID, "Anderer Inhalt", 0)
+	require.ErrorIs(t, err, communication.ErrMessageSendConflict)
+	newCtx := communication.WithMessageSendID(staffCtx, "new-reply-after-guardian")
+	_, err = testpkg.TenantQuery3(t, newCtx, f.db, f.svc.PostMessage, first.ThreadID, "Neue Antwort", 0)
+	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 }
 
 func TestGroupSendRetriesKeepOneThreadAndOneAudience(t *testing.T) {
