@@ -4,6 +4,7 @@ Jedes Icon einer Seitenleisten-Zeile spielt beim Überfahren mit der Maus oder
 beim Tastaturfokus einmal eine **Szene**: Teile des Icons bewegen sich so, wie
 es das Symbol tut. Der Uhrzeiger dreht eine Runde, die Tür schwingt auf, Haken
 werden gesetzt. Das gilt für alle vier Portale (Tenant, Schule, Träger, Eltern).
+Die Regel dazu für Agenten: `.claude/rules/sidebar-icon-scenes.md`.
 
 | Datei | Inhalt |
 |---|---|
