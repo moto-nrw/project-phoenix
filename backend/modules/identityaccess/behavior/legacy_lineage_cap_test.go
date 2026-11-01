@@ -83,32 +83,6 @@ func TestLegacyFamilyThatMayDescendFromASwitchKeepsItsDeadline(t *testing.T) {
 	assert.False(t, headOfFamily(t, f.db, family).Expiry.After(deadline), "later rotations keep the deadline too")
 }
 
-// TestLegacyFamilyOfASingleSchoolAccountKeepsSliding keeps the transition
-// narrow: an account mapped to one school only and without Träger
-// membership never switched, so its sessions renew as before and no user
-// is signed out by the deploy.
-func TestLegacyFamilyOfASingleSchoolAccountKeepsSliding(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := setupAuthFactory(t, db)
-	service := newFixtureAuthService(t, db, module)
-	ctx := testpkg.Ctx(t)
-	email, username := uniqueTestCredentials("legacy-lineage-single")
-	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	access, refresh, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, testpkg.Tenant(t), "", "")
-	require.NoError(t, err)
-	family := accessSessionOf(t, access).FamilyID
-	deadline := ageFamily(t, db, family, time.Hour)
-
-	_, _, err = service.RefreshToken(ctx, legacyRefreshToken(t, refresh))
-	require.NoError(t, err)
-	head := headOfFamily(t, db, family)
-	assert.True(t, head.Expiry.After(deadline.Add(time.Hour)), "a single-school family renews its full lifetime")
-	assert.Nil(t, head.FamilyExpiryCap)
-}
-
 // A rotation committed before deployment can be recovered with its legacy
 // predecessor. Recovery must persist the deadline before adding lineage claims.
 func TestLegacyRefreshRecoveryKeepsItsDeadline(t *testing.T) {
@@ -179,33 +153,6 @@ func TestSwitchFromARetiredFamilyKeepsAFullLifetime(t *testing.T) {
 	assert.Nil(t, head.FamilyExpiryCap, "a retirement grace is no transition deadline")
 }
 
-// TestLegacyFamilyOfASingleSchoolAccountBecomesItsOwnOrigin pins that the
-// transition checks such a family once: its rotation names it as its own
-// lineage origin, so later rotations skip the check.
-func TestLegacyFamilyOfASingleSchoolAccountBecomesItsOwnOrigin(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := setupAuthFactory(t, db)
-	service := newFixtureAuthService(t, db, module)
-	ctx := testpkg.Ctx(t)
-	email, username := uniqueTestCredentials("legacy-lineage-origin")
-	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	access, refresh, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, testpkg.Tenant(t), "", "")
-	require.NoError(t, err)
-	family := accessSessionOf(t, access).FamilyID
-	ageFamily(t, db, family, time.Hour)
-
-	_, _, err = service.RefreshToken(ctx, legacyRefreshToken(t, refresh))
-	require.NoError(t, err)
-	var origin *string
-	require.NoError(t, db.NewRaw(`SELECT switched_from_family_id FROM auth.tokens
-		WHERE family_id = ? AND rotated_at IS NULL ORDER BY generation DESC LIMIT 1`, family).Scan(ctx, &origin))
-	require.NotNil(t, origin)
-	assert.Equal(t, family, *origin)
-}
-
 // TestLegacyDeadlineSurvivesConsecutiveSwitches pins that the transition
 // deadline travels with the lineage: a family switched out of a legacy one
 // is linked, and a further switch out of it must still keep the deadline.
@@ -230,4 +177,49 @@ func TestLegacyDeadlineSurvivesConsecutiveSwitches(t *testing.T) {
 	_, _, err = f.service.RefreshToken(ctx, secondRefresh)
 	require.NoError(t, err)
 	assert.False(t, headOfFamily(t, f.db, second).Expiry.After(deadline), "its rotation keeps the deadline too")
+}
+
+// TestEveryLegacyFamilyKeepsItsDeadline pins the conservative transition of
+// #5422: no rule can tell which family issued before it came from a switch.
+// A switch also accepts the current school, so an account with one school
+// can hold unlinked siblings from two switches there. Every family without a
+// lineage origin keeps its deadline at its first rotation, whatever school
+// count or portal it has.
+func TestEveryLegacyFamilyKeepsItsDeadline(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	ctx := testpkg.Ctx(t)
+	email, username := uniqueTestCredentials("legacy-single-school")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	school := testpkg.Tenant(t)
+	testpkg.EnsureAccountTenant(t, db, account.ID, school)
+	loginAccess, _, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, school, "", "")
+	require.NoError(t, err)
+	login := accessSessionOf(t, loginAccess).FamilyID
+	slug := fmt.Sprintf("t%d", school)
+	firstAccess, firstRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login)
+	require.NoError(t, err, "a switch into the current school")
+	secondAccess, secondRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login)
+	require.NoError(t, err, "a second tab switches into the same school")
+
+	for name, sibling := range map[string]struct{ access, refresh string }{
+		"first": {firstAccess, firstRefresh}, "second": {secondAccess, secondRefresh},
+	} {
+		family := accessSessionOf(t, sibling.access).FamilyID
+		deadline := ageFamily(t, db, family, time.Hour)
+
+		_, rotated, err := service.RefreshToken(ctx, legacyRefreshToken(t, sibling.refresh))
+		require.NoError(t, err, name)
+		head := headOfFamily(t, db, family)
+		assert.False(t, head.Expiry.After(deadline), "%s: a legacy family of a single-school account does not renew", name)
+		require.NotNil(t, head.FamilyExpiryCap, name)
+		assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Second, name)
+
+		_, _, err = service.RefreshToken(ctx, rotated)
+		require.NoError(t, err, name)
+		assert.False(t, headOfFamily(t, db, family).Expiry.After(deadline), "%s: later rotations keep the deadline", name)
+	}
 }
