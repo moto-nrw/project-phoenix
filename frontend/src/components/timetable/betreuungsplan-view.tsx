@@ -166,6 +166,7 @@ import {
   TimetableContentSkeleton,
   TimetablePageSkeleton,
 } from "./betreuungsplan-skeleton";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
 const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
@@ -2457,7 +2458,7 @@ function TimetablesContent() {
       empty={
         showEmptyPeriodState
           ? {
-              icon: <MotoConceptIcon concept="closingDays" size={42} />,
+              icon: <MotoConceptIcon concept={closingDaysConcept} size={42} />,
               title: "Noch kein Planungszeitraum",
               description: canManageSchedules
                 ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."

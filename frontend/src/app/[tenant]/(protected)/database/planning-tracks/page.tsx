@@ -26,6 +26,7 @@ import {
 } from "~/lib/planning-track-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTimetableEnabled } from "~/lib/tenant-context";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 const CACHE_KEY = "database-planning-tracks";
 const DEFAULT_COLOR: string = LOCATION_COLORS.OTHER_ROOM;
@@ -97,7 +98,7 @@ function PlanningTracksPageContent() {
         .reduce((highest, track) => Math.max(highest, track.sortOrder), -1) + 1;
 
     return {
-      concept: "carePlan",
+      concept: carePlanConcept,
       title: "Planungsspuren",
       singular: "Planungsspur",
       purpose:

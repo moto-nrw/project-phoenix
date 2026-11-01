@@ -68,6 +68,7 @@ import {
   OrgSoftDeleteModal,
   SchoolRestoreModal,
 } from "~/app/operator/provisioning/operator-entity-modals";
+import { organizationsConcept } from "~/lib/concepts/organizations";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
@@ -619,7 +620,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <EntityHeaderCard
         back={ORGANIZATIONS_BACK}
         title={organization.name}
-        concept="organizations"
+        concept={organizationsConcept}
         subdomain={organization.slug}
         active={organization.active}
         createdAt={organization.createdAt}

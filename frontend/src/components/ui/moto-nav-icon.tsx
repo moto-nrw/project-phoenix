@@ -1,5 +1,5 @@
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 /**
  * Das Navigations-Icon der Portal-Hüllen.
@@ -17,19 +17,18 @@ export function MotoNavIcon({
   active,
   className,
 }: Readonly<{
-  concept: MotoConceptKey;
-  iconConcept?: MotoConceptKey;
+  concept: MotoConcept;
+  iconConcept?: MotoConcept;
   active: boolean;
   className?: string;
 }>) {
-  const definition = MOTO_CONCEPTS[concept];
-  const Icon = MOTO_CONCEPTS[iconConcept ?? concept].icon;
+  const Icon = (iconConcept ?? concept).icon;
 
   if (active) {
     return (
       <MotoDuotoneIcon
         icon={Icon}
-        tone={definition.tone}
+        tone={concept.tone}
         size={22}
         className={className}
       />

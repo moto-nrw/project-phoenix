@@ -6,6 +6,7 @@ import type {
 } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 interface ActivitiesPanelProps {
   readonly running: DashboardRunningActivity[];
@@ -16,7 +17,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
       <div className="mb-5 flex items-center gap-4">
-        <ConceptIconTile concept="activities" variant="display" />
+        <ConceptIconTile concept={activitiesConcept} variant="display" />
         <h2 className="text-3xl font-bold text-gray-900">Aktivitäten</h2>
       </div>
 

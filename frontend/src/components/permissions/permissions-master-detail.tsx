@@ -17,7 +17,6 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Permission } from "@/lib/auth-helpers";
 import {
   formatPermissionDisplay,
@@ -25,6 +24,7 @@ import {
   localizeDescription,
   localizeResource,
 } from "@/lib/permission-labels";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 interface PermissionsMasterDetailProps {
   permissions: Permission[];
@@ -135,8 +135,8 @@ function PermissionDetailContent({ permission }: PermissionDetailContentProps) {
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.permissions.icon}
-              tone={MOTO_CONCEPTS.permissions.tone}
+              icon={permissionsConcept.icon}
+              tone={permissionsConcept.tone}
               size={36}
             />
           }
@@ -166,8 +166,8 @@ function PermissionStammdatenTab({ permission }: { permission: Permission }) {
         title="Berechtigungsdetails"
         icon={
           <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.permissions.icon}
-            tone={MOTO_CONCEPTS.permissions.tone}
+            icon={permissionsConcept.icon}
+            tone={permissionsConcept.tone}
             size={18}
           />
         }

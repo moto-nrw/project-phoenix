@@ -37,6 +37,7 @@ import {
   type PasskeyCredentialSummary,
   type PasskeyScope,
 } from "~/lib/passkey-api";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
 
 const logger = createLogger({ component: "PasskeySettingsSection" });
 
@@ -204,7 +205,7 @@ export function PasskeySettingsSection({
         // als h2 wuerde TrustedDevicesSection darunter einsortiert.
         level={3}
         title="Passkeys"
-        concept="passkeys"
+        concept={passkeysConcept}
         actions={
           supported &&
           !confirmingEnrollment &&

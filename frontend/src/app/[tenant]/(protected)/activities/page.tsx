@@ -37,6 +37,7 @@ import {
 import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -340,7 +341,7 @@ function ActivitiesPageContent() {
         empty={
           !showSkeleton && !error && filteredActivities.length === 0
             ? {
-                icon: <MotoConceptIcon concept="activities" size={48} />,
+                icon: <MotoConceptIcon concept={activitiesConcept} size={48} />,
                 title: hasFilters
                   ? "Keine Aktivitäten gefunden"
                   : "Keine Aktivitäten vorhanden",

@@ -55,6 +55,7 @@ import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -592,7 +593,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       <EntityHeaderCard
         back={organizationBack}
         title={school.name}
-        concept="schools"
+        concept={schoolsConcept}
         subdomain={school.subdomain}
         active={school.active}
         createdAt={school.createdAt}

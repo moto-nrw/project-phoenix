@@ -1,4 +1,7 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { childrenConcept } from "~/lib/concepts/children";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 /**
  * Statuszeile der geöffneten Aufsicht (#4354): Kinder, Raum und wer die
@@ -19,19 +22,19 @@ export function SupervisionHeadFacts({
   return (
     <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
       <span className="inline-flex items-center gap-1">
-        <MotoConceptIcon concept="children" size={16} />
+        <MotoConceptIcon concept={childrenConcept} size={16} />
         <span>{childCount}</span>
       </span>
       {roomName ? (
         <span className="inline-flex min-w-0 items-center gap-1">
-          <MotoConceptIcon concept="rooms" size={16} />
+          <MotoConceptIcon concept={roomsConcept} size={16} />
           <span className="sr-only">Raum:</span>
           <span className="truncate">{roomName}</span>
         </span>
       ) : null}
       {supervisorNames.length > 0 ? (
         <span className="inline-flex min-w-0 items-center gap-1">
-          <MotoConceptIcon concept="staff" size={16} />
+          <MotoConceptIcon concept={staffConcept} size={16} />
           <span className="sr-only">Aufsicht:</span>
           <span>{supervisorNames.join(", ")}</span>
         </span>

@@ -6,6 +6,12 @@ trustPolicy: no-downgrade
 # them one version the Sentry SDK 11.8.0 upgrade needs. Keep the seven-day delay
 # for every other package/version.
 minimumReleaseAgeExclude:
+  # Dependabot #179–#181: patched redirects/globbing and their new dependencies.
+  - follow-redirects@1.16.2
+  - glob@14.0.2
+  - minimatch@11.0.1
+  - path-scurry@3.0.0
+  - "@isaacs/nonrecursive-glob-match@1.0.1"
   # Dependabot #164/#165: patched mocker, with matching Vitest packages.
   - vitest@4.1.12
   - "@vitest/coverage-v8@4.1.12"
@@ -78,7 +84,9 @@ overrides:
   "fast-uri@>=3.0.0 <3.1.9": 3.1.9
   "brace-expansion@>=4.0.0 <5.0.12": 5.0.12
   "source-map-js@<1.2.2": 1.2.2
-  "follow-redirects@<1.16.1": 1.16.1
+  "follow-redirects@<1.16.2": 1.16.2
+  "glob@>=9.0.0 <14.0.2": 14.0.2
+  "minimatch@<11.0.1": 11.0.1
 
 peerDependencyRules:
   allowedVersions:

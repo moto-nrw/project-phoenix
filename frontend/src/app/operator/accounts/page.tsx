@@ -21,6 +21,7 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
+import { accountsConcept } from "~/lib/concepts/accounts";
 
 function OperatorAccountsPageContent() {
   useSetBreadcrumb({ pageTitle: "Konten" });
@@ -176,7 +177,11 @@ function OperatorAccountsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Konten" concept="accounts" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Konten"
+        concept={accountsConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="account"

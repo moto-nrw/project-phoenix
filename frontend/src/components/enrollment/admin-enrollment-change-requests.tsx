@@ -38,6 +38,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -221,7 +223,7 @@ export function AdminEnrollmentChangeRequestDetail({
       backHref="/anfragen"
       backLabel="Zurück zu Anfragen"
       stats={statusLine}
-      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <ChangeRequestStatusBadge status={data.status} />
@@ -328,7 +330,10 @@ export function AdminEnrollmentChangeRequestDetail({
                     disabled={!canReview || busy !== null || !question.trim()}
                     className="mt-3 inline-flex w-full items-center justify-center gap-2"
                   >
-                    <MotoConceptIcon concept="parentConversations" size={16} />
+                    <MotoConceptIcon
+                      concept={parentConversationsConcept}
+                      size={16}
+                    />
                     {busy === "question" ? "Sendet…" : "Rückfrage senden"}
                   </Button>
                 </section>

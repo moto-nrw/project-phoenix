@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { BackLink } from "~/components/ui/back-link";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface EntityHeaderStat {
   label: string;
@@ -19,7 +19,7 @@ interface EntityHeaderCardProps {
    * graue Icon-Kachel links vom Titel (Header-Muster). Ohne Prop
    * unveraendertes Verhalten.
    */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   subdomain?: string | null;
   active: boolean;
   stats?: EntityHeaderStat[];

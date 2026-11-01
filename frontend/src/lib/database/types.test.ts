@@ -8,6 +8,7 @@ import {
   configToFormSection,
   type SectionConfig,
 } from "./types";
+import { childrenConcept } from "~/lib/concepts/children";
 
 describe("defineEntityConfig", () => {
   it("returns the config as-is with proper typing", () => {
@@ -16,7 +17,7 @@ describe("defineEntityConfig", () => {
         singular: "Test",
         plural: "Tests",
       },
-      concept: "children",
+      concept: childrenConcept,
       labels: {
         createModalTitle: "Test erstellen",
         editModalTitle: "Test bearbeiten",
@@ -61,7 +62,7 @@ describe("configToFormSection", () => {
         },
       ],
       columns: 2,
-      concept: "children",
+      concept: childrenConcept,
     };
 
     const formSection = configToFormSection(sectionConfig);
@@ -75,7 +76,7 @@ describe("configToFormSection", () => {
     expect(formSection.fields[0]?.required).toBe(true);
     expect(formSection.fields[0]?.placeholder).toBe("Enter text");
     expect(formSection.columns).toBe(2);
-    expect(formSection.concept).toBe("children");
+    expect(formSection.concept).toBe(childrenConcept);
   });
 
   it("converts multiple fields correctly", () => {
