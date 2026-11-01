@@ -63,10 +63,6 @@ func (f *fakeCaterers) SchoolCaterer(context.Context) (identityaccess.CatererSup
 func (f *fakeCaterers) CatererSchools(context.Context, int64) (identityaccess.Caterer, []int64, error) {
 	return f.caterer, f.schools, f.err
 }
-func (f *fakeCaterers) LoginCatererWithAudit(context.Context, string, string, string, string) (string, string, error) {
-	return "access", "refresh", f.err
-}
-
 func (f *fakeCaterers) ChangeCatererPassword(context.Context, int64, string, string, string, string) error {
 	return f.err
 }

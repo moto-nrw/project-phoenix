@@ -1,8 +1,10 @@
 "use client";
 
-// Login of the caterer portal (ADR 0077). Like the school login without the
-// second factor: the backend checks e-mail and password, refuses every other
-// kind of account like a wrong password, and the BFF installs the session.
+// Login of the caterer portal (ADR 0077). The backend checks e-mail and
+// password and refuses every other kind of account like a wrong password.
+// Where the caterer switched two-factor sign-in on (#4497), a code from the
+// e-mail follows, unless this device is remembered.
+// The BFF installs the session.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -18,6 +20,7 @@ import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
@@ -58,6 +61,13 @@ function sessionErrorInUrl(): boolean {
   return true;
 }
 
+interface MFAStep {
+  readonly challengeToken: string;
+  readonly maskedEmail: string;
+  readonly trustedDeviceEnabled: boolean;
+  readonly trustedDeviceDays?: number;
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +77,7 @@ function LoginForm() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const resetFormRef = useRef<HTMLFormElement>(null);
@@ -124,14 +135,28 @@ function LoginForm() {
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;
 
+  // The BFF installed the session: after the password or the code.
+  const completeLogin = () => {
+    setAwaitingRedirect(true);
+    window.location.href = catererPath("/caterer");
+  };
+
   const submit = async () => {
     setIsLoading(true);
     formErrors.clear();
     setSessionExpired(false);
     try {
-      await loginCaterer(email, password);
-      setAwaitingRedirect(true);
-      window.location.href = catererPath("/caterer");
+      const result = await loginCaterer(email, password);
+      if (result.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: result.challengeToken,
+          maskedEmail: result.maskedEmail,
+          trustedDeviceEnabled: result.trustedDeviceEnabled,
+          trustedDeviceDays: result.trustedDeviceDays,
+        });
+        return;
+      }
+      completeLogin();
     } catch (cause) {
       // A wrong password, a switched-off account and too many tries have
       // texts of their own; before the login a 401 means "refused".
@@ -152,13 +177,29 @@ function LoginForm() {
     latestSubmitRef.current = () => void submit();
   });
 
+  const backToCredentials = () => {
+    setMfaStep(null);
+    setPassword("");
+    formErrors.clear();
+  };
+
   const emailError = formErrors.fieldError("email");
   const passwordError = formErrors.fieldError("password");
 
   return (
     <>
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-        {isCheckingAuth ? (
+        {mfaStep ? (
+          <MFAChallengeForm
+            scope="caterer"
+            challengeToken={mfaStep.challengeToken}
+            maskedEmail={mfaStep.maskedEmail}
+            trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+            trustedDeviceDays={mfaStep.trustedDeviceDays}
+            onSuccess={completeLogin}
+            onCancel={backToCredentials}
+          />
+        ) : isCheckingAuth ? (
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
             <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
