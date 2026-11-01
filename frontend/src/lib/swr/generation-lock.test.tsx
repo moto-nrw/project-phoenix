@@ -35,9 +35,11 @@ import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { setTestClock } from "~/test/clock";
 import {
   _resetSWRFallbacksForTests,
+  bumpScopeGeneration,
   isCurrentSWRValue,
   isFallbackVisible,
   preloadSWR,
+  stampSWRValue,
 } from "./generation";
 import { swrConfig } from "./config";
 import {
@@ -226,6 +228,64 @@ describe.each([
   ["with cleanup", true],
   ["lock only, cleanup off", false],
 ])("generation lock %s (#5006)", (_mode, cleanup) => {
+  it.each(["bound", "tenant"])(
+    "keeps the committed primitive through repeated failed %s mutations",
+    async (kind) => {
+      const name = "student-7-rollback-stamp";
+      stampSWRValue(FULL(name), "vorher", 0);
+      bumpScopeGeneration();
+      const fetcher = vi
+        .fn(() => new Promise<string>(() => {}))
+        .mockResolvedValueOnce("stand");
+      render(
+        <Page>
+          <Reader name={name} fetcher={fetcher} />
+        </Page>,
+      );
+      await flush();
+      expect(screen.getByTestId(name)).toHaveTextContent("stand");
+      _setSWRCleanupForTests(cleanup);
+
+      for (let i = 0; i < 4; i += 1) {
+        const pending = deferred<string>();
+        const rollbackOnError = vi.fn(() => true);
+        let mutation: Promise<unknown> = Promise.resolve();
+        act(() => {
+          const options = {
+            optimisticData:
+              i % 2 === 0 ? `optimistisch-${i}` : () => `optimistisch-${i}`,
+            ...(i % 2 === 0 ? {} : { rollbackOnError }),
+            revalidate: false,
+          };
+          mutation = (
+            kind === "bound"
+              ? responses[name]!.mutate(pending.promise, options)
+              : tools.mutate(name, pending.promise, options)
+          ).catch(() => undefined);
+        });
+        expect(screen.getByTestId(name)).toHaveTextContent(`optimistisch-${i}`);
+        await act(async () => {
+          pending.reject(new Error("Speichern fehlgeschlagen"));
+          await mutation;
+        });
+        expect(screen.getByTestId(name)).toHaveTextContent("stand");
+        if (i % 2 !== 0) expect(rollbackOnError).toHaveBeenCalledTimes(1);
+      }
+
+      const update = vi.fn((current: unknown) => `${String(current)}-neu`);
+      await act(async () => {
+        if (kind === "bound") {
+          await responses[name]!.mutate(update, { revalidate: false });
+        } else {
+          await tools.mutate(name, update, { revalidate: false });
+        }
+      });
+      expect(update).toHaveBeenCalledWith("stand");
+      expect(screen.getByTestId(name)).toHaveTextContent("stand-neu");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
   describe.each(OPERATIONS.slice(4))(
     "unseen fallback after %s",
     (_name, operation) => {

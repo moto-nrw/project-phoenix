@@ -400,23 +400,38 @@ export function lockMutation(
   const given = (options ?? {}) as {
     populateCache?: boolean | ((result: unknown, current: unknown) => unknown);
     optimisticData?: unknown;
+    rollbackOnError?: boolean | ((error: unknown) => boolean);
   };
   const optimistic = given.optimisticData;
+  const rollback = given.rollbackOnError;
+  let committed: unknown;
   // An optimistic value is shown whatever populateCache says: stamp it.
   const withOptimistic = {
     ...given,
     ...(optimistic === undefined
       ? {}
       : {
-          optimisticData:
-            typeof optimistic === "function"
-              ? (...args: unknown[]) =>
-                  stamp(
-                    (optimistic as (...a: unknown[]) => unknown)(
-                      ...args.map(base),
-                    ),
+          optimisticData: (...args: unknown[]) => {
+            committed = base(args[0]);
+            return stamp(
+              typeof optimistic === "function"
+                ? (optimistic as (...a: unknown[]) => unknown)(
+                    ...args.map(base),
                   )
-              : stamp(optimistic),
+                : optimistic,
+            );
+          },
+          rollbackOnError: (error: unknown) => {
+            const shouldRollback =
+              typeof rollback === "function"
+                ? rollback(error)
+                : rollback !== false;
+            // Optimistic primitives can evict the committed value's stamp.
+            // Restore only the base that was valid before this mutation,
+            // and only while its data generation still counts.
+            if (shouldRollback) stamp(committed);
+            return shouldRollback;
+          },
         }),
   };
   if (given.populateCache === false) return [locked, withOptimistic];
