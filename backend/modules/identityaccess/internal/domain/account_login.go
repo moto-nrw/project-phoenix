@@ -121,6 +121,11 @@ type RefreshClaims struct {
 	TenantID  int64
 	OrgID     int64
 	Scope     string
+	// FamilyID and LineageID name the refresh family and the origin of its
+	// school-switch lineage, so a logout finds the lineage even after its
+	// rows are gone (#5422).
+	FamilyID  string
+	LineageID string
 	ExpiresAt int64
 }
 

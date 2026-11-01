@@ -318,7 +318,11 @@ func (s *AccountAuthentication) persistNewSession(ctx context.Context, account d
 		if !isTokenFamilyConflict(err) {
 			return domain.AccountSession{}, failed("login transaction", err)
 		}
-		session.FamilyID = uuid.Must(uuid.NewV4()).String()
+		retried := uuid.Must(uuid.NewV4()).String()
+		if session.SwitchedFromFamilyID == session.FamilyID {
+			session.SwitchedFromFamilyID = retried
+		}
+		session.FamilyID = retried
 		s.logger.Warn("login race condition detected, retrying",
 			slog.Int64("account_id", account.ID),
 			slog.Int("attempt", attempt+1),
@@ -330,17 +334,22 @@ func (s *AccountAuthentication) persistNewSession(ctx context.Context, account d
 func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string) domain.AccountSession {
 	identifier := domain.RefreshTokenIdentifier
 	now := time.Now()
+	familyID := uuid.Must(uuid.NewV4()).String()
 	return domain.AccountSession{
-		Token:       uuid.Must(uuid.NewV4()).String(),
-		AccountID:   accountID,
-		Expiry:      now.Add(s.codec.RefreshExpiry()),
-		Mobile:      false,
-		Identifier:  &identifier,
-		FamilyID:    uuid.Must(uuid.NewV4()).String(),
-		Generation:  0,
-		PortalScope: domain.PersistedPortalScope(scope),
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		AccountID:  accountID,
+		Expiry:     now.Add(s.codec.RefreshExpiry()),
+		Mobile:     false,
+		Identifier: &identifier,
+		FamilyID:   familyID,
+		// A new family is its own lineage origin until a switch or an
+		// Absprung names another; an empty origin marks a family issued
+		// before #5422 (capLegacyLineage).
+		SwitchedFromFamilyID: familyID,
+		Generation:           0,
+		PortalScope:          domain.PersistedPortalScope(scope),
+		CreatedAt:            now,
+		UpdatedAt:            now,
 	}
 }
 
@@ -380,39 +389,6 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 		return domain.AccountSession{}, err
 	}
 	return stored, nil
-}
-
-// capSessionsUnlessDemo enforces the session cap for every account except one
-// a demo access signed in: all visitors of the public demo share that
-// account, so the cap would end the demo of an earlier visitor (#3462).
-func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accountID int64, portalScope string) error {
-	demo, err := s.store.DemoAccountExists(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("check demo account before session cap: %w", err)
-	}
-	if demo {
-		return nil
-	}
-	evicted, err := s.enforcePortalSessionCap(ctx, accountID, portalScope)
-	if err != nil {
-		return err
-	}
-	s.queuePushCleanup(ctx, accountID, evicted, "session_cap")
-	return nil
-}
-
-// enforcePortalSessionCap keeps at most five active sessions in this portal
-// group; other portals keep their own sessions.
-func (s *AccountAuthentication) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]domain.AccountSession, error) {
-	capped, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
-	if err != nil {
-		return nil, fmt.Errorf("enforce active session cap: %w", err)
-	}
-	evicted := domainAccountSessions(capped)
-	if err := s.auditRevokedSessions(ctx, evicted, "session_cap", "", ""); err != nil {
-		return nil, err
-	}
-	return evicted, nil
 }
 
 func isTokenFamilyConflict(err error) bool {
@@ -712,6 +688,8 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 		TenantID:  metadata.TenantID,
 		OrgID:     session.OrganizationID,
 		Scope:     metadata.Scope,
+		FamilyID:  session.FamilyID,
+		LineageID: domain.SwitchLineage(session),
 		ExpiresAt: session.Expiry.Unix(),
 	}
 	return access, refresh

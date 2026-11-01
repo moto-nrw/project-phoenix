@@ -38,7 +38,7 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	if s.traeger == nil {
 		return "", failed("Träger school session", errTraegerMembershipsUnavailable)
 	}
-	if request.AccountID <= 0 || request.OrganizationID <= 0 {
+	if request.AccountID <= 0 || request.OrganizationID <= 0 || request.TraegerFamilyID == "" {
 		return "", failed("Träger school session", identityaccess.ErrInvalidToken)
 	}
 	if request.SchoolID <= 0 {
@@ -48,13 +48,20 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	if err != nil {
 		return "", err
 	}
-	// The proof is read first to stamp the session; the guard reads it again
-	// under the account lock MFA reset takes.
-	var proof bool
+	// The proof and the lineage are read first to stamp the session; the
+	// guard reads both again under the account lock MFA reset and logout
+	// take.
+	var (
+		proof  bool
+		origin string
+	)
 	if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
-		var proofErr error
-		proof, proofErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
-		return proofErr
+		var readErr error
+		if origin, readErr = s.liveSourceLineage(txCtx, account.ID, request.TraegerFamilyID, time.Now()); readErr != nil {
+			return readErr
+		}
+		proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
+		return readErr
 	}); err != nil {
 		return "", err
 	}
@@ -63,6 +70,9 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	session.OrganizationID = request.OrganizationID
 	session.Expiry = time.Now().Add(domain.TraegerSchoolHandoffTTL)
 	session.MFAVerified = proof
+	// The school session descends from the Träger session: the Träger's
+	// logout ends it (#5422).
+	session.SwitchedFromFamilyID = origin
 	guard := s.traegerSchoolMintGuard(request.OrganizationID, request.SchoolID, &metadata)
 	session, err = s.persistNewSession(ctx, account, session, request.SchoolID, s.traegerSchoolHandoffGuard(request, proof, guard), "")
 	if err != nil {
@@ -82,8 +92,13 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 // transaction, so no session exists without its audit entry.
 func (s *AccountAuthentication) traegerSchoolHandoffGuard(request identityaccess.TraegerSchoolSessionRequest, proof bool, next mintGuard) mintGuard {
 	proven := func(ctx context.Context, account domain.LoginAccount) error {
-		// next takes the account lock MFA reset shares.
+		// next takes the account lock MFA reset and logout share.
 		if err := next(ctx, account); err != nil {
+			return err
+		}
+		// A Träger session logged out since the request opens nothing,
+		// whether or not a second factor is configured (#5422).
+		if _, err := s.liveSourceLineage(ctx, account.ID, request.TraegerFamilyID, time.Now()); err != nil {
 			return err
 		}
 		current, err := s.traegerSessionMFAProof(ctx, account.ID, request.OrganizationID, request.TraegerFamilyID)

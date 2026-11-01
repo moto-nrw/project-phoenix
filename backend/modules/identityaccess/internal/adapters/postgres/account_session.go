@@ -31,7 +31,9 @@ type accountSessionRow struct {
 	PortalScope          string     `bun:"portal_scope,notnull,default:'unknown'"`
 	MFAVerified          bool       `bun:"mfa_verified,notnull,default:false"`
 	FamilyID             string     `bun:"family_id"`
+	SwitchedFromFamilyID string     `bun:"switched_from_family_id,nullzero"`
 	FamilyExpiryCap      *time.Time `bun:"family_expiry_cap"`
+	LineageDeadline      *time.Time `bun:"lineage_deadline"`
 	Generation           int        `bun:"generation,default:0"`
 	RotatedAt            *time.Time `bun:"rotated_at"`
 	ReplacementTokenHash *string    `bun:"replacement_token"`
@@ -43,7 +45,7 @@ type accountSessionRow struct {
 func (r accountSessionRow) toDomain() domain.AccountSession {
 	return domain.AccountSession{
 		ID: r.ID, TenantID: r.TenantID, OrganizationID: r.OrganizationID, AccountID: r.AccountID, TokenHash: r.TokenHash, Expiry: r.Expiry, Mobile: r.Mobile,
-		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
+		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, SwitchedFromFamilyID: r.SwitchedFromFamilyID, FamilyExpiryCap: r.FamilyExpiryCap, LineageDeadline: r.LineageDeadline,
 		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementTokenHash: r.ReplacementTokenHash, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -52,7 +54,7 @@ func (r accountSessionRow) toDomain() domain.AccountSession {
 func accountSessionRowFromDomain(session domain.AccountSession) accountSessionRow {
 	return accountSessionRow{
 		ID: session.ID, TenantID: session.TenantID, OrganizationID: session.OrganizationID, AccountID: session.AccountID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, Mobile: session.Mobile,
-		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
+		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, SwitchedFromFamilyID: session.SwitchedFromFamilyID, FamilyExpiryCap: session.FamilyExpiryCap, LineageDeadline: session.LineageDeadline,
 		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
