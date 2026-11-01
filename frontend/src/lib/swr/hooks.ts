@@ -49,6 +49,7 @@ import {
   requestGenerationOf,
   startOf,
   preloadSWR,
+  expireIntentPreload,
 } from "./generation";
 import {
   authGeneration,
@@ -141,7 +142,12 @@ const generationLockMiddleware: Middleware =
     return useSWRNext(key, locked, {
       ...config,
       compare,
-      isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
+      isPaused: () => {
+        // SWR checks this before invoking its built-in preload consumer.
+        // Read-time expiry also covers suspended background-tab timers.
+        if (typeof key === "string") expireIntentPreload(key);
+        return isSWRSessionPending() || config.isPaused?.() === true;
+      },
       onError,
       onErrorRetry,
     });
@@ -803,6 +809,7 @@ export function useSWRCacheKey() {
 /** Hover/intent preload, held to the same session and generation as mounted readers. */
 export function useSWRPreload() {
   const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
   useSyncExternalStore(
     subscribeSWRDataGeneration,
     currentSWRDataGeneration,
@@ -810,14 +817,40 @@ export function useSWRPreload() {
   );
   const originatingGeneration = currentSWRGeneration();
   return useCallback(
-    <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
+    <T>(
+      key: string,
+      fetcher: () => Promise<T>,
+      options?: { intent: true },
+    ): Promise<T | undefined> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
       const fullKey = scopedSWRKey(prefix, key);
       if (dataGenerationOf(fullKey) > originatingGeneration)
         return Promise.resolve(undefined);
+      const entry = cache.get(fullKey);
+      // A mounted reader already owns this request; never start a parallel
+      // speculative copy while its answer is still missing.
+      if (options?.intent && entry?.isValidating)
+        return Promise.resolve(undefined);
+      const cached = entry?.data as T | undefined;
+      if (
+        options?.intent &&
+        cached !== undefined &&
+        isCurrentSWRValue(fullKey, cached) === true
+      )
+        return Promise.resolve(undefined);
       const start = startOf(fullKey);
-      return preloadSWR(fullKey, fetcher).then(
+      return preloadSWR(
+        fullKey,
+        async () => {
+          // The consumed-intent fallback must obey the original request's
+          // generation and the live session gate, just like the first load.
+          if (isSWRSessionPending() || !isStillCurrent(fullKey, start))
+            throw new DiscardedAnswer();
+          return fetcher();
+        },
+        options?.intent,
+      ).then(
         (value) =>
           isStillCurrent(fullKey, start) &&
           isCurrentSWRValue(fullKey, value) !== false
@@ -834,7 +867,7 @@ export function useSWRPreload() {
         },
       );
     },
-    [prefix, originatingGeneration],
+    [prefix, originatingGeneration, cache],
   );
 }
 

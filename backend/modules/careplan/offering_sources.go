@@ -151,4 +151,7 @@ type OfferingBookingWindow struct {
 	ValidFrom  *calendar.Date
 	ValidUntil *calendar.Date
 	Weekdays   []int
+	// Ended is true when the booking link itself ends at ValidUntil, by a
+	// booking change or a withdrawal, not the end of its phase (#5102).
+	Ended bool
 }

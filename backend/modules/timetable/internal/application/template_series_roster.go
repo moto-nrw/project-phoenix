@@ -359,6 +359,8 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 ) ([]int64, error) {
 	satisfied := make(map[seriesWeekdayPerson]bool)
 	touched := make(map[int64]bool)
+	// Protected rows are booking-created and never carry the decision.
+	decisions := collectKeptDecisions(priorRows, window.from)
 	for _, row := range priorRows {
 		if row == nil || enrollmentIsProtected(row) {
 			continue
@@ -390,6 +392,8 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 			ValidUntil:       activityDatePtr(window.until),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          &weekday,
+			// The school's „Bleibt so“ (#5102) stays with the child.
+			KeptWithoutBooking: decisions.forRow(key.personID, &weekday, nil),
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := createLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, enrollment); err != nil {

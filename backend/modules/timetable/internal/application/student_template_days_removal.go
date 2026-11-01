@@ -22,6 +22,11 @@ func (s *StudentTemplateDays) RemoveStudentTemplateDays(ctx context.Context, rem
 	if err != nil {
 		return timetable.StudentTemplateDaysRemoved{}, err
 	}
+	// Today has begun: its occurrences and rows stay, the removal starts
+	// tomorrow at the earliest (#5102).
+	if tomorrow := s.deps.Today().AddDays(1); removal.From.Before(tomorrow) {
+		removal.From = tomorrow
+	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return timetable.StudentTemplateDaysRemoved{}, err
 	}
@@ -49,6 +54,9 @@ func (s *StudentTemplateDays) RemoveStudentTemplateDays(ctx context.Context, rem
 	if result.Occurrences, err = s.leaveOccurrences(ctx, rows, inSeries, wanted, removal); err != nil {
 		return result, err
 	}
+	// The child left the plan: rosters, staffing and the leftover hint of
+	// other tabs refetch (#5102).
+	announceStaffingChanged(ctx, s.deps.Staffing, s.deps.Logger, "student_template_days_remove")
 	s.deps.Logger.Info("removed student from hand-maintained template weekdays",
 		slog.Int64("template_id", removal.TemplateID),
 		slog.Int64("student_id", removal.StudentID),
@@ -148,6 +156,8 @@ func (s *StudentTemplateDays) continueHandRow(ctx context.Context, row *activity
 		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID,
 		ValidFrom: start.String(), ValidUntil: validUntil,
 		CalendarPeriodID: row.CalendarPeriodID, AttendanceStatus: row.AttendanceStatus, Weekday: &scoped,
+		// The weekday-scoped row keeps that weekday's decision only.
+		KeptWithoutBooking: keptWeekdayStrings(row.KeptWithoutBooking, &scoped),
 	})
 	if err != nil {
 		return fmt.Errorf("student template days: continue hand row: %w", err)

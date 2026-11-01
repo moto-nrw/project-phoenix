@@ -87,7 +87,7 @@ func collectOfferingWeekdayBookings(
 		if !ok {
 			continue
 		}
-		window := careplan.OfferingBookingWindow{ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays}
+		window := bookingWindow(&link, validFrom, validUntil, weekdays, phase)
 		key := offeringStudentKey{offeringID: offering.ID, studentID: child.StudentID}
 		if position, ok := index[key]; ok {
 			merged := append(result[position].Weekdays, weekdays...)
@@ -118,6 +118,16 @@ func collectOfferingWeekdayBookings(
 		})
 	}
 	return result
+}
+
+// bookingWindow is one link's validity within its phase. Many links store
+// the day after the phase as their end; only an end before it is a booking
+// change or a withdrawal (#5102).
+func bookingWindow(link *careplan.BookedOffering, validFrom, validUntil calendar.Date, weekdays []int, phase careplan.OfferingPhase) careplan.OfferingBookingWindow {
+	return careplan.OfferingBookingWindow{
+		ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays,
+		Ended: link.ValidUntil != nil && *link.ValidUntil == validUntil && validUntil.Before(phase.ServiceEnd.AddDays(1)),
+	}
 }
 
 // periodTemplateGapAck is the offering's decision for the requested

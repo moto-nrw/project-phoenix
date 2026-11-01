@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -42,7 +44,7 @@ type TimetableOwner struct {
 func BuildTimetableOwner(
 	db transactionruntime.Database, logger *slog.Logger, now func() time.Time,
 	owner timetable.Capability, repos TimetableRepositories, calendar schoolcalendar.Days,
-	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRows,
+	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRows, broadcaster realtime.Broadcaster,
 ) (TimetableOwner, error) {
 	pool := db.Pool()
 	recurrenceLock, err := arrivalTimetable.NewRecurrenceWriteLock(arrivalTimetable.RecurrenceLockDependencies{
@@ -56,7 +58,7 @@ func BuildTimetableOwner(
 	if now != nil {
 		today = func() timezone.Date { return timezone.DateFromTime(now()) }
 	}
-	studentDays, err := NewTimetableStudentTemplateDays(repos, calendarPeriods, recurrenceLock, today, logger)
+	studentDays, err := NewTimetableStudentTemplateDays(repos, calendarPeriods, recurrenceLock, today, logger, NewStaffingAnnouncer(broadcaster))
 	if err != nil {
 		return TimetableOwner{}, fmt.Errorf("compose timetable student template days: %w", err)
 	}
@@ -80,13 +82,15 @@ func BuildTimetableOwner(
 }
 
 // NewTimetableStudentTemplateDays binds the student template days over the
-// retained rows and the recurrence gate; today bounds the removal.
+// retained rows and the recurrence gate; today bounds the removal, staffing
+// wakes the planning caches (nil wakes none).
 func NewTimetableStudentTemplateDays(
 	repos TimetableRepositories, periods timetablePorts.ActiveCalendarPeriods, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
+	staffing timetablePorts.StaffingAnnouncer,
 ) (timetable.StudentTemplateDays, error) {
 	return arrivalTimetable.NewStudentTemplateDays(timetablePorts.StudentTemplateDaysDependencies{
 		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Timeframes: repos.Timeframe, Periods: periods, Enrollments: repos.StudentEnrollment,
 		Instances: repos.ActivityInstance.Reads, Participants: repos.InstanceStudent, RecurrenceLock: lock,
-		Today: today, Logger: logger,
+		Staffing: staffing, Today: today, Logger: logger,
 	})
 }
