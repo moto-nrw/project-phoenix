@@ -14,5 +14,6 @@
   "delivery_range_too_long": "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
   "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
   "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
-  "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
+  "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
+  "participation_manage_denied": "Możesz przeglądać zapisy na posiłki, ale nie możesz ich zmieniać. Skontaktuj się z zespołem opieki pozaszkolnej."
 }

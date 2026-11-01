@@ -40,8 +40,9 @@ function goShard(name, entries) {
 }
 
 function tsDomain(entries) {
-  const codes = entries.length === 1
-    ? `export const codes = [${JSON.stringify(entries[0].code)}] as const;\n\n`
+  const inlineCodes = `export const codes = [${entries.map((entry) => JSON.stringify(entry.code)).join(", ")}] as const;`;
+  const codes = inlineCodes.length <= 80
+    ? `${inlineCodes}\n\n`
     : "export const codes = [\n" + entries.map((entry) =>
       `  ${JSON.stringify(entry.code)},\n`).join("") + "] as const;\n\n";
   return header + codes +

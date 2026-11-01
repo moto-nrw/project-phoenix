@@ -307,32 +307,23 @@ export function ChildCard({
 }
 
 export function ContactList({
-  kind,
   contacts,
   max,
   fieldError,
   onChange,
 }: Readonly<{
-  kind: "emergency_contacts" | "pickup_persons";
   contacts: readonly ContactDraft[];
   max: number;
   fieldError: FieldError;
   onChange: (contacts: readonly ContactDraft[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const emergency = kind === "emergency_contacts";
   const setContact = (index: number, contact: ContactDraft) =>
     onChange(contacts.map((current, i) => (i === index ? contact : current)));
 
   return (
-    <SectionCard
-      title={emergency ? t("emergencyTitle") : t("pickupTitle")}
-      description={emergency ? t("emergencyText") : t("pickupText")}
-    >
+    <SectionCard title={t("contactsTitle")} description={t("contactsText")}>
       <div className="space-y-4">
-        {contacts.length === 0 ? (
-          <p className="text-sm text-gray-600">{t("noPickup")}</p>
-        ) : null}
         {contacts.map((contact, index) => (
           <fieldset
             key={contact.key}
@@ -342,24 +333,24 @@ export function ContactList({
               {t("contactTitle", { number: index + 1 })}
             </legend>
             <Input
-              name={`${kind}.${index}.name`}
+              name={`contacts.${index}.name`}
               label={t("name")}
               required
               maxLength={120}
               value={contact.name}
-              error={fieldError(`${kind}.${index}.name`)}
+              error={fieldError(`contacts.${index}.name`)}
               onChange={(event) =>
                 setContact(index, { ...contact, name: event.target.value })
               }
             />
             <Input
-              name={`${kind}.${index}.phone`}
+              name={`contacts.${index}.phone`}
               type="tel"
-              label={emergency ? t("phone") : t("phoneOptional")}
-              required={emergency}
+              label={contact.emergency ? t("phone") : t("phoneOptional")}
+              required={contact.emergency}
               maxLength={40}
               value={contact.phone}
-              error={fieldError(`${kind}.${index}.phone`)}
+              error={fieldError(`contacts.${index}.phone`)}
               onChange={(event) =>
                 setContact(index, { ...contact, phone: event.target.value })
               }
@@ -367,9 +358,10 @@ export function ContactList({
             <div className="flex items-end gap-2">
               <div className="min-w-0 flex-1">
                 <Input
-                  name={`${kind}.${index}.relationship`}
+                  name={`contacts.${index}.relationship`}
                   label={t("relationship")}
                   maxLength={60}
+                  error={fieldError(`contacts.${index}.relationship`)}
                   value={contact.relationship}
                   onChange={(event) =>
                     setContact(index, {
@@ -379,7 +371,7 @@ export function ContactList({
                   }
                 />
               </div>
-              {emergency && contacts.length === 1 ? null : (
+              {contacts.length === 1 ? null : (
                 <Button
                   type="button"
                   variant="ghost"
@@ -392,6 +384,33 @@ export function ContactList({
                 </Button>
               )}
             </div>
+            <div className="space-y-2 sm:col-span-3">
+              {(["emergency", "pickup"] as const).map((role) => {
+                const name = `contacts.${index}.${role}`;
+                const error = fieldError(name);
+                const hintId = `${contact.key}-${role}-error`;
+                return (
+                  <div key={role}>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <Checkbox
+                        name={name}
+                        checked={contact[role]}
+                        aria-invalid={error ? true : undefined}
+                        aria-describedby={error ? hintId : undefined}
+                        onChange={(event) =>
+                          setContact(index, {
+                            ...contact,
+                            [role]: event.target.checked,
+                          })
+                        }
+                      />
+                      {t(role === "emergency" ? "emergencyRole" : "pickupRole")}
+                    </label>
+                    <FieldErrorHint id={hintId} message={error} />
+                  </div>
+                );
+              })}
+            </div>
           </fieldset>
         ))}
         {contacts.length < max ? (
@@ -401,7 +420,7 @@ export function ContactList({
             size="md"
             onClick={() => onChange([...contacts, emptyContact()])}
           >
-            {emergency ? t("addContact") : t("addPickup")}
+            {t("addPickup")}
           </Button>
         ) : null}
       </div>

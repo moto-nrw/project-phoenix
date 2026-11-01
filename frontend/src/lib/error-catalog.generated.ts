@@ -249,6 +249,8 @@ export const ERROR_CATALOG = {
         "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "display.disabled":
         "Die Anzeigetafel ist an dieser Schule ausgeschaltet.",
+      "display.manage_forbidden":
+        "Sie dürfen Info-Displays ansehen, aber nicht ändern. Bitte fragen Sie Ihre Schulleitung.",
       "enrollment.approval_care_offering_day_conflict":
         "Für dieses Kind sind an einem Tag zwei Angebote gebucht, die nicht zusammen gehen. Bitte ändern Sie zuerst die Buchung.",
       "enrollment.approval_care_offering_exactly_one":
@@ -709,6 +711,8 @@ export const ERROR_CATALOG = {
         "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
       "meals.order_not_found":
         "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
+      "meals.participation_manage_denied":
+        "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS.",
       "meals.plan_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "meals.registration_disabled":
@@ -1703,6 +1707,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
+      "display.manage_forbidden":
+        "You can view info displays, but cannot change them. Please contact your school management.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -1919,6 +1925,8 @@ export const ERROR_CATALOG = {
         "You no longer supply this school. Please ask the school.",
       "meals.order_not_found":
         "This order does not exist. Please reload the page.",
+      "meals.participation_manage_denied":
+        "You can view meal registrations, but cannot change them. Please contact the after-school care team.",
       "meals.plan_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "meals.registration_disabled":
@@ -2175,6 +2183,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
+      "display.manage_forbidden":
+        "Вы можете просматривать информационные экраны, но не изменять их. Обратитесь к руководству школы.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -2363,6 +2373,8 @@ export const ERROR_CATALOG = {
         "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
       "meals.order_not_found":
         "Такого заказа нет. Пожалуйста, обновите страницу.",
+      "meals.participation_manage_denied":
+        "Вы можете просматривать запись на питание, но не изменять её. Обратитесь в группу продлённого дня.",
       "meals.plan_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "meals.registration_disabled":
@@ -2581,6 +2593,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
+      "display.manage_forbidden":
+        "Mund t’i shikoni ekranet informuese, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni drejtuesit e shkollës.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -2781,6 +2795,8 @@ export const ERROR_CATALOG = {
         "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
       "meals.order_not_found":
         "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
+      "meals.participation_manage_denied":
+        "Mund t’i shikoni regjistrimet për ushqim, por nuk mund t’i ndryshoni. Ju lutemi kontaktoni ekipin e kujdesit pas shkollës.",
       "meals.plan_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "meals.registration_disabled":
@@ -3000,6 +3016,8 @@ export const ERROR_CATALOG = {
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
         "Ta ankieta nie przyjmuje już odpowiedzi.",
+      "display.manage_forbidden":
+        "Możesz przeglądać ekrany informacyjne, ale nie możesz ich zmieniać. Skontaktuj się z dyrekcją szkoły.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -3188,6 +3206,8 @@ export const ERROR_CATALOG = {
         "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
       "meals.order_not_found":
         "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
+      "meals.participation_manage_denied":
+        "Możesz przeglądać zapisy na posiłki, ale nie możesz ich zmieniać. Skontaktuj się z zespołem opieki pozaszkolnej.",
       "meals.plan_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "meals.registration_disabled":
@@ -3406,6 +3426,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
+      "display.manage_forbidden":
+        "Bilgi ekranlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul yönetimine başvurun.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -3599,6 +3621,8 @@ export const ERROR_CATALOG = {
         "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
       "meals.order_not_found":
         "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
+      "meals.participation_manage_denied":
+        "Yemek kayıtlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul sonrası bakım ekibine başvurun.",
       "meals.plan_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "meals.registration_disabled":
@@ -3816,6 +3840,8 @@ export const ERROR_CATALOG = {
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":
         "Це опитування більше не приймає відповіді.",
+      "display.manage_forbidden":
+        "Ви можете переглядати інформаційні екрани, але не змінювати їх. Зверніться до керівництва школи.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
@@ -4003,6 +4029,8 @@ export const ERROR_CATALOG = {
         "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
       "meals.order_not_found":
         "Такого замовлення немає. Будь ласка, оновіть сторінку.",
+      "meals.participation_manage_denied":
+        "Ви можете переглядати записи на харчування, але не змінювати їх. Зверніться до групи продовженого дня.",
       "meals.plan_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "meals.registration_disabled":

@@ -2,9 +2,11 @@
 package common
 
 const CodeDisplayDisabled = "display.disabled"
+const CodeDisplayManageForbidden = "display.manage_forbidden"
 
 var errorCodeClassesDisplay = []errorCodeClass{
 	{CodeDisplayDisabled, "permission"},
+	{CodeDisplayManageForbidden, "permission"},
 }
 
 func init() {

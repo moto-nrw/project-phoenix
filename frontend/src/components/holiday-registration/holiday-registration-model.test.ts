@@ -83,7 +83,7 @@ function complete(): RegistrationDraft {
         bookings: { "12": "22", "11": "21" },
       },
     ],
-    emergencyContacts: [
+    contacts: [
       { ...emptyContact(), name: "Oma", phone: "0123", relationship: "" },
     ],
     privacyConsent: true,
@@ -103,8 +103,8 @@ describe("validateRegistration", () => {
       "children.0.birth_date": "required",
       "children.0.home_school_id": "school",
       "children.0.bookings": "weeks",
-      "emergency_contacts.0.name": "required",
-      "emergency_contacts.0.phone": "required",
+      "contacts.0.name": "required",
+      "contacts.0.phone": "required",
       privacy_consent: "privacy",
       binding_confirmed: "binding",
     });
@@ -125,8 +125,8 @@ describe("validateRegistration", () => {
       "guardian.last_name",
       "guardian.email",
       "guardian.phone",
-      "emergency_contacts.0.name",
-      "emergency_contacts.0.phone",
+      "contacts.0.name",
+      "contacts.0.phone",
       "privacy_consent",
       "binding_confirmed",
     ]);
@@ -382,4 +382,86 @@ describe("optional second guardian", () => {
       ).toEqual(errors);
     },
   );
+});
+
+describe("unified contacts (#5469)", () => {
+  const person = (name: string, emergency: boolean, pickup: boolean) => ({
+    ...emptyContact(),
+    name,
+    phone: " 0123 ",
+    relationship: " Oma ",
+    emergency,
+    pickup,
+  });
+
+  it("sends both roles with identical details and preserves each list's order", () => {
+    const draft = {
+      ...complete(),
+      contacts: [
+        person("Pickup", false, true),
+        person("Both", true, true),
+        person("Emergency", true, false),
+      ],
+    };
+    expect(validateRegistration(draft, offer)).toEqual({});
+    const payload = payloadFromDraft(draft, offer, "captcha");
+    expect(payload.emergency_contacts).toEqual([
+      { name: "Both", phone: "0123", relationship: "Oma" },
+      { name: "Emergency", phone: "0123", relationship: "Oma" },
+    ]);
+    expect(payload.pickup_persons).toEqual([
+      { name: "Pickup", phone: "0123", relationship: "Oma" },
+      { name: "Both", phone: "0123", relationship: "Oma" },
+    ]);
+  });
+
+  it.each([
+    [
+      [person("No role", false, false), person("Emergency", true, false)],
+      { "contacts.0.emergency": "contactRole" },
+    ],
+    [
+      [person("Pickup", false, true)],
+      { "contacts.0.emergency": "emergencyRequired" },
+    ],
+    [
+      [{ ...person("Emergency", true, false), phone: " " }],
+      { "contacts.0.phone": "required" },
+    ],
+    [
+      Array.from({ length: 4 }, () => person("Emergency", true, false)),
+      { "contacts.3.emergency": "emergencyLimit" },
+    ],
+    [
+      [
+        person("Emergency", true, false),
+        ...Array.from({ length: 6 }, () => person("Pickup", false, true)),
+      ],
+      { "contacts.6.pickup": "pickupLimit" },
+    ],
+  ])("refuses invalid contact roles at their fields", (contacts, errors) => {
+    expect(validateRegistration({ ...complete(), contacts }, offer)).toEqual(
+      errors,
+    );
+  });
+
+  it("allows three emergency contacts and five other pickup people", () => {
+    expect(
+      validateRegistration(
+        {
+          ...complete(),
+          contacts: [
+            ...Array.from({ length: 3 }, () =>
+              person("Emergency", true, false),
+            ),
+            ...Array.from({ length: 5 }, () => ({
+              ...person("Pickup", false, true),
+              phone: "",
+            })),
+          ],
+        },
+        offer,
+      ),
+    ).toEqual({});
+  });
 });

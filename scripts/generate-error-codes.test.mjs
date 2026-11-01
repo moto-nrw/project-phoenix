@@ -20,6 +20,15 @@ test("adding a code leaves every other domain's Go and TypeScript output byte-id
   assert.equal(before.ts, after.ts, "the public facade changes only when domains change");
 });
 
+test("a second short code keeps the formatter's single-line array", () => {
+  const codes = ["display.disabled", "display.manage_forbidden"].map((code) => ({
+    code, class: "permission", parameters: [], legacy: code,
+  }));
+  const generated = generate({ codes });
+  assert.match(generated.tsFiles["error-codes/display.generated.ts"],
+    /^export const codes = \["display.disabled", "display.manage_forbidden"\] as const;$/m);
+});
+
 test("fragment discovery validates global legacy identities, domain ownership and missing sources", (t) => {
   const root = mkdtempSync(join(tmpdir(), "error-registry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));

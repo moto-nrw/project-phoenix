@@ -1,23 +1,15 @@
 name: CI cost
 description: >-
   Estimates the runner cost of all CI runs of a pull request and keeps the
-  cumulative total in a sticky comment. Call it from a workflow_run workflow
-  with actions read and pull-requests write. It reads only the GitHub API and
-  never runs pull request code. PyrePortal uses it too.
+  cumulative total in the neutral check run "CI-Kosten" on the PR head. Call it
+  from a workflow_run workflow with actions read, checks write and
+  pull-requests read. It reads only the GitHub API and never
+  runs pull request code. PyrePortal uses it too.
 
 runs:
   using: composite
   steps:
-    - id: cost
-      shell: bash
+    - shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
-        CI_COST_OUTPUT: ${{ runner.temp }}/ci-cost.md
       run: node "$GITHUB_ACTION_PATH/ci-cost.mjs"
-    - if: steps.cost.outputs.pr != ''
-      uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
-      with:
-        header: ci-cost
-        number_force: ${{ steps.cost.outputs.pr }}
-        path: ${{ runner.temp }}/ci-cost.md
-        skip_unchanged: true

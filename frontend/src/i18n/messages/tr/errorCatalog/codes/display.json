@@ -1,3 +1,4 @@
 {
-  "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+  "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "manage_forbidden": "Bilgi ekranlarını görüntüleyebilirsiniz, ancak değiştiremezsiniz. Lütfen okul yönetimine başvurun."
 }

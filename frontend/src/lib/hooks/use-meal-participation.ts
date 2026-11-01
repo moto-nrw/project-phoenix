@@ -5,12 +5,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
-import {
-  MEAL_PARTICIPATION_READ_REFUSALS,
-  MEAL_PARTICIPATION_RECHECK,
-  MEAL_PARTICIPATION_REFUSALS,
-  needsRecheck,
-} from "~/lib/everyday-action-refusals";
+import { MEAL_PARTICIPATION_REFUSALS } from "~/lib/everyday-action-refusals";
 import {
   clearMealParticipationDay,
   getMealParticipation,
@@ -42,7 +37,7 @@ export function useMealParticipation(
   useEffect(() => {
     // Discard after SWR stores the read error, so the refusal stays visible.
     discard(reader.error, {
-      codes: MEAL_PARTICIPATION_READ_REFUSALS,
+      codes: MEAL_PARTICIPATION_REFUSALS,
       matches: (candidate) =>
         candidate.startsWith(
           parentKeys.mealParticipationFamily(schoolId, studentId),
@@ -79,13 +74,6 @@ export function useMealParticipation(
             ),
         },
       });
-      // Writing was refused; reading may be too (#5423). Load again so the
-      // reader shows which one holds.
-      if (
-        outcome.status === "failed" &&
-        needsRecheck(outcome.error, MEAL_PARTICIPATION_RECHECK)
-      )
-        void reader.mutate();
       return outcome;
     } finally {
       inFlight.current = false;
