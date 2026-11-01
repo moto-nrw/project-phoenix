@@ -244,8 +244,6 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-// Lowered by #5017: the timetable template update announces its change after
-// commit and is no pass-through any more (-1).
 const modulePassthroughOwnerBudgetTotal = 1409
 
 // modulePassthroughOwnerBudgets is the register: module directory →
