@@ -1,5 +1,6 @@
+import * as apiError from "~/lib/api-error";
 import type { Session } from "next-auth";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tenantPrefetchResources } from "./tenant-prefetch-resources";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { groups } from "~/lib/swr/groups";
@@ -21,6 +22,8 @@ function context(permissions: string[], scope = "") {
     photoState: "photos-disabled" as const,
   };
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("tenant destination resources", () => {
   it.each(["", "tenant"])(
@@ -97,8 +100,15 @@ describe("tenant destination resources", () => {
       }),
     ).toEqual([]);
     expect(
-      await tenantPrefetchResources("/active-supervisions?session=9", allowed),
-    ).toEqual([]);
+      (
+        await tenantPrefetchResources("/active-supervisions?session=9", allowed)
+      ).map((resource) => resource.key),
+    ).toEqual([dashboardKeys.supervision("42")]);
+    expect(
+      (
+        await tenantPrefetchResources("/active-supervisions?room=5", allowed)
+      ).map((resource) => resource.key),
+    ).toEqual([dashboardKeys.supervision("42")]);
     expect(
       await tenantPrefetchResources("/active-supervisions", {
         ...allowed,
@@ -139,6 +149,28 @@ describe("tenant destination resources", () => {
           context(["users:read"], scope),
         ),
       ).toEqual([]);
+    },
+  );
+});
+
+it("uses the cold destination's exact entry fetcher for a parameterized supervision link", async () => {
+  const transport = vi
+    .spyOn(apiError, "transportFetch")
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { selectedGroupId: "first" } })),
+    );
+  const resources = await tenantPrefetchResources(
+    "/active-supervisions?session=9",
+    context(["groups:read"]),
+  );
+  expect(resources).toHaveLength(1);
+  await expect(resources[0]!.fetcher()).resolves.toEqual({
+    selectedGroupId: "first",
+  });
+  expect(transport).toHaveBeenCalledExactlyOnceWith(
+    "/api/active-supervision-dashboard",
+    {
+      headers: { "Content-Type": "application/json" },
     },
   );
 });
