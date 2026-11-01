@@ -33,7 +33,10 @@ type AccountPasskeyFlows struct {
 	rpName   string
 	// tenantDomain is the base domain the school subdomains live under.
 	tenantDomain string
-	now          func() time.Time
+	// catererHost is the caterer portal's host (#4497); empty leaves the
+	// caterer's ceremonies unavailable.
+	catererHost string
+	now         func() time.Time
 }
 
 // AccountPasskeyFlowDependencies are what the school-portal ceremonies need
@@ -49,6 +52,9 @@ type AccountPasskeyFlowDependencies struct {
 	RPID         string
 	RPName       string
 	TenantDomain string
+	// CatererFrontendURL is the caterer portal the caterer's ceremonies are
+	// pinned to (#4497).
+	CatererFrontendURL string
 }
 
 // accountPasskeyGate is the second factor a registration is gated by: the
@@ -88,7 +94,7 @@ func NewAccountPasskeyFlows(deps AccountPasskeyFlowDependencies) (*AccountPasske
 		accounts: deps.Accounts, records: deps.Records, mfa: deps.MFA, sessions: deps.Sessions,
 		runtime: deps.Runtime, attach: deps.Attach,
 		rpID: domain.HostWithoutPort(rpID), rpName: rpName,
-		tenantDomain: domain.HostWithoutPort(tenantDomain), now: time.Now,
+		tenantDomain: domain.HostWithoutPort(tenantDomain), catererHost: catererHost(deps.CatererFrontendURL), now: time.Now,
 	}, nil
 }
 
@@ -120,6 +126,15 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err != nil || !found {
 		return domain.PasskeyCeremonyOptions{}, domain.ErrAccountNotFound
 	}
+	tenantID := request.TenantID
+	return f.beginRegistrationCeremony(ctx, account, request.ExpectedOrigin, &tenantID)
+}
+
+// beginRegistrationCeremony starts the attestation once the caller verified
+// the mailed code. The ceremony records the school whose portal started it,
+// or none for the caterer portal (#4497).
+func (f *AccountPasskeyFlows) beginRegistrationCeremony(ctx context.Context, account domain.AccountIdentity, expectedOrigin string, tenantID *int64) (domain.PasskeyCeremonyOptions, error) {
+	accountID := account.ID
 	if !account.Active {
 		return domain.PasskeyCeremonyOptions{}, identityaccess.ErrAccountInactive
 	}
@@ -127,11 +142,11 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	rpID, err := domain.ResolvePasskeyRPIDForOrigin(f.rpID, request.ExpectedOrigin)
+	rpID, err := domain.ResolvePasskeyRPIDForOrigin(f.rpID, expectedOrigin)
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	relyingParty, err := newWebAuthnForOrigin(rpID, f.rpName, request.ExpectedOrigin)
+	relyingParty, err := newWebAuthnForOrigin(rpID, f.rpName, expectedOrigin)
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
@@ -149,11 +164,10 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	accountID, tenantID := request.AccountID, request.TenantID
 	if _, err := f.records.CreateSession(ctx, domain.AccountPasskeySession{
-		ID: sessionID, AccountID: &accountID, TenantID: &tenantID,
+		ID: sessionID, AccountID: &accountID, TenantID: tenantID,
 		Purpose: domain.PasskeySessionPurposeRegistration, RPID: rpID,
-		ExpectedOrigin: request.ExpectedOrigin, SessionJSON: sessionJSON, ExpiresAt: sessionData.Expires,
+		ExpectedOrigin: expectedOrigin, SessionJSON: sessionJSON, ExpiresAt: sessionData.Expires,
 	}); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
@@ -242,11 +256,18 @@ func (f *AccountPasskeyFlows) BeginLogin(ctx context.Context, request domain.Acc
 	if err := domain.ValidateTenantPasskeyOrigin(request.ExpectedOrigin, request.TenantSubdomain, f.tenantDomain); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	rpID, err := domain.ResolvePasskeyRPIDForOrigin(f.rpID, request.ExpectedOrigin)
+	tenantID := request.TenantID
+	return f.beginLoginCeremony(ctx, request.ExpectedOrigin, &tenantID)
+}
+
+// beginLoginCeremony starts a discoverable login. The ceremony records the
+// school whose portal started it, or none for the caterer portal (#4497).
+func (f *AccountPasskeyFlows) beginLoginCeremony(ctx context.Context, expectedOrigin string, tenantID *int64) (domain.PasskeyCeremonyOptions, error) {
+	rpID, err := domain.ResolvePasskeyRPIDForOrigin(f.rpID, expectedOrigin)
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	relyingParty, err := newWebAuthnForOrigin(rpID, f.rpName, request.ExpectedOrigin)
+	relyingParty, err := newWebAuthnForOrigin(rpID, f.rpName, expectedOrigin)
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
@@ -258,10 +279,9 @@ func (f *AccountPasskeyFlows) BeginLogin(ctx context.Context, request domain.Acc
 	if err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	tenantID := request.TenantID
 	if _, err := f.records.CreateSession(ctx, domain.AccountPasskeySession{
-		ID: sessionID, TenantID: &tenantID, Purpose: domain.PasskeySessionPurposeLogin, RPID: rpID,
-		ExpectedOrigin: request.ExpectedOrigin, SessionJSON: sessionJSON, ExpiresAt: sessionData.Expires,
+		ID: sessionID, TenantID: tenantID, Purpose: domain.PasskeySessionPurposeLogin, RPID: rpID,
+		ExpectedOrigin: expectedOrigin, SessionJSON: sessionJSON, ExpiresAt: sessionData.Expires,
 	}); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
@@ -306,16 +326,47 @@ type verifiedAccountPasskeyLogin struct {
 // failed read is returned as it is, so a store outage does not read as wrong
 // credentials.
 func (f *AccountPasskeyFlows) verifyLogin(ctx context.Context, request domain.AccountPasskeyLoginFinish) (verifiedAccountPasskeyLogin, error) {
-	session, err := f.records.ConsumeSession(ctx, request.SessionID, domain.PasskeySessionPurposeLogin, f.now())
+	session, err := f.consumeLoginSession(ctx, request.SessionID)
 	if err != nil {
-		if errors.Is(err, identityaccess.ErrAccountPasskeySessionNotFound) {
-			return verifiedAccountPasskeyLogin{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
-		}
 		return verifiedAccountPasskeyLogin{}, err
 	}
 	if session.TenantID == nil {
 		return verifiedAccountPasskeyLogin{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
 	}
+	verified, err := f.verifyAssertion(ctx, session, request)
+	if err != nil {
+		return verifiedAccountPasskeyLogin{}, err
+	}
+	tenantID := *session.TenantID
+	hasAccess, err := f.sessions.VerifyAccountTenantMembership(ctx, verified.accountID, tenantID)
+	if err != nil {
+		return verifiedAccountPasskeyLogin{}, err
+	}
+	if !hasAccess {
+		// The school binding is decided per ceremony: a passkey of another
+		// school never mints a session here, and the ceremony is spent.
+		return verifiedAccountPasskeyLogin{}, rejectCeremony(identityaccess.ErrTenantAccessDenied)
+	}
+	verified.tenantID = tenantID
+	return verified, nil
+}
+
+// consumeLoginSession completes a login ceremony exactly once.
+func (f *AccountPasskeyFlows) consumeLoginSession(ctx context.Context, sessionID string) (domain.AccountPasskeySession, error) {
+	session, err := f.records.ConsumeSession(ctx, sessionID, domain.PasskeySessionPurposeLogin, f.now())
+	if err != nil {
+		if errors.Is(err, identityaccess.ErrAccountPasskeySessionNotFound) {
+			return domain.AccountPasskeySession{}, rejectCeremony(identityaccess.ErrPasskeySessionInvalid)
+		}
+		return domain.AccountPasskeySession{}, err
+	}
+	return session, nil
+}
+
+// verifyAssertion verifies the assertion of a consumed login ceremony and
+// names the account and credential it proved. The portal's own binding is
+// the caller's.
+func (f *AccountPasskeyFlows) verifyAssertion(ctx context.Context, session domain.AccountPasskeySession, request domain.AccountPasskeyLoginFinish) (verifiedAccountPasskeyLogin, error) {
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(session.SessionJSON, &sessionData); err != nil {
 		return verifiedAccountPasskeyLogin{}, rejectCeremony(err)
@@ -346,22 +397,12 @@ func (f *AccountPasskeyFlows) verifyLogin(ctx context.Context, request domain.Ac
 	if !ok {
 		return verifiedAccountPasskeyLogin{}, rejectCeremony(identityaccess.ErrInvalidCredentials)
 	}
-	tenantID := *session.TenantID
-	hasAccess, err := f.sessions.VerifyAccountTenantMembership(ctx, matched.ID, tenantID)
-	if err != nil {
-		return verifiedAccountPasskeyLogin{}, err
-	}
-	if !hasAccess {
-		// The school binding is decided per ceremony: a passkey of another
-		// school never mints a session here, and the ceremony is spent.
-		return verifiedAccountPasskeyLogin{}, rejectCeremony(identityaccess.ErrTenantAccessDenied)
-	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
 		return verifiedAccountPasskeyLogin{}, err
 	}
 	return verifiedAccountPasskeyLogin{
-		accountID: matched.ID, tenantID: tenantID, credentialID: matchedCredentialID, credentialJSON: credentialJSON,
+		accountID: matched.ID, credentialID: matchedCredentialID, credentialJSON: credentialJSON,
 	}, nil
 }
 

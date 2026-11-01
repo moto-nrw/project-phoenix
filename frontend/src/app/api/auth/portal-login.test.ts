@@ -134,7 +134,7 @@ describe.each(portals)(
       envelope ? { status: "success", data } : data;
     const steps =
       portal === "caterer"
-        ? (["login"] as const)
+        ? (["login", "mfa/verify", "passkeys/login/verify"] as const)
         : portal === "operator"
           ? ([
               "login",
@@ -146,9 +146,13 @@ describe.each(portals)(
     it.each(steps)(
       "%s installs only its own encrypted httpOnly cookie",
       async (step) => {
-        // Operator passkey verification returns LoginResponse without an envelope.
+        // Operator passkey verification returns LoginResponse without an
+        // envelope; so does the caterer's second factor (#4497).
         const wrapStep =
-          step === "passkeys/login/verify" ? (data: unknown) => data : wrap;
+          step === "passkeys/login/verify" ||
+          (portal === "caterer" && step !== "login")
+            ? (data: unknown) => data
+            : wrap;
         backend
           .mockResolvedValueOnce(
             Response.json(
@@ -277,33 +281,36 @@ describe.each(portals)(
       );
       expect(await response.text()).not.toContain(pair().refresh_token);
     });
-    if (portal !== "caterer") {
-      it.each(["mfa_required", "mfa_enrollment_required"])(
-        "preserves only the limited %s proof and Träger binding",
-        async (status) => {
-          const proof =
-            status === "mfa_required"
-              ? { challenge_token: "challenge" }
-              : { access_token: "enrollment", mfa_enrollment_required: true };
-          const data = {
-            status,
-            ...proof,
-            masked_email: "a***@example.test",
-            ...(portal === "traeger" ? { organization_id: 9 } : {}),
-          };
-          backend.mockResolvedValueOnce(
-            Response.json(wrap({ ...data, extra_token: "must-not-leak" })),
-          );
-          const response = await createPortalLoginRoute(
-            portal,
-            "login",
-          )(request(portal));
-          expect(await response.json()).toEqual(wrap(data));
-          expect(response.headers.getSetCookie()).toEqual([]);
-          expect(backend).toHaveBeenCalledOnce();
-        },
-      );
-    }
+    // The caterer's second factor is voluntary (#4497): no enrollment step.
+    it.each(
+      portal === "caterer"
+        ? ["mfa_required"]
+        : ["mfa_required", "mfa_enrollment_required"],
+    )(
+      "preserves only the limited %s proof and Träger binding",
+      async (status) => {
+        const proof =
+          status === "mfa_required"
+            ? { challenge_token: "challenge" }
+            : { access_token: "enrollment", mfa_enrollment_required: true };
+        const data = {
+          status,
+          ...proof,
+          masked_email: "a***@example.test",
+          ...(portal === "traeger" ? { organization_id: 9 } : {}),
+        };
+        backend.mockResolvedValueOnce(
+          Response.json(wrap({ ...data, extra_token: "must-not-leak" })),
+        );
+        const response = await createPortalLoginRoute(
+          portal,
+          "login",
+        )(request(portal));
+        expect(await response.json()).toEqual(wrap(data));
+        expect(response.headers.getSetCookie()).toEqual([]);
+        expect(backend).toHaveBeenCalledOnce();
+      },
+    );
   },
 );
 it("allowlists Träger organization selection without disclosing credentials", async () => {

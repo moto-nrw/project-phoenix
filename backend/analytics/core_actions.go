@@ -724,6 +724,21 @@ var coreActions = map[RouteKey]CoreAction{
 
 	// Caterer portal (ADR 0077). Accepting the mailed invitation starts no
 	// session yet, so it counts on the caterer surface itself.
+	// The caterer's second factor (#4497): a redeemed code or passkey
+	// starts the session like the login; switching the factor on or off and
+	// managing devices and passkeys are account settings.
+	{http.MethodPost, "/caterer/account/mfa/confirm"}:                         notCaptured,
+	{http.MethodPost, "/caterer/account/mfa/disable"}:                         notCaptured,
+	{http.MethodPost, "/caterer/account/mfa/start"}:                           notCaptured,
+	{http.MethodPost, "/caterer/auth/mfa/resend"}:                             notCaptured,
+	{http.MethodDelete, "/caterer/auth/mfa/trusted-devices/{deviceId}"}:       notCaptured,
+	{http.MethodPost, "/caterer/auth/mfa/verify"}:                             session("login_success"),
+	{http.MethodPost, "/caterer/auth/passkeys/enrollment/challenge"}:          notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/login/options"}:                 notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/login/verify"}:                  session("login_success"),
+	{http.MethodPost, "/caterer/auth/passkeys/register/options"}:              notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/register/verify"}:               notCaptured,
+	{http.MethodDelete, "/caterer/auth/passkeys/{passkeyId}"}:                 notCaptured,
 	{http.MethodPost, "/caterer/account/password"}:                            notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,

@@ -457,11 +457,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending. #4651 maps the org scope of the Träger-Portal onto its challenge scope."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/application/CapabilityGate.TrustedDeviceDays",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
