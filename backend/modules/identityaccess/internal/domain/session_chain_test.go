@@ -149,3 +149,33 @@ func TestSessionChainFollowsSwitchLineageWithoutAncestorRows(t *testing.T) {
 		}
 	}
 }
+
+// TestSessionChainJoinsTheOriginOnlyWithinItsPortal pins the Absprung
+// direction of #5422: a Träger logout reaches the school sessions opened
+// from it, a school logout does not end the Träger session.
+func TestSessionChainJoinsTheOriginOnlyWithinItsPortal(t *testing.T) {
+	t.Parallel()
+	sessions := []AccountSession{
+		{ID: 1, AccountID: 7, FamilyID: "traeger", PortalScope: PortalScopeOrg},
+		{ID: 2, AccountID: 7, FamilyID: "school-a", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
+		{ID: 3, AccountID: 7, FamilyID: "school-b", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
+	}
+	for _, tc := range []struct {
+		start AccountSession
+		want  string
+	}{{sessions[0], "[1 2 3]"}, {sessions[1], "[2 3]"}} {
+		chain, err := SessionChain(tc.start, sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fmt.Sprint(chainIDs(chain)); got != tc.want {
+			t.Fatalf("from %d: chain = %s, want %s", tc.start.ID, got, tc.want)
+		}
+	}
+	if got := SwitchLineage(sessions[1]); got != "traeger" {
+		t.Fatalf("lineage of an Absprung = %q, want the Träger family", got)
+	}
+	if got := SwitchLineage(sessions[0]); got != "traeger" {
+		t.Fatalf("lineage of a login = %q, want its own family", got)
+	}
+}

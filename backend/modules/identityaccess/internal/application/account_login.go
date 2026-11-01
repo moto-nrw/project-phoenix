@@ -710,6 +710,8 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 		TenantID:  metadata.TenantID,
 		OrgID:     session.OrganizationID,
 		Scope:     metadata.Scope,
+		FamilyID:  session.FamilyID,
+		LineageID: domain.SwitchLineage(session),
 		ExpiresAt: session.Expiry.Unix(),
 	}
 	return access, refresh

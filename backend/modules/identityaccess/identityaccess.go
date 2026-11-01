@@ -232,8 +232,9 @@ type AccountSession struct {
 	PortalScope    string
 	MFAVerified    bool
 	FamilyID       string
-	// SwitchedFromFamilyID names the original login family of a school
-	// switch lineage, retained even after its ancestor rows expire (#5422).
+	// SwitchedFromFamilyID names the origin of the session's switch lineage:
+	// the login family a school switch descends from, or the Träger family
+	// of an Absprung. It outlives the origin's rows (#5422).
 	SwitchedFromFamilyID string
 	FamilyExpiryCap      *time.Time
 	Generation           int

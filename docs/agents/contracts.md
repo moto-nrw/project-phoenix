@@ -440,15 +440,23 @@ logout revokes the whole chain it links into, all reached families
 included, before it reports success. The walk follows only unique links
 (one match, same account, generation ± 1); an ambiguous continuation of the
 own chain fails the logout instead. A school switch (tenant, school portal,
-Träger school) writes the original login family into
+Träger school) and a Träger Absprung write the origin of the source's lineage
+(its login family, for an Absprung the Träger family) into
 `auth.tokens.switched_from_family_id` under that account lock. Further switches
-and rotation carry that same origin on. Logout also joins families naming the
-same origin after cleanup removed the origin or intermediate token rows. Every
-family of one login's switch lineage ends together: a switch that commits before the
-logout's lock is revoked with it, one that waits finds its source gone. Other
-logins of the account keep their sessions. Each school records the revocation
-of its own sessions in its own tenant transaction (#5422). A staff-view preview
-token carries the admin's family and ends with the admin's session.
+and rotation carry that same origin on. Logout joins every family naming the
+origin, also after the session cap or cleanup removed the origin or
+intermediate token rows, and the origin itself only within the same portal: a
+Träger logout ends the school sessions of its Absprung, a school logout leaves
+the Träger session signed in. Every refresh token also names its family and
+origin (`family_id`, `lineage_id`); a logout whose token row is gone resolves
+the lineage from these signed claims instead of reporting an unknown token.
+Every family of one login's switch lineage ends together: a switch or Absprung
+that commits before the logout's lock is revoked with it, one that waits finds
+its source gone and is refused, with or without a configured second factor.
+Other logins of the account keep their sessions. Each school records the
+revocation of its own sessions in its own tenant transaction (#5422). A
+staff-view preview token carries the admin's family and ends with the admin's
+session.
 
 In the frontend a backend 401 for an unexpired token renews the session at
 once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
@@ -563,8 +571,9 @@ just-issued refresh token that lands while the family check had no answer. A
 session cookie the gate cannot decode counts as no session and passes; the
 gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
 environment sets `AUTH_SECRET`. A school switch that committed before the
-logout mints a family of its own; it names its source family
-(`switched_from_family_id`), so the logout revokes it too (#5422).
+logout mints a family of its own; it names the origin of its lineage
+(`switched_from_family_id`), so the logout revokes it too, even when the
+session cap already evicted the retired source (#5422).
 
 **Session-end barrier** (`frontend/src/lib/session-end-barrier.ts`): an
 optimization of the document that logs out, not a guarantee. Every portal's
@@ -643,7 +652,8 @@ Backend paths in this section are relative to `backend/`:
   role. Every Absprung writes `traeger_school_switch` (metadata
   `organization_id`) to the school's `audit.auth_events` in the mint
   transaction. Ending the Träger's or the member's Träger sessions also deletes
-  these sessions.
+  these sessions; the Träger logout revokes them through the switch lineage,
+  and an Absprung whose Träger family is gone is refused (#5422).
 - `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect

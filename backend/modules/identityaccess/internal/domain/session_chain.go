@@ -9,10 +9,11 @@ var ErrSessionChainAmbiguous = errors.New("session chain continues ambiguously")
 
 // SessionChain returns every session of the account that a logout of start
 // must revoke (#5194): start, every session of its family, the sessions
-// linked to them by replacement_token, and every family a school switch
-// minted from one of them or that one of them was switched from (#5422),
-// until nothing more joins. A switch lineage descends from one login, so
-// its families end together; another login of the account joins nothing.
+// linked to them by replacement_token, every family a school switch or an
+// Absprung minted from one of them, and the origin of their lineage within
+// the same portal (#5422), until nothing more joins. A switch lineage
+// descends from one login, so its families end together; another login of
+// the account joins nothing.
 // A row the family backfill could not place carries no family; following
 // its links means no session of its chain survives the logout.
 //
@@ -88,7 +89,10 @@ func (i sessionIndex) neighbours(session AccountSession) (linked, ambiguous []Ac
 		linked = append(linked, sameAccount(session, i.bySwitchedFrom[session.FamilyID])...)
 	}
 	if session.SwitchedFromFamilyID != "" {
-		linked = append(linked, sameAccount(session, i.byFamily[session.SwitchedFromFamilyID])...)
+		// The origin joins only from its own portal: the Träger session an
+		// Absprung came from outlives the school's logout, while a Träger
+		// logout reaches its Absprung through the descendant link above.
+		linked = append(linked, samePortal(session, sameAccount(session, i.byFamily[session.SwitchedFromFamilyID]))...)
 		// The common origin remains a link after its token rows expire.
 		linked = append(linked, sameAccount(session, i.bySwitchedFrom[session.SwitchedFromFamilyID])...)
 	}
@@ -124,6 +128,18 @@ func sameAccount(session AccountSession, candidates []AccountSession) []AccountS
 	return kept
 }
 
+// samePortal keeps the candidates of the session's portal; a legacy row of
+// unknown portal matches every portal, as the access check reads it.
+func samePortal(session AccountSession, candidates []AccountSession) []AccountSession {
+	kept := make([]AccountSession, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.PortalScope == session.PortalScope || candidate.PortalScope == PortalScopeUnknown || session.PortalScope == PortalScopeUnknown {
+			kept = append(kept, candidate)
+		}
+	}
+	return kept
+}
+
 func anyInChain(candidates []AccountSession, chain map[int64]bool) bool {
 	for _, candidate := range candidates {
 		if chain[candidate.ID] {
@@ -148,4 +164,14 @@ func inChain(start AccountSession, sessions []AccountSession, chain map[int64]bo
 		result = append(result, start)
 	}
 	return result
+}
+
+// SwitchLineage names the origin of the session's school-switch lineage:
+// the family it was switched or opened from, or its own family when it
+// began with a login (#5422).
+func SwitchLineage(session AccountSession) string {
+	if session.SwitchedFromFamilyID != "" {
+		return session.SwitchedFromFamilyID
+	}
+	return session.FamilyID
 }
