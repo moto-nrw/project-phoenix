@@ -208,3 +208,18 @@ export const displayKeys = { list: () => "info-displays" } as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
 } as const;
+
+/** Träger metadata only. Registrations, people and audit logs are never cached. */
+export const traegerKeys = {
+  schools: () => "traeger-schools",
+  periodsFamily: "traeger-holiday-period-",
+  periods: () => "traeger-holiday-period-list",
+  period: (id: string) =>
+    `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
+  settings: () => "traeger-settings-schema",
+  periodPreview(data: unknown, id: string): ListPreview | undefined {
+    const row = previewRow(data, id);
+    const name = previewText(row?.name);
+    return name ? { id, name } : undefined;
+  },
+} as const;

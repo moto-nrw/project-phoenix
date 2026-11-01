@@ -127,6 +127,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "studentKeys",
     "timeTrackingKeys",
     "timetableKeys",
+    "traegerKeys",
     "weekProtocolKeys",
   ],
   "shell-keys": ["SWR_FAMILIES", "announcementKeys", "dashboardKeys"],
