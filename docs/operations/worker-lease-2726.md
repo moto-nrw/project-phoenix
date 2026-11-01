@@ -131,3 +131,8 @@ Transport invariants:
 Until the transport implementation is deployed to both API and Worker, a
 standalone Worker has no connected browsers: cutting over disables realtime
 job signals, and a second API cannot see the first API's local signals.
+
+The relay covers the school-scoped Worker producers and school/group/account/
+guardian broadcasts. Legacy unscoped API `BroadcastToAll` calls remain local;
+they cannot safely enter the school-scoped channel without an audience contract. That migration is tracked in
+[#5492](https://github.com/moto-nrw/project-phoenix/issues/5492).

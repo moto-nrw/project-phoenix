@@ -69,6 +69,7 @@ func removeClient(clients []*Client, target *Client) []*Client {
 
 // Hub manages SSE client connections and broadcasts events
 type Hub struct {
+	publish      func(string) error
 	clients      map[*Client]bool
 	groupClients map[string][]*Client // composite tenant:group key -> subscribers
 	// guardianClients indexes parent-portal clients by their guardian account id
@@ -300,7 +301,7 @@ func (h *Hub) observe(tenantID int64, event string) {
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
 // This is a fire-and-forget operation - errors don't affect service execution
-func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error {
+func (h *Hub) localBroadcastToGroup(tenantID int64, activeGroupID string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -350,7 +351,7 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 // BroadcastToGroups sends an identical event once per client across all
 // supplied topics. The recipient set is built while holding the read lock so
 // Register/Unregister cannot close a channel between collection and delivery.
-func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) error {
+func (h *Hub) localBroadcastToGroups(tenantID int64, topics []string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -393,7 +394,7 @@ func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) er
 // excluded — tenant-wide refreshes (settings invalidations, dashboard
 // counts, arrival schedule) are staff-only data. Fire-and-forget: a full
 // client channel is logged and skipped, not surfaced to the caller.
-func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
+func (h *Hub) localBroadcastToTenant(tenantID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -453,7 +454,7 @@ func (h *Hub) relayClassDayChanged(tenantID int64, update Event) {
 // tenant. This is for user-visible payloads derived from an admin-wide data
 // view; scoped caregivers must not receive counts or links for data outside
 // their own reminder scope.
-func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
+func (h *Hub) localBroadcastToTenantAdmins(tenantID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -490,7 +491,7 @@ func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
 // The tenant check is load-bearing rather than defensive: an account can hold
 // staff sessions at several schools, and without it one school's personal
 // counts would land in another school's tab.
-func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error {
+func (h *Hub) localBroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error {
 	if len(accountIDs) == 0 {
 		return nil
 	}
@@ -531,7 +532,7 @@ func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event
 // BroadcastToSchoolAccounts wakes only the addressed school-portal clients in
 // one tenant. Its separate index prevents a staff-only notification from
 // leaking into moto schule merely because both portals use the same account.
-func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error {
+func (h *Hub) localBroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error {
 	if len(accountIDs) == 0 {
 		return nil
 	}
@@ -576,7 +577,7 @@ func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, even
 // / all-staff / supervisors, so a tenant-wide staff wake is the correct,
 // no-miss granularity — the refetch is server-side access-filtered).
 // Fire-and-forget, same drop semantics as the other broadcasts.
-func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
+func (h *Hub) localBroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
 	h.broadcastParentMessage(tenantID, guardianAccountID, event, false)
 	return nil
 }
@@ -586,7 +587,7 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 // the full event, and of the tenant's staff only the connections marked
 // ReadsLeadershipMessages get the sanitized copy. Every other staff tab hears
 // nothing, so it cannot even learn that a leadership conversation moved.
-func (h *Hub) BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
+func (h *Hub) localBroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
 	h.broadcastParentMessage(tenantID, guardianAccountID, event, true)
 	return nil
 }
@@ -651,7 +652,7 @@ func (h *Hub) broadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 // as the child-update fan-out does — would push one redundant staff event PER
 // GUARDIAN into every staff client's 32-slot channel, displacing real updates
 // under a busy tenant. Fire-and-forget, same drop semantics as the others.
-func (h *Hub) BroadcastToGuardian(tenantID, guardianAccountID int64, event Event) error {
+func (h *Hub) localBroadcastToGuardian(tenantID, guardianAccountID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
