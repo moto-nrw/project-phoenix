@@ -1,17 +1,5 @@
 package migrations
 
-import (
-	"context"
-
-	"github.com/uptrace/bun"
-)
-
-// 1.15.725 (#4807): the 1.15.724 (#4808) plan with the wage types and surcharge rules.
-func installPayrollWageTypeErasurePlan(ctx context.Context, tx bun.Tx) error {
-	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePlanSQL)
-	return err
-}
-
 const payrollWageTypeErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
  RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
  AS $plan$ SELECT $manifest$[

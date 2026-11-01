@@ -1,17 +1,5 @@
 package migrations
 
-import (
-	"context"
-
-	"github.com/uptrace/bun"
-)
-
-// 1.15.725 (#4807): the 1.15.724 (#4808) residual with the wage types and surcharge rules.
-func installPayrollWageTypeErasureResidual(ctx context.Context, tx bun.Tx) error {
-	_, err := tx.ExecContext(ctx, payrollWageTypeErasureResidualSQL)
-	return err
-}
-
 const payrollWageTypeErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$

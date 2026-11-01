@@ -1,17 +1,5 @@
 package migrations
 
-import (
-	"context"
-
-	"github.com/uptrace/bun"
-)
-
-// 1.15.725 (#4807): the 1.15.724 (#4808) preview with the wage types and surcharge rules.
-func installPayrollWageTypeErasurePreview(ctx context.Context, tx bun.Tx) error {
-	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreviewSQL)
-	return err
-}
-
 const payrollWageTypeErasurePreviewSQL = `
  CREATE OR REPLACE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
  RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $body$
