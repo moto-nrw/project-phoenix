@@ -168,8 +168,8 @@ type PayrollRuleAudit interface {
 	RecordPayrollRuleChange(context.Context, PayrollRuleChange) error
 }
 
-// PayrollRuleSetReader answers the rule set in force now; the export books
-// open months with it.
+// PayrollRuleSetReader answers a rule set in force now, serialized against
+// rule changes; the export books open months with it and the close freezes it.
 type PayrollRuleSetReader interface {
 	CurrentPayrollRuleSet(context.Context) (*PayrollRuleSet, error)
 }

@@ -242,6 +242,16 @@ func TestPayrollRules_TheCurrentRuleSetLeavesArchivedEntriesOut(t *testing.T) {
 	assert.Empty(t, set.AbsenceTypeWageTypes)
 }
 
+func TestPayrollRules_CurrentRuleSetLocksBeforeReadingTheRuleState(t *testing.T) {
+	t.Parallel()
+	rules, store, _ := newPayrollRulesForTest(t)
+
+	_, err := rules.CurrentPayrollRuleSet(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, store.locks)
+}
+
 func jsonID(id int64) string {
 	data, _ := json.Marshal(id)
 	return string(data)

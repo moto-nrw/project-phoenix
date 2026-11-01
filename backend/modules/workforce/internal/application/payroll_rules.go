@@ -61,10 +61,15 @@ func (p *PayrollRules) CurrentPayrollRuleSet(ctx context.Context) (*workforce.Pa
 	return currentPayrollRuleSet(ctx, p.store)
 }
 
-// currentPayrollRuleSet reads the active wage types and rules and the absence
-// type mapping. Absence types mapped onto an archived wage type keep their
-// category. It writes nothing, so the reader needs no audit.
+// currentPayrollRuleSet reads one consistent set of active wage types, rules
+// and absence type mappings. The transaction-scoped lock shares the writer
+// boundary, so a month close cannot freeze a combination of separate commits.
+// Absence types mapped onto an archived wage type keep their category. It
+// writes nothing, so the reader needs no audit.
 func currentPayrollRuleSet(ctx context.Context, store ports.PayrollRulesStore) (*workforce.PayrollRuleSet, error) {
+	if err := store.LockPayrollRules(ctx); err != nil {
+		return nil, err
+	}
 	state, err := loadPayrollRuleState(ctx, store)
 	if err != nil {
 		return nil, err

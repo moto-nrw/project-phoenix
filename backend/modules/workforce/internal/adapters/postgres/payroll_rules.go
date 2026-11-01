@@ -74,8 +74,9 @@ func (s *Store) payrollRulesDatabase(ctx context.Context) (bun.IDB, int64, error
 	return db, scope.TenantID, err
 }
 
-// LockPayrollRules serializes the rule writes of a school, so an archive
-// cannot race a rule that books onto the wage type.
+// LockPayrollRules serializes the rule writes and complete snapshots of a
+// school, so an archive cannot race a rule that books onto the wage type and
+// a frozen rule set cannot combine separate commits.
 func (s *Store) LockPayrollRules(ctx context.Context) error {
 	db, tenantID, err := s.payrollRulesDatabase(ctx)
 	if err != nil {
