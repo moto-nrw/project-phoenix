@@ -220,13 +220,13 @@ interface InstanceDetailModalProps {
   seriesPeriodId?: string;
   /** Abweichung der Kinderliste von den Anmeldungen (#5103). */
   seriesRosterDeviation?: RosterDeviation;
-  /** Die Serie wird bewusst von Hand gepflegt (#5103). */
+  /** Die Kinderliste der Serie bleibt bewusst so (#5103). */
   seriesManualRosterConfirmed?: boolean;
   /** Eine Entscheidung zur Kinderliste wird gespeichert. */
   rosterDecisionBusy?: boolean;
   /** „Mit Angebot verbinden“; fehlt ohne Planungsrecht. */
   onConnectOffering?: (deviation: RosterDeviation) => void;
-  /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
   onSetManualRoster?: (confirmed: boolean) => void;
   /**
    * Der Aufrufer lädt die Kinderzeilen des Termins noch nach (#4996): die

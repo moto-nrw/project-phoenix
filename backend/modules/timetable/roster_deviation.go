@@ -89,6 +89,11 @@ type RosterDeviation struct {
 	// MissingCount counts children a suggested offering books on a weekday
 	// without being planned that weekday.
 	MissingCount int
+	// Unbooked and Missing name the children behind the counts with their
+	// weekdays, by student id; the hint names them where the caller may
+	// read the child.
+	Unbooked []RosterDeviationChild
+	Missing  []RosterDeviationChild
 	// Candidates are the suggested offerings, then every other offering
 	// passing the rule; when Ambiguous, only their equal alternatives follow.
 	Candidates []OfferingRef
@@ -101,6 +106,13 @@ type RosterDeviation struct {
 	// the school picks, nothing is preselected, and the counts belong to no
 	// named choice. The offering id never decides.
 	Ambiguous bool
+}
+
+// RosterDeviationChild is one child of a deviation and the weekdays,
+// ascending, on which it deviates.
+type RosterDeviationChild struct {
+	StudentID int64
+	Weekdays  []int
 }
 
 type rosterSlot struct {
@@ -155,12 +167,16 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 			combinations = append(combinations, candidateOfferingRefs(candidates, combination.members))
 		}
 	}
+	unbooked := slotStudents(planned, booked)
+	missing := slotStudents(booked, planned)
 	return &RosterDeviation{
 		Offerings:     candidateOfferingRefs(candidates, chosen),
 		GradeLevels:   slices.Clone(roster.TargetGradeLevels),
 		SchoolClasses: slices.Clone(roster.TargetSchoolClasses),
-		UnbookedCount: distinctSlotStudents(planned, booked),
-		MissingCount:  distinctSlotStudents(booked, planned),
+		UnbookedCount: len(unbooked),
+		MissingCount:  len(missing),
+		Unbooked:      unbooked,
+		Missing:       missing,
 		Candidates:    deviationChoices(candidates, best),
 		Combinations:  combinations,
 		Ambiguous:     len(best) > 1 || bounded,
@@ -308,16 +324,22 @@ func bookingInTargetCohort(roster TemplateFutureRoster, booking OfferingWeekdayB
 	return true
 }
 
-// distinctSlotStudents counts the children with a slot in from that is not
-// in other.
-func distinctSlotStudents(from, other map[rosterSlot]bool) int {
-	students := make(map[int64]bool)
+// slotStudents lists the children with a slot in from that is not in other,
+// with those weekdays, ordered by student id.
+func slotStudents(from, other map[rosterSlot]bool) []RosterDeviationChild {
+	weekdays := make(map[int64][]int)
 	for slot := range from {
 		if !other[slot] {
-			students[slot.studentID] = true
+			weekdays[slot.studentID] = append(weekdays[slot.studentID], slot.weekday)
 		}
 	}
-	return len(students)
+	children := make([]RosterDeviationChild, 0, len(weekdays))
+	for _, studentID := range slices.Sorted(maps.Keys(weekdays)) {
+		days := weekdays[studentID]
+		slices.Sort(days)
+		children = append(children, RosterDeviationChild{StudentID: studentID, Weekdays: days})
+	}
+	return children
 }
 
 // OfferingSourceFilter is a source selection with its Jahrgang or Klassen

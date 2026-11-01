@@ -60,8 +60,10 @@ export function traegerHolidayFormTopic(): HelpTopic {
       {
         title: "Frage nur unter einer Bedingung zeigen",
         steps: [
-          "Legen Sie zuerst eine Frage mit `Ja/Nein` oder `Auswahl` an.",
-          "Wählen Sie bei der anderen Frage `Nur unter einer Bedingung anzeigen`.",
+          "Legen Sie zuerst eine andere Frage mit `Ja/Nein` oder `Auswahl` an.",
+          "Schreiben Sie auch den Fragetext dazu.",
+          "Gehen Sie zu der Frage, die nur manchmal erscheinen soll.",
+          "Wählen Sie dort `Nur unter einer Bedingung anzeigen`.",
           "Wählen Sie die Frage und die Antwort, bei der sie erscheinen soll.",
         ],
       },
@@ -82,7 +84,9 @@ export function traegerHolidayFormTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`OGS sieht die Antwort` lässt sich nicht wählen? Die Frage ist eine `Gesundheitsangabe`. Gesundheitsangaben bleiben beim Träger.",
-      "`Nur unter einer Bedingung anzeigen` lässt sich nicht wählen? Es gibt noch keine Frage mit `Ja/Nein` oder `Auswahl`. Eine Frage zur Familie kann nicht von einer Frage zum Kind abhängen.",
+      "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
+      "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
+      "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
       "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
     ],
     related: [

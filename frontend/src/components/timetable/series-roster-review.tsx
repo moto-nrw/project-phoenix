@@ -9,8 +9,8 @@ import { RosterDeviationHint } from "./roster-deviation-hint";
 /**
  * The roster decision of a Regeltermin in the occurrence details and on the
  * series card (#5103):
- * the deviation hint with both decisions, or, after „Bleibt von Hand
- * gepflegt“, one quiet line with the way back. Shows nothing otherwise.
+ * the deviation hint with both decisions, or, after „Liste so lassen“, one
+ * quiet line with the way back. Shows nothing otherwise.
  */
 export function SeriesRosterReview({
   deviation,
@@ -48,7 +48,7 @@ export function SeriesRosterReview({
         className,
       )}
     >
-      <span>Sie pflegen die Kinder hier bewusst selbst.</span>
+      <span>Die Kinderliste bleibt bewusst so.</span>
       {onSetManualRoster ? (
         <Button
           type="button"

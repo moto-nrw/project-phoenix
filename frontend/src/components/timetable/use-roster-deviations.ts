@@ -18,7 +18,7 @@ export function rosterDeviationsKey(periodId: string): string {
  * bookings (#5103), by template id. The hint is information next to the
  * plan: a failed read shows no hint and is logged, the plan itself stays
  * usable. Every reload of the template list reloads the hints too, so a save,
- * a connection or „Bleibt von Hand gepflegt“ shows at once. A deep link uses
+ * a connection or „Liste so lassen“ shows at once. A deep link uses
  * its own read so cached hints cannot decide its one-time action; that read
  * also reviews the linked Regeltermin when it is kept by hand. `settled`
  * requires a successful read with no revalidation in flight.

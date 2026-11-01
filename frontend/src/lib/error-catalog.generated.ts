@@ -1209,7 +1209,7 @@ export const ERROR_CATALOG = {
       "timetable.offering_source_not_found":
         "Ein gewähltes Angebot gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.offering_source_outside_period":
-        "Die Anmeldephase von „{offering}“ passt nicht zum Zeitraum. Bitte wählen Sie ein anderes Angebot.",
+        "„{offering}“ hat keine Betreuungstage in diesem Planungszeitraum. Bitte wählen Sie ein anderes Angebot.",
       "timetable.offering_source_too_many":
         "Bitte wählen Sie höchstens {max} Angebote aus.",
       "timetable.only_supervisor_replacement_required":

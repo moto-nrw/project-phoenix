@@ -3712,8 +3712,9 @@ export const leadMissingMenuTopic = function leadMissingMenuTopic(): HelpTopic {
 /**
  * Regeltermine, deren Kinderliste von den Anmeldungen abweicht (#5103):
  * Hinweis an der Karte, „Zu prüfen“, „Mit Angebot verbinden“ mit Vorschau
- * und „Bleibt von Hand gepflegt“; mehrere Angebote zusammen (#5139). Beschriftungen aus
- * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx.
+ * und „Liste so lassen“; mehrere Angebote zusammen (#5139). Beschriftungen aus
+ * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx,
+ * weekday-roster-section.tsx.
  */
 export const leadRosterDeviationTopic =
   function leadRosterDeviationTopic(): HelpTopic {
@@ -3734,7 +3735,7 @@ export const leadRosterDeviationTopic =
       steps: [
         "Öffnen Sie `Betreuungsplan` und wählen Sie oben `Serien`.",
         "Wählen Sie `Zu prüfen`. Dann sehen Sie nur Regeltermine mit dem Hinweis `Weicht von Anmeldungen ab`.",
-        "Lesen Sie den Hinweis. Er nennt die passenden Angebote und die Kinder, die dort nicht angemeldet sind.",
+        "Lesen Sie den Hinweis. Er nennt die passenden Angebote. Er nennt auch die Kinder, die für keines davon angemeldet sind, mit Wochentag. Bei mehreren Kindern klappen Sie die Namen mit dem Pfeil auf.",
         "Wählen Sie `Mit Angebot verbinden`.",
         "Prüfen Sie unter `Angebote` die gewählten Angebote. Sie können weitere Angebote dazu wählen oder abwählen.",
         "Prüfen Sie die Vorschau. Sie zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",
@@ -3748,8 +3749,9 @@ export const leadRosterDeviationTopic =
         // #5342: ohne Abholzeit schlägt moto nur die nötigen Angebote vor.
         "Ein Angebot ohne Abholzeit schlägt moto nur vor, wenn ein Kind es braucht. Prüfen Sie dann unter `Angebote`, ob ein Angebot fehlt.",
         "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
-        "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
-        "Die Karte des Regeltermins zeigt dann `Sie pflegen die Kinder hier bewusst selbst.` Den Hinweis holen Sie zurück: Wählen Sie dort oder in einem Termin des Regeltermins `Hinweis wieder zeigen`.",
+        "Soll die Kinderliste so bleiben? Wählen Sie `Liste so lassen`. Dann verschwindet der Hinweis für diesen Regeltermin.",
+        "Die Karte des Regeltermins zeigt dann `Die Kinderliste bleibt bewusst so.` Den Hinweis holen Sie zurück: Wählen Sie dort oder in einem Termin des Regeltermins `Hinweis wieder zeigen`.",
+        "Kommen Kinder über `Klasse` oder `Jahrgang` in den Regeltermin? Beim Bearbeiten steht unter der Kinderliste, wer so außerdem kommt.",
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
@@ -3761,7 +3763,7 @@ export const leadRosterDeviationTopic =
         // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
         "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
-        "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Das gilt auch für einen Regeltermin, der von Hand gepflegt bleibt. Verbinden Sie ihn, pflegen Sie die Kinder nicht mehr selbst.",
+        "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Das gilt auch für einen Regeltermin mit `Liste so lassen`. Verbinden Sie ihn, folgt seine Kinderliste wieder den Anmeldungen.",
         "Findet moto kein passendes Angebot, sagt moto das. Öffnen Sie dann den Regeltermin mit `Bearbeiten`. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
       differences: [
@@ -9842,8 +9844,10 @@ export const traegerHolidayFormTopic =
         {
           title: "Frage nur unter einer Bedingung zeigen",
           steps: [
-            "Legen Sie zuerst eine Frage mit `Ja/Nein` oder `Auswahl` an.",
-            "Wählen Sie bei der anderen Frage `Nur unter einer Bedingung anzeigen`.",
+            "Legen Sie zuerst eine andere Frage mit `Ja/Nein` oder `Auswahl` an.",
+            "Schreiben Sie auch den Fragetext dazu.",
+            "Gehen Sie zu der Frage, die nur manchmal erscheinen soll.",
+            "Wählen Sie dort `Nur unter einer Bedingung anzeigen`.",
             "Wählen Sie die Frage und die Antwort, bei der sie erscheinen soll.",
           ],
         },
@@ -9864,7 +9868,9 @@ export const traegerHolidayFormTopic =
       ],
       troubleshootingDetails: [
         "`OGS sieht die Antwort` lässt sich nicht wählen? Die Frage ist eine `Gesundheitsangabe`. Gesundheitsangaben bleiben beim Träger.",
-        "`Nur unter einer Bedingung anzeigen` lässt sich nicht wählen? Es gibt noch keine Frage mit `Ja/Nein` oder `Auswahl`. Eine Frage zur Familie kann nicht von einer Frage zum Kind abhängen.",
+        "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
+        "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
+        "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
         "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
       ],
       related: [

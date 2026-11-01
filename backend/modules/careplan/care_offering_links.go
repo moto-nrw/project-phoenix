@@ -113,8 +113,34 @@ func SchedulesOverlapPhase(schedules []LinkedSchedule, phase OfferingPhase) bool
 	return false
 }
 
+// ClipPhaseToPeriod narrows the phase's service window to the part that lies
+// inside the planning period. A booking phase often follows the school
+// year while the planning period ends earlier or starts later; the overlap is
+// what a timetable template of that period can plan. A phase without any
+// overlap is refused with the error ValidatePhaseWithinPeriod reports. A nil
+// period passes the phase unchanged.
+func ClipPhaseToPeriod(phase OfferingPhase, period *LinkedPeriod) (OfferingPhase, error) {
+	if period == nil {
+		return phase, nil
+	}
+	if phase.ServiceEnd.Before(period.StartDate) || phase.ServiceStart.After(period.EndDate) {
+		return OfferingPhase{}, fmt.Errorf("%w: %s: %w", ErrCareOfferingConfigInvalid,
+			"linked timetable template period does not overlap the enrollment phase",
+			ErrCareOfferingTemplatePeriodMismatch)
+	}
+	if phase.ServiceStart.Before(period.StartDate) {
+		phase.ServiceStart = period.StartDate
+	}
+	if phase.ServiceEnd.After(period.EndDate) {
+		phase.ServiceEnd = period.EndDate
+	}
+	return phase, nil
+}
+
 // ValidatePhaseWithinPeriod refuses a phase whose service window leaves the
-// template's planning period. A nil period passes.
+// template's planning period. A nil period passes. Only the legacy
+// ActivityGroupID link keeps this containment rule; offering sources use
+// ClipPhaseToPeriod.
 func ValidatePhaseWithinPeriod(phase OfferingPhase, period *LinkedPeriod) error {
 	if period == nil {
 		return nil

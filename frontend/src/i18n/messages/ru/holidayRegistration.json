@@ -99,8 +99,8 @@
     "yesNo": "Пожалуйста, выберите «да» или «нет».",
     "choose": "Пожалуйста, выберите ответ."
   },
-  "childQuestionsTitle": "Дополнительные сведения",
-  "familyQuestionsTitle": "Дополнительные сведения о семье",
+  "childQuestionsTitle": "Вопросы и информация о ребёнке",
+  "familyQuestionsTitle": "Вопросы и информация о семье",
   "legalTitle": "Уведомления и согласия",
   "legalAccepted": "Подтверждено",
   "legalNotAccepted": "Не подтверждено"

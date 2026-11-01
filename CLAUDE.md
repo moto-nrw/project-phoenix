@@ -120,6 +120,8 @@ repeating them. Add only applicable optional sections; omit empty headings and
 "not applicable" declarations. Backend changes require **Backend-Architektur**
 with concrete boundary rationale and evidence per the template; other PRs omit
 it. Required implementation and verification rules remain unchanged.
+Visible product changes require PR screenshots, refreshed when later fixes alter
+what they show; follow [PR screenshot rules](docs/agents/operations.md#pr-screenshots-and-qa-evidence).
 
 Use named and task-relevant skills; load their `SKILL.md` through the available
 skill tool or read the file directly. The runtime catalog is the discovery
