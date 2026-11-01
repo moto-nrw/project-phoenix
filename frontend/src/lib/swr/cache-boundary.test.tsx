@@ -7,6 +7,7 @@ import {
   READER_OPTION_KEYS,
   useTenantMutate,
 } from "./hooks";
+import { _resetSWRFallbacksForTests } from "./generation";
 import { messageKeys } from "./portal-keys";
 import { roomKeys } from "./rooms-keys";
 import { resetSWRScope, resumeSWRSession, suspendSWRSession } from "./scope";
@@ -34,6 +35,8 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 beforeEach(() => {
+  // Every case starts like a fresh page: no stamp released yet (#5223).
+  _resetSWRFallbacksForTests();
   resetSWRScope({ revalidate: false });
   resumeSWRSession();
 });

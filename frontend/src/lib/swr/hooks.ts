@@ -39,6 +39,7 @@ import {
   isCurrentSWRError,
   isCurrentSWRValue,
   isDiscardedAnswer,
+  isVisibleSWRValue,
   isFallbackVisible,
   noteFallbackShown,
   isStillCurrent,
@@ -156,7 +157,7 @@ function currentResult<V>(
   result: Promise<V>,
 ): Promise<V | undefined> {
   return Promise.resolve(result).then((value) =>
-    isCurrentSWRValue(key, value) === false ? undefined : value,
+    isVisibleSWRValue(key, value) ? value : undefined,
   );
 }
 
@@ -333,7 +334,7 @@ function useScopedSWR<T, E>(
   base: SWRConfiguration = swrConfig,
 ): ScopedSWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
-  const { cache, mutate: cacheMutate } = useSWRConfig();
+  const { cache, mutate: cacheMutate, fallback } = useSWRConfig();
   const fullKey =
     key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null;
   // Renders again whenever values stop counting (scope or data bump).
@@ -368,8 +369,10 @@ function useScopedSWR<T, E>(
   // - a value ~/lib/swr produced (fetch, preload, mutation, seed) by its
   //   stamp;
   // - previous data of an earlier key only under the keep guard above;
-  // - anything else (`fallbackData`, a provider fallback, a raw write) by
+  // - the caller's `fallbackData` or a provider fallback without a stamp by
   //   the key's fallback state, which a drop ends until fresh data came;
+  // - any other value without a stamp (its stamp released at a scope
+  //   boundary, #5223) only while no release or drop could have hit it;
   // - without a session nothing, not even `fallbackData`; a key the caller
   //   left out keeps SWR's own behaviour under the keep guard;
   // - a failure by its stamp; a discarded answer is no failure.
@@ -383,9 +386,17 @@ function useScopedSWR<T, E>(
       visible = stamped;
     } else if (keep && raw === lastShown.current) {
       visible = true;
-    } else {
+    } else if (
+      Object.is(raw, options?.fallbackData) ||
+      Object.is(
+        raw,
+        (fallback as Record<string, unknown> | undefined)?.[fullKey],
+      )
+    ) {
       visible = isFallbackVisible(fullKey);
       fallbackShown = visible;
+    } else {
+      visible = isVisibleSWRValue(fullKey, raw);
     }
   }
   const fallbackGeneration = fullKey ? dataGenerationOf(fullKey) : 0;
@@ -786,8 +797,7 @@ export function useSWRPreload() {
       const start = startOf(fullKey);
       return preloadSWR(fullKey, fetcher).then(
         (value) =>
-          isStillCurrent(fullKey, start) &&
-          isCurrentSWRValue(fullKey, value) !== false
+          isStillCurrent(fullKey, start) && isVisibleSWRValue(fullKey, value)
             ? value
             : undefined,
         (error: unknown) => {

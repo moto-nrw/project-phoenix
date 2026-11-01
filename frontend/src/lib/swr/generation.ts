@@ -16,6 +16,11 @@
  *
  * The cleanup in scope.ts (`unload()`, invalidateSWRKeys) still frees the
  * cache, but nothing here depends on it being complete.
+ *
+ * Stamps live only as long as their scope generation (#5223): a scope bump
+ * releases every stamp and fallback record, and a value without a stamp
+ * counts only while no release could have taken its stamp. The server
+ * stamps nothing; it never moves a generation.
  */
 
 // swr/no-direct-import permits package imports inside this shared wrapper only.
@@ -88,6 +93,7 @@ export function subscribeSWRDataGeneration(listener: () => void): () => void {
 /** Session boundary: no earlier answer or value of any key counts. */
 export function bumpScopeGeneration(): void {
   counter += 1;
+  releaseStamps();
   scopeGeneration = counter;
   dataBumps = [];
   requestBumps = new Map();
@@ -119,12 +125,57 @@ export function isDiscardedAnswer(error: unknown): error is DiscardedAnswer {
   return error instanceof DiscardedAnswer;
 }
 
-// The data generation each value was produced in, per key. Objects are held
-// weakly; primitives keep their last few values, enough for a rollback to
-// the value before an optimistic update.
+// The data generation each value was produced in, per key, for the current
+// scope generation only. Objects are held weakly; primitives keep their last
+// few values, enough for a rollback to the value before an optimistic update.
 const PRIMITIVES_KEPT = 4;
 const objectStamps = new Map<string, WeakMap<object, number>>();
 const primitiveStamps = new Map<string, Map<unknown, number>>();
+
+// The data generation from which values of a key that no path of ~/lib/swr
+// stamped (a caller's `fallbackData`, a provider fallback) count, per key of
+// the current scope generation (#5006). Set when such a value is first shown
+// and raised by every fresh answer: a dropped key shows no fallback until data
+// of the current generation arrived, across remounts and hooks.
+const fallbackGenerations = new Map<string, number>();
+
+// The scope generation from which a value without a stamp counts (#5223).
+// It follows the scope only while no stamp was ever released: a released
+// stamp leaves its value reachable without one (cache with cleanup off,
+// previous data, a late answer), and such a value must not count again.
+let unstampedFrom = 0;
+
+// The server renders requests of many sessions in one long process and never
+// moves a generation: every value it sees is current. It keeps no metadata.
+const isServer = typeof window === "undefined";
+
+function releaseStamps(): void {
+  const released =
+    objectStamps.size > 0 ||
+    primitiveStamps.size > 0 ||
+    fallbackGenerations.size > 0;
+  if (!released && unstampedFrom === scopeGeneration) unstampedFrom = counter;
+  objectStamps.clear();
+  primitiveStamps.clear();
+  fallbackGenerations.clear();
+}
+
+/** Only for tests: forget every stamp and fallback record. */
+export function _resetSWRFallbacksForTests(): void {
+  objectStamps.clear();
+  primitiveStamps.clear();
+  fallbackGenerations.clear();
+  unstampedFrom = scopeGeneration;
+}
+
+/** Only for tests: how many keys carry stamp or fallback metadata. */
+export function _swrStampedKeyCountForTests(): number {
+  return new Set([
+    ...objectStamps.keys(),
+    ...primitiveStamps.keys(),
+    ...fallbackGenerations.keys(),
+  ]).size;
+}
 
 function isObject(value: unknown): value is object {
   return (
@@ -145,7 +196,7 @@ export function stampSWRValue(
   value: unknown,
   generation: number,
 ): void {
-  if (value === undefined) return;
+  if (value === undefined || isServer) return;
   noteFreshData(key, generation);
   const plain = plainSWRKey(key);
   if (isObject(value)) {
@@ -170,9 +221,10 @@ export function stampSWRValue(
 }
 
 /**
- * Whether `value` may be shown under `key`: true for a value of the current
- * data generation, false for an older one, undefined for a value no path of
- * ~/lib/swr produced (a raw write, a caller's `fallbackData`).
+ * Whether `value` was stamped for `key` in its current data generation: true
+ * for a value of the current data generation, false for an older one,
+ * undefined for a value without a stamp (released at a scope boundary, a
+ * caller's `fallbackData`, a server value).
  */
 export function isCurrentSWRValue(
   key: string,
@@ -184,31 +236,31 @@ export function isCurrentSWRValue(
   return stamp >= dataGenerationOf(key);
 }
 
-// The data generation from which values of a key that no path of
-// ~/lib/swr stamped (a caller's `fallbackData`, a provider fallback, a raw
-// write) count, per key (#5006). Set when such a value is first shown and
-// raised by every fresh answer: a dropped key shows no fallback until data
-// of the current generation arrived, across remounts and hooks.
-const fallbackGenerations = new Map<string, number>();
-
-/** Only for tests: forget which keys showed a fallback. */
-export function _resetSWRFallbacksForTests(): void {
-  fallbackGenerations.clear();
+/**
+ * Whether a cached `value` of `key` may be shown, returned or built on. A
+ * value without a stamp counts only while no released stamp or drop of the
+ * key could be its own; nothing restamps it (#5223).
+ */
+export function isVisibleSWRValue(key: string, value: unknown): boolean {
+  return (
+    isCurrentSWRValue(key, value) ?? unstampedFrom >= dataGenerationOf(key)
+  );
 }
 
-/** Whether an unstamped value of `key` may be shown now. */
+/** Whether a fallback without a stamp of `key` may be shown now. */
 export function isFallbackVisible(key: string): boolean {
   const from = fallbackGenerations.get(plainSWRKey(key));
   // A predicate drop also invalidates keys first read after it. An unseen
-  // fallback starts in this scope, not after a matching data bump.
-  return (from ?? scopeGeneration) >= dataGenerationOf(key);
+  // fallback starts in this scope, unless a scope boundary released stamps.
+  return (from ?? unstampedFrom) >= dataGenerationOf(key);
 }
 
 /**
- * Records that unstamped values of `key` were shown in data generation
+ * Records that unstamped fallbacks of `key` were shown in data generation
  * `generation`; the first record of a key stays (call after render).
  */
 export function noteFallbackShown(key: string, generation: number): void {
+  if (isServer) return;
   const plain = plainSWRKey(key);
   if (!fallbackGenerations.has(plain)) {
     fallbackGenerations.set(plain, generation);
@@ -338,7 +390,7 @@ export function lockMutation(
   // A value of an ended generation is no base for a new one: functions of
   // the mutation see nothing in its place, as for an empty entry.
   const base = (value: unknown): unknown =>
-    isCurrentSWRValue(key, value) === false ? undefined : value;
+    isVisibleSWRValue(key, value) ? value : undefined;
   const locked =
     typeof data === "function"
       ? (current: unknown) =>

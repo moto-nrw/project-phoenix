@@ -32,9 +32,16 @@ void invalidateFamily(rooms.family);
    `stampSWRSeeds` and `writeSWRSeeds` carry a server snapshot. Do not restamp
    old data as a fresh fallback. A partial seed must still revalidate;
    `revalidateIfStale: false` would suppress the request in SWR 2.5.1.
+   Stamps live as long as their scope generation (#5223): a session boundary
+   releases them, and a value without a stamp counts only on a page where no
+   boundary released one yet. After that, a fallback without a stamp waits
+   for fresh data of its key. The server stamps nothing.
 3. The callback returned by `useTenantMutate()` supports optimistic
    data, rollback and `populateCache` under the generation lock. Prefer the
-   reader's bound `mutate` when it already owns that key. For an action the
+   reader's bound `mutate` when it already owns that key. Its identity, like
+   that of `useSWRPreload()`, survives revalidations; a scope or data bump
+   hands out a new one. A revalidation of the key does not drop a running
+   mutation, a scope or data bump does. For an action the
    user should see at once (send, check in, toggle), use
    `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
    expected result is an overlay on the confirmed data per scoped key and

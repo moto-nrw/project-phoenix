@@ -1252,6 +1252,46 @@ describe.each([
       expect(screen.getByTestId(name)).toHaveTextContent("v1");
     },
   );
+
+  describe.each(OPERATIONS)("%s", (_operationName, operation) => {
+    it.each(["bound", "tenant"] as const)(
+      "drops the result of a running %s mutation",
+      async (kind) => {
+        const name = `student-7-drop-bump-${kind}`;
+        const ui = (
+          <Page>
+            <Reader
+              name={name}
+              fetcher={loadsOnce("v0")}
+              options={{ dedupingInterval: 0 }}
+            />
+          </Page>
+        );
+        const view = render(ui);
+        await flush();
+        // Anker: der Leser zeigt den Stand vor der Mutation.
+        expect(screen.getByTestId(name)).toHaveTextContent("v0");
+        _setSWRCleanupForTests(cleanup);
+        const saved = deferred<string>();
+        let saving!: Promise<unknown>;
+        act(() => {
+          saving = start(kind, name, saved.promise);
+        });
+        act(() => operation(() => view.rerender(cloneElement(ui))));
+        seen = {};
+        let result: unknown;
+        await act(async () => {
+          saved.resolve("v1");
+          result = await saving;
+        });
+        await flush();
+
+        expect(result).toBeUndefined();
+        expect(cachedData(name)).not.toBe("v1");
+        expect(seen[name] ?? []).not.toContain("v1");
+      },
+    );
+  });
 });
 
 describe("callback identity across bumps of other keys (#5223)", () => {
@@ -1294,5 +1334,69 @@ describe("callback identity across bumps of other keys (#5223)", () => {
     view.rerender(<Page />);
 
     expect(tools.mutate).not.toBe(before);
+  });
+});
+
+describe.each([
+  ["with cleanup", true],
+  ["lock only, cleanup off", false],
+])("released stamps %s (#5223)", (_mode, cleanup) => {
+  describe.each(OPERATIONS)("%s", (_name, operation) => {
+    it.each(["object", "primitive"] as const)(
+      "lets no reachable %s of the generation before count again",
+      async (kind) => {
+        const name = `student-7-released-${kind}`;
+        // Held by the test: still reachable after the boundary.
+        const old = kind === "object" ? { label: "alt" } : "alt";
+        let calls = 0;
+        const fetcher = () => {
+          calls += 1;
+          return calls === 1
+            ? Promise.resolve<unknown>(old)
+            : new Promise<unknown>(() => {});
+        };
+        let response: SWRResponse<unknown> | undefined;
+        function Holder() {
+          response = useSWRAuth<unknown>(name, fetcher, {
+            dedupingInterval: 0,
+          });
+          (seen[name] ??= []).push(response.data);
+          return (
+            <p data-testid={name}>
+              {response.data === undefined
+                ? "leer"
+                : JSON.stringify(response.data)}
+            </p>
+          );
+        }
+        const ui = (
+          <Page>
+            <Holder />
+          </Page>
+        );
+        const view = render(ui);
+        await flush();
+        // Anker: der Wert gilt in seiner Generation.
+        expect(screen.getByTestId(name)).toHaveTextContent("alt");
+        _setSWRCleanupForTests(cleanup);
+        act(() => operation(() => view.rerender(cloneElement(ui))));
+        await flush();
+        seen = {};
+        view.rerender(<Page />);
+        view.rerender(cloneElement(ui));
+        await flush();
+        const updater = vi.fn((current: unknown) => current);
+        let result: unknown = "offen";
+        await act(async () => {
+          result = await response!.mutate(updater, { revalidate: false });
+        });
+        await flush();
+
+        expect(updater).not.toHaveBeenCalledWith(old);
+        expect(result).not.toBe(old);
+        expect(seen[name] ?? []).not.toContain(old);
+        expect(screen.queryByText(/alt/)).toBeNull();
+      },
+    );
   });
 });
