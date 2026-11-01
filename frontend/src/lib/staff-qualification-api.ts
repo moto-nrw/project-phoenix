@@ -78,7 +78,7 @@ export interface QualificationOverviewRow extends QualificationEntry {
 const optionalId = (value: number | string | null | undefined) =>
   value === null || value === undefined ? null : String(value);
 
-export function mapQualificationType(
+function mapQualificationType(
   data: BackendQualificationType,
 ): QualificationType {
   return {
