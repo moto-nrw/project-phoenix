@@ -92,6 +92,7 @@ type Store interface {
 	DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, domain.OperationStats, error)
 	CapActiveStudentEnrollments(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetStudentEnrollmentValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
+	SetStudentEnrollmentsKeptWithoutBooking(context.Context, []int64, *string) (domain.OperationStats, error)
 	CloseOpenStudentEnrollments(context.Context, int64, *int64, string) (domain.OperationStats, error)
 	FindTimeframe(context.Context, int64) (timetable.Timeframe, bool, domain.OperationStats, error)
 	ListTimeframes(context.Context, timetable.TimeframeFilter) ([]timetable.Timeframe, domain.OperationStats, error)

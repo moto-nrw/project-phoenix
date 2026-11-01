@@ -87,7 +87,10 @@ func collectOfferingWeekdayBookings(
 		if !ok {
 			continue
 		}
-		window := careplan.OfferingBookingWindow{ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays}
+		window := careplan.OfferingBookingWindow{
+			ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays,
+			Ended: link.ValidUntil != nil && *link.ValidUntil == validUntil,
+		}
 		key := offeringStudentKey{offeringID: offering.ID, studentID: child.StudentID}
 		if position, ok := index[key]; ok {
 			merged := append(result[position].Weekdays, weekdays...)

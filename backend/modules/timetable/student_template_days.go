@@ -83,6 +83,18 @@ type StudentTemplateDaysRemoval struct {
 	From       calendar.Date
 }
 
+// StudentTemplateDaysKeep records the school's "Bleibt so" (#5102): the
+// child stays planned by hand on the weekdays although a booking ending on
+// BookingEndedOn no longer carries the Regeltermin. Kept false withdraws the
+// decision.
+type StudentTemplateDaysKeep struct {
+	TemplateID     int64
+	StudentID      int64
+	Weekdays       []int
+	BookingEndedOn calendar.Date
+	Kept           bool
+}
+
 // StudentTemplateDaysRemoved counts what a removal changed.
 type StudentTemplateDaysRemoved struct {
 	// RosterRows are hand roster rows ended or narrowed.
@@ -105,4 +117,9 @@ type StudentTemplateDays interface {
 	// weekdays and rows recording attendance or a hand decision stay. It
 	// takes the tenant recurrence gate. From must not lie in the past.
 	RemoveStudentTemplateDays(ctx context.Context, removal StudentTemplateDaysRemoval) (StudentTemplateDaysRemoved, error)
+	// KeepStudentTemplateDays marks or unmarks the student's hand rows of
+	// the series that plan the weekdays on or after the booking end and
+	// returns how many rows it marked. Plans stay as they
+	// are. ErrGroupNotFound for an unknown series.
+	KeepStudentTemplateDays(ctx context.Context, keep StudentTemplateDaysKeep) (int, error)
 }

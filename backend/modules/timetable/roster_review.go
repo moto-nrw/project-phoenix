@@ -86,6 +86,13 @@ type TemplateRosterEntry struct {
 	// SelectedWeekdays restricts the row to these ISO weekdays; empty holds
 	// on every day.
 	SelectedWeekdays []int
+	// FromBooking marks a row a booking created; the other rows are kept by
+	// hand.
+	FromBooking bool
+	// KeptWithoutBookingThrough is the school's decision on a hand row to
+	// keep the child although bookings ending up to this day no longer
+	// carry the Regeltermin (#5102).
+	KeptWithoutBookingThrough *calendar.Date
 }
 
 // appliesOn reports whether the row puts the child on the template's

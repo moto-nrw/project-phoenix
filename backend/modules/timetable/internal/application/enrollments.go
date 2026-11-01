@@ -146,6 +146,34 @@ func (s *Service) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, 
 	})
 }
 
+// SetStudentEnrollmentsKeptWithoutBooking marks or unmarks hand rows of one
+// student (#5102). Every id must name a hand row of that student: a
+// booking-created row follows its booking and never carries the mark.
+func (s *Service) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, through *string) error {
+	if studentID <= 0 || (through != nil && !timetable.ValidDate(*through)) {
+		return s.reject("set_student_enrollments_kept_without_booking", timetable.ErrInvalidStudentEnrollment)
+	}
+	return s.runWrite(ctx, "set_student_enrollments_kept_without_booking", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, err := s.store.ListStudentEnrollments(txCtx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{studentID}})
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		hand := make(map[int64]bool, len(rows))
+		for _, row := range rows {
+			hand[row.ID] = row.EnrollmentRequestChildID == nil
+		}
+		for _, id := range ids {
+			if !hand[id] {
+				return timetable.ErrStudentEnrollmentNotFound
+			}
+		}
+		queryStats, err = s.store.SetStudentEnrollmentsKeptWithoutBooking(txCtx, ids, through)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *Service) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
 	if groupID <= 0 || (periodID != nil && *periodID <= 0) || !timetable.ValidDate(validUntil) {
 		return s.reject("close_open_student_enrollments", timetable.ErrInvalidStudentEnrollment)

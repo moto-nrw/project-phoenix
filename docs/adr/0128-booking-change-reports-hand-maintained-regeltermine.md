@@ -150,3 +150,42 @@ with parallel approved enrollments today, and none mixes offerings with and
 without pickup times (read-only production check of 2026-10-31).
 
 The read adds no owner edge, no write and no binding-flow diagnostic.
+
+## Addendum 2026-11-01: the report stays until somebody decides (#5102)
+
+A pre-deploy test on a copy of production data showed the gap the first
+decision left: the list exists only in the save response. A Korrektur took a
+child's Thursday away, nobody clicked a button, and after a reload the child
+stayed on two hand-maintained Regeltermine every Thursday while the
+deviation list, the gap list and the home page were empty.
+
+Timetable now derives the report again from what is stored, in the read
+`GET /api/timetable/templates/booking-leftovers` (pure rule
+`timetable.DetectBookingLeftovers`). Its anchor is a booking link that ended
+by a change or a withdrawal: Care Plan's existing period read
+`OfferingWeekdayBookings`, asked from the period start, marks such a window
+`Ended` when the link's own end, not its phase, bounds it. For every hand
+roster row (no `enrollment_request_child_id`) that plans the child on that
+weekday from the later of the booking end and tomorrow, the carry rule of
+the first addendum decides with the bookings in force on that day; where a
+pickup time or the end is missing, the day counts as lost when the booking
+end left fewer offerings on the weekday than the day before. A child the
+Regeltermin plans through a Klasse, Jahrgang or Gruppe target is left out:
+removing the hand row would not hold, and the deviation hint covers those
+lists. A Regeltermin the deviation hint already shows is left out as well.
+Nothing is stored for the report.
+
+The school's answer is the only stored part. "Entfernen" is
+`RemoveStudentTemplateDays` from the later of the booking end and tomorrow.
+"Bleibt so" is Timetable's new command `KeepStudentTemplateDays`: it writes
+the booking end into the new column
+`activities.student_enrollments.kept_without_booking_through` of the
+child's hand rows of the series. A mark on or after the booking end hides
+the row's report; a later booking end shows it again. It changes no plan,
+and a continuation row of a removal keeps the mark. Booking-created rows
+never carry it.
+
+`RemoveStudentTemplateDays` now starts tomorrow at the earliest, also when
+asked for today: today's occurrences and rows stay as they are. The command
+`KeepStudentTemplateDays` reads no clock, so it adds no binding-flow
+diagnostic; the read reaches no other owner beyond the existing ports.

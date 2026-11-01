@@ -10,6 +10,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/uptrace/bun"
 )
@@ -193,6 +194,9 @@ var RootCompositions struct {
 	Rows func(db *bun.DB, clocks ...func() time.Time) (TimetableRows, error)
 	// People serves the People port of the timetable routes over db.
 	People func(db *bun.DB) (People, error)
+	// StudentTemplateDays removes and keeps a child on hand-maintained
+	// Regeltermine (#5102) over db, with today from the clock.
+	StudentTemplateDays func(db *bun.DB, today func() calendar.Date) timetableModule.StudentTemplateDays
 	// RecurrenceLock is the owner's tenant recurrence gate over db.
 	RecurrenceLock func(db *bun.DB) (timetableModule.RecurrenceWriteLock, error)
 	// SessionRecords are Student Presence's live sessions over db.

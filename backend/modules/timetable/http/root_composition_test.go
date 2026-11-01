@@ -12,6 +12,7 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	kernelcalendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -59,6 +60,9 @@ func init() {
 			AttendanceCorrections: module.AttendanceCorrections, RecurrenceLock: module.RecurrenceLock,
 			Materialization: module.Materialization,
 		}, nil
+	}
+	root.StudentTemplateDays = func(db *bun.DB, today func() kernelcalendar.Date) timetableModule.StudentTemplateDays {
+		return api.NewStudentTemplateDaysTestModule(testpkg.MustDatabase(db), today)
 	}
 	root.Rows = func(db *bun.DB, clocks ...func() time.Time) (timetableAPI.TimetableRows, error) {
 		rows, err := api.NewTimetableHTTPTestRows(testpkg.MustDatabase(db), clocks...)

@@ -162,21 +162,29 @@ func legacyStudentEnrollment(value timetable.StudentEnrollment) *activityContrac
 		date := activityContract.Date(*value.ValidUntil)
 		result.ValidUntil = &date
 	}
+	if value.KeptWithoutBookingThrough != nil {
+		kept := activityContract.Date(*value.KeptWithoutBookingThrough)
+		result.KeptWithoutBookingThrough = &kept
+	}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
 	result.SetTenantID(value.TenantID)
 	return result
 }
 
 func publicStudentEnrollmentInput(value *activityContract.StudentEnrollment) timetable.StudentEnrollmentInput {
-	var validUntil *string
+	var validUntil, kept *string
 	if value.ValidUntil != nil {
 		text := value.ValidUntil.String()
 		validUntil = &text
 	}
+	if value.KeptWithoutBookingThrough != nil {
+		text := value.KeptWithoutBookingThrough.String()
+		kept = &text
+	}
 	return timetable.StudentEnrollmentInput{StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
 		ValidFrom: value.ValidFrom.String(), ValidUntil: validUntil, CalendarPeriodID: value.CalendarPeriodID,
 		EnrollmentRequestChildID: value.EnrollmentRequestChildID, SelectedWeekdays: value.SelectedWeekdays,
-		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
+		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday, KeptWithoutBookingThrough: kept}
 }
 
 func legacyStudentEnrollmentError(operation string, err error) error {
