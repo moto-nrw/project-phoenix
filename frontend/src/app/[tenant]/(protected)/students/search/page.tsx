@@ -1,6 +1,10 @@
 "use client";
 
-import { fetchStudentSearch } from "~/lib/student-search-resource";
+import {
+  buildStudentSearchFilters,
+  fetchStudentSearch,
+  type StudentSearchFilterInput,
+} from "~/lib/student-search-resource";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { rooms as roomKeys } from "~/lib/swr/rooms";
 import { groups as groupKeys } from "~/lib/swr/groups";
@@ -342,10 +346,9 @@ function readFilterParam(
 }
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
-const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 // This view shows every match at once — it has no pagination control, and the
 // grouping modes, the counts and the export selection all read the rendered
-// list. The proxy route caps a response at FULL_STUDENT_SEARCH_PAGE_SIZE rows
+// list. The proxy route caps a response at 1000 rows
 // (app/api/students/route.ts), so a selection larger than one page has to be
 // walked here; otherwise every child past the first page is unreachable
 // (#2218 review). The bound stops a bad total from looping forever: 20 pages
@@ -1542,7 +1545,7 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = studentKeys.search({
+  const studentSearchParams = {
     groupIds: selectedGroupIds,
     search: searchTerm,
     schoolClasses: selectedSchoolClasses,
@@ -1556,7 +1559,8 @@ function SearchPageContent() {
     companions: wantsCompanions,
     years: selectedYears,
     pickupStatus: pickupStatusFilter,
-  });
+  } satisfies StudentSearchFilterInput & { photoState: string };
+  const studentsCacheKey = studentKeys.search(studentSearchParams);
 
   // Any change to the result query — the server-side cache key or one of the
   // client-only filters — replaces the visual context a selection was made
@@ -1599,52 +1603,7 @@ function SearchPageContent() {
   }>(
     studentsCacheKey,
     async () => {
-      const filters = {
-        search: searchTerm,
-        groupId: selectedGroupIds,
-        schoolClass: selectedSchoolClasses,
-        // The school year is filtered server-side (#2218) so the reported
-        // count and any future pagination cover the whole selection instead of
-        // only the rows this page happened to hold.
-        gradeLevel: selectedYears,
-        roomId: effectiveRoomId || undefined,
-        dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
-        // Planning date (#1939): omitted for today so today's requests stay
-        // byte-identical with the pre-date behavior.
-        date: isToday ? undefined : selectedDate,
-        // Administrative filters (#1492) are now applied server-side, so the
-        // backend returns the correctly-filtered, correctly-counted page set
-        // directly, no client-side full-page fetch + filter required.
-        bus: busFilter === "all" ? undefined : busFilter,
-        photoConsent:
-          requestedPhotoConsentFilter === "all"
-            ? undefined
-            : requestedPhotoConsentFilter,
-        pickupStatus:
-          pickupStatusFilter === "all" ? undefined : pickupStatusFilter,
-        // When filtering by room, this page is the "see all" target the
-        // room-detail modal links to (#1374). The modal itself caps at
-        // 200 cards and shows a truncation notice; this page must show
-        // every occupant so the overflow link actually delivers.
-        // 1000 covers any realistic combined-group / assembly-room
-        // session. General search sends nothing on purpose: the proxy route
-        // (app/api/students/route.ts) already defaults an absent page_size to
-        // its 1000 maximum, so the backend's own ParsePagination default of 50
-        // is never reached from here. A school with more matching children than
-        // one page is picked up by the page walk below, not by a larger
-        // page_size — the proxy caps that at 1000 either way.
-        pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
-        includePickupTimes: true,
-        includeArrivalTimes: true,
-        includeCompanions: wantsCompanions,
-        // Slim wire projection (#2097): this page requests up to 1000 rows in
-        // one trip, and the full StudentResponse ships address, health info,
-        // supervisor notes, guardian contacts, the weekday departure maps and
-        // consent/row timestamps that no card, filter or grouping mode here
-        // reads — the child detail page fetches the full record itself.
-        // Measured 78% smaller for the same rows.
-        view: "slim" as const,
-      };
+      const filters = buildStudentSearchFilters(studentSearchParams);
 
       return fetchStudentSearch(filters, selectedDate, isToday);
     },

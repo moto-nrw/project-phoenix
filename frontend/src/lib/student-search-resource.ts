@@ -1,6 +1,52 @@
 import { studentService } from "~/lib/api";
 import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "StudentSearch" });
+type SearchFilters = NonNullable<
+  Parameters<typeof studentService.getStudents>[0]
+>;
+
+/** UI selections shared by the reader and navigation intent. */
+export interface StudentSearchFilterInput {
+  search: string;
+  groupIds: readonly string[];
+  schoolClasses: readonly string[];
+  years: readonly string[];
+  roomId: string;
+  dayStatus: "all" | NonNullable<SearchFilters["dayStatus"]>;
+  date: string;
+  isToday: boolean;
+  bus: "all" | NonNullable<SearchFilters["bus"]>;
+  photoConsent: "all" | NonNullable<SearchFilters["photoConsent"]>;
+  pickupStatus: "all" | NonNullable<SearchFilters["pickupStatus"]>;
+  companions: boolean;
+}
+
+/** Keep default omission, room page size and slim projection identical. */
+export function buildStudentSearchFilters(
+  params: StudentSearchFilterInput,
+): SearchFilters {
+  return {
+    search: params.search,
+    groupId: [...params.groupIds],
+    schoolClass: [...params.schoolClasses],
+    gradeLevel: [...params.years],
+    roomId: params.roomId || undefined,
+    dayStatus: params.dayStatus === "all" ? undefined : params.dayStatus,
+    date: params.isToday ? undefined : params.date,
+    bus: params.bus === "all" ? undefined : params.bus,
+    photoConsent:
+      params.photoConsent === "all" ? undefined : params.photoConsent,
+    pickupStatus:
+      params.pickupStatus === "all" ? undefined : params.pickupStatus,
+    // The proxy caps a page at 1000; the bounded page walk loads the remainder.
+    pageSize: params.roomId ? 1000 : undefined,
+    includePickupTimes: true,
+    includeArrivalTimes: true,
+    includeCompanions: params.companions,
+    view: "slim",
+  };
+}
+
 /** Same bounded page walk for the destination and navigation intent. */
 export async function fetchStudentSearch(
   filters: NonNullable<Parameters<typeof studentService.getStudents>[0]>,

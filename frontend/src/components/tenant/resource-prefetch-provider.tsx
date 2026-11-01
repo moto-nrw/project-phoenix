@@ -14,6 +14,7 @@ function mayPrefetch(): boolean {
     }
   ).connection;
   return (
+    !window.matchMedia("(prefers-reduced-data: reduce)").matches &&
     !connection?.saveData &&
     connection?.effectiveType !== "slow-2g" &&
     connection?.effectiveType !== "2g" &&
@@ -38,7 +39,11 @@ export function ResourcePrefetchProvider({
     };
   }, []);
   // Shared across scope changes too: old network work still occupies a slot.
-  const scheduler = useRef({ active: 0, queue: [] as (() => Promise<void>)[] });
+  const scheduler = useRef({
+    active: 0,
+    revision: 0,
+    queue: [] as { run: () => Promise<void>; cancel: () => void }[],
+  });
   const intent = useMemo(() => {
     const pending = new Set<string>();
     const drain = () => {
@@ -46,13 +51,17 @@ export function ResourcePrefetchProvider({
       while (state.active < 3 && state.queue.length > 0) {
         const task = state.queue.shift()!;
         state.active++;
-        void task().finally(() => {
+        void task.run().finally(() => {
           state.active--;
           drain();
         });
       }
     };
     return (href: string, explicit?: readonly PrefetchResource[]) => {
+      const state = scheduler.current;
+      const revision = ++state.revision;
+      const requestedAt = Date.now();
+      state.queue.splice(0).forEach((task) => task.cancel());
       if (!mayPrefetch()) return;
       // Capture the locked callback before resolving resources or waiting in
       // the queue. Old intent cannot bind itself to a new scope.
@@ -65,7 +74,8 @@ export function ResourcePrefetchProvider({
           const resources = selected
             ? authorized.filter((item) => selected.has(item.key))
             : authorized;
-          if (!mounted.current) return;
+          if (!mounted.current || scheduler.current.revision !== revision)
+            return;
           for (const resource of resources) {
             if (
               pending.has(resource.key) ||
@@ -73,22 +83,35 @@ export function ResourcePrefetchProvider({
             )
               continue;
             pending.add(resource.key);
-            scheduler.current.queue.push(async () => {
-              try {
-                if (mounted.current && mayPrefetch())
-                  await preload(resource.key, resource.fetcher, {
-                    intent: true,
-                  });
-              } catch {
-                // Speculation has no UI error path. The page performs its normal load.
-              } finally {
+            scheduler.current.queue.push({
+              cancel: () => {
                 pending.delete(resource.key);
-              }
+              },
+              run: async () => {
+                try {
+                  if (
+                    mounted.current &&
+                    scheduler.current.revision === revision &&
+                    Date.now() - requestedAt <= 5_000 &&
+                    mayPrefetch()
+                  )
+                    await preload(resource.key, resource.fetcher, {
+                      intent: true,
+                    });
+                } catch {
+                  // Speculation has no UI error path. The page performs its normal load.
+                } finally {
+                  pending.delete(resource.key);
+                }
+              },
             });
           }
           drain();
         })
-        .catch(() => undefined);
+        .catch(() => {
+          // Resolving speculative resources must not interrupt navigation or
+          // show an error; the destination retains its ordinary load path.
+        });
     };
   }, [preload, resourcesFor]);
   return <DataPrefetchContext value={intent}>{children}</DataPrefetchContext>;

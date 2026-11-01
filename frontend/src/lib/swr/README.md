@@ -226,11 +226,13 @@ factory-key predicate; do not clear other readable schools.
 
 Navigation data preloads must use `useSWRPreload` with the destination's exact
 factory key and fetcher. Code prefetch and data prefetch are independent:
-data waits for about 300 ms of mouse intent, keyboard focus or touch start.
+data waits for about 300 ms of pointer intent or keyboard focus (blur cancels).
+Touch starts no load: only a completed single-finger tap, with at most 8 px of
+movement, starts data intent; swipes and cancelled gestures do not.
 Do not preload audited reads, inaccessible resources, or speculative detail
 fields. A failed speculative request must not become the destination's load
 error. Scope changes discard pending answers, including work queued before
-the change. Respect Save-Data and slow connections and bound concurrency.
+the change. Respect Save-Data, `prefers-reduced-data` and slow connections; bound concurrency.
 
 `preload(key, fetcher, { intent: true })` is the speculative variant of the
 same locked writer. It skips an already current cached response and removes
@@ -243,8 +245,14 @@ lock. No retry occurs without a handoff, after a generation change, or while
 the session is unconfirmed. The reader stays loading until that ordinary load
 settles; only its failure reaches the normal error path.
 It never mutates response data directly, bypasses a generation check, or
-removes a replacement promise. General preloads keep their existing contract.
+removes a replacement promise. Unconsumed intent promises expire after 45 s.
+Expiry is checked again before SWR consumes a promise, even when background-tab
+timers were suspended. Timer cleanup requires the original promise identity,
+and an expired pending request cannot trigger a handoff fallback. Expiry only
+evicts intent registry entries, never response data. General preloads retain
+their existing contract.
 The protected tenant shell shares thin fetchers, not page hooks, so data
 intent does not wait for another code chunk. It starts data only after intent. Its queue runs at most three resources concurrently
-and holds at most twelve waiting resources; account/school/generation changes
+and holds at most twelve waiting resources. New intent replaces older queued
+work and unresolved resource selection; queued work waits at most 5 s. Account/school/generation changes
 invalidate the captured writer even while code is loading or work is queued.

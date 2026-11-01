@@ -49,6 +49,7 @@ import {
   requestGenerationOf,
   startOf,
   preloadSWR,
+  expireIntentPreload,
 } from "./generation";
 import {
   authGeneration,
@@ -141,7 +142,12 @@ const generationLockMiddleware: Middleware =
     return useSWRNext(key, locked, {
       ...config,
       compare,
-      isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
+      isPaused: () => {
+        // SWR checks this before invoking its built-in preload consumer.
+        // Read-time expiry also covers suspended background-tab timers.
+        if (typeof key === "string") expireIntentPreload(key);
+        return isSWRSessionPending() || config.isPaused?.() === true;
+      },
       onError,
       onErrorRetry,
     });

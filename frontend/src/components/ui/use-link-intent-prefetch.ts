@@ -28,6 +28,10 @@ type IntentPrefetchProps = Pick<
   | "onPointerLeave"
   | "onFocus"
   | "onTouchStart"
+  | "onTouchMove"
+  | "onTouchEnd"
+  | "onTouchCancel"
+  | "onBlur"
 > & { readonly href: string; readonly resources?: readonly PrefetchResource[] };
 
 /** Shared intent policy, without portal progress or router dependencies. */
@@ -39,6 +43,10 @@ export function useLinkIntentPrefetch({
   onPointerLeave,
   onFocus,
   onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+  onTouchCancel,
+  onBlur,
   resources,
 }: IntentPrefetchProps) {
   const [intent, setIntent] = useState({ href, target, prefetch: false });
@@ -91,9 +99,28 @@ export function useLinkIntentPrefetch({
     onTouchStart: (event: React.TouchEvent<HTMLAnchorElement>) => {
       onTouchStart?.(event);
       if (!event.defaultPrevented && canPrefetch) {
-        dataIntent.onTouchStart();
+        dataIntent.onTouchStart(event);
         startPrefetch();
       }
+    },
+    onTouchMove: (event: React.TouchEvent<HTMLAnchorElement>) => {
+      onTouchMove?.(event);
+      if (event.defaultPrevented) dataIntent.onTouchCancel();
+      else dataIntent.onTouchMove(event);
+    },
+    onTouchEnd: (event: React.TouchEvent<HTMLAnchorElement>) => {
+      onTouchEnd?.(event);
+      if (!event.defaultPrevented && canPrefetch) dataIntent.onTouchEnd(event);
+      else dataIntent.onTouchCancel();
+    },
+    onTouchCancel: (event: React.TouchEvent<HTMLAnchorElement>) => {
+      onTouchCancel?.(event);
+      dataIntent.onTouchCancel();
+    },
+    onBlur: (event: FocusEvent<HTMLAnchorElement>) => {
+      onBlur?.(event);
+      cancelHover();
+      dataIntent.onBlur();
     },
     onFocus: (event: FocusEvent<HTMLAnchorElement>) => {
       onFocus?.(event);

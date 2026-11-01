@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
 import { useSWRAuth } from "~/lib/swr";
+import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import {
   _setSWRCleanupForTests,
   resetSWRScope,
@@ -76,6 +77,32 @@ function Harness({
     </SWRConfig>
   );
 }
+function CardIntent() {
+  const [opened, setOpened] = useState(false);
+  const intent = useDataPrefetchIntent("/rooms");
+  return (
+    <>
+      <button {...intent} onClick={() => setOpened(true)}>
+        Open card
+      </button>
+      {opened && <Destination />}
+    </>
+  );
+}
+function CardHarness() {
+  return (
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <ResourcePrefetchProvider resourcesFor={resourcesFor}>
+        <CardIntent />
+      </ResourcePrefetchProvider>
+    </SWRConfig>
+  );
+}
+const touch = (x: number, y: number) => ({
+  identifier: 1,
+  clientX: x,
+  clientY: y,
+});
 async function advance(ms: number) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -95,8 +122,205 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => _setSWRCleanupForTests(true));
+afterEach(() => {
+  _setSWRCleanupForTests(true);
+  vi.restoreAllMocks();
+});
 
+describe("review intent boundaries", () => {
+  it("does not preload a card while swiping or on touch-generated focus", async () => {
+    render(<CardHarness />);
+    const card = screen.getByRole("button", { name: "Open card" });
+    expect(card).toBeInTheDocument();
+    fireEvent.touchStart(card, { touches: [touch(10, 10)] });
+    fireEvent.focus(card);
+    fireEvent.touchMove(card, { touches: [touch(10, 80)] });
+    fireEvent.touchEnd(card, { touches: [], changedTouches: [touch(10, 100)] });
+    await advance(400);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("preloads a card only at the end of a stationary tap", async () => {
+    render(<CardHarness />);
+    const card = screen.getByRole("button", { name: "Open card" });
+    expect(card).toBeInTheDocument();
+    fireEvent.touchStart(card, { touches: [touch(10, 10)] });
+    await advance(400);
+    expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.touchEnd(card, { touches: [], changedTouches: [touch(10, 10)] });
+    await advance(0);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("allows sustained keyboard focus after a completed swipe that never focused the card", async () => {
+    render(<CardHarness />);
+    const card = screen.getByRole("button", { name: "Open card" });
+    expect(card).toBeInTheDocument();
+    fireEvent.touchStart(card, { touches: [touch(10, 10)] });
+    fireEvent.touchMove(card, { touches: [touch(10, 90)] });
+    fireEvent.touchEnd(card, { touches: [], changedTouches: [touch(10, 90)] });
+    await advance(300);
+    expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.focus(card);
+    await advance(300);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("waits for sustained focus and cancels on blur", async () => {
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    expect(link).toBeInTheDocument();
+    fireEvent.focus(link);
+    await advance(299);
+    expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.blur(link);
+    await advance(10);
+    expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.focus(link);
+    await advance(300);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("suppresses data intent for prefers-reduced-data", async () => {
+    vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+      matches: query === "(prefers-reduced-data: reduce)",
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: () => true,
+    }));
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    expect(link).toBeInTheDocument();
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("does not hand a minute-old promise to a newly opened destination even if timers were suspended", async () => {
+    fetcher.mockResolvedValueOnce({ name: "stale rooms" });
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.now() + 60_000);
+    fireEvent.click(link);
+    await advance(10);
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("replaces older queued intent rather than draining obsolete destinations", async () => {
+    const finish: (() => void)[] = [];
+    const old = Array.from({ length: 5 }, (_, page) => ({
+      key: roomKeys.key({ page: page + 1 }),
+      fetcher: vi.fn(
+        () =>
+          new Promise<string>((resolve) => finish.push(() => resolve("old"))),
+      ),
+    }));
+    const latest = {
+      key: roomKeys.key({ page: 6 }),
+      fetcher: vi.fn(async () => "latest"),
+    };
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ResourcePrefetchProvider
+          resourcesFor={async (href) => (href === "/old" ? old : [latest])}
+        >
+          <NavigationLink href="/old">Old intent</NavigationLink>
+          <NavigationLink href="/latest">Latest intent</NavigationLink>
+        </ResourcePrefetchProvider>
+      </SWRConfig>,
+    );
+    const source = screen.getByRole("link", { name: "Old intent" });
+    fireEvent.pointerEnter(source, { pointerType: "mouse" });
+    await advance(300);
+    expect(old.map((item) => item.fetcher.mock.calls.length)).toEqual([
+      1, 1, 1, 0, 0,
+    ]);
+    fireEvent.pointerEnter(
+      screen.getByRole("link", { name: "Latest intent" }),
+      { pointerType: "mouse" },
+    );
+    await advance(300);
+    await act(async () => finish.forEach((done) => done()));
+    await advance(10);
+    expect(latest.fetcher).toHaveBeenCalledTimes(1);
+    expect(old.map((item) => item.fetcher.mock.calls.length)).toEqual([
+      1, 1, 1, 0, 0,
+    ]);
+  });
+  it("does not start old queued resources after the bounded wait expires", async () => {
+    const finish: (() => void)[] = [];
+    const loads = Array.from({ length: 5 }, (_, page) => ({
+      key: roomKeys.key({ page: page + 1 }),
+      fetcher: vi.fn(
+        () =>
+          new Promise<string>((resolve) => finish.push(() => resolve("old"))),
+      ),
+    }));
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ResourcePrefetchProvider resourcesFor={async () => loads}>
+          <NavigationLink href="/rooms">Queue expiry</NavigationLink>
+        </ResourcePrefetchProvider>
+      </SWRConfig>,
+    );
+    const link = screen.getByRole("link", { name: "Queue expiry" });
+    expect(link).toBeInTheDocument();
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    expect(loads.map((item) => item.fetcher.mock.calls.length)).toEqual([
+      1, 1, 1, 0, 0,
+    ]);
+    await advance(6_000);
+    await act(async () => finish.forEach((done) => done()));
+    await advance(10);
+    expect(loads.map((item) => item.fetcher.mock.calls.length)).toEqual([
+      1, 1, 1, 0, 0,
+    ]);
+  });
+  it("does not turn expiry of unconsumed pending speculation into a background retry", async () => {
+    let reject!: (error: Error) => void;
+    fetcher.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    expect(link).toBeInTheDocument();
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    await advance(46_000);
+    await act(async () => reject(new Error("expired speculation")));
+    await advance(0);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fireEvent.click(link);
+    await advance(10);
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("does not let an old expiry timer remove a newer generation's promise", async () => {
+    fetcher.mockResolvedValueOnce({ name: "old rooms" });
+    const view = render(<Harness />);
+    const link = screen.getByRole("link", { name: "Open rooms" });
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await advance(20_000);
+    await act(async () => resetSWRScope({ revalidate: false }));
+    view.rerender(<Harness />);
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await advance(300);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await advance(26_000);
+    fireEvent.click(link);
+    await advance(10);
+    expect(screen.getByText("confirmed rooms")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
 describe("locked navigation data intent", () => {
   it.each([NavigationLink, NavLink, ButtonLink])(
     "preloads exactly the destination resource once after hover (%s)",
@@ -128,16 +352,22 @@ describe("locked navigation data intent", () => {
     await advance(500);
     expect(fetcher).not.toHaveBeenCalled();
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it.each(["focus", "touchStart"] as const)(
-    "preloads immediately on %s",
-    async (event) => {
-      render(<Harness />);
+  it.each([NavigationLink, NavLink, ButtonLink])(
+    "preloads link data only after a tap ends (%s)",
+    async (Link) => {
+      render(<Harness Link={Link} />);
       const link = screen.getByRole("link", { name: "Open rooms" });
       expect(link).toBeInTheDocument();
-      fireEvent[event](link);
+      fireEvent.touchStart(link, { touches: [touch(10, 10)] });
+      await advance(300);
+      expect(fetcher).not.toHaveBeenCalled();
+      fireEvent.touchEnd(link, {
+        touches: [],
+        changedTouches: [touch(10, 10)],
+      });
       await advance(0);
       expect(fetcher).toHaveBeenCalledTimes(1);
     },
@@ -156,8 +386,8 @@ describe("locked navigation data intent", () => {
     expect(link).toBeInTheDocument();
     fireEvent.pointerEnter(link, { pointerType: "mouse" });
     await advance(300);
-    fireEvent.focus(link);
-    fireEvent.touchStart(link);
+    fireEvent.touchStart(link, { touches: [touch(10, 10)] });
+    fireEvent.touchEnd(link, { touches: [], changedTouches: [touch(10, 10)] });
     await advance(0);
     expect(fetcher).not.toHaveBeenCalled();
     fireEvent.click(link);
@@ -178,7 +408,7 @@ describe("locked navigation data intent", () => {
       );
       const view = render(<Harness />);
       fireEvent.focus(screen.getByRole("link", { name: "Open rooms" }));
-      await advance(0);
+      await advance(300);
       expect(fetcher).toHaveBeenCalledTimes(1);
       await act(async () => {
         owner.id = "account-2";
@@ -199,7 +429,7 @@ describe("locked navigation data intent", () => {
     fetcher.mockRejectedValueOnce(new Error("offline during intent"));
     render(<Harness />);
     fireEvent.focus(screen.getByRole("link", { name: "Open rooms" }));
-    await advance(0);
+    await advance(300);
     expect(fetcher).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("link", { name: "Open rooms" }));
     await advance(10);
@@ -227,7 +457,7 @@ describe("locked navigation data intent", () => {
     render(<Harness />);
     const link = screen.getByRole("link", { name: "Open rooms" });
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     expect(fetcher).toHaveBeenCalledTimes(1);
     fireEvent.click(link);
     await advance(0);
@@ -258,7 +488,7 @@ describe("locked navigation data intent", () => {
       render(<Harness />);
       const link = screen.getByRole("link", { name: "Open rooms" });
       fireEvent.focus(link);
-      await advance(0);
+      await advance(300);
       expect(fetcher).toHaveBeenCalledTimes(1);
       await act(async () => {
         rejectIntent(new Error("intent failed alongside navigation"));
@@ -283,7 +513,7 @@ describe("locked navigation data intent", () => {
     render(<Harness />);
     const link = screen.getByRole("link", { name: "Open rooms" });
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     fireEvent.click(link);
     await advance(0);
     expect(screen.getByText("loading")).toBeInTheDocument();
@@ -305,7 +535,7 @@ describe("locked navigation data intent", () => {
     const view = render(<Harness />);
     const link = screen.getByRole("link", { name: "Open rooms" });
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     fireEvent.click(link);
     await advance(0);
     expect(screen.getByText("loading")).toBeInTheDocument();
@@ -345,7 +575,7 @@ describe("locked navigation data intent", () => {
     const view = render(<Harness />);
     const link = screen.getByRole("link", { name: "Open rooms" });
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     fireEvent.click(link);
     await advance(0);
     expect(screen.getByText("loading")).toBeInTheDocument();
@@ -380,7 +610,7 @@ describe("locked navigation data intent", () => {
     const view = render(<Harness />);
     const link = screen.getByRole("link", { name: "Open rooms" });
     fireEvent.focus(link);
-    await advance(0);
+    await advance(300);
     fireEvent.click(link);
     await advance(0);
     expect(screen.getByText("loading")).toBeInTheDocument();
@@ -418,7 +648,7 @@ it("bounds concurrent resources and discards queued work after a scope change", 
   const link = screen.getByRole("link", { name: "Queue rooms" });
   expect(link).toBeInTheDocument();
   fireEvent.focus(link);
-  await advance(0);
+  await advance(300);
   expect(loads.map((load) => load.fetcher.mock.calls.length)).toEqual([
     1, 1, 1, 0, 0,
   ]);
@@ -436,7 +666,7 @@ it("keeps the normal destination error path when its own load fails too", async 
   fetcher.mockRejectedValue(new Error("still offline"));
   render(<Harness />);
   fireEvent.focus(screen.getByRole("link", { name: "Open rooms" }));
-  await advance(0);
+  await advance(300);
   expect(fetcher).toHaveBeenCalledTimes(1);
   // Anker: der Quelllink bleibt nach dem Hintergrundfehler bedienbar.
   expect(screen.getByRole("link", { name: "Open rooms" })).toBeInTheDocument();
@@ -466,7 +696,7 @@ it("does not duplicate a destination request that is already in flight", async (
   await advance(0);
   expect(fetcher).toHaveBeenCalledTimes(1);
   fireEvent.focus(screen.getByRole("link", { name: "Existing rooms" }));
-  await advance(0);
+  await advance(300);
   expect(fetcher).toHaveBeenCalledTimes(1);
   await act(async () => finish({ name: "existing answer" }));
   await advance(10);
@@ -492,7 +722,7 @@ it("never lets an explicit link list bypass the authorized destination resources
   const link = screen.getByRole("link", { name: "Selected rooms" });
   expect(link).toBeInTheDocument();
   fireEvent.focus(link);
-  await advance(0);
+  await advance(300);
   expect(unsafeFetcher).not.toHaveBeenCalled();
   view.unmount();
   render(
@@ -505,7 +735,7 @@ it("never lets an explicit link list bypass the authorized destination resources
     </SWRConfig>,
   );
   fireEvent.focus(screen.getByRole("link", { name: "Selected rooms" }));
-  await advance(0);
+  await advance(300);
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(unsafeFetcher).not.toHaveBeenCalled();
 });

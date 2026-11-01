@@ -43,6 +43,10 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       onPointerLeave,
       onFocus,
       onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
+      onBlur,
       resources,
       ...props
     },
@@ -60,6 +64,10 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       onPointerLeave,
       onFocus,
       onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
+      onBlur,
       resources,
     });
 

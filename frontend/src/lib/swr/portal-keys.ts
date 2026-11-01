@@ -1,5 +1,8 @@
 import { encodeMultiValueParam } from "~/lib/multi-value-param";
-import { searchStudentsGroupScope } from "./search-students-key";
+import {
+  SEARCH_STUDENTS_KEY_PREFIX,
+  searchStudentsGroupScope,
+} from "./search-students-key";
 import { previewRow, previewText, type ListPreview } from "./list-preview";
 import { resourceKey } from "./resource-key";
 
@@ -127,7 +130,7 @@ export const studentKeys = {
     resourceKey("student-statistics-report-", params),
   detail: (id: string) => `student-detail-${encodeURIComponent(id)}`,
   previewSources: (key: string) =>
-    key.startsWith("search-students-") ||
+    key.startsWith(SEARCH_STUDENTS_KEY_PREFIX) ||
     key.startsWith("ogs-students-") ||
     key.startsWith("room-students-") ||
     key.startsWith("student-status-days-overview-") ||
@@ -273,7 +276,7 @@ function searchKey(params: {
   years: readonly string[];
   pickupStatus: string;
 }): string {
-  return `${"search-students-"}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}`;
+  return `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(params.groupIds)}-${params.search}-${encodeMultiValueParam([...params.schoolClasses])}-${params.roomId}-${params.dayStatus}-${params.date}-${params.isToday ? "today" : "planning"}-${params.photoState}-${params.bus}-${params.photoConsent}-${params.companions}-${encodeMultiValueParam([...params.years])}-${params.pickupStatus}`;
 }
 
 const catererOrdersFamily = "caterer-orders-";

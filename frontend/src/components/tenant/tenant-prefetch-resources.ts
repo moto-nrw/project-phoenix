@@ -8,7 +8,11 @@ import { groups } from "~/lib/swr/groups";
 import { rooms } from "~/lib/swr/rooms";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
-import { fetchStudentSearch } from "~/lib/student-search-resource";
+import {
+  buildStudentSearchFilters,
+  fetchStudentSearch,
+  type StudentSearchFilterInput,
+} from "~/lib/student-search-resource";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { studentService } from "~/lib/api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
@@ -40,37 +44,29 @@ export async function tenantPrefetchResources(
     // Only the unfiltered link is known here. Other filters still get shared
     // options, never a guessed main-list key. The page restores stored filters
     // after mount; its initial unfiltered reader consumes this same request.
+    const searchParams = {
+      groupIds: [],
+      search: "",
+      schoolClasses: [],
+      roomId: "",
+      dayStatus: "all",
+      date,
+      isToday: true,
+      photoState: context.photoState,
+      bus: "all",
+      photoConsent: "all",
+      companions: false,
+      years: [],
+      pickupStatus: "all",
+    } satisfies StudentSearchFilterInput & { photoState: string };
     const main =
       params.size === 0
         ? [
             {
-              key: studentKeys.search({
-                groupIds: [],
-                search: "",
-                schoolClasses: [],
-                roomId: "",
-                dayStatus: "all",
-                date,
-                isToday: true,
-                photoState: context.photoState,
-                bus: "all",
-                photoConsent: "all",
-                companions: false,
-                years: [],
-                pickupStatus: "all",
-              }),
+              key: studentKeys.search(searchParams),
               fetcher: () =>
                 fetchStudentSearch(
-                  {
-                    search: "",
-                    groupId: [],
-                    schoolClass: [],
-                    gradeLevel: [],
-                    includePickupTimes: true,
-                    includeArrivalTimes: true,
-                    includeCompanions: false,
-                    view: "slim",
-                  },
+                  buildStudentSearchFilters(searchParams),
                   date,
                   true,
                 ),
