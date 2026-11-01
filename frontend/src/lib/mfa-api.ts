@@ -302,7 +302,7 @@ export async function enrollConfirm(
   return postJson<MFAResult>(url, payload, { bearerToken });
 }
 
-// ----- Self-service trusted devices (Tenant-only) -----
+// ----- Self-service trusted devices (tenant, operator and caterer) -----
 //
 // These and the admin calls below act for the signed-in account: their BFF
 // routes read the session cookie, so no bearer token leaves the browser
@@ -318,9 +318,14 @@ export interface TrustedDeviceDTO {
 }
 
 function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
-  return isOperator(scope)
-    ? `/api/operator/auth/mfa/trusted-devices${suffix}`
-    : `/api/auth/mfa/trusted-devices${suffix}`;
+  switch (scope) {
+    case "operator":
+      return `/api/operator/auth/mfa/trusted-devices${suffix}`;
+    case "caterer":
+      return `/api/caterer/auth/mfa/trusted-devices${suffix}`;
+    default:
+      return `/api/auth/mfa/trusted-devices${suffix}`;
+  }
 }
 
 export async function listTrustedDevices(
@@ -428,6 +433,22 @@ export async function operatorAdminResetTraegerMFA(
 ): Promise<void> {
   await postJson<unknown>(
     `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
+    { reason },
+    { method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+/**
+ * Resets the second factor of one caterer account (#4497), scoped by the
+ * caterer, not a school. Its passkeys stay; the backend mails the caterer.
+ */
+export async function operatorAdminResetCatererMFA(
+  catererId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    `/api/operator/caterers/${encodeURIComponent(catererId)}/accounts/${encodeURIComponent(accountId)}/mfa`,
     { reason },
     { method: "DELETE", allowEmptyBody: true },
   );

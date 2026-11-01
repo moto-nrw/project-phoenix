@@ -71,5 +71,7 @@
   "payroll_rule_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "payroll_rule_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "payroll_wage_type_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "payroll_wage_type_name_taken": "Не вдалося зберегти: {object}. Перевірте введені дані."
+  "payroll_wage_type_name_taken": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "qualification_type_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "qualification_type_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

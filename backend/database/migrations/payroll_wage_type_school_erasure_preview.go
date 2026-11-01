@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.724 (#4807): the 1.15.721 (#5345) preview with the wage types and surcharge rules.
+// 1.15.725 (#4807): the 1.15.724 (#4808) preview with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreviewSQL)
 	return err
@@ -265,6 +265,7 @@ const payrollWageTypeErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('users.staff_notices',(SELECT count(*) FROM users.staff_notices AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.staff_offboarding_cleanup',(SELECT count(*) FROM users.staff_offboarding_cleanup AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.staff_qualifications',(SELECT count(*) FROM users.staff_qualifications AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.staff_qualification_types',(SELECT count(*) FROM users.staff_qualification_types AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.staff_school_memberships',(SELECT count(*) FROM users.staff_school_memberships AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.student_care_exit_removals',(SELECT count(*) FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.student_care_exit_source_removals',(SELECT count(*) FROM users.student_care_exit_source_removals AS r WHERE r.tenant_id = p_school));

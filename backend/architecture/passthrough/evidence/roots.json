@@ -6603,6 +6603,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s qualificationStaff) StaffContact(ctx context.Context, staffID int64) (workforce.QualificationStaffMember, error) {\n\trow, err := s.rows.GetStaffContactInfo(ctx, staffID)\n\tif err != nil || row == nil {\n\t\treturn workforce.QualificationStaffMember{StaffID: staffID}, err\n\t}\n\treturn qualificationContact(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/qualificationStaff.StaffContact",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s qualificationStaff) StammdatenManagers(ctx context.Context) ([]workforce.QualificationStaffMember, error) {\n\trows, err := s.rows.ListStaffWithPermission(ctx, permissions.StaffStammdaten)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tmembers := make([]workforce.QualificationStaffMember, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tmembers = append(members, qualificationContact(row))\n\t\t}\n\t}\n\treturn members, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/qualificationStaff.StammdatenManagers",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o reminderPushOutbox) Deliver(ctx context.Context, tenantID, id int64) error {\n\terr := o.dispatcher.Deliver(ctx, tenantID, id)\n\tif errors.Is(err, deliveryContract.ErrCancelled) {\n\t\treturn nil\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/reminderPushOutbox.Deliver",

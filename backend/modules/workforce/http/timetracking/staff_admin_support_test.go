@@ -82,6 +82,8 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, slog.Default())
 	require.NoError(t, err)
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
+	qualifications, err := workforceCompose.NewQualifications(db, qualificationStaffStub{}, workforce.QualificationReminderPorts{}, nil)
+	require.NoError(t, err)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
@@ -104,6 +106,8 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		TargetOverrides:    workforceCapability,
 		ExportTransfer:     stubExportTransfer{},
 		Identity:           testIdentity,
+		QualificationTypes: qualifications,
+		Qualifications:     qualifications,
 		Logger:             slog.Default(),
 	})
 
@@ -158,4 +162,22 @@ func (payrollDispatchOff) RunDue(context.Context) (int, error) { return 0, nil }
 
 func (payrollDispatchOff) Download(context.Context, int64, string) (workforce.PayrollDownload, error) {
 	return workforce.PayrollDownload{}, workforce.ErrPayrollDownloadUnavailable
+}
+
+// qualificationStaffStub lists the staff the Nachweise routes read (#4808);
+// tests that need people on the list set members.
+type qualificationStaffStub struct {
+	members []workforce.QualificationStaffMember
+}
+
+func (s qualificationStaffStub) ListStaffMembers(context.Context) ([]workforce.QualificationStaffMember, error) {
+	return s.members, nil
+}
+
+func (s qualificationStaffStub) StaffContact(_ context.Context, staffID int64) (workforce.QualificationStaffMember, error) {
+	return workforce.QualificationStaffMember{StaffID: staffID}, nil
+}
+
+func (s qualificationStaffStub) StammdatenManagers(context.Context) ([]workforce.QualificationStaffMember, error) {
+	return nil, nil
 }

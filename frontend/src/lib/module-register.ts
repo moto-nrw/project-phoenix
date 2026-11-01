@@ -101,6 +101,9 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   "/database": BASIS,
   "/database/students": BASIS,
   "/database/personal": BASIS,
+  // Nachweise und Nachweisarten der Personalakte (#4808).
+  "/database/qualifications": BASIS,
+  "/database/qualification-types": BASIS,
   // Der Import ändert Stundenkonto und Urlaubssaldo und gehört deshalb zur
   // Zeiterfassung, nicht zu den Basis-Stammdaten des Personals.
   "/database/personal/opening-balances": "zeiterfassung",

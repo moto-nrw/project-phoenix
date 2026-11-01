@@ -1452,6 +1452,10 @@ export const ERROR_CATALOG = {
         "Die Personalnummer darf nur Ziffern haben, höchstens 9. Bitte prüfen Sie die Eingabe.",
       "workforce.personnel_number_taken":
         "Diese Personalnummer ist schon vergeben. Bitte wählen Sie eine andere.",
+      "workforce.qualification_type_name_taken":
+        "Es gibt schon eine Nachweisart mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+      "workforce.qualification_type_not_found":
+        "Diese Nachweisart gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "workforce.rebooking_before_vacation_opening":
         "Der Eintrag vom {day} liegt vor der Urlaubs-Übernahme. Dort lässt sich kein Urlaub eintragen.",
       "workforce.rebooking_half_day_edge":

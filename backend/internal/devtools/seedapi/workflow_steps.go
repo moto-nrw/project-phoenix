@@ -342,6 +342,7 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
 		seedStaffMasterDataStep{},
+		seedStaffQualificationsStep{},
 		seedImportAuditStep{},
 		seedAuditLifecycleStep{},
 		seedPrivacyConsentsStep{},

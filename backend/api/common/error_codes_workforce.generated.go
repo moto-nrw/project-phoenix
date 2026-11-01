@@ -35,6 +35,8 @@ const CodeWorkforcePayrollWageTypeInUse = "workforce.payroll_wage_type_in_use"
 const CodeWorkforcePayrollWageTypeNameTaken = "workforce.payroll_wage_type_name_taken"
 const CodeWorkforcePersonnelNumberInvalid = "workforce.personnel_number_invalid"
 const CodeWorkforcePersonnelNumberTaken = "workforce.personnel_number_taken"
+const CodeWorkforceQualificationTypeNameTaken = "workforce.qualification_type_name_taken"
+const CodeWorkforceQualificationTypeNotFound = "workforce.qualification_type_not_found"
 const CodeWorkforceRebookingBeforeVacationOpening = "workforce.rebooking_before_vacation_opening"
 const CodeWorkforceRebookingHalfDayEdge = "workforce.rebooking_half_day_edge"
 const CodeWorkforceRebookingIntoSickReport = "workforce.rebooking_into_sick_report"
@@ -110,6 +112,8 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforcePayrollWageTypeNameTaken, "business_rejection"},
 	{CodeWorkforcePersonnelNumberInvalid, "input"},
 	{CodeWorkforcePersonnelNumberTaken, "business_rejection"},
+	{CodeWorkforceQualificationTypeNameTaken, "business_rejection"},
+	{CodeWorkforceQualificationTypeNotFound, "business_rejection"},
 	{CodeWorkforceRebookingBeforeVacationOpening, "business_rejection"},
 	{CodeWorkforceRebookingHalfDayEdge, "business_rejection"},
 	{CodeWorkforceRebookingIntoSickReport, "business_rejection"},

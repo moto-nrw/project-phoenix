@@ -256,6 +256,10 @@
       "write_owner": "workforce"
     },
     {
+      "name": "users.staff_qualification_types",
+      "write_owner": "workforce"
+    },
+    {
       "name": "users.staff_qualifications",
       "write_owner": "workforce"
     }

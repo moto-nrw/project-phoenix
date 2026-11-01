@@ -56,6 +56,9 @@ type StaffAdminResource struct {
 	targetOverrides    workforce.StaffTargetOverrides
 	notifyTimeTracking func(context.Context)
 	identity           IdentityFunc
+	// qualificationTypes and qualifications serve the Nachweise (#4808).
+	qualificationTypes workforce.StaffQualificationTypes
+	qualifications     workforce.StaffQualificationOverview
 
 	logger *slog.Logger
 }
@@ -91,6 +94,10 @@ type StaffAdminDependencies struct {
 	// PayrollRules is required: /payroll maintains the wage types with it.
 	PayrollRules workforce.PayrollRules
 	Identity     IdentityFunc
+	// QualificationTypes and Qualifications serve the Nachweise (#4808);
+	// both are required.
+	QualificationTypes workforce.StaffQualificationTypes
+	Qualifications     workforce.StaffQualificationOverview
 
 	Logger *slog.Logger
 }
@@ -111,6 +118,9 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	}
 	if deps.PayrollRules == nil {
 		panic("staff admin resource: the payroll rules are required")
+	}
+	if deps.QualificationTypes == nil || deps.Qualifications == nil {
+		panic("staff admin resource: the qualification types and the Nachweise are required")
 	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
@@ -144,6 +154,8 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		targetOverrides:      deps.TargetOverrides,
 		notifyTimeTracking:   deps.NotifyChanged,
 		identity:             deps.Identity,
+		qualificationTypes:   deps.QualificationTypes,
+		qualifications:       deps.Qualifications,
 		logger:               logger,
 	}
 }
@@ -154,6 +166,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Middleware) {
 	rs.registerOverviewRoutes(r, withTx)
 	rs.registerPersonnelRoutes(r, withTx)
+	rs.registerQualificationRoutes(r, withTx)
 	rs.registerDocumentRoutes(r, withTx)
 	rs.registerTimeTrackingRoutes(r, withTx)
 	rs.registerTargetOverrideRoutes(r, withTx)

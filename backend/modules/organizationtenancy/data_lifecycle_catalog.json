@@ -304,6 +304,7 @@
     {"name": "users.staff_notice_acks", "scope": "tenant", "export": "include", "personKeys": {"account_id": "auth.accounts.id"}},
     {"name": "users.staff_notices", "scope": "tenant", "export": "include", "personKeys": {"created_by": "auth.accounts.id"}},
     {"name": "users.staff_offboarding_cleanup", "scope": "tenant", "export": "include", "excludeSecretColumns": {"lease_token": "Authentication or operational secret/credential material; not customer export content."}},
+    {"name": "users.staff_qualification_types", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"standard_key": "Identifier of a standard kind of proof, not a secret."}},
     {"name": "users.staff_qualifications", "scope": "tenant", "export": "include", "personKeys": {"staff_id": "users.staff_school_memberships.id"}},
     {"name": "users.staff_school_memberships", "scope": "tenant", "export": "include", "personKeys": {"person_id": "users.persons.id"}},
     {"name": "users.student_care_exit_removals", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},

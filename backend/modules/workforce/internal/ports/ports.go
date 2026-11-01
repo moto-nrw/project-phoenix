@@ -140,6 +140,18 @@ type StaffRecordStore interface {
 	// UpdateStaffQualification rewrites the dates of one live row.
 	UpdateStaffQualification(context.Context, domain.StaffQualification) (domain.StaffQualification, bool, domain.OperationStats, error)
 	InsertStaffQualifications(context.Context, []domain.StaffQualification) ([]domain.StaffQualification, domain.OperationStats, error)
+	// ListLiveQualifications returns every live qualification of the school.
+	ListLiveQualifications(context.Context) ([]domain.StaffQualification, domain.OperationStats, error)
+	// ClaimQualificationReminder records a reminder stage once per expiry
+	// date and reports whether this call claimed it (#4808).
+	ClaimQualificationReminder(ctx context.Context, id int64, stage, expiresOn string) (bool, domain.OperationStats, error)
+
+	// The Nachweisarten of the school (#4808). A duplicate live name reports
+	// domain.ConflictError with domain.ErrQualificationTypeNameTaken.
+	ListQualificationTypes(context.Context) ([]domain.QualificationType, domain.OperationStats, error)
+	EnsureStandardQualificationTypes(context.Context, []domain.QualificationType) (domain.OperationStats, error)
+	InsertQualificationType(context.Context, domain.QualificationType) (domain.QualificationType, domain.OperationStats, error)
+	UpdateQualificationType(context.Context, domain.QualificationType) (domain.QualificationType, bool, domain.OperationStats, error)
 
 	FindStaffFinancialData(ctx context.Context, staffID int64) (domain.StaffFinancialData, bool, domain.OperationStats, error)
 	CreateStaffFinancialData(context.Context, domain.StaffFinancialData) (domain.StaffFinancialData, domain.OperationStats, error)

@@ -71,5 +71,7 @@
   "payroll_rule_invalid": "Die Angaben sind nicht vollständig. Bitte prüfen Sie die markierten Felder.",
   "payroll_rule_not_found": "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "payroll_wage_type_in_use": "Diese Lohnart wird noch genutzt. Ändern Sie zuerst die Zuschlagsregel oder Abwesenheitsart, die sie nutzt.",
-  "payroll_wage_type_name_taken": "Eine Lohnart mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen."
+  "payroll_wage_type_name_taken": "Eine Lohnart mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+  "qualification_type_name_taken": "Es gibt schon eine Nachweisart mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+  "qualification_type_not_found": "Diese Nachweisart gibt es nicht mehr. Bitte laden Sie die Seite neu."
 }

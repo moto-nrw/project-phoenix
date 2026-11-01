@@ -1134,6 +1134,18 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
 			return
 		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/qualification-types" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{
+				{"id": "61", "standard_key": "first_aid_child", "name": "Erste Hilfe am Kind", "validity_months": 24},
+				{"id": "62", "standard_key": "rescue_ability", "name": "Rettungsfähigkeit", "validity_months": 48},
+				{"id": "63", "standard_key": "extended_police_certificate", "name": "Erweitertes Führungszeugnis", "validity_months": 60},
+			}})
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff/qualification-types" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": "64"}})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return

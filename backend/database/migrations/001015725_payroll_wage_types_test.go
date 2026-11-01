@@ -26,8 +26,8 @@ func insertPayrollWageTypes(t *testing.T, db *bun.DB, school int64) int64 {
 	return wageType
 }
 
-// TestPayrollWageTypesMigrationRoundTrip pins that 1.15.724 runs twice, rolls
-// back to the 1.15.721 erasure without its tables and columns, and applies
+// TestPayrollWageTypesMigrationRoundTrip pins that 1.15.725 runs twice, rolls
+// back to the 1.15.724 erasure without its tables and columns, and applies
 // again; the school erasure then removes a school's wage types and rules.
 func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 	t.Parallel()

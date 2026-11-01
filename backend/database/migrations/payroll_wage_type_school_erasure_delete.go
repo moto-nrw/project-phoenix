@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.724 (#4807): the 1.15.721 (#5345) delete with the wage types and surcharge rules.
+// 1.15.725 (#4807): the 1.15.724 (#4808) delete with the wage types and surcharge rules.
 func installPayrollWageTypeErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasureDeleteSQL)
 	return err
@@ -727,6 +727,7 @@ const payrollWageTypeErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sch
    SELECT count(*) INTO v_count FROM users.staff_qualifications AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.staff_qualifications AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.staff_qualifications', v_count);
+   SELECT count(*) INTO v_count FROM users.staff_qualification_types AS r WHERE r.tenant_id = p_school_id; DELETE FROM users.staff_qualification_types AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('users.staff_qualification_types', v_count);
    SELECT count(*) INTO v_count FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.student_care_exit_removals', v_count);
