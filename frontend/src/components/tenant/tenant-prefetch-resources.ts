@@ -106,10 +106,11 @@ export async function tenantPrefetchResources(
     path === "/active-supervisions" &&
     context.detailedMode &&
     canReadSupervisionData(session) &&
-    context.hasSupervision &&
-    !params.has("session") &&
-    !params.has("room")
+    context.hasSupervision
   ) {
+    // A cold reader starts with no retained snapshot, hence group_id=null,
+    // even for a session/room URL. Preload that exact entry aggregate, not
+    // another selection under the reader's stable key. Warm readers are skipped.
     return [
       {
         key: dashboardKeys.supervision(session.user.id),
