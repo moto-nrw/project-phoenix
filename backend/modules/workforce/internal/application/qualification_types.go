@@ -41,6 +41,9 @@ func (q *QualificationTypes) CreateQualificationType(ctx context.Context, input 
 	if err != nil {
 		return workforce.QualificationType{}, mapQualificationTypeError(err)
 	}
+	if err := q.records.ensureStandardTypes(ctx); err != nil {
+		return workforce.QualificationType{}, mapQualificationTypeError(err)
+	}
 	existing, _, err := q.records.store.ListQualificationTypes(ctx)
 	if err != nil {
 		return workforce.QualificationType{}, mapQualificationTypeError(err)

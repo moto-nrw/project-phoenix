@@ -148,6 +148,23 @@ func TestQualificationTypesStartWithTheStandardListPerSchool(t *testing.T) {
 	assert.Len(t, foreignList, 3, "the other school sees only its own standard list")
 }
 
+func TestQualificationTypesInitializeBeforeCreatingACustomType(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	types, err := NewQualifications(db, nil, workforce.QualificationReminderPorts{}, nil)
+	require.NoError(t, err)
+
+	_, err = withinCreate(t, ctx, types, workforce.QualificationTypeInput{
+		Name: "Erste Hilfe am Kind", ReminderLeadWeeks: 8,
+	})
+	require.ErrorIs(t, err, workforce.ErrQualificationTypeNameTaken)
+
+	listed, err := within(t, ctx, types.ListQualificationTypes)
+	require.NoError(t, err)
+	require.Len(t, listed, 3, "the standard list stays readable after the rejected custom type")
+}
+
 func TestQualificationOverviewShowsExpiredAndMissingMandatoryProofs(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
