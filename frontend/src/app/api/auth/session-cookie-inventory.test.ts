@@ -329,6 +329,7 @@ describe("session cookie writers", () => {
       ),
     ).toEqual([
       "isSessionCookieName",
+      "isWrittenSessionCookieName",
       "isSessionCookieExitLocked",
       "approveSessionCookieWrites",
       "installSessionCookieExit",
@@ -357,7 +358,8 @@ describe("session cookie writers", () => {
       "src/lib/operator-session-snapshot.server.ts",
       "src/lib/parent-session-snapshot.server.ts",
       "src/lib/school-session-snapshot.server.ts",
-      // isSessionCookieName, of the gate and the lock at the exit.
+      // isSessionCookieName (every name a reader takes for a session) and
+      // isWrittenSessionCookieName (the names Auth.js writes), #5520.
       "src/lib/session-cookie-exit.server.ts",
       "src/lib/tenant-session-snapshot.server.ts",
       "src/lib/traeger-session-snapshot.server.ts",
@@ -366,6 +368,8 @@ describe("session cookie writers", () => {
       "src/server/auth/operator-config.ts",
       "src/server/auth/parent-config.ts",
       "src/server/auth/school-config.ts",
+      // The gate's own grouping of session cookie chunks, unchanged.
+      "src/server/auth/session-cookie-writes.ts",
       "src/server/auth/tenant-config.ts",
       "src/server/auth/traeger-config.ts",
       // The inventory's own pattern.

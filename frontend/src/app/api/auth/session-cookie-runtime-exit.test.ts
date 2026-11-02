@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { createServer, get, ServerResponse, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { encode } from "next-auth/jwt";
+import { encode, getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import {
   NodeNextRequest,
@@ -20,7 +20,14 @@ import { env } from "~/env";
 import {
   installSessionCookieExit,
   isSessionCookieExitLocked,
+  isSessionCookieName,
+  isWrittenSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
+import { catererAuthConfig } from "~/server/auth/caterer-config";
+import { operatorAuthConfig } from "~/server/auth/operator-config";
+import { parentAuthConfig } from "~/server/auth/parent-config";
+import { schoolAuthConfig } from "~/server/auth/school-config";
+import { traegerAuthConfig } from "~/server/auth/traeger-config";
 import { setTestClock } from "~/test/clock";
 import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
 
@@ -511,5 +518,126 @@ describe("the lock at the server's exit", () => {
     expect(await setCookiesAt("/explicit-object")).toEqual(["other=1"]);
     expect(await setCookiesAt("/explicit-pairs")).toEqual([]);
     expect(await setCookiesAt("/implicit")).toEqual([]);
+  });
+});
+
+// #5520 re-check: Auth.js' SessionStore (also behind getToken) takes every
+// cookie whose name starts with the configured name as a session chunk. The
+// lock treats a superset of those names as session cookies, and only the
+// names Auth.js writes can be approved.
+describe("session cookie names at the exit", () => {
+  /** Every configured session cookie name of the six portals. */
+  const CONFIGURED = [
+    catererAuthConfig.cookies.sessionToken.name,
+    operatorAuthConfig.cookies.sessionToken.name,
+    parentAuthConfig.cookies.sessionToken.name,
+    schoolAuthConfig.cookies.sessionToken.name,
+    traegerAuthConfig.cookies.sessionToken.name,
+    // Tenant: derived from TENANT_DOMAIN, Auth.js' default on localhost.
+    "moto-app-de.session-token",
+    "authjs.session-token",
+    "__Secure-authjs.session-token",
+    "__Host-authjs.session-token",
+  ];
+  /** Names a reader takes for the session next to the configured name. */
+  const READER_SUFFIXES = [".evil", "_shadow", ".0extra", ".0.1", "x", "-1"];
+
+  it("a reader takes a cookie whose name only starts with the session name", async () => {
+    const value = await sealed();
+    for (const suffix of READER_SUFFIXES.filter((s) => s !== ".0.1")) {
+      const token = await getToken({
+        req: { headers: { cookie: `${NAME}${suffix}=${value}` } },
+        secret: env.NEXTAUTH_SECRET,
+        salt: NAME,
+        cookieName: NAME,
+        secureCookie: false,
+      });
+      expect(token?.token, suffix).toBe(SESSION.token);
+    }
+  });
+
+  it("treats every name a reader accepts as a session cookie, approves only written names", () => {
+    for (const base of CONFIGURED) {
+      expect(isWrittenSessionCookieName(base), base).toBe(true);
+      expect(isWrittenSessionCookieName(`${base}.0`), base).toBe(true);
+      expect(isWrittenSessionCookieName(`${base}.12`), base).toBe(true);
+      for (const suffix of READER_SUFFIXES) {
+        expect(isSessionCookieName(`${base}${suffix}`), base + suffix).toBe(
+          true,
+        );
+        expect(
+          isWrittenSessionCookieName(`${base}${suffix}`),
+          base + suffix,
+        ).toBe(false);
+      }
+      expect(isSessionCookieName(base.toUpperCase()), base).toBe(true);
+    }
+  });
+
+  it.each([
+    ...READER_SUFFIXES.map((suffix) => `${NAME}${suffix}`),
+    `__Secure-${NAME}`,
+    `__Host-${NAME}.evil`,
+    `__secure-${NAME}`,
+    `__HOST-${NAME}`,
+    "__Secure-authjs.session-token.evil",
+    "PARENT.SESSION-TOKEN",
+    `${NAME}.evil.session-token`,
+    `${NAME}-x.session-token`,
+  ])("drops %s written past the gate", async (name) => {
+    const value = await sealed();
+    rawRoutes.set("/name", (res) => {
+      res.setHeader("Set-Cookie", [`${name}=${value}; Path=/`, "other=1"]);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/name")).toEqual(["other=1"]);
+  });
+
+  it.each([".evil", "_shadow", ".0extra", ".0.1", ".evil.session-token"])(
+    "drops %s even when the gate let it go with a live family",
+    async (suffix) => {
+      const value = await sealed();
+      const line = `${NAME}${suffix}=${value}; Path=/; HttpOnly`;
+      routes.set("/gated", async () =>
+        gateSessionCookieWrites(
+          browserRequest(),
+          new Response(null, { headers: { "Set-Cookie": line } }),
+        ),
+      );
+
+      expect(await setCookiesAt("/gated")).toEqual([]);
+    },
+  );
+
+  it("lets deletions of such names arrive", async () => {
+    const lines = READER_SUFFIXES.map(
+      (suffix) => `${NAME}${suffix}=; Path=/; Max-Age=0`,
+    );
+    rawRoutes.set("/clear", (res) => {
+      res.setHeader("Set-Cookie", lines);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/clear")).toEqual(lines);
+  });
+
+  it("leaves cookies with similar names alone", async () => {
+    const lines = [
+      "parent.session=1",
+      "parent.session_token=1",
+      "parent.sessiontoken=1",
+      "parent.session-tok=1",
+      "parent-session.token=1",
+      "session=1",
+      "token=1",
+      "moto-demo-token=1",
+    ];
+    rawRoutes.set("/similar", (res) => {
+      res.setHeader("Set-Cookie", lines);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/similar")).toEqual(lines);
   });
 });

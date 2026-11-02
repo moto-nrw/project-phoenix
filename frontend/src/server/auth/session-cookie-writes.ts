@@ -10,6 +10,7 @@ import { env } from "~/env";
 import {
   approveSessionCookieWrites,
   isSessionCookieName,
+  isWrittenSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
 import {
   portalOfScope,
@@ -28,6 +29,11 @@ import {
  */
 
 export { isSessionCookieName };
+
+/** A session cookie or chunk the gate decides on, as before #5520. */
+function isGatedSessionCookie(name: string): boolean {
+  return /session-token(?:\.\d+)?$/.test(name);
+}
 
 /** Set-Cookie headers of the backend without a BFF session cookie. */
 export function withoutSessionCookies(setCookies: string[]): string[] {
@@ -241,7 +247,9 @@ export async function gateSessionCookieWrites(
   approveSessionCookieWrites(
     allowed.filter((cookie) => {
       const write = parseSetCookie(cookie);
-      return write && isSessionCookieName(write.name) && !write.deletes;
+      // Only names Auth.js writes: another name a reader takes for the
+      // session (`parent.session-token.evil`) never gets past the exit.
+      return write && isWrittenSessionCookieName(write.name) && !write.deletes;
     }),
   );
   if (!fromJar.length && allowed.length === own.length) return response;
@@ -265,7 +273,7 @@ async function allowedSetCookies(
   const bases = new Set(
     writes
       .filter((write): write is CookieWrite => write !== null)
-      .filter((write) => isSessionCookieName(write.name))
+      .filter((write) => isGatedSessionCookie(write.name))
       .map((write) => baseName(write.name)),
   );
   if (!bases.size) return setCookies;

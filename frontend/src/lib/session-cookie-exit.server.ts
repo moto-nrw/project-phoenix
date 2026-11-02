@@ -22,9 +22,29 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SessionCookieExit" });
 
-/** Auth.js' session cookie of any portal, chunks included. */
+/**
+ * Every cookie a session reader could take for a session cookie (#5520).
+ * Auth.js (SessionStore, also behind getToken in the layout snapshots) takes
+ * every cookie whose name starts with the configured name as a chunk:
+ * `parent.session-token.evil`, `…_shadow`, `….0extra` and `….0.1` read as
+ * the session. Every configured name, `__Secure-`/`__Host-` included,
+ * contains `session-token`, so every name a reader accepts does too. Matched
+ * without case, a superset of what any reader takes.
+ */
 export function isSessionCookieName(name: string): boolean {
-  return /session-token(?:\.\d+)?$/.test(name);
+  return name.toLowerCase().includes("session-token");
+}
+
+/**
+ * The names Auth.js writes: a configured name (an optional cookie prefix,
+ * one segment without a dot, `.session-token`) or one of its chunks
+ * `<name>.<n>`. Only these can be approved; every other session cookie name
+ * leaves the server only as a deletion.
+ */
+export function isWrittenSessionCookieName(name: string): boolean {
+  return /^(?:__Secure-|__Host-)?[A-Za-z0-9-]+\.session-token(?:\.\d+)?$/.test(
+    name,
+  );
 }
 
 const STATE = Symbol.for("moto.session-cookie-exit");

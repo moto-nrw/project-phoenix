@@ -566,9 +566,15 @@ old session back; the browser only saves requests.
    a route hands through (#5517).
    The gate records each session cookie line it lets go for the request it
    runs in (`approveSessionCookieWrites`); the approval holds as long as that
-   response exists, with no time limit, and no other request can use it. A
-   Set-Cookie line with a session cookie name leaves only approved, or as a
-   deletion: an empty value with at most one `Max-Age` and one `Expires`
+   response exists, with no time limit, and no other request can use it.
+   Auth.js (`SessionStore`, also behind `getToken` in the layout snapshots)
+   reads every cookie whose name starts with the configured name as a
+   session chunk (`parent.session-token.evil`, `…_shadow`, `….0.1`). The lock
+   therefore treats every name containing `session-token`, in any case, as a
+   session cookie, a superset of what any reader accepts, and the gate
+   approves only names Auth.js writes (`[__Secure-|__Host-]<name>.session-token`
+   and its chunks `.<n>`). A Set-Cookie line with a session cookie name
+   leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
    (names in any case), at least one of them, a `Max-Age` of plain digits
    ≤ 0 and an `Expires` that is a valid date not later than now. Any value,
    a repeated, contradicting or unreadable lifetime needs an approval. Every
