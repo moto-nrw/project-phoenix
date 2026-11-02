@@ -400,7 +400,10 @@ function references(declared: ts.Identifier): ts.Identifier[] {
     for (let up = node.parent; up !== scope; up = up.parent)
       if (
         declaredNames(up).some(
-          (name) => name !== declared && name.text === node.text,
+          (name) =>
+            name !== declared &&
+            name.text === node.text &&
+            scopeOf(name) !== scope,
         )
       )
         return;

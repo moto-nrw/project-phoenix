@@ -633,6 +633,37 @@ describe("cookieWrites", () => {
     ).toEqual([]);
   });
 
+  it.each(["module", "function"])(
+    "tracks var redeclarations of the same binding in %s scope",
+    (scope) => {
+      for (const body of [
+        `var jar = await cookies(); { var jar; jar.set(${WRITE}); }`,
+        `{ var jar = await cookies(); } var jar; jar.set(${WRITE});`,
+        `var jar = await cookies(); for (var jar; false;) { jar.set(${WRITE}); }`,
+      ]) {
+        const source = `${JAR}${scope === "module" ? body : `async function write() { ${body} }`}`;
+        expect(legacyCookieWriter("route.ts", source)).toBe(true);
+        expect(kinds("route.ts", source)).toEqual(["next-cookie-jar"]);
+      }
+    },
+  );
+
+  it("respects a function-scoped var shadowing an outer var alias", () => {
+    expect(
+      cookieWrites(
+        "route.ts",
+        `${JAR}async function read() {
+  var store = await cookies();
+  store.get("locale");
+  function remember() {
+    var store = new Map();
+    store.set("a", "b");
+  }
+}`,
+      ),
+    ).toEqual([]);
+  });
+
   it("names the line and the code of each write", () => {
     expect(
       cookieWrites(
