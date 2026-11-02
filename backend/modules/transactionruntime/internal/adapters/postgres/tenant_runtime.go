@@ -85,16 +85,16 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 	}
 
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if !r.skipTenantRole {
-			if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
+		// Both settings are transaction-local. No owner query runs until both
+		// are set; the demo login retains its narrower role and grants.
+		if r.skipTenantRole {
+			if _, err := tx.NewRaw("SELECT set_config('app.current_tenant_id', ?, true)", fmt.Sprint(tenantID)).Exec(txCtx); err != nil {
+				return fmt.Errorf("tenant runtime: set tenant ID: %w", err)
+			}
+		} else {
+			if _, err := tx.NewRaw("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', ?, true)", fmt.Sprint(tenantID)).Exec(txCtx); err != nil {
 				return fmt.Errorf("tenant runtime: set tenant role: %w", err)
 			}
-		}
-		if _, err := tx.NewRaw(
-			"SELECT set_config('app.current_tenant_id', ?, true)",
-			fmt.Sprint(tenantID),
-		).Exec(txCtx); err != nil {
-			return fmt.Errorf("tenant runtime: set tenant ID: %w", err)
 		}
 
 		txCtx = context.WithValue(txCtx, tenantTxKey{}, tenantID)
@@ -126,14 +126,11 @@ func (r *PostgresUnitOfWork) WithinTraeger(ctx context.Context, organizationID i
 		return fmt.Errorf("tenant runtime: the demo runtime opens no Träger transaction")
 	}
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
-			return fmt.Errorf("tenant runtime: set Träger role: %w", err)
-		}
 		if _, err := tx.NewRaw(
-			"SELECT set_config('app.current_org_id', ?, true)",
+			"SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_org_id', ?, true)",
 			fmt.Sprint(organizationID),
 		).Exec(txCtx); err != nil {
-			return fmt.Errorf("tenant runtime: set Träger ID: %w", err)
+			return fmt.Errorf("tenant runtime: set Träger role: %w", err)
 		}
 		txCtx = context.WithValue(txCtx, traegerTxKey{}, organizationID)
 		txCtx = contextWithTransaction(txCtx, &tx)

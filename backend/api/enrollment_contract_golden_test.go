@@ -235,16 +235,16 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 // budget then measures the route alone, as before the lock.
 func withoutModuleLock(t *testing.T, queries []string) []string {
 	t.Helper()
-	for i := 3; i+1 < len(queries); i++ {
+	for i := 2; i+1 < len(queries); i++ {
 		if !strings.Contains(queries[i], "config.setting_values") || !strings.Contains(queries[i], "'module.") {
 			continue
 		}
-		block := queries[i-3 : i+2]
+		block := queries[i-2 : i+2]
 		require.Equal(t, "BEGIN", block[0], "the module lock reads in a transaction of its own")
-		require.Contains(t, block[1], "SET LOCAL ROLE phoenix_tenant", "the module lock reads as the tenant role")
-		require.Contains(t, block[2], "app.current_tenant_id", "the module lock reads inside the school's tenant scope")
-		require.Equal(t, "COMMIT", block[4], "the module lock reads nothing but its switch")
-		rest := append(append([]string{}, queries[:i-3]...), queries[i+2:]...)
+		require.Contains(t, block[1], "set_config('role', 'phoenix_tenant', true)", "the module lock reads as the tenant role")
+		require.Contains(t, block[1], "set_config('app.current_tenant_id',", "the module lock reads inside the school's tenant scope")
+		require.Equal(t, "COMMIT", block[3], "the module lock reads nothing but its switch")
+		rest := append(append([]string{}, queries[:i-2]...), queries[i+2:]...)
 		for _, query := range rest {
 			require.Falsef(t, strings.Contains(query, "'module."), "the module lock must read its switch once: %s", query)
 		}

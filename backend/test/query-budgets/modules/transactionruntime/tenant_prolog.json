@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.transactionruntime.tenant_prolog",
+  "max": 4,
+  "exact": true,
+  "description": "Tenant unit: BEGIN, transaction-local role and school in one statement, scope assertion, COMMIT or ROLLBACK."
+}

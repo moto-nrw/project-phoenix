@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -359,8 +360,7 @@ func TestWebPushDeliverEnqueuesInsideTenantTransaction(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("^" + regexp.QuoteMeta("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '41', true)") + "$").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
 	sender := &fakeSender{}
@@ -467,8 +467,7 @@ func mockTenantTx(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 		_ = sqlDB.Close()
 	})
 	mock.ExpectBegin()
-	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("^" + regexp.QuoteMeta("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '41', true)") + "$").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 	return db, mock
 }
