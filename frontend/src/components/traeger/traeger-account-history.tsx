@@ -122,6 +122,8 @@ export function TraegerAccountHistory({
   const load = useCallback(async () => {
     const current = ++generation.current;
     setLoading(true);
+    // A pending „Ältere laden“ of the older read no longer counts.
+    setLoadingMore(false);
     try {
       const page = await fetchTraegerAccountHistory();
       if (current !== generation.current) return;
