@@ -11,7 +11,10 @@ import { fileURLToPath } from "node:url";
 import { buttonRatchetAllowlist } from "./ui-kit-button-baseline.mjs";
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const baselinePath = resolve(frontend, "scripts/ui-kit-button-baseline.json");
+const baselinePath = resolve(
+  process.env.UI_KIT_BUTTON_BASELINE_PATH ??
+    resolve(frontend, "scripts/ui-kit-button-baseline.json"),
+);
 const rules = ["no-hand-rolled-button", "no-button-override"];
 
 const result = spawnSync(
@@ -76,9 +79,24 @@ const sorted = Object.fromEntries(
   ]),
 );
 const next = `${JSON.stringify(sorted, null, 2)}\n`;
+const current = JSON.parse(readFileSync(baselinePath, "utf8"));
+const increases = [];
+for (const rule of rules) {
+  for (const [file, now] of Object.entries(sorted[rule])) {
+    const was = current[rule]?.[file] ?? 0;
+    if (now > was) {
+      increases.push(`${rule} ${file}: Baseline ${was}, Ist ${now}`);
+    }
+  }
+}
+if (increases.length > 0) {
+  console.error(
+    `ui-kit-button-baseline.json darf nur sinken. Neue Funde zuerst abbauen:\n${increases.join("\n")}`,
+  );
+  process.exit(1);
+}
 
 if (process.argv.includes("--check")) {
-  const current = JSON.parse(readFileSync(baselinePath, "utf8"));
   const drift = [];
   for (const rule of rules) {
     const files = new Set([

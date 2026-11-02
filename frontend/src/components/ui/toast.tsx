@@ -96,6 +96,7 @@ export function Toast({
       type="button"
       variant="ghost_tone"
       size="icon"
+      touchTarget={touchFriendly}
       aria-label={closeLabel}
       onClick={onClose}
       className={cn(

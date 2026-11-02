@@ -289,6 +289,19 @@ describe("Button", () => {
     expect(classes.some((c) => /^py-/.test(c))).toBe(false);
   });
 
+  it("provides an explicit 44 px target when a viewport requires it", () => {
+    render(
+      <Button type="button" size="icon" touchTarget aria-label="Schließen">
+        ×
+      </Button>,
+    );
+
+    expect(screen.getByRole("button", { name: "Schließen" })).toHaveClass(
+      "h-11",
+      "w-11",
+    );
+  });
+
   describe("finger rule (pointer: coarse)", () => {
     const sizes = [
       "sm",

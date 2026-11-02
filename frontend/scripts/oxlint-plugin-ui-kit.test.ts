@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -833,6 +834,28 @@ describe("button ratchet baseline", () => {
     );
 
     expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+
+  it("refuses to raise the baseline in write mode", () => {
+    const directory = mkdtempSync(join(tmpdir(), "button-baseline-"));
+    temporaryDirectories.push(directory);
+    const baselinePath = join(directory, "ui-kit-button-baseline.json");
+    const initial =
+      '{\n  "no-hand-rolled-button": {},\n  "no-button-override": {}\n}\n';
+    writeFileSync(baselinePath, initial);
+
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-button-baseline-update.mjs")],
+      {
+        encoding: "utf8",
+        env: { ...process.env, UI_KIT_BUTTON_BASELINE_PATH: baselinePath },
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("darf nur sinken");
+    expect(readFileSync(baselinePath, "utf8")).toBe(initial);
   }, 120_000);
 
   it("names only files that exist and positive counts", () => {

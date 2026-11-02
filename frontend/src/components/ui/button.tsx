@@ -36,6 +36,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loadingText?: string;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  touchTarget?: boolean;
 }
 
 interface ButtonLinkProps extends Omit<
@@ -56,10 +57,12 @@ export function buttonClassName({
   variant,
   size,
   className,
+  touchTarget = false,
 }: Readonly<{
   variant: ButtonVariant;
   size: ButtonSize;
   className: string;
+  touchTarget?: boolean;
 }>) {
   const textSizes: Record<ButtonSize, string> = {
     sm: "text-sm",
@@ -141,6 +144,7 @@ export function buttonClassName({
     sizeStyles[size],
     variantStyles[variant],
     textSizes[size],
+    touchTarget && "h-11 w-11",
     className,
   );
 }
@@ -152,6 +156,7 @@ export function Button({
   variant = "primary",
   size = "base",
   className = "",
+  touchTarget = false,
   ...props
 }: Readonly<ButtonProps>) {
   return (
@@ -159,7 +164,7 @@ export function Button({
       type="submit"
       disabled={isLoading}
       data-icon-only={size === "icon" ? "" : undefined}
-      className={buttonClassName({ variant, size, className })}
+      className={buttonClassName({ variant, size, className, touchTarget })}
       {...props}
     >
       {isLoading ? (loadingText ?? "Loading...") : children}
