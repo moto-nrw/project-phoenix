@@ -8,6 +8,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { School } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -19,6 +20,7 @@ import {
   startTraegerSchoolSession,
   type TraegerSchool,
 } from "~/lib/traeger-api";
+import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { TRAEGER_HANDOFF_OPEN, traegerHandoffUrl } from "~/lib/traeger-handoff";
 
@@ -26,6 +28,12 @@ const logger = createLogger({ component: "TraegerSchoolsPage" });
 
 /** The Träger right „In OGS wechseln" (ADR 0084, #4654). */
 const SCHOOL_SWITCH_RIGHT = "traeger_school:switch";
+
+/**
+ * Without the right the „Öffnen" button is missing; this names the role that
+ * carries it and the role that hands it out (#5473, #5471).
+ */
+const SCHOOL_SWITCH_MISSING = `Eine Schule öffnen Sie nur mit der Rolle „${TRAEGER_ROLE_LABELS.school_access}“. Diese Rolle gibt Ihnen eine Person mit der Rolle „${TRAEGER_ROLE_LABELS.leadership}“.`;
 
 const COLUMNS: DataTableColumn<TraegerSchool>[] = [
   {
@@ -158,6 +166,14 @@ export default function TraegerSchoolsPage() {
       statsLoading={loading}
       error={schoolsError}
     >
+      {!canOpen && (
+        <Alert
+          type="info"
+          announce="off"
+          message={SCHOOL_SWITCH_MISSING}
+          className="mb-4"
+        />
+      )}
       <DataTable
         columns={columns}
         rows={schools}
