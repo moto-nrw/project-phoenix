@@ -28,12 +28,13 @@ func requireTenantRuntime(service string, runtime tenant.UnitOfWork, dependencie
 }
 
 // NewTenantSSEChannel is NewSSEChannel with WithGuardianChildAccess over the
-// tenant unit of work.
-func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians GuardianChildAccessRepository, logger *slog.Logger) (Channel, error) {
-	if err := requireTenantRuntime("sse channel", runtime, broadcaster != nil && db != nil && guardians != nil); err != nil {
+// tenant unit of work. Over a relaying hub it also stores each notification
+// for the other API processes and lets the hub show theirs (#5504).
+func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians GuardianChildAccessRepository, logger *slog.Logger, relayed deliveryPorts.RealtimeNotificationStore) (Channel, error) {
+	if err := requireTenantRuntime("sse channel", runtime, broadcaster != nil && db != nil && guardians != nil && relayed != nil); err != nil {
 		return nil, err
 	}
-	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(db, guardians, logger)).(*sseChannel)
+	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(db, guardians, logger), withRelayedContent(relayed)).(*sseChannel)
 	channel.tenantRuntime = &runtime
 	return channel, nil
 }

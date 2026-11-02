@@ -53,8 +53,8 @@ unbekannte Typen und Inhaltsfelder werden nicht übernommen. Freitext,
 Anwesenheitsnotizen, Namen, Statusinhalte und Links werden nie veröffentlicht.
 Die numerischen IDs optimieren nur das Nachladen, sie gewähren keinen Zugriff.
 Alle Nachladeanfragen bleiben an den authentifizierten Tenant gebunden.
-`notification` bleibt lokal, weil Browser seinen Inhalt direkt anzeigen.
-Der sichere Nachladeweg ist [#5504](https://github.com/moto-nrw/project-phoenix/issues/5504).
+`notification` trägt Inhalt, den Browser direkt anzeigen; über den Kanal geht
+deshalb nur die ID einer gespeicherten Kopie (siehe Ergänzung zu #5504).
 
 Der Hub stellt zuerst lokal zu und veröffentlicht zusätzlich über eine
 begrenzte Queue mit 128 Einträgen. Volle Queues und Transportfehler werden
@@ -104,3 +104,25 @@ Andere Quellen sowie nicht numerischer Freitext bleiben ausgeschlossen.
 Die Statement-Analyse zählt auch Zuweisungen an `range`-Ziele: Eine dort
 ersetzte Statement-Variable darf nicht weiter anhand ihres ursprünglichen
 konstanten SQL-Texts freigegeben werden.
+
+## Ergänzung 2026-11-02: Benachrichtigungen werden nachgeladen (#5504)
+
+Der SSE-Kanal von Delivery speichert jede In-App-Benachrichtigung eines
+relayenden Hubs in `platform.realtime_notifications`: Schule, Zielgruppe,
+die bereits aufgelösten Konten oder Erziehungsberechtigten, die Portale und
+die anzeigefertige Nutzlast. Das Signal enthält nur Schule, Adressierung und
+die ID dieser Kopie. Der empfangende Prozess liest die Kopie in der
+Tenant-Transaktion der genannten Schule unter RLS und zeigt sie nur dort an,
+wo Signal und Kopie dieselbe Zielgruppe, dieselbe Gruppe und dieselben
+Empfänger nennen; bei Konten gilt die Schnittmenge. Unbekannte, fremde,
+anders adressierte oder ältere als zwei Minuten alte IDs zeigen nichts an.
+Inhalt aus dem Signal wird nie übernommen. Kann die Kopie nicht gespeichert
+werden, bleibt die Benachrichtigung im eigenen Prozess; die lokale Zustellung
+hängt nie vom Kanal ab. Die nächtliche Delivery-Aufbewahrung löscht
+abgelaufene Kopien, die Schullöschung kennt die Tabelle.
+
+Topics und `active_group_id` werden beim Senden und Empfangen auf eine
+Aktivgruppen-ID oder `edu:<ID>` normalisiert; anderes wird verworfen. Eine
+volle Queue zählt verworfene Signale und warnt höchstens alle 30 Sekunden,
+statt pro Signal einen Fehler an den Aufrufer zu geben. Transport- und
+Empfangsfehler werden mit Ursache, aber ohne Payload protokolliert.

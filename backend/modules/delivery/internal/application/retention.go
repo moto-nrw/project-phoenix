@@ -25,7 +25,9 @@ func NewRetention(store ports.RetentionStore) *Retention {
 }
 
 // DeleteExpiredDeliveries removes the school's mail and push intents and mail delivery
-// logs whose window ended, and clears the key-only welcome mails. The logs go
+// logs whose window ended, and clears the key-only welcome mails. In-app
+// notifications stored for other API processes go after their short
+// lifetime (#5504). The logs go
 // first: they point at the mails they record.
 func (r *Retention) DeleteExpiredDeliveries(ctx context.Context) (int, int, error) {
 	school, err := tenant.TenantFromContext(ctx)
@@ -48,6 +50,9 @@ func (r *Retention) DeleteExpiredDeliveries(ctx context.Context) (int, int, erro
 		return 0, 0, err
 	}
 	if result.PushIntents, err = r.store.DeleteExpiredPushIntents(ctx, tenantID, before); err != nil {
+		return 0, 0, err
+	}
+	if result.RealtimeNotifications, err = r.store.DeleteExpiredRealtimeNotifications(ctx, tenantID, r.now().Add(-domain.RealtimeNotificationLifetime)); err != nil {
 		return 0, 0, err
 	}
 	return result.Total(), int(domain.RetentionWindow.Hours() / 24), nil

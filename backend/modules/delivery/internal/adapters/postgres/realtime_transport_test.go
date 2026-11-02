@@ -1,14 +1,17 @@
 package postgres_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -110,12 +113,12 @@ func TestTransportKeepsGroupAndAccountAudiences(t *testing.T) {
 	bystander := testpkg.CreateTestAccount(t, db, "realtime-bystander@example.com")
 	target := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: addressed.ID, SubscribedGroups: make(map[string]bool)}
 	other := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: bystander.ID, SubscribedGroups: make(map[string]bool)}
-	api.Register(target, schoolID, []string{"worker-group"})
-	api.Register(other, schoolID, []string{"different-group"})
+	api.Register(target, schoolID, []string{"4711"})
+	api.Register(other, schoolID, []string{"4712"})
 	t.Cleanup(func() { api.Unregister(target); api.Unregister(other) })
 	for _, broadcast := range []func() error{
 		func() error {
-			return worker.BroadcastToGroup(schoolID, "worker-group", realtime.NewEvent(realtime.EventActivityEnd, "worker-group", realtime.EventData{}))
+			return worker.BroadcastToGroup(schoolID, "4711", realtime.NewEvent(realtime.EventActivityEnd, "4711", realtime.EventData{}))
 		},
 		func() error {
 			return worker.BroadcastToStaffAccounts(schoolID, []int64{addressed.ID}, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{}))
@@ -229,14 +232,26 @@ func TestPublishQueueDoesNotWaitForPoolAndHasBound(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("after-commit hook blocked on the database pool")
 	}
-	overflow := false
-	for range 130 {
-		err := hub.BroadcastToTenant(schoolID, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{}))
-		if err != nil {
-			overflow = true
+
+	// The full queue drops, counts and warns once per interval; the callers
+	// get no error they would log once per signal (#5504).
+	var logs bytes.Buffer
+	publisher, err := postgres.NewRealtimePublisher(db, slog.New(slog.NewJSONHandler(&logs, nil)))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, publisher.Close()) })
+	for range 260 {
+		require.NoError(t, publisher.Publish(`{}`))
+	}
+	var warnings []map[string]any
+	for line := range strings.Lines(logs.String()) {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["msg"] == "realtime publish queue full; signals dropped" {
+			warnings = append(warnings, record)
 		}
 	}
-	require.True(t, overflow, "publisher must bound queued signals")
+	require.Len(t, warnings, 1, "publisher must bound queued signals and warn once per burst")
+	require.InDelta(t, 1, warnings[0]["dropped_total"], 0, "the first drop warns at once")
 }
 
 func TestLocalDeliverySurvivesPublisherError(t *testing.T) {

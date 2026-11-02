@@ -1,24 +1,56 @@
 package realtime
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"slices"
 	"strconv"
+	"strings"
+	"time"
 )
 
+// The audiences a relayed signal can address. A notification can only use
+// the ones its sending channel uses: tenant, admins, group, staff accounts,
+// school accounts and guardian.
 const (
-	audienceGroup             = "group"
+	AudienceGroup             = "group"
 	audienceGroups            = "groups"
-	audienceTenant            = "tenant"
-	audienceAdmins            = "admins"
-	audienceStaffAccounts     = "staff_accounts"
-	audienceSchoolAccounts    = "school_accounts"
+	AudienceTenant            = "tenant"
+	AudienceAdmins            = "admins"
+	AudienceStaffAccounts     = "staff_accounts"
+	AudienceSchoolAccounts    = "school_accounts"
 	audienceParentMessage     = "parent_message"
 	audienceLeadershipMessage = "leadership_message"
-	audienceGuardian          = "guardian"
+	AudienceGuardian          = "guardian"
 )
+
+// notificationLoadTimeout bounds the content lookup of one relayed
+// notification; the listener handles signals one after another.
+const notificationLoadTimeout = 2 * time.Second
+
+// NotificationAddress is the school-internal address of a relayed
+// notification signal: an audience with its group, accounts or guardian.
+type NotificationAddress struct {
+	Audience   string
+	Topic      string
+	AccountIDs []int64
+	GuardianID int64
+}
+
+// NotificationContent loads a notification another process relayed by ID
+// (#5504). It reads the notification in the school's transaction and returns
+// the event to show and the part of address the stored notification really
+// names. ok is false for an unknown, expired, foreign or differently
+// addressed ID: then nothing is shown. Content never comes from the signal.
+type NotificationContent func(ctx context.Context, schoolID, notificationID int64, address NotificationAddress) (event Event, permitted NotificationAddress, ok bool, err error)
+
+// errNotificationContentUnbound reports a relayed notification in a process
+// whose owner has not bound the content lookup.
+var errNotificationContentUnbound = errors.New("realtime notification content is not bound")
 
 // signal retains the original audience alongside its school. It is an internal
 // process-to-process envelope, not the browser's SSE payload.
@@ -48,14 +80,42 @@ func NewRelayedHub(logger *slog.Logger, publish func(string) error, observers ..
 	return hub, nil
 }
 
-// Validate rejects unscoped or unknown audiences rather than broadening them.
-func (s signal) Validate() error {
-	if s.SchoolID <= 0 || !relayEventType(s.Type) || s.Origin == "" {
+// RelayNotifications binds the content lookup of relayed notifications and
+// reports whether this hub relays them at all. Only a hub that publishes to
+// other processes relays notifications; the owner binds it once per process,
+// and until then such signals are discarded.
+func (h *Hub) RelayNotifications(load NotificationContent) bool {
+	if h.publish == nil || load == nil {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.notificationContent = load
+	return true
+}
+
+// normalize rejects unscoped or unknown audiences rather than broadening them
+// and reduces every ID and topic to its canonical form. Invalid optional IDs
+// are dropped; an address without a valid target is rejected.
+func (s *signal) normalize() error {
+	if s.SchoolID <= 0 || s.Origin == "" || (!relayEventType(s.Type) && s.Type != EventNotification) {
 		return fmt.Errorf("invalid realtime school or event")
 	}
+	s.ActiveGroupID = NormalizeTopic(s.ActiveGroupID)
+	s.Topic = NormalizeTopic(s.Topic)
+	s.Topics = normalizeTopics(s.Topics)
+	s.AccountIDs = positiveIDs(s.AccountIDs)
+	if s.Type == EventNotification {
+		if numericID(s.Data.NotificationID) == nil {
+			return fmt.Errorf("realtime notification ID is required")
+		}
+		if s.Audience == audienceGroups || s.Audience == audienceParentMessage || s.Audience == audienceLeadershipMessage {
+			return fmt.Errorf("realtime notification audience is not supported")
+		}
+	}
 	switch s.Audience {
-	case audienceTenant, audienceAdmins:
-	case audienceGroup:
+	case AudienceTenant, AudienceAdmins:
+	case AudienceGroup:
 		if s.Topic == "" {
 			return fmt.Errorf("realtime group is required")
 		}
@@ -63,11 +123,11 @@ func (s signal) Validate() error {
 		if len(s.Topics) == 0 {
 			return fmt.Errorf("realtime groups are required")
 		}
-	case audienceStaffAccounts, audienceSchoolAccounts:
+	case AudienceStaffAccounts, AudienceSchoolAccounts:
 		if len(s.AccountIDs) == 0 {
 			return fmt.Errorf("realtime accounts are required")
 		}
-	case audienceParentMessage, audienceLeadershipMessage, audienceGuardian:
+	case audienceParentMessage, audienceLeadershipMessage, AudienceGuardian:
 		if s.GuardianID <= 0 {
 			return fmt.Errorf("realtime guardian is required")
 		}
@@ -77,37 +137,90 @@ func (s signal) Validate() error {
 	return nil
 }
 
+func (s signal) address() NotificationAddress {
+	return NotificationAddress{Audience: s.Audience, Topic: s.Topic, AccountIDs: s.AccountIDs, GuardianID: s.GuardianID}
+}
+
 // ReceiveSignal dispatches a validated transport signal to this API's clients.
 func (h *Hub) ReceiveSignal(payload string) error {
 	var s signal
 	if err := json.Unmarshal([]byte(payload), &s); err != nil {
 		return fmt.Errorf("invalid realtime envelope")
 	}
-	if err := s.Validate(); err != nil {
+	if err := s.normalize(); err != nil {
 		return err
 	}
 	if s.Origin == h.origin {
 		return nil
 	}
+	if s.Type == EventNotification {
+		return h.receiveNotification(s)
+	}
 	event := NewEvent(s.Type, s.ActiveGroupID, s.Data.eventData(s.Type))
+	return h.dispatch(s, event)
+}
+
+// receiveNotification shows a relayed notification only as its owner loads
+// it: from the school's own row, to the recipients that row names.
+func (h *Hub) receiveNotification(s signal) error {
+	h.mu.RLock()
+	load := h.notificationContent
+	h.mu.RUnlock()
+	if load == nil {
+		return errNotificationContentUnbound
+	}
+	id, err := strconv.ParseInt(*numericID(s.Data.NotificationID), 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid realtime notification ID")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), notificationLoadTimeout)
+	defer cancel()
+	event, permitted, ok, err := load(ctx, s.SchoolID, id, s.address())
+	if err != nil {
+		return fmt.Errorf("load relayed notification: %w", err)
+	}
+	if !ok {
+		return nil
+	}
+	if event.Type != EventNotification || !narrows(s.address(), permitted) {
+		return fmt.Errorf("relayed notification content widened its address")
+	}
+	s.Topic, s.AccountIDs, s.GuardianID = permitted.Topic, permitted.AccountIDs, permitted.GuardianID
+	return h.dispatch(s, event)
+}
+
+// narrows reports whether permitted addresses at most what the signal named.
+func narrows(signal, permitted NotificationAddress) bool {
+	if signal.Audience != permitted.Audience || signal.Topic != permitted.Topic || signal.GuardianID != permitted.GuardianID {
+		return false
+	}
+	for _, accountID := range permitted.AccountIDs {
+		if !slices.Contains(signal.AccountIDs, accountID) {
+			return false
+		}
+	}
+	return true
+}
+
+func (h *Hub) dispatch(s signal, event Event) error {
 	switch s.Audience {
-	case audienceGroup:
+	case AudienceGroup:
 		return h.localBroadcastToGroup(s.SchoolID, s.Topic, event)
 	case audienceGroups:
 		return h.localBroadcastToGroups(s.SchoolID, s.Topics, event)
-	case audienceTenant:
+	case AudienceTenant:
 		return h.localBroadcastToTenant(s.SchoolID, event)
-	case audienceAdmins:
+	case AudienceAdmins:
 		return h.localBroadcastToTenantAdmins(s.SchoolID, event)
-	case audienceStaffAccounts:
+	case AudienceStaffAccounts:
 		return h.localBroadcastToStaffAccounts(s.SchoolID, s.AccountIDs, event)
-	case audienceSchoolAccounts:
+	case AudienceSchoolAccounts:
 		return h.localBroadcastToSchoolAccounts(s.SchoolID, s.AccountIDs, event)
 	case audienceParentMessage:
 		return h.localBroadcastParentMessage(s.SchoolID, s.GuardianID, event)
 	case audienceLeadershipMessage:
 		return h.localBroadcastLeadershipParentMessage(s.SchoolID, s.GuardianID, event)
-	case audienceGuardian:
+	case AudienceGuardian:
 		return h.localBroadcastToGuardian(s.SchoolID, s.GuardianID, event)
 	}
 	return fmt.Errorf("unknown realtime audience")
@@ -118,7 +231,7 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceGroup, Topic: activeGroupID}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceGroup, Topic: activeGroupID}, event)
 	}
 	return nil
 }
@@ -138,7 +251,7 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceTenant}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceTenant}, event)
 	}
 	return nil
 }
@@ -148,7 +261,7 @@ func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceAdmins}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceAdmins}, event)
 	}
 	return nil
 }
@@ -158,7 +271,7 @@ func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceStaffAccounts, AccountIDs: accountIDs}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceStaffAccounts, AccountIDs: accountIDs}, event)
 	}
 	return nil
 }
@@ -168,7 +281,7 @@ func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, even
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceSchoolAccounts, AccountIDs: accountIDs}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceSchoolAccounts, AccountIDs: accountIDs}, event)
 	}
 	return nil
 }
@@ -198,20 +311,30 @@ func (h *Hub) BroadcastToGuardian(tenantID, guardianAccountID int64, event Event
 		return err
 	}
 	if h.publish != nil {
-		return h.publishSignal(signal{SchoolID: tenantID, Audience: audienceGuardian, GuardianID: guardianAccountID}, event)
+		return h.publishSignal(signal{SchoolID: tenantID, Audience: AudienceGuardian, GuardianID: guardianAccountID}, event)
 	}
 	return nil
 }
 
 func (h *Hub) publishSignal(signal signal, event Event) error {
-	if !relayEventType(event.Type) {
+	switch {
+	case event.Type == EventNotification:
+		// Only a notification its owner stored can be loaded elsewhere; the
+		// signal carries its ID, never title, text or link (#5504).
+		if event.notificationID <= 0 {
+			return nil
+		}
+		id := strconv.FormatInt(event.notificationID, 10)
+		signal.Data = invalidationData{NotificationID: &id}
+	case relayEventType(event.Type):
+		signal.Data = invalidationFromEvent(event.Type, event.Data)
+	default:
 		return nil
 	}
 	signal.Origin = h.origin
 	signal.Type = event.Type
 	signal.ActiveGroupID = event.ActiveGroupID
-	signal.Data = invalidationFromEvent(event.Type, event.Data)
-	if err := signal.Validate(); err != nil {
+	if err := signal.normalize(); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(signal)
@@ -235,6 +358,9 @@ type invalidationData struct {
 	ThreadID   *string   `json:"thread_id,omitempty"`
 	Reason     *string   `json:"reason,omitempty"`
 	Source     *string   `json:"source,omitempty"`
+	// NotificationID names a stored notification; only notification signals
+	// carry it, and nothing else.
+	NotificationID *string `json:"notification_id,omitempty"`
 }
 
 func invalidationFromEvent(kind EventType, data EventData) invalidationData {
@@ -274,6 +400,48 @@ func numericID(id *string) *string {
 	}
 	normalized := strconv.FormatInt(value, 10)
 	return &normalized
+}
+
+// positiveIDs drops non-positive and repeated account IDs.
+func positiveIDs(ids []int64) []int64 {
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 && !slices.Contains(result, id) {
+			result = append(result, id)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// NormalizeTopic accepts the two topic shapes producers use, an active
+// group ID and EducationGroupTopic, and returns "" for anything else.
+func NormalizeTopic(topic string) string {
+	if id, ok := strings.CutPrefix(topic, "edu:"); ok {
+		if normalized := numericID(&id); normalized != nil {
+			return "edu:" + *normalized
+		}
+		return ""
+	}
+	if normalized := numericID(&topic); normalized != nil {
+		return *normalized
+	}
+	return ""
+}
+
+func normalizeTopics(topics []string) []string {
+	result := make([]string, 0, len(topics))
+	for _, topic := range topics {
+		if normalized := NormalizeTopic(topic); normalized != "" && !slices.Contains(result, normalized) {
+			result = append(result, normalized)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func numericIDs(ids *[]string) *[]string {

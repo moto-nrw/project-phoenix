@@ -6,10 +6,22 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// NewTenantSSEChannel builds the in-app notification channel over the
+// process hub and the tenant unit of work. Over the relaying hub of
+// NewPostgresRealtimeHub it stores each notification for the other API
+// processes and binds the hub to load theirs in the school's transaction
+// (#5504).
+func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians notifications.GuardianChildAccessRepository, logger *slog.Logger) (notifications.Channel, error) {
+	return notifications.NewTenantSSEChannel(runtime, broadcaster, db, guardians, logger,
+		postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase))
+}
 
 // NewPostgresRealtimeHub builds Delivery's process-scoped transport. API roots
 // listen and publish; standalone Workers publish without a listener connection.

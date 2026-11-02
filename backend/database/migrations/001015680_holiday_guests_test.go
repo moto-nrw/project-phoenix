@@ -132,6 +132,9 @@ func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
 	// 1.15.720; they go first.
 	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
 	// 1.15.721; they go first.
+	// The realtime notifications (1.15.725, #5504) extend the erasure
+	// functions of 1.15.724; they go first.
+	require.NoError(t, realtimeNotificationsDown(t.Context(), db))
 	require.NoError(t, staffQualificationTypesDown(t.Context(), db))
 	require.NoError(t, schoolVacationsDown(t.Context(), db))
 	require.NoError(t, parentConferencesDown(t.Context(), db))

@@ -224,6 +224,10 @@
     {
       "name": "platform.push_outbox",
       "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.realtime_notifications",
+      "write_owner": "delivery-platform"
     }
   ],
   "rules": [

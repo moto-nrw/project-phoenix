@@ -145,6 +145,9 @@ guardian broadcasts. Legacy unscoped API `BroadcastToAll` calls remain local;
 they cannot safely enter the school-scoped channel without an audience contract. That migration is tracked in
 [#5492](https://github.com/moto-nrw/project-phoenix/issues/5492).
 
-Content-bearing `notification` events stay local until the tenant-bound reload
-path in [#5504](https://github.com/moto-nrw/project-phoenix/issues/5504) is implemented.
-They are never accepted from the unauthenticated channel.
+Content-bearing `notification` events cross processes by ID only
+([#5504](https://github.com/moto-nrw/project-phoenix/issues/5504)): the
+producing process stores a two-minute copy in `platform.realtime_notifications`,
+and each API loads it in the school's transaction and shows it only to the
+recipients the copy names. Content is never accepted from the unauthenticated
+channel. If the copy cannot be stored, the notification stays local.
