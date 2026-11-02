@@ -12,6 +12,7 @@ import {
 import { CustomSelect } from "../custom-select";
 import { MultiSelect } from "../multi-select";
 import { InfoSection } from "../detail-modal-components";
+import { Button } from "../button";
 
 // Viewport Y just below the sticky app topbar — the line the panel docks to.
 // Measured live so it tracks the topbar's responsive + scroll-shrink heights.
@@ -440,25 +441,28 @@ export function FilterPanel({
         {(onApply ?? onReset) && (
           <div className="flex gap-2 border-t border-gray-100 bg-white/95 p-3 backdrop-blur-sm">
             {onReset && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={onReset}
-                className="flex-1 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+                className="flex-1"
               >
                 Zurücksetzen
-              </button>
+              </Button>
             )}
             {onApply && (
-              <button
+              <Button
                 type="button"
+                size="md"
                 onClick={() => {
                   onApply();
                   onClose();
                 }}
-                className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+                className="flex-1"
               >
                 {applyLabel}
-              </button>
+              </Button>
             )}
           </div>
         )}

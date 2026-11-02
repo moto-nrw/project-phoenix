@@ -1,8 +1,14 @@
 import { dirname, normalize } from "node:path/posix";
 
+import {
+  buttonRatchetAllowlist,
+  buttonRatchetBaseline,
+} from "./ui-kit-button-baseline.mjs";
+
 // UI-kit drift ratchet (issue #1629).
 //
-// Five hard-zero rules that stop drift away from the shared UI kit. The
+// Hard-zero rules that stop drift away from the shared UI kit (plus the
+// shrink-only button ratchet at the end of this file, #5531). The
 // hand-rolled surface rule started with a shrink-only baseline (#2934) that
 // was brought to zero and deleted in #2933; the first production match of
 // any rule now fails `pnpm run check`:
@@ -1086,11 +1092,361 @@ const noRawInput = {
   },
 };
 
+// --- ui-kit/no-hand-rolled-button + ui-kit/no-button-override (#5531) ------
+//
+// Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
+//
+//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
+//     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
+//     oder Höhe, jeweils ohne Zustandspräfix.
+//   no-button-override — className an Button/ButtonLink oder in
+//     buttonClassName({ className }) mit Maß- oder Optik-Klassen (Höhe,
+//     Mindesthöhe, Polster, Radius, Schriftgröße/-gewicht, Hintergrund, Text-,
+//     Ring- und Schattenfarbe, scale). Reine Layout-Klassen bleiben erlaubt.
+//
+// Ein Fund je Element. Die Zahl je Datei steht in ui-kit-button-baseline.json
+// (Ist-Stand, shrink-only: mehr Funde schlagen hier fehl; dass die Baseline
+// nach einem Abbau gesenkt wird, prüft oxlint-plugin-ui-kit.test.ts über
+// `ui-kit-button-baseline-update.mjs --check`). Bewusste Ausnahmen stehen mit Begründung in der
+// Allowlist in ui-kit-button-baseline.mjs. Neu erzeugen:
+// `pnpm run ui-kit:button-baseline`.
+
+const BUTTON_KIT_FILE = "src/components/ui/button.tsx";
+const NATIVE_ACTION_ELEMENTS = new Set([
+  "button",
+  "a",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+]);
+const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
+const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const DEFAULT_ACTION_COMPONENTS = new Map([
+  ["next/link", "Link"],
+  ["~/components/ui/nav-link", "NavLink"],
+  ["~/components/ui/navigation-link", "NavigationLink"],
+]);
+
+// A colour value: a palette step (`gray-200`, `moto-red/20`), a named colour or
+// an arbitrary colour. Positive on purpose: `border-b-2`, `border-l-4` and
+// `bg-opacity-50` name a side, a width or an opacity, not a colour.
+const COLOUR_VALUE = String.raw`(?:(?!opacity-)[a-z]+(?:-[a-z]+)*-\d{2,3}|moto-[\w-]+|white|black|current|\[(?:#|rgb|hsl|oklch|color)[^\]]*\])(?:\/[\w.[\]]+)?$`;
+const BG_COLOR_RE = new RegExp(String.raw`^bg-${COLOUR_VALUE}`);
+const FRAME_COLOR_RE = new RegExp(
+  String.raw`^(?:ring|border(?:-[xytblrse])?)-${COLOUR_VALUE}`,
+);
+const RADIUS_RE = /^rounded(?:-(?!none$)[\w[\]./-]+)?$/;
+const BOX_RE = /^(?:p|px|py|pt|pb|pl|pr|ps|pe|h|min-h|size)-/;
+
+const OVERRIDE_RES = [
+  /^-?(?:p|px|py|pt|pb|pl|pr|ps|pe|h|min-h|max-h|size)-/,
+  /^rounded/,
+  /^text-(?:xs|sm|base|lg|xl|\d+xl|\[\d)/,
+  /^text-(?!(?:left|center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip)$)[a-z]/,
+  /^font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/,
+  /^bg-(?!none$)/,
+  /^ring(?:$|-)/,
+  /^shadow(?:$|-)/,
+  /^-?scale-/,
+];
+
+/** `md:hover:!bg-x` → `bg-x` */
+function bareToken(token) {
+  return token.replace(/^(?:[^\s:]+:)+/, "").replace(/^!/, "");
+}
+
+function unprefixedTokens(text) {
+  return text.split(/\s+/).filter((token) => token && !token.includes(":"));
+}
+
+function hasButtonOptics(text) {
+  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+  const colour = tokens.some(
+    (token) => BG_COLOR_RE.test(token) || FRAME_COLOR_RE.test(token),
+  );
+  return (
+    colour &&
+    tokens.some((token) => RADIUS_RE.test(token)) &&
+    tokens.some((token) => BOX_RE.test(token))
+  );
+}
+
+function overrideTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => OVERRIDE_RES.some((re) => re.test(bareToken(token))));
+}
+
+function jsxAttribute(openingElement, name) {
+  return openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      attribute.name.name === name,
+  );
+}
+
+function staticAttributeValue(attribute) {
+  const value = attribute?.value;
+  if (value?.type === "Literal") return String(value.value);
+  if (
+    value?.type === "JSXExpressionContainer" &&
+    value.expression.type === "Literal"
+  ) {
+    return String(value.expression.value);
+  }
+  return null;
+}
+
+/**
+ * Static class text of an expression. Same-file constants (`const chip =
+ * "…"`) are followed one level, so a class chain moved into a variable still
+ * counts. `buttonClassName(…)` is the kit itself and contributes nothing here;
+ * its className goes through no-button-override.
+ */
+function classText(node, constants) {
+  const chunks = [];
+  const visit = (current, depth) => {
+    if (!current || typeof current !== "object") return;
+    if (
+      current.type === "CallExpression" &&
+      current.callee?.type === "Identifier" &&
+      current.callee.name === "buttonClassName"
+    ) {
+      return;
+    }
+    if (current.type === "Identifier" && depth < 2) {
+      const init = constants.get(current.name);
+      if (init) visit(init, depth + 1);
+      return;
+    }
+    if (current.type === "Literal") {
+      if (typeof current.value === "string") chunks.push(current.value);
+      return;
+    }
+    if (current.type === "TemplateElement") {
+      chunks.push(current.value.raw);
+      return;
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "parent" || key === "loc" || key === "range") continue;
+      if (Array.isArray(value)) {
+        for (const child of value) visit(child, depth);
+      } else if (value && typeof value === "object") {
+        visit(value, depth);
+      }
+    }
+  };
+  visit(node, 0);
+  return chunks.join(" ");
+}
+
+function classNameProperty(objectExpression) {
+  if (objectExpression?.type !== "ObjectExpression") return null;
+  return (
+    objectExpression.properties.find(
+      (property) =>
+        property.type === "Property" &&
+        ((property.key.type === "Identifier" &&
+          property.key.name === "className") ||
+          (property.key.type === "Literal" &&
+            property.key.value === "className")),
+    )?.value ?? null
+  );
+}
+
+function buttonRatchetImports(node, bindings) {
+  const source =
+    node.source.type === "Literal" ? String(node.source.value) : "";
+  const defaultAction = DEFAULT_ACTION_COMPONENTS.get(source);
+  for (const specifier of node.specifiers) {
+    if (specifier.type === "ImportDefaultSpecifier" && defaultAction) {
+      bindings.actionComponents.add(specifier.local.name);
+      continue;
+    }
+    if (specifier.type !== "ImportSpecifier") continue;
+    const imported =
+      specifier.imported.type === "Identifier"
+        ? specifier.imported.name
+        : String(specifier.imported.value);
+    if (ACTION_COMPONENTS.has(imported)) {
+      bindings.actionComponents.add(specifier.local.name);
+    }
+    if (KIT_BUTTON_EXPORTS.has(imported)) {
+      if (imported === "buttonClassName") {
+        bindings.buttonClassNames.add(specifier.local.name);
+      } else {
+        bindings.kitButtons.add(specifier.local.name);
+      }
+    }
+  }
+}
+
+function splitAllowlistedFindings(rule, key, findings) {
+  const allowances = new Map();
+  for (const entry of buttonRatchetAllowlist) {
+    if (entry.rule !== rule || entry.file !== key) continue;
+    for (const line of entry.lines) {
+      allowances.set(line, (allowances.get(line) ?? 0) + 1);
+    }
+  }
+  const remaining = [];
+  let allowlisted = 0;
+  for (const node of findings) {
+    const line = node.loc?.start.line;
+    const count = allowances.get(line) ?? 0;
+    if (count > 0) {
+      allowances.set(line, count - 1);
+      allowlisted += 1;
+    } else {
+      remaining.push(node);
+    }
+  }
+  return { allowlisted, remaining };
+}
+
+/**
+ * Collects findings per file and compares the total with allowlist plus
+ * baseline at Program:exit. With UI_KIT_BUTTON_RATCHET=count every finding
+ * is reported on its own; the baseline generator subtracts the allowlist.
+ */
+function makeButtonRatchetRule({ ruleName, description, message, detect }) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: {
+        finding: message,
+        overBaseline: `${message} Diese Datei hat {{found}} Funde, erlaubt sind {{allowed}} (Allowlist {{allowlisted}} + Baseline {{baseline}}).`,
+      },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (
+        EXEMPT_FILE_RE.test(key) ||
+        key.endsWith(BUTTON_KIT_FILE) ||
+        key.includes("src/test/")
+      ) {
+        return {};
+      }
+      const constants = new Map();
+      const bindings = {
+        actionComponents: new Set(ACTION_COMPONENTS),
+        buttonClassNames: new Set(["buttonClassName"]),
+        kitButtons: new Set(KIT_BUTTONS),
+      };
+      const findings = [];
+      const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
+      return {
+        Program(node) {
+          for (const statement of node.body) {
+            if (statement.type === "ImportDeclaration") {
+              buttonRatchetImports(statement, bindings);
+            }
+          }
+        },
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        ...detect({
+          classText: (node) => classText(node, constants),
+          found: (node) => findings.push(node),
+          bindings,
+        }),
+        "Program:exit"() {
+          const { allowlisted, remaining } = splitAllowlistedFindings(
+            ruleName,
+            key,
+            findings,
+          );
+          const baseline = buttonRatchetBaseline[ruleName]?.[key] ?? 0;
+          const allowed = allowlisted + baseline;
+          if (countMode) {
+            for (const node of findings) {
+              context.report({ node, messageId: "finding" });
+            }
+            return;
+          }
+          if (remaining.length > baseline) {
+            for (const node of remaining) {
+              context.report({
+                node,
+                messageId: allowed === 0 ? "finding" : "overBaseline",
+                data: {
+                  found: String(remaining.length + allowlisted),
+                  allowed: String(allowed),
+                  allowlisted: String(allowlisted),
+                  baseline: String(baseline),
+                },
+              });
+            }
+          }
+        },
+      };
+    },
+  };
+}
+
+const noHandRolledButton = makeButtonRatchetRule({
+  ruleName: "no-hand-rolled-button",
+  description:
+    "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
+  message:
+    "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      const name = jsxName(node.name);
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
+        bindings.actionComponents.has(name ?? "") ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button";
+      if (!isAction) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (hasButtonOptics(textOf(className.value))) found(node);
+    },
+  }),
+});
+
+const noButtonOverride = makeButtonRatchetRule({
+  ruleName: "no-button-override",
+  description:
+    "Keep size and look of kit buttons in the kit; className carries layout only.",
+  message:
+    "Kein Maß oder Aussehen am Kit-Knopf: Größe und Variante wählen, className nur für Layout (w-full, flex-1, gap-*, mt-*, shrink-0, self-*, hidden md:flex …) (#5531, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      if (!bindings.kitButtons.has(jsxName(node.name) ?? "")) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (overrideTokens(textOf(className.value)).length > 0) found(node);
+    },
+    CallExpression(node) {
+      if (
+        node.callee?.type !== "Identifier" ||
+        !bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return;
+      }
+      const value = classNameProperty(node.arguments[0]);
+      if (value && overrideTokens(textOf(value)).length > 0) found(node);
+    },
+  }),
+});
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
     "green-fill-white-text": greenFillWhiteText,
+    "no-button-override": noButtonOverride,
     "no-generic-brand-colors": noGenericBrandColors,
+    "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,

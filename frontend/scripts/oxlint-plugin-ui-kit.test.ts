@@ -1,8 +1,20 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+
+import {
+  buttonRatchetAllowlist,
+  buttonRatchetBaseline,
+} from "./ui-kit-button-baseline.mjs";
 
 const temporaryDirectories: string[] = [];
 
@@ -103,7 +115,9 @@ describe("ui-kit/no-hand-rolled-surface", () => {
         return <>
           <div className="moto-content-surface rounded-2xl border p-4 shadow-sm" />
           <div className="moto-popover-surface rounded-xl border py-1" />
-          <button className="rounded-lg border border-gray-300 bg-white px-4 py-2" />
+          {/* Knopfform als <span>: ein natives <button> fiele unter
+              no-hand-rolled-button (#5531); geprüft wird hier nur die Fläche. */}
+          <span className="rounded-lg border border-gray-300 bg-white px-4 py-2" />
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4" />
         </>;
       }
@@ -571,5 +585,288 @@ describe("ui-kit/no-raw-input", () => {
     const output = `${result.stdout}${result.stderr}`;
 
     expect(output).not.toContain("no-raw-input");
+  });
+});
+
+// #5531: Button-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
+// je Datei fest und darf nur sinken, bewusste Ausnahmen stehen begründet in
+// der Allowlist.
+describe("ui-kit/no-hand-rolled-button", () => {
+  const handRolled = (count: number) =>
+    `function Probe() {
+      return <div>${Array.from(
+        { length: count },
+        (_, index) =>
+          `<button type="button" key="${index}" className="rounded-lg bg-gray-900 px-4 py-2 text-white">Speichern</button>`,
+      ).join("")}</div>;
+    }
+    void Probe;`;
+
+  it("fails a native button with button optics outside the kit", () => {
+    const result = lintSource(handRolled(1), "src/components/probe.tsx");
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(1);
+  });
+
+  it("fails a link and a role=button element that look like buttons", () => {
+    const result = lintSource(
+      `import Link from "next/link";
+      function Probe() {
+        return (
+          <>
+            <Link href="/a" className="inline-flex h-10 items-center rounded-lg px-4 ring-1 ring-gray-300">A</Link>
+            <div role="button" tabIndex={0} className="rounded-md bg-white px-3 py-2">B</div>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(2);
+  });
+
+  it("follows aliased link imports", () => {
+    const result = lintSource(
+      `import AppLink from "next/link";
+      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import ProgressLink from "~/components/ui/navigation-link";
+      function Probe() {
+        return <>
+          <AppLink href="/a" className="rounded-lg bg-gray-900 px-4 py-2">A</AppLink>
+          <SidebarLink href="/b" className="rounded-lg bg-gray-900 px-4 py-2">B</SidebarLink>
+          <ProgressLink href="/c" className="rounded-lg bg-gray-900 px-4 py-2">C</ProgressLink>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(3);
+  });
+
+  it("does not read border sides or widths as a colour", () => {
+    const result = lintSource(
+      `function Probe() {
+        return (
+          <>
+            <button type="button" className="border-b-2 rounded-t px-4">A</button>
+            <button type="button" className="border-l-4 rounded-md py-2">B</button>
+            <button type="button" className="bg-opacity-50 rounded-md p-2">C</button>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+  });
+
+  it("follows a same-file class constant", () => {
+    const result = lintSource(
+      `const chip = "rounded-full bg-gray-100 px-3 py-1";
+      function Probe() {
+        return <button type="button" className={chip}>A</button>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "ui-kit(no-hand-rolled-button)",
+    );
+  });
+
+  it("accepts plain text buttons and kit-styled links", () => {
+    const result = lintSource(
+      `import Link from "next/link";
+      import { buttonClassName } from "~/components/ui/button";
+      function Probe() {
+        return (
+          <>
+            <button type="button" className="text-sm text-gray-600 hover:underline">Mehr</button>
+            <Link href="/a" className={buttonClassName({ variant: "outline", size: "md", className: "w-full" })}>A</Link>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+  });
+
+  it("keeps the shrink-only baseline: equal and fewer pass, more fails", () => {
+    const [file, count] = Object.entries(
+      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
+    )[0]!;
+    // Andere Klassenketten derselben Datei fallen weg: Die Sonde ersetzt sie.
+    const equal = lintSource(handRolled(count), file);
+    expect(`${equal.stdout}${equal.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+
+    const more = lintSource(handRolled(count + 1), file);
+    expect(more.status).toBe(1);
+    expect(`${more.stdout}${more.stderr}`).toContain(
+      "ui-kit(no-hand-rolled-button)",
+    );
+
+    // Weniger Funde sind im Lint erlaubt; die gesenkte Baseline verlangt der
+    // Test „button ratchet baseline“ unten.
+    const fewer = lintSource(handRolled(count - 1), file);
+    expect(`${fewer.stdout}${fewer.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+  });
+
+  it("allows only the documented allowlist location", () => {
+    const entry = buttonRatchetAllowlist.find(
+      (candidate) => candidate.rule === "no-hand-rolled-button",
+    )!;
+    expect(entry.reason.length).toBeGreaterThan(10);
+    const line = entry.lines[0]!;
+    const sourceAtLine = (targetLine: number) =>
+      `${"\n".repeat(targetLine - 2)}function Probe() {\nreturn <button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>;\n}\nvoid Probe;`;
+
+    const allowed = lintSource(sourceAtLine(line), entry.file);
+    expect(`${allowed.stdout}${allowed.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+
+    const moved = lintSource(sourceAtLine(line + 1), entry.file);
+    expect(moved.status).toBe(1);
+    expect(`${moved.stdout}${moved.stderr}`).toContain(
+      "ui-kit(no-hand-rolled-button)",
+    );
+  });
+});
+
+describe("ui-kit/no-button-override", () => {
+  it("fails sizing, colour and scale classes on a kit Button", () => {
+    const result = lintSource(
+      `import { Button, ButtonLink } from "~/components/ui/button";
+      function Probe() {
+        return (
+          <>
+            <Button size="md" className="min-h-11 rounded-xl">A</Button>
+            <ButtonLink href="/b" className="font-semibold">B</ButtonLink>
+            <Button className="hover:scale-105">C</Button>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-button-override\)/g)).toHaveLength(3);
+  });
+
+  it("follows aliased kit button imports", () => {
+    const result = lintSource(
+      `import { Button as ActionButton, ButtonLink as ActionLink, buttonClassName as kitButtonClassName } from "~/components/ui/button";
+      const className = kitButtonClassName({ variant: "primary", size: "md", className: "h-10" });
+      function Probe() {
+        return <>
+          <ActionButton className="h-10">A</ActionButton>
+          <ActionLink href="/a" className="rounded-lg">B</ActionLink>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-button-override\)/g)).toHaveLength(3);
+  });
+
+  it("fails optics passed through buttonClassName", () => {
+    const result = lintSource(
+      `import { buttonClassName } from "~/components/ui/button";
+      export const cls = buttonClassName({ variant: "primary", size: "md", className: "h-10 shadow-sm" });`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      "ui-kit(no-button-override)",
+    );
+  });
+
+  it("accepts pure layout classes", () => {
+    const result = lintSource(
+      `import { Button } from "~/components/ui/button";
+      function Probe() {
+        return <Button size="md" className="hidden w-full flex-1 shrink-0 gap-2 self-end mt-2 md:flex justify-start">A</Button>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      "no-button-override",
+    );
+  });
+});
+
+describe("button ratchet baseline", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
+  // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.
+  it("matches the current findings exactly", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-button-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+
+  it("refuses to raise the baseline in write mode", () => {
+    const directory = mkdtempSync(join(tmpdir(), "button-baseline-"));
+    temporaryDirectories.push(directory);
+    const baselinePath = join(directory, "ui-kit-button-baseline.json");
+    const initial =
+      '{\n  "no-hand-rolled-button": {},\n  "no-button-override": {}\n}\n';
+    writeFileSync(baselinePath, initial);
+
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-button-baseline-update.mjs")],
+      {
+        encoding: "utf8",
+        env: { ...process.env, UI_KIT_BUTTON_BASELINE_PATH: baselinePath },
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("darf nur sinken");
+    expect(readFileSync(baselinePath, "utf8")).toBe(initial);
+  }, 120_000);
+
+  it("names only files that exist and positive counts", () => {
+    for (const [rule, files] of Object.entries(buttonRatchetBaseline)) {
+      for (const [file, count] of Object.entries(files)) {
+        expect(existsSync(resolve(file)), `${rule}: ${file}`).toBe(true);
+        expect(count).toBeGreaterThan(0);
+      }
+    }
+    for (const entry of buttonRatchetAllowlist) {
+      expect(existsSync(resolve(entry.file)), entry.file).toBe(true);
+    }
   });
 });

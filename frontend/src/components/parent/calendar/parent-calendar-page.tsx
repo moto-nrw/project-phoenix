@@ -549,7 +549,7 @@ function CalendarListEvent({
             ref={ref}
             type="button"
             variant="ghost"
-            size="touch"
+            size="md"
             onClick={toggle}
             aria-label={`${event.title}, ${eventTime(event, t("allDay"))}`}
             aria-expanded={open}

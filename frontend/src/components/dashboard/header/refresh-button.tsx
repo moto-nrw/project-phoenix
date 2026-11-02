@@ -62,7 +62,7 @@ export function RefreshButton({
       aria-label={t("refresh")}
       title={t("refresh")}
       variant="ghost"
-      size={drawer ? "touch" : "icon"}
+      size={drawer ? "md" : "icon"}
       className={
         drawer
           ? "w-full justify-start gap-3 px-4"

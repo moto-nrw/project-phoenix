@@ -1356,7 +1356,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       href={tenantPath("/reminders")}
                       onClick={closeOverflowMenu}
                       variant="ghost"
-                      size="touch"
+                      size="md"
                       className="w-full justify-start gap-3 px-4"
                     >
                       <Bell
@@ -1376,7 +1376,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         setStaffPreviewModalOpen(true);
                       }}
                       variant="ghost"
-                      size="touch"
+                      size="md"
                       className="w-full justify-start gap-3 px-4"
                     >
                       <Eye
@@ -1401,7 +1401,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     }
                     onClick={closeOverflowMenu}
                     variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
-                    size="touch"
+                    size="md"
                     className="w-full justify-start gap-3 px-4"
                   >
                     <MobileNavIcon
@@ -1419,7 +1419,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     setLogoutModalOpen(true);
                   }}
                   variant="ghost"
-                  size="touch"
+                  size="md"
                   className="w-full justify-start gap-3 px-4"
                 >
                   <MobileNavIcon

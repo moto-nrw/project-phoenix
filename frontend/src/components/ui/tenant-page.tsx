@@ -344,15 +344,16 @@ export function TenantPageStats({
  * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
  * nicht nur direkte Kinder.
  */
-// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Auswahl- UND
-// Eingabefelder, auf dem Telefon 44 px (die Untergrenze für eine
-// Touch-Fläche, dieselbe Begründung wie `Button size="touch"` der
-// Eltern-App). Das Eingabefeld fehlte hier anfangs, deshalb stand das
+// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Links in
+// Button-Optik (`ButtonLink`), Auswahl- UND Eingabefelder, auf dem Telefon
+// 44 px (die Untergrenze für eine Touch-Fläche, dieselbe wie die
+// Fingerregel des Kits). Das Eingabefeld fehlte hier anfangs, deshalb stand das
 // Suchfeld mit 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe
-// Versatz. Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
+// Versatz; ebenso stand ein `ButtonLink` mit 32 oder 36 px neben 40-px-Knöpfen
+// (#5531). Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
 // kommt mitsamt Spur ebenfalls auf 40 px — siehe dort.
 const CONTROL_HEIGHT =
-  "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
+  "[&_button]:h-10 [&_a[data-button-link]]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_a[data-button-link]]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
 /**
  * Die Such- und Filterzeile der Kopfkarte als eigene Fläche im Inhalt, direkt

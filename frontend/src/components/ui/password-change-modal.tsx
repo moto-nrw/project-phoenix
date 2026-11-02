@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { Modal } from "./modal";
+import { Button } from "./button";
 import { FormErrorAlert } from "./form-error-alert";
 import type { DatabaseFormErrorPath } from "./database/database-form";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -318,18 +319,21 @@ export function PasswordChangeModal({
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+              className="flex-1"
             >
               Abbrechen
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="submit"
+              size="md"
               disabled={isLoading}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              className="flex-1"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -339,7 +343,7 @@ export function PasswordChangeModal({
               ) : (
                 "Passwort ändern"
               )}
-            </button>
+            </Button>
           </div>
         </form>
       )}
