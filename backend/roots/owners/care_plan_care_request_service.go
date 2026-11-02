@@ -261,8 +261,8 @@ func (b careRequestBroadcaster) StudentCompanionsChanged(tenantID int64) error {
 	return b.broadcaster.BroadcastToTenant(tenantID, careRequestEvent(realtime.EventStudentCompanionsChanged))
 }
 
-func (b careRequestBroadcaster) ArrivalScheduleChanged() error {
-	return b.broadcaster.BroadcastToAll(careRequestEvent(realtime.EventArrivalScheduleChanged))
+func (b careRequestBroadcaster) ArrivalScheduleChanged(tenantID int64) error {
+	return b.broadcaster.BroadcastToTenant(tenantID, careRequestEvent(realtime.EventArrivalScheduleChanged))
 }
 
 func careRequestEvent(eventType realtime.EventType) realtime.Event {
