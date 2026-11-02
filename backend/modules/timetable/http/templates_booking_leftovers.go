@@ -72,32 +72,38 @@ func (rs *Resource) listBookingLeftovers(w http.ResponseWriter, r *http.Request)
 // hand rows of its Regeltermine from tomorrow on. A Regeltermin the
 // deviation hint already shows is left out: that hint covers its children.
 func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]bookingLeftoverResponse, error) {
-	result := []bookingLeftoverResponse{}
+	leftovers, err := rs.detectBookingLeftovers(ctx, periodID)
+	if err != nil || len(leftovers) == 0 {
+		return []bookingLeftoverResponse{}, err
+	}
+	return rs.namedBookingLeftovers(ctx, leftovers, rs.todayDate().AddDays(1))
+}
+
+// detectBookingLeftovers derives the current gaps without the display-only
+// child names. A bounded removal reuses it while it holds the recurrence lock
+// so it cannot resume a hand row after its carrying booking changed.
+func (rs *Resource) detectBookingLeftovers(ctx context.Context, periodID int64) ([]timetable.BookingLeftover, error) {
 	period, err := rs.activePlanningPeriod(ctx, periodID)
 	if err != nil || rs.OfferingSourceOptions == nil {
-		return result, err
+		return nil, err
 	}
 	scope := timetable.BookingLeftoverScope{Tomorrow: rs.todayDate().AddDays(1)}
 	window, ok := bookingLeftoverWindow(scope.Tomorrow, calendar.Date(period.StartDate), calendar.Date(period.EndDate))
 	if !ok {
-		return result, nil
+		return []timetable.BookingLeftover{}, nil
 	}
 	// A booking change can end a link before the period starts, inside the
 	// same phase, while a hand row keeps planning the child in the period.
 	bookingsFrom := calendar.Date(period.StartDate).AddDays(-bookingLeftoverLookbackDays)
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, bookingsFrom)
 	if err != nil || !anyBookingEnded(bookings) {
-		return result, err
+		return []timetable.BookingLeftover{}, err
 	}
 	templates, err := rs.bookingLeftoverTemplates(ctx, periodID, &window)
 	if err != nil {
 		return nil, err
 	}
-	leftovers := timetable.DetectBookingLeftovers(scope, templates, bookings)
-	if len(leftovers) == 0 {
-		return result, nil
-	}
-	return rs.namedBookingLeftovers(ctx, leftovers, scope.Tomorrow)
+	return timetable.DetectBookingLeftovers(scope, templates, bookings), nil
 }
 
 // bookingLeftoverLookbackDays reaches back over a school year: the phases of

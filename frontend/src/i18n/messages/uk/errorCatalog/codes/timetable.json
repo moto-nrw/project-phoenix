@@ -116,6 +116,7 @@
   "substitute_self": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "substitute_single_only": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "template_care_offering_conflict": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "template_booking_gap_stale": "Бронювання змінилося. Оновіть сторінку.",
   "template_category_unavailable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "template_education_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "template_end_before_start": "Не вдалося зберегти: {object}. Перевірте введені дані.",

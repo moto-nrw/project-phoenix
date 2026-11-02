@@ -331,6 +331,45 @@ func TestBookingLeftoversRemoveOnlyTheGap(t *testing.T) {
 	}
 }
 
+// TestBookingLeftoversRejectsStaleBoundedRemoval keeps a confirmation from
+// restoring a hand row after the booking that had ended the gap was withdrawn.
+func TestBookingLeftoversRejectsStaleBoundedRemoval(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2g", 1)
+	child := children[0]
+	template := s.createHandTemplate(t, "Hausaufgaben 2g", children)
+	start, end := rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(121)
+	change, rebooked := rosterReviewMonday.AddDays(-3), rosterReviewMonday.AddDays(14)
+	window := func(from, until calendar.Date, ended bool, weekdays ...int) timetableModule.OfferingBookingWindow {
+		return timetableModule.OfferingBookingWindow{ValidFrom: &from, ValidUntil: &until, Weekdays: weekdays, Ended: ended}
+	}
+	s.sources.bookings = []timetableModule.OfferingWeekdayBooking{{
+		OfferingID: leftoverGanztagID, OfferingName: "Ganztag", StudentID: child, CountsAsCare: true, Weekdays: []int{1, 2, 3, 4, 5},
+		Windows: []timetableModule.OfferingBookingWindow{
+			window(start, change, true, 1, 2, 3, 4, 5), window(change, end, false, 1, 2, 3, 5), window(rebooked, end, false, 4),
+		},
+	}}
+	leftovers := s.listLeftovers(t)
+	require.Len(t, leftovers, 1, "%+v", leftovers)
+	stale := leftovers[0]
+	require.NotNil(t, stale.Until)
+
+	// The other booking changes after the impact was shown. There is no
+	// carrying booking at the requested resume day any more.
+	s.sources.bookings[0].Windows = s.sources.bookings[0].Windows[:2]
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
+		"weekdays": stale.Weekdays, "effective_from": stale.From, "effective_until": *stale.Until,
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+
+	until, err := calendar.ParseDate(*stale.Until)
+	require.NoError(t, err)
+	rosters, err := s.res.RosterReview.PlannedRosters(testpkg.Ctx(t), []int64{template})
+	require.NoError(t, err)
+	assert.True(t, handRowPlans(rosters[template], child, until), "a stale confirmation must not rewrite the hand row")
+}
+
 // handRowPlans reports whether a hand row of the roster plans the child on
 // the date by validity and weekday scope.
 func handRowPlans(roster timetableModule.TemplatePlannedRoster, studentID int64, date calendar.Date) bool {

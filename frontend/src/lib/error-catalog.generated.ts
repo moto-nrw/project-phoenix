@@ -1312,6 +1312,8 @@ export const ERROR_CATALOG = {
         "Eine Person kann sich nicht selbst vertreten. Bitte wählen Sie eine andere Ersatzperson.",
       "timetable.substitute_single_only":
         "Bitte wählen Sie für jede abwesende Person nur eine Ersatzperson.",
+      "timetable.template_booking_gap_stale":
+        "Die Buchung wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "timetable.template_care_offering_conflict":
         "Ein verknüpftes Betreuungsangebot passt dann nicht mehr. Bitte passen Sie zuerst das Angebot an.",
       "timetable.template_category_unavailable":
@@ -1997,6 +1999,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "timetable.template_booking_gap_stale":
+        "The booking has changed. Please reload the page.",
       "traeger.access_log_export_too_large":
         "The export has more than {limit} entries. Please choose a shorter period or more filters.",
       "traeger.already_member":
@@ -2430,6 +2434,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "timetable.template_booking_gap_stale":
+        "Бронирование изменилось. Обновите страницу.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
     },
@@ -2855,6 +2861,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "timetable.template_booking_gap_stale":
+        "Rezervimi ka ndryshuar. Ju lutemi ngarkoni përsëri faqen.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
     },
@@ -3267,6 +3275,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "timetable.template_booking_gap_stale":
+        "Rezerwacja została zmieniona. Odśwież stronę.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
     },
@@ -3685,6 +3695,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "timetable.template_booking_gap_stale":
+        "Rezervasyon değişti. Lütfen sayfayı yeniden yükleyin.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
     },
@@ -4094,6 +4106,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "timetable.template_booking_gap_stale":
+        "Бронювання змінилося. Оновіть сторінку.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
     },

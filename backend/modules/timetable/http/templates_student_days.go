@@ -7,14 +7,19 @@
 package timetablehttp
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+var errBoundedStudentTemplateDaysRemovalStale = errors.New("the booking gap changed")
 
 type removeStudentTemplateDaysRequest struct {
 	Weekdays      []int  `json:"weekdays"`
@@ -66,6 +71,21 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	removalFrom := from
+	if tomorrow := rs.todayDate().AddDays(1); removalFrom.Before(tomorrow) {
+		removalFrom = tomorrow
+	}
+	if until != nil && until.After(removalFrom) {
+		if err := rs.validateBoundedStudentTemplateDaysRemoval(r.Context(), templateID, studentID, req.Weekdays, from, until); err != nil {
+			switch {
+			case errors.Is(err, errBoundedStudentTemplateDaysRemovalStale):
+				common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableTemplateBookingGapStale))
+			default:
+				common.RenderError(w, r, common.ErrorInternalServerWrap("validate bounded student template days removal failed", err))
+			}
+			return
+		}
+	}
 	result, err := rs.StudentTemplateDays.RemoveStudentTemplateDays(r.Context(), timetableModule.StudentTemplateDaysRemoval{
 		TemplateID: templateID, StudentID: studentID, Weekdays: req.Weekdays, From: from, Until: until,
 	})
@@ -83,6 +103,48 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 			RosterRows: result.RosterRows, Occurrences: result.Occurrences,
 		}, "Student removed from template days")
 	}
+}
+
+// validateBoundedStudentTemplateDaysRemoval recalculates a bounded gap under
+// the recurrence gate shared with booking changes. The command takes the gate
+// again before it writes; PostgreSQL advisory locks are transaction-reentrant.
+func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
+	ctx context.Context, templateID, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
+) error {
+	if rs.RecurrenceLock == nil || rs.CalendarPeriods == nil || rs.TimetableData == nil || rs.RosterReview == nil ||
+		rs.MaterializationService == nil || rs.OfferingSourceOptions == nil {
+		return errors.New("bounded student template days removal not wired")
+	}
+	if err := rs.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+		return err
+	}
+	periods, err := rs.CalendarPeriods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
+		ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: from.String(),
+	})
+	if err != nil {
+		return err
+	}
+	for _, period := range periods {
+		leftovers, err := rs.detectBookingLeftovers(ctx, period.ID)
+		if err != nil {
+			return err
+		}
+		for _, leftover := range leftovers {
+			if leftover.TemplateID == templateID && leftover.StudentID == studentID && leftover.From == from &&
+				leftover.Until != nil && *leftover.Until == *until && sameRemovalWeekdays(leftover.Weekdays, weekdays) {
+				return nil
+			}
+		}
+	}
+	return errBoundedStudentTemplateDaysRemovalStale
+}
+
+func sameRemovalWeekdays(left, right []int) bool {
+	left = slices.Clone(left)
+	right = slices.Clone(right)
+	slices.Sort(left)
+	slices.Sort(right)
+	return slices.Equal(slices.Compact(left), slices.Compact(right))
 }
 
 // optionalRequestDate parses an optional YYYY-MM-DD body field; empty is nil.
