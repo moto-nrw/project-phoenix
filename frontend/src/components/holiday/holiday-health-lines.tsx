@@ -39,14 +39,17 @@ function holidayHealthLines(health: HolidayHostHealth): HealthLine[] {
   return lines;
 }
 
-/** Die Angaben eng untereinander, für eine Tabellenzelle. */
+/**
+ * Die Angaben eng untereinander, für eine Tabellenzelle. Lange Wörter brechen
+ * um, damit auf dem Handy in der schmalen Wertspalte nichts abgeschnitten wird.
+ */
 export function HolidayHealthCell({
   health,
 }: Readonly<{ health: HolidayHostHealth | null }>) {
   const lines = health ? holidayHealthLines(health) : [];
   if (lines.length === 0) return "–";
   return (
-    <span className="flex flex-col gap-0.5">
+    <span className="flex flex-col gap-0.5 break-words">
       {lines.map((line) => (
         <span key={line.label}>
           <span className="font-medium">{line.label}:</span> {line.value}
