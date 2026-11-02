@@ -21,6 +21,9 @@ func QueueArrivalScheduleChanged(ctx context.Context, broadcaster TenantPublishe
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
+		logger.Warn("skipping arrival schedule change without valid tenant",
+			"tenant_id", tenantID,
+		)
 		return
 	}
 	tenant.RegisterAfterCommit(ctx, func() {
