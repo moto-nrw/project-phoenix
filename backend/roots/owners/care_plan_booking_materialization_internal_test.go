@@ -3,10 +3,13 @@ package owners
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,4 +39,15 @@ func TestBookingOfferingPhaseMarksHolidayPhases(t *testing.T) {
 	} {
 		assert.Equal(t, holiday, BookingOfferingPhase(&enrollmentOwner.Phase{Kind: kind}).Holiday, kind)
 	}
+}
+
+func TestStudentDayBookings_KeepTheExclusiveBookingEnd(t *testing.T) {
+	t.Parallel()
+
+	until := calendar.NewDate(2026, 11, 19)
+	assert.Equal(t, []timetable.StudentDayBooking{{
+		Weekday: timetable.WeekdayThursday, CountsAsCare: true, PickupTime: "16:00", Until: &until,
+	}}, studentDayBookings([]careplan.RemainingDayBooking{{
+		Weekday: timetable.WeekdayThursday, CountsAsCare: true, PickupTime: "16:00", Until: &until,
+	}}))
 }

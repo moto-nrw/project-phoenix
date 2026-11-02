@@ -74,7 +74,7 @@ func studentDayBookings(remaining []careplan.RemainingDayBooking) []timetable.St
 	for _, booking := range remaining {
 		bookings = append(bookings, timetable.StudentDayBooking{
 			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
-			PickupTime: booking.PickupTime, From: booking.From,
+			PickupTime: booking.PickupTime, From: booking.From, Until: booking.Until,
 		})
 	}
 	return bookings

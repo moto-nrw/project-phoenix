@@ -284,6 +284,12 @@ func laterCare(weekday int, pickup string, from calendar.Date) timetable.Student
 	return booking
 }
 
+func laterCareUntil(weekday int, pickup string, from, until calendar.Date) timetable.StudentDayBooking {
+	booking := laterCare(weekday, pickup, from)
+	booking.Until = &until
+	return booking
+}
+
 func TestBookingCarry_LaterRebookingEndsTheGap(t *testing.T) {
 	t.Parallel()
 	change, rebooked := calendar.NewDate(2026, 11, 2), calendar.NewDate(2026, 11, 16)
@@ -301,6 +307,19 @@ func TestBookingCarry_LaterRebookingEndsTheGap(t *testing.T) {
 		assert.Equal(t, rebooked, *until)
 	}
 	assert.Nil(t, carry.resumes(friday, careKind, endAt1600, true), "no later booking of Friday")
+}
+
+func TestBookingCarry_FiniteLaterRebookingDoesNotResumeTheHandRow(t *testing.T) {
+	t.Parallel()
+	change, rebooked, ended := calendar.NewDate(2026, 11, 2), calendar.NewDate(2026, 11, 16), calendar.NewDate(2026, 11, 19)
+	carry, err := newBookingCarry(timetable.ManualStudentPlanQuery{
+		StudentID: 1, From: change, Weekdays: []int{timetable.WeekdayThursday},
+		NetLossWeekdays: []int{timetable.WeekdayThursday},
+		OtherBookings:   []timetable.StudentDayBooking{laterCareUntil(timetable.WeekdayThursday, "16:00", rebooked, ended)},
+	})
+	assert.NoError(t, err)
+
+	assert.Nil(t, carry.resumes(timetable.WeekdayThursday, careKind, endAt1600, true), "the finite booking cannot keep the hand row planned after it ends")
 }
 
 func TestBookingCarry_LaterRebookingsEndTheGapAtTheLatestStart(t *testing.T) {

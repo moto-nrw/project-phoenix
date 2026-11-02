@@ -288,6 +288,10 @@ type RemainingDayBooking struct {
 	// From is the day a booking of another enrollment starts when that lies
 	// after the change's date (#5497); nil when it is in force then.
 	From *calendar.Date
+	// Until is the exclusive end of the booking; nil when it remains in
+	// force. A later booking can end a removal gap only while it carries the
+	// Regeltermin (#5497).
+	Until *calendar.Date
 }
 
 // ManualRosterTemplate is one hand-maintained Regeltermin series that keeps

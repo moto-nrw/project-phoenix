@@ -259,28 +259,61 @@ func splitLaterBookings(bookings []timetable.StudentDayBooking, from calendar.Da
 }
 
 // resumes is the latest start of a later booking in force from which the
-// weekday the change lost keeps the Regeltermin again, by the rule of keeps
-// with the later bookings started by then; nil when none does. Where the
-// times do not decide, a later booking of the weekday offsets the dropped
-// one, as a switch does on the change's date.
+// weekday the change lost keeps the Regeltermin again, including after every
+// known later booking end. Nil means the hand row must not resume: a finite
+// booking does not keep it planned after it expires. Where the times do not
+// decide, a later booking of the weekday offsets the dropped one, as a switch
+// does on the change's date.
 func (c bookingCarry) resumes(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) *calendar.Date {
 	var resume *calendar.Date
 	for _, start := range c.laterStarts(weekday) {
-		then := bookingCarry{bookings: c.bookings, others: slices.Clone(c.others), netLoss: c.netLoss}
-		for _, booking := range c.later {
-			if !booking.From.After(start) {
-				then.others = append(then.others, booking)
-				if booking.Weekday == weekday {
-					then.netLoss = map[int]bool{}
-				}
-			}
-		}
-		if then.keeps(weekday, kind, end, endKnown) {
+		if then := c.at(start, weekday); then.keeps(weekday, kind, end, endKnown) && c.keepsAfterBookingEnds(weekday, kind, end, endKnown, start) {
 			candidate := start
 			resume = &candidate
 		}
 	}
 	return resume
+}
+
+// at applies the validity window of every booking on a calendar day. A later
+// booking offsets the change's net loss only while it is in force.
+func (c bookingCarry) at(on calendar.Date, weekday int) bookingCarry {
+	then := bookingCarry{
+		bookings: activeBookingsOn(c.bookings, on),
+		others:   activeBookingsOn(c.others, on),
+		netLoss:  c.netLoss,
+	}
+	for _, booking := range activeBookingsOn(c.later, on) {
+		then.others = append(then.others, booking)
+		if booking.Weekday == weekday {
+			then.netLoss = map[int]bool{}
+		}
+	}
+	return then
+}
+
+func activeBookingsOn(bookings []timetable.StudentDayBooking, on calendar.Date) []timetable.StudentDayBooking {
+	active := make([]timetable.StudentDayBooking, 0, len(bookings))
+	for _, booking := range bookings {
+		if (booking.From == nil || !booking.From.After(on)) && (booking.Until == nil || booking.Until.After(on)) {
+			active = append(active, booking)
+		}
+	}
+	return active
+}
+
+// keepsAfterBookingEnds makes a hand row resume only if the carry rule still
+// holds after every finite booking window closes.
+func (c bookingCarry) keepsAfterBookingEnds(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool, from calendar.Date) bool {
+	for _, booking := range slices.Concat(c.bookings, c.others, c.later) {
+		if booking.Until != nil && booking.Until.After(from) {
+			then := c.at(*booking.Until, weekday)
+			if !then.keeps(weekday, kind, end, endKnown) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // laterStarts lists, ascending, the days later bookings of the weekday start.

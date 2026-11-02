@@ -60,6 +60,9 @@ type StudentDayBooking struct {
 	// From (#5497); nil when it is in force then. A later booking does not
 	// keep the change's date, but it ends the gap of a weekday it carries.
 	From *calendar.Date
+	// Until is the exclusive end of the booking; nil when it remains in
+	// force. A finite booking does not keep a hand row planned past its end.
+	Until *calendar.Date
 }
 
 // ManualStudentPlan is one Regeltermin series that keeps planning the student

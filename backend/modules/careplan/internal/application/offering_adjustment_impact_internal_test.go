@@ -116,6 +116,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 
 	from := calendar.NewDate(2026, 10, 26)
 	ended := calendar.NewDate(2026, 10, 26)
+	boundedUntil := calendar.NewDate(2026, 11, 19)
 	offerings := map[int64]*careplan.CareOffering{
 		5: {ID: 5, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, PickupTimes: map[string]string{"mon": "12:45", "fri": "12:45"}},
 		6: {ID: 6, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, IncludesLunch: true},
@@ -126,6 +127,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 		{CareOfferingID: 6, SelectedDays: []string{"fri"}},
 		{CareOfferingID: 9, SelectedDays: []string{"tue"}},
 		{CareOfferingID: 6, SelectedDays: []string{"wed"}, ValidUntil: &ended},
+		{CareOfferingID: 6, SelectedDays: []string{"thu"}, ValidUntil: &boundedUntil},
 		{CareOfferingID: 5},
 		{CareOfferingID: 42, SelectedDays: []string{"thu"}},
 	}
@@ -135,6 +137,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 		{Weekday: 5, CountsAsCare: true, PickupTime: "12:45"},
 		{Weekday: 5, CountsAsCare: true, IncludesLunch: true},
 		{Weekday: 2, PickupTime: "15:00"},
+		{Weekday: 4, CountsAsCare: true, IncludesLunch: true, Until: &boundedUntil},
 	}, remainingDayBookings(links, offerings, from))
 }
 

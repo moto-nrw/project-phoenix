@@ -260,7 +260,7 @@ func remainingDayBookings(links []*careplan.BookedOffering, offerings map[int64]
 			}
 			result = append(result, careplan.RemainingDayBooking{
 				Weekday: weekday, CountsAsCare: offering.CountsAsCare, IncludesLunch: offering.IncludesLunch,
-				PickupTime: offering.PickupTimes[strings.ToLower(strings.TrimSpace(day))],
+				PickupTime: offering.PickupTimes[strings.ToLower(strings.TrimSpace(day))], Until: link.ValidUntil,
 			})
 		}
 	}
