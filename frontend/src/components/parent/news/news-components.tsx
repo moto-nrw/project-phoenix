@@ -747,14 +747,16 @@ function PollOptionList({
         })}
       </div>
       {!multi && selected.length > 0 && !closed && (
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="md"
           disabled={saving}
           onClick={() => poll.toggle(child, selected[0]!)}
-          className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="mt-2"
         >
           {t("newsPollClear")}
-        </button>
+        </Button>
       )}
     </>
   );

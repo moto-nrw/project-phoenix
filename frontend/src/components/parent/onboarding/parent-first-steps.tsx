@@ -313,7 +313,7 @@ export function ParentFirstSteps({
           size="md"
           onClick={() => setView("checklist")}
           aria-label={t("open", { count: steps.length - finished })}
-          className="gap-2 rounded-full py-2.5 pr-3 pl-4 shadow-lg hover:shadow-xl"
+          className="gap-2"
         >
           <span>{t("shortTitle")}</span>
           <span
@@ -477,13 +477,14 @@ export function ParentFirstSteps({
 
         {!allFinished && (
           <footer className="border-t border-gray-100 p-3 text-center">
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="md"
               onClick={() => setConfirmDismiss(true)}
-              className="min-h-11 px-3 text-sm text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline"
             >
               {t("dismiss.action")}
-            </button>
+            </Button>
           </footer>
         )}
       </section>

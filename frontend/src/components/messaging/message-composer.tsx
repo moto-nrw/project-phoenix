@@ -120,7 +120,7 @@ export function MessageComposer({
           className={`moto-content-surface w-full resize-none overflow-hidden rounded-lg border border-gray-300 text-gray-900 transition-[border-color,box-shadow] hover:border-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:opacity-60 ${
             parent
               ? "max-h-40 min-h-9 px-3 py-2 text-base leading-5"
-              : "max-h-40 min-h-[46px] px-4 py-3 text-sm"
+              : "max-h-40 min-h-10 px-4 py-2.5 text-sm leading-5"
           }`}
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (
@@ -134,17 +134,13 @@ export function MessageComposer({
       <Button
         type="button"
         variant="primary"
-        size={parent ? "icon" : "md"}
+        size={parent ? "icon" : "field"}
         onClick={onSend}
         disabled={disabled}
         aria-label={parent ? (sending ? sendingLabel : sendLabel) : undefined}
         aria-busy={sending}
         title={parent ? sendLabel : undefined}
-        className={
-          parent
-            ? "relative h-9 w-9 shrink-0 rounded-full p-0 after:absolute after:-inset-1 after:content-[''] active:scale-[0.96]"
-            : "h-[46px] sm:flex-shrink-0"
-        }
+        className="shrink-0"
       >
         {parent ? (
           sending ? (
