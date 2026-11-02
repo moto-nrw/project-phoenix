@@ -222,3 +222,46 @@ func TestEveryLegacyFamilyKeepsItsDeadline(t *testing.T) {
 		assert.False(t, headOfFamily(t, db, family).Expiry.After(deadline), "%s: later rotations keep the deadline", name)
 	}
 }
+
+// Two tabs may switch from the same legacy source. Its retirement grace
+// bounds that source, not the transition deadline of either new family.
+func TestLegacySiblingSwitchesKeepTheOriginalDeadline(t *testing.T) {
+	t.Parallel()
+	for _, rotated := range []bool{false, true} {
+		t.Run(fmt.Sprintf("rotated=%t", rotated), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			f := newSwitchLineageFixture(t, "legacy-sibling-switch")
+			ctx := testpkg.Ctx(t)
+			family := accessSessionOf(t, f.access).FamilyID
+			deadline := ageFamily(t, f.db, family, time.Hour)
+			sourceRefresh := legacyRefreshToken(t, f.refresh)
+			if rotated {
+				_, next, err := f.service.RefreshToken(ctx, sourceRefresh)
+				require.NoError(t, err)
+				sourceRefresh = next
+			}
+
+			_, _, err := f.switchToTarget(ctx, family)
+			require.NoError(t, err)
+			require.True(t, headOfFamily(t, f.db, family).Expiry.Before(deadline), "the source is retired")
+			assertSwitchDeadline := func() {
+				t.Helper()
+				access, refresh, err := f.switchToTarget(ctx, family)
+				require.NoError(t, err)
+				switched := accessSessionOf(t, access).FamilyID
+				head := headOfFamily(t, f.db, switched)
+				require.NotNil(t, head.FamilyExpiryCap)
+				assert.WithinDuration(t, deadline, *head.FamilyExpiryCap, time.Millisecond, "another tab inherits the original deadline, not the retirement grace")
+				assert.WithinDuration(t, deadline, head.Expiry, time.Millisecond)
+				_, _, err = f.service.RefreshToken(ctx, refresh)
+				require.NoError(t, err)
+				assert.WithinDuration(t, deadline, headOfFamily(t, f.db, switched).Expiry, time.Millisecond, "its refresh keeps the original deadline")
+			}
+			assertSwitchDeadline()
+
+			_, _, err = f.service.RefreshToken(ctx, sourceRefresh)
+			require.NoError(t, err)
+			assertSwitchDeadline()
+		})
+	}
+}

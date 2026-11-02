@@ -293,13 +293,18 @@ func (s *Store) DeleteExpiredRotatedAccountSessions(ctx context.Context, account
 // tenant switch hands the browser's previous session a bounded grace period
 // instead of leaving it alive for the full refresh lifetime. The cap is
 // persisted with the live session so refresh successors cannot revive the
-// retired family.
+// retired family. A legacy family keeps its original transition deadline
+// separately, before expiry and the retirement cap are shortened.
 func (s *Store) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenantFilterUnlessAdmin(s.scope(ctx), db.NewUpdate().Model((*accountSessionRow)(nil)).
+		Set(`lineage_deadline = CASE
+			WHEN COALESCE("token".switched_from_family_id, '') = ''
+			THEN COALESCE("token".lineage_deadline, LEAST("token".expiry, "token".family_expiry_cap))
+			ELSE "token".lineage_deadline END`).
 		Set(`expiry = LEAST("token".expiry, ?)`, expiry).
 		Set(`family_expiry_cap = LEAST(COALESCE("token".family_expiry_cap, ?), ?)`, expiry, expiry).
 		Where(`"token".account_id = ?`, accountID).

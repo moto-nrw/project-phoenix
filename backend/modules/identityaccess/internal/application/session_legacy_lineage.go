@@ -27,8 +27,12 @@ func capLegacyLineage(current *domain.AccountSession) (capped bool) {
 		deadline := current.Expiry
 		current.FamilyExpiryCap = &deadline
 	}
-	deadline := *current.FamilyExpiryCap
-	current.LineageDeadline = &deadline
+	// Retirement may have shortened the family's cap, not its lineage's
+	// transition deadline. Later switches still inherit the original limit.
+	if current.LineageDeadline == nil {
+		deadline := *current.FamilyExpiryCap
+		current.LineageDeadline = &deadline
+	}
 	return true
 }
 
@@ -38,7 +42,7 @@ func capLegacyLineage(current *domain.AccountSession) (capped bool) {
 // outside such a lineage hands down nothing; its retirement grace stays its
 // own.
 func legacyDeadline(source domain.AccountSession) *time.Time {
-	if source.SwitchedFromFamilyID != "" {
+	if source.LineageDeadline != nil || source.SwitchedFromFamilyID != "" {
 		return source.LineageDeadline
 	}
 	deadline := source.Expiry
