@@ -386,3 +386,37 @@ func TestRelayedStaffNotificationRechecksMembershipAndRole(t *testing.T) {
 	require.Empty(t, staffTab.Channel, "a staff member whose school membership ended still saw the notification")
 	require.Empty(t, teacherTab.Channel, "an account without the Lehrkraft role still saw a school-portal notification")
 }
+
+// A school's own role marked for moto schule counts like the Lehrkraft role,
+// exactly as for Web Push (#4574, #5504); a custom role without the mark
+// does not open the school portal.
+func TestRelayedSchoolNotificationAcceptsCustomSchoolPortalRoles(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var payloads []string
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil }, nil)
+	require.NoError(t, err)
+	api := transportHub(t, db, false)
+	school := testpkg.Tenant(t)
+	assignRole := func(accountID int64, schoolPortal bool) {
+		role := testpkg.CreateTestRole(t, db, "relay-school-role")
+		_, err := db.ExecContext(context.Background(), `UPDATE auth.roles SET school_portal = ? WHERE id = ?`, schoolPortal, role.ID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(context.Background(), `INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, accountID, role.ID, school)
+		require.NoError(t, err)
+	}
+	_, marked := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Marked")
+	_, unmarked := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Unmarked")
+	assignRole(marked.ID, true)
+	assignRole(unmarked.ID, false)
+	markedTab := schoolClient(t, api, school, marked.ID)
+	unmarkedTab := schoolClient(t, api, school, unmarked.ID)
+
+	notice := staffNotification(school, marked.ID, unmarked.ID)
+	notice.Portal = "school"
+	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), notice))
+	require.Len(t, payloads, 1)
+	require.NoError(t, api.ReceiveSignal(payloads[0]))
+	requireRelayedNotification(t, markedTab)
+	require.Empty(t, unmarkedTab.Channel, "a custom role without the school-portal mark opened moto schule")
+}
