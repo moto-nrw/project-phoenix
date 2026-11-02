@@ -143,7 +143,7 @@ func (s *CareLifecycle) inUnitApplyBookingAuthoritySetting(ctx context.Context, 
 	if len(impact.BlockingChildren) > 0 {
 		return impact, careplan.ErrBookingAuthorityBlocked
 	}
-	if err := s.reconcileBookingEvaluations(ctx, evaluations, on); err != nil {
+	if _, err := s.reconcileBookingEvaluations(ctx, evaluations, on); err != nil {
 		return nil, err
 	}
 	// The planned completions decide who still counts as cared for, so the

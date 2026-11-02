@@ -135,7 +135,14 @@ func (s *CareLifecycle) reconcileExpiredCareBookings(ctx context.Context, asOf c
 		if err != nil {
 			return err
 		}
-		return s.reconcileBookingEvaluations(txCtx, evaluations, asOf)
+		changed, err := s.reconcileBookingEvaluations(txCtx, evaluations, asOf)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.announcePlanningChange(txCtx)
+		}
+		return nil
 	})
 }
 
