@@ -14,6 +14,7 @@ import (
 type WorkerRecords interface {
 	ports.Store
 	ports.RetentionStore
+	ports.RealtimeNotificationStore
 	targetedEmailStore
 	targetedPushStore
 	DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)

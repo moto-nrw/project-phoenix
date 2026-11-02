@@ -591,3 +591,29 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.accounts WHERE id IN (?, ?) AND active`, accounts.caregiver, accounts.parent).Scan(ctx, &active))
 	assert.Equal(t, len(accountIDs), active, "a shared account stays usable outside the retired school")
 }
+
+// A retired demo school keeps no short-lived copy of an in-app notification:
+// its title or text can name the visitor (#5504, #5540). Another school's
+// copy stays.
+func TestDemoSchoolQueueErasesTheRealtimeNotificationsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	notification := func(tenantID int64) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO platform.realtime_notifications (tenant_id, scope, content)
+			VALUES (?, 'tenant', jsonb_build_object('title', ?)) RETURNING id`, tenantID, "Neue Nachricht von "+visitorFull).Scan(ctx, &id))
+		return id
+	}
+	retired, open := notification(schoolID), notification(openID)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM platform.realtime_notifications WHERE id IN (?) ORDER BY id`,
+		bun.List([]int64{retired, open})).Scan(ctx, &remaining))
+	assert.Equal(t, []int64{open}, remaining, "the retired demo school keeps no notification copy naming the visitor")
+}

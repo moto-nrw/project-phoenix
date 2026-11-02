@@ -40,6 +40,9 @@ func TestSchoolPortalRoles(t *testing.T) {
 	require.True(t, exists)
 	assert.Contains(t, view, "school_portal")
 
+	// The realtime recipients (1.15.727, #5504) read the column; they go
+	// first.
+	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, schoolPortalRolesDown(ctx, db))
 	exists, view = state(t)
 	assert.False(t, exists)

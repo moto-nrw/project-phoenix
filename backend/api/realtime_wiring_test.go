@@ -25,8 +25,8 @@ func TestRuntimeRealtimeListenerWiring(t *testing.T) {
 		if !ok || selector.Sel.Name != "NewPostgresRealtimeHub" {
 			return true
 		}
-		require.Len(t, call.Args, 3)
-		condition, ok := call.Args[2].(*ast.BinaryExpr)
+		require.Len(t, call.Args, 4)
+		condition, ok := call.Args[3].(*ast.BinaryExpr)
 		require.True(t, ok, "listener must depend on process mode")
 		require.Equal(t, token.NEQ, condition.Op)
 		process, ok := condition.X.(*ast.SelectorExpr)
