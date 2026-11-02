@@ -1,5 +1,6 @@
 {
   "no-hand-rolled-button": {
+    "src/app/[tenant]/(protected)/profile/page.tsx": 1,
     "src/app/[tenant]/page.tsx": 1,
     "src/app/help/nfc/erste-schritte/page.tsx": 1,
     "src/app/operator/announcements/page.tsx": 9,

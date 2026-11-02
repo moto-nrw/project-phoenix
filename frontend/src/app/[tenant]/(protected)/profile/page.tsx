@@ -216,16 +216,14 @@ function ProfileContent() {
             }}
             className="hidden"
           />
-          <Button
+          <button
             type="button"
-            variant="surface"
-            size="icon"
             aria-label="Profilbild ändern"
             onClick={() => document.getElementById("avatar-upload")?.click()}
-            className="absolute -right-2 -bottom-2"
+            className="absolute -right-1 -bottom-1 flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
           >
-            <Camera className="h-4 w-4" aria-hidden />
-          </Button>
+            <Camera className="h-3 w-3" />
+          </button>
         </div>
       }
     >
