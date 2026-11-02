@@ -333,6 +333,50 @@ func TestBookingLeftoversRemoveOnlyTheGap(t *testing.T) {
 	}
 }
 
+// TestBookingLeftoversRemoveOnlyTheGapBehindRosterDeviation ensures that a
+// roster-deviation hint hides the duplicate leftover only in the display. A
+// bounded removal received with a booking-change impact remains valid.
+func TestBookingLeftoversRemoveOnlyTheGapBehindRosterDeviation(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	children := createClassStudents(t, s.db, "2i", 4)
+	child := children[0]
+	template := s.createHandTemplate(t, "Hausaufgaben 2i", children)
+	s.sources.results[template] = timetableModule.TemplateRosterMaintenance{Mode: "manual", DynamicTargetsManual: true}
+	start, end := rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(121)
+	change, rebooked := rosterReviewMonday.AddDays(-3), rosterReviewMonday.AddDays(14)
+	window := func(from, until calendar.Date, ended bool, weekdays ...int) timetableModule.OfferingBookingWindow {
+		return timetableModule.OfferingBookingWindow{ValidFrom: &from, ValidUntil: &until, Weekdays: weekdays, Ended: ended}
+	}
+	s.sources.bookings = []timetableModule.OfferingWeekdayBooking{{
+		OfferingID: leftoverGanztagID, OfferingName: "Ganztag", StudentID: child, CountsAsCare: true, Weekdays: []int{1, 2, 3, 4, 5},
+		Windows: []timetableModule.OfferingBookingWindow{
+			window(start, change, true, 1, 2, 3, 4, 5), window(change, end, false, 1, 2, 3, 5), window(rebooked, end, false, 4),
+		},
+	}}
+	for _, studentID := range children[1:] {
+		s.sources.bookings = append(s.sources.bookings, timetableModule.OfferingWeekdayBooking{
+			OfferingID: leftoverGanztagID, OfferingName: "Ganztag", StudentID: studentID, CountsAsCare: true, Weekdays: []int{1, 2, 3, 4, 5},
+			Windows: []timetableModule.OfferingBookingWindow{window(start, end, false, 1, 2, 3, 4, 5)},
+		})
+	}
+	otherChild := createClassStudents(t, s.db, "2j", 1)[0]
+	s.sources.bookings = append(s.sources.bookings, timetableModule.OfferingWeekdayBooking{
+		OfferingID: leftoverGanztagID, OfferingName: "Ganztag", StudentID: otherChild, CountsAsCare: true, Weekdays: []int{1, 2, 3, 4, 5},
+		Windows: []timetableModule.OfferingBookingWindow{window(start, end, false, 1, 2, 3, 4, 5)},
+	})
+
+	deviations := s.listDeviations(t, s.period.ID)
+	require.Len(t, deviations, 1)
+	assert.Equal(t, template, deviations[0].TemplateID)
+	assert.Empty(t, s.listLeftovers(t), "the roster-deviation hint owns the display")
+
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
+		"weekdays": []int{timetableModule.WeekdayThursday}, "effective_from": rosterReviewMonday.String(), "effective_until": rebooked.String(),
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+}
+
 // TestBookingLeftoversRejectsStaleBoundedRemoval keeps a confirmation from
 // restoring a hand row after the booking that had ended the gap was withdrawn.
 func TestBookingLeftoversRejectsStaleBoundedRemoval(t *testing.T) {

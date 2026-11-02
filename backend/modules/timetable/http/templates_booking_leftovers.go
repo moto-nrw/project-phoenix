@@ -70,18 +70,34 @@ func (rs *Resource) listBookingLeftovers(w http.ResponseWriter, r *http.Request)
 
 // bookingLeftovers compares the period's bookings since its start with the
 // hand rows of its Regeltermine from tomorrow on. A Regeltermin the
-// deviation hint already shows is left out: that hint covers its children.
+// deviation hint already shows is left out of this display: that hint covers
+// its children.
 func (rs *Resource) bookingLeftovers(ctx context.Context, periodID int64) ([]bookingLeftoverResponse, error) {
 	leftovers, err := rs.detectBookingLeftovers(ctx, periodID)
 	if err != nil || len(leftovers) == 0 {
 		return []bookingLeftoverResponse{}, err
 	}
+	deviations, err := rs.detectTemplateRosterDeviations(ctx, periodID, nil)
+	if err != nil {
+		return nil, err
+	}
+	shown := make(map[int64]bool, len(deviations))
+	for _, deviation := range deviations {
+		shown[deviation.templateID] = true
+	}
+	leftovers = slices.DeleteFunc(leftovers, func(leftover timetable.BookingLeftover) bool {
+		return shown[leftover.TemplateID]
+	})
+	if len(leftovers) == 0 {
+		return []bookingLeftoverResponse{}, nil
+	}
 	return rs.namedBookingLeftovers(ctx, leftovers, rs.todayDate().AddDays(1))
 }
 
-// detectBookingLeftovers derives the current gaps without the display-only
-// child names. A bounded removal reuses it while it holds the recurrence lock
-// so it cannot resume a hand row after its carrying booking changed.
+// detectBookingLeftovers derives the current gaps without display-only
+// filtering or child names. A bounded removal reuses it while it holds the
+// recurrence lock so it cannot resume a hand row after its carrying booking
+// changed.
 func (rs *Resource) detectBookingLeftovers(ctx context.Context, periodID int64) ([]timetable.BookingLeftover, error) {
 	period, err := rs.activePlanningPeriod(ctx, periodID)
 	if err != nil || rs.OfferingSourceOptions == nil {
@@ -136,24 +152,15 @@ func anyBookingEnded(bookings []timetable.OfferingWeekdayBooking) bool {
 }
 
 // bookingLeftoverTemplates reads the Regeltermine planned from tomorrow on,
-// without duty blocks and those the deviation hint shows, with the latest
-// end per weekday and their roster rows.
+// without duty blocks, with the latest end per weekday and their roster rows.
 func (rs *Resource) bookingLeftoverTemplates(ctx context.Context, periodID int64, window *timetable.TemplateScheduleWindow) ([]timetable.BookingLeftoverTemplate, error) {
 	ratio := rs.childrenPerStaffRatio(ctx)
 	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio, window)
 	if err != nil {
 		return nil, err
 	}
-	deviations, err := rs.detectTemplateRosterDeviations(ctx, periodID, nil)
-	if err != nil {
-		return nil, err
-	}
-	shown := make(map[int64]bool, len(deviations))
-	for _, deviation := range deviations {
-		shown[deviation.templateID] = true
-	}
 	templates := slices.DeleteFunc(mapTemplateRows(rows, ratio, nil), func(template templateResponse) bool {
-		return template.Type == timetable.GroupTypeDuty || shown[template.ID]
+		return template.Type == timetable.GroupTypeDuty
 	})
 	ids := make([]int64, 0, len(templates))
 	for _, template := range templates {
