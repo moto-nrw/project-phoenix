@@ -21,9 +21,13 @@ import (
 // transaction, in both orders against the run, and compare the deferred
 // order with a snapshot.
 
-// quickly is the bound a run that meets a lock in use returns within: well
-// below deadlock_timeout (1 s).
-const quickly = 800 * time.Millisecond
+// quickly is the bound a run that meets a lock in use returns within:
+// deadlock_timeout (1 s). Each lock wait of the run ends after lock_timeout
+// (100 ms, TestDemoVisitorErasureNeverWaitsForALock); the rest is the work of
+// the run, which a loaded test machine slows down. That the run does not wait
+// for the holder at all shows in every test: the holder keeps its lock until
+// the run has returned, and a waiting run would run into retireNow's guard.
+const quickly = time.Second
 
 // retireNow runs the demo run with the named orders (nil: none) and fails
 // the test when it does not return quickly.
@@ -527,6 +531,32 @@ func TestDemoRunDefersTheErasureWhileItsLocksAreHeld(t *testing.T) {
 			order.requireErasedNext(t)
 		})
 	}
+}
+
+// An order still waiting for its seed whose access expired: the run closes
+// it. Deferred while its seed lock is held, it is found again by the next
+// run, told nothing, which closes and erases it (#5540).
+func TestDemoRunClosesADeferredWaitingOrderLater(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	slug := orderDemoSchool(t, db, "OGS Nord")
+
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	require.NoError(t, seedLock(slug)(ctx, holder))
+	hidden, erased := retireNow(t, queue, []string{slug})
+	assert.Zero(t, hidden)
+	assert.Zero(t, erased)
+	assert.Equal(t, organizationtenancy.DemoSchoolPreparing, demoSchoolProgress(t, db, slug).Status, "the deferred order still waits")
+	require.NoError(t, holder.Rollback())
+
+	_, erased = retireNow(t, queue, nil)
+	assert.Equal(t, 1, erased, "the next run closes and erases the waiting order")
+	assert.Nil(t, demoSchoolProgress(t, db, slug))
 }
 
 // A table the run reads, held exclusively by another transaction: the run

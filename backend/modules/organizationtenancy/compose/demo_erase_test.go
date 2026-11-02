@@ -195,6 +195,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	require.NoError(t, err)
 	require.True(t, closed)
 	waiting := orderDemoSchool(t, db, "OGS Süd")
+	giveDemoAccess(t, db, waiting) // its visitor waits for the seed
 	// The visitor of the failed order still has an access that shows the failure.
 	_, err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name)
 		VALUES ('besuch@example.org', 'OGS Ost', 'hash-' || ?0, NOW() + INTERVAL '14 days', ?0, ?1, ?2)`,
