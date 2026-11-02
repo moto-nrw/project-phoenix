@@ -223,7 +223,7 @@ export function OfferingGapHints({
       {decided.length > 0 ? (
         <SectionCard
           title={`Ohne eigenen Regeltermin (${decided.length})`}
-          description="Sie haben entschieden: Diese Kinder brauchen keinen eigenen Regeltermin."
+          description="Entschieden: Diese Kinder brauchen keinen eigenen Regeltermin."
           collapsible
           defaultCollapsed
           headingLevel={3}
