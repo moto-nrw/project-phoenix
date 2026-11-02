@@ -185,6 +185,7 @@ func newMonthSummary(staffID int64, key monthKey, carry int, agg *monthAggregate
 		SickDays:                agg.sickDays,
 		VacationDays:            agg.vacationDays,
 		TrainingDays:            agg.trainingDays,
+		CreditedByAbsenceType:   agg.creditedByType,
 		BalanceMinutes:          agg.balance(),
 	}
 	if agg.hasShifts {

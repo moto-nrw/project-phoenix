@@ -55,15 +55,18 @@ type staffAbsenceRow struct {
 
 type staffAbsenceTypeRow struct {
 	bun.BaseModel    `bun:"table:active.staff_absence_types,alias:staff_absence_type"`
-	ID               int64     `bun:"id,pk,autoincrement"`
-	TenantID         int64     `bun:"tenant_id,notnull"`
-	Name             string    `bun:"name,notnull"`
-	BaseType         string    `bun:"base_type,notnull"`
-	IsActive         bool      `bun:"is_active,notnull"`
-	AllowanceEnabled bool      `bun:"allowance_enabled,notnull"`
-	CarryoverUntil   *string   `bun:"carryover_until"`
-	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt        time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	ID               int64   `bun:"id,pk,autoincrement"`
+	TenantID         int64   `bun:"tenant_id,notnull"`
+	Name             string  `bun:"name,notnull"`
+	BaseType         string  `bun:"base_type,notnull"`
+	IsActive         bool    `bun:"is_active,notnull"`
+	AllowanceEnabled bool    `bun:"allowance_enabled,notnull"`
+	CarryoverUntil   *string `bun:"carryover_until"`
+	// WageTypeID is written by the payroll rules (#4807) only; the absence
+	// type writes leave it out of their column lists.
+	WageTypeID *int64    `bun:"wage_type_id"`
+	CreatedAt  time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt  time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 type staffAbsenceAuditRow struct {

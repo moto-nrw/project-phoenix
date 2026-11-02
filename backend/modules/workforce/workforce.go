@@ -163,6 +163,7 @@ type ReplaceStaffSchedule struct {
 
 type Query interface {
 	MonthSnapshotQuery
+	PayrollRuleSetReader
 	AbsenceQuery
 	SubstitutionQuery
 	ShiftQuery
@@ -200,6 +201,9 @@ type Query interface {
 
 type Command interface {
 	MonthSnapshotCommand
+	// PayrollRuleMaintenance maintains the school's own wage types and
+	// surcharge rules (#4807) with the settings audit the root binds.
+	PayrollRuleMaintenance(PayrollRuleAudit) (PayrollRules, error)
 	AbsenceCommand
 	SubstitutionCommand
 	ShiftCommand

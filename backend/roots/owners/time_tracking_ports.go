@@ -84,6 +84,8 @@ func TimeTrackingPorts(
 	ports.Shifts = workforceCompose.NewTimeTrackingShifts(workforce)
 	ports.Settings = settingsCompose.PresenceSettings(settings)
 	ports.Payroll = PayrollExportSettings{Source: payroll}
+	// The school's own wage types and surcharge rules (#4807).
+	ports.PayrollRules = workforce
 	ports.RenderPDF, ports.RenderWorkbook = RenderTimeTrackingPDF, RenderTimeTrackingWorkbook
 	if pool := db.Pool(); pool != nil {
 		ports.DB = pool

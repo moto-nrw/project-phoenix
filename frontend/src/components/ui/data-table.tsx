@@ -102,9 +102,15 @@ interface DataTableProps<T> {
   stackedOnMobile?: boolean;
   // "lines" (default) gives every field its own labelled line; "row" shows
   // one entry per line with title, meta and the stackedDetailKey column
-  // under the title, so a phone still reads a list (#3834). Only with
-  // stackedOnMobile.
-  stackedLayout?: "lines" | "row";
+  // under the title, so a phone still reads a list (#3834). "form" is for
+  // rows whose fields are controls: the title with the meta value (a row
+  // menu) beside it, then every field with its label above and the control
+  // at full width, so all controls share one left and one right edge
+  // (#4807). Only with stackedOnMobile.
+  stackedLayout?: "lines" | "row" | "form";
+  // "form" only: the headline of a stacked row when the title is itself a
+  // control (an editable name). The title column then becomes a field.
+  stackedTitle?: (row: T) => ReactNode;
   // The column the "row" phone line shows under the title; null or unset
   // shows title and meta only. Independent of hiddenColumns: the column
   // choice is a computer setting.
@@ -200,6 +206,58 @@ function StackedField({
     </div>
   );
 }
+
+/**
+ * The phone form row (#4807): the headline with the meta value (a row menu)
+ * beside it, then one field per column with its label above. Controls take
+ * the full width, so every field of every row starts and ends at the same
+ * edge instead of hanging off a label column.
+ */
+function FormStackedRow<T>({
+  row,
+  headline,
+  meta,
+  fields,
+}: Readonly<{
+  row: T;
+  headline: ReactNode;
+  meta: DataTableColumn<T> | undefined;
+  fields: DataTableColumn<T>[];
+}>) {
+  return (
+    <>
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <span className="min-w-0 font-medium break-words text-gray-900">
+          {headline}
+        </span>
+        {meta ? (
+          <span className="-my-1 -mr-2 flex shrink-0 items-center">
+            {meta.render(row)}
+          </span>
+        ) : null}
+      </div>
+      {fields.length > 0 && (
+        <dl className="mt-3 space-y-3 text-sm">
+          {fields.map((col) => {
+            const value = col.render(row);
+            return value === null ? null : (
+              <div key={col.key}>
+                <dt className="mb-1 text-gray-600">{col.header}</dt>
+                <dd className="min-w-0">{value}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+    </>
+  );
+}
+
+const STACKED_ROW_PADDING: Record<"lines" | "row" | "form", string> = {
+  lines: "p-4",
+  row: "px-4 py-2",
+  form: "py-4 first:pt-0 last:pb-0",
+};
 
 // A control inside a stacked row (the selection checkbox) that must not
 // also trigger the row's own click.
@@ -310,6 +368,7 @@ function StackedRows<T>({
   loadMore,
   totalCount,
   layout,
+  stackedTitle,
   selection,
   detail,
   heading,
@@ -326,12 +385,16 @@ function StackedRows<T>({
   hasMore: boolean;
   loadMore: () => void;
   totalCount: number;
-  layout: "lines" | "row";
+  layout: "lines" | "row" | "form";
+  stackedTitle?: (row: T) => ReactNode;
   selection?: DataTableSelection<T>;
   detail?: DataTableColumn<T>;
   heading?: DataTableHeading;
 }>) {
-  const title = columns.find((c) => c.stacked === "title") ?? columns[0];
+  const title =
+    layout === "form" && stackedTitle
+      ? undefined
+      : (columns.find((c) => c.stacked === "title") ?? columns[0]);
   const meta = columns.find((c) => c.stacked === "meta");
 
   const fields = columns.filter(
@@ -371,13 +434,15 @@ function StackedRows<T>({
 
   return (
     <div className="space-y-3">
-      <div className={surfaceClass}>
+      {/* The form rows stand in the card that holds them, like its other
+          fields; a second frame inside the card only costs width (#4807). */}
+      <div className={layout === "form" ? "" : surfaceClass}>
         {heading ? <SurfaceHeading heading={heading} /> : null}
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <li
               key={getRowKey(row)}
-              className={`${layout === "row" ? "px-4 py-2" : "p-4"} ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
+              className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
               onClick={
                 onRowClick
                   ? (event) => {
@@ -405,7 +470,16 @@ function StackedRows<T>({
               tabIndex={keyboardClickable ? 0 : undefined}
               role={keyboardClickable ? "button" : undefined}
             >
-              {layout === "row" ? (
+              {layout === "form" ? (
+                <FormStackedRow
+                  row={row}
+                  headline={
+                    stackedTitle ? stackedTitle(row) : title?.render(row)
+                  }
+                  meta={meta}
+                  fields={fields}
+                />
+              ) : layout === "row" ? (
                 <RowStackedRow
                   row={row}
                   rowKey={String(getRowKey(row))}
@@ -516,6 +590,7 @@ export function DataTable<T>({
   paginationResetKey,
   stackedOnMobile = false,
   stackedLayout = "lines",
+  stackedTitle,
   stackedDetailKey,
   hiddenColumns,
   selection,
@@ -650,6 +725,7 @@ export function DataTable<T>({
             loadMore={loadMore}
             totalCount={sortedRows.length}
             layout={stackedLayout}
+            stackedTitle={stackedTitle}
             selection={selection}
             detail={stackedDetail}
             heading={heading}

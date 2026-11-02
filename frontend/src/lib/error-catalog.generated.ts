@@ -1440,6 +1440,14 @@ export const ERROR_CATALOG = {
         "Für die Datei fehlen noch Angaben auf der Seite Abrechnung. Bitte ergänzen Sie diese zuerst.",
       "workforce.payroll_download_unavailable":
         "Dieser Link funktioniert nicht mehr. Er ist abgelaufen oder die Datei wurde schon heruntergeladen. Bitte wenden Sie sich an die Schule.",
+      "workforce.payroll_rule_invalid":
+        "Die Angaben sind nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "workforce.payroll_rule_not_found":
+        "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "workforce.payroll_wage_type_in_use":
+        "Diese Lohnart wird noch genutzt. Ändern Sie zuerst die Zuschlagsregel oder Abwesenheitsart, die sie nutzt.",
+      "workforce.payroll_wage_type_name_taken":
+        "Eine Lohnart mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "workforce.personnel_number_invalid":
         "Die Personalnummer darf nur Ziffern haben, höchstens 9. Bitte prüfen Sie die Eingabe.",
       "workforce.personnel_number_taken":
@@ -2022,6 +2030,8 @@ export const ERROR_CATALOG = {
         "This school does not belong to your Träger. Please reload the page.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
+      "workforce.payroll_wage_type_name_taken":
+        "{object} could not be saved. Please check your entries.",
     },
   },
   ru: {
@@ -2432,6 +2442,8 @@ export const ERROR_CATALOG = {
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
+      "workforce.payroll_wage_type_name_taken":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
     },
   },
   sq: {
@@ -2857,6 +2869,8 @@ export const ERROR_CATALOG = {
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+      "workforce.payroll_wage_type_name_taken":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
     },
   },
   pl: {
@@ -3269,6 +3283,8 @@ export const ERROR_CATALOG = {
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+      "workforce.payroll_wage_type_name_taken":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
     },
   },
   tr: {
@@ -3687,6 +3703,8 @@ export const ERROR_CATALOG = {
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+      "workforce.payroll_wage_type_name_taken":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
     },
   },
   uk: {
@@ -4096,6 +4114,8 @@ export const ERROR_CATALOG = {
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
+      "workforce.payroll_wage_type_name_taken":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
     },
   },
 } as const;
