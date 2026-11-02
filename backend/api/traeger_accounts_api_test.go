@@ -238,6 +238,8 @@ func TestTraegerAccountsRequireTheAccountsRight(t *testing.T) {
 			assert.Equal(t, http.StatusForbidden, rec.Code, "nor gives itself Leitung")
 			rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", member.ID), session.AccessToken, nil)
 			assert.Equal(t, http.StatusForbidden, rec.Code)
+			rec = traegerCall(t, router, http.MethodDelete, "/traeger/accounts/invitations/1", session.AccessToken, nil)
+			assert.Equal(t, http.StatusForbidden, rec.Code, "nor revokes an invitation")
 		})
 	}
 	assert.Empty(t, traegerLedger(t, db, organizationID), "a refused request changes and reads nothing")

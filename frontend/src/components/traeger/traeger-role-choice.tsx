@@ -13,7 +13,8 @@ const ROLE_DESCRIPTIONS: Readonly<Record<TraegerRole, string>> = {
   leadership: "Darf Personen einladen, ihre Rollen ändern und sie entfernen.",
   administration:
     "Darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten.",
-  school_access: "Darf jede Schule des Trägers öffnen und dort alles tun.",
+  school_access:
+    "Darf jede Schule des Trägers öffnen und dort alles verwalten.",
   billing: "Darf Beiträge abrechnen und Finanz-Daten exportieren.",
   personnel: "Darf das Personal aller Schulen verwalten.",
   read_only: "Darf die Übersicht und die Berichte ansehen.",

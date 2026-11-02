@@ -9631,7 +9631,8 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
       "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
     ],
     troubleshootingDetails: [
-      "Bei `Leitung` steht, dass nur diese Person die Rolle hat? Oder moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Leitung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Sie können bei `Leitung` keinen Haken entfernen? Dann hat nur diese Person die Rolle. Geben Sie die Rolle zuerst einer anderen Person.",
+      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Leitung? Geben Sie die Rolle zuerst einer anderen Person.",
       "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
       "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
     ],

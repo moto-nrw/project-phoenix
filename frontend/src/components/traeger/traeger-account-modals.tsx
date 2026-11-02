@@ -143,8 +143,6 @@ export function InviteTraegerAccountModal({
   );
 }
 
-const NO_MEMBERS: readonly TraegerMember[] = [];
-
 const LAST_LEADER_REASON =
   "Nur diese Person hat die Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.";
 
@@ -158,12 +156,12 @@ const LAST_LEADER_LOCK = { leadership: LAST_LEADER_REASON } as const;
  */
 export function ChangeTraegerRolesModal({
   member,
-  members = NO_MEMBERS,
+  members,
   onClose,
   onChanged,
 }: Readonly<{
   member: TraegerMember | null;
-  members?: readonly TraegerMember[];
+  members: readonly TraegerMember[];
   onClose: () => void;
   onChanged: () => Promise<unknown>;
 }>) {

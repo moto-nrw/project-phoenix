@@ -360,7 +360,7 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 			return err
 		}
 		if leavesNoLeader(unit, accountID, before, roles) {
-			return identityaccess.ErrTraegerLastAdministrator
+			return identityaccess.ErrTraegerLastLeader
 		}
 		if _, err := t.store.ReplaceTraegerRoles(txCtx, actor.OrganizationID, accountID, roles); err != nil {
 			return err
@@ -397,7 +397,7 @@ func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identit
 			return err
 		}
 		if leavesNoLeader(unit, accountID, before, nil) {
-			return identityaccess.ErrTraegerLastAdministrator
+			return identityaccess.ErrTraegerLastLeader
 		}
 		if _, err := t.store.ReplaceTraegerRoles(txCtx, actor.OrganizationID, accountID, nil); err != nil {
 			return err
