@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   changeTraegerRoles: vi.fn(),
   removeTraegerMember: vi.fn(),
   revokeTraegerInvitation: vi.fn(),
+  fetchTraegerAccountHistory: vi.fn(),
 }));
 
 vi.mock("~/lib/traeger-api", () => api);
@@ -48,6 +49,30 @@ const BUERO = {
   ],
 };
 
+const HISTORY = {
+  entries: [
+    {
+      id: "12",
+      occurredAt: "2026-09-08T14:05:00Z",
+      action: "roles_changed",
+      actorEmail: "leitung@traeger.example",
+      targetEmail: "kasse@traeger.example",
+      rolesBefore: ["read_only"],
+      rolesAfter: ["billing"],
+    },
+    {
+      id: "11",
+      occurredAt: "2026-09-07T08:00:00Z",
+      action: "member_removed",
+      actorEmail: "",
+      targetEmail: "weg@traeger.example",
+      rolesBefore: ["personnel"],
+      rolesAfter: [],
+    },
+  ],
+  hasMore: true,
+};
+
 function renderPage() {
   return render(
     <ToastProvider>
@@ -67,6 +92,7 @@ describe("TraegerAccountsPage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
     api.fetchTraegerBuero.mockResolvedValue(BUERO);
+    api.fetchTraegerAccountHistory.mockResolvedValue(HISTORY);
   });
 
   it("lists the people with their roles and the open invitations", async () => {
@@ -235,5 +261,99 @@ describe("TraegerAccountsPage", () => {
         catalogText("traeger.last_administrator", "das Entfernen"),
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows the history of changes and loads older entries", async () => {
+    api.fetchTraegerAccountHistory
+      .mockResolvedValueOnce(HISTORY)
+      .mockResolvedValueOnce({
+        entries: [
+          {
+            id: "10",
+            occurredAt: "2026-09-01T09:00:00Z",
+            action: "invitation_created",
+            actorEmail: "leitung@traeger.example",
+            targetEmail: "alt@traeger.example",
+            rolesBefore: [],
+            rolesAfter: ["read_only"],
+          },
+        ],
+        hasMore: false,
+      });
+    renderPage();
+
+    expect(await screen.findByText("Verlauf")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("Rollen geändert"))[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Vorher: Nur lesen. Jetzt: Abrechnung.")[0],
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Entfernt")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("weg@traeger.example")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Bisher: Personal.")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Gelöschtes Konto")[0]).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ältere Einträge laden" }),
+    );
+    await waitFor(() =>
+      expect(api.fetchTraegerAccountHistory).toHaveBeenLastCalledWith("11"),
+    );
+    expect(
+      (await screen.findAllByText("alt@traeger.example"))[0],
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Eingeladen")[0]).toBeInTheDocument();
+    // Anker: die ältere Seite ist geladen.
+    expect(screen.getAllByText("alt@traeger.example")[0]).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ältere Einträge laden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no history without the right to manage the accounts", async () => {
+    api.fetchTraegerBuero.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "traeger.no_membership" }),
+    );
+    renderPage();
+
+    // Anker: die Seite zeigt den Ladefehler statt der Personen.
+    expect(
+      await screen.findByText(
+        catalogText("traeger.no_membership", "die Personen des Träger-Büros"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();
+  });
+
+  it("shows the history with the right to manage the accounts", async () => {
+    renderPage();
+
+    // Anker: die Personen sind geladen.
+    expect(
+      (await screen.findAllByText("kasse@traeger.example"))[0],
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Verlauf")).toBeInTheDocument();
+  });
+
+  it("reads the history again after a change", async () => {
+    api.changeTraegerRoles.mockResolvedValue(undefined);
+    renderPage();
+    await waitFor(() =>
+      expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(1),
+    );
+
+    await openMenu("kasse@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Personal/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(2),
+    );
+    expect(api.fetchTraegerAccountHistory).toHaveBeenLastCalledWith();
   });
 });

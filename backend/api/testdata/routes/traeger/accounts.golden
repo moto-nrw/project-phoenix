@@ -1,5 +1,6 @@
 DELETE /traeger/accounts/invitations/{invitationId}
 DELETE /traeger/accounts/{accountId}
 GET /traeger/accounts/
+GET /traeger/accounts/history
 POST /traeger/accounts/invitations
 PUT /traeger/accounts/{accountId}/roles

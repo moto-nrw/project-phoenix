@@ -9574,7 +9574,7 @@ export const traegerAccessLogTopic =
     };
   } satisfies typeof authored_traegerAccessLogTopic;
 
-/** `/traeger/accounts` (#4650): Personen einladen, Rollen ändern, entfernen. */
+/** `/traeger/accounts` (#4650, #5474): Personen einladen, Rollen ändern, entfernen, Verlauf. */
 export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerAccounts,
@@ -9616,6 +9616,14 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
           "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
         ],
       },
+      {
+        title: "Verlauf ansehen",
+        steps: [
+          "Wählen Sie in der Navigation `Personen`.",
+          "Scrollen Sie nach unten zu `Verlauf`.",
+          "Ältere Änderungen sehen Sie mit `Ältere Einträge laden`.",
+        ],
+      },
     ],
     steps: [],
     result:
@@ -9625,6 +9633,8 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
       "Nur eine Person mit `Leitung` kann `Leitung` vergeben oder wegnehmen. Ihre eigene `Leitung` geben Sie erst ab, wenn eine andere Person sie hat.",
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
       "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
+      "Unter `Verlauf` steht, wer wann eingeladen, Rollen geändert oder entfernt hat. Bei Rollen sehen Sie, welche vorher galten und welche jetzt gelten.",
+      "Ändern Sie die Rollen einer Person oder entfernen Sie sie, bekommt die Person eine E-Mail. Darin steht, wer es war und wann. Das gilt auch, wenn Sie Ihre eigenen Rollen ändern.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Leitung`.",
