@@ -77,15 +77,13 @@ type AccountsResponse struct {
 
 // HistoryEntryResponse is one change of the Träger-Büro (#5474).
 type HistoryEntryResponse struct {
-	ID              int64     `json:"id"`
-	OccurredAt      time.Time `json:"occurred_at"`
-	Action          string    `json:"action"`
-	ActorAccountID  int64     `json:"actor_account_id"`
-	ActorEmail      string    `json:"actor_email"`
-	TargetAccountID *int64    `json:"target_account_id"`
-	TargetEmail     string    `json:"target_email"`
-	RolesBefore     []string  `json:"roles_before"`
-	RolesAfter      []string  `json:"roles_after"`
+	ID          int64     `json:"id"`
+	OccurredAt  time.Time `json:"occurred_at"`
+	Action      string    `json:"action"`
+	ActorEmail  string    `json:"actor_email"`
+	TargetEmail string    `json:"target_email"`
+	RolesBefore []string  `json:"roles_before"`
+	RolesAfter  []string  `json:"roles_after"`
 }
 
 // HistoryResponse is one page of the history, newest first. The next page
@@ -190,8 +188,7 @@ func (rs *Resource) listHistory(w http.ResponseWriter, r *http.Request) {
 	for _, entry := range history.Entries {
 		response.Entries = append(response.Entries, HistoryEntryResponse{
 			ID: entry.ID, OccurredAt: entry.OccurredAt, Action: entry.Action,
-			ActorAccountID: entry.ActorAccountID, ActorEmail: entry.ActorEmail,
-			TargetAccountID: entry.TargetAccountID, TargetEmail: entry.TargetEmail,
+			ActorEmail: entry.ActorEmail, TargetEmail: entry.TargetEmail,
 			RolesBefore: entry.RolesBefore, RolesAfter: entry.RolesAfter,
 		})
 	}

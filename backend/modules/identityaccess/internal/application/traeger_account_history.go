@@ -70,9 +70,9 @@ func historyEntry(change identityPorts.TraegerAccountLedgerEntry, actorEmail str
 	return entry
 }
 
-// recordAndNotify mails the person concerned and writes the change to the
+// notifyAndRecord mails the person concerned and writes the change to the
 // ledger, both in the unit of the change.
-func (t *TraegerAccounts) recordAndNotify(ctx context.Context, actor identityaccess.TraegerActor, unit traegerUnit, action string, target domain.TraegerAccount, before, after []string) error {
+func (t *TraegerAccounts) notifyAndRecord(ctx context.Context, actor identityaccess.TraegerActor, unit traegerUnit, action string, target domain.TraegerAccount, before, after []string) error {
 	if err := t.notifyTraegerAccountChange(ctx, actor, unit, action, target, before, after); err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (t *TraegerAccounts) recordAndNotify(ctx context.Context, actor identityacc
 // changed or who was removed, in the unit of the change. A role change that
 // keeps the same roles changes nothing and mails nothing.
 func (t *TraegerAccounts) notifyTraegerAccountChange(ctx context.Context, actor identityaccess.TraegerActor, unit traegerUnit, action string, target domain.TraegerAccount, before, after []string) error {
-	if action == identityaccess.TraegerAccountRolesChanged && slices.Equal(before, after) {
+	if action == identityaccess.TraegerAccountRolesChanged && slices.Equal(slices.Sorted(slices.Values(before)), slices.Sorted(slices.Values(after))) {
 		return nil
 	}
 	actorEmail := target.Email
@@ -99,7 +99,7 @@ func (t *TraegerAccounts) notifyTraegerAccountChange(ctx context.Context, actor 
 	}
 	return t.delivery.DispatchTraegerAccountChange(ctx, identityaccess.TraegerAccountChangeNotice{
 		OrganizationID: actor.OrganizationID, TraegerName: unit.name, Action: action,
-		TargetAccountID: target.AccountID, TargetEmail: target.Email, ActorEmail: actorEmail,
+		TargetAccountID: target.AccountID, TargetEmail: target.Email, ActorAccountID: actor.AccountID, ActorEmail: actorEmail,
 		RolesBefore: before, RolesAfter: after, OccurredAt: t.now(),
 	})
 }

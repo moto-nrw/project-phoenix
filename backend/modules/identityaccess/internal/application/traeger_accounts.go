@@ -372,7 +372,7 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 			return identityaccess.ErrTraegerMemberNotFound
 		}
 		result = publicTraegerMember(accounts[0], membership)
-		return t.recordAndNotify(txCtx, actor, unit, identityaccess.TraegerAccountRolesChanged, accounts[0], before, roles)
+		return t.notifyAndRecord(txCtx, actor, unit, identityaccess.TraegerAccountRolesChanged, accounts[0], before, roles)
 	})
 	return result, err
 }
@@ -404,7 +404,7 @@ func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identit
 		if _, err := t.store.DeleteTraegerAccountSessions(txCtx, actor.OrganizationID, accountID); err != nil {
 			return err
 		}
-		return t.recordAndNotify(txCtx, actor, unit, identityaccess.TraegerAccountMemberRemoved, accounts[0], before, nil)
+		return t.notifyAndRecord(txCtx, actor, unit, identityaccess.TraegerAccountMemberRemoved, accounts[0], before, nil)
 	})
 }
 

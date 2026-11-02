@@ -42,7 +42,7 @@ function roleNames(roles: readonly TraegerRole[]): string {
 }
 
 /** The roles a change names, in one line. */
-export function historyDetail(entry: TraegerAccountHistoryEntry): string {
+function historyDetail(entry: TraegerAccountHistoryEntry): string {
   switch (entry.action) {
     case "roles_changed":
       return `Vorher: ${roleNames(entry.rolesBefore)}. Jetzt: ${roleNames(entry.rolesAfter)}.`;

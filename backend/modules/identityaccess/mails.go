@@ -334,7 +334,7 @@ func TraegerInvitationMail(invitation TraegerInvitation, traegerName, origin, tr
 // have been them.
 func TraegerAccountChangeMail(notice TraegerAccountChangeNotice, origin string) Mail {
 	removed := notice.Action == TraegerAccountMemberRemoved
-	subject := "Ihre Rollen im Träger-Portal von moto haben sich geändert"
+	subject := "Ihre Rollen im Träger-Büro haben sich geändert"
 	if removed {
 		subject = "Sie sind nicht mehr im Träger-Büro"
 	}
@@ -345,13 +345,13 @@ func TraegerAccountChangeMail(notice TraegerAccountChangeNotice, origin string) 
 		Content: map[string]any{
 			"TraegerName":    notice.TraegerName,
 			"Removed":        removed,
-			"Self":           notice.ActorEmail == notice.TargetEmail,
+			"Self":           notice.ActorAccountID == notice.TargetAccountID,
 			"ActorEmail":     notice.ActorEmail,
 			"Date":           occurred.Format("02.01.2006"),
 			"Time":           occurred.Format("15:04"),
 			"RolesBefore":    traegerRoleNamesOrNone(notice.RolesBefore),
 			"RolesAfter":     traegerRoleNamesOrNone(notice.RolesAfter),
-			"ContactAddress": DemoContactAddress,
+			"ContactAddress": SupportAddress,
 			"LogoURL":        trimmedLogoURL(MailOrigin(origin)),
 		},
 	}
@@ -365,6 +365,10 @@ func traegerRoleNamesOrNone(roles []string) string {
 }
 
 // --- the public demo ----------------------------------------------------------
+
+// SupportAddress is where a person writes to the moto team, for example
+// about a change to their account they did not expect.
+const SupportAddress = "kontakt@moto-ogs.de"
 
 // The demo team receives the lead mail and the prospects' answers.
 const (

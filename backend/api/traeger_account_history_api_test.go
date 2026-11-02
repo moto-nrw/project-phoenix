@@ -26,14 +26,12 @@ import (
 
 type traegerHistoryAnswer struct {
 	Entries []struct {
-		ID              int64    `json:"id"`
-		Action          string   `json:"action"`
-		ActorAccountID  int64    `json:"actor_account_id"`
-		ActorEmail      string   `json:"actor_email"`
-		TargetAccountID *int64   `json:"target_account_id"`
-		TargetEmail     string   `json:"target_email"`
-		RolesBefore     []string `json:"roles_before"`
-		RolesAfter      []string `json:"roles_after"`
+		ID          int64    `json:"id"`
+		Action      string   `json:"action"`
+		ActorEmail  string   `json:"actor_email"`
+		TargetEmail string   `json:"target_email"`
+		RolesBefore []string `json:"roles_before"`
+		RolesAfter  []string `json:"roles_after"`
 	} `json:"entries"`
 	HasMore bool `json:"has_more"`
 }
@@ -100,7 +98,6 @@ func TestTraegerAccountHistoryShowsTheChangesOfTheOwnTraeger(t *testing.T) {
 	actions := make([]string, 0, len(history.Entries))
 	for _, entry := range history.Entries {
 		actions = append(actions, entry.Action)
-		assert.Equal(t, leader.ID, entry.ActorAccountID)
 		assert.Equal(t, leader.Email, entry.ActorEmail, "the history names who acted")
 	}
 	assert.Equal(t, []string{"member_removed", "roles_changed", "invitation_revoked", "invitation_created"}, actions, "newest first")
@@ -108,8 +105,7 @@ func TestTraegerAccountHistoryShowsTheChangesOfTheOwnTraeger(t *testing.T) {
 	assert.Equal(t, colleague.Email, removal.TargetEmail)
 	assert.Equal(t, []string{identityaccess.TraegerRolePersonnel, identityaccess.TraegerRoleReadOnly}, removal.RolesBefore)
 	assert.Empty(t, removal.RolesAfter)
-	require.NotNil(t, change.TargetAccountID)
-	assert.Equal(t, colleague.ID, *change.TargetAccountID)
+	assert.Equal(t, colleague.Email, change.TargetEmail)
 	assert.Equal(t, []string{identityaccess.TraegerRoleReadOnly}, change.RolesBefore, "the history shows the roles before")
 	assert.Equal(t, []string{identityaccess.TraegerRolePersonnel, identityaccess.TraegerRoleReadOnly}, change.RolesAfter, "and after")
 	assert.Equal(t, address, created.TargetEmail)
@@ -209,6 +205,10 @@ func TestTraegerRoleChangeAndRemovalMailThePersonConcerned(t *testing.T) {
 	assert.False(t, mails[0].Removed)
 	assert.False(t, mails[0].Self)
 	assert.Contains(t, mails[0].Subject, "Träger Benachrichtigung")
+	rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", colleague.ID), session.AccessToken,
+		map[string]any{"roles": []string{identityaccess.TraegerRoleReadOnly, identityaccess.TraegerRoleBilling}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, traegerChangeMails(t, db, colleague.ID), 1, "the same roles in another order change nothing and mail nothing")
 
 	rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", colleague.ID), session.AccessToken, nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())

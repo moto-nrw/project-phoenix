@@ -7,7 +7,7 @@
     <h1>Sie sind nicht mehr im Träger-Büro</h1>
     <p>Guten Tag,</p>
     {{if .Self}}
-    <p>Am {{.Date}} um {{.Time}} Uhr wurden Sie mit Ihrem eigenen Konto aus dem Träger-Büro von <strong>{{.TraegerName}}</strong> entfernt.</p>
+    <p>Sie wurden aus dem Träger-Büro von <strong>{{.TraegerName}}</strong> entfernt. Das geschah am {{.Date}} um {{.Time}} Uhr mit Ihrem eigenen Konto.</p>
     {{else}}
     <p><strong>{{.ActorEmail}}</strong> hat Sie am {{.Date}} um {{.Time}} Uhr aus dem Träger-Büro von <strong>{{.TraegerName}}</strong> entfernt.</p>
     {{end}}
@@ -16,12 +16,12 @@
         <p>Bisher: <strong>{{.RolesBefore}}</strong></p>
     </div>
 
-    <p>Sie können sich dort nicht mehr anmelden. Ihr moto-Konto bleibt bestehen.</p>
+    <p>Sie können sich im Träger-Portal nicht mehr anmelden. Ihr moto-Konto bleibt bestehen.</p>
     {{else}}
     <h1>Ihre Rollen haben sich geändert</h1>
     <p>Guten Tag,</p>
     {{if .Self}}
-    <p>Am {{.Date}} um {{.Time}} Uhr wurden mit Ihrem eigenen Konto Ihre Rollen im Träger-Büro von <strong>{{.TraegerName}}</strong> geändert.</p>
+    <p>Ihre Rollen im Träger-Büro von <strong>{{.TraegerName}}</strong> wurden geändert. Das geschah am {{.Date}} um {{.Time}} Uhr mit Ihrem eigenen Konto.</p>
     {{else}}
     <p><strong>{{.ActorEmail}}</strong> hat am {{.Date}} um {{.Time}} Uhr Ihre Rollen im Träger-Büro von <strong>{{.TraegerName}}</strong> geändert.</p>
     {{end}}
@@ -38,7 +38,7 @@
     <p>Sie haben Fragen dazu? Dann wenden Sie sich an {{.ActorEmail}}.</p>
     {{end}}
 
-    <p class="security-note">Sie haben diese Änderung nicht erwartet? Dann sagen Sie es einer Person mit der Rolle Leitung in Ihrem Träger-Büro. Oder schreiben Sie uns sofort an <a href="mailto:{{.ContactAddress}}">{{.ContactAddress}}</a>.</p>
+    <p class="security-note">Sie haben das nicht erwartet? Dann sagen Sie es der Leitung Ihres Träger-Büros. Oder schreiben Sie sofort an <a href="mailto:{{.ContactAddress}}">{{.ContactAddress}}</a>.</p>
 </div>
 
 {{template "footer" .}}

@@ -137,6 +137,7 @@ type TraegerAccountChangeNotice struct {
 	Action          string
 	TargetAccountID int64
 	TargetEmail     string
+	ActorAccountID  int64
 	ActorEmail      string
 	RolesBefore     []string
 	RolesAfter      []string

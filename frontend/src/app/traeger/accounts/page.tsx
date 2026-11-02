@@ -357,7 +357,9 @@ export default function TraegerAccountsPage() {
           />
         </SectionCard>
       ) : null}
-      <TraegerAccountHistory version={historyVersion} />
+      {bueroLoad.error ? null : (
+        <TraegerAccountHistory version={historyVersion} />
+      )}
     </TenantPage>
   );
 }

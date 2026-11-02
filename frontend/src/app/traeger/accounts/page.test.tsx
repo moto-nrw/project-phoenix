@@ -303,9 +303,36 @@ describe("TraegerAccountsPage", () => {
       (await screen.findAllByText("alt@traeger.example"))[0],
     ).toBeInTheDocument();
     expect(screen.getAllByText("Eingeladen")[0]).toBeInTheDocument();
+    // Anker: die ältere Seite ist geladen.
+    expect(screen.getAllByText("alt@traeger.example")[0]).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Ältere Einträge laden" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows no history without the right to manage the accounts", async () => {
+    api.fetchTraegerBuero.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "traeger.no_membership" }),
+    );
+    renderPage();
+
+    // Anker: die Seite zeigt den Ladefehler statt der Personen.
+    expect(
+      await screen.findByText(
+        catalogText("traeger.no_membership", "die Personen des Träger-Büros"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();
+  });
+
+  it("shows the history with the right to manage the accounts", async () => {
+    renderPage();
+
+    // Anker: die Personen sind geladen.
+    expect(
+      (await screen.findAllByText("kasse@traeger.example"))[0],
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Verlauf")).toBeInTheDocument();
   });
 
   it("reads the history again after a change", async () => {

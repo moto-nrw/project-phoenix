@@ -29,14 +29,14 @@ func TestTraegerAccountChangeMailRendersBothChanges(t *testing.T) {
 	}
 	notice := identityaccess.TraegerAccountChangeNotice{
 		TraegerName: "Träger Nord", Action: identityaccess.TraegerAccountRolesChanged,
-		TargetEmail: "kollegin@example.test", ActorEmail: "leitung@example.test",
+		TargetAccountID: 21, TargetEmail: "kollegin@example.test", ActorAccountID: 11, ActorEmail: "leitung@example.test",
 		RolesBefore: []string{identityaccess.TraegerRoleReadOnly},
 		RolesAfter:  []string{identityaccess.TraegerRoleBilling, identityaccess.TraegerRoleReadOnly},
 		OccurredAt:  time.Date(2026, time.November, 2, 22, 30, 0, 0, time.UTC),
 	}
 
 	changed := identityaccess.TraegerAccountChangeMail(notice, "https://moto.example")
-	assert.Equal(t, "Ihre Rollen im Träger-Portal von moto haben sich geändert – Träger Nord", changed.Subject)
+	assert.Equal(t, "Ihre Rollen im Träger-Büro haben sich geändert – Träger Nord", changed.Subject)
 	body := render(changed)
 	assert.Contains(t, body, "<strong>leitung@example.test</strong> hat am 02.11.2026 um 23:30 Uhr Ihre Rollen")
 	assert.Contains(t, body, "Vorher: <strong>Nur lesen</strong>")
@@ -45,12 +45,12 @@ func TestTraegerAccountChangeMailRendersBothChanges(t *testing.T) {
 	assert.Contains(t, body, "mailto:kontakt@moto-ogs.de")
 
 	notice.Action, notice.RolesAfter = identityaccess.TraegerAccountMemberRemoved, nil
-	notice.ActorEmail = notice.TargetEmail
+	notice.ActorAccountID, notice.ActorEmail = notice.TargetAccountID, notice.TargetEmail
 	removed := identityaccess.TraegerAccountChangeMail(notice, "https://moto.example")
 	assert.Equal(t, "Sie sind nicht mehr im Träger-Büro – Träger Nord", removed.Subject)
 	body = render(removed)
-	assert.Contains(t, body, "wurden Sie mit Ihrem eigenen Konto aus dem Träger-Büro")
+	assert.Contains(t, body, "Das geschah am 02.11.2026 um 23:30 Uhr mit Ihrem eigenen Konto.")
 	assert.Contains(t, body, "Bisher: <strong>Nur lesen</strong>")
-	assert.Contains(t, body, "Sie können sich dort nicht mehr anmelden.")
+	assert.Contains(t, body, "Sie können sich im Träger-Portal nicht mehr anmelden.")
 	assert.NotContains(t, body, "wenden Sie sich an kollegin@example.test", "a change of one's own names nobody to ask")
 }
