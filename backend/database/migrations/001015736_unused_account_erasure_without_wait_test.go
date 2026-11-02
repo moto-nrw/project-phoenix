@@ -46,6 +46,9 @@ func TestUnusedAccountErasureNeverWaitsLongForALock(t *testing.T) {
 	definition := state.Definition
 	assert.Regexp(t, `IF tried >= 200 OR clock_timestamp\(\) - started > INTERVAL '500 milliseconds' THEN\s+EXIT;`, definition,
 		"the erasure has a budget")
+	assert.Regexp(t, `started := clock_timestamp\(\);\s+FOREACH candidate IN ARRAY candidates`, definition,
+		"the budget counts from the end of the candidate scan")
+	assert.Contains(t, definition, "array_agg(account.id ORDER BY random())", "no locked account is first in every run")
 	assert.Regexp(t, `BEGIN\s+--[^\n]*\n[^\n]*\n\s+PERFORM 1 FROM auth\.accounts AS account\s+WHERE account\.id = candidate AND account\.personal_data_erased_at IS NULL\s+FOR UPDATE SKIP LOCKED;`, definition,
 		"the account is locked inside its subtransaction and passed over when held")
 	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'unused account erasure deferred account %`, definition,

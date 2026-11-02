@@ -387,16 +387,18 @@ func TestUnusedAccountErasureMeetsALockedTable(t *testing.T) {
 	}
 }
 
-// Accounts whose rows stay locked do not starve the accounts behind them: a
-// deferral costs the run at most one lock_timeout, and an account a writer
-// holds costs it nothing, so a free account behind both is erased in the
-// first run and the held ones, without being named, once they are free.
+// Accounts whose rows stay locked do not starve the accounts behind them
+// (#5546). More of them stay locked than one run's budget can defer (each
+// deferral costs up to one lock_timeout), and sixty more are held by a writer,
+// which costs the run nothing. The run takes the candidates in random order,
+// so later runs reach the free account while the others stay locked, and,
+// without being named, erase the held ones once they are free.
 func TestUnusedAccountErasureReachesTheAccountsBehindLockedOnes(t *testing.T) {
 	t.Parallel()
 	f := newErasureFixture(t)
 	ctx := t.Context()
-	rowLocked := make([]int64, 0, 3)
-	for i := range 3 {
+	rowLocked := make([]int64, 0, 7)
+	for i := range 7 {
 		rowLocked = append(rowLocked, f.unusedAccount(t, fmt.Sprintf("erasure-row-%d", i)))
 	}
 	accountLocked := make([]int64, 0, 60)
@@ -413,18 +415,27 @@ func TestUnusedAccountErasureReachesTheAccountsBehindLockedOnes(t *testing.T) {
 	_, err = holder.NewRaw(`SELECT id FROM auth.accounts WHERE id IN (?) FOR KEY SHARE`, bun.List(accountLocked)).Exec(ctx)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, f.eraseNow(t), "the first run erases the free account")
+	runs := 0
+	for ; runs < 20 && !f.erased(t, free); runs++ {
+		f.eraseNow(t)
+	}
+	t.Logf("the free account was erased in run %d", runs)
 	f.requireFullyErased(t, free)
+	held := append(append([]int64{}, rowLocked...), accountLocked...)
+	for _, account := range held {
+		require.False(t, f.erased(t, account), "account %d stays while it is locked", account)
+	}
 	require.NoError(t, holder.Rollback())
 	for run := 0; run < 3; run++ {
 		f.eraseNow(t)
 	}
-	for _, account := range append(rowLocked, accountLocked...) {
+	for _, account := range held {
 		assert.True(t, f.erased(t, account), "account %d is erased once it is free", account)
 	}
 }
 
-// A run erases at most 200 accounts; the next run takes the rest.
+// A run erases at most 200 accounts and every run erases some; the next runs
+// take the rest. The time budget may end a run earlier on a slow machine.
 func TestUnusedAccountErasureKeepsItsBatch(t *testing.T) {
 	t.Parallel()
 	f := newErasureFixture(t)
@@ -438,8 +449,42 @@ func TestUnusedAccountErasureKeepsItsBatch(t *testing.T) {
 		return open
 	}
 	require.Equal(t, 205, count())
-	assert.Equal(t, 200, f.eraseNow(t), "one run erases at most 200 accounts")
-	assert.Equal(t, 5, count())
-	assert.Equal(t, 5, f.eraseNow(t), "the next run takes the rest")
-	assert.Zero(t, count())
+	for run := 1; count() > 0; run++ {
+		require.LessOrEqual(t, run, 205, "the runs finish the accounts")
+		before := count()
+		erased := f.eraseNow(t)
+		require.Positive(t, erased, "every run erases accounts")
+		assert.LessOrEqual(t, erased, 200, "one run erases at most 200 accounts")
+		assert.Equal(t, before-erased, count(), "the run reports the accounts it erased")
+	}
+}
+
+// A slow candidate scan does not use up the budget (#5546): the clock starts
+// after the scan, so the run still erases. Here the scan takes longer than
+// the whole budget.
+func TestUnusedAccountErasureErasesAfterASlowScan(t *testing.T) {
+	t.Parallel()
+	f := newErasureFixture(t)
+	account := f.unusedAccount(t, "erasure-slow-scan")
+	_, err := f.db.ExecContext(t.Context(), `
+		ALTER FUNCTION auth.account_is_unused(BIGINT, TEXT) RENAME TO account_is_unused_without_delay;
+		CREATE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
+		RETURNS BOOLEAN LANGUAGE plpgsql AS $$
+		BEGIN
+			IF current_setting('test.erasure_scan_delayed', true) IS DISTINCT FROM 'yes' THEN
+				PERFORM pg_sleep(0.6);
+				PERFORM set_config('test.erasure_scan_delayed', 'yes', true);
+			END IF;
+			RETURN auth.account_is_unused_without_delay(target_id, target_email);
+		END;
+		$$`)
+	require.NoError(t, err)
+	select {
+	case result := <-f.startErasure():
+		require.NoError(t, result.err)
+		assert.Equal(t, 1, result.erased, "the run erases after a slow scan")
+	case <-time.After(5 * time.Second):
+		t.Fatal("the erasure did not return after a slow scan")
+	}
+	f.requireFullyErased(t, account)
 }

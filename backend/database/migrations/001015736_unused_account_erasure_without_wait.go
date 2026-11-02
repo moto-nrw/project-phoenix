@@ -53,13 +53,18 @@ func unusedAccountErasureWithoutWaitDown(ctx context.Context, db *bun.DB) error 
 //     with one line and erased by a later hourly run; the run goes on with the
 //     next account. An account another transaction holds is passed over
 //     without a wait (SKIP LOCKED).
-//   - It has a budget: at most 200 accounts a run, and none started after
-//     500 ms. Each single lock wait ends after 100 ms and a started account is
-//     finished, so the run time is bounded, not cut off. A run that meets
-//     locked accounts therefore ends well before deadlock_timeout, so a writer
-//     waiting for an account the run has already erased is not taken for part
-//     of a cycle. The rest waits for the next run, which finds it again in the
-//     database.
+//   - It has a budget: at most 200 accounts a run, and none started later
+//     than 500 ms after the candidate scan. The clock starts after the scan, so
+//     a slow scan never leaves a run without an attempt. Each single lock wait
+//     ends after 100 ms and a started account is finished, so the time the run
+//     holds account locks is bounded, not cut off. It therefore ends well
+//     before deadlock_timeout, so a writer waiting for an account the run has
+//     already erased is not taken for part of a cycle. The rest waits for the
+//     next run, which finds it again in the database.
+//   - It takes the candidates in random order, so accounts whose rows stay
+//     locked run after run cannot keep the accounts behind them waiting: a
+//     deferral costs at most one lock_timeout, and in each run every account
+//     has its chance to come before them.
 //   - A locked table the candidate scan reads skips the run with one log line.
 //
 // Which accounts are unused, what goes with an erased account and how it is
@@ -83,13 +88,14 @@ const unusedAccountErasureWithoutWaitUpSQL = `
 			files TEXT[];
 			erased INTEGER := 0;
 			tried INTEGER := 0;
-			started TIMESTAMPTZ := clock_timestamp();
+			started TIMESTAMPTZ;
 		BEGIN
 			-- The scan reads tables another transaction may hold exclusively.
 			-- Its lock error skips this run with one log line; every account
 			-- stays for the next run.
 			BEGIN
-				SELECT COALESCE(array_agg(account.id ORDER BY account.id), '{}') INTO candidates
+				-- Random order: no locked account is first in every run.
+				SELECT COALESCE(array_agg(account.id ORDER BY random()), '{}') INTO candidates
 				FROM auth.accounts AS account
 				WHERE account.personal_data_erased_at IS NULL
 					AND auth.account_is_unused(account.id, account.email);
@@ -98,10 +104,13 @@ const unusedAccountErasureWithoutWaitUpSQL = `
 				RETURN;
 			END;
 
+			-- The budget counts from here: the scan reads but locks nothing,
+			-- and a slow scan must not use up the time for the accounts.
+			started := clock_timestamp();
 			FOREACH candidate IN ARRAY candidates
 			LOOP
-				-- The budget: at most 200 accounts and none started after
-				-- 500 ms. An account already started is finished.
+				-- The budget: at most 200 accounts and none started later than
+				-- 500 ms after the scan. An account already started is finished.
 				IF tried >= 200 OR clock_timestamp() - started > INTERVAL '500 milliseconds' THEN
 					EXIT;
 				END IF;
