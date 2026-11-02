@@ -299,3 +299,64 @@ func TestStaffMessageRelayPreservesOnlyNumericSenderSource(t *testing.T) {
 	require.NoError(t, api.ReceiveSignal(payload))
 	require.Nil(t, receiveTransportEvent(t, client).Data.Source)
 }
+
+func TestArrivalScheduleReachesEveryAPIOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	worker := transportHub(t, db, false)
+	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
+	schoolID := testpkg.Tenant(t)
+	a, b := subscribeTransport(t, apiA, schoolID), subscribeTransport(t, apiB, schoolID)
+	foreignSchool := testpkg.NewTenantScope(t, db).TenantID
+	foreignA := subscribeTransport(t, apiA, foreignSchool)
+	foreignB := subscribeTransport(t, apiB, foreignSchool)
+	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+		deliveryCompose.QueueArrivalScheduleChanged(ctx, worker, slog.Default())
+		// Publishing a marker through the SAME FIFO publisher is a receive barrier:
+		// an incorrectly immediate hook would arrive before it, before commit.
+		require.NoError(t, worker.BroadcastToTenant(schoolID, realtime.NewEvent(realtime.EventInstanceStarted, "", realtime.EventData{})))
+		for _, client := range []*realtime.Client{a, b} {
+			select {
+			case event := <-client.Channel:
+				require.Equal(t, realtime.EventInstanceStarted, event.Type, "uncommitted signal escaped before barrier")
+			case <-time.After(3 * time.Second):
+				t.Fatal("pre-commit delivery barrier did not arrive")
+			}
+		}
+		return nil
+	}))
+	for _, client := range []*realtime.Client{a, b} {
+		select {
+		case event := <-client.Channel:
+			require.Equal(t, realtime.EventArrivalScheduleChanged, event.Type)
+		case <-time.After(3 * time.Second):
+			t.Fatal("committed Worker signal did not reach API subscriber")
+		}
+	}
+	require.Empty(t, foreignA.Channel, "foreign school received the committed signal in API 1")
+	require.Empty(t, foreignB.Channel, "foreign school received the committed signal in API 2")
+}
+
+func TestArrivalScheduleRollbackNeverPublishes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	worker, api := transportHub(t, db, false), transportHub(t, db, true)
+	schoolID := testpkg.Tenant(t)
+	client := subscribeTransport(t, api, schoolID)
+	rollback := errors.New("job rolled back")
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+		deliveryCompose.QueueArrivalScheduleChanged(ctx, worker, slog.Default())
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+	// A subsequent committed signal is a delivery barrier, not a sleep-based absence check.
+	marker := realtime.NewEvent(realtime.EventInstanceCompleted, "", realtime.EventData{})
+	require.NoError(t, worker.BroadcastToTenant(schoolID, marker))
+	select {
+	case got := <-client.Channel:
+		require.Equal(t, marker.Type, got.Type, "rolled-back job published a signal")
+	case <-time.After(3 * time.Second):
+		t.Fatal("delivery barrier did not arrive")
+	}
+	require.Empty(t, client.Channel)
+}

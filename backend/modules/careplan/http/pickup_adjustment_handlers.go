@@ -191,7 +191,7 @@ func (rs *Resource) applyStudentPickupAdjustment(w http.ResponseWriter, r *http.
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 		if body.ArrivalSchedules != nil {
-			rs.broadcastArrivalScheduleChanged(student.ID)
+			rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		}
 	})
 	out := pickupAdjustmentResponse{Resolution: result.Resolution}

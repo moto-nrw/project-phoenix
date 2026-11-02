@@ -15,44 +15,44 @@
     "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
     "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.bulkUpsertArrivalSchedules:RegisterAfterCommit@2142bede6047950437325f320c454140#1": {
-    "fingerprint": "2142bede6047950437325f320c454140",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.bulkUpsertArrivalSchedules:RegisterAfterCommit@2f0d4e6b4b962a4855baff7789cbdfcc#1": {
+    "fingerprint": "2f0d4e6b4b962a4855baff7789cbdfcc",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
-    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalException:RegisterAfterCommit@4944679c73047e107c76d83c1bee45e9#1": {
+    "fingerprint": "4944679c73047e107c76d83c1bee45e9",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
-    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.createStudentArrivalNote:RegisterAfterCommit@f8ac0d6c44dfc7415d775d3d9baa9cde#1": {
+    "fingerprint": "f8ac0d6c44dfc7415d775d3d9baa9cde",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
-    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalException:RegisterAfterCommit@4944679c73047e107c76d83c1bee45e9#1": {
+    "fingerprint": "4944679c73047e107c76d83c1bee45e9",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
-    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.deleteStudentArrivalNote:RegisterAfterCommit@f8ac0d6c44dfc7415d775d3d9baa9cde#1": {
+    "fingerprint": "f8ac0d6c44dfc7415d775d3d9baa9cde",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalException:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
-    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalException:RegisterAfterCommit@4944679c73047e107c76d83c1bee45e9#1": {
+    "fingerprint": "4944679c73047e107c76d83c1bee45e9",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalNote:RegisterAfterCommit@15bf7b090c9012f2394fe6a3349172b3#1": {
-    "fingerprint": "15bf7b090c9012f2394fe6a3349172b3",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalNote:RegisterAfterCommit@f8ac0d6c44dfc7415d775d3d9baa9cde#1": {
+    "fingerprint": "f8ac0d6c44dfc7415d775d3d9baa9cde",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalSchedules:RegisterAfterCommit@e1ef3c3b8c3a621df2c83eb1ba59b53b#1": {
-    "fingerprint": "e1ef3c3b8c3a621df2c83eb1ba59b53b",
+  "modules/careplan/http/arrival_schedule_handlers.go:Resource.updateStudentArrivalSchedules:RegisterAfterCommit@4944679c73047e107c76d83c1bee45e9#1": {
+    "fingerprint": "4944679c73047e107c76d83c1bee45e9",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.deleteClassArrivalException:RegisterAfterCommit@90f5a59ac4a3f1867d090f3a6fd15ad4#1": {
-    "fingerprint": "90f5a59ac4a3f1867d090f3a6fd15ad4",
+  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.deleteClassArrivalException:RegisterAfterCommit@302ee7a29691de34727118d6ee41a904#1": {
+    "fingerprint": "302ee7a29691de34727118d6ee41a904",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.putClassArrivalException:RegisterAfterCommit@90f5a59ac4a3f1867d090f3a6fd15ad4#1": {
-    "fingerprint": "90f5a59ac4a3f1867d090f3a6fd15ad4",
+  "modules/careplan/http/class_arrival_exception_handlers.go:Resource.putClassArrivalException:RegisterAfterCommit@302ee7a29691de34727118d6ee41a904#1": {
+    "fingerprint": "302ee7a29691de34727118d6ee41a904",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
   "modules/careplan/http/departure_exception_handlers.go:Resource.announceDepartureChange:RegisterAfterCommit@374faa1647f85a312ba5c4a5150c2e3a#1": {
@@ -71,8 +71,8 @@
     "fingerprint": "5982629ef8e4f79ac11cf4d5fde38e10",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
-  "modules/careplan/http/pickup_adjustment_handlers.go:Resource.applyStudentPickupAdjustment:RegisterAfterCommit@59cb70050ac1a3b29cb62b0a0273fc4c#1": {
-    "fingerprint": "59cb70050ac1a3b29cb62b0a0273fc4c",
+  "modules/careplan/http/pickup_adjustment_handlers.go:Resource.applyStudentPickupAdjustment:RegisterAfterCommit@7ab43b5f508d9ea67a5b553532cdca7f#1": {
+    "fingerprint": "7ab43b5f508d9ea67a5b553532cdca7f",
     "reason": "Realtime student/arrival/pickup or activity cache invalidation only. The triggering records are already committed; losing the event delays another tab until its next refetch/reconnect and loses no domain record."
   },
   "modules/careplan/http/pickup_schedule_handlers.go:Resource.bulkUpsertPickupSchedules:RegisterAfterCommit@ad1414a5c5973ddfcd648280cd896033#1": {
@@ -131,8 +131,8 @@
     "fingerprint": "ef25aacc8fe8e11fff41f311a6d307b3",
     "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
   },
-  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.broadcastCareScheduleChanges:AfterCommit@ebb47aca05e7275a279183ba56d2fb3f#1": {
-    "fingerprint": "ebb47aca05e7275a279183ba56d2fb3f",
+  "modules/careplan/internal/application/care_request_effects.go:CareRequestEffects.broadcastCareScheduleChanges:AfterCommit@c1914ed0e54f7fa6f546259ffc26bae6#1": {
+    "fingerprint": "c1914ed0e54f7fa6f546259ffc26bae6",
     "reason": "Realtime guardian/staff refetch notice only. Request-ledger entries, chat timeline pills and durable device intents are written before commit; losing this event only delays the visible refresh."
   },
   "modules/careplan/internal/application/excused_requests.go:ExcusedRequests.Decide:AfterCommit@5b783d50751bdb29a57425b8be99a2ac#1": {
@@ -167,8 +167,8 @@
     "fingerprint": "fa5297417f7b4cae2102f99d24765ae4",
     "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
   },
-  "modules/delivery/internal/application/realtimeevents/arrival_schedule.go:QueueArrivalScheduleChanged:RegisterAfterCommit@db38e6fbacbf4eee93ba329fc304d0c5#1": {
-    "fingerprint": "db38e6fbacbf4eee93ba329fc304d0c5",
+  "modules/delivery/internal/application/realtimeevents/arrival_schedule.go:QueueArrivalScheduleChanged:RegisterAfterCommit@291c46f59a7cfdf1cfdfa9669b75e065#1": {
+    "fingerprint": "291c46f59a7cfdf1cfdfa9669b75e065",
     "reason": "Realtime SSE invalidation only, assembled from already committed school state. Loss may delay an open tab; reconnect/refetch reconstructs the state without this notice."
   },
   "modules/delivery/internal/application/realtimeevents/group_access.go:QueueGroupAccessChanged:RegisterAfterCommit@1eb0f1c7c171d67ac47cb872fe9669f5#1": {

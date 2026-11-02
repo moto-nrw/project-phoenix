@@ -10630,9 +10630,9 @@
       "classification": "platform",
       "effect": "notice",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareScheduleBroadcaster.ArrivalScheduleChanged",
-      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through roots/owners.careRequestBroadcaster.ArrivalScheduleChanged. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "School-scoped losable approval invalidation through Delivery Platform; the Care Plan after-commit port now binds BroadcastToTenant. No durable write or cross-owner coordinator (ADRs 0098/0147).",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
     },
     {

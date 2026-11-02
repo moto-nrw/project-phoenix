@@ -103,7 +103,7 @@ func (e *CareRequestEffects) RecordGuardianEdit(ctx context.Context, req *carere
 func (e *CareRequestEffects) RegisterDecision(ctx context.Context, req *carerequests.Request, input carerequests.DecideInput, reason string, companionsChanged bool) error {
 	if input.Approve {
 		e.hooks.AfterCommit(ctx, func() { e.recordApplyAudit(req, input.ReviewedBy) })
-		e.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
+		e.broadcastCareScheduleChanges(ctx, e.hooks.TenantID(ctx), req.StudentID, companionsChanged)
 	} else {
 		e.hooks.AfterCommit(ctx, func() {
 			e.deps.Logger.Info("care request rejected",
@@ -232,7 +232,7 @@ func (e *CareRequestEffects) emitPill(ctx context.Context, req *carerequests.Req
 // broadcastCareScheduleChanges invalidates the staff-side caches an approved
 // care-schedule change touches: the student master record (departure modes,
 // student_updated, per school) and the arrival and pickup schedules
-// (arrival_schedule_changed, global: the event the student list and detail
+// (arrival_schedule_changed, per school: the event the student list and detail
 // and the "not arriving today" badges invalidate on). Registered after
 // commit, so a woken client refetches the persisted plan, never the
 // pre-commit snapshot. A broadcast error only costs other tabs an
@@ -253,7 +253,7 @@ func (e *CareRequestEffects) broadcastCareScheduleChanges(ctx context.Context, t
 		if companionsChanged {
 			e.warnBroadcast("student_companions_changed", tenantID, studentID, e.deps.Broadcaster.StudentCompanionsChanged(tenantID))
 		}
-		e.warnBroadcast("arrival_schedule_changed", tenantID, studentID, e.deps.Broadcaster.ArrivalScheduleChanged())
+		e.warnBroadcast("arrival_schedule_changed", tenantID, studentID, e.deps.Broadcaster.ArrivalScheduleChanged(tenantID))
 	})
 }
 
