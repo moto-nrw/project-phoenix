@@ -10,10 +10,13 @@ import ts from "typescript";
  * The inventory reads the syntax tree, not the text, and fails closed: every
  * use of a cookie jar or cookie list that is not a known read counts as a
  * write, including aliases, destructuring, string keys and values handed to
- * other code. Known limits: a header name computed at run time (other than
- * literal concatenation) and a backend response's headers forwarded as a
- * whole are not seen here; the session cookie name sources below catch a new
- * place that obtains a session cookie name.
+ * other code. A computed key resolves through `const` names; one that does
+ * not resolve counts on a request, a response or headers. Exports that carry
+ * a Set-Cookie or session cookie name are listed. Known limits: a header name
+ * computed at run time (other than from literals and constants) and a backend
+ * response's headers forwarded as a whole (#5517) are not seen here; the
+ * session cookie name sources below catch a new place that spells a session
+ * cookie name.
  */
 
 export type CookieWriteKind =
@@ -25,6 +28,11 @@ export type CookieWriteKind =
   | "cookie-header"
   /** document.cookie, or document handed to code that can set it. */
   | "document-cookie"
+  /**
+   * A member of a request, a response or headers under a key that is no
+   * constant: it may be their cookie list.
+   */
+  | "computed-member"
   /** A cookie library from outside this repository. */
   | "cookie-library"
   /** A cookie writer leaving its module, out of reach of a per-file check. */
@@ -72,6 +80,18 @@ const GLOBALS = new Set([
   "top",
   "frames",
 ]);
+/** Constructors and factories of requests, responses and headers. */
+const MESSAGE_CLASSES = new Set([
+  "Request",
+  "NextRequest",
+  "Response",
+  "NextResponse",
+  "Headers",
+]);
+/** Types of requests, responses and headers, as annotated. */
+const MESSAGE_TYPES = new Set([...MESSAGE_CLASSES, "ReadonlyHeaders"]);
+/** Names that conventionally hold a request or a response. */
+const MESSAGE_NAMES = /^(?:req|request|res|response)$/i;
 /** Members that hold a document or a window on any object. */
 const DOCUMENT_MEMBERS = new Set(["contentDocument", "ownerDocument"]);
 
@@ -95,22 +115,50 @@ function walk(node: ts.Node, visit: (node: ts.Node) => void): void {
   ts.forEachChild(node, (child) => walk(child, visit));
 }
 
-/** The value of a string expression built from literals only. */
-function stringValue(node: ts.Node): string | undefined {
-  if (ts.isStringLiteralLike(node)) return node.text;
-  if (ts.isParenthesizedExpression(node)) return stringValue(node.expression);
+/**
+ * The value of a string expression built from literals and `const` names
+ * bound to such expressions in the same file.
+ */
+function stringValue(
+  node: ts.Node,
+  seen: Set<ts.Node> = new Set(),
+): string | undefined {
+  if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node))
+    return node.text;
+  if (
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node)
+  )
+    return stringValue(node.expression, seen);
+  if (ts.isIdentifier(node)) {
+    const declared = declarationOf(node);
+    const declaration = declared?.parent;
+    if (
+      !declared ||
+      seen.has(declared) ||
+      !declaration ||
+      !ts.isVariableDeclaration(declaration) ||
+      declaration.name !== declared ||
+      !declaration.initializer ||
+      !(declaration.parent.flags & ts.NodeFlags.Const)
+    )
+      return undefined;
+    return stringValue(declaration.initializer, new Set([...seen, declared]));
+  }
   if (
     ts.isBinaryExpression(node) &&
     node.operatorToken.kind === ts.SyntaxKind.PlusToken
   ) {
-    const left = stringValue(node.left);
-    const right = stringValue(node.right);
+    const left = stringValue(node.left, seen);
+    const right = stringValue(node.right, seen);
     return left === undefined || right === undefined ? undefined : left + right;
   }
   if (ts.isTemplateExpression(node)) {
     let text = node.head.text;
     for (const span of node.templateSpans) {
-      const value = stringValue(span.expression);
+      const value = stringValue(span.expression, seen);
       if (value === undefined) return undefined;
       text += value + span.literal.text;
     }
@@ -439,6 +487,8 @@ class Inventory {
   private readonly seen = new Set<string>();
   /** cookies of next/headers, kept from the cookie list seeds. */
   private readonly jarFactories = new Set<ts.Node>();
+  /** Local names of headers() of next/headers. */
+  private readonly headersFactories = new Set<string>();
 
   private readonly file: ts.SourceFile;
 
@@ -488,6 +538,8 @@ class Inventory {
         for (const element of bindings.elements) {
           if (element.isTypeOnly) continue;
           const imported = (element.propertyName ?? element.name).text;
+          if (specifier === "next/headers" && imported === "headers")
+            this.headersFactories.add(element.name.text);
           if (specifier === "next/headers" && imported === "cookies") {
             this.jarFactories.add(element.name);
             this.bindIdentifier(element.name, "jar-factory");
@@ -540,6 +592,12 @@ class Inventory {
 
   /** Cookie lists, document, cookieStore and Set-Cookie header names. */
   private seedValue(node: ts.Node): void {
+    if (
+      ts.isElementAccessExpression(node) &&
+      memberName(node) === undefined &&
+      this.isMessage(node.expression, 0)
+    )
+      this.report("computed-member", node);
     const member = memberName(node);
     if (member !== undefined) {
       const written = isWriteTarget(node);
@@ -593,6 +651,54 @@ class Inventory {
       while (!ts.isTemplateExpression(template)) template = template.parent;
       this.track(template, "cookie-header-name");
     } else if (ts.isExpression(node)) this.track(node, "cookie-header-name");
+  }
+
+  /**
+   * Whether an expression holds a request, a response or headers, read from
+   * the syntax: a constructor or factory, fetch, headers() of next/headers,
+   * an annotation or a conventional name. A cookie list or the jar reports a
+   * computed member itself.
+   */
+  private isMessage(expression: ts.Expression, depth: number): boolean {
+    let node: ts.Node = expression;
+    while (
+      ts.isParenthesizedExpression(node) ||
+      ts.isAwaitExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      ts.isSatisfiesExpression(node)
+    )
+      node = node.expression;
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+      const callee = node.expression;
+      if (ts.isPropertyAccessExpression(callee))
+        return (
+          callee.name.text === "headers" ||
+          MESSAGE_CLASSES.has(callee.expression.getText())
+        );
+      return (
+        ts.isIdentifier(callee) &&
+        (MESSAGE_CLASSES.has(callee.text) ||
+          callee.text === "fetch" ||
+          this.headersFactories.has(callee.text))
+      );
+    }
+    if (!ts.isIdentifier(node)) return false;
+    if (MESSAGE_NAMES.test(node.text)) return true;
+    const declared = declarationOf(node);
+    const declaration = declared?.parent;
+    if (
+      !declaration ||
+      !(ts.isParameter(declaration) || ts.isVariableDeclaration(declaration)) ||
+      declaration.name !== declared
+    )
+      return false;
+    if (declaration.type && isMessageType(declaration.type)) return true;
+    return (
+      depth < 8 &&
+      declaration.initializer !== undefined &&
+      this.isMessage(declaration.initializer, depth + 1)
+    );
   }
 
   /** Follows the value up through wrappers that hand it on unchanged. */
@@ -791,11 +897,124 @@ export interface CookieInventory {
   /** Every way the file can write a cookie. */
   writes: CookieWrite[];
   /**
+   * Exports that carry a Set-Cookie or session cookie name, also nested in
+   * objects, arrays, returns, and constants or functions they reference: an
+   * importer could write the cookie without spelling its name.
+   */
+  exportedCookieNames: { line: number; code: string }[];
+  /**
    * Every place the file names or reads a session cookie name: a spelled
    * `session-token`, also in a regular expression, or Auth.js' `sessionToken`
    * cookie options.
    */
   sessionCookieNames: { line: number; code: string }[];
+}
+
+/** Whether a node spells, matches or reaches a cookie name in this file. */
+function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
+  const text = ts.isRegularExpressionLiteral(node)
+    ? node.text
+    : spelledText(node);
+  if (text !== undefined && (SET_COOKIE.test(text) || SESSION_TOKEN.test(text)))
+    return true;
+  if (ts.isIdentifier(node) && isReference(node)) {
+    const declared = declarationOf(node);
+    if (declared && !seen.has(declared)) {
+      seen.add(declared);
+      const declaration = declared.parent;
+      if (
+        ts.isVariableDeclaration(declaration) &&
+        declaration.initializer &&
+        carriesCookieName(declaration.initializer, seen)
+      )
+        return true;
+      if (
+        (ts.isFunctionDeclaration(declaration) ||
+          ts.isClassDeclaration(declaration)) &&
+        carriesCookieName(declaration, seen)
+      )
+        return true;
+    }
+  }
+  return (
+    ts.forEachChild(
+      node,
+      (child) => carriesCookieName(child, seen) || undefined,
+    ) ?? false
+  );
+}
+
+/** `NextRequest`, `Response | null`, `Promise<NextResponse>` … */
+function isMessageType(type: ts.TypeNode): boolean {
+  if (ts.isParenthesizedTypeNode(type)) return isMessageType(type.type);
+  if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type))
+    return type.types.some(isMessageType);
+  if (!ts.isTypeReferenceNode(type)) return false;
+  const name = ts.isIdentifier(type.typeName)
+    ? type.typeName.text
+    : type.typeName.right.text;
+  return (
+    MESSAGE_TYPES.has(name) ||
+    (name === "Promise" && (type.typeArguments ?? []).some(isMessageType))
+  );
+}
+
+function hasExportModifier(node: ts.Node): boolean {
+  return (
+    ts.canHaveModifiers(node) &&
+    (ts.getModifiers(node) ?? []).some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    )
+  );
+}
+
+function exportedCookieNames(
+  sourceFile: ts.SourceFile,
+): { line: number; code: string }[] {
+  const found: { line: number; code: string }[] = [];
+  const check = (at: ts.Node, value: ts.Node | undefined) => {
+    if (!value || !carriesCookieName(value, new Set())) return;
+    const line =
+      sourceFile.getLineAndCharacterOfPosition(at.getStart(sourceFile)).line +
+      1;
+    if (found.some((entry) => entry.line === line)) return;
+    found.push({
+      line,
+      code: at.getText(sourceFile).replace(/\s+/g, " ").slice(0, 80),
+    });
+  };
+  for (const statement of sourceFile.statements) {
+    if (ts.isVariableStatement(statement) && hasExportModifier(statement))
+      for (const declaration of statement.declarationList.declarations)
+        check(declaration, declaration.initializer);
+    else if (
+      (ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement)) &&
+      hasExportModifier(statement)
+    )
+      check(statement, statement);
+    else if (ts.isExportAssignment(statement))
+      check(statement, statement.expression);
+    else if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      !statement.isTypeOnly &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    )
+      for (const element of statement.exportClause.elements)
+        if (!element.isTypeOnly)
+          check(element, element.propertyName ?? element.name);
+  }
+  walk(sourceFile, (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      isModuleExportsTarget(node.left)
+    )
+      check(node, node.right);
+  });
+  return found.sort((a, b) => a.line - b.line);
 }
 
 /** Both inventories of one file, from one parse of its syntax tree. */
@@ -827,6 +1046,7 @@ export function inventoryOf(file: string, source: string): CookieInventory {
       (a, b) => a.line - b.line || a.kind.localeCompare(b.kind),
     ),
     sessionCookieNames,
+    exportedCookieNames: exportedCookieNames(sourceFile),
   };
 }
 

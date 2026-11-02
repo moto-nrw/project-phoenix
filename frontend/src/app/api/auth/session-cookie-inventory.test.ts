@@ -346,6 +346,28 @@ describe("session cookie writers", () => {
     ]);
   });
 
+  it("lets only listed modules export a Set-Cookie or session cookie name", () => {
+    // An importer of such an export could write the cookie without spelling
+    // its name, past the writer list above.
+    expect(inventories.size).toBe(ALL.length);
+    const exporters = ALL.filter(
+      (file) => inventories.get(file)?.exportedCookieNames.length,
+    );
+    expect(exporters).toEqual([
+      "src/lib/auth-proxy.server.ts", // listed writer
+      "src/lib/login-route.server.ts", // listed writer
+      "src/server/auth/caterer-config.ts", // names its portal cookie
+      "src/server/auth/operator-config.ts", // names its portal cookie
+      "src/server/auth/parent-config.ts", // names its portal cookie
+      "src/server/auth/route-handler.ts", // listed writer
+      "src/server/auth/school-config.ts", // names its portal cookie
+      "src/server/auth/session-cookie-writes.ts", // the exit
+      "src/server/auth/tenant-config.ts", // names its portal cookie
+      "src/server/auth/traeger-config.ts", // names its portal cookie
+      "src/test/session-cookie-writers.ts", // the inventory's own pattern
+    ]);
+  });
+
   it("has two callers of the exit: Auth.js' routes and every BFF route", () => {
     const callers = ALL.filter((file) =>
       /gateSessionCookieWrites\(/.test(
