@@ -150,4 +150,12 @@ Content-bearing `notification` events cross processes by ID only
 producing process stores a two-minute copy in `platform.realtime_notifications`,
 and each API loads it in the school's transaction and shows it only to the
 recipients the copy names. Content is never accepted from the unauthenticated
-channel. If the copy cannot be stored, the notification stays local.
+channel. Guardian copies also store the event's student IDs in the JSON
+(`relay_student_ids`), never in the signal or browser payload. Before remote
+delivery, the API rechecks `parent_portal.access` for the addressed guardian
+and those students. Missing check metadata (legacy copies), revoked access or
+a failed permission lookup suppress delivery. An explicit empty student list
+keeps producer-authorized announcements unchanged.
+
+Storage has a 250 ms timeout, including waiting for a pool connection. If the
+copy cannot be stored within that budget, the notification stays local.

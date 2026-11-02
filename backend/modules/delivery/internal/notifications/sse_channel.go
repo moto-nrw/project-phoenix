@@ -100,17 +100,17 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 	switch audience.Scope {
 	case ScopeTenant:
 		stored.Scope = domain.RealtimeScopeTenant
-		return c.broadcaster.BroadcastToTenant(audience.TenantID, c.relayable(ctx, sseEvent, stored))
+		return c.broadcaster.BroadcastToTenant(audience.TenantID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeAdmin:
 		stored.Scope = domain.RealtimeScopeAdmin
-		return c.broadcaster.BroadcastToTenantAdmins(audience.TenantID, c.relayable(ctx, sseEvent, stored))
+		return c.broadcaster.BroadcastToTenantAdmins(audience.TenantID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeGuardian:
 		recipients, err := c.permittedGuardians(ctx, audience)
 		if err != nil || len(recipients) == 0 {
 			return err
 		}
 		stored.Scope, stored.AccountIDs = domain.RealtimeScopeGuardian, recipients
-		sseEvent = c.relayable(ctx, sseEvent, stored)
+		sseEvent = c.relayable(ctx, sseEvent, stored, audience.StudentIDs)
 		for _, accountID := range recipients {
 			if err := c.broadcaster.BroadcastToGuardian(audience.TenantID, accountID, sseEvent); err != nil {
 				return err
@@ -119,7 +119,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		return nil
 	case ScopeGroup:
 		stored.Scope = domain.RealtimeScopeGroup
-		return c.broadcaster.BroadcastToGroup(audience.TenantID, audience.ActiveGroupID, c.relayable(ctx, sseEvent, stored))
+		return c.broadcaster.BroadcastToGroup(audience.TenantID, audience.ActiveGroupID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeStaff:
 		return c.deliverToStaff(ctx, event, sseEvent, stored)
 	default:
@@ -135,7 +135,7 @@ func (c *sseChannel) deliverToStaff(ctx context.Context, event Event, sseEvent r
 	stored.Scope, stored.AccountIDs = domain.RealtimeScopeStaff, accountIDs
 	stored.StaffPortal, stored.SchoolPortal = deliversToStaffPortal(event), deliversToOpenSchoolPortal(event)
 	if len(accountIDs) > 0 && (stored.StaffPortal || stored.SchoolPortal) {
-		sseEvent = c.relayable(ctx, sseEvent, stored)
+		sseEvent = c.relayable(ctx, sseEvent, stored, nil)
 	}
 	if stored.StaffPortal {
 		if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {

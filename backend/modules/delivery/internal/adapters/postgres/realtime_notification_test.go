@@ -3,11 +3,13 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"maps"
 	"regexp"
 	"slices"
 	"testing"
+	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -272,4 +274,87 @@ func withSignal(signal, changes map[string]any) map[string]any {
 		result[key] = value
 	}
 	return result
+}
+
+// changingGuardianAccess models revocation between storing and receiving a signal.
+type changingGuardianAccess struct {
+	allowed  bool
+	err      error
+	students []int64
+}
+
+func (a *changingGuardianAccess) FilterAccountsWithStudentAccess(_ context.Context, accounts, students []int64, _ int64, permission string) ([]int64, error) {
+	a.students = slices.Clone(students)
+	if permission != "parent_portal.access" {
+		return nil, errors.New("wrong permission")
+	}
+	if a.err != nil {
+		return nil, a.err
+	}
+	if a.allowed {
+		return accounts, nil
+	}
+	return nil, nil
+}
+
+func TestRelayedGuardianNotificationRechecksChildAccess(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var payload string
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { payload = p; return nil })
+	require.NoError(t, err)
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	require.NoError(t, err)
+	access := &changingGuardianAccess{allowed: true}
+	receiving, err := deliveryCompose.NewTenantSSEChannel(testpkg.TenantRuntime(t, db), api, db, access, slog.Default())
+	require.NoError(t, err)
+	require.NotNil(t, receiving)
+	schoolID := testpkg.Tenant(t)
+	guardian := testpkg.CreateTestAccount(t, db, "relay-revoked-guardian@example.com")
+	student := testpkg.CreateTestStudent(t, db, "Relay", "Child", "1a")
+	event := guardianNotification(schoolID, guardian.ID)
+	event.Audience.StudentIDs = []int64{student.ID}
+	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), event))
+	require.NotContains(t, payload, "relay_student_ids", "child scope must stay out of the unauthenticated signal")
+	parent := parentClient(t, api, guardian.ID)
+
+	require.NoError(t, api.ReceiveSignal(payload))
+	requireRelayedNotification(t, parent)
+	access.allowed = false
+	require.NoError(t, api.ReceiveSignal(payload))
+	require.Empty(t, parent.Channel, "revoked access must suppress a replayed notification")
+	require.Equal(t, event.Audience.StudentIDs, access.students)
+	access.err = errors.New("permission lookup unavailable")
+	require.Error(t, api.ReceiveSignal(payload))
+	require.Empty(t, parent.Channel, "a failed permission lookup must fail closed")
+
+	// Legacy rows lack the child scope needed to authorize parent delivery.
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.realtime_notifications SET content = content - 'relay_student_ids' WHERE tenant_id = ?`, schoolID)
+	require.NoError(t, err)
+	access.allowed, access.err = true, nil
+	require.NoError(t, api.ReceiveSignal(payload))
+	require.Empty(t, parent.Channel, "legacy guardian content cannot be authorized")
+}
+
+func TestNotificationStaysLocalWhenRelayPoolIsBusy(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupClosableTestDB(t)
+	var published []string
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { published = append(published, p); return nil })
+	require.NoError(t, err)
+	channel := notificationChannel(t, db, hub)
+	schoolID := testpkg.Tenant(t)
+	account := testpkg.CreateTestAccount(t, db, "relay-busy-pool@example.com")
+	client := staffClient(t, hub, schoolID, account.ID)
+	db.SetMaxOpenConns(1)
+	conn, err := db.DB.Conn(context.Background())
+	require.NoError(t, err)
+	defer func() { require.NoError(t, conn.Close()) }()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	start := time.Now()
+	require.NoError(t, channel.Deliver(ctx, staffNotification(schoolID, account.ID)))
+	require.Less(t, time.Since(start), time.Second, "optional relay storage must not wait for the caller's deadline")
+	requireRelayedNotification(t, client)
+	require.Empty(t, published)
 }

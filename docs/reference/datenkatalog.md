@@ -51,8 +51,11 @@ wird zurückgegeben und mit der Schule gelöscht.
 
 Migration 1.15.725 ergänzt `platform.realtime_notifications` (#5504): eine
 Kopie eines In-App-Hinweises mit Empfängern, die andere API-Prozesse zwei
-Minuten lang lesen. Sie ist `tenant`, wird nicht zurückgegeben (kein
-Schuldatensatz, nur ein Zustellhilfsmittel) und mit der Schule gelöscht; die
+Minuten lang lesen. Bei Eltern-Hinweisen enthält das JSON zusätzlich die
+Schüler-IDs (`relay_student_ids`), damit die empfangende API die aktuellen
+Beziehungsrechte vor der Zustellung erneut prüft. Die Kopie ist `tenant`, wird
+nicht zurückgegeben (kein Schuldatensatz, nur ein Zustellhilfsmittel) und mit
+der Schule gelöscht; die
 nächtliche Delivery-Aufbewahrung löscht sie vorher.
 
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`

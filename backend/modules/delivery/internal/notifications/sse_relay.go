@@ -21,6 +21,18 @@ import (
 // to recipients both the signal and the row name. A forged, foreign, expired
 // or differently addressed ID shows nothing.
 
+// Optional relay persistence must not hold up local fan-out on a busy pool or
+// locked insert. The caller's earlier deadline still takes precedence.
+const notificationStoreTimeout = 250 * time.Millisecond
+
+// relayedNotificationContent keeps authorization metadata only in the stored
+// JSON, never in the signal or browser payload. A missing child scope denotes
+// a legacy row, which cannot safely authorize a guardian notification.
+type relayedNotificationContent struct {
+	realtime.EventData
+	StudentIDs *[]int64 `json:"relay_student_ids,omitempty"`
+}
+
 // relayingHub is the process hub that relays signals to other API processes
 // and shows the notifications they relay.
 type relayingHub interface {
@@ -46,11 +58,20 @@ func withRelayedContent(store deliveryPorts.RealtimeNotificationStore) SSEChanne
 // relayable stores the notification so other API processes can load it, and
 // marks the event with the stored ID. Without a stored copy the notification
 // stays in this process; local delivery never depends on the relay.
-func (c *sseChannel) relayable(ctx context.Context, event realtime.Event, stored domain.RealtimeNotification) realtime.Event {
+func (c *sseChannel) relayable(ctx context.Context, event realtime.Event, stored domain.RealtimeNotification, studentIDs []int64) realtime.Event {
 	if c.relayStore == nil {
 		return event
 	}
-	content, err := json.Marshal(event.Data)
+	ctx, cancel := context.WithTimeout(ctx, notificationStoreTimeout)
+	defer cancel()
+	payload := relayedNotificationContent{EventData: event.Data}
+	if stored.Scope == domain.RealtimeScopeGuardian {
+		if studentIDs == nil {
+			studentIDs = []int64{}
+		}
+		payload.StudentIDs = &studentIDs
+	}
+	content, err := json.Marshal(payload)
 	if err == nil {
 		stored.Content = content
 		stored.ActiveGroupID = event.ActiveGroupID
@@ -94,11 +115,23 @@ func (c *sseChannel) loadRelayed(ctx context.Context, schoolID, id int64, addres
 	if !ok {
 		return realtime.Event{}, realtime.NotificationAddress{}, false, nil
 	}
-	var data realtime.EventData
+	var data relayedNotificationContent
 	if err := json.Unmarshal(stored.Content, &data); err != nil {
 		return realtime.Event{}, realtime.NotificationAddress{}, false, fmt.Errorf("decoding relayed notification for tenant %d: %w", schoolID, err)
 	}
-	return realtime.NewEvent(realtime.EventNotification, stored.ActiveGroupID, data), permitted, true, nil
+	if permitted.Audience == realtime.AudienceGuardian {
+		if data.StudentIDs == nil {
+			return realtime.Event{}, realtime.NotificationAddress{}, false, nil
+		}
+		recipients, err := c.permittedGuardians(ctx, Audience{
+			TenantID: schoolID, Scope: ScopeGuardian,
+			GuardianAccountIDs: []int64{permitted.GuardianID}, StudentIDs: *data.StudentIDs,
+		})
+		if err != nil || !slices.Contains(recipients, permitted.GuardianID) {
+			return realtime.Event{}, realtime.NotificationAddress{}, false, err
+		}
+	}
+	return realtime.NewEvent(realtime.EventNotification, stored.ActiveGroupID, data.EventData), permitted, true, nil
 }
 
 // storedRecipients keeps the part of the signal's address the stored
