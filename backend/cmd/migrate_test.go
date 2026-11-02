@@ -78,7 +78,7 @@ func TestMigrateRootRejectsAMissingCommandBeforeOpeningTheDatabase(t *testing.T)
 		return testpkg.Database{}, nil
 	}}
 
-	require.EqualError(t, root.runCommand(t.Context(), "migrate"), "migration operation is required")
+	require.EqualError(t, root.runCommand(t.Context(), "migrate", "development"), "migration operation is required")
 }
 
 func TestMigrateResetCmd_Metadata(t *testing.T) {
@@ -143,4 +143,23 @@ func TestMigrateCommands_AreCobraCommands(t *testing.T) {
 	for _, cmd := range commands {
 		assert.IsType(t, &cobra.Command{}, cmd, "should be a *cobra.Command")
 	}
+}
+
+// The historical recovery command could propagate a developer's role password
+// into a newly initialized test cluster. Refuse it before opening any database.
+func TestMigrateResetRejectsTestEnvironmentBeforeOpeningDatabase(t *testing.T) {
+	t.Parallel()
+	opened := false
+	root := migrateRoot{
+		openDatabase: func() (testpkg.Database, error) {
+			opened = true
+			return testpkg.Database{}, errors.New("unexpected database access")
+		},
+		reset: migrations.Reset,
+	}
+	err := root.runCommand(t.Context(), "reset", "test")
+	require.ErrorContains(t, err, "APP_ENV=test migrate reset is disabled")
+	assert.Contains(t, err.Error(), "test harness")
+	assert.Contains(t, err.Error(), "docs/agents/operations.md#test-database")
+	assert.False(t, opened, "test reset must fail before connecting")
 }

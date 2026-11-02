@@ -145,6 +145,33 @@ If that role has drifted, ask the server owner to coordinate recovery after all
 users finish, or initialize a separate server. Never repair or recreate a shared
 server while other sessions use it.
 
+### Rebuild a disposable test cluster
+
+A database reset alone cannot fix cluster-global role drift. Only the server
+owner may rebuild a broken disposable cluster, after coordinating with every
+session using that server and confirming they have finished:
+
+1. Stop and remove that server's `postgres-test` container. Remove only its
+   `postgres_test` volume, identified by the exact Compose project. Do not
+   remove application databases, other projects' volumes or an active shared
+   server. The test data and cached templates in that volume will be lost.
+2. In the owning checkout, use the authoritative root `.env` and remove any
+   stale exported DSN override. Start the normal test command, or explicitly
+   bootstrap from the repository root:
+
+   ```bash
+   cd backend
+   ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/bootstrap
+   ```
+
+   The harness starts the test container, builds the template and initializes
+   missing roles with its test fixture configuration. Other worktrees sharing
+   this port must use the same authoritative DSN.
+3. Do not run `APP_ENV=test go run . migrate reset`. It can inherit role
+   credentials from `backend/dev.env` instead of the harness configuration and
+   is rejected before opening a database. No manual migration reset is needed.
+
+### Managed server lifetime
 
 On macOS and Linux (including WSL), new managed test servers stop automatically
 after 15 minutes without a protected test process, checked every 30 seconds.

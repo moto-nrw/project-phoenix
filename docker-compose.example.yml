@@ -219,8 +219,11 @@ services:
       POSTGRES_DB: phoenix_test
     # Wegwerf-Datenbank: Durability aus, Speed an. fsync=off heißt: nach einem
     # unsauberen Stop (Docker-Crash, Force-Quit) kann das Cluster kaputt sein.
-    # Recovery: docker volume rm <project>_postgres_test, Container neu starten,
-    # dann `cd backend && APP_ENV=test go run . migrate reset`.
+    # Recovery erst nach Absprache, wenn keine Testsitzung den Server nutzt:
+    # Nur den betroffenen Testcontainer und sein postgres_test-Volume entfernen.
+    # Danach Tests oder testdb bootstrap starten: Die Harness startet den Server,
+    # baut das Template und initialisiert fehlende Rollen mit den Test-Werten.
+    # Kein APP_ENV=test migrate reset. Details: docs/agents/operations.md#test-database.
     # CI läuft NICHT über diese Datei (GitHub-Actions-Service-Container).
     command:
       - postgres
