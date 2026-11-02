@@ -109,9 +109,11 @@ func (m *BookingMaterialization) otherEnrollmentDayBookings(
 	return result, nil
 }
 
-// otherEnrollmentLookaheadDays bounds the later selections read for the gap
-// end: a school year.
-const otherEnrollmentLookaheadDays = 366
+// otherEnrollmentLookaheadDays covers every date the Timetable owner's
+// public occurrence projection can expose (MaxOccurrenceProjectionDays).
+// Keep this duplicated boundary here: Care Plan must not import Timetable's
+// public package merely for a read bound.
+const otherEnrollmentLookaheadDays = 400
 
 // datedLink is a selection with the first day from the date on that it is in
 // force and its phase serves.
