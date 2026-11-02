@@ -270,10 +270,6 @@ func (t *TraegerAccounts) InviteTraegerAccountForOperator(ctx context.Context, o
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
-	// The first person the moto team invites manages the Träger-Büro.
-	if len(leaders) == 0 {
-		roles = unionTraegerRoles(roles, []string{identityaccess.TraegerRoleLeadership})
-	}
 	traeger, live, err := t.memberships.FindLiveTraeger(ctx, organizationID)
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
@@ -285,7 +281,12 @@ func (t *TraegerAccounts) InviteTraegerAccountForOperator(ctx context.Context, o
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
-	created, err := t.storeInvitation(ctx, organizationID, nil, traegerUnit{name: traeger.Name, members: members}, email, roles)
+	unit := traegerUnit{name: traeger.Name, members: members, leaders: leaders}
+	// The first person the moto team invites manages the Träger-Büro.
+	if unit.activeLeaders() == 0 {
+		roles = unionTraegerRoles(roles, []string{identityaccess.TraegerRoleLeadership})
+	}
+	created, err := t.storeInvitation(ctx, organizationID, nil, unit, email, roles)
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
