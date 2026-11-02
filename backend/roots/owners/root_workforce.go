@@ -47,9 +47,10 @@ func BuildWorkSessionSide(
 		Absences: NewStaffAbsenceRepository(workTime, membership, persons), AbsenceAudits: workTime,
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
 		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NewNonWorkingDays(calendar),
-		Events:       TimeTrackingEvents(hub),
-		AbsenceEmail: absenceEmailDependencies(settings, mailFrom, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
-		Logger:       logger,
+		StatutoryHolidays: schoolCalendarCompose.NewTenantHolidays(calendar),
+		Events:            TimeTrackingEvents(hub),
+		AbsenceEmail:      absenceEmailDependencies(settings, mailFrom, mailIdentity, env.Links.FrontendURL, logger, people, organizations, durable),
+		Logger:            logger,
 	}, TimeTrackingAudits{
 		WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 		DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,

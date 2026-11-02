@@ -68,13 +68,12 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 	// Roll back the newer erasures before testing the payroll migration alone:
-	// the Elternsprechtag (1.15.720, #4801) extends the weekly protocols'.
-	// The school vacations (1.15.721, #5345) extend the erasure functions of
-	// 1.15.720; they go first.
-	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
-	// 1.15.721; they go first.
-	// The realtime notifications (1.15.727, #5504) extend the erasure
-	// functions of 1.15.724; they go first.
+	// the wage types (1.15.733, #4807) extend the realtime notifications', the
+	// realtime notifications (1.15.727, #5504) the Nachweisarten', the
+	// Nachweisarten (1.15.724, #4808) the school vacations', the school
+	// vacations (1.15.721, #5345) the Elternsprechtag's, the Elternsprechtag
+	// (1.15.720, #4801) the weekly protocols'.
+	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))

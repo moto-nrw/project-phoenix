@@ -37,6 +37,9 @@ type MonthSummary struct {
 	SickDays                float64 `json:"sick_days"`
 	VacationDays            float64 `json:"vacation_days"`
 	TrainingDays            float64 `json:"training_days"`
+	// CreditedByAbsenceType splits the credit of the school's own absence
+	// types for the DATEV export (#4807); not part of the month card.
+	CreditedByAbsenceType map[int64]AbsenceTypeCredit `json:"-"`
 
 	// PlannedShiftMinutes is the Dienstplan coverage (display only, never
 	// saldo-relevant); nil = no shifts maintained in this month.

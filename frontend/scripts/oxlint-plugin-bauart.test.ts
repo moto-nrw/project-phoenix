@@ -1275,19 +1275,21 @@ describe.concurrent("bauart rules", () => {
     it("exempts the token source, the manifest, test support and the other portals", async () => {
       const source = `export const COLOR = "#83CD2D";`;
 
-      for (const path of [
-        "src/lib/location-helper.ts",
-        "src/lib/favicon-variants.ts",
-        "src/app/global-error.tsx",
-        "src/test/fixtures/rooms.ts",
-        "src/components/ui/status-badge.tsx",
-        "src/components/probe.test.ts",
-        "src/app/operator/tenants/page.tsx",
-        "src/components/parent/child-card.tsx",
-      ]) {
-        expect((await lintSource(source, path)).output).not.toContain(
-          "bauart(no-raw-status-hex)",
-        );
+      const results = await Promise.all(
+        [
+          "src/lib/location-helper.ts",
+          "src/lib/favicon-variants.ts",
+          "src/app/global-error.tsx",
+          "src/test/fixtures/rooms.ts",
+          "src/components/ui/status-badge.tsx",
+          "src/components/probe.test.ts",
+          "src/app/operator/tenants/page.tsx",
+          "src/components/parent/child-card.tsx",
+        ].map((path) => lintSource(source, path)),
+      );
+
+      for (const { output } of results) {
+        expect(output).not.toContain("bauart(no-raw-status-hex)");
       }
     });
 
