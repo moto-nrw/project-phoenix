@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import type { NextRequest } from "next/server";
 
 import { catererAuth, uncachedCatererAuth } from "~/server/auth/caterer";
@@ -8,8 +9,8 @@ import { problemResponse } from "~/lib/api-helpers.server";
 
 // The caterer's delivery list of every school it supplies (ADR 0077), as
 // PDF, Excel or CSV.
-export const GET = withCatererAuth(
-  async (request: NextRequest): Promise<Response> => {
+export const GET = withPrivateDownloadNoStore(
+  withCatererAuth(async (request: NextRequest): Promise<Response> => {
     const session = await catererAuth();
     if (!session?.user?.token) {
       return problemResponse(401, "Unauthorized", request);
@@ -41,5 +42,5 @@ export const GET = withCatererAuth(
           response.headers.get("Content-Disposition") ?? "attachment",
       },
     });
-  },
+  }),
 );

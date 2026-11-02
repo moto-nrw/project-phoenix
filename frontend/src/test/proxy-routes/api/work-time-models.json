@@ -1,0 +1,11 @@
+{
+  "api/work-time-models": [
+    "GET tenant /api/work-time-models",
+    "POST tenant /api/work-time-models"
+  ],
+  "api/work-time-models/[id]": [
+    "DELETE tenant /api/work-time-models/id%2F1",
+    "GET tenant /api/work-time-models/id%2F1",
+    "PUT tenant /api/work-time-models/id%2F1"
+  ]
+}

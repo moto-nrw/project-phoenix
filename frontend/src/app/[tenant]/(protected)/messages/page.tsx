@@ -1,15 +1,19 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import { TileCard } from "~/components/ui/tile-card";
 import { Button } from "~/components/ui/button";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -25,6 +29,9 @@ import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { childrenConcept } from "~/lib/concepts/children";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
 
@@ -43,7 +50,6 @@ function MessagesInboxContent() {
   // Tenant-prefix the SWR key so a tenant switch (multi-tab / switch-tenant) can
   // never render the previous school's cached threads from this key (frontend
   // convention: useTenantSlugSafe is for SWR cache-key prefixing).
-  const tenantSlug = useTenantSlugSafe();
   // Hide the compose entry points when the school has parent-OGS messaging
   // turned off — composing would otherwise hit a backend 403 dead-end. Existing
   // threads stay readable.
@@ -61,8 +67,8 @@ function MessagesInboxContent() {
     error,
     isLoading,
     mutate,
-  } = useSWR(
-    [`${tenantSlug ?? ""}:messages-inbox`, onlyUnread],
+  } = useSWRAuth(
+    messageKeys.messagesInbox(onlyUnread),
     () => fetchInboxWithFilters({ onlyUnread }),
     {
       revalidateOnFocus: false,
@@ -236,7 +242,12 @@ function MessagesInboxContent() {
       empty={
         bodyReplaced && !loadFailed
           ? {
-              icon: <MotoConceptIcon concept="parentConversations" size={48} />,
+              icon: (
+                <MotoConceptIcon
+                  concept={parentConversationsConcept}
+                  size={48}
+                />
+              ),
               title: filtersActive
                 ? "Keine passenden Nachrichten"
                 : "Noch keine Nachrichten",
@@ -273,10 +284,17 @@ function MessagesInboxContent() {
                   {/* Absender und Kind tragen die Symbole aus dem
                       Konzeptregister, wie in den Anfragen (#4361). */}
                   <div className="flex min-w-0 items-center gap-2">
-                    <MotoConceptIcon concept="parents" size={20} />
+                    <MotoConceptIcon concept={parentsConcept} size={20} />
                     <h3 className="truncate text-base font-semibold text-gray-900">
                       {thread.guardian_name}
                     </h3>
+                    {thread.audience === "leadership" && (
+                      <StatusBadge
+                        tone="blue"
+                        label={LEADERSHIP_AUDIENCE_LABEL}
+                        compact
+                      />
+                    )}
                     <UnreadBadge count={thread.unread_count} />
                     {thread.last_message_at && (
                       <span className="ml-auto flex-shrink-0 pl-1 text-xs whitespace-nowrap text-gray-400">
@@ -288,7 +306,7 @@ function MessagesInboxContent() {
                     <span className="flex-shrink-0">
                       {relationshipLabel(thread.relationship_type)} von
                     </span>
-                    <MotoConceptIcon concept="children" size={16} />
+                    <MotoConceptIcon concept={childrenConcept} size={16} />
                     <span className="truncate font-medium text-gray-700">
                       {thread.student_name}
                     </span>

@@ -64,9 +64,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({
       title,
       badge,
@@ -284,6 +284,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,

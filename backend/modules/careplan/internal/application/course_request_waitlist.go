@@ -170,26 +170,43 @@ func (q *courseWaitlist) unknownOfferingIDs(groupsByOffering map[int64][]ports.C
 	return slices.Compact(missing)
 }
 
-// position counts the queued course requests for the target groups. A
-// payload that cannot be read is no evidence of a competing request.
+// position counts the queued course requests for the target groups.
 func (q *courseWaitlist) position(targetGroups []ports.CourseGroup, groupsByOffering map[int64][]ports.CourseGroup) int {
+	position := 0
+	for _, row := range q.rows {
+		if courseRequestAfter(row, q.pending) {
+			continue
+		}
+		if waitsForCourseGroups(row, targetGroups, q.childrenByID[row.RequestChildID], groupsByOffering, q.bookedByChild[row.RequestChildID]) {
+			position++
+		}
+	}
+	return max(position, 1)
+}
+
+// waitsForCourseGroups is the one rank rule of a course queue, read by the
+// parents portal and by the team's waiting list alike (#3075, #4767): an
+// open request waits for the target groups when its child may attend one of
+// them and the request newly adds one. A payload that cannot be read is no
+// evidence of a waiting request.
+func waitsForCourseGroups(
+	row careplan.OfferingChangeRequest,
+	targetGroups []ports.CourseGroup,
+	child *ports.OfferingChangeChild,
+	groupsByOffering map[int64][]ports.CourseGroup,
+	booked map[int64]bool,
+) bool {
+	if !courseGroupsMatchTarget(targetGroups, child) {
+		return false
+	}
 	targetGroupIDs := make(map[int64]bool, len(targetGroups))
 	for _, group := range targetGroups {
 		if group.Active {
 			targetGroupIDs[group.ID] = true
 		}
 	}
-	position := 0
-	for _, row := range q.rows {
-		if courseRequestAfter(row, q.pending) || !courseGroupsMatchTarget(targetGroups, q.childrenByID[row.RequestChildID]) {
-			continue
-		}
-		added, err := courseWasAddedForGroups(row, targetGroupIDs, groupsByOffering, q.bookedByChild[row.RequestChildID])
-		if err == nil && added {
-			position++
-		}
-	}
-	return max(position, 1)
+	added, err := courseWasAddedForGroups(row, targetGroupIDs, groupsByOffering, booked)
+	return err == nil && added
 }
 
 func courseRequestAfter(row, pending careplan.OfferingChangeRequest) bool {

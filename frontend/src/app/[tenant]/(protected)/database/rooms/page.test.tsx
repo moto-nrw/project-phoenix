@@ -14,7 +14,6 @@ function errorText(error: unknown): string | null {
     : (error as { message: string }).message;
 }
 
-const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const mockRefreshRoomConsumers = vi.hoisted(() =>
   vi.fn(() => Promise.resolve()),
 );
@@ -42,7 +41,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => mockTenantMutate),
   // Added with Issue #1324 — page invalidates badge consumer caches after a
   // room save. Tests only assert that the returned refresher is called.
   useTenantMutateMatching: vi.fn(() => mockRefreshRoomConsumers),
@@ -279,8 +277,8 @@ vi.mock("@/components/rooms/rooms-list", () => ({
   ),
 }));
 
-import { useSWRAuth } from "~/lib/swr";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 
 const mockRooms = [
   {
@@ -439,9 +437,10 @@ describe("RoomsPage", () => {
       expect(mockCreate).toHaveBeenCalled();
     });
     await waitFor(() => {
-      for (const key of ROOM_LIST_CACHE_KEYS) {
-        expect(mockTenantMutate).toHaveBeenCalledWith(key);
-      }
+      expect(mockRefreshRoomConsumers).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(useTenantMutateMatching)).toHaveBeenCalledWith([
+        roomKeys.family,
+      ]);
     });
   });
 

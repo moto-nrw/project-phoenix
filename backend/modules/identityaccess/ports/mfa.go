@@ -22,6 +22,13 @@ type MFAMail interface {
 	NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail, deviceID int64) error
 }
 
+// CatererMFAResetNotice queues the caterer's notice of an operator's reset
+// of its second factor (#4497) in the reset's transaction, keyed by the
+// reset it reports.
+type CatererMFAResetNotice interface {
+	NotifyCatererMFAReset(ctx context.Context, message identityaccess.CatererMFAResetMail, resetKey string) error
+}
+
 // OperatorActionLog appends an operator entry in the caller's transaction.
 // A failed append rolls back the audited change.
 type OperatorActionLog interface {

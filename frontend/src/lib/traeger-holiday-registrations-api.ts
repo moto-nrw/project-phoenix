@@ -1,3 +1,7 @@
+import {
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 /**
  * Client of the review of the holiday registrations in the Träger portal
  * (#4663): the list of a holiday period with its filters, one registration
@@ -9,6 +13,10 @@
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "./holiday-form-field";
 import { traegerRequest } from "./traeger-api";
 
 export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
@@ -84,11 +92,40 @@ export interface HolidayRegistrationList {
   readonly statusCounts: Readonly<Record<HolidayRegistrationStatus, number>>;
 }
 
+/** The Träger right that opens the health information (#4722). */
+export const TRAEGER_HEALTH_RIGHT = "traeger_health:read";
+
+/** The health information of one child of a registration (#4722). */
 export interface HolidayRegistrationHealth {
   readonly childId: string;
   readonly allergies: string;
   readonly medication: string;
   readonly healthNotes: string;
+  /** Answers to the child questions marked as health information. */
+  readonly answers: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The health information of one registration, read apart from the detail
+ * and only with the right „Gesundheitsangaben sehen“ (#4722).
+ */
+export interface HolidayRegistrationHealthDetail {
+  /** Answers to the family questions marked as health information. */
+  readonly answers: Readonly<Record<string, unknown>>;
+  readonly children: readonly HolidayRegistrationHealth[];
+}
+
+interface BackendHealthDetail {
+  custom_data?: Record<string, unknown> | null;
+  children?:
+    | {
+        child_id: number;
+        allergies: string;
+        medication: string;
+        health_notes: string;
+        custom_data?: Record<string, unknown> | null;
+      }[]
+    | null;
 }
 
 export interface HolidayRegistrationContact {
@@ -114,13 +151,41 @@ export interface HolidayRegistrationEvent {
   readonly after: readonly HolidayBookingChange[];
 }
 
+/** A proof of benefits the parents uploaded with the registration (#5238). */
+interface HolidayRegistrationProof {
+  readonly id: string;
+  readonly filename: string;
+  readonly sizeBytes: number;
+  readonly contentType: string;
+  readonly uploadedAt: string;
+}
+
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
-  readonly health: readonly HolidayRegistrationHealth[];
+  readonly secondGuardian: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly phone: string;
+  } | null;
   readonly contacts: readonly HolidayRegistrationContact[];
   readonly privacyConsentAt: string;
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
+  /** Only the detail names the proofs; list and export never do. */
+  readonly benefitsProofs: readonly HolidayRegistrationProof[];
   readonly history: readonly HolidayRegistrationEvent[];
+  /**
+   * The form version the parents answered (#5198); its labels name the
+   * answers, also after a later change of the form.
+   */
+  readonly legalAcceptances?: Readonly<Record<string, string>>;
+  readonly form: HolidayFormVersion;
+  /** Answers to the family questions, by key. */
+  readonly answers: Readonly<Record<string, unknown>>;
+  /** Answers to the questions per child, by child ID and key. */
+  readonly childAnswers: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
 }
 
 interface BackendBooking {
@@ -168,18 +233,25 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
-  health?:
-    | {
-        child_id: number;
-        allergies: string;
-        medication: string;
-        health_notes: string;
-      }[]
-    | null;
+  second_guardian?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  } | null;
   contacts?: HolidayRegistrationContact[] | null;
   privacy_consent_at: string;
   health_consent_at: string | null;
   binding_confirmed_at: string | null;
+  benefits_proofs?:
+    | {
+        id: number;
+        filename: string;
+        size_bytes: number;
+        content_type: string;
+        uploaded_at: string;
+      }[]
+    | null;
   history?:
     | {
         action: HolidayRegistrationEventAction;
@@ -192,6 +264,15 @@ interface BackendDetail extends BackendSummary {
         } | null;
       }[]
     | null;
+  legal_acceptances?: Record<string, string> | null;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+  } | null;
+  custom_data?: Record<string, unknown> | null;
+  child_custom_data?:
+    { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
 }
 
 function summaryFromBackend(
@@ -244,16 +325,25 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
-    health: (registration.health ?? []).map((entry) => ({
-      childId: String(entry.child_id),
-      allergies: entry.allergies,
-      medication: entry.medication,
-      healthNotes: entry.health_notes,
-    })),
+    secondGuardian: registration.second_guardian
+      ? {
+          firstName: registration.second_guardian.first_name,
+          lastName: registration.second_guardian.last_name,
+          email: registration.second_guardian.email,
+          phone: registration.second_guardian.phone,
+        }
+      : null,
     contacts: registration.contacts ?? [],
     privacyConsentAt: registration.privacy_consent_at,
     healthConsentAt: registration.health_consent_at,
     bindingConfirmedAt: registration.binding_confirmed_at,
+    benefitsProofs: (registration.benefits_proofs ?? []).map((proof) => ({
+      id: String(proof.id),
+      filename: proof.filename,
+      sizeBytes: proof.size_bytes,
+      contentType: proof.content_type,
+      uploadedAt: proof.uploaded_at,
+    })),
     history: (registration.history ?? []).map((event) => ({
       action: event.action,
       occurredAt: event.occurred_at,
@@ -262,6 +352,19 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
     })),
+    legalAcceptances: registration.legal_acceptances ?? {},
+    form: {
+      legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
+      version: registration.form?.version ?? 0,
+      fields: registration.form?.fields ?? [],
+    },
+    answers: registration.custom_data ?? {},
+    childAnswers: Object.fromEntries(
+      (registration.child_custom_data ?? []).map((entry) => [
+        String(entry.child_id),
+        entry.custom_data ?? {},
+      ]),
+    ),
   };
 }
 
@@ -270,6 +373,15 @@ const registrationsPath = (periodId: string) =>
 
 const registrationPath = (periodId: string, registrationId: string) =>
   `${registrationsPath(periodId)}/${encodeURIComponent(registrationId)}`;
+
+/** Address of the proxy that opens one proof of benefits (#5238). */
+export function holidayProofHref(
+  periodId: string,
+  registrationId: string,
+  proofId: string,
+): string {
+  return `${registrationPath(periodId, registrationId)}/proofs/${encodeURIComponent(proofId)}`;
+}
 
 /** The query string of a filter, empty values left out. */
 function holidayRegistrationQuery(
@@ -305,7 +417,7 @@ export async function fetchHolidayRegistrations(
   };
 }
 
-/** One registration with health information, contacts and history. */
+/** One registration with contacts and history, without health information. */
 export async function fetchHolidayRegistration(
   periodId: string,
   registrationId: string,
@@ -315,6 +427,55 @@ export async function fetchHolidayRegistration(
       registrationPath(periodId, registrationId),
     ),
   );
+}
+
+/**
+ * The health information of a registration (#4722). The backend answers 403
+ * without the right „Gesundheitsangaben sehen“ and records every read.
+ */
+export async function fetchHolidayRegistrationHealth(
+  periodId: string,
+  registrationId: string,
+): Promise<HolidayRegistrationHealthDetail> {
+  const health = await traegerRequest<BackendHealthDetail>(
+    `${registrationPath(periodId, registrationId)}/health`,
+  );
+  return {
+    answers: health.custom_data ?? {},
+    children: (health.children ?? []).map((child) => ({
+      childId: String(child.child_id),
+      allergies: child.allergies,
+      medication: child.medication,
+      healthNotes: child.health_notes,
+      answers: child.custom_data ?? {},
+    })),
+  };
+}
+
+/**
+ * The detail with the health answers merged into its answers, so the
+ * questions marked as health information show their answer beside the
+ * others (#4722).
+ */
+export function withHolidayHealthAnswers(
+  registration: HolidayRegistrationDetail,
+  health: HolidayRegistrationHealthDetail | null,
+): HolidayRegistrationDetail {
+  if (!health) return registration;
+  const childAnswers: Record<string, Readonly<Record<string, unknown>>> = {
+    ...registration.childAnswers,
+  };
+  for (const child of health.children) {
+    childAnswers[child.childId] = {
+      ...childAnswers[child.childId],
+      ...child.answers,
+    };
+  }
+  return {
+    ...registration,
+    answers: { ...registration.answers, ...health.answers },
+    childAnswers,
+  };
 }
 
 /** Cancels, freezes or reopens a registration. */

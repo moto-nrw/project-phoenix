@@ -34,7 +34,7 @@ import {
   formatDuration,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import {
   staffOverviewService,
   type DashboardPeriod,
@@ -68,6 +68,9 @@ const toneForStatCard = (tone: "green" | "amber" | "gray" | "red") =>
 
 export function SchoolOverviewSection() {
   const [period, setPeriod] = useState<DashboardPeriod>("month");
+  // staff_time_tracking_changed invalidates the summary; the interval follows
+  // the growing Ist of open blocks (#5017).
+  const refreshInterval = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
 
   const {
     data: summary,
@@ -81,7 +84,7 @@ export function SchoolOverviewSection() {
     // appear as a summary for the wrong period while this request is pending.
     {
       keepPreviousData: false,
-      refreshInterval: OPEN_MONTH_REFRESH_MS,
+      refreshInterval,
       revalidateOnFocus: false,
     },
   );

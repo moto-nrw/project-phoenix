@@ -1,0 +1,49 @@
+{
+  "title": "Bildirimler",
+  "description": "Mesajlardan ve çocuğunuzla ilgili önemli değişikliklerden haberdar olun.",
+  "allEnabled": "Tümü açık",
+  "enableAll": "Tümünü aç",
+  "enablingAll": "Açılıyor ...",
+  "disableAll": "Tümünü kapat",
+  "tenantDisabled": "Okulunuz bildirimleri şu anda kapatmış. Seçiminiz kaydedilir ve okul bildirimleri tekrar açınca geçerli olur.",
+  "typeUnavailable": "Okulunuz tarafından şu anda kapatılmış.",
+  "groups": {
+    "kinder": "Çocuklar",
+    "mitteilungen": "Duyurular",
+    "termine": "Randevular"
+  },
+  "types": {
+    "parent_announcement": {
+      "label": "Okuldan yeni duyuru",
+      "description": "Okul veli portalında yeni bir duyuru yayınladığında."
+    },
+    "parent_message": {
+      "label": "OGS'den yeni mesaj",
+      "description": "OGS size bir çocuğunuzla ilgili yazdığında."
+    },
+    "parent_appointment": {
+      "label": "Yeni veya değiştirilen randevu",
+      "description": "Sizin için bir randevu oluşturulduğunda, değiştirildiğinde veya iptal edildiğinde."
+    },
+    "parent_appointment_reminder": {
+      "label": "Randevu hatırlatması",
+      "description": "Davet edildiğiniz bir randevudan kısa süre önce."
+    },
+    "parent_request_decided": {
+      "label": "Talebiniz hakkında karar",
+      "description": "OGS taleplerinizden biri hakkında karar verdiğinde."
+    },
+    "parent_care_cancelled": {
+      "label": "Bakım iptal edildi",
+      "description": "OGS çocuğunuzun bir bakım gününü iptal ettiğinde."
+    },
+    "parent_billing_document": {
+      "label": "Kurumdan yeni belge",
+      "description": "Kurum size bir belge gönderdiğinde, örneğin bir onay yazısı."
+    }
+  },
+  "errorObjectList": "bildirim listesi",
+  "errorObjectType": "„{name}“ bildirimi",
+  "errorObjectEnableAll": "tüm bildirimleri açma",
+  "errorObjectDisableAll": "tüm bildirimleri kapatma"
+}

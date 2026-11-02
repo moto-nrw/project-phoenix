@@ -153,6 +153,20 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
     expect(toggleSourceSchoolClass).toHaveBeenCalledWith("1a");
   });
 
+  // #5101: Sonnenhof speichert „Klasse 1b“; die Checkbox hieß „Klasse Klasse 1b (6)“.
+  it("does not double the class word for classes stored as „Klasse 1b“", () => {
+    renderStep({
+      form: sourcedForm({ sourceFilterMode: "klasse" }),
+      sourceClassOptions: ["Klasse 1b"],
+      sourceClassCounts: { "klasse 1b": 6 },
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: "Klasse 1b (6)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Klasse Klasse/)).not.toBeInTheDocument();
+  });
+
   it("hides the grade checkboxes while the Klasse mode is active", () => {
     renderStep({
       form: sourcedForm({ sourceFilterMode: "klasse" }),
@@ -405,6 +419,37 @@ describe("StepPersonalKinder — Personal je Wochentag mit Angebot als Quelle (#
 
     expect(screen.queryByText("abweichend")).not.toBeInTheDocument();
     expect(screen.getByText("wie üblich")).toBeInTheDocument();
+  });
+});
+
+describe("StepPersonalKinder — Kinder über die Klasse (#5103 review)", () => {
+  // The Friday list holds the children picked by hand; the Klasse adds the
+  // rest at every occurrence. The form names them so the counts match.
+  it("names the children the Klasse adds beside the list of the day", () => {
+    renderStep({
+      form: {
+        ...emptyForm("2026-09-14", "4"),
+        targetGroupType: "klasse",
+        targetSchoolClasses: ["3b"],
+        weekdays: [1, 5],
+        perWeekdayRoster: true,
+        weekdayRosters: {
+          1: { staffIds: [], primaryStaffId: "", studentIds: ["11", "12"] },
+          5: { staffIds: [], primaryStaffId: "", studentIds: ["11"] },
+        },
+      },
+      students: [
+        { id: "11", name: "Ben Winter", schoolClass: "3b" },
+        { id: "12", name: "Mia Sommer", schoolClass: "3b" },
+      ],
+      targetCohort: { label: "Klasse 3b", memberIds: ["11", "12"] },
+      activeRosterWeekday: 5,
+    });
+
+    expect(screen.getByText("Kinder am Freitag")).toBeInTheDocument();
+    expect(
+      screen.getByText("Über Klasse 3b kommt außerdem: Mia Sommer"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -674,7 +719,7 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
   });
   const cohort = { label: "Klasse 1b", memberIds: ["11", "12", "13"] };
   const randstunde = {
-    offering: { id: "7", name: "Randstunde" },
+    offerings: [{ id: "7", name: "Randstunde" }],
     gradeLevels: [],
     schoolClasses: ["1b"],
     unbookedCount: 1,
@@ -696,6 +741,7 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
       periodId: "4",
       type: "care",
       listKind: "edge_hours",
+      endTime: "13:00",
       roster: { 1: ["11", "12", "13"], 3: ["11", "12", "13"] },
       schoolClasses: ["1b"],
       gradeLevels: [],
@@ -785,5 +831,237 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
     ).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(getOfferingSuggestion).not.toHaveBeenCalled();
+  });
+});
+
+describe("StepPersonalKinder — mehrere passende Angebote (#5138)", () => {
+  const cohortForm = (overrides: Partial<ReturnType<typeof emptyForm>>) => ({
+    ...emptyForm("2026-09-14", "4"),
+    listKind: "edge_hours" as const,
+    weekdays: [1, 3],
+    ...overrides,
+  });
+  const cohort = { label: "Klasse 3a", memberIds: ["11", "12", "13"] };
+  const roster = { 1: ["11", "12", "13"], 3: ["11", "12", "13"] };
+  // A Klasse or Jahrgang target plans every child of the cohort; both
+  // offerings then cover it fully and the backend marks the answer.
+  const ambiguous = (filter: {
+    schoolClasses: string[];
+    gradeLevels: number[];
+  }) => ({
+    offerings: [{ id: "4", name: "Ganztag bis 14.30 Uhr" }],
+    ...filter,
+    unbookedCount: 1,
+    missingCount: 0,
+    candidates: [
+      { id: "4", name: "Ganztag bis 14.30 Uhr" },
+      { id: "7", name: "Randstunde" },
+    ],
+    ambiguous: true,
+  });
+  const clear = {
+    offerings: [{ id: "7", name: "Randstunde" }],
+    gradeLevels: [],
+    schoolClasses: [],
+    unbookedCount: 1,
+    missingCount: 0,
+    candidates: [{ id: "7", name: "Randstunde" }],
+    ambiguous: false,
+  };
+  const choiceLine =
+    "Sollen nur Kinder kommen, die für ein Angebot angemeldet sind? Dazu passen mehrere Angebote. Wählen Sie eins.";
+
+  it.each([
+    {
+      target: "Klasse",
+      form: { targetGroupType: "klasse" as const, targetSchoolClasses: ["3a"] },
+      filter: { schoolClasses: ["3a"], gradeLevels: [] },
+      mode: "klasse",
+      field: ["sourceSchoolClasses", ["3a"]],
+    },
+    {
+      target: "Jahrgang",
+      form: { targetGroupType: "jahrgang" as const, targetGradeLevels: ["3"] },
+      filter: { schoolClasses: [], gradeLevels: [3] },
+      mode: "jahrgang",
+      field: ["sourceGradeLevels", [3]],
+    },
+  ])(
+    "offers every fitting offering of the $target as an equal choice and preselects none",
+    async ({ form, filter, mode, field }) => {
+      getOfferingSuggestion.mockReset().mockResolvedValue(ambiguous(filter));
+      const changeTargetGroupType = vi.fn();
+      const changeSourceFilterMode = vi.fn();
+      const { update, changeSourceOfferings } = renderStep({
+        form: cohortForm(form),
+        targetCohort: cohort,
+        changeTargetGroupType,
+        changeSourceFilterMode,
+      });
+
+      expect(await screen.findByText(choiceLine)).toBeInTheDocument();
+      expect(getOfferingSuggestion).toHaveBeenCalledWith({
+        periodId: "4",
+        type: "care",
+        listKind: "edge_hours",
+        endTime: "13:00",
+        roster,
+        ...filter,
+      });
+      const ganztag = screen.getByRole("button", {
+        name: "„Ganztag bis 14.30 Uhr“ übernehmen",
+      });
+      const randstunde = screen.getByRole("button", {
+        name: "„Randstunde“ übernehmen",
+      });
+      // Equal choices look the same.
+      expect(ganztag.className).toBe(randstunde.className);
+      expect(
+        screen.queryByRole("button", { name: "Angebot übernehmen" }),
+      ).not.toBeInTheDocument();
+      expect(changeSourceOfferings).not.toHaveBeenCalled();
+
+      fireEvent.click(randstunde);
+
+      expect(changeTargetGroupType).toHaveBeenCalledWith("angebot");
+      expect(changeSourceOfferings).toHaveBeenCalledWith(["7"]);
+      expect(changeSourceFilterMode).toHaveBeenCalledWith(mode);
+      expect(update).toHaveBeenCalledWith(...field);
+    },
+  );
+
+  it.each([
+    {
+      target: "Gruppe",
+      form: { targetGroupType: "gruppe" as const, educationGroupIds: ["g1"] },
+      targetCohort: { label: "Gruppe Bären", memberIds: ["11", "12", "13"] },
+    },
+    {
+      target: "Einzelkind",
+      form: {
+        targetGroupType: "none" as const,
+        studentIds: ["11", "12", "13"],
+      },
+      targetCohort: { label: null, memberIds: [] },
+    },
+  ])(
+    "keeps the single suggestion for a $target",
+    async ({ form, targetCohort }) => {
+      getOfferingSuggestion.mockReset().mockResolvedValue(clear);
+      const { changeSourceOfferings } = renderStep({
+        form: cohortForm(form),
+        targetCohort,
+      });
+
+      expect(
+        await screen.findByText(
+          "Sollen nur die für „Randstunde“ angemeldeten Kinder kommen? Dann verbinden Sie den Termin mit dem Angebot.",
+        ),
+      ).toBeInTheDocument();
+      expect(getOfferingSuggestion).toHaveBeenCalledWith({
+        periodId: "4",
+        type: "care",
+        listKind: "edge_hours",
+        endTime: "13:00",
+        roster,
+        schoolClasses: [],
+        gradeLevels: [],
+      });
+      expect(screen.queryByText(choiceLine)).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Angebot übernehmen" }),
+      );
+
+      expect(changeSourceOfferings).toHaveBeenCalledWith(["7"]);
+    },
+  );
+});
+
+describe("StepPersonalKinder — mehrere Angebote zusammen (#5139)", () => {
+  it.each(["4", "8"])(
+    "keeps Randstunde when choosing Ganztag %s",
+    async (id) => {
+      const randstunde = { id: "7", name: "Randstunde" };
+      const ganztag = { id: "4", name: "Ganztag bis 14.30 Uhr" };
+      const spaet = { id: "8", name: "Ganztag bis 16 Uhr" };
+      getOfferingSuggestion.mockReset().mockResolvedValue({
+        offerings: [ganztag, randstunde],
+        combinations: [
+          [ganztag, randstunde],
+          [spaet, randstunde],
+        ],
+        candidates: [ganztag, randstunde, spaet],
+        gradeLevels: [],
+        schoolClasses: ["1a"],
+        unbookedCount: 0,
+        missingCount: 0,
+        ambiguous: true,
+      });
+      const { changeSourceOfferings } = renderStep({
+        form: {
+          ...emptyForm("2026-09-14", "4"),
+          listKind: "edge_hours" as const,
+          targetGroupType: "klasse" as const,
+          targetSchoolClasses: ["1a"],
+          weekdays: [1, 3, 4],
+        },
+        targetCohort: { label: "Klasse 1a", memberIds: ["11", "12", "13"] },
+      });
+
+      const name = id === "4" ? ganztag.name : spaet.name;
+      const choice = await screen.findByRole("button", {
+        name: `„${name}“ und „Randstunde“ übernehmen`,
+      });
+      expect(changeSourceOfferings).not.toHaveBeenCalled();
+      fireEvent.click(choice);
+      expect(changeSourceOfferings).toHaveBeenCalledWith([id, "7"]);
+    },
+  );
+
+  it("takes over Randstunde and Ganztag together for Klasse 1a", async () => {
+    getOfferingSuggestion.mockReset().mockResolvedValue({
+      offerings: [
+        { id: "7", name: "Randstunde" },
+        { id: "4", name: "Ganztag" },
+      ],
+      gradeLevels: [],
+      schoolClasses: ["1a"],
+      unbookedCount: 1,
+      missingCount: 0,
+      candidates: [
+        { id: "7", name: "Randstunde" },
+        { id: "4", name: "Ganztag" },
+      ],
+      ambiguous: false,
+    });
+    const changeTargetGroupType = vi.fn();
+    const changeSourceFilterMode = vi.fn();
+    const { update, changeSourceOfferings } = renderStep({
+      form: {
+        ...emptyForm("2026-09-14", "4"),
+        listKind: "edge_hours" as const,
+        targetGroupType: "klasse" as const,
+        targetSchoolClasses: ["1a"],
+        weekdays: [1, 3, 4],
+      },
+      targetCohort: { label: "Klasse 1a", memberIds: ["11", "12", "13"] },
+      changeTargetGroupType,
+      changeSourceFilterMode,
+    });
+
+    expect(
+      await screen.findByText(
+        "Sollen nur die für „Randstunde“ oder „Ganztag“ angemeldeten Kinder kommen? Dann verbinden Sie den Termin mit diesen Angeboten.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Angebote übernehmen" }),
+    );
+
+    expect(changeTargetGroupType).toHaveBeenCalledWith("angebot");
+    expect(changeSourceOfferings).toHaveBeenCalledWith(["7", "4"]);
+    expect(changeSourceFilterMode).toHaveBeenCalledWith("klasse");
+    expect(update).toHaveBeenCalledWith("sourceSchoolClasses", ["1a"]);
   });
 });

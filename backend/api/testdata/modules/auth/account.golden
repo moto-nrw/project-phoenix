@@ -1,0 +1,2 @@
+GET /auth/account -> basis
+GET /auth/account/tenants -> basis

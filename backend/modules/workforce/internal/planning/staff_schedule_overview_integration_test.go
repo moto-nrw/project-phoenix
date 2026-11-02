@@ -12,6 +12,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -100,7 +101,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	localOverview, err := testpkg.MeasuredTenantQuery2(t, testpkg.Ctx(t), countedDB, queryCounter, service.GetOverview, date, date.AddDays(4))
 	require.NoError(t, err)
 	// Overview query count must stay fixed as assignment volume grows.
-	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.week", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.week", queryCounter.Queries())
 	assert.False(t, localOverview.DienstplanInUse, "foreign tenant shift must not activate the local Dienstplan")
 	localAssignments := make(map[int64]planning.StaffScheduleAssignment)
 	for _, assignment := range localOverview.Assignments {
@@ -123,7 +124,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	// tenant: a Dienstplan-active week adds exactly one batched
 	// staff-work-schedule read for the weekly Soll summaries (#1837).
 	// Cumulative on the same counter: 6 without shifts plus 7 with an active Dienstplan week.
-	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.week_plus_dienstplan_week", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.week_plus_dienstplan_week", queryCounter.Queries())
 	assert.True(t, foreignOverview.DienstplanInUse)
 	require.Len(t, foreignOverview.Assignments, 1)
 	assert.Equal(t, foreign.instanceID, foreignOverview.Assignments[0].InstanceID)
@@ -222,7 +223,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	// 6 base reads + 1 staff-work-schedule batch + 2 for the work-time-model
 	// fallback (models + entries). The fallback fires only because one staff
 	// member has a model and no schedule rows.
-	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.weekly_summaries", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.weekly_summaries", queryCounter.Queries())
 
 	summaries := make(map[int64]planning.StaffWeeklySummary, len(overview.WeeklySummaries))
 	for _, summary := range overview.WeeklySummaries {

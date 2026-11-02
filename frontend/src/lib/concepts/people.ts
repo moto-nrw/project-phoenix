@@ -1,0 +1,11 @@
+import { AddressBookIcon } from "@phosphor-icons/react/ssr";
+import { defineMotoConcept } from "./define";
+
+export const peopleConcept = defineMotoConcept(
+  "people",
+  "Personen",
+  AddressBookIcon,
+  "teal",
+  "core",
+  "people",
+);

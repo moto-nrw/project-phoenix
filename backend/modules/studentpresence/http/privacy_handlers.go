@@ -46,12 +46,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Find the most recent accepted consent
-	var consent *studentpresence.PrivacyConsent
-	for i, c := range consents {
-		if c.Accepted && (consent == nil || c.CreatedAt.After(consent.CreatedAt)) {
-			consent = &consents[i]
-		}
-	}
+	consent := studentpresence.LatestAcceptedPrivacyConsent(consents)
 
 	// If no consent exists, return a default response
 	if consent == nil {

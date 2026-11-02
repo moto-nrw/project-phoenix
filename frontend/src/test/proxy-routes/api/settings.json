@@ -1,0 +1,13 @@
+{
+  "api/settings/home-layout": [
+    "DELETE tenant /api/settings/home-layout",
+    "GET tenant /api/settings/home-layout",
+    "PUT tenant /api/settings/home-layout"
+  ],
+  "api/settings/home-layout/policies": [
+    "PUT tenant /api/settings/home-layout/policies"
+  ],
+  "api/settings/payroll-status": [
+    "GET tenant /api/settings/payroll-status"
+  ]
+}

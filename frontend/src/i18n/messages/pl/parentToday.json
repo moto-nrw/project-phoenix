@@ -1,0 +1,36 @@
+{
+  "today": "Dziś",
+  "sectionTitle": "Dziś",
+  "sectionDescription": "Status dnia i ważne działania w jednym miejscu.",
+  "statusLabel": "Aktualny status",
+  "atOgs": "W OGS",
+  "notAtOgs": "Poza OGS",
+  "state": {
+    "present": "W OGS od {time}",
+    "presentNoTime": "Dziś obecne",
+    "left": "Poszło do domu o {time}",
+    "leftNoTime": "Dziś poszło do domu",
+    "expected": "Przyjdzie dziś o {time}",
+    "expectedNoTime": "Przyjdzie dziś",
+    "notArrived": "Oczekiwane od {time}",
+    "notArrivedNoTime": "Oczekiwane",
+    "absent": "Dziś zgłoszona nieobecność",
+    "noCare": "Dziś bez opieki",
+    "unknown": "Status jest obecnie niedostępny"
+  },
+  "actions": {
+    "profile": "Zobacz profil",
+    "sick": "Zgłoś nieobecność: {name}",
+    "sickCompact": "Zgłoś nieobecność",
+    "sickHint": "Zgłoś chorobę lub zwolnienie",
+    "pickup": "Zmień godzinę odbioru: {name}",
+    "pickupCompact": "Zmień godzinę odbioru",
+    "pickupHint": "Zmień godzinę odbioru na jeden dzień",
+    "message": "Napisz wiadomość",
+    "messageCompact": "Napisz wiadomość",
+    "messageHint": "Napisz do OGS w sprawie: {name}",
+    "pickupWithMode": "Zmień odbiór: {name}",
+    "pickupCompactWithMode": "Zmień odbiór",
+    "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień"
+  }
+}

@@ -112,8 +112,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/staff")).toBe("Mitarbeiter");
       });
 
-      it("should return 'Dienstplan' for /staff/dienstplan", () => {
-        expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
+      it("should return 'Dienstplan' for /dienstplan", () => {
+        expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
       });
 
       it("should return 'Aktivitäten' for /activities", () => {
@@ -124,16 +124,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/substitutions")).toBe("Übergaben");
       });
 
-      it("titles the three planning areas and their redirect frames", () => {
-        // Die Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
-        // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
+      it("titles the three canonical planning areas", () => {
         expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
         expect(getPageTitle("/vertretung")).toBe("Vertretungsplan");
-        expect(getPageTitle("/planung")).toBe("Planung");
-        expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
-        expect(getPageTitle("/vertretungsplan")).toBe("Vertretungsplan");
-        expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
       it("should return 'Schuljahr und Kalender' for /calendar-periods", () => {
@@ -412,17 +406,17 @@ describe("breadcrumb-utils", () => {
         expect(result?.sectionHref).toBeUndefined();
       });
 
-      it("should map legacy planning paths to their current entry", () => {
-        expect(getSectionBreadcrumb("/timetables")?.pageLabel).toBe(
+      it("should map canonical planning paths to their current entry", () => {
+        expect(getSectionBreadcrumb("/betreuungsplan")?.pageLabel).toBe(
           "Betreuungsplan",
         );
-        expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
+        expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
           "Vertretungsplan",
         );
-        expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
+        expect(getSectionBreadcrumb("/dienstplan")?.pageLabel).toBe(
           "Dienstplan",
         );
-        expect(getSectionBreadcrumb("/staff/dienstplan")?.sectionLabel).toBe(
+        expect(getSectionBreadcrumb("/dienstplan")?.sectionLabel).toBe(
           "Planung",
         );
       });
@@ -605,7 +599,7 @@ describe("breadcrumb-utils", () => {
 
     describe("staff pages", () => {
       it("does not treat Dienstplan as a staff detail page", () => {
-        const info = getPageTypeInfo("/staff/dienstplan");
+        const info = getPageTypeInfo("/dienstplan");
         expect(info.isStaffDetailPage).toBe(false);
       });
     });

@@ -37,6 +37,13 @@ const (
 	TraegerRoleBilling        = "billing"
 	TraegerRolePersonnel      = "personnel"
 	TraegerRoleReadOnly       = "read_only"
+	// TraegerRoleLeadership alone manages the accounts of the Träger-Büro
+	// (#5471): only a person with Leitung grants, withdraws or removes
+	// Leitung, and the last usable Leitung stays.
+	TraegerRoleLeadership = "leadership"
+	// TraegerRoleSchoolAccess opens the schools of the Träger as their admin
+	// (#5471), for the Fachberatung that works in the schools.
+	TraegerRoleSchoolAccess = "school_access"
 )
 
 // The Träger rights of ADR 0084 section 4. They travel only in Träger-Portal
@@ -54,17 +61,23 @@ const (
 	TraegerRightAccountsManage   = "traeger_accounts:manage"
 	TraegerRightAccessLogRead    = "traeger_access_log:read"
 	TraegerRightSchoolSwitch     = "traeger_school:switch"
+	// TraegerRightHealthRead opens the health information of the holiday
+	// registrations (#4722, ADR 0084 section 4 addendum).
+	TraegerRightHealthRead = "traeger_health:read"
 )
 
-// traegerRoleRights is the role table of ADR 0084 section 4.
+// traegerRoleRights is the role table of ADR 0084 section 4 with its
+// addendum of #5471: Verwaltung no longer manages accounts or opens schools.
 var traegerRoleRights = map[string][]string{
 	TraegerRoleAdministration: {
 		TraegerRightOverviewRead, TraegerRightEnrollmentManage, TraegerRightContractsManage, TraegerRightReportsRead,
-		TraegerRightSettingsManage, TraegerRightAccountsManage, TraegerRightAccessLogRead, TraegerRightSchoolSwitch,
+		TraegerRightSettingsManage, TraegerRightAccessLogRead, TraegerRightHealthRead,
 	},
-	TraegerRoleBilling:   {TraegerRightOverviewRead, TraegerRightBillingManage, TraegerRightFinanceExport, TraegerRightReportsRead},
-	TraegerRolePersonnel: {TraegerRightOverviewRead, TraegerRightStaffManage, TraegerRightReportsRead},
-	TraegerRoleReadOnly:  {TraegerRightOverviewRead, TraegerRightReportsRead},
+	TraegerRoleLeadership:   {TraegerRightOverviewRead, TraegerRightAccountsManage},
+	TraegerRoleSchoolAccess: {TraegerRightOverviewRead, TraegerRightSchoolSwitch},
+	TraegerRoleBilling:      {TraegerRightOverviewRead, TraegerRightBillingManage, TraegerRightFinanceExport, TraegerRightReportsRead},
+	TraegerRolePersonnel:    {TraegerRightOverviewRead, TraegerRightStaffManage, TraegerRightReportsRead},
+	TraegerRoleReadOnly:     {TraegerRightOverviewRead, TraegerRightReportsRead},
 }
 
 // traegerRoleLabels are the German names the Träger-Portal shows.
@@ -73,6 +86,8 @@ var traegerRoleLabels = map[string]string{
 	TraegerRoleBilling:        "Abrechnung",
 	TraegerRolePersonnel:      "Personal",
 	TraegerRoleReadOnly:       "Nur lesen",
+	TraegerRoleLeadership:     "Leitung",
+	TraegerRoleSchoolAccess:   "Schulzugang",
 }
 
 // TraegerRoleLabels names the roles in German, joined like a sentence:

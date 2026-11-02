@@ -40,6 +40,7 @@ import {
   conflictWarningText,
   type EventFormState,
   type RepeatMode,
+  type SeriesSourcePrefill,
 } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
 import { StepTermin } from "./event-form/step-termin";
@@ -147,6 +148,8 @@ interface TimetableEventModalProps {
   variant?: "full" | "quick";
   defaultStartTime?: string;
   defaultEndTime?: string;
+  /** A new Regeltermin fed by this offering (from „Regeltermin anlegen“, #5140). */
+  defaultSource?: SeriesSourcePrefill | null;
   canCheckShiftCoverage: boolean;
   canManageCategories: boolean;
   canManagePlanningTracks?: boolean;
@@ -187,6 +190,7 @@ export function TimetableEventModal({
   variant = "full",
   defaultStartTime,
   defaultEndTime,
+  defaultSource = null,
   canCheckShiftCoverage,
   canManageCategories,
   canManagePlanningTracks = false,
@@ -326,6 +330,7 @@ export function TimetableEventModal({
     variant,
     defaultStartTime,
     defaultEndTime,
+    defaultSource,
     canCheckShiftCoverage,
     closingDayRanges,
   });

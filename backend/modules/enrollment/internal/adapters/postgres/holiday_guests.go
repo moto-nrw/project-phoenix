@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -43,28 +44,59 @@ type holidayGuestWeekRow struct {
 
 type holidayGuestRow struct {
 	bun.BaseModel   `bun:"table:enrollment.holiday_guests"`
-	ID              int64          `bun:"id"`
-	OrganizationID  int64          `bun:"organization_id"`
-	WeekID          int64          `bun:"holiday_period_week_id"`
-	ChildID         int64          `bun:"holiday_registration_child_id"`
-	StudentID       int64          `bun:"student_id"`
-	StartsOn        calendar.Date  `bun:"starts_on"`
-	EndsOn          calendar.Date  `bun:"ends_on"`
-	EndedOn         *calendar.Date `bun:"ended_on"`
-	HomeSchoolID    *int64         `bun:"home_school_id"`
-	GuestSchoolName string         `bun:"guest_school_name"`
-	TimeModelName   string         `bun:"time_model_name"`
-	TimeModelStarts string         `bun:"time_model_starts_at"`
-	TimeModelEnds   string         `bun:"time_model_ends_at"`
+	ID              int64           `bun:"id"`
+	OrganizationID  int64           `bun:"organization_id"`
+	WeekID          int64           `bun:"holiday_period_week_id"`
+	ChildID         int64           `bun:"holiday_registration_child_id"`
+	StudentID       int64           `bun:"student_id"`
+	StartsOn        calendar.Date   `bun:"starts_on"`
+	EndsOn          calendar.Date   `bun:"ends_on"`
+	EndedOn         *calendar.Date  `bun:"ended_on"`
+	HomeSchoolID    *int64          `bun:"home_school_id"`
+	GuestSchoolName string          `bun:"guest_school_name"`
+	TimeModelName   string          `bun:"time_model_name"`
+	TimeModelStarts string          `bun:"time_model_starts_at"`
+	TimeModelEnds   string          `bun:"time_model_ends_at"`
+	Answers         json.RawMessage `bun:"answers,type:jsonb"`
+	HealthData      []byte          `bun:"health_data"`
 }
 
-func (r *holidayGuestRow) guest() enrollment.HolidayGuest {
+func (r *holidayGuestRow) guest() (enrollment.HolidayGuest, error) {
+	answers, err := decodeHostAnswers(r.Answers)
+	if err != nil {
+		return enrollment.HolidayGuest{}, err
+	}
 	return enrollment.HolidayGuest{
 		ID: r.ID, OrganizationID: r.OrganizationID, WeekID: r.WeekID, ChildID: r.ChildID, StudentID: r.StudentID,
 		StartsOn: r.StartsOn, EndsOn: r.EndsOn, EndedOn: r.EndedOn, HomeSchoolID: r.HomeSchoolID,
 		GuestSchoolName: r.GuestSchoolName, TimeModelName: r.TimeModelName, TimeModelStarts: r.TimeModelStarts,
-		TimeModelEnds: r.TimeModelEnds,
+		TimeModelEnds: r.TimeModelEnds, Answers: answers, HealthSealed: r.HealthData,
+	}, nil
+}
+
+// guests decodes stored guest rows.
+func guests(rows []holidayGuestRow) ([]enrollment.HolidayGuest, error) {
+	result := make([]enrollment.HolidayGuest, len(rows))
+	for i := range rows {
+		guest, err := rows[i].guest()
+		if err != nil {
+			return nil, err
+		}
+		result[i] = guest
 	}
+	return result, nil
+}
+
+// encodeHostAnswers is the stored form of the shared answers of a guest.
+func encodeHostAnswers(answers []enrollment.HolidayHostAnswer) (string, error) {
+	if answers == nil {
+		answers = []enrollment.HolidayHostAnswer{}
+	}
+	encoded, err := json.Marshal(answers)
+	if err != nil {
+		return "", fmt.Errorf("enrollment postgres: encode shared holiday answers: %w", err)
+	}
+	return string(encoded), nil
 }
 
 type holidayGuestContactRow struct {
@@ -78,17 +110,21 @@ type holidayGuestContactRow struct {
 
 const (
 	holidayGuestColumns = `id, organization_id, holiday_period_week_id, holiday_registration_child_id, student_id,
-		starts_on, ends_on, ended_on, home_school_id, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at`
+		starts_on, ends_on, ended_on, home_school_id, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at,
+		enrollment.holiday_guest_shared_answers(id) AS answers, health_data`
 	guestWeekQuery = `SELECT week.id, week.organization_id, week.starts_on, week.ends_on
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
 			ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
 		WHERE week.host_school_id = ? AND week.id = ? AND week.ends_on >= ? AND period.status = 'published'`
-	// guestSourceQuery reads the minimum fields and the booked time model of
-	// the confirmed children of the week who are no students of the school.
+	// guestSourceQuery reads the minimum fields, the booked time model and
+	// the shared answers of the confirmed children of the week who are no
+	// students of the school.
 	guestSourceQuery = `SELECT participant.child_id, participant.first_name, participant.last_name, participant.birth_date,
 			participant.home_school_id, participant.guest_school_name, model.name AS time_model_name,
-			to_char(model.starts_at, 'HH24:MI') AS time_model_starts, to_char(model.ends_at, 'HH24:MI') AS time_model_ends
+			to_char(model.starts_at, 'HH24:MI') AS time_model_starts, to_char(model.ends_at, 'HH24:MI') AS time_model_ends,
+			participant.answers, participant.registration_id, participant.child_position, participant.health_data,
+			participant.family_health_data, participant.health_fields
 		FROM enrollment.holiday_host_participants(?, ?) AS participant
 		JOIN enrollment.holiday_week_time_models AS model
 			ON model.organization_id = ? AND model.holiday_period_week_id = ? AND model.id = participant.time_model_id
@@ -104,15 +140,17 @@ const (
 )
 
 type guestSourceRow struct {
-	ChildID         int64         `bun:"child_id"`
-	FirstName       string        `bun:"first_name"`
-	LastName        string        `bun:"last_name"`
-	BirthDate       calendar.Date `bun:"birth_date"`
-	HomeSchoolID    *int64        `bun:"home_school_id"`
-	GuestSchoolName string        `bun:"guest_school_name"`
-	TimeModelName   string        `bun:"time_model_name"`
-	TimeModelStarts string        `bun:"time_model_starts"`
-	TimeModelEnds   string        `bun:"time_model_ends"`
+	ChildID         int64           `bun:"child_id"`
+	FirstName       string          `bun:"first_name"`
+	LastName        string          `bun:"last_name"`
+	BirthDate       calendar.Date   `bun:"birth_date"`
+	HomeSchoolID    *int64          `bun:"home_school_id"`
+	GuestSchoolName string          `bun:"guest_school_name"`
+	TimeModelName   string          `bun:"time_model_name"`
+	TimeModelStarts string          `bun:"time_model_starts"`
+	TimeModelEnds   string          `bun:"time_model_ends"`
+	Answers         json.RawMessage `bun:"answers,type:jsonb"`
+	hostedHealthColumns
 }
 
 // LockGuests takes the transaction lock of the school's holiday guests.
@@ -214,10 +252,19 @@ func (s *HolidayGuestStore) ListGuestSources(ctx context.Context, schoolID int64
 	byChild := make(map[int64]*enrollment.HolidayGuestSource, len(rows))
 	sources := make([]enrollment.HolidayGuestSource, len(rows))
 	for i, row := range rows {
+		answers, err := decodeHostAnswers(row.Answers)
+		if err != nil {
+			return nil, err
+		}
+		sealed, err := row.sealed(week.OrganizationID)
+		if err != nil {
+			return nil, err
+		}
 		sources[i] = enrollment.HolidayGuestSource{
 			ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate,
 			HomeSchoolID: row.HomeSchoolID, GuestSchoolName: row.GuestSchoolName,
 			TimeModelName: row.TimeModelName, TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds,
+			Answers: answers, Sealed: sealed,
 		}
 		byChild[row.ChildID] = &sources[i]
 	}
@@ -246,21 +293,17 @@ func (s *HolidayGuestStore) ListOpenGuests(ctx context.Context, schoolID, weekID
 	if err != nil {
 		return nil, err
 	}
-	var guests []holidayGuestRow
+	var rows []holidayGuestRow
 	query := db.NewSelect().TableExpr("enrollment.holiday_guests").ColumnExpr(holidayGuestColumns).
 		Where("tenant_id = ?", schoolID).Where("ended_on IS NULL").Where("ends_on >= ?", from).
 		OrderExpr("holiday_period_week_id, holiday_registration_child_id")
 	if weekID > 0 {
 		query = query.Where("holiday_period_week_id = ?", weekID)
 	}
-	if err := query.Scan(ctx, &guests); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: list holiday guests: %w", err)
 	}
-	result := make([]enrollment.HolidayGuest, len(guests))
-	for i, guest := range guests {
-		result[i] = guest.guest()
-	}
-	return result, nil
+	return guests(rows)
 }
 
 // ListWeekGuests lists every guest of one week of the school, also those
@@ -270,17 +313,13 @@ func (s *HolidayGuestStore) ListWeekGuests(ctx context.Context, schoolID, weekID
 	if err != nil {
 		return nil, err
 	}
-	var guests []holidayGuestRow
+	var rows []holidayGuestRow
 	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").ColumnExpr(holidayGuestColumns).
 		Where("tenant_id = ?", schoolID).Where("holiday_period_week_id = ?", weekID).
-		OrderExpr("holiday_registration_child_id").Scan(ctx, &guests); err != nil {
+		OrderExpr("holiday_registration_child_id").Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: list holiday guests of the week: %w", err)
 	}
-	result := make([]enrollment.HolidayGuest, len(guests))
-	for i := range guests {
-		result[i] = guests[i].guest()
-	}
-	return result, nil
+	return guests(rows)
 }
 
 // ReopenGuest clears the early end of a guest.
@@ -296,38 +335,47 @@ func (s *HolidayGuestStore) ReopenGuest(ctx context.Context, schoolID, guestID i
 	return nil
 }
 
-// InsertGuest stores a new guest with its contacts.
+// InsertGuest stores a new guest with its contacts and shared answers.
 func (s *HolidayGuestStore) InsertGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error {
 	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return err
+	}
+	answers, err := encodeHostAnswers(guest.Answers)
 	if err != nil {
 		return err
 	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO enrollment.holiday_guests (tenant_id, organization_id, holiday_period_week_id,
 			holiday_registration_child_id, student_id, starts_on, ends_on, home_school_id, guest_school_name,
-			time_model_name, time_model_starts_at, time_model_ends_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			time_model_name, time_model_starts_at, time_model_ends_at, answers, health_data)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING id`,
 		schoolID, guest.OrganizationID, guest.WeekID, guest.ChildID, guest.StudentID, guest.StartsOn, guest.EndsOn,
-		guest.HomeSchoolID, guest.GuestSchoolName, guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds,
+		guest.HomeSchoolID, guest.GuestSchoolName, guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds, answers,
+		guest.HealthSealed,
 	).Scan(ctx, &id); err != nil {
 		return fmt.Errorf("enrollment postgres: insert holiday guest: %w", err)
 	}
 	return insertGuestContacts(ctx, db, schoolID, id, guest)
 }
 
-// UpdateGuest replaces the booked care, the home school and the contacts of
-// a guest.
+// UpdateGuest replaces the booked care, the home school, the contacts and
+// the shared answers of a guest.
 func (s *HolidayGuestStore) UpdateGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error {
 	db, err := hostDB(ctx, schoolID)
 	if err != nil {
 		return err
 	}
+	answers, err := encodeHostAnswers(guest.Answers)
+	if err != nil {
+		return err
+	}
 	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests
 		SET starts_on = ?, ends_on = ?, home_school_id = ?, guest_school_name = ?, time_model_name = ?,
-			time_model_starts_at = ?, time_model_ends_at = ?, updated_at = CURRENT_TIMESTAMP
+			time_model_starts_at = ?, time_model_ends_at = ?, answers = ?::jsonb, health_data = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE tenant_id = ? AND id = ?`,
 		guest.StartsOn, guest.EndsOn, guest.HomeSchoolID, guest.GuestSchoolName, guest.TimeModelName,
-		guest.TimeModelStarts, guest.TimeModelEnds, schoolID, guest.ID).Exec(ctx); err != nil {
+		guest.TimeModelStarts, guest.TimeModelEnds, answers, guest.HealthSealed, schoolID, guest.ID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday guest: %w", err)
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.holiday_guest_contacts WHERE tenant_id = ? AND holiday_guest_id = ?`,
@@ -365,13 +413,15 @@ func insertGuestContacts(ctx context.Context, db bun.IDB, schoolID, guestID int6
 }
 
 // EndGuest records that the access to a guest ended early on endedOn and
-// deletes its contacts: a cancelled guest keeps nothing beyond its name.
+// deletes its contacts, shared answers and health information: a cancelled
+// guest keeps nothing beyond its name.
 func (s *HolidayGuestStore) EndGuest(ctx context.Context, schoolID, guestID int64, endedOn calendar.Date) error {
 	db, err := hostDB(ctx, schoolID)
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests SET ended_on = ?, updated_at = CURRENT_TIMESTAMP
+	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests
+		SET ended_on = ?, answers = '[]'::jsonb, health_data = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE tenant_id = ? AND id = ?`, endedOn, schoolID, guestID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: end holiday guest: %w", err)
 	}
@@ -382,20 +432,58 @@ func (s *HolidayGuestStore) EndGuest(ctx context.Context, schoolID, guestID int6
 	return nil
 }
 
-// PurgeContacts deletes the contacts of every guest whose week ended before
-// lastReadableEnd: the read-only days after the week are over.
-func (s *HolidayGuestStore) PurgeContacts(ctx context.Context, schoolID int64, lastReadableEnd calendar.Date) error {
+// PurgeContacts deletes the contacts, the shared answers and the health
+// information of every guest whose week ended before lastReadableEnd: the
+// read-only days after the week are over. It returns the children whose
+// health information went, so their health field goes too (#4722).
+func (s *HolidayGuestStore) PurgeContacts(ctx context.Context, schoolID int64, lastReadableEnd calendar.Date) ([]int64, error) {
 	db, err := hostDB(ctx, schoolID)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	var purged []int64
+	if err := db.NewRaw(`WITH expired AS (
+			SELECT id, health_data IS NOT NULL AS had_health FROM enrollment.holiday_guests
+			WHERE tenant_id = ? AND ends_on < ? AND (answers <> '[]'::jsonb OR health_data IS NOT NULL)
+			FOR UPDATE
+		)
+		UPDATE enrollment.holiday_guests AS guest
+		SET answers = '[]'::jsonb, health_data = NULL, updated_at = CURRENT_TIMESTAMP
+		FROM expired
+		WHERE guest.tenant_id = ? AND guest.id = expired.id
+		RETURNING COALESCE(CASE WHEN expired.had_health THEN guest.student_id END, 0)`,
+		schoolID, lastReadableEnd, schoolID).Scan(ctx, &purged); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: delete expired holiday guest answers: %w", err)
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.holiday_guest_contacts AS contact
 		USING enrollment.holiday_guests AS guest
 		WHERE contact.tenant_id = ? AND guest.tenant_id = contact.tenant_id AND guest.id = contact.holiday_guest_id
 			AND guest.ends_on < ?`, schoolID, lastReadableEnd).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: delete expired holiday guest contacts: %w", err)
+		return nil, fmt.Errorf("enrollment postgres: delete expired holiday guest contacts: %w", err)
 	}
-	return nil
+	students := make([]int64, 0, len(purged))
+	for _, studentID := range purged {
+		if studentID > 0 {
+			students = append(students, studentID)
+		}
+	}
+	return students, nil
+}
+
+// PurgeHealth deletes the health information of every guest whose week
+// ended before today and returns their children (#4722).
+func (s *HolidayGuestStore) PurgeHealth(ctx context.Context, schoolID int64, today calendar.Date) ([]int64, error) {
+	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	var students []int64
+	if err := db.NewRaw(`UPDATE enrollment.holiday_guests SET health_data = NULL, updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = ? AND ends_on < ? AND health_data IS NOT NULL
+		RETURNING student_id`, schoolID, today).Scan(ctx, &students); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: delete ended holiday guest health information: %w", err)
+	}
+	return students, nil
 }
 
 // ReadGuest reads the guest behind a child of the school with its
@@ -406,16 +494,19 @@ func (s *HolidayGuestStore) ReadGuest(ctx context.Context, schoolID, studentID i
 	if err != nil {
 		return enrollment.HolidayGuest{}, false, err
 	}
-	var guests []holidayGuestRow
+	var rows []holidayGuestRow
 	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").ColumnExpr(holidayGuestColumns).
 		Where("tenant_id = ?", schoolID).Where("student_id = ?", studentID).
-		Where("ended_on IS NULL").Where("ends_on >= ?", lastReadableEnd).Scan(ctx, &guests); err != nil {
+		Where("ended_on IS NULL").Where("ends_on >= ?", lastReadableEnd).Scan(ctx, &rows); err != nil {
 		return enrollment.HolidayGuest{}, false, fmt.Errorf("enrollment postgres: read holiday guest: %w", err)
 	}
-	if len(guests) == 0 {
+	if len(rows) == 0 {
 		return enrollment.HolidayGuest{}, false, nil
 	}
-	guest := guests[0].guest()
+	guest, err := rows[0].guest()
+	if err != nil {
+		return enrollment.HolidayGuest{}, false, err
+	}
 	var contacts []holidayGuestContactRow
 	if err := db.NewRaw(guestContactsQuery, schoolID, bun.List([]int64{guest.ID})).Scan(ctx, &contacts); err != nil {
 		return enrollment.HolidayGuest{}, false, fmt.Errorf("enrollment postgres: read holiday guest contacts: %w", err)

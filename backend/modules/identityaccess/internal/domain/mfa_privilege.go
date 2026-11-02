@@ -14,6 +14,7 @@ var PrivilegedMFAPermissions = []string{
 	"staff:manage", "staff:stammdaten", "staff:documents", "staff:financial",
 	"time_tracking:manage", "vacation:approve",
 	"staff_documents:health", "student_documents:health",
+	"student_accidents:read", "student_accidents:manage",
 	"enrollment_uploads:read",
 }
 

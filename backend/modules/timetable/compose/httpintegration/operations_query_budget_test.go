@@ -14,6 +14,7 @@ import (
 	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -67,7 +68,7 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 		largeCount := run()
 		t.Logf("query budget: 3 planned instances → %d queries, 8 planned instances → %d queries", smallCount, largeCount)
 		assert.Equal(t, smallCount, largeCount, "query count must not grow with the planned instance count")
-		testpkg.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
 		return nil
 	}))
 }
@@ -150,7 +151,7 @@ func TestTimetableOperationsPlannedNowCarriesPlanningTrackColour(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		result, err := operations.PlannedNow(ctx, 1, false, date, now, timetable.PlannedNowOptions{})
 		require.NoError(t, err)
-		testpkg.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "services.schedule.planned_now", counter.Queries())
 
 		byID := map[int64]timetable.OperationPlannedInstance{}
 		for _, planned := range result {

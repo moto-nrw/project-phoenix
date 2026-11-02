@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 var testBerlin = time.FixedZone("Europe/Berlin", 2*60*60)
@@ -1482,5 +1483,5 @@ func TestWeeklyListReadsFlatInTheNumberOfChildren(t *testing.T) {
 	register(4)
 	large := run()
 	assert.Len(t, large, len(small), "one candidate and one participation read per day, not per child")
-	testpkg.AssertQueryBudget(t, "modules.mealplan.weekly_participants", large)
+	querybudgets.AssertQueryBudget(t, "modules.mealplan.weekly_participants", large)
 }

@@ -247,8 +247,9 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	// A single-connection pool also proves role/session cleanup between phases.
-	db.SetMaxOpenConns(1)
+	// The smallest supported pool reserves one coordination session and one
+	// work session, exercising role/session cleanup between phases.
+	db.SetMaxOpenConns(2)
 	ctx := t.Context()
 	a := testpkg.Tenant(t)
 	b, _ := testpkg.CreateTestTenant(t, db)

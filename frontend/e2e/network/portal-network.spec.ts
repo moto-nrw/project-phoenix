@@ -8,11 +8,12 @@ import {
 } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
+import { networkPorts } from "./ports.mjs";
 
 type Entry = { origin: string; path: string; contentType: string };
 const sentry = "https://o0.ingest.sentry.io";
 const turnstile = "https://challenges.cloudflare.com";
-const port = 13843;
+const port = networkPorts("network").frontend;
 
 test.beforeAll(async ({ browserName: _browserName }, info) => {
   const url = info.config.webServer?.url;
@@ -119,7 +120,9 @@ async function browserApi(
   // The account's answer survives reloads like the stored backend row.
   let stored = consent;
   await page.route(
-    /^http:\/\/(?:proof-on|proof-off|eltern|schule)\.localhost:13843\/api\//,
+    new RegExp(
+      `^http://(?:proof-on|proof-off|eltern|schule)\\.localhost:${port}/api/`,
+    ),
     async (route) => {
       const path = new URL(route.request().url()).pathname;
       // Exercise real Auth.js login, cookies and session transition.

@@ -1,0 +1,16 @@
+{
+  "title": "Belgeler",
+  "description": "Kurumun size gönderdiği yazıları burada bulursunuz. Örneğin tatil bakımı onayı.",
+  "emptyTitle": "Henüz belge yok",
+  "emptyDescription": "Kurum size bir yazı gönderdiğinde onu burada bulursunuz. Ayrıca e-posta ile de alırsınız.",
+  "confirmationLetter": "Onay yazısı: {period}",
+  "sender": "Gönderen: {traeger}",
+  "children": "Çocuk",
+  "amount": "Tutar",
+  "number": "Fatura numarası",
+  "sentAt": "Gönderildi",
+  "download": "PDF indir",
+  "downloading": "İndiriliyor …",
+  "errorObject": "Belgeler",
+  "downloadErrorObject": "Belge"
+}

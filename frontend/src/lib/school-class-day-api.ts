@@ -417,6 +417,46 @@ export async function withdrawClassHandoverSchool(
   });
 }
 
+/**
+ * Eine Notiz, die die OGS für die Schule freigegeben hat (#4797). Die
+ * Lehrkraft liest sie nur; Sichtbarkeit und Bezug bleiben Sache der OGS.
+ */
+export interface SharedNote {
+  id: string;
+  kind: string;
+  category?: string;
+  body: string;
+  /** Tag, den ein Eintrag beschreibt; fehlt bei einem dauerhaften Hinweis. */
+  subject_date?: string;
+  author_name?: string;
+  edited: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Die freigegebenen Notizen zu einem Kind der Klasse, neueste zuerst. */
+export interface StudentSharedNotes {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  notes: SharedNote[];
+}
+
+/**
+ * Freigegebene Notizen der OGS zu einem Kind (#4797). Nur die Lehrkraft der
+ * Klasse bekommt eine Antwort; jeder Abruf wird protokolliert.
+ */
+export async function fetchSharedNotesSchool(
+  schoolClass: string,
+  studentId: string,
+): Promise<StudentSharedNotes> {
+  const response = await authFetch<ProxyResponse<StudentSharedNotes>>(
+    `/api/school/class-day/shared-notes/${encodeURIComponent(schoolClass)}/students/${encodeURIComponent(studentId)}`,
+  );
+  return response.data;
+}
+
 /** Was die Schulverwaltung nachträgt (#4791). */
 export type AbsenceReportStatus = "sick" | "excused";
 
@@ -453,4 +493,134 @@ export async function withdrawAbsenceReportSchool(
   await authFetch<unknown>(absenceReportPath(schoolClass, date, studentId), {
     method: "DELETE",
   });
+}
+
+// Fehlzeitenliste einer Klasse (#4793): je Kind die Fehltage eines Zeitraums,
+// davon entschuldigt und unentschuldigt, für Klassenbuch und Zeugnis.
+
+/** Gezählte Tage eines Kindes oder der ganzen Klasse. */
+interface AbsenceListCounts {
+  readonly absentDays: number;
+  readonly excusedDays: number;
+  readonly unexcusedDays: number;
+  /** Schultage ohne Anwesenheit und ohne Meldung; kein Fehltag. */
+  readonly notRecordedDays: number;
+}
+
+export interface AbsenceListChild extends AbsenceListCounts {
+  readonly studentId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+}
+
+export interface AbsenceList {
+  readonly availableFrom: string;
+  readonly incomplete: boolean;
+  readonly schoolClass: string;
+  /** "YYYY-MM-DD" */
+  readonly from: string;
+  /** "YYYY-MM-DD" */
+  readonly to: string;
+  /**
+   * Name des Halbjahrs aus dem Schulkalender, wenn der Zeitraum daraus
+   * vorbelegt ist; sonst leer.
+   */
+  readonly periodName: string;
+  /** Letzter gezählter Tag; leer, wenn kein Tag gezählt werden kann. */
+  readonly countedUntil: string;
+  readonly schoolDays: number;
+  readonly children: readonly AbsenceListChild[];
+  readonly totals: AbsenceListCounts;
+}
+
+interface BackendAbsenceListCounts {
+  absent_days: number;
+  excused_days: number;
+  unexcused_days: number;
+  not_recorded_days: number;
+}
+
+interface BackendAbsenceList {
+  available_from: string;
+  incomplete: boolean;
+  school_class: string;
+  from: string;
+  to: string;
+  period_name?: string;
+  counted_until?: string | null;
+  school_days: number;
+  children?: Array<
+    BackendAbsenceListCounts & {
+      student_id: number;
+      first_name: string;
+      last_name: string;
+    }
+  > | null;
+  totals: BackendAbsenceListCounts;
+}
+
+function absenceListCounts(raw: BackendAbsenceListCounts): AbsenceListCounts {
+  return {
+    absentDays: raw.absent_days,
+    excusedDays: raw.excused_days,
+    unexcusedDays: raw.unexcused_days,
+    notRecordedDays: raw.not_recorded_days,
+  };
+}
+
+function mapAbsenceList(raw: BackendAbsenceList): AbsenceList {
+  return {
+    availableFrom: raw.available_from,
+    incomplete: raw.incomplete,
+    schoolClass: raw.school_class,
+    from: raw.from,
+    to: raw.to,
+    periodName: raw.period_name ?? "",
+    countedUntil: raw.counted_until ?? "",
+    schoolDays: raw.school_days,
+    children: (raw.children ?? []).map((child) => ({
+      studentId: String(child.student_id),
+      firstName: child.first_name,
+      lastName: child.last_name,
+      ...absenceListCounts(child),
+    })),
+    totals: absenceListCounts(raw.totals),
+  };
+}
+
+/** Klasse und Zeitraum einer Fehlzeitenliste. */
+export interface AbsenceListQuery {
+  readonly schoolClass: string;
+  /** Ohne Von und Bis gilt das laufende Schulhalbjahr. */
+  readonly period?: { readonly from: string; readonly to: string };
+}
+
+function absenceListParams(query: AbsenceListQuery): URLSearchParams {
+  const params = new URLSearchParams({ class: query.schoolClass });
+  if (query.period) {
+    params.set("from", query.period.from);
+    params.set("to", query.period.to);
+  }
+  return params;
+}
+
+export async function fetchAbsenceListSchool(
+  query: AbsenceListQuery,
+): Promise<AbsenceList> {
+  const response = await authFetch<ProxyResponse<BackendAbsenceList>>(
+    `/api/school/class-day/absence-list?${absenceListParams(query).toString()}`,
+  );
+  return mapAbsenceList(response.data);
+}
+
+export type AbsenceListExportFormat = "pdf" | "xlsx";
+
+/** Adresse des Exports als PDF oder Excel (#4793). */
+export function absenceListExportPath(
+  query: AbsenceListQuery,
+  format: AbsenceListExportFormat,
+): string {
+  const params = absenceListParams(query);
+  params.set("format", format);
+  return `/api/school/class-day/absence-list/export?${params.toString()}`;
 }

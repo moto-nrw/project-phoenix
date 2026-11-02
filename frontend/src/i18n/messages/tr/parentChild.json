@@ -1,0 +1,93 @@
+{
+  "switcherLabel": "Çocuk seçin",
+  "overviewKicker": "Çocuklara genel bakış",
+  "overviewDescription": "Bakım, bilgiler ve kişileri görmek için bir çocuk seçin.",
+  "ogsLabel": "OGS",
+  "careEnded": {
+    "title": "Bakım sona erdi",
+    "body": "Çocuğunuz bu OGS'de artık bakım almıyor. Önceki her şeyi görmeye devam edebilirsiniz. Yeni bildirimler artık mümkün değil."
+  },
+  "notFound": "Bu adres için hesabınızda bir çocuk yok. Lütfen çocuğunuzu genel bakıştan seçin.",
+  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
+  "sections": {
+    "today": "Bugün",
+    "care": "OGS'de bakım",
+    "data": "Çocuk bilgileri",
+    "people": "Veliler ve teslim almaya yetkili kişiler"
+  },
+  "areas": {
+    "label": "Çocukla ilgili alanlar",
+    "open": "Görüntüle",
+    "openLabel": "{area} alanını görüntüle",
+    "back": "Genel bakışa dön",
+    "care": {
+      "title": "Bakım ve haftalık plan",
+      "shortTitle": "Bakım",
+      "description": "Kayıtlı bakım, düzenli teslim alma saatleri ve eve dönüş yolu."
+    },
+    "data": {
+      "title": "Çocuk bilgileri",
+      "shortTitle": "Bilgiler",
+      "description": "Kişisel bilgiler, sınıf ve sağlık."
+    },
+    "contacts": {
+      "title": "Kişiler ve teslim alma",
+      "shortTitle": "Kişiler",
+      "description": "Veliler, teslim alma yetkileri ve uygulama erişimleri."
+    }
+  },
+  "today": {
+    "pickupLabel": "Teslim alma",
+    "pickup": "Bugün teslim alma saati {time}",
+    "pickupChanged": "Bugün teslim alma saati {time}, bugün için değiştirildi",
+    "pickupAbsent": "Bugün mazeretli, teslim alma yok",
+    "pickupNone": "Bugün için teslim alma kaydı yok",
+    "pickupUnknown": "Teslim alma saati şu anda görüntülenemiyor"
+  },
+  "care": {
+    "weekTitle": "OGS haftalık planınız",
+    "absenceTitle": "Devamsızlıklar"
+  },
+  "consents": {
+    "title": "Onaylar ve izinler",
+    "description": "Çocuğunuz için nelerin kayıtlı olduğunu burada görebilirsiniz.",
+    "staffDescription": "Yalnızca bilgi amaçlıdır. Veliler fotoğraf iznini veli portalında değiştirir.",
+    "photoDescription": "Fotoğraf iznini burada değiştirebilirsiniz.",
+    "items": {
+      "agb": "Genel şartlar ve koşullar",
+      "data_processing": "Gizlilik bilgilendirmesi okundu",
+      "email_contact": "E-posta ile iletişime izin verildi",
+      "photo": "Fotoğraf izni"
+    },
+    "states": {
+      "granted": "Kayıtlı",
+      "withdrawn": "Geri alındı",
+      "not_recorded": "Kayıtlı değil"
+    },
+    "dates": {
+      "granted": "{date} tarihinde kaydedildi",
+      "withdrawn": "{date} tarihinde geri alındı",
+      "not_recorded": "Kayıtlı değil"
+    },
+    "withdrawButton": "Fotoğraf iznini geri al",
+    "withdrawButtonShort": "Geri al",
+    "confirmTitle": "Fotoğraf izni geri alınsın mı?",
+    "confirmBody": "İzin hemen sona erer. Kayıtlı bir fotoğraf varsa silinir.",
+    "confirmButton": "Şimdi geri al",
+    "withdrawing": "Geri alınıyor",
+    "cancel": "İptal",
+    "close": "Pencereyi kapat",
+    "success": "Fotoğraf izni geri alındı. Kayıtlı bir fotoğraf varsa silindi.",
+    "grantButton": "Fotoğraf iznini yeniden ver",
+    "grantButtonShort": "Yeniden ver",
+    "grantConfirmTitle": "Fotoğraf izni yeniden verilsin mi?",
+    "grantConfirmBody": "OGS bundan sonra yeniden fotoğraf kaydedebilir.",
+    "grantConfirmButton": "İzin ver",
+    "granting": "Kaydediliyor",
+    "grantSuccess": "Fotoğraf izni yeniden verildi.",
+    "errorObjectList": "izinler listesi",
+    "errorObjectPhoto": "fotoğraf izni"
+  },
+  "errorObject": "çocuklarınızın listesi",
+  "errorObjectCare": "bakım özeti"
+}

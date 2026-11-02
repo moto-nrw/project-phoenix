@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.student_notes.list",
+  "max": 2,
+  "exact": true,
+  "description": "modules/peopledirectory — one child's note card (#3632). Two statements,\nwhatever the timeline holds: the notes, and one bulk read that resolves\nevery author's name. Exact, because a count of one would mean the name\nresolution silently stopped running and every entry lost its author."
+}

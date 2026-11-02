@@ -1,0 +1,7 @@
+{
+  "retry": "Provo përsëri",
+  "copyRequestId": "Kopjo numrin e kërkesës",
+  "requestId": "Numri i kërkesës: {requestId}",
+  "crash": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+  "fieldCheck": "Kontrolloni këtë fushë."
+}

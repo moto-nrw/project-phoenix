@@ -1,5 +1,7 @@
 "use client";
 
+import { useOptimisticStamp } from "~/lib/hooks/use-optimistic-stamp";
+import { timeTrackingKeys } from "~/lib/swr/portal-keys";
 import React, {
   useState,
   useEffect,
@@ -35,6 +37,7 @@ import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
@@ -98,6 +101,7 @@ import {
   type PeriodMetrics,
 } from "~/lib/hooks/use-period-metrics";
 import {
+  useLiveRefreshInterval,
   useSWRAuth,
   useTenantMutate,
   useTenantMutateMatching,
@@ -560,6 +564,7 @@ function ClockInCard({
   plannedShifts,
   cancelledShifts,
   stampingDisabled,
+  saving = false,
   laborDays,
 }: {
   readonly currentSession: WorkSession | null;
@@ -576,6 +581,11 @@ function ClockInCard({
   readonly cancelledShifts?: readonly StaffShift[];
   /** Session and absence data must be current before a stamp is allowed. */
   readonly stampingDisabled: boolean;
+  /**
+   * A stamp is on its way (#5012): the card already shows its expected
+   * result, the header says it is not confirmed yet.
+   */
+  readonly saving?: boolean;
   /** ArbZG-Sicht der geladenen Arbeitstage vom Server (#4804). */
   readonly laborDays: readonly WorkDayLaborHint[];
 }) {
@@ -934,9 +944,15 @@ function ClockInCard({
     <SectionCard
       title="Stempeluhr"
       actions={
-        statusBadge ? (
-          <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
-        ) : undefined
+        // One live region for both: screen readers hear „Wird gespeichert“
+        // and then the confirmed state.
+        <span role="status">
+          {saving ? (
+            <StatusBadge label="Wird gespeichert" tone="gray" />
+          ) : statusBadge ? (
+            <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
+          ) : null}
+        </span>
       }
     >
       {/* Ziel der Tour „Arbeitszeit erfassen“ (#3748). */}
@@ -1620,6 +1636,9 @@ function OwnZeiterfassungSection({
   // (#1842). The backend derives its month from timezone.TodayDate().
   const todayISO = useBerlinToday();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
+  // staff_time_tracking_changed invalidates these keys; the interval follows
+  // the growing Ist of an open block (#5017).
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
   const visibleFrom = useMemo(() => {
     if (viewMode === "month") {
       return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
@@ -1677,7 +1696,7 @@ function OwnZeiterfassungSection({
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
-      refreshInterval: isSessionOpen ? OPEN_MONTH_REFRESH_MS : 0,
+      refreshInterval: isSessionOpen ? openMonthRefreshMs : 0,
     },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
@@ -1776,7 +1795,7 @@ function OwnZeiterfassungSection({
       ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
       : null,
     () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
-    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+    { refreshInterval: isCurrentMonth ? openMonthRefreshMs : 0 },
   );
 
   const {
@@ -2700,12 +2719,14 @@ function EditSessionModal({
               </div>
 
               <div>
-                <label
+                <FieldLabel
                   htmlFor="edit-notes"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  required
+                  invalid={Boolean(formErrors.fieldError("notes"))}
+                  className="mb-1"
                 >
-                  Grund der Änderung <span className="text-moto-red">*</span>
-                </label>
+                  Grund der Änderung
+                </FieldLabel>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {EDIT_REASON_PRESETS.map((reason) => (
                     <Button
@@ -2724,6 +2745,7 @@ function EditSessionModal({
                 <Textarea
                   id="edit-notes"
                   name="notes"
+                  aria-required
                   error={formErrors.fieldError("notes")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -2924,7 +2946,7 @@ function CreateAbsenceModal({
   /** Gates the "Name hinzufügen" affordance on time_tracking:manage (#2403). */
   readonly canManageAbsenceTypes: boolean;
 }) {
-  const todayStr = toISODate(new Date());
+  const todayStr = berlinTodayISO();
   // One option space for the standard types and the school's own names — see
   // absence-type-select for why the value is a string, not an AbsenceType.
   const [absenceType, setAbsenceType] = useState<string>("sick");
@@ -2956,7 +2978,7 @@ function CreateAbsenceModal({
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      const today = toISODate(new Date());
+      const today = berlinTodayISO();
       setAbsenceType("sick");
       setDateStart(today);
       setDateEnd(today);
@@ -3128,6 +3150,7 @@ function TimeTrackingContent() {
     authSession,
     "time_tracking:manage",
   );
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
 
   const toast = useToast();
   const todayISO = useBerlinToday();
@@ -3276,7 +3299,7 @@ function TimeTrackingContent() {
   //   after `ref` in the same week are never fetched and the table
   //   silently drops them)
   const { toDate, chartFromDate, weekFromDate } = (() => {
-    const ref = new Date();
+    const ref = parseISODate(berlinTodayISO());
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
     const sunday = days[6] ?? ref;
@@ -3295,15 +3318,23 @@ function TimeTrackingContent() {
 
   // Fetch current session
   const {
-    data: currentSession,
+    data: confirmedSession,
     isLoading: currentSessionLoading,
     error: currentSessionError,
     mutate: mutateCurrentSession,
   } = useSWRAuth<WorkSession | null>(
-    "time-tracking-current",
+    timeTrackingKeys.current(),
     () => timeTrackingService.getCurrentSession(),
     { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
   );
+
+  const stampAction = useOptimisticStamp(
+    confirmedSession,
+    mutateCurrentSession,
+    todayISO,
+  );
+  const currentSession = stampAction.data;
+  const stamp = stampAction.stamp;
 
   // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
   // table fetches, its Tagesprojektion and its Monatskarte after a
@@ -3338,7 +3369,7 @@ function TimeTrackingContent() {
       revalidateOnFocus: false,
       errorRetryCount: 1,
       refreshInterval:
-        currentSession?.checkOutTime === null ? OPEN_MONTH_REFRESH_MS : 0,
+        currentSession?.checkOutTime === null ? openMonthRefreshMs : 0,
     },
   );
 
@@ -3526,21 +3557,21 @@ function TimeTrackingContent() {
   const showBreaksLoadError = breaksLoad.show;
   const clearBreaksLoadError = breaksLoad.clear;
   const fetchBreaks = useCallback(async () => {
-    if (!currentSession?.id || currentSession.checkOutTime) {
+    if (!confirmedSession?.id || confirmedSession.checkOutTime) {
       setCurrentBreaks([]);
       clearBreaksLoadError();
       return;
     }
     try {
       const breaks = await timeTrackingService.getSessionBreaks(
-        currentSession.id,
+        confirmedSession.id,
       );
       setCurrentBreaks(breaks);
       clearBreaksLoadError();
     } catch (err) {
       logger.error("fetch_breaks_failed", {
         error: err instanceof Error ? err.message : String(err),
-        session_id: currentSession?.id,
+        session_id: confirmedSession?.id,
       });
       await showBreaksLoadError(err, {
         object: "die Liste der Pausen",
@@ -3548,8 +3579,8 @@ function TimeTrackingContent() {
       });
     }
   }, [
-    currentSession?.id,
-    currentSession?.checkOutTime,
+    confirmedSession?.id,
+    confirmedSession?.checkOutTime,
     showBreaksLoadError,
     clearBreaksLoadError,
   ]);
@@ -3656,7 +3687,9 @@ function TimeTrackingContent() {
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
-        await timeTrackingService.checkIn(status);
+        const outcome = await stamp(status);
+        if (outcome.status === "discarded") return;
+        if (outcome.status === "failed") throw outcome.error;
       } catch (err) {
         if (promptDeviationReason(err, "check_in", status)) return;
         // Too early is an expected answer, not a defect: the catalog text
@@ -3675,15 +3708,11 @@ function TimeTrackingContent() {
         });
         return;
       }
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-      ]);
+      void Promise.all([mutateHistory(), refreshTableData()]);
       toast.success("Sie sind eingestempelt.");
     },
     [
-      mutateCurrentSession,
+      stamp,
       mutateHistory,
       refreshTableData,
       toast,
@@ -3705,7 +3734,9 @@ function TimeTrackingContent() {
 
   const handleCheckOut = useCallback(async () => {
     try {
-      await timeTrackingService.checkOut();
+      const outcome = await stamp(null);
+      if (outcome.status === "discarded") return;
+      if (outcome.status === "failed") throw outcome.error;
     } catch (err) {
       if (promptDeviationReason(err, "check_out")) return;
       logger.error("check_out_failed", {
@@ -3718,14 +3749,10 @@ function TimeTrackingContent() {
       return;
     }
     setCurrentBreaks([]);
-    await Promise.all([
-      mutateCurrentSession(),
-      mutateHistory(),
-      refreshTableData(),
-    ]);
+    void Promise.all([mutateHistory(), refreshTableData()]);
     toast.success("Sie sind ausgestempelt.");
   }, [
-    mutateCurrentSession,
+    stamp,
     mutateHistory,
     refreshTableData,
     toast,
@@ -3745,12 +3772,13 @@ function TimeTrackingContent() {
     setDeviationSubmitting(true);
     deviationErrors.clear();
     try {
-      if (pending.action === "check_in" && pending.status) {
-        await timeTrackingService.checkIn(pending.status, reason);
-      } else {
-        await timeTrackingService.checkOut(reason);
-        setCurrentBreaks([]);
-      }
+      const outcome = await stamp(
+        pending.action === "check_in" ? (pending.status ?? null) : null,
+        reason,
+      );
+      if (outcome.status === "discarded") return;
+      if (outcome.status === "failed") throw outcome.error;
+      if (pending.action === "check_out") setCurrentBreaks([]);
     } catch (err) {
       logger.error("deviation_reason_submit_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -3771,16 +3799,12 @@ function TimeTrackingContent() {
     );
     setPendingDeviation(null);
     setDeviationReason("");
-    await Promise.all([
-      mutateCurrentSession(),
-      mutateHistory(),
-      refreshTableData(),
-    ]);
+    void Promise.all([mutateHistory(), refreshTableData()]);
   }, [
     pendingDeviation,
     deviationReason,
     deviationErrors,
-    mutateCurrentSession,
+    stamp,
     mutateHistory,
     refreshTableData,
     toast,
@@ -4226,7 +4250,8 @@ function TimeTrackingContent() {
           metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
-          stampingDisabled={stampingDisabled}
+          stampingDisabled={stampingDisabled || stampAction.pending}
+          saving={stampAction.pending}
         />
         <WeekChart
           history={history}

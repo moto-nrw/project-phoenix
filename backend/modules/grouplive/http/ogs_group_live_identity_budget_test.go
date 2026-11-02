@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // identityStageMatchers buckets the SELECTs that resolve the identity chain
@@ -89,8 +90,8 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	// substitution projections exist (GetMyGroups relations,
 	// GetSubstitutedGroupIDs id-set); each memoizes its own result, so 2 is
 	// the per-request floor.
-	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.person", stage("person"))
-	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", stage("staff"))
-	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", stage("teacher"))
-	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", stage("substitutions"))
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.person", stage("person"))
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", stage("staff"))
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", stage("teacher"))
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", stage("substitutions"))
 }

@@ -1,0 +1,22 @@
+{
+  "title": "Kalender abonnieren",
+  "description": "Abonnieren Sie die Termine einmalig in Ihrem Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch, ohne jeden Termin einzeln hinzuzufügen.",
+  "showLink": "Abo-Link anzeigen",
+  "subscribe": "Im Kalender abonnieren",
+  "linkLabel": "Abo-Link (zum Kopieren)",
+  "copy": "Kopieren",
+  "copiedButton": "Kopiert",
+  "copied": "Der Link ist kopiert.",
+  "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
+  "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
+  "howToTitle": "So geht es:",
+  "howToMac": "Mac: Erscheint kein Abo-Dialog, wählen Sie in Kalender unter Einstellungen, Allgemein, Apple Kalender als Standard-Kalender-App. Alternativ: Ablage, Neues Kalenderabonnement, Abo-Link einfügen.",
+  "howToApple": "iPhone/iPad: Einstellungen, Kalender, Accounts, Account hinzufügen, Andere, Kalenderabo hinzufügen, dann den Link einfügen.",
+  "howToAndroid": "Android: In Google Kalender am Computer, Weitere Kalender, Per URL, dann den Link einfügen. Der Kalender wird danach auch auf dem Handy angezeigt.",
+  "regenerate": "Link neu erstellen",
+  "regenerated": "Der neue Abo-Link ist erstellt. Der alte Link gilt nicht mehr.",
+  "loadObject": "das Anzeigen des Abo-Links",
+  "rotateObject": "das Erneuern des Abo-Links",
+  "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
+  "createNew": "Neuen Abo-Link erstellen"
+}

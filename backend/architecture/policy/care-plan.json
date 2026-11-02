@@ -1,0 +1,832 @@
+{
+  "packages": [
+    {
+      "path": "modules/careplan/selection",
+      "owner": "care-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/offeringrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/adapters/parentpostgres",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/careplanning",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/rows",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/excusedrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/absencerecords",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/carerequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/masterdatarequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/parentrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan",
+      "owner": "care-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/compose",
+      "owner": "care-plan",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/http",
+      "owner": "care-plan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/careplan/internal/adapters/postgres",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/application",
+      "owner": "care-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/domain",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/internal/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/integration",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/contracttest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/careplan/careplantest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/absencerecordstest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed",
+      "owner": "care-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/compose",
+      "owner": "care-plan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/http",
+      "owner": "care-plan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/adapters/postgres",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/application",
+      "owner": "care-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/domain",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "active.excused_absence_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.parent_request_rss_feeds",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "active.student_status_days",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.care_offering_auto_triggers",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.care_offering_bookings",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.care_offerings",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.offering_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.care_schedule_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_arrival_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_arrival_notes",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_arrival_schedules",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_departure_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_notes",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "schedule.student_pickup_schedules",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.care_withdrawal_completions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_exit_removals",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_exit_source_removals",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_exits",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_companions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_data_change_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_document_file_cleanup",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_documents",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_guardian_pickup_permissions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.student_care_profiles",
+      "write_owner": "care-plan"
+    }
+  ],
+  "rules": [
+    {
+      "id": "care-plan.contracttest.security-runtime.public",
+      "description": "The new Care Plan contract suite binds the existing SHA-256 primitive to the native impact-fingerprint port (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.application.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.port.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.contracttest.tenant-runtime.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.port",
+      "description": "The Care Plan contract suite names the Timetable dependency types its compose reach builds with (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
+    },
+    {
+      "id": "care-plan.contracttest.identity-access.adapter",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "care-plan.contracttest.student-presence.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.student-presence.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.communication.test-support",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.contracttest.delivery-platform.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.public.excused-request-contract",
+      "description": "The Care Plan facade re-exports the excused-absence request contract (#3093).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.request-feed-http.public",
+      "description": "The request-feed HTTP adapter calls the Care Plan request-feed capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.port-domain",
+      "description": "Care Plan ports express persistence operations using owner domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "care-plan.compose.orm-sql",
+      "description": "Care Plan composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.compose.tenant-runtime",
+      "description": "Care Plan composition resolves transactions and advisory locks through the tenant runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.application.tenant-runtime",
+      "description": "Care Plan application code joins the caller's transaction or opens one for the tenant in context when it writes the student profile columns (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.runtime",
+      "description": "Care Plan integration tests verify tenant transactions and RLS.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.support",
+      "description": "Care Plan integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.domain.public",
+      "description": "Legacy Care Plan domain contracts use the owner calendar-day value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "domain",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.testsupport.people-public",
+      "description": "Care Plan test support supplies the required student lock through People Directory.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.testsupport.people-compose",
+      "description": "Care Plan test support composes People Directory for the required student lock.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.integration-test.postgres",
+      "description": "Care Plan compatibility tests exercise the legacy Postgres projection adapter.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "care-plan.integration-test.domain",
+      "description": "Care Plan compatibility tests assert legacy owner-domain views.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.people-directory.public",
+      "description": "Verify native directory plans and audit snapshots through request approval in the new cross-owner contract suite (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.enrollment.test-support",
+      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.contract.excused-request-vocabulary",
+      "description": "The absence records reuse the persisted status-day and request-status values of the excused-request contract instead of redeclaring them (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "contract",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.delivery-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.people-directory.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.settings-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.http.identity-access.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract",
+      "source_package": "modules/careplan/http"
+    },
+    {
+      "id": "care-plan.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "adapter-test",
+      "source_package": "modules/careplan/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "care-plan.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "adapter-test",
+      "source_package": "modules/careplan/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "care-plan.contracttest.enrollment-offering-contract",
+      "description": "Native availability and offering values replace the retired model-package test boundary.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "care-plan.e2e-test.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "source_package": "modules/careplan/contracttest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "care-plan.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "source_package": "modules/careplan/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "care-plan.postgres.compose-extraction.observation-port",
+      "description": "ADR 0058 #4084: exact-package successor for the existing owner observation port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "source_package": "modules/careplan/internal/adapters/postgres",
+      "target_owner": "care-plan",
+      "target_role": "port",
+      "target_package": "modules/careplan/internal/ports"
+    }
+  ]
+}

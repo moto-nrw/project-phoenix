@@ -1,0 +1,3 @@
+GET /traeger/access-log/ -> basis
+GET /traeger/access-log/export -> basis
+GET /traeger/access-log/people -> basis

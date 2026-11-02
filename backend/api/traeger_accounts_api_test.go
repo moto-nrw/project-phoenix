@@ -1,6 +1,7 @@
 // Router-level tests for the Träger-Büro account management (#4650): the
 // invitation by mail and its acceptance, the roles and their rights, the
-// last person with the role Verwaltung, the removal that ends the sessions,
+// last person with the role Leitung and the hierarchy of Leitung (#5471),
+// the removal that ends the sessions,
 // the 403 of a role without the right, the isolation between Träger and the
 // ledger of every step.
 package api
@@ -24,6 +25,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // newTraegerAccountsPortal mounts /traeger as the serving root does and hands
@@ -148,7 +150,7 @@ func TestTraegerInvitationCreatesAnAccountWithTheInvitedRole(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Einladung")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	address := fmt.Sprintf("neu-%d@test.local", testpkg.UniqueTestTenantID(t))
 
 	token := traegerInvite(t, db, router, admin.AccessToken, address, identityaccess.TraegerRoleBilling)
@@ -196,7 +198,7 @@ func TestTraegerInvitationOfAnExistingAccountNeedsItsPassword(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Bestandskonto")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	password := testpkg.NewTestPassword()
 	existing := traegerAccount(t, db, password)
 
@@ -224,13 +226,20 @@ func TestTraegerAccountsRequireTheAccountsRight(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Rechte")
-	for _, role := range []string{identityaccess.TraegerRoleReadOnly, identityaccess.TraegerRoleBilling, identityaccess.TraegerRolePersonnel} {
+	for _, role := range []string{identityaccess.TraegerRoleReadOnly, identityaccess.TraegerRoleBilling, identityaccess.TraegerRolePersonnel,
+		identityaccess.TraegerRoleAdministration, identityaccess.TraegerRoleSchoolAccess} {
 		t.Run(role, func(t *testing.T) {
-			_, session := traegerMember(t, db, router, organizationID, role)
+			member, session := traegerMember(t, db, router, organizationID, role)
 			rec := traegerCall(t, router, http.MethodGet, "/traeger/accounts/", session.AccessToken, nil)
 			assert.Equal(t, http.StatusForbidden, rec.Code, "a role without the right gets 403")
 			rec = traegerCall(t, router, http.MethodPost, "/traeger/accounts/invitations", session.AccessToken, map[string]any{"email": "x@test.local", "roles": []string{identityaccess.TraegerRoleAdministration}})
 			assert.Equal(t, http.StatusForbidden, rec.Code)
+			rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", member.ID), session.AccessToken, map[string]any{"roles": []string{identityaccess.TraegerRoleLeadership}})
+			assert.Equal(t, http.StatusForbidden, rec.Code, "nor gives itself Leitung")
+			rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", member.ID), session.AccessToken, nil)
+			assert.Equal(t, http.StatusForbidden, rec.Code)
+			rec = traegerCall(t, router, http.MethodDelete, "/traeger/accounts/invitations/1", session.AccessToken, nil)
+			assert.Equal(t, http.StatusForbidden, rec.Code, "nor revokes an invitation")
 		})
 	}
 	assert.Empty(t, traegerLedger(t, db, organizationID), "a refused request changes and reads nothing")
@@ -241,8 +250,8 @@ func TestTraegerAccountsStayInsideTheTraegerOfTheSession(t *testing.T) {
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	own := traegerBuero(t, db, "Träger Eigen")
 	foreign := traegerBuero(t, db, "Träger Fremd")
-	_, admin := traegerMember(t, db, router, own, identityaccess.TraegerRoleAdministration)
-	foreignMember, foreignAdmin := traegerMember(t, db, router, foreign, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, own, identityaccess.TraegerRoleLeadership)
+	foreignMember, foreignAdmin := traegerMember(t, db, router, foreign, identityaccess.TraegerRoleLeadership)
 	traegerInvite(t, db, router, foreignAdmin.AccessToken, fmt.Sprintf("fremd-%d@test.local", testpkg.UniqueTestTenantID(t)), identityaccess.TraegerRoleReadOnly)
 	foreignInvitation := traegerBueroList(t, router, foreignAdmin.AccessToken).Invitations[0].ID
 
@@ -261,21 +270,21 @@ func TestTraegerAccountsStayInsideTheTraegerOfTheSession(t *testing.T) {
 	assert.Len(t, traegerBueroList(t, router, foreignAdmin.AccessToken).Invitations, 1, "the foreign invitation stays open")
 }
 
-func TestTraegerKeepsItsLastAdministrator(t *testing.T) {
+func TestTraegerKeepsItsLastLeader(t *testing.T) {
 	t.Parallel()
 	db, router, identity, unit := newTraegerAccountsPortal(t)
-	organizationID := traegerBuero(t, db, "Träger Verwaltung")
-	first, firstSession := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	organizationID := traegerBuero(t, db, "Träger Leitung")
+	first, firstSession := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 
 	rec := traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", first.ID), firstSession.AccessToken, nil)
-	assert.Equal(t, http.StatusConflict, rec.Code, "the last person with Verwaltung cannot remove themselves")
+	assert.Equal(t, http.StatusConflict, rec.Code, "the last person with Leitung cannot remove themselves")
 	assert.Contains(t, rec.Body.String(), "traeger.last_administrator")
-	rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", first.ID), firstSession.AccessToken, map[string]any{"roles": []string{identityaccess.TraegerRoleBilling}})
+	rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", first.ID), firstSession.AccessToken, map[string]any{"roles": []string{identityaccess.TraegerRoleAdministration, identityaccess.TraegerRoleSchoolAccess}})
 	assert.Equal(t, http.StatusConflict, rec.Code, "nor give the role away")
 
-	second, _ := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	second, _ := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", first.ID), firstSession.AccessToken, nil)
-	require.Equal(t, http.StatusNoContent, rec.Code, "with a second person holding Verwaltung the first may leave")
+	require.Equal(t, http.StatusNoContent, rec.Code, "with a second person holding Leitung the first may leave")
 
 	var active int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.organization_accounts WHERE organization_id = ? AND status = 'active'`, organizationID).Scan(context.Background(), &active))
@@ -290,11 +299,42 @@ func TestTraegerKeepsItsLastAdministrator(t *testing.T) {
 	assert.Equal(t, []string{"member_removed"}, traegerLedger(t, db, organizationID))
 }
 
+// TestTraegerLeadershipPassesOnWithinTheBuero: Leitung grants Leitung, gives
+// its own away once another usable Leitung stays, and the new Leitung then
+// manages the accounts; Verwaltung alone no longer does (#5471).
+func TestTraegerLeadershipPassesOnWithinTheBuero(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerAccountsPortal(t)
+	organizationID := traegerBuero(t, db, "Träger Leitungswechsel")
+	leader, leaderSession := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership, identityaccess.TraegerRoleAdministration)
+	colleague, colleagueSession := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+
+	rec := traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", leader.ID), leaderSession.AccessToken,
+		map[string]any{"roles": []string{identityaccess.TraegerRoleAdministration}})
+	assert.Equal(t, http.StatusConflict, rec.Code, "the only Leitung cannot give it away")
+	assert.Contains(t, rec.Body.String(), "traeger.last_administrator")
+
+	rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", colleague.ID), leaderSession.AccessToken,
+		map[string]any{"roles": []string{identityaccess.TraegerRoleAdministration, identityaccess.TraegerRoleLeadership}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerCall(t, router, http.MethodPut, fmt.Sprintf("/traeger/accounts/%d/roles", leader.ID), leaderSession.AccessToken,
+		map[string]any{"roles": []string{identityaccess.TraegerRoleAdministration}})
+	require.Equal(t, http.StatusOK, rec.Code, "with a second Leitung the first may give its own away: %s", rec.Body.String())
+
+	rec = traegerCall(t, router, http.MethodGet, "/traeger/accounts/", leaderSession.AccessToken, nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code, "without Leitung the token alone manages nothing")
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	access, _, err := identity.RefreshTokenWithAudit(ctx, colleagueSession.RefreshToken, "", "", "")
+	require.NoError(t, err)
+	assert.Contains(t, traegerTokenClaims(t, access)["permissions"], identityaccess.TraegerRightAccountsManage, "the new Leitung manages the accounts after its refresh")
+	assert.Len(t, traegerBueroList(t, router, access).Members, 2)
+}
+
 func TestTraegerRoleChangeReachesTheSessionAtItsNextRefresh(t *testing.T) {
 	t.Parallel()
 	db, router, identity, unit := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Rollenwechsel")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	colleague, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleReadOnly)
 	assert.NotContains(t, traegerTokenClaims(t, session.AccessToken)["permissions"], identityaccess.TraegerRightStaffManage)
 
@@ -323,7 +363,7 @@ func TestTraegerInvitationCanBeRevoked(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Widerruf")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	address := fmt.Sprintf("widerruf-%d@test.local", testpkg.UniqueTestTenantID(t))
 	first := traegerInvite(t, db, router, admin.AccessToken, address, identityaccess.TraegerRoleReadOnly)
 	second := traegerInvite(t, db, router, admin.AccessToken, address, identityaccess.TraegerRoleBilling)
@@ -345,7 +385,7 @@ func TestTraegerAccountListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Kontenbudget")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	for range 2 {
 		traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleReadOnly)
 	}
@@ -362,14 +402,14 @@ func TestTraegerAccountListQueryBudgetIsFlat(t *testing.T) {
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleBilling)
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRolePersonnel)
 	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of people")
-	testpkg.AssertQueryBudget(t, "api.traeger.accounts", three)
+	querybudgets.AssertQueryBudget(t, "api.traeger.accounts", three)
 }
 
 func TestTraegerInvitationExpiresWithTheSchoolInvitations(t *testing.T) {
 	t.Parallel()
 	db, router, identity, unit := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Ablauf")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	expired := traegerInvite(t, db, router, admin.AccessToken, fmt.Sprintf("alt-%d@test.local", testpkg.UniqueTestTenantID(t)), identityaccess.TraegerRoleReadOnly)
 	open := traegerInvite(t, db, router, admin.AccessToken, fmt.Sprintf("neu-%d@test.local", testpkg.UniqueTestTenantID(t)), identityaccess.TraegerRoleReadOnly)
 	_, err := db.ExecContext(context.Background(), `UPDATE auth.traeger_invitations SET expires_at = NOW() - INTERVAL '1 minute'
@@ -389,18 +429,18 @@ func TestTraegerInvitationExpiresWithTheSchoolInvitations(t *testing.T) {
 }
 
 // A switched-off account cannot sign in, so it keeps nobody's Träger-Büro
-// manageable: it does not count as a person with Verwaltung (quorum #4937).
-func TestTraegerSwitchedOffAdministratorDoesNotCount(t *testing.T) {
+// manageable: it does not count as a person with Leitung (quorum #4937).
+func TestTraegerSwitchedOffLeaderDoesNotCount(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Ausgeschaltet")
-	usable, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
-	switchedOff, _ := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	usable, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
+	switchedOff, _ := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = FALSE WHERE id = ?`, switchedOff.ID)
 	require.NoError(t, err)
 
 	rec := traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", usable.ID), session.AccessToken, nil)
-	assert.Equal(t, http.StatusConflict, rec.Code, "the last person who can sign in keeps Verwaltung")
+	assert.Equal(t, http.StatusConflict, rec.Code, "the last person who can sign in keeps Leitung")
 	assert.Contains(t, rec.Body.String(), "traeger.last_administrator")
 
 	rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", switchedOff.ID), session.AccessToken, nil)
@@ -413,7 +453,7 @@ func TestTraegerInvitationCountsRefusedPasswordsLikeTheLogin(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Sperre")
-	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	password := testpkg.NewTestPassword()
 	existing := traegerAccount(t, db, password)
 	token := traegerInvite(t, db, router, admin.AccessToken, existing.Email, identityaccess.TraegerRoleReadOnly)
@@ -438,8 +478,8 @@ func TestTraegerAccountsRefuseASwitchedOffActor(t *testing.T) {
 	t.Parallel()
 	db, router, _, _ := newTraegerAccountsPortal(t)
 	organizationID := traegerBuero(t, db, "Träger Abgeschaltet")
-	actor, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
-	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	actor, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
+	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleLeadership)
 	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = FALSE WHERE id = ?`, actor.ID)
 	require.NoError(t, err)
 

@@ -1,0 +1,6 @@
+{
+  "scenario": "repositories.parent_announcements.due_reminders",
+  "max": 2,
+  "exact": true,
+  "description": "database/repositories/users — due announcement reminders read their rows\nand targets in two batches, regardless of the number due in one tick."
+}

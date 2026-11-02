@@ -4,7 +4,7 @@
 // bekommt ihr Schreiben als PDF im Anhang einer Mail, an alle auf einmal
 // oder einzeln. Je Familie steht, ob die Mail raus ist; eine Mail, die nicht
 // ankam, lässt sich erneut senden. Alle Schreiben lassen sich in einer Datei
-// drucken, für Familien ohne Internet.
+// drucken, für Familien ohne E-Mail.
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -171,7 +171,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
   return (
     <SectionCard
       title="Versand per Mail"
-      description="Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter „Dokumente“. Familien ohne Internet geben Sie das gedruckte Schreiben."
+      description="Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter „Dokumente“. Familien ohne E-Mail geben Sie das gedruckte Schreiben."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button

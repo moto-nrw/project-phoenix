@@ -36,6 +36,10 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "./holiday-registration-answers";
+import {
   childSchoolLabel,
   formatHolidayWeek,
 } from "./holiday-registration-format";
@@ -47,6 +51,7 @@ export function HolidayRegistrationChildCard({
   registration,
   child,
   health,
+  healthHidden = false,
   names,
   onChanged,
 }: Readonly<{
@@ -54,6 +59,11 @@ export function HolidayRegistrationChildCard({
   registration: HolidayRegistrationDetail;
   child: HolidayRegistrationChild;
   health: HolidayRegistrationHealth | undefined;
+  /**
+   * The parents gave health information, but the account lacks the right
+   * „Gesundheitsangaben sehen“ (#4722): the card says so instead.
+   */
+  healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
   onChanged: (registration: HolidayRegistrationDetail) => void;
 }>) {
@@ -170,7 +180,18 @@ export function HolidayRegistrationChildCard({
           </InfoSection>
         )}
 
-        {health ? (
+        <ChildAnswers registration={registration} childId={child.id} />
+
+        {healthHidden ? (
+          <InfoSection title="Gesundheit">
+            <InfoText>
+              Gesundheitsangaben sieht nur die Rolle Verwaltung.
+            </InfoText>
+          </InfoSection>
+        ) : null}
+
+        {health &&
+        (health.allergies || health.medication || health.healthNotes) ? (
           <InfoSection title="Gesundheit">
             <DataGrid>
               {health.allergies ? (
@@ -193,6 +214,21 @@ export function HolidayRegistrationChildCard({
         ) : null}
       </div>
     </SectionCard>
+  );
+}
+
+/** The child's answers to the questions of the Träger (#5198). */
+function ChildAnswers({
+  registration,
+  childId,
+}: Readonly<{ registration: HolidayRegistrationDetail; childId: string }>) {
+  const answers = registration.childAnswers[childId] ?? {};
+  const questions = answeredQuestions(registration.form.fields, true, answers);
+  if (questions.length === 0) return null;
+  return (
+    <InfoSection title="Weitere Angaben">
+      <HolidayRegistrationAnswers questions={questions} answers={answers} />
+    </InfoSection>
   );
 }
 

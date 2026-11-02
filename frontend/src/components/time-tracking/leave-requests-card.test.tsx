@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -292,4 +295,22 @@ describe("LeaveRequestsCard resubmitted requests", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
+
+  it.each(schoolDateCases("2027-06-01"))(
+    "counts an absence through the Berlin end date in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2027-06-01");
+      mocks.getAbsences.mockResolvedValue([
+        { ...resubmittedVacation(), dateEnd: "2027-06-01", status: "approved" },
+      ]);
+      render(<LeaveRequestsCard />);
+      await screen.findByText("20 Tage Anspruch für 2027");
+      const tile = screen.getAllByText("Genehmigt")[0]!.parentElement!;
+      expect(tile).toHaveTextContent("1");
+      expect(mocks.getAbsences).toHaveBeenCalledWith(
+        "2027-01-01",
+        "2027-12-31",
+      );
+    },
+  );
 });

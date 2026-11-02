@@ -1,7 +1,11 @@
+import { ParentResourceTestProvider } from "~/test/parent-resource-provider";
+vi.unmock("swr");
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ParentRealtimeBridge } from "./parent-realtime-bridge";
 import type { SSEHookOptions } from "~/lib/sse-types";
+
+vi.mock("~/lib/parent-api", () => ({ listMyChildren: async () => [] }));
 
 const useSSE = vi.hoisted(() => vi.fn());
 
@@ -9,7 +13,7 @@ vi.mock("~/lib/hooks/use-sse", () => ({ useSSE }));
 
 describe("ParentRealtimeBridge", () => {
   it("forwards guardian-scoped notifications to the shared notification bridge", () => {
-    render(<ParentRealtimeBridge />);
+    render(<ParentRealtimeBridge />, { wrapper: ParentResourceTestProvider });
 
     expect(useSSE).toHaveBeenCalledWith(
       "/api/parent/sse/events",
@@ -50,7 +54,7 @@ describe("ParentRealtimeBridge", () => {
   });
 
   it("refreshes the affected child's daily status after a child update", () => {
-    render(<ParentRealtimeBridge />);
+    render(<ParentRealtimeBridge />, { wrapper: ParentResourceTestProvider });
 
     const options = useSSE.mock.calls.at(-1)?.[1] as SSEHookOptions | undefined;
     const onMessage = options?.onMessage;

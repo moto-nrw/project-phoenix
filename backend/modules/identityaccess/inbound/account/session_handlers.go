@@ -495,14 +495,21 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("logout unavailable")))
 		return
 	}
-	err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
-	if err != nil {
-		// Even if there's an error, we want to consider the logout successful from the client's perspective
-		// Log the error on the server side for debugging
-		slog.Default().WarnContext(r.Context(), "Logout audit logging failed (client logout still successful)",
+	// The audit rows follow the commit and never fail the call. An error here
+	// means the family was not revoked: its access tokens stay valid, so the
+	// browser must not take the logout for done (#5194).
+	if err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent); err != nil {
+		if errors.Is(err, identityaccess.ErrInvalidToken) {
+			// Not a refresh token of any session: nothing is left to revoke.
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
+			return
+		}
+		slog.Default().ErrorContext(r.Context(), "logout did not revoke the session family",
 			slog.String("ip", ipAddress),
 			slog.String("error", err.Error()),
 		)
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("logout could not revoke the session, please retry")))
+		return
 	}
 
 	common.RespondNoContent(w, r)

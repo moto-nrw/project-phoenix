@@ -1,7 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
-import { login } from "./mfa-api";
+import {
+  enrollConfirm,
+  listTrustedDevices,
+  login,
+  resendChallenge,
+  revokeTrustedDevice,
+  verifyMFA,
+} from "./mfa-api";
 
 describe("login error bodies", () => {
   const originalFetch = global.fetch;
@@ -75,4 +82,51 @@ describe("login error bodies", () => {
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({ status: 503, code: "general.unavailable" });
   });
+});
+
+describe("caterer second factor (#4497)", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("uses the caterer MFA and trusted-device routes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ status: "authenticated" }))
+      .mockResolvedValueOnce(Response.json({ challenge_token: "renewed" }))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    global.fetch = fetchMock as unknown as typeof global.fetch;
+
+    await expect(
+      verifyMFA("caterer", {
+        challengeToken: "c",
+        code: "123456",
+        rememberDevice: true,
+      }),
+    ).resolves.toEqual({ status: "authenticated" });
+    await expect(
+      resendChallenge("caterer", { challengeToken: "c" }),
+    ).resolves.toBe("renewed");
+    await listTrustedDevices("caterer");
+    await revokeTrustedDevice("caterer", 7);
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "/api/caterer/auth/mfa/verify",
+      "/api/caterer/auth/mfa/resend",
+      "/api/caterer/auth/mfa/trusted-devices",
+      "/api/caterer/auth/mfa/trusted-devices/7",
+    ]);
+  });
+});
+
+it("all portal MFA results exclude completed session credentials", () => {
+  expectTypeOf<Awaited<ReturnType<typeof verifyMFA>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
+  expectTypeOf<Awaited<ReturnType<typeof enrollConfirm>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
 });

@@ -1,0 +1,5 @@
+DELETE /api/work-time-models/{id}
+GET /api/work-time-models/
+GET /api/work-time-models/{id}
+POST /api/work-time-models/
+PUT /api/work-time-models/{id}

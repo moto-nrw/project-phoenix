@@ -528,7 +528,7 @@ describe("QuickCreateActivityModal", () => {
   });
 
   describe("Scroll to error", () => {
-    it("scrolls to error when validation fails", async () => {
+    it("scrolls to the refused field when validation fails", async () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
@@ -567,8 +567,13 @@ describe("QuickCreateActivityModal", () => {
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "nearest",
+          block: "center",
         });
+        // FormErrorAlert brings the marked field into view, not itself.
+        expect(scrollIntoViewMock.mock.contexts[0]).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        );
       });
     });
   });

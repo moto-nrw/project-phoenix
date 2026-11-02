@@ -1,0 +1,4 @@
+GET /api/school-setup/
+POST /api/school-setup/complete
+PUT /api/school-setup/dismissal
+PUT /api/school-setup/steps/{step}

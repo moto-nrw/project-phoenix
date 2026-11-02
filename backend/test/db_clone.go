@@ -206,6 +206,7 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 	if err != nil {
 		return nil, fmt.Errorf("open shared package test pool: %w", err)
 	}
+	attachTestQueryHooks(sharedDB)
 	return sharedDB, nil
 }
 
@@ -222,6 +223,7 @@ func applyViperTestConfig() {
 
 func applyStaticViperTestConfig() {
 	viper.Set("auth_jwt_secret", TestJWTSecret)
+	viper.Set("health_data_keys", TestHealthDataKeys)
 	viper.Set("auth_jwt_expiry", "15m")
 	viper.Set("auth_jwt_refresh_expiry", "1h")
 	viper.Set("frontend_url", "http://tenant.invalid")

@@ -51,5 +51,5 @@ func NewStaffOffboardingWorkflow(deps offboardingcompose.Dependencies) (*staffof
 	events := NewGroupEvents(deps.Broadcaster, logger)
 	return owners.NewStaffOffboarding(deps, work, func(ctx context.Context) {
 		events.QueueGroupAccessChanged(ctx, "staff_offboarding")
-	})
+	}, staffTimeTrackingNotifier(deps.Broadcaster))
 }

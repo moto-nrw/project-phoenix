@@ -778,14 +778,11 @@ describe("tenant-api", () => {
   // --------------------------------------------------------------------------
 
   describe("switchTenant", () => {
-    it("returns token pair on success", async () => {
-      const tokens = {
-        access_token: "new-jwt",
-        refresh_token: "new-refresh",
-      };
+    it("confirms a server-side switch without reading credentials", async () => {
+      const confirmation = { success: true };
 
       mockSessionFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(tokens), {
+        new Response(JSON.stringify(confirmation), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -806,7 +803,7 @@ describe("tenant-api", () => {
           ],
         },
       );
-      expect(result).toEqual(tokens);
+      expect(result).toBeUndefined();
     });
 
     it("throws classified access-denied error on tenant authorization failure", async () => {
@@ -934,35 +931,26 @@ describe("tenant-api", () => {
   // --------------------------------------------------------------------------
 
   describe("performTenantSwitch", () => {
-    const tokens = {
-      access_token: "new-jwt",
-      refresh_token: "new-refresh",
-    };
+    const confirmation = { success: true };
 
-    const mockSignIn = vi.fn().mockResolvedValue(undefined);
     const mockSwrMutate = vi.fn().mockResolvedValue(undefined);
 
     beforeEach(() => {
-      mockSignIn.mockClear();
       mockSwrMutate.mockClear();
       mockClearSessionCache.mockClear();
     });
 
-    it("performs full switch sequence and returns tokens", async () => {
+    it("switches server-side before clearing caches", async () => {
       mockSessionFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(tokens), {
+        new Response(JSON.stringify(confirmation), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
       );
 
-      const result = await performTenantSwitch(
-        "school-b",
-        mockSignIn,
-        mockSwrMutate,
-      );
+      const result = await performTenantSwitch("school-b", mockSwrMutate);
 
-      expect(result).toEqual(tokens);
+      expect(result).toBeUndefined();
 
       // Step 1: switch-tenant called
       expect(mockSessionFetch).toHaveBeenCalledWith(
@@ -978,14 +966,6 @@ describe("tenant-api", () => {
           ],
         },
       );
-
-      // Step 2: signIn called with new tokens
-      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        redirect: false,
-        internalRefresh: true,
-        token: "new-jwt",
-        refreshToken: "new-refresh",
-      });
 
       // Step 3: SWR cache cleared
       expect(mockSwrMutate).toHaveBeenCalledWith(
@@ -1003,14 +983,10 @@ describe("tenant-api", () => {
 
       mockSessionFetch.mockImplementation(async () => {
         callOrder.push("switchTenant");
-        return new Response(JSON.stringify(tokens), {
+        return new Response(JSON.stringify(confirmation), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
-      });
-
-      mockSignIn.mockImplementation(async () => {
-        callOrder.push("signIn");
       });
 
       mockSwrMutate.mockImplementation(async () => {
@@ -1021,11 +997,10 @@ describe("tenant-api", () => {
         callOrder.push("clearSessionCache");
       });
 
-      await performTenantSwitch("school-b", mockSignIn, mockSwrMutate);
+      await performTenantSwitch("school-b", mockSwrMutate);
 
       expect(callOrder).toEqual([
         "switchTenant",
-        "signIn",
         "swrMutate",
         "clearSessionCache",
       ]);
@@ -1036,13 +1011,13 @@ describe("tenant-api", () => {
       localStorage.setItem("moto:personal-storage-owner", "1:7");
       localStorage.setItem("sidebar-collapsed", "true");
       mockSessionFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify(tokens), {
+        new Response(JSON.stringify(confirmation), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
       );
 
-      await performTenantSwitch("school-b", mockSignIn, mockSwrMutate);
+      await performTenantSwitch("school-b", mockSwrMutate);
 
       expect(localStorage.getItem("sidebar-last-group-name:1:7")).toBeNull();
       expect(localStorage.getItem("moto:personal-storage-owner")).toBeNull();
@@ -1066,14 +1041,13 @@ describe("tenant-api", () => {
       );
 
       await expect(
-        performTenantSwitch("bad-tenant", mockSignIn, mockSwrMutate),
+        performTenantSwitch("bad-tenant", mockSwrMutate),
       ).rejects.toMatchObject({
         name: "ApiError",
         code: "identity.tenant_access_denied",
       });
 
-      // Should NOT have called signIn or cache clearing
-      expect(mockSignIn).not.toHaveBeenCalled();
+      // A refused switch must not clear the source caches
       expect(mockSwrMutate).not.toHaveBeenCalled();
       expect(mockClearSessionCache).not.toHaveBeenCalled();
       // A refused switch keeps the person at the source school.

@@ -35,7 +35,7 @@ Messbefehle vom Repository-Root:
 ```bash
 git rev-parse origin/development
 wc -l backend/architecture/legacy.jsonl
-jq '{policy_epoch, rules: (.rules | length), issue_rules: ([.rules[] | select(has("issue"))] | length), legacy_composition: (.legacy_composition | length)}' backend/architecture/policy.json
+scripts/run-go-toolchain.sh scripts/backend-architecture.sh policy-export | jq '{policy_epoch, rules: (.rules | length), issue_rules: ([.rules[] | select(has("issue"))] | length), legacy_composition: (.legacy_composition | length)}'
 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./test -run '^(TestModulePassthroughRatchet|TestModuleLegacyBudgetRatchet|TestModuleFileSizeRatchet|TestModuleFunctionLengthRatchet|TestModuleComplexityRatchet)$' -count=1 -v
 ```

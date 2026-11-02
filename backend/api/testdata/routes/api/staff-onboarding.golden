@@ -1,0 +1,3 @@
+GET /api/staff-onboarding/
+PUT /api/staff-onboarding/dismissal
+PUT /api/staff-onboarding/steps/{step}

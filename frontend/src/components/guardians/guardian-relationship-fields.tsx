@@ -1,10 +1,13 @@
 "use client";
 
+import { useId } from "react";
+
 import {
   GUARDIAN_ROLE_OPTIONS,
   RELATIONSHIP_TYPES,
   type GuardianRole,
 } from "@/lib/guardian-helpers";
+import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ParentVisibleBadge } from "~/components/ui/parent-visible-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
@@ -145,6 +148,7 @@ export function RelationshipPermissionsFields({
   onChange,
   disabled = false,
 }: RelationshipPermissionsFieldsProps) {
+  const idPrefix = useId();
   return (
     <>
       {/* Relationship Flags */}
@@ -167,22 +171,26 @@ export function RelationshipPermissionsFields({
           <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.guardianPermissions} />
         </h3>
         <div className="space-y-2">
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50">
-            <input
-              type="checkbox"
+          <label
+            htmlFor={`${idPrefix}-primary`}
+            className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50"
+          >
+            <Checkbox
+              id={`${idPrefix}-primary`}
               checked={isPrimary}
               onChange={(e) => onChange("isPrimary", e.target.checked)}
-              className="text-moto-purple focus:ring-moto-purple h-4 w-4 rounded border-gray-300"
               disabled={disabled}
             />
             <span className="text-sm text-gray-700">Hauptansprechpartner</span>
           </label>
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50">
-            <input
-              type="checkbox"
+          <label
+            htmlFor={`${idPrefix}-pickup`}
+            className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/50"
+          >
+            <Checkbox
+              id={`${idPrefix}-pickup`}
               checked={canPickup}
               onChange={(e) => onChange("canPickup", e.target.checked)}
-              className="text-moto-green-strong focus:ring-moto-green h-4 w-4 rounded border-gray-300"
               disabled={disabled}
             />
             <span className="text-sm text-gray-700">Abholberechtigt</span>
@@ -192,12 +200,14 @@ export function RelationshipPermissionsFields({
 
       {/* Emergency Contact */}
       <div className="border-moto-red/20 bg-moto-red-soft flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2">
-        <label className="group flex cursor-pointer items-center gap-3">
-          <input
-            type="checkbox"
+        <label
+          htmlFor={`${idPrefix}-emergency`}
+          className="group flex cursor-pointer items-center gap-3"
+        >
+          <Checkbox
+            id={`${idPrefix}-emergency`}
             checked={isEmergencyContact}
             onChange={(e) => onChange("isEmergencyContact", e.target.checked)}
-            className="text-moto-red focus:ring-moto-red h-4 w-4 rounded border-gray-300"
             disabled={disabled}
             aria-label="Als Notfallkontakt markieren"
           />

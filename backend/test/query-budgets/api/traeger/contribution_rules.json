@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.contribution_rules",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/contribution-rules (#4664, ADR\n0115): the Träger binding of the Träger transaction, then the rules of\nthe Träger. Flat in the number of rules."
+}

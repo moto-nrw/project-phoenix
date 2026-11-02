@@ -19,7 +19,7 @@ import {
   enrollConfirm,
   enrollStart,
   type LoginScope,
-  type MFATokenResponse,
+  type MFAResult,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
@@ -42,16 +42,15 @@ interface MFAEnrollmentScreenProps {
    * Enrollment-scoped JWT issued at login for accounts on an mfa-required
    * tenant with no credential yet. Only authorizes /auth/mfa/enroll/*.
    * After successful confirmation the backend returns a full session
-   * pair, which is handed to onComplete — this token is discarded.
+   * pair, installed by the BFF. This limited proof is then discarded.
    */
   readonly bearerToken: string;
   readonly userEmail: string;
   /**
    * Called after the user successfully confirms their enrollment. Receives
-   * the freshly-minted access/refresh tokens returned by the confirm
-   * endpoint so the caller can seed the real NextAuth session.
+   * the token-free session confirmation.
    */
-  readonly onComplete: (tokens: MFATokenResponse) => void | Promise<void>;
+  readonly onComplete: (result: MFAResult) => void | Promise<void>;
   readonly onExit?: () => void;
   /** The Träger the Träger-Portal login resolved (#4651). */
   readonly organizationId?: string;
@@ -75,11 +74,9 @@ export function MFAEnrollmentScreen({
   const latestStartRef = useRef<() => void>(() => undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  // tokensRef holds the access/refresh pair returned by /enroll/confirm.
-  // We stash them in a ref instead of state to avoid an extra render
-  // between confirm success and the success-screen render; the success
-  // button passes them through to onComplete.
-  const tokensRef = useRef<MFATokenResponse | null>(null);
+  // Keep the completion result until the explicit Continue action. For
+  // every portal it contains status only.
+  const resultRef = useRef<MFAResult | null>(null);
   // The school enroll flow binds the confirm to the exact challenge that
   // enroll/start minted; tenant/operator return no token here (null).
   const challengeTokenRef = useRef<string | null>(null);
@@ -130,7 +127,7 @@ export function MFAEnrollmentScreen({
       setIsConfirming(true);
       clearError();
       try {
-        const tokens = await enrollConfirm(
+        const result = await enrollConfirm(
           scope,
           bearerToken,
           submittedCode,
@@ -138,7 +135,7 @@ export function MFAEnrollmentScreen({
           challengeTokenRef.current ?? undefined,
           organizationId,
         );
-        tokensRef.current = tokens;
+        resultRef.current = result;
         setStep("success");
       } catch (err) {
         logger.warn("enroll_confirm_failed", {
@@ -227,18 +224,24 @@ export function MFAEnrollmentScreen({
             size="base"
             className="w-full"
             onClick={() => {
-              const tokens = tokensRef.current;
-              if (!tokens) {
+              const result = resultRef.current;
+              if (!result) {
                 // Defensive: success step is only reachable after confirm
-                // resolves with tokens, so tokensRef must be set. If it
-                // isn't, surface an error rather than silently falling
-                // through to a broken session.
+                // creates the BFF session and sets resultRef. Otherwise show
+                // an error instead of continuing with a broken session.
                 formErrors.invalid(
                   "Das hat leider nicht geklappt. Bitte melden Sie sich erneut an.",
                 );
                 return;
               }
-              void onComplete(tokens);
+              void Promise.resolve()
+                .then(() => onComplete(result))
+                .catch((error: unknown) => {
+                  // The BFF may have installed the session while the following
+                  // browser-safe session read failed. Keep Continue available
+                  // and show the failure in this screen instead of dropping it.
+                  void showError(error, { object: "die Anmeldung" });
+                });
             }}
           >
             Weiter zum Dashboard

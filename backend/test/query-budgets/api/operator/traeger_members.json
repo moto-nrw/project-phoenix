@@ -1,0 +1,6 @@
+{
+  "scenario": "api.operator.traeger_members",
+  "max": 3,
+  "exact": true,
+  "description": "organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger\nrow, its memberships and one read of address and Träger roles for all\nmembers. Flat in the number of members."
+}

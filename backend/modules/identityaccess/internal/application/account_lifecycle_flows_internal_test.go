@@ -37,7 +37,7 @@ func TestStartStaffPreviewMintsAReadOnlyTokenAndOneStartEvent(t *testing.T) {
 	f.seedAccount(previewTarget, userRole())
 	f.store.permissions[mappingKey{previewTarget, lifecycleTenant}] = []string{"groups:read"}
 
-	session, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, lifecycleTenant, previewTarget, "", "127.0.0.1", "go-test")
+	session, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, lifecycleTenant, previewTarget, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	assert.Equal(t, previewTarget, session.TargetAccountID)
 	assert.EqualValues(t, 900, session.ExpiresIn)
@@ -103,7 +103,7 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 			if tc.arrange != nil {
 				tc.arrange(f)
 			}
-			_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, tc.tenantID, tc.target, "", "", "")
+			_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, tc.tenantID, tc.target, "", "", "", "")
 			require.ErrorIs(t, err, tc.want)
 			var operation *identityaccess.AuthenticationError
 			require.ErrorAs(t, err, &operation)
@@ -119,7 +119,7 @@ func TestStartStaffPreviewAcceptsASchoolRoleNamedLehrkraft(t *testing.T) {
 	tenantID := lifecycleTenant
 	f.seedAccount(previewTarget, domain.RoleAssignment{RoleID: 103, Name: "Lehrkraft", TenantID: &tenantID})
 
-	_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, lifecycleTenant, previewTarget, "", "", "")
+	_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, lifecycleTenant, previewTarget, "", "", "", "")
 	require.NoError(t, err)
 }
 
@@ -132,11 +132,11 @@ func TestStartStaffPreviewRemint(t *testing.T) {
 	f.seedAccount(previewTarget+1, userRole())
 	ctx := context.Background()
 
-	first, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", "", "")
+	first, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", "", "", "")
 	require.NoError(t, err)
 	firstID := decodeAccessToken(t, first.AccessToken).PreviewID
 
-	renewed, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, first.AccessToken, "", "")
+	renewed, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", first.AccessToken, "", "")
 	require.NoError(t, err)
 	assert.Equal(t, firstID, decodeAccessToken(t, renewed.AccessToken).PreviewID)
 	assert.Len(t, f.audit.started, 1, "a renewal is not a start")
@@ -156,7 +156,7 @@ func TestStartStaffPreviewRemint(t *testing.T) {
 		case "other target":
 			target = previewTarget + 1
 		}
-		fresh, err := f.lifecycle.StartStaffPreview(ctx, admin, lifecycleTenant, target, token, "", "")
+		fresh, err := f.lifecycle.StartStaffPreview(ctx, admin, lifecycleTenant, target, "", token, "", "")
 		require.NoError(t, err, name)
 		assert.NotEqual(t, firstID, decodeAccessToken(t, fresh.AccessToken).PreviewID, name)
 	}
@@ -164,7 +164,7 @@ func TestStartStaffPreviewRemint(t *testing.T) {
 	_, err = f.lifecycle.EndStaffPreview(ctx, renewed.AccessToken, "", "")
 	require.NoError(t, err)
 	started := len(f.audit.started)
-	after, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, renewed.AccessToken, "", "")
+	after, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", renewed.AccessToken, "", "")
 	require.NoError(t, err)
 	assert.NotEqual(t, firstID, decodeAccessToken(t, after.AccessToken).PreviewID, "an ended preview is never revived")
 	assert.Len(t, f.audit.started, started+1)
@@ -189,7 +189,7 @@ func TestEndStaffPreview(t *testing.T) {
 	}
 	assert.Empty(t, f.audit.ended)
 
-	session, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", "", "")
+	session, err := f.lifecycle.StartStaffPreview(ctx, previewAdmin, lifecycleTenant, previewTarget, "", "", "", "")
 	require.NoError(t, err)
 	previewID := decodeAccessToken(t, session.AccessToken).PreviewID
 

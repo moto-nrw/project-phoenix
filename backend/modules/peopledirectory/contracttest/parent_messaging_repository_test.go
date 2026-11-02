@@ -81,7 +81,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, peopleValues.ParentMessageSenderStaff, messages[2].SenderKind)
 
 	// Staff inbox: one row, guardian + child names, unread = 2 guardian msgs.
-	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
@@ -92,7 +92,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	// Sidebar badge counts unread MESSAGES (not threads): the two guardian
 	// messages above are both unread to the staff reader, so the badge is 2 —
 	// matching the inbox row pill above, not "1 thread".
-	unread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	unread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 2, unread)
 
@@ -103,7 +103,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	advanced, err := testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "first read from an empty cursor advances")
-	unread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	unread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 0, unread)
 
@@ -113,7 +113,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, advanced, "re-reading the same newest message is a no-op")
 
-	onlyUnread, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, true)
+	onlyUnread, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 
@@ -181,7 +181,7 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	advanced, err := testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, reader, m1.CreatedAt, m1.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "first read advances the cursor")
-	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
 
@@ -189,7 +189,7 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	advanced, err = testpkg.TenantQuery5(t, ctx, db, readRepo.MarkReadUpTo, testpkg.Tenant(t), thread.ID, reader, m2.CreatedAt, m2.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "reading the higher tie-break id advances the cursor")
-	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, true)
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, reader, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
@@ -222,12 +222,12 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, concurrent))
 	require.Greater(t, concurrent.ID, first.ID)
 
-	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "a tied higher-id message outside the handled snapshot must remain unread")
 
 	require.NoError(t, testpkg.TenantCommand4(t, ctx, db, readRepo.MarkStaffHandledUpTo, testpkg.Tenant(t), thread.ID, concurrent.CreatedAt, concurrent.ID))
-	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Zero(t, count)
 }
@@ -332,11 +332,11 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	pill := api.ParentStoreRequestCreatedPill(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, base)
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, pill))
 
-	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "a request_created pill must not count toward the staff Nachrichten badge")
 
-	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1, "the thread is still listed — it has a message")
 	assert.Equal(t, 0, inbox[0].UnreadCount, "per-thread unread_count agrees with the badge: pill excluded")
@@ -347,11 +347,11 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, chat))
 
-	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "a plain guardian message still counts; only the pill is excluded")
 
-	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 1, inbox[0].UnreadCount, "per-thread count still matches the badge")
@@ -379,7 +379,7 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 	require.Error(t, err, "unique constraint must reject a duplicate conversation")
 
 	// get-or-create lookup returns the existing thread.
-	found, err := testpkg.TenantQuery2(t, ctx, db, threadRepo.FindByStudentGuardian, chain.StudentID, chain.AccountID)
+	found, err := testpkg.TenantQuery3(t, ctx, db, threadRepo.FindByStudentGuardian, chain.StudentID, chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.Equal(t, first.ID, found.ID)
@@ -663,7 +663,7 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, peopleValues.ParentMessageSenderGuardian, "hallo")))
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, staffAccount.ID, peopleValues.ParentMessageSenderStaff, "antwort")))
 
-	staffUnread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	staffUnread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	require.Equal(t, 1, staffUnread, "guard: the guardian message counts while the child is active")
 	guardianUnread, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForGuardianTenants, chain.AccountID, []int64{testpkg.Tenant(t)})
@@ -675,7 +675,7 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	staffUnread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	staffUnread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 0, staffUnread, "a graduated child's messages must not badge the staff sidebar")
 	guardianUnread, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForGuardianTenants, chain.AccountID, []int64{testpkg.Tenant(t)})

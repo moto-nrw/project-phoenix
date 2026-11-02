@@ -1,7 +1,19 @@
 "use client";
 
 import { NextIntlClientProvider } from "next-intl";
-import deMessages from "~/i18n/messages/de.json";
+import datePicker from "~/i18n/messages/de/datePicker.json";
+import mealAllergens from "~/i18n/messages/de/mealAllergens.json";
+import mealOrders from "~/i18n/messages/de/mealOrders.json";
+import mealParticipantList from "~/i18n/messages/de/mealParticipantList.json";
+import notificationPreferences from "~/i18n/messages/de/notificationPreferences.json";
+import parentCalendarSubscribe from "~/i18n/messages/de/parentCalendarSubscribe.json";
+import parentChild from "~/i18n/messages/de/parentChild.json";
+import parentNav from "~/i18n/messages/de/parentNav.json";
+import parentNotificationSetup from "~/i18n/messages/de/parentNotificationSetup.json";
+import pwaInstallHint from "~/i18n/messages/de/pwaInstallHint.json";
+import pushNotifications from "~/i18n/messages/de/pushNotifications.json";
+import staffCalendarSubscribe from "~/i18n/messages/de/staffCalendarSubscribe.json";
+import surveyForm from "~/i18n/messages/de/surveyForm.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 
 // Shared shell components call next-intl hooks, which throw without a
@@ -16,22 +28,22 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 // plus the consent summary shown in student master data. Without these subsets
 // every label there renders as its message key.
 const SHELL_MESSAGES = {
-  datePicker: deMessages.datePicker,
-  parentNav: deMessages.parentNav,
-  pwaInstallHint: deMessages.pwaInstallHint,
-  notificationPreferences: deMessages.notificationPreferences,
-  pushNotifications: deMessages.pushNotifications,
-  parentNotificationSetup: deMessages.parentNotificationSetup,
-  parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
-  staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
-  mealParticipantList: deMessages.mealParticipantList,
-  mealOrders: deMessages.mealOrders,
-  mealAllergens: deMessages.mealAllergens,
+  datePicker,
+  parentNav,
+  pwaInstallHint,
+  notificationPreferences,
+  pushNotifications,
+  parentNotificationSetup,
+  parentCalendarSubscribe,
+  staffCalendarSubscribe,
+  mealParticipantList,
+  mealOrders,
+  mealAllergens,
   // Der Fragebogen einer Umfrage (#4781): Mitarbeitende beantworten dieselbe
   // Komponente wie Eltern.
-  surveyForm: deMessages.surveyForm,
+  surveyForm,
   parentChild: {
-    consents: deMessages.parentChild.consents,
+    consents: parentChild.consents,
   },
 };
 

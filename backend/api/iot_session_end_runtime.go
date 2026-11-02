@@ -15,6 +15,8 @@ func BindIoTSessionEnd(command sessionend.Command) sessionsAPI.EndSession {
 		result, err := command.EndSession(ctx, activeGroupID)
 		failure := sessionsAPI.EndFailed
 		switch {
+		case errors.Is(err, sessionend.ErrSessionConflict):
+			failure = sessionsAPI.EndConflict
 		case errors.Is(err, sessionend.ErrSessionNotFound):
 			failure = sessionsAPI.EndNotFound
 		case errors.Is(err, sessionend.ErrSessionAlreadyEnded):

@@ -46,6 +46,7 @@ type MoveOutcome struct {
 // Moves transfers children into a room session with every source-side right
 // and validation of the ordinary move, without requiring supervision there.
 type Moves interface {
+	PrepareOpenRoomMove(ctx context.Context, studentIDs []int64, roomID int64) error
 	MoveIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, actor openroommove.Actor) (MoveOutcome, error)
 }
 

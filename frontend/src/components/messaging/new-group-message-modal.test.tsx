@@ -1,10 +1,21 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "tenant" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type { GroupChild } from "~/lib/parent-group-threads-api";
 import type { ReactNode } from "react";
 import { SWRConfig } from "swr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,6 +109,36 @@ describe("Neue Gruppennachricht", () => {
     expect(mocks.fetchGroupAudience).toHaveBeenCalledWith("group", "5");
   });
 
+  it("does not carry the previous group audience into a newly selected group", async () => {
+    render(<NewGroupMessageModal onClose={vi.fn()} onCreated={vi.fn()} />, {
+      wrapper,
+    });
+    await pickGroup("Bären");
+    await screen.findByText(/Mia Ohne/);
+    let release!: (children: GroupChild[]) => void;
+    mocks.fetchGroupAudience.mockReturnValueOnce(
+      new Promise<GroupChild[]>((resolve) => {
+        release = resolve;
+      }),
+    );
+    await pickGroup("Füchse");
+    expect(
+      await screen.findByText("Empfänger werden geladen…"),
+    ).toBeInTheDocument();
+    await act(async () =>
+      release([
+        {
+          student_id: "3",
+          first_name: "Lina",
+          last_name: "Fuchs",
+          reachable: false,
+          read: false,
+        },
+      ]),
+    );
+    expect(await screen.findByText(/Lina Fuchs/)).toBeInTheDocument();
+  });
+
   it("sends the message to the chosen group and hands over the new thread", async () => {
     const detail = { thread: { id: "9" }, messages: [], children: [] };
     mocks.createGroupThread.mockResolvedValue(detail);
@@ -117,6 +158,7 @@ describe("Neue Gruppennachricht", () => {
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(detail));
     expect(mocks.createGroupThread).toHaveBeenCalledWith({
+      client_message_id: expect.any(String),
       target: { type: "group", id: "6", label: "Gruppe Füchse" },
       title: "Ausflug",
       body: "Am Freitag geht es in den Zoo.",

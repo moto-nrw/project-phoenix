@@ -31,6 +31,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // init seeds JWT viper defaults before any test builds a resource through the
@@ -293,7 +294,7 @@ func TestStaffNoticeAcknowledgementsListNames(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, path, strings.NewReader("")).WithContext(counter.Context(context.Background()))
 	rec = f.execute(t, f.tenant, req, f.admin, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	testpkg.AssertQueryBudget(t, "api.staff_notices.acknowledgements", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.staff_notices.acknowledgements", counter.Queries())
 
 	var envelope struct {
 		Data []struct {

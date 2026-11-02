@@ -1,0 +1,19 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/transactionruntime/internal/adapters/postgres/DatabaseError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/transactionruntime/protocol/CommitOutcomeUnknownError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/transactionruntime/protocol/TransactionStartError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

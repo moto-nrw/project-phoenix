@@ -219,6 +219,21 @@ func TrustedDeviceAddedMailContent(message TrustedDeviceMail, origin string) Mai
 			"IPAddress":   message.RequestIP,
 			"AddedAt":     message.AddedAt,
 			"TrustedDays": message.TrustedDays,
+			"Caterer":     message.Caterer,
+		},
+	}
+}
+
+// CatererMFAResetMailContent tells a caterer that a moto operator reset its
+// second factor (#4497). It carries no link: the caterer signs in as usual
+// and may switch the factor on again in its account.
+func CatererMFAResetMailContent(message CatererMFAResetMail, origin string) Mail {
+	return Mail{
+		Subject:  "Ihre Zwei-Faktor-Anmeldung bei moto wurde zurückgesetzt",
+		Template: "caterer-mfa-reset.html",
+		Content: map[string]any{
+			"LogoURL": trimmedLogoURL(origin),
+			"ResetAt": message.ResetAt,
 		},
 	}
 }

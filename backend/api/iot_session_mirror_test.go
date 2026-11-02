@@ -8,6 +8,7 @@ import (
 	"time"
 
 	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -35,7 +36,7 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()
 	// Mirroring must survive a failure of the trailing best-effort response read.
-	resource.SessionLifecycle = scanBindings.NewSessionLifecycle(activePresence.Active, owners.UnavailableMirrorSupervisions{}, NewDeviceScanPeople(activePeople.Users), active.IoT, mirror, nil, DeviceScanPrincipal)
+	resource.SessionLifecycle = scanBindings.NewSessionLifecycle(activePresence.Active, owners.NewLoggedStudentPresence(testpkg.NewDatabase(t, db), nil), owners.UnavailableMirrorSupervisions{}, NewDeviceScanPeople(activePeople.Users), active.IoT, mirror, nil, DeviceScanPrincipal)
 	handler := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 	request := testutil.NewAuthenticatedRequest(t, "POST", "/session/start", map[string]any{
 		"activity_id": activity.ID, "room_id": room.ID, "supervisor_ids": []int64{staff.ID},
@@ -73,4 +74,36 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 		assert.Equal(t, testpkg.Tenant(t), rows[0].TenantID)
 		return nil
 	}))
+}
+
+func TestKioskSessionMirrorAtBerlinMidnight(t *testing.T) {
+	t.Parallel()
+	for _, instant := range []string{"2026-11-01T22:59:59Z", "2026-11-01T23:00:12Z", "2026-06-01T22:00:12Z"} {
+		t.Run(instant, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db, _, _, activityService, _, _ := setupIoTActiveModule(t)
+			_, timetable := setupIoTTimetableModule(t)
+			mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), activityService)
+			require.NoError(t, err)
+			activity := testpkg.CreateTestActivityGroup(t, db, "Midnight Mirror")
+			room := testpkg.CreateTestRoom(t, db, "Midnight Mirror")
+			group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+			startedAt, err := time.Parse(time.RFC3339, instant)
+			require.NoError(t, err)
+			require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context) error {
+				mirrorKioskSessionAt(ctx, mirror, group.ID, group.RoomID, startedAt)
+				instance, err := instances.FindByActiveGroupID(ctx, group.ID)
+				require.NoError(t, err)
+				require.NotNil(t, instance, "a successful start persists its timetable mirror at midnight")
+				assert.Equal(t, calendar.DateFromTime(startedAt), instance.Date)
+				require.NotNil(t, instance.StartedAt)
+				assert.True(t, startedAt.Equal(*instance.StartedAt))
+				assert.Equal(t, testpkg.Tenant(t), instance.GetTenantID())
+				local := startedAt.In(calendar.Berlin)
+				assert.Equal(t, min(local.Hour()*60+local.Minute(), 23*60+30), instance.StartTime.Hour()*60+instance.StartTime.Minute())
+				return nil
+			}))
+		})
+	}
 }

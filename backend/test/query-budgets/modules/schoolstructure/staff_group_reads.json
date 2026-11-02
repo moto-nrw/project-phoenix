@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolstructure.staff_group_reads",
+  "max": 6,
+  "exact": false,
+  "description": "modules/schoolstructure — staff-keyed group reads (#3499): teacher\ngroups, substituted groups and school classes in one pass, 1 and then\n4 rows each, on the caller's tenant transaction. Every read resolves\nids at its owner and loads groups in one batch."
+}

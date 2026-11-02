@@ -43,6 +43,21 @@ type guardianInvitationRow struct {
 	UpdatedAt                   time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
+// LockGuardianAccountEmail closes the missing-row gap before the account lookup.
+// The key is global because an account can belong to several schools. Keep the
+// subsequent FOR UPDATE lookup too: account retention locks that existing row.
+func (s *Store) LockGuardianAccountEmail(ctx context.Context, email string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('guardian_account:' || LOWER(BTRIM(?)), 0))`, email)
+	if err != nil {
+		return fmt.Errorf("identity access postgres: lock guardian account email: %w", err)
+	}
+	return nil
+}
+
 func (r guardianInvitationRow) toDomain() domain.GuardianInvitation {
 	return domain.GuardianInvitation{
 		ID: r.ID, TenantID: r.TenantID, GuardianProfileID: r.GuardianProfileID, CreatedBy: r.CreatedBy,

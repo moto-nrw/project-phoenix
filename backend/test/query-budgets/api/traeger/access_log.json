@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.access_log",
+  "max": 10,
+  "exact": true,
+  "description": "modules/traegerview — GET /traeger/access-log (#4655, ADR 0109): the\nTräger row, the school IDs of the Träger, one access trail read of the\nAudit Platform, the school rows, the staff members behind staff IDs and\ntheir persons, the persons of the accounts and one Träger-Büro address\nread, in one administrative transaction; then the tenant binding of\neach shown school's transaction, which writes the read to that\nschool's access log (two schools in the scenario). Flat in the number\nof entries."
+}

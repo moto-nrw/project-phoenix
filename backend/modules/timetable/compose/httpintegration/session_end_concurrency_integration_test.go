@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -14,8 +15,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Cancel and kiosk end must both lock the live group before its attendance.
-// Hold the workflow's first lock, start real Cancel, then finish the real
+// Cancel and kiosk end prepare visits before locking the group and attendance.
+// Hold the workflow's prepared visit/group locks, start real Cancel, then finish the real
 // workflow. An inverse attendance lock makes the workflow time out.
 func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 	t.Parallel()
@@ -37,7 +38,11 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 	cancelDone := make(chan error, 1)
+	presence := api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db))
 	endErr := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		if err := presence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: []int64{group.ID}}); err != nil {
+			return err
+		}
 		var lockedID int64
 		if err := tx.NewRaw("SELECT id FROM active.groups WHERE id = ? FOR UPDATE", group.ID).Scan(txCtx, &lockedID); err != nil {
 			return err
@@ -50,7 +55,7 @@ func TestSessionEndSerializesWithTimetableCancel(t *testing.T) {
 			var waiting int
 			err := db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(ctx, &waiting)
 			return err == nil && waiting > 0
-		}, 5*time.Second, 10*time.Millisecond, "Cancel must wait for the workflow's group lock")
+		}, 5*time.Second, 10*time.Millisecond, "Cancel must wait for the workflow's prepared visit/group locks")
 		if _, err := tx.NewRaw("SET LOCAL lock_timeout = '250ms'").Exec(txCtx); err != nil {
 			return err
 		}

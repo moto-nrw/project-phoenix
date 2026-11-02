@@ -1,0 +1,5 @@
+{
+  "api/rooms/by-category": [
+    "GET tenant /api/rooms/by-category raw"
+  ]
+}

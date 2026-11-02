@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 /**
  * PeriodSwitcherDropdown: replaces CalendarPeriodHeaderButton.
@@ -117,8 +118,8 @@ export function PeriodSwitcherDropdown({
               : "Mehrere Zeiträume";
 
   // Group all periods for the list section.
+  const today = useBerlinToday();
   const grouped = useMemo<PeriodGroup[]>(() => {
-    const today = toISODate(new Date());
     const active: CalendarPeriod[] = [];
     const upcoming: CalendarPeriod[] = [];
     const archived: CalendarPeriod[] = [];
@@ -141,7 +142,7 @@ export function PeriodSwitcherDropdown({
         periods: archived.sort(byStart).reverse(),
       },
     ].filter((g) => g.periods.length > 0);
-  }, [periods]);
+  }, [periods, today]);
 
   // Click-outside / Escape to close.
   const closeMenu = useCallback(() => setOpen(false), []);

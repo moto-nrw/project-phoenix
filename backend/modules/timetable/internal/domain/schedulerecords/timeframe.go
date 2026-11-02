@@ -9,20 +9,21 @@ import (
 type Timeframe struct {
 	Model `bun:"schema:schedule,table:timeframes"`
 	TenantModel
-	StartTime   time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime     *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	IsActive    bool       `bun:"is_active,notnull,default:false" json:"is_active"`
-	Description string     `bun:"description" json:"description,omitempty"`
+	StartTimeSet bool       `bun:"-" json:"-"`
+	StartTime    time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime      *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	IsActive     bool       `bun:"is_active,notnull,default:false" json:"is_active"`
+	Description  string     `bun:"description" json:"description,omitempty"`
 }
 
 // Validate ensures timeframe data is valid
 func (t *Timeframe) Validate() error {
-	if t.StartTime.IsZero() {
+	if !t.StartTimeSet && t.StartTime.IsZero() {
 		return errors.New("start time is required")
 	}
 
 	// If end time is provided, ensure it's after start time
-	if t.EndTime != nil && !t.EndTime.IsZero() && !t.EndTime.After(t.StartTime) {
+	if t.EndTime != nil && !t.EndTime.After(t.StartTime) {
 		return errors.New("end time must be after start time")
 	}
 
@@ -40,7 +41,7 @@ func (t *Timeframe) Duration() time.Duration {
 
 // IsOpen returns true if the timeframe has no end time
 func (t *Timeframe) IsOpen() bool {
-	return t.EndTime == nil || t.EndTime.IsZero()
+	return t.EndTime == nil
 }
 
 // Contains checks if the given time is within the timeframe

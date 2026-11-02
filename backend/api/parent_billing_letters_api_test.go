@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -267,4 +268,36 @@ func TestBillingLettersRefuseALetterheadWithoutRoomForTheLetter(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT (SELECT count(*) FROM parent_billing.run_letters WHERE run_id = ?)
 		+ (SELECT count(*) FROM parent_billing.document_letters WHERE run_id = ?)`, run.ID, run.ID).Scan(context.Background(), &stored))
 	assert.Zero(t, stored, "a refused creation stores nothing")
+}
+
+// Simulate a logo saved before normalization was introduced. Both HTTP
+// entry points must render it without requiring another upload (#5236).
+func TestBillingLettersWithStoredInterlacedLogo(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Interlaced Schreiben")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	run := releasedBillingRun(t, f, billing)
+	brandTraeger(t, f)
+	logo, err := os.ReadFile("../testdata/interlaced-logo.png")
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(context.Background(), `UPDATE platform.traeger_profiles SET logo = ?, logo_width = 32, logo_height = 16 WHERE organization_id = ?`, logo, f.office.organization)
+	require.NoError(t, err)
+	for _, suffix := range []string{"/letters/preview", "/letters"} {
+		t.Run(suffix, func(t *testing.T) {
+			rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, suffix), lettersBody("2099-01-15"))
+			if suffix == "/letters/preview" {
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				assert.True(t, bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")))
+				assert.Contains(t, rec.Body.String(), "/Subtype /Image")
+			} else {
+				require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			}
+		})
+	}
+	for _, document := range run.Documents {
+		rec := traegerJSON(t, f.traeger, billing, http.MethodGet, letterPath(run.ID, document.ID), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.True(t, bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")))
+		assert.Contains(t, rec.Body.String(), "/Subtype /Image")
+	}
 }

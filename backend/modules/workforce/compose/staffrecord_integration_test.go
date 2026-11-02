@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -104,6 +105,7 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Qualifikation", "Foreign")
+	other := testpkg.CreateTestStaff(t, db, "Qualifikation", "Other")
 	capability := buildWorkforce(t, db)
 
 	stored, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{
@@ -117,6 +119,9 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	assert.Equal(t, testpkg.Tenant(t), stored[0].TenantID)
 	_, err = capability.ReplaceStaffQualifications(foreignCtx, foreign.ID, []workforce.StaffQualification{{Name: "Fremd"}})
 	require.NoError(t, err)
+	otherRows, err := capability.ReplaceStaffQualifications(ctx, other.ID, []workforce.StaffQualification{{Name: "Fremder Nachweis"}})
+	require.NoError(t, err)
+	require.Len(t, otherRows, 1)
 
 	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
 	require.NoError(t, err)
@@ -127,6 +132,13 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	foreignList, err := capability.ListStaffQualifications(ctx, foreign.ID)
 	require.NoError(t, err)
 	assert.Empty(t, foreignList, "the foreign tenant's rows are invisible")
+
+	_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{ID: otherRows[0].ID, Name: "Unbefugt"}})
+	require.ErrorIs(t, err, workforce.ErrInvalidStaffRecord)
+	assert.EqualError(t, err, "qualification ID does not belong to staff member")
+	listed, err = capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2, "a rejected foreign ID leaves the existing rows untouched")
 
 	_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{
 		{Name: "Fortbildung"}, {Name: "", AcquiredOn: "2025-01-01"},
@@ -331,14 +343,15 @@ func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Dokument", "Foreign")
 	capability := buildWorkforce(t, db)
 
-	contract, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryArbeitsvertrag, "contract-1"))
+	contractFilename := fmt.Sprintf("contract-%d", testpkg.UniqueSuffix())
+	contract, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryArbeitsvertrag, contractFilename))
 	require.NoError(t, err)
 	assert.NotZero(t, contract.ID)
 	assert.Equal(t, testpkg.Tenant(t), contract.TenantID)
 	assert.False(t, contract.CreatedAt.IsZero(), "database defaults are read back")
-	payslip, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryLohnabrechnung, "payslip-1"))
+	payslip, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryLohnabrechnung, fmt.Sprintf("payslip-%d", testpkg.UniqueSuffix())))
 	require.NoError(t, err)
-	foreignDoc, err := capability.CreateStaffDocument(foreignCtx, testDocument(foreign.ID, workforce.StaffDocumentCategorySonstiges, "foreign-1"))
+	foreignDoc, err := capability.CreateStaffDocument(foreignCtx, testDocument(foreign.ID, workforce.StaffDocumentCategorySonstiges, fmt.Sprintf("foreign-%d", testpkg.UniqueSuffix())))
 	require.NoError(t, err)
 
 	_, err = capability.CreateStaffDocument(ctx, testDocument(staff.ID, "diary", "invalid-1"))
@@ -361,7 +374,7 @@ func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {
 
 	found, err := capability.FindStaffDocument(ctx, staff.ID, contract.ID, false)
 	require.NoError(t, err)
-	assert.Equal(t, "contract-1", found.FilenameStored)
+	assert.Equal(t, contractFilename, found.FilenameStored)
 	_, err = capability.FindStaffDocument(ctx, foreign.ID, contract.ID, false)
 	require.ErrorIs(t, err, workforce.ErrStaffDocumentNotFound, "the staff and document ids must agree")
 	_, err = capability.FindStaffDocument(ctx, foreign.ID, foreignDoc.ID, false)

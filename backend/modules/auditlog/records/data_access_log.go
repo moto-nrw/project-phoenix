@@ -11,6 +11,10 @@ const (
 	// (issue #1456): per-group daily statuses of many children at once.
 	// StudentID stays NULL; metadata carries the group scope.
 	ResourceTypeAttendanceDayLog = "attendance_day_log"
+	// ResourceTypeAttendanceWeekProtocol records opening the weekly protocol
+	// of a group or its PDF (#4769): the missing children of a whole week.
+	// StudentID stays NULL; metadata carries the group scope.
+	ResourceTypeAttendanceWeekProtocol = "attendance_week_protocol"
 	// ResourceTypeStudentStatusDayOverview records a group-scoped bulk view of
 	// registered student absences over a requested date range.
 	ResourceTypeStudentStatusDayOverview = "student_status_day_overview"
@@ -75,6 +79,16 @@ const (
 	// Schulverwaltung account, deduplicated like the class day view to one
 	// row per actor, report date and calendar day of access.
 	ResourceTypeSchoolDayView = "school_day_view"
+	// ResourceTypeClassAbsenceList records serving the absence list of one
+	// class in moto schule (#4793): the absence days of every child of the
+	// class in a period. StudentID stays NULL; metadata carries
+	// school_class, from, to and student_count. Every read writes its own
+	// row, without deduplication: the page loads the list only on a change
+	// of class or period.
+	ResourceTypeClassAbsenceList = "class_absence_list"
+	// ResourceTypeClassAbsenceListExport records every PDF or Excel export
+	// of that list (#4793); metadata adds the format.
+	ResourceTypeClassAbsenceListExport = "class_absence_list_export"
 	// ResourceTypeSupervisionStudentSheet records serving ONE child's pickup
 	// and emergency contacts to a supervisor running the block that child is
 	// in (#2527). The class day view (ResourceTypeClassDayView) deliberately
@@ -82,6 +96,11 @@ const (
 	// gets its own resource type — and, unlike the class day view, no
 	// deduplication: the sheet opens only on a deliberate tap.
 	ResourceTypeSupervisionStudentSheet = "supervision_student_sheet"
+	// ResourceTypeSchoolSharedNotes records a Lehrkraft opening the notes
+	// the OGS released for the school about one child of her class (#4797).
+	// StudentID is SET; metadata carries school_class and note_count. Every
+	// read writes its own row, without deduplication.
+	ResourceTypeSchoolSharedNotes = "school_shared_notes"
 	// ResourceTypeStudentHealthListExport records an export of the
 	// Gesundheitsliste (#3323): the stored health notes (Art. 9 data) of
 	// many children at once. StudentID stays NULL; metadata carries the
@@ -119,6 +138,12 @@ const (
 	// sheet of one holiday guest (#4666): booked care, emergency contacts
 	// and pickup persons. StudentID is SET; metadata carries week_id.
 	ResourceTypeHolidayGuestSheet = "holiday_guest_sheet"
+	// ResourceTypeHolidayStudentHealth records a staff member reading what
+	// the holiday registrations give as health information for a child of
+	// the hosting school itself (#4722): allergies, medication, health notes
+	// and answers to health questions. StudentID is SET; RangeStart and
+	// RangeEnd span the weeks; metadata carries week_ids.
+	ResourceTypeHolidayStudentHealth = "holiday_student_health"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

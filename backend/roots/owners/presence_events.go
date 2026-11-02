@@ -212,6 +212,15 @@ func (e PresenceEvents) SupervisionRefresh(ctx context.Context, activeGroupID, r
 	}
 }
 
+// SupervisionChanged queues active_supervision_changed after the commit through
+// Delivery's existing after-commit queue (#5017).
+func (e PresenceEvents) SupervisionChanged(ctx context.Context, activeGroupID int64, reason string) {
+	if e.publisher == nil {
+		return
+	}
+	deliveryCompose.NewGroupEvents(e.publisher, e.log()).QueueActiveSupervisionChanged(ctx, activeGroupID, reason)
+}
+
 // DashboardCountsChanged sends the tenant-wide dashboard refresh signal
 // (#2057). eduGroupIDs are the affected educational group ids, never student
 // identity; nil omits the field so clients refresh broadly.

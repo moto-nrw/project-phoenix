@@ -1,5 +1,6 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
 interface PlanningDisabledStateProps {
   readonly pageTitle: string;
@@ -27,7 +28,7 @@ export function PlanningDisabledState({
       empty={{
         title: heading,
         description,
-        icon: <MotoConceptIcon concept="closingDays" size={42} />,
+        icon: <MotoConceptIcon concept={closingDaysConcept} size={42} />,
       }}
     />
   );

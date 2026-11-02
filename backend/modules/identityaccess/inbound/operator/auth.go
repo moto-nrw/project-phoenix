@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -169,4 +170,25 @@ func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, "Token refreshed")
+}
+
+// Logout revokes the operator session family of the logged-in access token
+// (#5194). The route runs behind RequiresActiveOperator, which proved that
+// family live and the operator's own. 204 confirms the revocation; a failed
+// revocation answers 503 so the browser does not take the logout for done.
+func (rs *Resource) Logout(w http.ResponseWriter, r *http.Request) {
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	err := rs.identity.LogoutOperator(r.Context(), int64(claims.ID), claims.FamilyID)
+	switch {
+	case err == nil:
+		common.RespondNoContent(w, r)
+	case errors.Is(err, identityaccess.ErrOperatorRefreshTokenInvalid):
+		common.RenderError(w, r, rs.responses.Unauthorized())
+	default:
+		slog.ErrorContext(r.Context(), "operator logout did not revoke the session family",
+			slog.Int("operator_id", claims.ID),
+			slog.String("error", err.Error()),
+		)
+		common.RenderError(w, r, common.OperatorServiceUnavailable("Logout could not revoke the session, please retry"))
+	}
 }

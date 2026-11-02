@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { registerNavigationBlocker } from "~/lib/hooks/navigation-guard-store";
+import {
+  isUnloadConfirmed,
+  registerNavigationBlocker,
+} from "~/lib/hooks/navigation-guard-store";
 
 interface NavigationGuard {
   /** The destination of an intercepted navigation, or null when none is pending. */
@@ -48,6 +51,7 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
   // thunk (after collapsing the sentinel) rather than router.replace-ing an
   // href or traversing history.
   const pendingActionRef = useRef<null | (() => void)>(null);
+  const pendingCancelRef = useRef<null | (() => void)>(null);
   // Set on a programmatic confirm: run once we have popped the sentinel back
   // onto this page (via the bypassed popstate), so the deferred push lands on a
   // clean [previous, this-page, target] stack instead of leaving a duplicate.
@@ -57,6 +61,7 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
     if (!shouldBlock) return;
 
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isUnloadConfirmed()) return;
       e.preventDefault();
       e.returnValue = "";
     };
@@ -92,6 +97,9 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       if (target === current) return;
 
       e.preventDefault();
+      pendingCancelRef.current?.();
+      pendingCancelRef.current = null;
+      pendingActionRef.current = null;
       pendingPopRef.current = false;
       setPendingHref(target);
     };
@@ -109,10 +117,14 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
         if (proceedAfterPopRef.current) {
           const proceed = proceedAfterPopRef.current;
           proceedAfterPopRef.current = null;
+          pendingCancelRef.current = null;
           proceed();
         }
         return;
       }
+      pendingCancelRef.current?.();
+      pendingCancelRef.current = null;
+      pendingActionRef.current = null;
       // The Back press popped our sentinel; re-arm it so we stay on this URL
       // (and remain protected against a second Back press while the modal is
       // open), then ask the user to confirm.
@@ -129,7 +141,13 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
     // router.push via useTenantRouter) — no anchor click and no popstate fires
     // for those, so the click/popstate traps above miss them. The router
     // consults this registry before navigating and hands us the deferred call.
-    const onProgrammaticNav = (proceed: () => void, href: string) => {
+    const onProgrammaticNav = (
+      proceed: () => void,
+      href: string,
+      cancel?: () => void,
+    ) => {
+      pendingCancelRef.current?.();
+      pendingCancelRef.current = cancel ?? null;
       pendingPopRef.current = false;
       pendingActionRef.current = proceed;
       setPendingHref(href);
@@ -141,6 +159,8 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
     window.addEventListener("popstate", onPopState);
     return () => {
       unregisterBlocker();
+      pendingCancelRef.current?.();
+      pendingCancelRef.current = null;
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", onPopState);
@@ -203,7 +223,10 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
   const cancelNavigation = useCallback(() => {
     pendingPopRef.current = false;
     pendingActionRef.current = null;
+    const cancel = pendingCancelRef.current;
+    pendingCancelRef.current = null;
     setPendingHref(null);
+    cancel?.();
   }, []);
 
   return { pendingHref, confirmNavigation, cancelNavigation };

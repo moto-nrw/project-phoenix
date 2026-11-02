@@ -30,8 +30,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  useInvalidateMatching: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/hooks/use-staff-pending-absences", () => ({
@@ -46,8 +49,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({
     search,
     filters,
     onClearAllFilters,
@@ -289,7 +292,10 @@ describe("StaffPage", () => {
         key === formerKey
           ? { data: former, isLoading: false, error: null }
           : {
-              data: key === "staff-list" ? mockStaff : undefined,
+              data:
+                key === 'staff-directory-list-{"strict":false}'
+                  ? mockStaff
+                  : undefined,
               isLoading: false,
               error: null,
             }) as never);
@@ -543,7 +549,7 @@ describe("StaffPage", () => {
       status: "authenticated",
     } as never);
     vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "staff-list") {
+      if (key === 'staff-directory-list-{"strict":false}') {
         return { data: mockStaff, isLoading: false, error: null } as never;
       }
       return {

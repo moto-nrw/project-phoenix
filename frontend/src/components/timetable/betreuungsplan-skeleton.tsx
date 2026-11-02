@@ -246,20 +246,24 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
 export function PlanningContextBarSkeleton({
   ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
   testId = "timetable-header-skeleton",
+  announce = true,
 }: {
   readonly ariaLabel?: string;
   readonly testId?: string;
+  /** False only when the content status covers the same loading phase. */
+  readonly announce?: boolean;
 } = {}) {
   return (
     <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label={ariaLabel}
+      role={announce ? "status" : undefined}
+      aria-live={announce ? "polite" : undefined}
+      aria-busy={announce ? true : undefined}
+      aria-label={announce ? ariaLabel : undefined}
+      aria-hidden={announce ? undefined : true}
       data-testid={testId}
       className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 shadow-sm"
     >
-      <span className="sr-only">{ariaLabel}</span>
+      {announce ? <span className="sr-only">{ariaLabel}</span> : null}
       <div>
         <Skeleton className="h-7 w-40" />
         <Skeleton className="mt-2 h-4 w-56" />
@@ -282,7 +286,7 @@ export function PlanningContextBarSkeleton({
 export function TimetablePageSkeleton() {
   return (
     <div className="w-full space-y-6" data-testid="timetable-page-skeleton">
-      <PlanningContextBarSkeleton />
+      <PlanningContextBarSkeleton announce={false} />
       <TimetableContentSkeleton view="week" />
     </div>
   );

@@ -78,12 +78,13 @@ type ProvisioningIdentity struct {
 	Traeger        ProvisioningTraegerIdentity
 }
 
-// ProvisioningTraegerIdentity is the account lookup, the Träger roles and the
-// participating reset of the second factor the operator's Träger-Büro
-// management uses (ADR 0084, #4651).
+// ProvisioningTraegerIdentity is the account lookup, the Träger roles, the
+// invitation and the participating reset of the second factor the
+// operator's Träger-Büro management uses (ADR 0084, #4651, #5144).
 type ProvisioningTraegerIdentity interface {
 	identityaccess.GuardianAccessQuery
 	identityaccess.TraegerRoles
+	identityaccess.TraegerOperatorInvitation
 	ResetMFAInTransaction(ctx context.Context, accountID int64) error
 }
 
@@ -303,6 +304,27 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 		return organizationtenancy.ErrTraegerAccountNotFound
 	}
 	return err
+}
+
+// InviteTraegerAccount sends the Träger-Büro's invitation on the operator's
+// transaction (#5144) and reports it in the provisioning vocabulary.
+func (p ProvisioningIdentity) InviteTraegerAccount(ctx context.Context, organizationID int64, email string, roles []string) (organizationtenancy.TraegerInvitation, error) {
+	invitation, err := p.Traeger.InviteTraegerAccountForOperator(ctx, organizationID, email, roles)
+	switch {
+	case errors.Is(err, identityaccess.ErrInvalidTraegerRole):
+		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrInvalidTraegerRole
+	case errors.Is(err, identityaccess.ErrTraegerInvalidEmail):
+		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrTraegerInvalidEmail
+	case errors.Is(err, identityaccess.ErrTraegerAlreadyMember):
+		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrTraegerAlreadyMember
+	case errors.Is(err, identityaccess.ErrNoTraegerMembership):
+		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrOrganizationInactive
+	case err != nil:
+		return organizationtenancy.TraegerInvitation{}, err
+	}
+	return organizationtenancy.TraegerInvitation{
+		ID: invitation.ID, Email: invitation.Email, Roles: invitation.Roles, ExpiresAt: invitation.ExpiresAt,
+	}, nil
 }
 
 // ResetTraegerMFA resets the member's second factor on the operator's

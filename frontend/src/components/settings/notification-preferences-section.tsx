@@ -25,6 +25,7 @@ import {
   type NotificationPreferenceType,
   type PreferencePortal,
 } from "~/lib/notification-preferences-api";
+import { notificationsConcept } from "~/lib/concepts/notifications";
 
 const logger = createLogger({ component: "NotificationPreferencesSection" });
 
@@ -293,7 +294,7 @@ function NotificationPreferencesSectionContent({
         // dieser Abschnitt die oberste Ueberschrift der Seite.
         level={3}
         title={isParentPortal ? t("title") : "Benachrichtigungen"}
-        concept="notifications"
+        concept={notificationsConcept}
         subtitle={
           isParentPortal
             ? t("description")

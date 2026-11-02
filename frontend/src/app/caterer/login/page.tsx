@@ -1,28 +1,36 @@
 "use client";
 
-// Login of the caterer portal (ADR 0077). Like the school login without the
-// second factor: the backend checks e-mail and password, refuses every other
-// kind of account like a wrong password, and the page hands the token pair
-// to the caterer NextAuth session.
+// Login of the caterer portal (ADR 0077). The backend checks e-mail and
+// password and refuses every other kind of account like a wrong password.
+// Where the caterer switched two-factor sign-in on (#4497), a code from the
+// e-mail follows, unless this device is remembered; a passkey replaces both.
+// The BFF installs the session.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
   LOGIN_REFUSALS,
+  PASSKEY_LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
@@ -31,6 +39,11 @@ import { catererPath } from "~/lib/caterer-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
+import {
+  isPasskeyCeremonyIncompleteError,
+  isPasskeySupported,
+  loginWithPasskey,
+} from "~/lib/passkey-api";
 
 const logger = createLogger({ component: "CatererLoginPage" });
 
@@ -57,6 +70,13 @@ function sessionErrorInUrl(): boolean {
   return true;
 }
 
+interface MFAStep {
+  readonly challengeToken: string;
+  readonly maskedEmail: string;
+  readonly trustedDeviceEnabled: boolean;
+  readonly trustedDeviceDays?: number;
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,11 +86,14 @@ function LoginForm() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const resetFormRef = useRef<HTMLFormElement>(null);
   const resetErrors = useApiFormError(resetFormRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
+  const latestPasskeyRef = useRef<() => void>(() => undefined);
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const cleaningRef = useRef(false);
@@ -107,6 +130,10 @@ function LoginForm() {
   }, [status, session]);
 
   useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
+
+  useEffect(() => {
     const error = searchParams.get("error");
     if (error !== "SessionRequired" && error !== "SessionExpired") return;
     let deliberate = false;
@@ -123,28 +150,29 @@ function LoginForm() {
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;
 
+  // The BFF installed the session: after the password, the code or the
+  // passkey.
+  const completeLogin = () => {
+    setAwaitingRedirect(true);
+    window.location.href = catererPath("/caterer");
+  };
+
   const submit = async () => {
     setIsLoading(true);
     formErrors.clear();
     setSessionExpired(false);
     try {
-      const tokens = await loginCaterer(email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) {
-        logger.error("session_seed_failed", { error: result.error });
-        // No ApiError: the path shows its general text for the login.
-        void formErrors.show(new Error(result.error), {
-          object: "die Anmeldung",
+      const result = await loginCaterer(email, password);
+      if (result.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: result.challengeToken,
+          maskedEmail: result.maskedEmail,
+          trustedDeviceEnabled: result.trustedDeviceEnabled,
+          trustedDeviceDays: result.trustedDeviceDays,
         });
         return;
       }
-      setAwaitingRedirect(true);
-      window.location.href = catererPath("/caterer");
+      completeLogin();
     } catch (cause) {
       // A wrong password, a switched-off account and too many tries have
       // texts of their own; before the login a 401 means "refused".
@@ -161,9 +189,43 @@ function LoginForm() {
     }
   };
 
+  const loginWithCatererPasskey = async () => {
+    setIsLoading(true);
+    formErrors.clear();
+    setSessionExpired(false);
+    try {
+      await loginWithPasskey("caterer");
+      completeLogin();
+    } catch (cause) {
+      if (isPasskeyCeremonyIncompleteError(cause)) {
+        // The person closed the browser dialog: nothing to report.
+        logger.info("caterer_passkey_login_not_completed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        return;
+      }
+      logger.warn("caterer_passkey_login_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void formErrors.show(credentialError(cause, PASSKEY_LOGIN_REFUSALS), {
+        object: "die Anmeldung mit Passkey",
+        retry: () => latestPasskeyRef.current(),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
+    latestPasskeyRef.current = () => void loginWithCatererPasskey();
   });
+
+  const backToCredentials = () => {
+    setMfaStep(null);
+    setPassword("");
+    formErrors.clear();
+  };
 
   const emailError = formErrors.fieldError("email");
   const passwordError = formErrors.fieldError("password");
@@ -171,7 +233,17 @@ function LoginForm() {
   return (
     <>
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-        {isCheckingAuth ? (
+        {mfaStep ? (
+          <MFAChallengeForm
+            scope="caterer"
+            challengeToken={mfaStep.challengeToken}
+            maskedEmail={mfaStep.maskedEmail}
+            trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+            trustedDeviceDays={mfaStep.trustedDeviceDays}
+            onSuccess={completeLogin}
+            onCancel={backToCredentials}
+          />
+        ) : isCheckingAuth ? (
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
             <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
@@ -197,40 +269,35 @@ function LoginForm() {
 
             <div className="space-y-4">
               <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <input
+                <Input
                   id="email"
                   name="email"
                   type="email"
+                  label="E-Mail-Adresse"
+                  controlSize="compact"
                   autoComplete="username"
                   required
                   disabled={isSubmitting}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  aria-invalid={Boolean(emailError)}
-                  aria-describedby={emailError ? "email-error" : undefined}
-                  className={authInputClass(Boolean(emailError))}
+                  error={emailError}
                 />
-                <AuthFieldError id="email-error" message={emailError} />
               </div>
 
               <div className="text-left">
-                <label
+                <FieldLabel
                   htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  required
+                  invalid={Boolean(passwordError)}
                 >
                   Passwort
-                </label>
+                </FieldLabel>
                 <div className="relative">
-                  <input
+                  <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
+                    controlSize="compact"
                     autoComplete="current-password"
                     required
                     disabled={isSubmitting}
@@ -240,7 +307,7 @@ function LoginForm() {
                     aria-describedby={
                       passwordError ? "password-error" : undefined
                     }
-                    className={`${authInputClass(Boolean(passwordError))} pr-10`}
+                    className="pr-10"
                   />
                   <PasswordToggleButton
                     showPassword={showPassword}
@@ -255,7 +322,7 @@ function LoginForm() {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  className={authTextButtonClassName}
                 >
                   Passwort vergessen?
                 </button>
@@ -273,6 +340,19 @@ function LoginForm() {
                 </span>
               </button>
             </div>
+            {passkeySupported && (
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                className="w-full gap-2"
+                disabled={isSubmitting}
+                onClick={() => void loginWithCatererPasskey()}
+              >
+                <MotoConceptIcon concept={passkeysConcept} size={16} />
+                <span>Mit Passkey anmelden</span>
+              </Button>
+            )}
           </form>
         )}
       </AuthShell>

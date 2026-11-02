@@ -14,7 +14,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "swr";
 
 import {
   DenyAbsenceModal,
@@ -90,7 +89,9 @@ export function StaffAbsenceRequestList({
   onCountChange?: (count: number | null) => void;
 }>) {
   const toast = useToast();
-  const { mutate: swrMutate } = useSWRConfig();
+  const refreshPendingBadges = useTenantMutateMatching([
+    "staff-pending-absences-",
+  ]);
   const { data: session } = useSession();
   const accountId = session?.user.id;
   const { show: showActionError } = useApiErrorDisplay();
@@ -187,13 +188,10 @@ export function StaffAbsenceRequestList({
         );
       }
       void revalidateLists();
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.includes("staff-pending-absences-"),
-      );
+      void refreshPendingBadges();
       dispatchAbsencesRefresh();
     },
-    [list, revalidateLists, swrMutate],
+    [list, revalidateLists, refreshPendingBadges],
   );
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {

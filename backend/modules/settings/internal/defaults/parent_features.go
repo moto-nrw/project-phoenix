@@ -44,6 +44,22 @@ var parentFeaturesDefinitions = []config.Definition{
 		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
 	},
 	{
+		// Leitungs-Unterhaltungen (#5200). Eltern sehen die Auswahl nur, wenn
+		// auch mindestens ein Konto das Recht dazu hat. Ausgeschaltet bleiben
+		// bestehende Unterhaltungen lesbar; neue beginnt niemand.
+		Key:             config.KeyParentMessageLeadershipEnabled,
+		Label:           "Nachrichten nur an die Leitung (Eltern)",
+		Description:     "Eltern können wählen: an das ganze Team oder nur an die Leitung. Nur die Leitung liest diese Nachrichten. Eltern sehen die Namen der Leitung, zum Beispiel „Anna M.“. Das gilt auch, wenn die Namen des Teams sonst nicht angezeigt werden. Zur Leitung gehört, wer das Recht „Vertrauliche Elternnachrichten lesen“ hat.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
+	},
+	{
 		Key:             config.KeyGuardianParentInviteMode,
 		Levels:          config.LevelBoth,
 		Label:           "Weitere Bezugspersonen einladen (Eltern)",
@@ -179,8 +195,10 @@ var parentFeaturesDefinitions = []config.Definition{
 		Description: "Legt fest, wer bei einer Anfrage einen Grund schreiben muss. " +
 			"Eltern begründen beim Absenden. Mitarbeitende begründen beim Freigeben. " +
 			"Eine Ablehnung braucht immer einen Grund. Das ändert diese Einstellung nicht.",
-		Type:            config.FieldSelect,
-		Default:         config.ReasonPolicyBoth,
+		Type: config.FieldSelect,
+		// Eltern begründen, das Team gibt ohne Pflichttext frei (#5024): ein
+		// Pflichtgrund beim Freigeben erzeugte nur Platzhalter wie „.“.
+		Default:         config.ReasonPolicyGuardians,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

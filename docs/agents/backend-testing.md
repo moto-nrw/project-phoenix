@@ -69,6 +69,17 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 - From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run TestHermeticTestPatterns -v`
 - Preserve test contracts; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
 
+## Skipped tests
+
+A skipped test proves nothing, so flaky or clock-dependent tests are fixed,
+not skipped. Fix the clock with `synctest` or a fixed `calendar.NewDate(...)`,
+and let a broken fixture or a ratchet that cannot find its input fail with
+`t.Fatal`. `TestTestSkipRatchet` (`backend/test/test_skip_ratchet_test.go`)
+fails on every `t.Skip`, `t.Skipf` or `t.SkipNow` outside `testSkipReasons`.
+That register holds environment opt-ins (`environment: …`, such as `-short` or
+a missing `TEST_DB_DSN`) and quarantined flakes with their tracking issue
+(`quarantine #1234: …`). It is shrink-only like the other ratchet registers.
+
 ## Credential fixtures
 
 Use `testpkg.NewTestPassword()` for a valid password in authentication,

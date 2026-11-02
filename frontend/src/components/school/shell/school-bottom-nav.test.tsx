@@ -46,13 +46,17 @@ describe("SchoolBottomNav", () => {
     expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
   });
 
-  // Auch ohne Team-Chat sind es sechs Ziele: breite Abstände würden auf
-  // 360 px überlaufen. Beide Besetzungen verwenden die kompakte Darstellung.
-  it("verwendet bei sechs Zielen ohne Team-Chat die kompakte Darstellung", () => {
+  // Auch ohne Team-Chat sind es seit den Fehlzeiten (#4793) sieben Ziele:
+  // breite Abstände würden auf 360 px überlaufen. Beide Besetzungen
+  // verwenden die kompakte Darstellung.
+  it("verwendet bei sieben Zielen ohne Team-Chat die kompakte Darstellung", () => {
     mockPathname.value = "/aufsichten";
     render(<SchoolBottomNav teamChat={teamChat} />);
 
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(6);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(7);
+    expect(
+      screen.getByRole("link", { name: "Fehlzeiten" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Meine Aufsichten")).toHaveClass(
       "hidden",
       "min-[480px]:inline",
@@ -63,18 +67,22 @@ describe("SchoolBottomNav", () => {
     );
   });
 
-  // Mit den Elternbriefen (#4800) sind es mit Team-Chat sieben Ziele: die
-  // Icons rücken zusammen, die Beschriftung kommt erst ab 480 px dazu.
-  it("blendet die Beschriftung bei sieben Zielen mit Team-Chat unterhalb von 480 px aus", () => {
+  // Mit den Fehlzeiten (#4793) sind es mit Team-Chat acht Ziele: die Icons
+  // rücken noch enger zusammen (8 × 36 px passen in die 294 px der Pille),
+  // die Beschriftung kommt erst ab 480 px dazu.
+  it("blendet die Beschriftung bei acht Zielen mit Team-Chat unterhalb von 480 px aus", () => {
     mockPathname.value = "/aufsichten";
     render(<SchoolBottomNav teamChat={{ unreadCount: 0, available: true }} />);
 
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(7);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(8);
     expect(screen.getByText("Meine Aufsichten")).toHaveClass(
       "hidden",
       "min-[480px]:inline",
     );
     expect(screen.getByRole("link", { name: "Elternbriefe" })).toHaveClass(
+      "px-2",
+    );
+    expect(screen.getByRole("link", { name: "Elternbriefe" })).not.toHaveClass(
       "px-2.5",
     );
   });

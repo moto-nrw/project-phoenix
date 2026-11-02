@@ -4,7 +4,8 @@
 //
 //   node scripts/check-caddyfile.mjs [file]
 //     Every reverse_proxy imports the client_ip_upstream snippet, so the
-//     upstream sees exactly one X-Forwarded-For value. Runs in CI.
+//     upstream sees exactly one X-Forwarded-For value and the real
+//     X-Forwarded-Host. Runs in CI.
 //   node scripts/check-caddyfile.mjs --cloudflare [file]
 //     Additionally compares trusted_proxies with Cloudflare's published
 //     ranges and prints the difference plus the corrected line. A new edge
@@ -22,6 +23,14 @@ const cidr = /^(?:\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}|[0-9a-f:]+:[0-9a-f:]*\/\d{1,3
 function structural(line) {
   return line.replace(/`[^`]*`|"(?:[^"\\]|\\.)*"/g, '""').replace(/(^|\s)#.*$/, '$1').trim();
 }
+
+// Behind trusted Cloudflare, Caddy passes client-sent forwarding headers
+// through; the frontend trusts these for tenant and portal isolation.
+export const upstreamHeaders = [
+  'header_up X-Forwarded-For {client_ip}',
+  'header_up X-Forwarded-Host {host}',
+  'header_up -X-Moto-Original-*',
+];
 
 export function checkReverseProxies(source) {
   const lines = source.split(/\r?\n/).map(structural);
@@ -45,7 +54,16 @@ export function checkReverseProxies(source) {
     if (!imported) errors.push(`${where} does not import client_ip_upstream.`);
   });
   if (count === 0) errors.push('No reverse_proxy found; is this the right Caddyfile?');
-  if (!/^\(client_ip_upstream\)\s*\{/m.test(source)) errors.push('The (client_ip_upstream) snippet is missing.');
+  const start = lines.findIndex(line => /^\(client_ip_upstream\)\s*\{$/.test(line));
+  if (start < 0) {
+    errors.push('The (client_ip_upstream) snippet is missing.');
+    return errors;
+  }
+  const end = lines.indexOf('}', start);
+  const directives = lines.slice(start + 1, end < 0 ? undefined : end);
+  for (const required of upstreamHeaders) {
+    if (!directives.includes(required)) errors.push(`The (client_ip_upstream) snippet lacks "${required}".`);
+  }
   return errors;
 }
 

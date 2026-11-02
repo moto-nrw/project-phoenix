@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -203,4 +204,51 @@ func (e EnrollmentSignatures) LatestEnrollmentSignatures(ctx context.Context, re
 		}
 	}
 	return out, nil
+}
+
+// AccidentReportSignatures binds the ledger to Care Plan's accident reports
+// (#4771): the leadership signs the report of a child, the document
+// checksum is the SHA-256 of the report's statement, and a refused image
+// becomes Care Plan's error.
+type AccidentReportSignatures struct{ Ledger auditlog.SignatureLedger }
+
+func (a AccidentReportSignatures) RecordAccidentSignature(ctx context.Context, entry careplan.AccidentSignatureEntry) (int64, error) {
+	image, err := auditlog.ParseSignatureImage(entry.Input.Method, entry.Input.ImagePNG, entry.Input.TypedName)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", careplan.ErrAccidentSignatureInvalid, err)
+	}
+	studentID, accountID := entry.StudentID, entry.SignerAccountID
+	stored, err := a.Ledger.RecordSignature(ctx, auditlog.SignatureEntry{
+		Purpose: auditlog.SignaturePurposeAccidentReport, StudentID: &studentID, SignerAccountID: &accountID,
+		SignerName: entry.SignerName, DocumentSHA256: securityruntime.Fingerprint([]byte(entry.Statement)),
+		SignedAt: entry.SignedAt, Image: image,
+	})
+	if errors.Is(err, auditlog.ErrSignatureInvalid) {
+		return 0, fmt.Errorf("%w: %v", careplan.ErrAccidentSignatureInvalid, err)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return stored.ID, nil
+}
+
+// AccidentSignature reads one signature and checks it: the ledger's own
+// integrity, the accident report purpose, the child, and the SHA-256 of the
+// report as it is stored now.
+func (a AccidentReportSignatures) AccidentSignature(ctx context.Context, studentID, signatureID int64, statement string) (*careplan.AccidentSignature, error) {
+	stored, err := a.Ledger.Signatures(ctx, []int64{signatureID})
+	if err != nil {
+		return nil, err
+	}
+	s, ok := stored[signatureID]
+	if !ok || s == nil {
+		return nil, nil
+	}
+	intact := s.IntegrityOK && s.Purpose == auditlog.SignaturePurposeAccidentReport &&
+		s.StudentID != nil && *s.StudentID == studentID &&
+		s.DocumentSHA256 == securityruntime.Fingerprint([]byte(statement))
+	return &careplan.AccidentSignature{
+		Method: s.Method, TypedName: s.TypedName, SignerName: s.SignerName, PNG: s.PNG,
+		SignedAt: s.SignedAt, Intact: intact,
+	}, nil
 }

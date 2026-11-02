@@ -26,7 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
-// Registered error codes (error-registry.json) of the check-in conflicts.
+// Registered error codes (error-registry/) of the check-in conflicts.
 // This package may not import api/common, so it names them once here.
 const (
 	codeRoomCapacityExceeded     = "iot.room_capacity_exceeded"

@@ -51,11 +51,11 @@ import { PlanningDisabledState } from "~/components/planning/planning-disabled-s
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
 import {
-  berlinTodayISO,
   formatDate,
   formatStatusDate,
   isValidISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { STAFF_FLAT_PAGES } from "~/lib/section-navigation";
@@ -71,6 +71,8 @@ import { nextCareDayISO, previousCareDayISO } from "~/lib/timetable-helpers";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "TagesplanView" });
 
@@ -226,7 +228,7 @@ function TagesplanRow({
     room ? (
       <Fragment key="room">
         <MotoConceptIcon
-          concept="rooms"
+          concept={roomsConcept}
           size={14}
           className="mr-1 inline-block align-[-2px]"
         />
@@ -281,7 +283,7 @@ function TagesplanRow({
         {staff && !cancelled ? (
           <span className="block truncate text-xs text-gray-400">
             <MotoConceptIcon
-              concept="staff"
+              concept={staffConcept}
               size={14}
               className="mr-1 inline-block align-[-2px]"
             />
@@ -450,7 +452,7 @@ export function TagesplanView() {
   const weekendOpen = useWeekendFollowsFriday();
   const now = useMinuteClock();
 
-  const today = berlinTodayISO();
+  const today = useBerlinToday();
   const dayParam = searchParams.get("d");
   const day = isValidISODay(dayParam) ? dayParam : today;
   const isToday = day === today;
@@ -614,7 +616,9 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Vorheriger Tag"
-              onClick={() => goToDay(previousCareDayISO(day, weekendOpen))}
+              onClick={() =>
+                goToDay(previousCareDayISO(day, weekendOpen, today))
+              }
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -633,7 +637,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Nächster Tag"
-              onClick={() => goToDay(nextCareDayISO(day, weekendOpen))}
+              onClick={() => goToDay(nextCareDayISO(day, weekendOpen, today))}
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>

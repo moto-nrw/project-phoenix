@@ -48,6 +48,35 @@ describe("DashboardRedirectPage", () => {
     expect(schoolPortalLoginUrl).not.toHaveBeenCalled();
   });
 
+  it("überschreibt eine neuere Navigation nicht nach einer Sitzungserneuerung", async () => {
+    const { rerender } = render(<DashboardRedirectPage />);
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/home"));
+
+    // Die alte Seite bleibt während des Ladens noch gemountet. Ein frisches
+    // Sitzungsobjekt darf die inzwischen gestartete Tour-Navigation nicht
+    // mit einer zweiten Weiterleitung zur Startseite verdrängen.
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { roles: ["user"] } },
+      status: "authenticated",
+    } as ReturnType<typeof useSession>);
+    rerender(<DashboardRedirectPage />);
+
+    expect(router.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("leitet nach dem Sitzungsende trotz begonnener Weiterleitung zur Anmeldung", async () => {
+    const { rerender } = render(<DashboardRedirectPage />);
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/home"));
+
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    } as ReturnType<typeof useSession>);
+    rerender(<DashboardRedirectPage />);
+
+    expect(router.replace).toHaveBeenLastCalledWith("/");
+  });
+
   it("leitet nicht angemeldete Personen zur Anmeldung", async () => {
     vi.mocked(useSession).mockReturnValue({
       data: null,

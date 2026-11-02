@@ -1,73 +1,61 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
 import { getRelativeTime, getInitial } from "~/lib/format-utils";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "AnnouncementViewsAccordion" });
+import { useSWRAuth } from "~/lib/swr";
+import { operatorAnnouncementKeys } from "~/lib/swr/portal-keys";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
-  readonly dismissedCount: number;
 }
 
 export function AnnouncementViewsAccordion({
   announcementId,
-  dismissedCount,
 }: AnnouncementViewsAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewDetails, setViewDetails] = useState<AnnouncementViewDetail[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const viewsLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = viewsLoad;
-  const loadedRef = useRef(false);
-
-  // Only show users who confirmed (clicked "Verstanden")
+  const {
+    data: stats,
+    error: statsError,
+    mutate: reloadStats,
+  } = useSWRAuth(
+    isOpen ? operatorAnnouncementKeys.stats(announcementId) : null,
+    () => operatorAnnouncementsService.fetchStats(announcementId),
+    { keepPreviousData: false, refreshInterval: 30000 },
+  );
+  const {
+    data: viewDetails,
+    error,
+    isLoading,
+    mutate,
+  } = useSWRAuth<AnnouncementViewDetail[]>(
+    isOpen ? operatorAnnouncementKeys.views(announcementId) : null,
+    () => operatorAnnouncementsService.fetchViewDetails(announcementId),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der Lesebestätigungen",
+    () => void mutate(),
+  );
+  const statsLoadError = useSwrLoadError(
+    statsError,
+    "die Auswertung der Ankündigung",
+    () => void reloadStats(),
+  );
   const confirmedUsers = useMemo(
-    () => viewDetails.filter((d) => d.dismissed),
+    () => (viewDetails ?? []).filter((detail) => detail.dismissed),
     [viewDetails],
   );
-
-  const loadViewDetails = useCallback(async () => {
-    if (loadedRef.current) return;
-    setIsLoading(true);
-    clearLoadError();
-    try {
-      const details =
-        await operatorAnnouncementsService.fetchViewDetails(announcementId);
-      setViewDetails(details);
-      loadedRef.current = true;
-    } catch (err) {
-      logger.warn("announcement_view_details_failed", {
-        announcement_id: announcementId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showLoadError(err, {
-        object: "die Liste der Lesebestätigungen",
-        retry: () => void loadViewDetails(),
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [announcementId, showLoadError, clearLoadError]);
-
-  const handleToggle = useCallback(() => {
-    const opening = !isOpen;
-    setIsOpen(opening);
-    if (opening) {
-      void loadViewDetails();
-    }
-  }, [isOpen, loadViewDetails]);
-
-  // Only show if there are any confirmations
-  if (dismissedCount === 0) {
-    return null;
-  }
+  const count = stats?.dismissed_count;
 
   return (
     <div
@@ -79,14 +67,15 @@ export function AnnouncementViewsAccordion({
       {/* Accordion header */}
       <button
         type="button"
-        onClick={handleToggle}
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
         className="flex w-full items-center justify-between py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
       >
         <span className="flex items-center gap-1.5 font-medium">
           <span>Lesebestätigungen</span>
-          <span className="text-xs font-normal text-gray-400">
-            ({dismissedCount})
-          </span>
+          {count !== undefined && (
+            <span className="text-xs font-normal text-gray-400">({count})</span>
+          )}
         </span>
         <ChevronDown
           className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -94,9 +83,7 @@ export function AnnouncementViewsAccordion({
       </button>
 
       {/* Accordion body */}
-      <div
-        className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-      >
+      {isOpen && (
         <div className="overflow-hidden">
           <div className="pb-3">
             {/* Loading state */}
@@ -105,7 +92,10 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Error */}
-            <LoadErrorAlert error={viewsLoad.error} className="mb-2" />
+            <LoadErrorAlert
+              error={loadError ?? statsLoadError}
+              className="mb-2"
+            />
 
             {/* Confirmed users list */}
             {!isLoading && confirmedUsers.length > 0 && (
@@ -147,14 +137,16 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Empty state */}
-            {!isLoading && loadedRef.current && confirmedUsers.length === 0 && (
-              <p className="text-xs text-gray-400">
-                Noch keine Lesebestätigungen.
-              </p>
-            )}
+            {!isLoading &&
+              viewDetails !== undefined &&
+              confirmedUsers.length === 0 && (
+                <p className="text-xs text-gray-400">
+                  Noch keine Lesebestätigungen.
+                </p>
+              )}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

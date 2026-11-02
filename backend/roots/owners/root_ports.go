@@ -170,6 +170,7 @@ type EnrollmentOfferingHistory interface {
 // offering change reads.
 type OfferingChangeEnrollmentReads interface {
 	StudentCarePeriods(context.Context, int64) ([]*enrollmentOwner.StudentCarePeriod, error)
+	StudentCarePeriodsByStudentIDs(context.Context, []int64) ([]*enrollmentOwner.StudentCarePeriod, error)
 	RequestByID(context.Context, int64, bool) (*enrollmentOwner.Request, error)
 	ChildByID(context.Context, int64) (*enrollmentOwner.RequestChild, error)
 	ChildrenByID(context.Context, []int64) ([]*enrollmentOwner.RequestChild, error)
@@ -178,6 +179,7 @@ type OfferingChangeEnrollmentReads interface {
 	EffectiveOfferingSelectionsAtDates(context.Context, map[int64]enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
 	OfferingCatalogState(context.Context, int64, int64, enrollmentOwner.Date, enrollmentOwner.Date) (*enrollmentOwner.OfferingCatalogState, error)
 	OfferingCapacityPeak(context.Context, int64, []int64, enrollmentOwner.Date, enrollmentOwner.Date) (int, error)
+	OfferingCapacityPeaks(context.Context, []int64, enrollmentOwner.Date, enrollmentOwner.Date) (map[int64]int, error)
 }
 
 // OfferingChangeReviewPolicy is the parent-request review policy's scope of

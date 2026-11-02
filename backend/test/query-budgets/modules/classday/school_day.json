@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.classday.school_day",
+  "max": 34,
+  "exact": false,
+  "description": "modules/classday — GET /school/class-day/school-day (#4802): one\nschool-wide roster and one read of each day fact for every class, 2 and\nthen 4 classes. The count must not move with the classes."
+}

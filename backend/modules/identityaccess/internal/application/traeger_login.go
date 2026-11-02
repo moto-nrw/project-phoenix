@@ -133,7 +133,7 @@ func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account 
 	session.OrganizationID = organizationID
 	session.MFAVerified = proof != nil
 	guard := s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeOrg, s.traegerMintGuard(organizationID, &metadata))
-	session, err := s.persistNewSession(ctx, account, session, 0, guard, "")
+	session, err := s.persistNewSession(ctx, account, session, 0, guard, "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -243,10 +243,27 @@ func (s *AccountAuthentication) listTraegerOrganizations(ctx context.Context, ac
 	return organizations, err
 }
 
+// isTraegerMember reports whether the account may sign in to the
+// Träger-Portal: it holds an active membership of an active Träger. Without
+// the memberships composed nobody is a member.
+func (s *AccountAuthentication) isTraegerMember(ctx context.Context, accountID int64) (bool, error) {
+	if s.traeger == nil {
+		return false, nil
+	}
+	organizations, err := s.listTraegerOrganizations(ctx, accountID)
+	return len(organizations) > 0, err
+}
+
 func containsTraeger(organizations []identityaccess.TraegerOrganization, organizationID int64) bool {
 	return organizationID > 0 && slices.ContainsFunc(organizations, func(organization identityaccess.TraegerOrganization) bool {
 		return organization.ID == organizationID
 	})
+}
+
+// InAdminUnit reports an ambient administrative transaction: the unit the
+// participating Träger commands of the operator join (#5144).
+func (s *AccountAuthentication) InAdminUnit(ctx context.Context) bool {
+	return s.runtime.HasTransaction(ctx) && s.runtime.IsAdminTx(ctx)
 }
 
 // AssignTraegerRole grants a Träger role. It participates in the caller's

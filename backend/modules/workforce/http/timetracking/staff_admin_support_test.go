@@ -82,9 +82,12 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	documentFiles, err := workforceCompose.NewStaffDocumentFileRecovery(capabilities.Documents, cleanup, nativeUploads.UploadFiles{}, slog.Default())
 	require.NoError(t, err)
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
+	qualifications, err := workforceCompose.NewQualifications(db, qualificationStaffStub{}, workforce.QualificationReminderPorts{}, nil)
+	require.NoError(t, err)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
 		Uploads:            nativeUploads.UploadFiles{},
+		PayrollDispatch:    payrollDispatchOff{},
 		OffboardingCleanup: cleanup,
 		DocumentFiles:      documentFiles,
 		Staff:              capabilities.Staff,
@@ -102,6 +105,8 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		TargetOverrides:    workforceCapability,
 		ExportTransfer:     stubExportTransfer{},
 		Identity:           testIdentity,
+		QualificationTypes: qualifications,
+		Qualifications:     qualifications,
 		Logger:             slog.Default(),
 	})
 
@@ -138,4 +143,40 @@ func authToken(t *testing.T, perms ...string) string {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = perms
 	return testutil.MintTestJWT(t, claims)
+}
+
+// payrollDispatchOff is a school without the automatic send of #4805: the
+// month close queues nothing.
+type payrollDispatchOff struct{}
+
+func (payrollDispatchOff) QueueAfterMonthClose(context.Context, workforce.PayrollDispatchTrigger) error {
+	return nil
+}
+
+func (payrollDispatchOff) Overview(context.Context) (workforce.PayrollDispatchOverview, error) {
+	return workforce.PayrollDispatchOverview{}, nil
+}
+
+func (payrollDispatchOff) RunDue(context.Context) (int, error) { return 0, nil }
+
+func (payrollDispatchOff) Download(context.Context, int64, string) (workforce.PayrollDownload, error) {
+	return workforce.PayrollDownload{}, workforce.ErrPayrollDownloadUnavailable
+}
+
+// qualificationStaffStub lists the staff the Nachweise routes read (#4808);
+// tests that need people on the list set members.
+type qualificationStaffStub struct {
+	members []workforce.QualificationStaffMember
+}
+
+func (s qualificationStaffStub) ListStaffMembers(context.Context) ([]workforce.QualificationStaffMember, error) {
+	return s.members, nil
+}
+
+func (s qualificationStaffStub) StaffContact(_ context.Context, staffID int64) (workforce.QualificationStaffMember, error) {
+	return workforce.QualificationStaffMember{StaffID: staffID}, nil
+}
+
+func (s qualificationStaffStub) StammdatenManagers(context.Context) ([]workforce.QualificationStaffMember, error) {
+	return nil, nil
 }

@@ -172,6 +172,7 @@ Object.defineProperty(window, "localStorage", {
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: () => false,
   hasEffectiveAdminScope: () => false,
+  hasPermission: () => false,
   isCaregiver: () => true,
   hasRole: (_: unknown, r: string) => r === "user",
 }));
@@ -214,8 +215,8 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({
     actionButton,
     mobileActionButton,
   }: {

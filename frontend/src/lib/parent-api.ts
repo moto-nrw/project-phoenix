@@ -1,6 +1,7 @@
+import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import {
   ApiError,
-  transportFetch,
+  transportFetch as fetchTransport,
   unavailableApiError,
   apiErrorFromBody,
 } from "./api-error";
@@ -23,7 +24,13 @@ import {
   normalizeMealAllergens,
   type MealAllergen,
 } from "~/lib/meal-allergens";
-import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
+import {
+  type ChatMessage,
+  type MessageAudience,
+  type RequestDiffEntry,
+  type SchoolReaders,
+  audienceQuery,
+} from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import type {
@@ -31,6 +38,30 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+
+import { boundSessionAccount } from "~/lib/session-account";
+import {
+  isParentAccessRefusal,
+  PARENT_ACCESS_REFUSED_EVENT,
+} from "~/lib/parent-access-refusal";
+
+// Capture the originating account before awaiting the cookie-bound request.
+const responseOrigins = new WeakMap<
+  Response,
+  { account: string | null; method: string }
+>();
+async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const account = boundSessionAccount();
+  const response = await fetchTransport(input, init);
+  responseOrigins.set(response, {
+    account,
+    method: (init?.method ?? "GET").toUpperCase(),
+  });
+  return response;
+}
 
 const logger = createLogger({ component: "ParentAPI" });
 
@@ -220,6 +251,7 @@ export interface SickNoteSubmitResult {
 
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
+  readonly conference_book_allowed?: boolean;
   // Zustand, keine Fähigkeit: Das Kind ist nicht mehr in Betreuung (#2487).
   // Ist es true, sind alle Schreib-Flags unten false — das Portal zeigt dann
   // ein Nur-Lesen-Profil mit einem Satz dazu statt Knöpfe, die alle gleich
@@ -481,6 +513,7 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
 async function throwResponseError(
   url: string,
   response: Response,
+  checksPortalAccess = false,
 ): Promise<never> {
   let body: unknown;
   try {
@@ -493,6 +526,20 @@ async function throwResponseError(
     response.status,
     body,
   );
+  const origin = responseOrigins.get(response);
+  const account = origin?.account;
+  if (
+    typeof window !== "undefined" &&
+    account &&
+    account === boundSessionAccount() &&
+    isParentAccessRefusal(error, origin?.method, checksPortalAccess)
+  ) {
+    window.dispatchEvent(
+      new CustomEvent(PARENT_ACCESS_REFUSED_EVENT, {
+        detail: { account, error },
+      }),
+    );
+  }
   const context = {
     url,
     status: response.status,
@@ -510,12 +557,12 @@ async function throwResponseError(
   throw error;
 }
 
-async function getJson<T>(url: string): Promise<T> {
+async function getJson<T>(url: string, checksPortalAccess = false): Promise<T> {
   const response = await transportFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-  if (!response.ok) await throwResponseError(url, response);
+  if (!response.ok) await throwResponseError(url, response, checksPortalAccess);
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
@@ -595,6 +642,42 @@ export async function grantChildPhotoConsent(
   );
 }
 
+const parentConferencesUrl = (studentId: string) =>
+  `/api/parent/me/children/${encodeURIComponent(studentId)}/parent-conferences`;
+
+/** The coming Elternsprechtage of the child's class (#4801). */
+export async function fetchChildParentConferences(
+  studentId: string,
+): Promise<ParentConferenceOffer[]> {
+  return (
+    (await getJson<ParentConferenceOffer[] | null>(
+      parentConferencesUrl(studentId),
+    )) ?? []
+  );
+}
+
+/** Books the slot for the child, or moves the child's booking there. */
+export async function bookChildParentConference(
+  studentId: string,
+  conferenceId: string,
+  startTime: string,
+): Promise<ParentConferenceOffer> {
+  return putJson<ParentConferenceOffer>(
+    `${parentConferencesUrl(studentId)}/${encodeURIComponent(conferenceId)}/booking`,
+    { start_time: startTime },
+  );
+}
+
+/** Cancels the child's booking of the day. */
+export async function cancelChildParentConference(
+  studentId: string,
+  conferenceId: string,
+): Promise<void> {
+  await deleteJson<unknown>(
+    `${parentConferencesUrl(studentId)}/${encodeURIComponent(conferenceId)}/booking`,
+  );
+}
+
 /**
  * Fetches the enrollment phases the calling parent's account may apply to,
  * across every school (linked or not). The backend pre-filters by eligibility
@@ -608,14 +691,6 @@ export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
 
 export async function fetchParentProfile(): Promise<ParentProfile> {
   return getJson<ParentProfile>("/api/parent/me/profile");
-}
-
-// The authenticated account owns this response. All parent-portal consumers
-// use the same key so the header and locale state read one SWR cache entry.
-export function parentProfileCacheKey(
-  accountID: string,
-): readonly [string, string] {
-  return ["parent-profile", accountID];
 }
 
 export async function updateParentPortalLocale(
@@ -791,6 +866,7 @@ export async function getChildFeatures(
 ): Promise<ChildFeatures> {
   return getJson<ChildFeatures>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/features`,
+    true, // This endpoint requires only parent_portal.access.
   );
 }
 
@@ -848,6 +924,7 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
   try {
     return await getJson<ChildToday>(
       `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
+      true, // This endpoint requires only parent_portal.access.
     );
   } catch (err) {
     if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
@@ -1029,6 +1106,20 @@ export interface ThreadSummary {
   readonly last_message_payload?: Record<string, unknown>;
   readonly last_message_read_by_staff: boolean;
   readonly unread: number;
+  /** Absent means the team conversation. */
+  readonly audience?: MessageAudience;
+  readonly readers?: ParentReaders;
+}
+
+/**
+ * Who can read a conversation (#5200), as the backend reports it. `guardian`
+ * is the signed-in parent (absent on list rows); other guardians of the child
+ * do not read along. `school.names` carries the leadership's short names
+ * („Swantje M.“) on an opened leadership conversation.
+ */
+interface ParentReaders {
+  readonly guardian?: { readonly name: string };
+  readonly school: SchoolReaders;
 }
 
 // One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
@@ -1171,24 +1262,41 @@ export interface ThreadView {
   readonly student_name: string;
   readonly school_name: string;
   readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly audience?: MessageAudience;
+  readonly readers?: ParentReaders;
+  /**
+   * Whether the parent may start a conversation with the leadership only:
+   * false while the school has it switched off or has no leadership.
+   */
+  readonly leadership_option?: {
+    readonly available: boolean;
+    readonly names: readonly string[];
+    readonly unnamed_count?: number;
+  };
   readonly messages: ParentMessage[];
 }
 
-/** Lists the guardian's conversations (one per child written about). */
+/**
+ * Lists the guardian's conversations: per child the team one and, once
+ * begun, the one with the leadership only (#5200). Every link and reply
+ * carries the row's audience.
+ */
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
-  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+  const threads = await getJson<ThreadSummary[]>("/api/parent/me/messages");
+  return Array.isArray(threads) ? threads : [];
 }
 
 /**
- * Total number of conversations with unread staff-side activity, across all the
- * guardian's children's schools — the sidebar badge. A light COUNT endpoint, so
- * the badge does not fetch every thread's full projection just to sum unreads.
+ * Counts the conversations with unread staff-side activity for the badge:
+ * exactly the rows the inbox shows (#5200), team and leadership ones per
+ * child plus the group threads.
  */
 export async function fetchMessagesUnreadCount(): Promise<number> {
-  const result = await getJson<{ unread_count: number }>(
-    "/api/parent/me/messages/unread-count",
-  );
-  return result.unread_count ?? 0;
+  const [threads, groups] = await Promise.all([
+    listMessageThreads(),
+    listGroupThreads(),
+  ]);
+  return [...threads, ...groups].filter((thread) => thread.unread > 0).length;
 }
 
 /**
@@ -1467,9 +1575,22 @@ export function declarationProofPath(
  */
 export async function getChildConversation(
   studentId: string,
+  audience: MessageAudience = "team",
 ): Promise<ThreadView> {
   return getJson<ThreadView>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}${audienceQuery(audience)}`,
+  );
+}
+
+/**
+ * The guardian's conversations about one child (team and, if begun,
+ * leadership), without marking them read.
+ */
+export async function listChildThreads(
+  studentId: string,
+): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
   );
 }
 
@@ -1481,10 +1602,19 @@ export async function postChildMessage(
   studentId: string,
   body: string,
   groupThreadId?: string,
+  audience: MessageAudience = "team",
+  clientMessageId?: string,
 ): Promise<ThreadView> {
+  // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+    // JSON drops undefined keys: a team message sends only its body.
+    {
+      body,
+      client_message_id: clientMessageId,
+      group_thread_id: groupThreadId,
+      audience: groupThreadId || audience === "team" ? undefined : audience,
+    },
   );
 }
 
@@ -1511,6 +1641,8 @@ export interface GroupThreadSummary {
   readonly last_message_body: string;
   readonly unread: number;
   readonly children: readonly GroupThreadChild[];
+  /** Who reads the guardian's answer: always the whole OGS team. */
+  readonly readers?: ParentReaders;
 }
 
 /** One OGS message of a group thread; the sender is always the OGS. */

@@ -72,6 +72,8 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "database/groups/page.tsx": "sammlung",
   "database/permissions/page.tsx": "sammlung",
   "database/personal/page.tsx": "sammlung",
+  "database/qualification-types/page.tsx": "sammlung",
+  "database/qualifications/page.tsx": "sammlung",
   "database/planning-tracks/page.tsx": "sammlung",
   "database/roles/page.tsx": "sammlung",
   "database/rooms/page.tsx": "sammlung",
@@ -90,6 +92,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "ogs-groups/overview/page.tsx": "sammlung",
   "parent-announcements/page.tsx": "sammlung",
   "umfragen/page.tsx": "sammlung",
+  "wochenprotokolle/page.tsx": "sammlung",
   "reminders/page.tsx": "sammlung",
   "rooms/page.tsx": "sammlung",
   "rooms/unterwegs/page.tsx": "sammlung",
@@ -109,11 +112,13 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "messages/groups/[groupThreadId]/page.tsx": "objekt",
   "parent-announcements/[id]/page.tsx": "objekt",
   "umfragen/[id]/page.tsx": "objekt",
+  "wochenprotokolle/[protocolId]/page.tsx": "objekt",
   "profile/page.tsx": "objekt",
   "rooms/[id]/page.tsx": "objekt",
   "staff/[id]/page.tsx": "objekt",
   "students/[id]/page.tsx": "objekt",
   "students/[id]/change-history/page.tsx": "objekt",
+  "students/[id]/unfallanzeigen/[reportId]/page.tsx": "objekt",
   "students/[id]/feedback-history/page.tsx": "objekt",
   "students/[id]/room-history/page.tsx": "objekt",
   "team-chat/[threadID]/page.tsx": "objekt",
@@ -224,9 +229,30 @@ describe("Bauart-Deklaration des Tenant-Portals", () => {
   });
 });
 
-describe("Seitengerüst des Tenant-Portals", () => {
+/**
+ * Das Träger-Portal (#5146) baut aus denselben Bausteinen wie das
+ * Tenant-Portal und rendert deshalb dasselbe Gerüst. Ausgenommen sind nur die
+ * Seiten vor der Anmeldung: Anmelden und Einladung annehmen haben keine
+ * Portalhülle und keinen Seitenkopf, sie sind Formulare auf leerem Grund wie
+ * die Anmeldeseiten der übrigen Portale.
+ */
+const TRAEGER_DIR = path.join(SRC_DIR, "app", "traeger");
+const TRAEGER_PUBLIC = new Set(["login/page.tsx", "invite/page.tsx"]);
+
+const traegerPages = collectPageFiles(TRAEGER_DIR)
+  .map((file) => ({
+    id: path.relative(TRAEGER_DIR, file),
+    file,
+    source: readFileSync(file, "utf8"),
+  }))
+  .filter((page) => !TRAEGER_PUBLIC.has(pageId(page)));
+
+describe.each([
+  { portal: "Tenant-Portals", pages, minimum: 51 },
+  { portal: "Träger-Portals", pages: traegerPages, minimum: 13 },
+])("Seitengerüst des $portal", ({ pages, minimum }) => {
   it("findet Seiten zum Prüfen", () => {
-    expect(pages.length).toBeGreaterThan(50);
+    expect(pages.length).toBeGreaterThanOrEqual(minimum);
   });
 
   it.each(pages.map((page) => [page.id, page] as const))(

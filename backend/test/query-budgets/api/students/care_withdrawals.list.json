@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.care_withdrawals.list",
+  "max": 6,
+  "exact": false,
+  "description": "api/students — GET /care-withdrawals, page_size=1 over four pending\nwithdrawals (#3412). The count and the page each run as one Care Plan\nstatement that joins the named student directory projection; the\nmatching test also pins the rows read at one and at four children."
+}

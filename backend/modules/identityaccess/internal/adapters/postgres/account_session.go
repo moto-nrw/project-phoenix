@@ -31,7 +31,9 @@ type accountSessionRow struct {
 	PortalScope          string     `bun:"portal_scope,notnull,default:'unknown'"`
 	MFAVerified          bool       `bun:"mfa_verified,notnull,default:false"`
 	FamilyID             string     `bun:"family_id"`
+	SwitchedFromFamilyID string     `bun:"switched_from_family_id,nullzero"`
 	FamilyExpiryCap      *time.Time `bun:"family_expiry_cap"`
+	LineageDeadline      *time.Time `bun:"lineage_deadline"`
 	Generation           int        `bun:"generation,default:0"`
 	RotatedAt            *time.Time `bun:"rotated_at"`
 	ReplacementTokenHash *string    `bun:"replacement_token"`
@@ -43,7 +45,7 @@ type accountSessionRow struct {
 func (r accountSessionRow) toDomain() domain.AccountSession {
 	return domain.AccountSession{
 		ID: r.ID, TenantID: r.TenantID, OrganizationID: r.OrganizationID, AccountID: r.AccountID, TokenHash: r.TokenHash, Expiry: r.Expiry, Mobile: r.Mobile,
-		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
+		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, SwitchedFromFamilyID: r.SwitchedFromFamilyID, FamilyExpiryCap: r.FamilyExpiryCap, LineageDeadline: r.LineageDeadline,
 		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementTokenHash: r.ReplacementTokenHash, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -52,7 +54,7 @@ func (r accountSessionRow) toDomain() domain.AccountSession {
 func accountSessionRowFromDomain(session domain.AccountSession) accountSessionRow {
 	return accountSessionRow{
 		ID: session.ID, TenantID: session.TenantID, OrganizationID: session.OrganizationID, AccountID: session.AccountID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, Mobile: session.Mobile,
-		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
+		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, SwitchedFromFamilyID: session.SwitchedFromFamilyID, FamilyExpiryCap: session.FamilyExpiryCap, LineageDeadline: session.LineageDeadline,
 		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
@@ -242,10 +244,13 @@ func (s *Store) MarkAccountSessionRotated(ctx context.Context, id int64, replace
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
+	// A predecessor without family takes the family its successor got, so
+	// the chain keeps one family (#5194).
 	query := withTenantFilter(s.scope(ctx), db.NewUpdate().Model((*accountSessionRow)(nil)).
 		Set(`rotated_at = ?`, rotatedAt).
 		Set(`replacement_token = ?`, domain.HashToken(replacementToken)).
 		Set(`recovery_proof_hash = ?`, recoveryProofHash).
+		Set(`family_id = COALESCE(NULLIF("token".family_id, ''), (SELECT successor.family_id FROM auth.tokens AS successor WHERE successor.token = ? LIMIT 1))`, domain.HashToken(replacementToken)).
 		Where(`"token".id = ?`, id).
 		Where(`"token".rotated_at IS NULL`))
 	started := time.Now()
@@ -288,13 +293,18 @@ func (s *Store) DeleteExpiredRotatedAccountSessions(ctx context.Context, account
 // tenant switch hands the browser's previous session a bounded grace period
 // instead of leaving it alive for the full refresh lifetime. The cap is
 // persisted with the live session so refresh successors cannot revive the
-// retired family.
+// retired family. A legacy family keeps its original transition deadline
+// separately, before expiry and the retirement cap are shortened.
 func (s *Store) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	query := withTenantFilterUnlessAdmin(s.scope(ctx), db.NewUpdate().Model((*accountSessionRow)(nil)).
+		Set(`lineage_deadline = CASE
+			WHEN COALESCE("token".switched_from_family_id, '') = ''
+			THEN COALESCE("token".lineage_deadline, LEAST("token".expiry, "token".family_expiry_cap))
+			ELSE "token".lineage_deadline END`).
 		Set(`expiry = LEAST("token".expiry, ?)`, expiry).
 		Set(`family_expiry_cap = LEAST(COALESCE("token".family_expiry_cap, ?), ?)`, expiry, expiry).
 		Where(`"token".account_id = ?`, accountID).

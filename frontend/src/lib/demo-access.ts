@@ -2,7 +2,6 @@
 // fragment and leaves the browser only in a POST body, so no server or proxy
 // log records it.
 
-import { signIn } from "next-auth/react";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { parentsPortalUrl } from "~/lib/parent-url";
 
@@ -164,11 +163,6 @@ export function isDemoEntryPath(
 }
 
 type DemoAccessStatus = "preparing" | "ready" | "failed" | "invalid";
-
-interface DemoTokenPair {
-  access_token: string;
-  refresh_token: string;
-}
 
 /** What a demo link carries in its fragment. */
 export interface DemoLink {
@@ -429,7 +423,8 @@ export async function waitForDemoSchool(
  * A redeemed demo link: the session and what the banner shows and reports.
  * `accessId` names the demo access in the product analytics, never a person.
  */
-export interface DemoSession extends DemoTokenPair {
+export interface DemoSession {
+  sessionCreated: boolean;
   visit: DemoVisit;
 }
 
@@ -449,7 +444,8 @@ async function postSession(body: {
       `demo redeem failed: ${response.status}`,
     );
   }
-  const payload = (await response.json()) as DemoTokenPair & {
+  const payload = (await response.json()) as {
+    session_created?: boolean;
     demo?: {
       access_id?: string;
       role?: string;
@@ -458,8 +454,7 @@ async function postSession(body: {
     };
   };
   return {
-    access_token: payload.access_token,
-    refresh_token: payload.refresh_token,
+    sessionCreated: payload.session_created === true,
     visit: {
       accessId: payload.demo?.access_id ?? "",
       role: isDemoRole(payload.demo?.role) ? payload.demo.role : body.role,
@@ -523,22 +518,14 @@ function isDemoEntryEvent(value: unknown): value is DemoEntryEvent {
 }
 
 /**
- * Signs in with the session's token pair and notes the visit for the banner,
- * which reports `pending` once the next page has loaded. False when the
- * sign-in failed. The parents app signs in with its own provider (#3468).
+ * Notes the BFF-created session for the banner, which reports `pending`
+ * once the next page has loaded. False when no session was created.
  */
 export async function startDemoSession(
   session: DemoSession,
   pending: NonNullable<DemoVisit["pending"]>,
-  provider: "credentials" | "parent-credentials" = "credentials",
 ): Promise<boolean> {
-  const result = await signIn(provider, {
-    redirect: false,
-    internalRefresh: true,
-    token: session.access_token,
-    refreshToken: session.refresh_token,
-  });
-  if (result?.error) return false;
+  if (!session.sessionCreated) return false;
   saveDemoVisit({ ...session.visit, pending });
   forgetDemoLink();
   return true;

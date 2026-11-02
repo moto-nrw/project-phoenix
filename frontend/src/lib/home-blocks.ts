@@ -31,7 +31,28 @@
 
 import { HOME_BLOCK_MODULES, isScopeBooked } from "~/lib/module-register";
 import type { ModuleKey } from "~/lib/modules";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { birthdaysConcept } from "~/lib/concepts/birthdays";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { messagesConcept } from "~/lib/concepts/messages";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { requestsConcept } from "~/lib/concepts/requests";
+import { staffConcept } from "~/lib/concepts/staff";
+import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { homeConcept } from "~/lib/concepts/home";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { schoolyardConcept } from "~/lib/concepts/schoolyard";
+import { sickConcept } from "~/lib/concepts/sick";
+import { transitConcept } from "~/lib/concepts/transit";
+import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Was die Einrichtung für einen Baustein vorgibt. */
 export type HomeBlockPolicy = "optional" | "required" | "disabled";
@@ -132,7 +153,7 @@ export interface HomeBlockDefinition {
   /** Ein Satz, was der Baustein zeigt. */
   readonly description: string;
   /** Symbol aus dem Begriffs-Register; trägt die Karte im Anpassen-Modus. */
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   /** Erlaubte Breiten, von schmal nach breit. */
   readonly spans: readonly HomeBlockSpan[];
   /**
@@ -205,17 +226,17 @@ const TILE_SPANS: readonly HomeBlockSpan[] = [1];
 const SECTION_SPANS: readonly HomeBlockSpan[] = [1, 2, 4];
 
 /** Symbol je Kennzahl — dasselbe Vokabular, das die Kachel selbst trägt. */
-const TILE_CONCEPT: Record<string, MotoConceptKey> = {
-  "tile.students_present": "present",
-  "tile.students_in_rooms": "rooms",
-  "tile.students_in_transit": "transit",
-  "tile.students_on_playground": "schoolyard",
-  "tile.students_sick": "sick",
-  "tile.students_excused": "excused",
-  "tile.students_at_school": "atSchool",
-  "tile.students_home": "home",
-  "tile.active_activities": "activities",
-  "tile.capacity_utilization": "utilization",
+const TILE_CONCEPT: Record<string, MotoConcept> = {
+  "tile.students_present": presentConcept,
+  "tile.students_in_rooms": roomsConcept,
+  "tile.students_in_transit": transitConcept,
+  "tile.students_on_playground": schoolyardConcept,
+  "tile.students_sick": sickConcept,
+  "tile.students_excused": excusedConcept,
+  "tile.students_at_school": atSchoolConcept,
+  "tile.students_home": homeConcept,
+  "tile.active_activities": activitiesConcept,
+  "tile.capacity_utilization": utilizationConcept,
 };
 
 function tile(
@@ -229,7 +250,7 @@ function tile(
     kind: "tile",
     label,
     description,
-    concept: TILE_CONCEPT[key] ?? "dashboard",
+    concept: TILE_CONCEPT[key] ?? dashboardConcept,
     spans: TILE_SPANS,
     permitted: operationalNumbers,
     available,
@@ -306,7 +327,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Mein Tag",
     description:
       "Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kindern und dem Team. Starten geht direkt hier.",
-    concept: "carePlan",
+    concept: carePlanConcept,
     spans: SECTION_SPANS,
     // Der Tag braucht Platz: drei Zeilen hoch, damit ein Tag mit fünf
     // Blöcken ganz dasteht statt als „Noch 3 Einsätze".
@@ -322,7 +343,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Meine Gruppe heute",
     description:
       "Wie viele Kinder Ihrer Gruppe da sind, wer heute fehlt und wann die nächste Abholung ist.",
-    concept: "groups",
+    concept: groupsConcept,
     spans: SECTION_SPANS,
     // Dieselbe Quelle wie die Seite „Meine Gruppen": der Server wählt die
     // Gruppe der Person. Ohne eigene Gruppe gibt es nichts zu zeigen.
@@ -337,7 +358,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Tagesinformationen",
     description: "Hinweise der Leitung, die heute gelten.",
-    concept: "announcements",
+    concept: announcementsConcept,
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.usersRead),
     available: always,
@@ -348,7 +369,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Erinnerungen",
     description:
       "Was in den nächsten Minuten ansteht oder überfällig ist: Abholungen und Aktivitätsbeginn.",
-    concept: "pickup",
+    concept: pickupConcept,
     spans: SECTION_SPANS,
     // GET /api/reminders (#1457) hängt an users:read wie die
     // Tagesinformationen.
@@ -364,7 +385,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Offene Anfragen",
     description:
       "Wünsche von Eltern und Anträge des Teams, die auf eine Entscheidung warten.",
-    concept: "requests",
+    concept: requestsConcept,
     spans: SECTION_SPANS,
     permitted: anyRequestQueue,
     available: always,
@@ -375,7 +396,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Ungelesene Nachrichten",
     description:
       "Wie viele Nachrichten von Eltern und aus dem Team-Chat noch ungelesen sind.",
-    concept: "messages",
+    concept: messagesConcept,
     spans: SECTION_SPANS,
     // Beide Zähler hängen am Konto, nicht an einem Recht: die Seitenleiste
     // zeigt Nachrichten jeder Mitarbeiterin, und der Server zählt nur, was
@@ -391,7 +412,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Personal heute",
     description:
       "Wer in Aufsicht ist, wer fehlt und ob offene Anträge auf die Leitung warten.",
-    concept: "staff",
+    concept: staffConcept,
     spans: SECTION_SPANS,
     // GET /api/staff/dashboard-summary hängt an users:read; die Zahl der
     // Kräfte in Aufsicht kommt aus den Betriebszahlen und fehlt ohne
@@ -407,7 +428,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Kinder",
     description:
       "Wie viele Kinder gerade da, in der Schule, zuhause, krank oder entschuldigt sind.",
-    concept: "children",
+    concept: childrenConcept,
     spans: SECTION_SPANS,
     // Fünf Zeilen passen erst in drei Rasterzeilen ganz hinein.
     height: 3,
@@ -424,7 +445,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Ablauf des Tages",
     description:
       "Die Blöcke des Betreuungsplans, die gerade laufen oder als Nächstes anstehen.",
-    concept: "carePlan",
+    concept: carePlanConcept,
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.schedulesRead),
     // Ohne Betreuungsplan gibt es keinen Ablauf, und im Anwesenheitsmodus
@@ -437,7 +458,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Laufende Betreuung",
     description:
       "Welche Betreuungsgruppen und Aktivitäten gerade laufen, mit Ort und Kinderzahl.",
-    concept: "groups",
+    concept: groupsConcept,
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: (ctx) => !ctx.openCareGroupMode,
@@ -447,7 +468,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Laufende Aktivitäten",
     description: "Welche Aktivitäten gerade stattfinden und wie voll sie sind.",
-    concept: "activities",
+    concept: activitiesConcept,
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: activitySurfaces,
@@ -457,7 +478,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Letzte Bewegungen",
     description: "Welche Gruppen zuletzt den Raum gewechselt haben.",
-    concept: "changeHistory",
+    concept: changeHistoryConcept,
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: roomSurfaces,
@@ -468,7 +489,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Geburtstage",
     description:
       "Wer in dieser Woche Geburtstag hat. Sie können bis zu vier Wochen vor- und zurückblättern.",
-    concept: "birthdays",
+    concept: birthdaysConcept,
     spans: SECTION_SPANS,
     // Eine Woche mit Wochenleiste braucht drei Zeilen (#3777), sonst stünde
     // schon ab drei Namen „Noch 2 Geburtstage".

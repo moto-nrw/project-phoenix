@@ -87,7 +87,16 @@ type Dependencies struct {
 	CalendarPeriods CalendarPeriods
 	ClosingDays     ClosingDays
 	// Holidays serves the statutory holidays of the school (#4775).
-	Holidays                Holidays
+	Holidays Holidays
+	// SchoolVacations serves the vacations of the school's federal state,
+	// the school's confirmations of planned care and the local seed (#5345).
+	SchoolVacations SchoolVacations
+	// IsLocalSeed admits the local demo seeder's request to the vacation
+	// seed; nil leaves the seed route out.
+	IsLocalSeed func(*http.Request) bool
+	// SchoolVacationHints counts the planned Regeltermine in the coming
+	// vacations (#5345).
+	SchoolVacationHints     timetable.SchoolVacationHintQuery
 	CalendarPeriodUsage     CalendarPeriodUsage
 	MaterializationService  timetable.MaterializationCapability
 	InstanceService         timetable.InstanceLifecycleCapability
@@ -130,6 +139,12 @@ type Dependencies struct {
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).
 	OfferingSourceOptions timetable.OfferingSourceSupport
+	// OfferingGapDecisions stores "Kein eigener Regeltermin nötig" for an
+	// offering without a matching Regeltermin (#5140); Care Plan's catalog.
+	OfferingGapDecisions timetable.OfferingTemplateGapDecision
+	// ClassArrivals is the Klassentag the offering-gap check reads the
+	// classes' arrival from (#5343); Timetable's own class arrival plans.
+	ClassArrivals timetable.ClassArrivalQuery
 	// SupervisionSheets serves the per-child supervision sheet of the school
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	SupervisionSheets SupervisionSheets

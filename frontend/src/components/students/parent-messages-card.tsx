@@ -1,13 +1,17 @@
 "use client";
 
+import { studentKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useEffect, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   fetchStudentThreads,
@@ -17,6 +21,7 @@ import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "ParentMessagesCard" });
 
@@ -40,7 +45,6 @@ export function ParentMessagesCard({
   // Tenant-prefix the SWR key so a cross-tenant mutate() in a multi-tab / tenant-
   // switch scenario cannot touch another tenant's cached threads (frontend
   // convention: useTenantSlugSafe is for SWR cache-key prefixing).
-  const tenantSlug = useTenantSlugSafe();
   // Hide compose when the school has messaging off (would 403 on the backend);
   // existing threads stay readable.
   const messagingEnabled = tenant?.messagingEnabled === true;
@@ -52,10 +56,11 @@ export function ParentMessagesCard({
     data: threads = [],
     error: loadFailure,
     mutate,
-  } = useSWR(
-    [`${tenantSlug ?? ""}:student-threads`, studentId],
+  } = useSWRAuth(
+    studentKeys.studentThreads(studentId),
     () => fetchStudentThreads(studentId),
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       onError: (err: unknown) =>
         logger.warn("parent_messages_load_failed", {
@@ -100,7 +105,7 @@ export function ParentMessagesCard({
       <ConceptSectionHeader
         className="mb-4"
         title="Nachrichten mit den Eltern"
-        concept="parentConversations"
+        concept={parentConversationsConcept}
         actions={
           messagingEnabled ? (
             <Button
@@ -143,6 +148,13 @@ export function ParentMessagesCard({
                       <span className="truncate text-xs text-gray-500">
                         {relationshipLabel(thread.relationship_type)}
                       </span>
+                      {thread.audience === "leadership" && (
+                        <StatusBadge
+                          tone="blue"
+                          label={LEADERSHIP_AUDIENCE_LABEL}
+                          compact
+                        />
+                      )}
                       <UnreadBadge count={thread.unread_count} />
                     </span>
                     {thread.last_message_body && (

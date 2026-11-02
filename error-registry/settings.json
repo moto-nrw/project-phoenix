@@ -1,0 +1,74 @@
+{
+  "codes": [
+    {
+      "code": "settings.admin_only",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "settings.admin_only"
+    },
+    {
+      "code": "settings.attendance_retention_below_visible",
+      "class": "input",
+      "parameters": [
+        "visible_days"
+      ],
+      "legacy": "settings.attendance_retention_below_visible"
+    },
+    {
+      "code": "settings.attendance_visible_exceeds_retention",
+      "class": "input",
+      "parameters": [
+        "retention_days"
+      ],
+      "legacy": "settings.attendance_visible_exceeds_retention"
+    },
+    {
+      "code": "settings.booking_authority_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "settings.booking_authority_blocked"
+    },
+    {
+      "code": "settings.invalid_value",
+      "class": "input",
+      "parameters": [],
+      "legacy": "settings.invalid_value"
+    },
+    {
+      "code": "settings.managed_by_upload",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "settings.managed_by_upload"
+    },
+    {
+      "code": "settings.module_required_by",
+      "class": "input",
+      "parameters": [
+        "module",
+        "dependents"
+      ],
+      "legacy": "settings.module_required_by"
+    },
+    {
+      "code": "settings.module_requires",
+      "class": "input",
+      "parameters": [
+        "module",
+        "required"
+      ],
+      "legacy": "settings.module_requires"
+    },
+    {
+      "code": "settings.not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "settings.not_found"
+    },
+    {
+      "code": "settings.presence_mode_switch_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "settings.presence_mode_switch_blocked"
+    }
+  ]
+}

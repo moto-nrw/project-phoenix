@@ -12,7 +12,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import {
   formatDate,
   parseISODate,
-  todayISO,
+  berlinTodayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -52,8 +52,10 @@ export function SickReportModal({
   initialDate,
 }: SickReportModalProps) {
   const router = useTenantRouter();
-  const [dateStart, setDateStart] = useState(() => initialDate ?? todayISO());
-  const [dateEnd, setDateEnd] = useState(() => initialDate ?? todayISO());
+  const [dateStart, setDateStart] = useState(
+    () => initialDate ?? berlinTodayISO(),
+  );
+  const [dateEnd, setDateEnd] = useState(() => initialDate ?? berlinTodayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -68,7 +70,7 @@ export function SickReportModal({
   // Reset the form each time the modal is opened.
   useEffect(() => {
     if (isOpen) {
-      const start = initialDate ?? todayISO();
+      const start = initialDate ?? berlinTodayISO();
       setDateStart(start);
       setDateEnd(start);
       setHalfDay(false);

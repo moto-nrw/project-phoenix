@@ -4,13 +4,13 @@ import {
   ERROR_CODE_CLASSES,
   type ErrorClass,
 } from "~/lib/error-codes.generated";
-import de from "./messages/de.json";
-import en from "./messages/en.json";
-import pl from "./messages/pl.json";
-import ru from "./messages/ru.json";
-import sq from "./messages/sq.json";
-import tr from "./messages/tr.json";
-import uk from "./messages/uk.json";
+import de from "./messages/de.generated";
+import en from "./messages/en.generated";
+import pl from "./messages/pl.generated";
+import ru from "./messages/ru.generated";
+import sq from "./messages/sq.generated";
+import tr from "./messages/tr.generated";
+import uk from "./messages/uk.generated";
 import { PARENT_PORTAL_ERROR_CODES } from "~/test/parent-error-codes";
 
 interface MessageTree {

@@ -28,6 +28,7 @@ type studentNoteRow struct {
 	ActivityGroupID    *int64         `bun:"activity_group_id"`
 	EducationGroupID   *int64         `bun:"education_group_id"`
 	SchoolClass        *string        `bun:"school_class"`
+	SharedWithSchool   bool           `bun:"shared_with_school,notnull"`
 	DeletedAt          *time.Time     `bun:"deleted_at"`
 	DeletedByAccountID *int64         `bun:"deleted_by_account_id"`
 	CreatedAt          time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -179,6 +180,7 @@ func (s *StudentNoteStore) Insert(ctx context.Context, create domain.CreateStude
 		SubjectDate:      create.Subject.Date,
 		ActivityGroupID:  create.Subject.ActivityGroupID,
 		EducationGroupID: create.Subject.EducationGroupID,
+		SharedWithSchool: create.SharedWithSchool,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -206,14 +208,18 @@ func (s *StudentNoteStore) Update(ctx context.Context, update domain.UpdateStude
 	var row studentNoteRow
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewUpdate().
+	query := db.NewUpdate().
 		Model(&row).
 		ModelTableExpr(studentNotesTable+" AS note").
 		Set("kind = ?", update.Kind).
 		Set("visibility = ?", update.Visibility).
 		Set("category = ?", optionalText(update.Category)).
 		Set("body = ?", update.Body).
-		Set("subject_date = ?", update.SubjectDate).
+		Set("subject_date = ?", update.SubjectDate)
+	if update.SharedWithSchool != nil {
+		query = query.Set("shared_with_school = ?", *update.SharedWithSchool)
+	}
+	err = query.
 		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".id = ?`, update.ID).
 		Where(`"note".deleted_at IS NULL`).
@@ -382,6 +388,40 @@ func (s *StudentNoteStore) ListSchoolDayHints(
 	return notes, stats, nil
 }
 
+// ListSchoolShared reads the live notes of one child the OGS released for
+// the school (#4797), newest first. The release is the whole audience: the
+// caller has already decided that the reader is the Lehrkraft of the class.
+func (s *StudentNoteStore) ListSchoolShared(
+	ctx context.Context, studentID int64,
+) ([]domain.StudentNote, domain.OperationStats, error) {
+	db, scope, err := s.tenantDatabase(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []studentNoteRow
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(studentNotesTable+" AS note").
+		Where(`"note".tenant_id = ?`, scope.TenantID).
+		Where(`"note".student_id = ?`, studentID).
+		Where(`"note".shared_with_school`).
+		Where(`"note".deleted_at IS NULL`).
+		OrderExpr(`"note".created_at DESC, "note".id DESC`).
+		Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("list school shared notes: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	notes := make([]domain.StudentNote, 0, len(rows))
+	for _, row := range rows {
+		notes = append(notes, row.toDomain())
+	}
+	return notes, stats, nil
+}
+
 // UpsertSchoolDayHints writes one row per named child in one statement. A
 // live hint of the same author for the same child, day and target takes the
 // new wording; updated_at moves through the table's trigger.
@@ -470,7 +510,7 @@ func (r studentNoteRow) toDomain() domain.StudentNote {
 	note := domain.StudentNote{
 		ID: r.ID, TenantID: r.TenantID, StudentID: r.StudentID,
 		AuthorAccountID: r.AuthorAccountID, Origin: r.Origin, Kind: r.Kind,
-		Visibility: r.Visibility, Body: r.Body,
+		Visibility: r.Visibility, Body: r.Body, SharedWithSchool: r.SharedWithSchool,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		Subject: domain.StudentNoteSubject{
 			ActivityGroupID:  r.ActivityGroupID,

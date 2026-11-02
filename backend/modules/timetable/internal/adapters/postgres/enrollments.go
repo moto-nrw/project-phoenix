@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type studentEnrollmentRow struct {
@@ -28,6 +30,10 @@ type studentEnrollmentRow struct {
 	SelectedWeekdays         []int          `bun:"selected_weekdays,type:jsonb,nullzero"`
 	AttendanceStatus         *string        `bun:"attendance_status"`
 	Weekday                  *int           `bun:"weekday"`
+	// KeptWithoutBooking is written only through
+	// SetStudentEnrollmentKeptWithoutBooking and on create; updates leave it
+	// alone.
+	KeptWithoutBooking map[int]calendar.Date `bun:"kept_without_booking,type:jsonb,nullzero"`
 }
 
 func (s *Store) FindStudentEnrollment(ctx context.Context, id int64) (timetable.StudentEnrollment, bool, domain.OperationStats, error) {
@@ -196,6 +202,72 @@ func (s *Store) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, va
 	return stats.Rows == 1, stats, err
 }
 
+// SetStudentEnrollmentsKeptWithoutBooking writes the decision of the given
+// ISO weekdays onto the student's hand rows (#5102), key by key inside each
+// row's UPDATE: two decisions on the same row never replace each other's
+// weekdays. A keep takes the later of the stored and the new date; a nil
+// through removes the weekdays. Booking-created rows and other students'
+// rows are never written; the count tells how many rows were.
+func (s *Store) SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, weekdays []int, through *string) (int64, domain.OperationStats, error) {
+	var total domain.OperationStats
+	if len(ids) == 0 || len(weekdays) == 0 {
+		return 0, total, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, total, err
+	}
+	scoped := func(query *bun.UpdateQuery) *bun.UpdateQuery {
+		return query.Set("updated_at = NOW()").Where("tenant_id = ?", tenantID).Where("student_id = ?", studentID).
+			Where("id IN (?)", bun.List(ids)).Where("enrollment_request_child_id IS NULL")
+	}
+	keys := make([]string, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		keys = append(keys, strconv.Itoa(weekday))
+	}
+	if through == nil {
+		stats, err := execMeasuredWrite(ctx, scoped(db.NewUpdate().Table("activities.student_enrollments").
+			Set("kept_without_booking = NULLIF(COALESCE(kept_without_booking, '{}'::jsonb) - ?::text[], '{}'::jsonb)", pgdialect.Array(keys))),
+			"clear student enrollments kept without booking")
+		return stats.Rows, stats, err
+	}
+	var rows int64
+	for _, key := range keys {
+		stats, err := execMeasuredWrite(ctx, scoped(db.NewUpdate().Table("activities.student_enrollments").
+			Set(`kept_without_booking = jsonb_set(COALESCE(kept_without_booking, '{}'::jsonb), ARRAY[?::text],
+				to_jsonb(GREATEST(COALESCE(kept_without_booking->>?::text, ''), ?::text)))`, key, key, *through)),
+			"keep student enrollments without booking")
+		total.Add(stats)
+		if err != nil {
+			return 0, total, err
+		}
+		rows = stats.Rows
+	}
+	return rows, total, nil
+}
+
+func keptDates(kept map[int]string) map[int]calendar.Date {
+	if len(kept) == 0 {
+		return nil
+	}
+	result := make(map[int]calendar.Date, len(kept))
+	for weekday, date := range kept {
+		result[weekday] = calendar.Date(date)
+	}
+	return result
+}
+
+func keptStrings(kept map[int]calendar.Date) map[int]string {
+	if len(kept) == 0 {
+		return nil
+	}
+	result := make(map[int]string, len(kept))
+	for weekday, date := range kept {
+		result[weekday] = date.String()
+	}
+	return result
+}
+
 func (s *Store) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -252,11 +324,13 @@ func applyStudentEnrollmentFields(row *studentEnrollmentRow, fields timetable.St
 	row.ValidFrom, row.ValidUntil = calendar.Date(fields.ValidFrom), (*calendar.Date)(fields.ValidUntil)
 	row.CalendarPeriodID, row.EnrollmentRequestChildID = fields.CalendarPeriodID, fields.EnrollmentRequestChildID
 	row.SelectedWeekdays, row.AttendanceStatus, row.Weekday = fields.SelectedWeekdays, fields.AttendanceStatus, fields.Weekday
+	row.KeptWithoutBooking = keptDates(fields.KeptWithoutBooking)
 }
 
 func studentEnrollmentToDomain(row studentEnrollmentRow) timetable.StudentEnrollment {
 	return timetable.StudentEnrollment{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: string(row.ValidFrom), ValidUntil: (*string)(row.ValidUntil),
 		CalendarPeriodID: row.CalendarPeriodID, EnrollmentRequestChildID: row.EnrollmentRequestChildID,
-		SelectedWeekdays: row.SelectedWeekdays, AttendanceStatus: row.AttendanceStatus, Weekday: row.Weekday}
+		SelectedWeekdays: row.SelectedWeekdays, AttendanceStatus: row.AttendanceStatus, Weekday: row.Weekday,
+		KeptWithoutBooking: keptStrings(row.KeptWithoutBooking)}
 }

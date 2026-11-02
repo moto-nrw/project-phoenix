@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseSWRAuth = vi.fn();
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
 }));
 

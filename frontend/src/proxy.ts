@@ -158,6 +158,9 @@ function proxyPostHog(request: NextRequest): NextResponse {
 
 const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
 const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
+// Path and query the browser asked for; the tenant layout needs them to send
+// path mode to the school's subdomain (#5130).
+const ORIGINAL_PATH_HEADER = "X-Moto-Original-Path";
 
 function originalHost(request: NextRequest): string {
   return (
@@ -183,6 +186,10 @@ function preserveOriginalRequestTarget(
   const host = originalHost(request);
   if (host) headers.set(ORIGINAL_HOST_HEADER, host);
   headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  headers.set(
+    ORIGINAL_PATH_HEADER,
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
   // A fresh Vorgangskennung per request, never the client's value: the BFF
   // tags its Sentry events with it and forwards it to the backend.
   headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
@@ -233,11 +240,37 @@ function sanitizedHeaders(request: NextRequest): Headers {
   return preserveOriginalRequestTarget(headers, request);
 }
 
+/**
+ * The sandbox of a file a person uploaded, as the backend sends it with an
+ * inline file (#5275). The CSP set here replaces the route's own, so these
+ * routes get it from the proxy: under the app CSP an embedded script of a PDF
+ * would run on the app's origin.
+ */
+const SANDBOX_CSP_HEADER =
+  "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
+
+/** API routes that stream an uploaded file the browser may show inline. */
+const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
+  // Proofs parents attach to an enrollment request (#4783).
+  /^\/api\/enrollment\/admin\/requests\/[^/]+\/uploads\/[^/]+$/,
+  // Proofs of benefits of a holiday registration (#5238).
+  /^\/api\/traeger\/holiday-periods\/[^/]+\/registrations\/[^/]+\/proofs\/[^/]+$/,
+  // Managed files and announcement attachments, staff and parents.
+  /^\/api\/files\/folders\/[^/]+\/files\/[^/]+\/download$/,
+  /^\/api\/announcement-attachments\/[^/]+\/[^/]+\/download$/,
+  /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
+];
+
 /** Like NextResponse.next, but strips any client-forged localize header. */
 function secureNext(request: NextRequest): NextResponse {
-  return withSecurityHeaders(
+  const response = withSecurityHeaders(
     NextResponse.next({ request: { headers: sanitizedHeaders(request) } }),
   );
+  const { pathname } = request.nextUrl;
+  if (SANDBOXED_FILE_ROUTES.some((route) => route.test(pathname))) {
+    response.headers.set("Content-Security-Policy", SANDBOX_CSP_HEADER);
+  }
+  return response;
 }
 
 /** Like NextResponse.rewrite, but strips any client-forged localize header. */
@@ -266,6 +299,7 @@ const OPERATOR_PUBLIC_PATHS = [
   "/unregistered-tags",
   "/billing",
   "/operators",
+  "/caterers",
   "/invite",
 ];
 
@@ -474,6 +508,10 @@ const SCHOOL_PROTECTED_PATHS = [
   "/kalender",
   // Elternbriefe der Lehrkraft an ihre Klasse (#4800).
   "/elternbriefe",
+  // Elternsprechtag der Lehrkraft für eine ihrer Klassen (#4801).
+  "/elternsprechtag",
+  // Fehlzeiten einer Klasse für Klassenbuch und Zeugnis (#4793).
+  "/fehlzeiten",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [
@@ -562,7 +600,7 @@ if (!TRAEGER_HOSTNAME) {
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
- * the holiday periods (#4659), the Träger-Büro persons, the invitation
+ * the reset link (#5149), the holiday periods (#4659), the Träger-Büro persons, the invitation
  * link, which opens /invite (#4650), the access log (#4655), the
  * letterhead (#4653), the Träger settings (#4652), the contribution
  * rules (#4664) and the billing runs (#4668). The school list
@@ -571,6 +609,7 @@ if (!TRAEGER_HOSTNAME) {
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/ferien",
   "/invite",
   "/accounts",
@@ -641,7 +680,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
-const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung", "/konto"];
 
 /** The caterer portal's BFF routes. Only the caterer host serves them; every
  * other host answers 404, so a caterer route never runs beside another

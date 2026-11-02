@@ -173,6 +173,22 @@ describe("swrConfig.onErrorRetry", () => {
     expect(revalidate).not.toHaveBeenCalled();
   });
 
+  it.each([401, 403])("does not retry a refusal (%s)", (status) => {
+    vi.useFakeTimers();
+    const revalidate = vi.fn();
+
+    swrConfig.onErrorRetry?.(
+      new ApiError("refused", status),
+      "key",
+      stubConfig,
+      revalidate,
+      { retryCount: 1 } as RetryOptions,
+    );
+    vi.runAllTimers();
+
+    expect(revalidate).not.toHaveBeenCalled();
+  });
+
   it("backs off ordinary retries and stops after the configured limit", () => {
     vi.useFakeTimers();
     const revalidate = vi.fn();

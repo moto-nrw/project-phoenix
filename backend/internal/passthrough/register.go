@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // Registry is a finite inventory, not a budget or an ADR 0075 blanket floor.
@@ -31,7 +33,8 @@ type Registry struct {
 var scanSources embed.FS
 
 func scope() string {
-	digest := fnv.New128a()              // Change detector, not a cryptographic trust boundary.
+	digest := fnv.New128a() // Change detector, not a cryptographic trust boundary.
+	_, _ = digest.Write([]byte(artifacts.SourceFingerprint()))
 	files, _ := scanSources.ReadDir(".") // Embedded files always exist, sorted by name.
 	for _, file := range files {
 		source, _ := scanSources.ReadFile(file.Name())
@@ -140,6 +143,13 @@ func compareBase(root, baseRef string, candidate Registry) ([]string, error) {
 // registry itself and cannot authorize new debt. Check validates the result
 // against the base and verifies each required newly numbered decision.
 func WriteSnapshot(out io.Writer, root, decision string) error {
+	if decision == "" {
+		current, err := readRegistry(filepath.Join(root, "architecture/passthrough.json"))
+		if err != nil {
+			return fmt.Errorf("load default snapshot decision: %w", err)
+		}
+		decision = current.Decision
+	}
 	sites, err := Scan(root)
 	if err != nil {
 		return err
@@ -219,12 +229,12 @@ func Check(root, baseRef string) error {
 }
 
 func readRegistry(path string) (Registry, error) {
-	data, err := os.ReadFile(path)
+	stored, err := artifacts.ReadInventory(path, artifacts.Passthrough, true)
 	if err != nil {
 		return Registry{}, err
 	}
 	var registry Registry
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder := json.NewDecoder(strings.NewReader(string(stored.Document)))
 	decoder.DisallowUnknownFields()
 	err = decoder.Decode(&registry)
 	return registry, err
@@ -245,17 +255,22 @@ func baseEvidence(root, baseRef string) (Registry, map[string]bool, error) {
 	path := strings.TrimSpace(string(prefix)) + "architecture/passthrough.json"
 	// ls-tree resolves its pathspec relative to root; show needs the full
 	// repository-relative path computed above.
-	listing, err := git(root, "ls-tree", "-r", "--name-only", sha, "--", "architecture/passthrough.json")
+	listing, err := git(root, "ls-tree", "-r", "--name-only", sha, "--", "architecture/passthrough.json", "architecture/passthrough")
 	if err != nil {
 		return Registry{}, nil, err
 	}
 	var base Registry
 	if strings.TrimSpace(string(listing)) != "" {
-		data, err := git(root, "show", sha+":"+path)
+		repo, err := git(root, "rev-parse", "--show-toplevel")
 		if err != nil {
 			return Registry{}, nil, err
 		}
-		if err := json.Unmarshal(data, &base); err != nil {
+
+		stored, err := artifacts.ReadInventoryAtRevision(strings.TrimSpace(string(repo)), sha, filepath.ToSlash(filepath.Dir(path)), filepath.Base(path), artifacts.Passthrough, false)
+		if err != nil {
+			return Registry{}, nil, err
+		}
+		if err := json.Unmarshal(stored.Document, &base); err != nil {
 			return Registry{}, nil, err
 		}
 	}

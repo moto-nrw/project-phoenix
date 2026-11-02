@@ -53,7 +53,7 @@ import {
   type AbsenceTypeAllowancePreview,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
-import { formatDate, todayISO, toISODate } from "~/lib/date-helpers";
+import { formatDate, berlinTodayISO, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { staffAbsenceService } from "~/lib/staff-api";
 
@@ -552,8 +552,8 @@ export function AbsenceBookingModal({
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
   const [value, setValue] = useState("");
-  const [dateStart, setDateStart] = useState(initialDate ?? todayISO());
-  const [dateEnd, setDateEnd] = useState(initialDate ?? todayISO());
+  const [dateStart, setDateStart] = useState(initialDate ?? berlinTodayISO());
+  const [dateEnd, setDateEnd] = useState(initialDate ?? berlinTodayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);

@@ -29,6 +29,7 @@ import {
   type ChildCourses,
   type CourseItem,
 } from "~/lib/parent-api";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const logger = createLogger({ component: "CoursesSection" });
 
@@ -197,7 +198,7 @@ export function CoursesSection({
 
   if (loadFailed) {
     return (
-      <ParentSection title={t("courses.title")} concept="activities">
+      <ParentSection title={t("courses.title")} concept={activitiesConcept}>
         <LoadErrorAlert error={loadError} />
       </ParentSection>
     );
@@ -227,7 +228,7 @@ export function CoursesSection({
     <ParentSection
       title={t("courses.title")}
       description={t("courses.description")}
-      concept="activities"
+      concept={activitiesConcept}
     >
       <FormErrorAlert message={actionErrors.error} />
       {courses.items.length === 0 ? (

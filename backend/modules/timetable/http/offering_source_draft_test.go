@@ -14,6 +14,7 @@ import (
 
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // draftRosterParam writes one `roster` value: the children planned on a
@@ -64,11 +65,12 @@ func TestDraftOfferingSuggestion(t *testing.T) {
 
 	suggestion := getDraftSuggestion(t, router, query(class))
 	require.NotNil(t, suggestion)
-	assert.Equal(t, templateRosterMaintenanceOfferingResponse{ID: rosterReviewOfferingID, Name: "Randstunde"}, suggestion.Offering)
+	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{{ID: rosterReviewOfferingID, Name: "Randstunde"}}, suggestion.Offerings)
 	assert.Equal(t, []string{"1b"}, suggestion.SchoolClasses)
 	assert.Empty(t, suggestion.GradeLevels)
 	assert.Equal(t, 2, suggestion.UnbookedCount)
 	assert.Zero(t, suggestion.MissingCount)
+	assert.False(t, suggestion.Ambiguous)
 
 	exact := getDraftSuggestion(t, router, query(class[:4]))
 	require.NotNil(t, exact, "a new Regeltermin that matches the bookings exactly is still suggested")
@@ -82,6 +84,60 @@ func TestDraftOfferingSuggestion(t *testing.T) {
 
 	sources.bookings = nil
 	assert.Nil(t, getDraftSuggestion(t, router, query(class)), "no bookings, for example with care offerings off")
+}
+
+// TestDraftOfferingSuggestionCombined (#5138, #5139): Randstunde and Ganztag
+// both book only children of class 1b, so both cover the class fully.
+// Together they explain five of the six children: the answer suggests both,
+// and only the child without a booking counts.
+func TestDraftOfferingSuggestionCombined(t *testing.T) {
+	t.Parallel()
+	sources := &rosterMaintenanceSources{}
+	s := buildRosterReviewModule(t, sources)
+	router := s.draftRouter()
+	period := createTemplateTestPeriodRange(t, s.db, "Draft-Period", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1b", 6)
+	ganztagID := rosterReviewOfferingID + 1
+	sources.bookings = append(
+		rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "1b", class[:3], 1, 3),
+		rosterReviewBookings(ganztagID, "Ganztag", "1b", class[1:5], 1, 3)...,
+	)
+
+	suggestion := getDraftSuggestion(t, router, url.Values{
+		"period_id":      {fmt.Sprint(period.ID)},
+		"type":           {timetableModule.GroupTypeCare},
+		"list_kind":      {"edge_hours"},
+		"school_classes": {"1b"},
+		"roster":         {draftRosterParam(1, class), draftRosterParam(3, class)},
+	})
+
+	require.NotNil(t, suggestion)
+	assert.False(t, suggestion.Ambiguous)
+	both := []templateRosterMaintenanceOfferingResponse{
+		{ID: ganztagID, Name: "Ganztag"},
+		{ID: rosterReviewOfferingID, Name: "Randstunde"},
+	}
+	assert.Equal(t, both, suggestion.Offerings)
+	assert.Equal(t, both, suggestion.Candidates)
+	assert.Equal(t, 1, suggestion.UnbookedCount, "only class[5] books neither offering")
+	assert.Zero(t, suggestion.MissingCount)
+
+	// An equal Ganztag alternative must retain Randstunde in both choices.
+	spaetID := ganztagID + 1
+	sources.bookings = append(sources.bookings, rosterReviewBookings(spaetID, "Ganztag spät", "1b", class[1:5], 1, 3)...)
+	suggestion = getDraftSuggestion(t, router, url.Values{
+		"period_id":      {fmt.Sprint(period.ID)},
+		"type":           {timetableModule.GroupTypeCare},
+		"list_kind":      {"edge_hours"},
+		"school_classes": {"1b"},
+		"roster":         {draftRosterParam(1, class), draftRosterParam(3, class)},
+	})
+	require.NotNil(t, suggestion)
+	assert.True(t, suggestion.Ambiguous)
+	assert.Equal(t, [][]templateRosterMaintenanceOfferingResponse{
+		both,
+		{{ID: spaetID, Name: "Ganztag spät"}, {ID: rosterReviewOfferingID, Name: "Randstunde"}},
+	}, suggestion.Combinations)
 }
 
 // TestDraftOfferingPreview: switching the planned Regeltermin to Randstunde
@@ -203,9 +259,9 @@ func TestDraftOfferingSourceQueryBudget(t *testing.T) {
 
 	suggestSmall, suggestLarge := run("/offering-sources/suggestion", class[:3]), run("/offering-sources/suggestion", class)
 	assert.Equal(t, suggestSmall, suggestLarge, "the suggestion must not grow with the children")
-	testpkg.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Queries())
 
 	previewSmall, previewLarge := run("/offering-sources/preview", class[:3]), run("/offering-sources/preview", class)
 	assert.Equal(t, previewSmall, previewLarge, "the preview must not grow with the children")
-	testpkg.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Queries())
 }

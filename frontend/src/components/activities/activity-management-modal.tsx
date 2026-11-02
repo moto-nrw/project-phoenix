@@ -21,11 +21,13 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { ActivityWaitlistSection } from "./activity-waitlist-section";
 
 const logger = createLogger({ component: "ActivityManagement" });
 
@@ -310,20 +312,19 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      1
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">1</span>
                   </div>
                   Aktivitätsname
                 </label>
-                <input
+                <Input
                   id="name"
                   name="name"
+                  controlSize="compact"
                   value={form.name}
                   onChange={onInput}
                   aria-invalid={fieldError("name") ? true : undefined}
                   placeholder="z. B. Hausaufgaben, Malen, Basteln…"
-                  className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                  className="disabled:cursor-not-allowed"
                   required
                   disabled={readOnly}
                   maxLength={255}
@@ -340,9 +341,7 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      2
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">2</span>
                   </div>
                   Kategorie
                 </label>
@@ -378,9 +377,7 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      3
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">3</span>
                   </div>
                   Maximale Teilnehmerzahl
                 </label>
@@ -414,20 +411,23 @@ export function ActivityManagementModal({
                     />
                   </button>
 
-                  <input
-                    id="max_participants"
-                    name="max_participants"
-                    type="number"
-                    value={form.max_participants}
-                    onChange={onInput}
-                    aria-invalid={
-                      fieldError("max_participants") ? true : undefined
-                    }
-                    min="1"
-                    required={Boolean(form.max_participants)}
-                    className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={readOnly || !form.max_participants}
-                  />
+                  <div className="flex-1">
+                    <Input
+                      id="max_participants"
+                      controlSize="compact"
+                      name="max_participants"
+                      type="number"
+                      value={form.max_participants}
+                      onChange={onInput}
+                      aria-invalid={
+                        fieldError("max_participants") ? true : undefined
+                      }
+                      min="1"
+                      required={Boolean(form.max_participants)}
+                      className="[appearance:textfield] px-14! text-center text-base! font-semibold disabled:cursor-not-allowed md:px-12! [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      disabled={readOnly || !form.max_participants}
+                    />
+                  </div>
 
                   <button
                     type="button"
@@ -473,6 +473,8 @@ export function ActivityManagementModal({
                 </label>
               </div>
             </div>
+
+            <ActivityWaitlistSection activityId={activity.id} />
 
             {/* Hinweiskarte. Die Löschabfrage läuft über das
               `ConfirmDeleteModal`, nicht über einen Wechsel dieser Karte

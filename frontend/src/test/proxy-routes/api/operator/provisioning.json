@@ -1,0 +1,95 @@
+{
+  "api/operator/provisioning/accounts": [
+    "GET operator /operator/accounts"
+  ],
+  "api/operator/provisioning/devices": [
+    "GET operator /operator/devices",
+    "POST operator /operator/devices"
+  ],
+  "api/operator/provisioning/devices/[id]/set-api-key": [
+    "POST operator /operator/devices/id%2F1/set-api-key"
+  ],
+  "api/operator/provisioning/devices/[id]/transfer": [
+    "POST operator /operator/devices/id%2F1/transfer"
+  ],
+  "api/operator/provisioning/devices/[id]/transfer-status": [
+    "GET operator /operator/devices/id%2F1/transfer-status"
+  ],
+  "api/operator/provisioning/organizations": [
+    "GET operator /operator/organizations",
+    "POST operator /operator/organizations"
+  ],
+  "api/operator/provisioning/organizations/[id]/accounts": [
+    "GET operator /operator/organizations/id%2F1/accounts"
+  ],
+  "api/operator/provisioning/organizations/[id]/devices": [
+    "GET operator /operator/organizations/id%2F1/devices"
+  ],
+  "api/operator/provisioning/organizations/[id]/erasure-order": [
+    "GET operator /operator/organizations/id%2F1/erasure-order",
+    "POST operator /operator/organizations/id%2F1/erasure-order",
+    "DELETE operator /operator/organizations/id%2F1/erasure-order"
+  ],
+  "api/operator/provisioning/organizations/[id]/traeger-members": [
+    "GET operator /operator/organizations/id%2F1/traeger-members",
+    "POST operator /operator/organizations/id%2F1/traeger-members"
+  ],
+  "api/operator/provisioning/organizations/[id]/traeger-members/invitations": [
+    "POST operator /operator/organizations/id%2F1/traeger-members/invitations"
+  ],
+  "api/operator/provisioning/organizations/[id]/persons": [
+    "GET operator /operator/organizations/id%2F1/persons"
+  ],
+  "api/operator/provisioning/organizations/[id]/restore": [
+    "POST operator /operator/organizations/id%2F1/restore"
+  ],
+  "api/operator/provisioning/organizations/[id]/sample-children": [
+    "POST operator /operator/organizations/id%2F1/sample-children"
+  ],
+  "api/operator/provisioning/organizations/[id]/schools": [
+    "GET operator /operator/organizations/id%2F1/schools"
+  ],
+  "api/operator/provisioning/organizations/summaries": [
+    "GET operator /operator/organizations/summaries"
+  ],
+  "api/operator/provisioning/organizations/test-traeger": [
+    "POST operator /operator/organizations/test-traeger"
+  ],
+  "api/operator/provisioning/roles": [
+    "GET operator /operator/roles"
+  ],
+  "api/operator/provisioning/schools": [
+    "GET operator /operator/schools",
+    "POST operator /operator/schools"
+  ],
+  "api/operator/provisioning/schools/[id]/accounts": [
+    "GET operator /operator/schools/id%2F1/accounts"
+  ],
+  "api/operator/provisioning/schools/[id]/create-account": [
+    "POST operator /operator/schools/id%2F1/create-account"
+  ],
+  "api/operator/provisioning/schools/[id]/devices": [
+    "GET operator /operator/schools/id%2F1/devices"
+  ],
+  "api/operator/provisioning/schools/[id]/invite-admin": [
+    "POST operator /operator/schools/id%2F1/invite-admin"
+  ],
+  "api/operator/provisioning/schools/[id]/restore": [
+    "POST operator /operator/schools/id%2F1/restore"
+  ],
+  "api/operator/provisioning/schools/[id]/settings/booking-authority-impact": [
+    "GET operator /operator/schools/id%2F1/settings/booking-authority-impact"
+  ],
+  "api/operator/provisioning/schools/[id]/settings/schema": [
+    "GET operator /operator/schools/id%2F1/settings/schema"
+  ],
+  "api/operator/provisioning/schools/summaries": [
+    "GET operator /operator/schools/summaries"
+  ],
+  "api/operator/provisioning/stats": [
+    "GET operator /operator/stats"
+  ],
+  "api/operator/provisioning/unregistered-tag-scans": [
+    "GET operator /operator/unregistered-tag-scans"
+  ]
+}

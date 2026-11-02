@@ -80,7 +80,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"cmd/devtools/demo_scheduler.go:(*demoScheduler).drain":                                                   20,
 	"cmd/devtools/demo_scheduler.go:runDemoSchools":                                                           16,
 	"cmd/serve.go:scrubSentryEvent":                                                                           20,
-	"cmd/serve.go:validateServeConfig":                                                                        18,
 	// ADR 0087.
 	"database/migrations/001006002_create_admin_account.go:createAdminAccount": 16,
 	// ADR 0087.
@@ -265,8 +264,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentRequestsSeedStep).Run": 16,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_extras.go:(seedStatisticsDemoStep).Run": 19,
-	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 30,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
@@ -349,7 +346,7 @@ func TestModuleComplexityRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 

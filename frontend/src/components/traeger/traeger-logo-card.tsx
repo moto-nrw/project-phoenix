@@ -107,7 +107,7 @@ export function TraegerLogoCard({
             ) : null}
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="md"
               isLoading={uploading}
               loadingText="Wird hochgeladen …"

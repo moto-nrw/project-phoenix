@@ -71,7 +71,10 @@ func newConnector(dsn string) (connector *pgdriver.Connector, err error) {
 			err = errors.New("invalid database DSN: it contains an unresolved ${...} reference")
 		}
 	}()
-	return pgdriver.NewConnector(pgdriver.WithDSN(dsn)), nil
+	return pgdriver.NewConnector(
+		pgdriver.WithDSN(dsn),
+		pgdriver.WithResetSessionFunc(discardClosedConn),
+	), nil
 }
 
 type poolConfig struct {

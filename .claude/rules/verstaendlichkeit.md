@@ -43,7 +43,7 @@ Run this against the screen you changed, not against the diff.
 1. Open the changed screen in the running app.
 2. Read every visible label out loud as somebody who does not know the product. Write down the reading you would get. That is the „worst plausible reading".
 3. If that reading leads to a wrong action (a click that does nothing, a wait for something that never comes, a form filled at the wrong place), fix the screen — not the help text.
-4. Record the result in the PR description: **Missverständnis-Check** with the blocks you checked and what you changed. „nicht user-sichtbar" is a valid entry when it is true.
+4. For changes in scope, record **Missverständnis-Check** in the PR description with the blocks checked and the result. Omit the section for changes outside this rule's scope.
 
 The fix hierarchy, cheapest first: **rename** → **explain in one line** → **restructure or merge** → **make hideable per school** → **remove**. Adding explanatory text is the third-best option, not the first; text that changes no decision belongs nowhere (`moto-einfache-sprache`, rule 8).
 

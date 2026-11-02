@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.staff_target_overrides.list",
+  "max": 7,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET\n/api/staff/{id}/target-overrides (#3259): the tenant-transaction\nstatements, the two staff lookups (membership, employment profile) and\nONE read of the staff member's\nSonderarbeitszeiten. Flat in the number of ranges."
+}

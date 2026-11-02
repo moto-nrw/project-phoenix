@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import type { NextRequest } from "next/server";
 
 import { auth, uncachedAuth } from "~/server/auth";
@@ -6,8 +7,8 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
-export const GET = withTenantAuth(
-  async (request: NextRequest): Promise<Response> => {
+export const GET = withPrivateDownloadNoStore(
+  withTenantAuth(async (request: NextRequest): Promise<Response> => {
     const session = await auth();
     if (!session?.user?.token) {
       return problemResponse(401, "Unauthorized", request);
@@ -39,5 +40,5 @@ export const GET = withTenantAuth(
           response.headers.get("Content-Disposition") ?? "attachment",
       },
     });
-  },
+  }),
 );

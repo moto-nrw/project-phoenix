@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -265,7 +266,7 @@ func TestListStudentsCareOfferingFilterQueryBudget(t *testing.T) {
 	large := run()
 
 	assert.Equal(t, small, large, "query count must not grow with the number of children")
-	testpkg.AssertQueryBudget(t, "api.students.list.care_offering", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.list.care_offering", counter.Queries())
 }
 
 // TestCareOfferingOptionsQueryBudget keeps the offering selection a single
@@ -293,5 +294,5 @@ func TestCareOfferingOptionsQueryBudget(t *testing.T) {
 	large := run()
 
 	assert.Equal(t, small, large, "query count must not grow with the number of offerings")
-	testpkg.AssertQueryBudget(t, "api.students.care_offerings.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.care_offerings.list", counter.Queries())
 }

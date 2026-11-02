@@ -20,11 +20,11 @@ import (
 func FillWideStudentFields(tb testing.TB, db *bun.DB, studentID, personID int64) {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	guardian := CreateTestGuardianProfileNamed(tb, db, "Erika", "Mustermann", "erika.mustermann@example.com")
 	CreateTestStudentGuardianLink(tb, db, studentID, guardian.ID, "parent")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	_, err := db.NewRaw(`UPDATE users.student_profiles SET
 			address_street = 'Musterstrasse 12a',
 			address_city = 'Koeln',

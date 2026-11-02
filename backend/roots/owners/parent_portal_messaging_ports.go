@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -37,6 +38,20 @@ func (e parentChildEvents) BroadcastChildUpdateToGuardians(tenantID, studentID i
 
 // BindParentMessagingGate keeps the shared Communication policy and the
 // caller's explicit-tenant settings reader, including its failure direction.
+// BindParentLeadershipChoice binds the parents portal's leadership option to
+// Communication's rule over the school's switch and its leadership persons
+// (#5200). It runs in the child's tenant transaction.
+func BindParentLeadershipChoice(settings settingsValues.ParentMessagingValueSource, leaders communication.ParentMessageLeaderDirectory) func(context.Context, bool) (parentportal.LeadershipOption, error) {
+	values := settingsValues.NewParentMessagingValues(settings)
+	return func(ctx context.Context, namesWhenOff bool) (parentportal.LeadershipOption, error) {
+		choice, err := communication.ResolveParentMessageLeadershipChoice(ctx, values, leaders, namesWhenOff)
+		if err != nil {
+			return parentportal.LeadershipOption{}, err
+		}
+		return parentportal.LeadershipOption{Enabled: choice.Enabled, Names: choice.ShortNames()}, nil
+	}
+}
+
 func BindParentMessagingGate(settings communication.ParentMessagingSettings, logger *slog.Logger) parentportal.MessagingGate {
 	return func(ctx context.Context, tenantID int64) bool {
 		return communication.ParentMessagingEnabledForTenant(ctx, settings, tenantID, logger)

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.communication.parent_messages.list_inbox",
+  "max": 1,
+  "exact": true,
+  "description": "modules/communication — inbox reads remain fixed as thread count grows."
+}

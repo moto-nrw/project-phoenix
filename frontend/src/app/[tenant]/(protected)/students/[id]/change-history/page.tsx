@@ -16,6 +16,7 @@ import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { formatDate, formatTime } from "~/lib/date-helpers";
 import { ChangeHistorySkeleton } from "./page-skeleton";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
@@ -197,7 +198,9 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
+        }
         title={displayName || "Änderungsverlauf"}
         stats={studentMeta || entryLine}
         statsLoading={loading}
@@ -219,7 +222,7 @@ function StudentChangeHistoryPageContent() {
           title="Änderungsverlauf"
           description="Wer hat wann welche Angaben zu diesem Kind geändert"
           leading={
-            <ConceptIconTile concept="changeHistory" variant="section" />
+            <ConceptIconTile concept={changeHistoryConcept} variant="section" />
           }
           bodyClassName="mt-4 -mx-5 -mb-5"
         >

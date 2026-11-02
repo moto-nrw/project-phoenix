@@ -17,6 +17,7 @@
  */
 
 import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -50,6 +51,10 @@ export const schoolAuthConfig = {
       },
       async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         const isDev = process.env.NODE_ENV === "development";
 
         // Internal token seeding — used after the login page (or the MFA
@@ -82,7 +87,7 @@ export const schoolAuthConfig = {
         }
 
         // Regular school login flow. The login PAGE goes through
-        // lib/mfa-api (MFA-aware) and then seeds via internalRefresh; this
+        // lib/mfa-api (MFA-aware); its BFF then seeds internally; this
         // path exists for non-MFA accounts and programmatic sign-in.
         if (!creds?.email || !creds?.password) return null;
 

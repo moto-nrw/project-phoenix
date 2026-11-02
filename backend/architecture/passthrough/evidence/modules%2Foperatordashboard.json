@@ -1,0 +1,32 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (m Mapped[C, O, S, P]) AllSchoolsPWAUsage(ctx context.Context, window time.Duration) ([]P, error) {\n\trows, err := m.projection.AllSchoolsPWAUsage(ctx, window)\n\treturn mapRows(rows, m.rows.PWAUsage), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/operatordashboard/internal/adapters/postgres/Mapped[C, O, S, P].AllSchoolsPWAUsage",
+      "owner": "modules/operatordashboard"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m Mapped[C, O, S, P]) OrganizationSummaries(ctx context.Context) ([]O, error) {\n\trows, err := m.projection.OrganizationSummaries(ctx)\n\treturn mapRows(rows, m.rows.Organization), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/operatordashboard/internal/adapters/postgres/Mapped[C, O, S, P].OrganizationSummaries",
+      "owner": "modules/operatordashboard"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m Mapped[C, O, S, P]) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]P, error) {\n\trows, err := m.projection.PWAUsage(ctx, tenantID, window)\n\treturn mapRows(rows, m.rows.PWAUsage), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/operatordashboard/internal/adapters/postgres/Mapped[C, O, S, P].PWAUsage",
+      "owner": "modules/operatordashboard"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m Mapped[C, O, S, P]) SchoolSummaries(ctx context.Context, organizationID *int64) ([]S, error) {\n\trows, err := m.projection.SchoolSummaries(ctx, organizationID)\n\treturn mapRows(rows, m.rows.School), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/operatordashboard/internal/adapters/postgres/Mapped[C, O, S, P].SchoolSummaries",
+      "owner": "modules/operatordashboard"
+    }
+  ]
+}

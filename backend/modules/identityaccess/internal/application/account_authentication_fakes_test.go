@@ -624,6 +624,9 @@ func (s *fakeStore) RetireAccountSessionFamily(_ context.Context, accountID int6
 	defer s.mu.Unlock()
 	for id, session := range s.sessions {
 		if session.AccountID == accountID && session.FamilyID == familyID && session.Expiry.After(expiry) {
+			if session.SwitchedFromFamilyID == "" && session.LineageDeadline == nil {
+				session.LineageDeadline = legacyDeadline(session)
+			}
 			session.Expiry = expiry
 			cap := expiry
 			session.FamilyExpiryCap = &cap

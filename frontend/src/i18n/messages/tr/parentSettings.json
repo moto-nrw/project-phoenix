@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Hesabınız",
+  "title": "Ayarlar",
+  "description": "Hesabınız için dil ve bildirimleri belirleyin.",
+  "languageTitle": "Dil",
+  "languageDescription": "moto'nun gösterileceği dili seçin.",
+  "appInstallTitle": "moto'yu uygulama olarak yükleyin",
+  "appInstallDescription": "moto'yu Samsung Internet üzerinden yüklemeyin. Bunun için moto'yu Chrome'da açın.",
+  "appInstallGenericDescription": "moto'yu telefonunuzun ana ekranına ekleyin ve bir uygulama gibi açın.",
+  "appInstallGuide": "Kılavuzu aç"
+}

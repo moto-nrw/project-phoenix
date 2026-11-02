@@ -24,6 +24,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Surveys (#4781). Protection goal of an anonymous survey: the school cannot
@@ -528,17 +529,17 @@ func TestSurveyListsQueryBudgetStaysFlat(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	assert.Equal(t, 3, rows[2].ParticipantCount+rows[1].ParticipantCount+rows[0].ParticipantCount)
-	testpkg.AssertQueryBudget(t, "modules.communication.surveys.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.list", counter.Queries())
 
 	open := testpkg.CaptureQueriesForContext(t, f.db)
 	toAnswer, err := testpkg.MeasuredTenantQuery1(t, open.Context(ctx), f.db, open, f.surveys.StaffSurveysToAnswer, f.staff[1].AccountID)
 	require.NoError(t, err)
 	require.Len(t, toAnswer, 3)
-	testpkg.AssertQueryBudget(t, "modules.communication.surveys.to_answer", open.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.to_answer", open.Queries())
 
 	evaluation := testpkg.CaptureQueriesForContext(t, f.db)
 	results, err := testpkg.MeasuredTenantQuery1(t, evaluation.Context(ctx), f.db, evaluation, f.surveys.SurveyResults, surveys[0].ID)
 	require.NoError(t, err)
 	require.Len(t, results.Questions, 0, "three answers stay below the minimum")
-	testpkg.AssertQueryBudget(t, "modules.communication.surveys.results", evaluation.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.results", evaluation.Queries())
 }

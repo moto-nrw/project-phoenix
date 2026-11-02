@@ -184,3 +184,30 @@ describe("SectionCard einklappbar: ganzer Kopf schaltet (#5021)", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
+
+describe("SectionCard Überschrift", () => {
+  it("benennt die Karte mit namedRegion nach ihrem Titel auf der gewählten Ebene", () => {
+    render(
+      <SectionCard title="Rückmeldung" headingLevel={4} namedRegion>
+        Inhalt
+      </SectionCard>,
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 4, name: "Rückmeldung" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Rückmeldung" }),
+    ).toBeInTheDocument();
+  });
+
+  it("bleibt ohne namedRegion eine unbenannte Fläche", () => {
+    render(<SectionCard title="Ablauf">Inhalt</SectionCard>);
+
+    // Anker: die Karte ist gerendert.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ablauf" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+});

@@ -18,6 +18,7 @@ import {
   TIMETABLE_UNTYPED_EDGE_COLOR,
   timetableSurface,
 } from "./timetable-style";
+import { calendarConcept } from "~/lib/concepts/calendar";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -139,7 +140,7 @@ export function MonthPlannerGrid({
 
                 {planningDisabled && (
                   <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
-                    <MotoConceptIcon concept="calendar" size={14} />
+                    <MotoConceptIcon concept={calendarConcept} size={14} />
                     Nicht planbar
                   </div>
                 )}
@@ -148,7 +149,7 @@ export function MonthPlannerGrid({
                   closingReason === undefined &&
                   !planningDisabled && (
                     <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
-                      <MotoConceptIcon concept="calendar" size={14} />
+                      <MotoConceptIcon concept={calendarConcept} size={14} />
                       Leer
                     </div>
                   )

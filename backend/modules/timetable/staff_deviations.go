@@ -32,7 +32,7 @@ const (
 // realistic sick-leave window; longer absences are entered in slices.
 const MaxBulkSubstitutionDates = 31
 
-// The codes a DeviationConflict carries (error-registry.json). The package
+// The codes a DeviationConflict carries (error-registry/). The package
 // may not import api/common, so it names each registered code once here.
 const (
 	CodeInstanceMoved            = "timetable.instance_moved"

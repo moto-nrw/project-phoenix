@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/feedback/internal/application/Service.Available",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/feedback/internal/application/Service.EraseEntry",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

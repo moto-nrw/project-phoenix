@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -35,13 +36,18 @@ func (p *Provisioning) ListTraegerMembers(ctx context.Context, organizationID in
 }
 
 // AssignTraegerMember activates the membership of an existing account and
-// grants it a Träger role. The operator audit records the grant in the same
-// unit; without the audit nothing is granted.
+// grants it one or more Träger roles (#5144). The operator audit records the
+// grant in the same unit; without the audit nothing is granted.
 func (p *Provisioning) AssignTraegerMember(ctx context.Context, input organizationtenancy.AssignTraegerMember) (organizationtenancy.TraegerMember, error) {
 	email := strings.TrimSpace(strings.ToLower(input.Email))
 	if email == "" {
 		return organizationtenancy.TraegerMember{}, invalidData("email is required")
 	}
+	roles, err := traegerRoleSet(input.Roles)
+	if err != nil {
+		return organizationtenancy.TraegerMember{}, err
+	}
+	input.Roles = roles
 	member, err := adminValue(ctx, p, func(adminCtx context.Context) (organizationtenancy.TraegerMember, error) {
 		return p.assignTraegerMember(adminCtx, input, email)
 	})
@@ -71,11 +77,13 @@ func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organ
 	// The role grant locks the live account first, before the membership
 	// insert takes its foreign-key lock: two grants of the same account then
 	// queue on that lock instead of deadlocking on each other's key share.
-	if err := p.identity.AssignTraegerRole(adminCtx, input.OrganizationID, accountID, input.Role); err != nil {
-		if errors.Is(err, organizationtenancy.ErrInvalidTraegerRole) {
-			return organizationtenancy.TraegerMember{}, &organizationtenancy.InvalidProvisioningDataError{Err: err}
+	for _, role := range input.Roles {
+		if err := p.identity.AssignTraegerRole(adminCtx, input.OrganizationID, accountID, role); err != nil {
+			if errors.Is(err, organizationtenancy.ErrInvalidTraegerRole) {
+				return organizationtenancy.TraegerMember{}, &organizationtenancy.InvalidProvisioningDataError{Err: err}
+			}
+			return organizationtenancy.TraegerMember{}, err
 		}
-		return organizationtenancy.TraegerMember{}, err
 	}
 	membership, err := p.organizations.ActivateTraegerMembership(adminCtx, input.OrganizationID, accountID)
 	if err != nil {
@@ -84,7 +92,7 @@ func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organ
 	if err := p.recordAction(adminCtx, input.OperatorID, domain.AuditActionGrant, domain.AuditResourceTraegerMember, &accountID, input.ClientIP, map[string]any{
 		"organization_id": input.OrganizationID,
 		"account_id":      accountID,
-		"role":            input.Role,
+		"roles":           input.Roles,
 	}); err != nil {
 		return organizationtenancy.TraegerMember{}, err
 	}
@@ -94,6 +102,72 @@ func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organ
 	}
 	members := traegerMembers([]organizationtenancy.TraegerMembership{membership}, accounts)
 	return members[0], nil
+}
+
+// InviteTraegerMember invites a person into the Träger-Büro with the
+// Träger-Büro's own invitation (#5144): Identity & Access stores it and
+// queues the mail, the operator audit records it in the same unit. Without
+// the audit nothing is sent.
+func (p *Provisioning) InviteTraegerMember(ctx context.Context, input organizationtenancy.InviteTraegerMember) (organizationtenancy.TraegerInvitation, error) {
+	email := strings.TrimSpace(strings.ToLower(input.Email))
+	if email == "" {
+		return organizationtenancy.TraegerInvitation{}, invalidData("email is required")
+	}
+	roles, err := traegerRoleSet(input.Roles)
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, err
+	}
+	invitation, err := adminValue(ctx, p, func(adminCtx context.Context) (organizationtenancy.TraegerInvitation, error) {
+		organization, err := p.organizations.FindOrganization(adminCtx, input.OrganizationID)
+		if err != nil {
+			return organizationtenancy.TraegerInvitation{}, mapOrganizationError(err, input.OrganizationID)
+		}
+		if !organization.Active || organization.IsDeleted() {
+			return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrOrganizationInactive
+		}
+		invitation, err := p.identity.InviteTraegerAccount(adminCtx, input.OrganizationID, email, roles)
+		if err != nil {
+			return organizationtenancy.TraegerInvitation{}, traegerInvitationError(err)
+		}
+		return invitation, p.recordAction(adminCtx, input.OperatorID, domain.AuditActionCreate, domain.AuditResourceTraegerInvitation, &invitation.ID, input.ClientIP, map[string]any{
+			"organization_id": input.OrganizationID,
+			"email":           invitation.Email,
+			"roles":           invitation.Roles,
+		})
+	})
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, err
+	}
+	p.logger.Info("traeger_member_invited",
+		slog.Int64("organization_id", input.OrganizationID),
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("operator_id", input.OperatorID))
+	return invitation, nil
+}
+
+// traegerRoleSet deduplicates the requested roles and refuses an empty set;
+// Identity & Access validates each role.
+func traegerRoleSet(roles []string) ([]string, error) {
+	result := make([]string, 0, len(roles))
+	for _, role := range roles {
+		role = strings.TrimSpace(role)
+		if role != "" && !slices.Contains(result, role) {
+			result = append(result, role)
+		}
+	}
+	if len(result) == 0 {
+		return nil, &organizationtenancy.InvalidProvisioningDataError{Err: organizationtenancy.ErrInvalidTraegerRole}
+	}
+	return result, nil
+}
+
+// traegerInvitationError turns the invitation's input refusals into invalid
+// operator input; the other refusals keep their sentinel.
+func traegerInvitationError(err error) error {
+	if errors.Is(err, organizationtenancy.ErrInvalidTraegerRole) {
+		return &organizationtenancy.InvalidProvisioningDataError{Err: err}
+	}
+	return err
 }
 
 // traegerMembers joins the memberships with the identity facts in membership

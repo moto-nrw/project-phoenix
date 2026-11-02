@@ -1,0 +1,10 @@
+{
+  "kicker": "Poczta z OGS",
+  "title": "Listy do rodziców",
+  "description": "Ogłoszenia, ankiety i ważne informacje z Państwa OGS.",
+  "empty": "Obecnie nie ma nowych listów do rodziców.",
+  "open": "Otwarte",
+  "openLabel": "Otwarte, {count}",
+  "completed": "Załatwione",
+  "errorObjectList": "lista listów do rodziców"
+}

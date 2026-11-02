@@ -13,12 +13,10 @@ import type {
 import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 
-export type PasskeyScope = "tenant" | "operator";
+export type PasskeyScope = "tenant" | "operator" | "caterer";
 
-export interface PasskeyTokenResponse {
+interface PasskeyLoginResponse {
   status: "authenticated";
-  access_token: string;
-  refresh_token: string;
 }
 
 export interface PasskeyCredentialSummary {
@@ -39,9 +37,14 @@ interface EnrollmentChallengeResponse {
 }
 
 function basePath(scope: PasskeyScope): string {
-  return scope === "operator"
-    ? "/api/operator/auth/passkeys"
-    : "/api/auth/passkeys";
+  switch (scope) {
+    case "operator":
+      return "/api/operator/auth/passkeys";
+    case "caterer":
+      return "/api/caterer/auth/passkeys";
+    default:
+      return "/api/auth/passkeys";
+  }
 }
 
 function extractOptions<TOptions>(
@@ -117,7 +120,7 @@ export function isPasskeySupported(): boolean {
 export async function loginWithPasskey(
   scope: PasskeyScope,
   params: { tenantSlug?: string } = {},
-): Promise<PasskeyTokenResponse> {
+): Promise<PasskeyLoginResponse> {
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialRequestOptionsJSON>
   >(`${basePath(scope)}/login/options`, {
@@ -133,8 +136,8 @@ async function finishPasskeyLogin(
   scope: PasskeyScope,
   sessionID: string,
   response: AuthenticationResponseJSON,
-): Promise<PasskeyTokenResponse> {
-  return requestJson<PasskeyTokenResponse>(`${basePath(scope)}/login/verify`, {
+): Promise<PasskeyLoginResponse> {
+  return requestJson<PasskeyLoginResponse>(`${basePath(scope)}/login/verify`, {
     session_id: sessionID,
     response,
   });

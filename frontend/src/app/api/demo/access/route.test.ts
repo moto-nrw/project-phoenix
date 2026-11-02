@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as status } from "./status/route";
 import { POST as sessions } from "./sessions/route";
@@ -7,11 +7,20 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",
 }));
 
+vi.mock("~/server/auth", () => ({
+  setTenantSession: vi.fn(),
+  withTenantSessionResponse: (handler: unknown) => handler,
+}));
+vi.mock("~/server/auth/parent", () => ({
+  setParentSession: vi.fn(),
+  withParentSessionResponse: (handler: unknown) => handler,
+}));
 const fetchMock = vi.fn();
 
 function request(body: unknown) {
   return new NextRequest("http://messe-demo.localhost:3000/api/demo/access/x", {
     method: "POST",
+    headers: { Origin: "http://messe-demo.localhost:3000" },
     body: JSON.stringify(body),
   });
 }
@@ -69,7 +78,9 @@ describe("demo access routes", () => {
     expect(init.body).toBe(
       JSON.stringify({ token: "secret-token", role: "lead" }),
     );
-    const cookie = response.cookies.get("moto-demo-token");
+    const cookie = new NextResponse(null, {
+      headers: response.headers,
+    }).cookies.get("moto-demo-token");
     expect(cookie).toMatchObject({
       value: "secret-token",
       httpOnly: true,
@@ -77,14 +88,21 @@ describe("demo access routes", () => {
       path: "/api/demo",
       maxAge: 14 * 24 * 60 * 60,
     });
-    expect(await response.json()).not.toHaveProperty("token");
+    expect(await response.json()).toEqual({
+      session_created: true,
+      demo: { access_id: "4711", role: "lead" },
+    });
     // Tokens and access IDs must not stay in a shared device's cache (#4999).
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it("switches the role with the token from the cookie", async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ access_token: "access", refresh_token: "refresh" }),
+      Response.json({
+        access_token: "access",
+        refresh_token: "refresh",
+        demo: { access_id: "4711", role: "caregiver" },
+      }),
     );
     const switchRequest = request({ role: "caregiver" });
     switchRequest.cookies.set("moto-demo-token", "secret-token");
@@ -107,7 +125,11 @@ describe("demo access routes", () => {
     const response = await sessions(request({ token: "wrong-token" }));
 
     expect(response.status).toBe(404);
-    expect(response.cookies.get("moto-demo-token")).toBeUndefined();
+    expect(
+      new NextResponse(null, { headers: response.headers }).cookies.get(
+        "moto-demo-token",
+      ),
+    ).toBeUndefined();
   });
 
   it("answers 404 without a token and never calls the backend", async () => {

@@ -149,6 +149,7 @@ export function SectionCard({
   collapsed: collapsedProp,
   onCollapsedChange,
   headingLevel = 2,
+  namedRegion = false,
   titleClassName,
   bodyClassName,
   className = "",
@@ -193,8 +194,18 @@ export function SectionCard({
   /** Controlled open state; `onCollapsedChange` then reports the requested one. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** 1 for a page's primary section, 2 (default) for the rest. */
-  headingLevel?: 1 | 2 | 3;
+  /**
+   * 1 for a page's primary section, 2 (default) for the rest. 4 and 5 for a
+   * card inside a section that already carries its own h3 (a Rückmeldung in
+   * a detail block) and the parts of such a card.
+   */
+  headingLevel?: 1 | 2 | 3 | 4 | 5;
+  /**
+   * Names the section after its title (`aria-labelledby`), so a screen
+   * reader lists it as a region. For a card that stands for itself among
+   * others of its kind, e.g. one Rückmeldung per child.
+   */
+  namedRegion?: boolean;
   titleClassName?: string;
   /** Overrides the default `mt-4` spacing above the body. */
   bodyClassName?: string;
@@ -206,7 +217,8 @@ export function SectionCard({
   const [collapsedState, setCollapsedState] = useState(defaultCollapsed);
   const collapsed = collapsedProp ?? collapsedState;
   const bodyId = useId();
-  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
+  const headingId = useId();
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5";
   const headerActions = actions ?? action;
   const hasBody = children != null && children !== false && children !== "";
   const showBody = hasBody && !(collapsible && collapsed);
@@ -223,6 +235,7 @@ export function SectionCard({
     <section
       id={id}
       data-testid={testId}
+      aria-labelledby={namedRegion && title != null ? headingId : undefined}
       className={
         bare
           ? cn("space-y-4", className)
@@ -267,6 +280,7 @@ export function SectionCard({
                 >
                   {title != null && (
                     <Heading
+                      id={namedRegion ? headingId : undefined}
                       className={cn(
                         "text-base font-semibold text-balance text-gray-900",
                         titleClassName,

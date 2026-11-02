@@ -5,6 +5,14 @@ management for schools. Go/Chi/BUN backend, Next.js/React frontend, PostgreSQL.
 Read versions and available scripts from manifests rather than this file.
 All paths below are relative to the repository root.
 
+## Product principles
+
+- **Information flow, not data silos.** Make lawfully needed information
+  available to authorized participants where their task needs it, across modules
+  and portals. Restrictions need a concrete domain or legal reason; module
+  ownership is not an access boundary. Purpose limitation, data minimization
+  and tenant isolation remain binding.
+
 ## Working agreement
 
 - Match the task: implement requested changes, diagnose reported failures,
@@ -34,6 +42,14 @@ All paths below are relative to the repository root.
   [.claude/rules/no-production-requests.md](.claude/rules/no-production-requests.md)
   before constructing requests; never target staging or production domains.
   The seeder is dev-only; production infrastructure uses migrations or admin UI.
+- **Shared machine:** several agents and worktrees run here at once. Never
+  stop a process found by name, path or port pattern (`pkill -f`,
+  `pgrep | xargs kill`, `killall`); your own agent's command line contains the
+  same paths. Stop only PIDs you started, or a listener whose `lsof` cwd is your
+  worktree. Never use bare `git stash` (one stack for all worktrees), and never
+  prune, `down -v` or drop Docker volumes, networks or databases of another
+  checkout or of the shared test database. Details:
+  [shared resources](docs/agents/operations.md#shared-machine-resources).
 - **Secrets:** keep credentials out of source and output. Edit deployed envs
   only through SOPS, not ciphertext or SSH `.env` edits. Read
   [.claude/rules/security/hardcoded-credentials.md](.claude/rules/security/hardcoded-credentials.md).
@@ -57,6 +73,7 @@ path-scoped rules automatically.
 
 | Task or affected surface | Required guidance |
 |---|---|
+| New/changed data collection, access rules, or cross-module/portal flows | [.claude/rules/information-flow.md](.claude/rules/information-flow.md) |
 | Any backend change | [backend/CLAUDE.md](backend/CLAUDE.md), including its target architecture; inspect affected policy entries before choosing a boundary |
 | Any frontend change | [frontend/AGENTS.md](frontend/AGENTS.md) and [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT, client IP / rate limits | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |
@@ -67,6 +84,7 @@ path-scoped rules automatically.
 | Env vars, Docker, SOPS, deployment | [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md) and [docs/agents/operations.md](docs/agents/operations.md) |
 | User-visible UI, emails, kiosk, help | [.claude/rules/verstaendlichkeit.md](.claude/rules/verstaendlichkeit.md); load `moto-einfache-sprache` before German copy, [.claude/rules/frontend-ui-kit.md](.claude/rules/frontend-ui-kit.md) before frontend UI |
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
+| Guided tours: an element with `data-setup-tour`, a stop selector, or the tour files (`setup-tours.ts`, `staff-onboarding-steps.ts`, `use-setup-tour.ts`, `coach-mark.tsx`) | The affected stop in `frontend/src/components/school-setup/setup-tours.ts` or `frontend/src/components/staff-onboarding/staff-onboarding-steps.ts`; on the seeded native stack run `scripts/dev-native.sh frontend pnpm exec playwright test e2e/onboarding-tours.spec.ts` |
 | New page, new writing route, new portal surface, analytics events, or PostHog dashboards | [.claude/rules/usage-analytics.md](.claude/rules/usage-analytics.md); the page guard in `analytics-routes.test.ts` and the route guard in `TestFullProductionRouterGolden` enforce it |
 | Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend tests](docs/agents/frontend-testing.md) for date- or timer-sensitive or absence-asserting Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
@@ -88,7 +106,8 @@ Tools belong in Devbox; do not depend on unrecorded global installations.
 |---|---|
 | Frontend | `cd frontend && pnpm run check` — zero warnings; relevant behavior tests |
 | Backend | Relevant tests via `scripts/run-go-toolchain.sh`; architecture migration checks in backend/CLAUDE.md |
-| Code before push | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development`; CI runs the full affected closure |
+| Code before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs`: CI's fast static checks and the affected tests, uncommitted files included; CI runs the full affected closure |
+| Fix for a red PR check | `node scripts/ci-failures.mjs` names the failed step and its local command; see it fail and pass locally before pushing again |
 | User-visible | Verständlichkeit checklist recorded in PR; UI screenshot and help-guide requirements from the matching rules |
 | Docs/hooks only | `node scripts/check-agent-context.mjs` and `node --test scripts/check-agent-context.test.mjs`; verify changed hook behavior |
 
@@ -104,9 +123,14 @@ the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 without AI/tool branding or `Co-Authored-By: Claude`. PR bodies follow
 [the PR template](.github/PULL_REQUEST_TEMPLATE.md) also with `gh pr create --body`;
 they open with its user TL;DR: who notices what, or „Keine Änderung für Nutzer“.
-Every PR description, including CLI-created PRs and updates, must fill in the
-template's **Backend-Architektur** section with concrete evidence of adherence
-to the backend target architecture, or explain why the backend is unaffected.
+Keep descriptions focused on the problem, key decisions, verification and
+review-relevant risks. Link lasting design detail and check logs instead of
+repeating them. Add only applicable optional sections; omit empty headings and
+"not applicable" declarations. Backend changes require **Backend-Architektur**
+with concrete boundary rationale and evidence per the template; other PRs omit
+it. Required implementation and verification rules remain unchanged.
+Visible product changes require PR screenshots, refreshed when later fixes alter
+what they show; follow [PR screenshot rules](docs/agents/operations.md#pr-screenshots-and-qa-evidence).
 
 Use named and task-relevant skills; load their `SKILL.md` through the available
 skill tool or read the file directly. The runtime catalog is the discovery

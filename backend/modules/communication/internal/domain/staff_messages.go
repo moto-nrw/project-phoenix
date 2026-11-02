@@ -29,3 +29,7 @@ func DirectParticipantKey(a, b int64) string {
 	}
 	return strings.Join(parts, ":")
 }
+
+// StaffMessageThreadKindGroup is the named conversation with any number of
+// members (#4776).
+const StaffMessageThreadKindGroup = "group"

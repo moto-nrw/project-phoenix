@@ -23,7 +23,10 @@ import {
   formatChatClockTime,
   formatBerlinDate,
   relativeDaysLabel,
+  careWeekDayCount,
+  isCareWeekendDay,
 } from "./date-helpers";
+import { setTestClock } from "~/test/clock";
 
 describe("toISODate", () => {
   it("serializes a Date using LOCAL calendar fields", () => {
@@ -310,6 +313,15 @@ describe("formatDate", () => {
 
     expect(result).toContain("Mittwoch");
     expect(result).toContain("10. Juni 2026");
+  });
+
+  it("uses day-first dates for English holiday registration", () => {
+    expect(formatDate("2026-10-29", false, "en")).toBe("29/10/2026");
+    expect(formatDate("2026-11-09", false, "en")).toBe("09/11/2026");
+    expect(formatDate("2026-11-09", true, "en")).toBe(
+      "Monday, 9 November 2026",
+    );
+    expect(formatDate("2026-11-09", false, "de")).toBe("09.11.2026");
   });
 
   it("uses the requested locale for parent-facing dates", () => {
@@ -682,5 +694,46 @@ describe("berlinDateTimeISO / berlinClockFromISO (#3162)", () => {
     expect(() => berlinDateTimeISO(new Date(2026, 9, 25), "02:30")).toThrow(
       RangeError,
     );
+  });
+});
+
+describe("careWeekDayCount", () => {
+  it("keeps the week Mo–Fr when the weekend is closed", () => {
+    setTestClock("2026-09-12T12:00:00+02:00"); // Saturday
+    expect(careWeekDayCount("2026-09-07", false)).toBe(5);
+  });
+
+  it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", () => {
+    // Test clock: Wednesday 2026-09-09.
+    expect(careWeekDayCount("2026-09-07", true)).toBe(5);
+    expect(careWeekDayCount("2026-09-10", true)).toBe(5);
+    expect(careWeekDayCount("2026-09-14", true)).toBe(5);
+  });
+
+  it("shows Sa/So for the week that contains today's Saturday or Sunday", () => {
+    setTestClock("2026-09-12T12:00:00+02:00"); // Saturday
+    expect(careWeekDayCount("2026-09-07", true)).toBe(7);
+    expect(careWeekDayCount("2026-09-13", true)).toBe(7);
+
+    setTestClock("2026-09-13T23:30:00+02:00"); // Sunday, late evening
+    expect(careWeekDayCount("2026-09-09", true)).toBe(7);
+  });
+
+  it("keeps other weeks Mo–Fr on a weekend", () => {
+    setTestClock("2026-09-13T12:00:00+02:00"); // Sunday
+    expect(careWeekDayCount("2026-08-31", true)).toBe(5);
+    expect(careWeekDayCount("2026-09-14", true)).toBe(5);
+  });
+
+  it("follows the Berlin calendar day, not the browser's", () => {
+    // Monday 00:30 Berlin is still Sunday in UTC.
+    setTestClock("2026-09-14T00:30:00+02:00");
+    expect(careWeekDayCount("2026-09-07", true)).toBe(5);
+  });
+
+  it("uses the supplied Berlin date for weekend-day navigation", () => {
+    setTestClock("2026-09-12T00:01:00+02:00"); // Samstag
+    expect(isCareWeekendDay("2026-09-12", true, "2026-09-11")).toBe(false);
+    expect(isCareWeekendDay("2026-09-12", true, "2026-09-12")).toBe(true);
   });
 });

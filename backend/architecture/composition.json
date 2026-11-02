@@ -51,7 +51,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        378
+        392
       ],
       "tables": []
     },
@@ -16396,13 +16396,17 @@
       "holiday-guest-reconciliation",
       "instance-overdue",
       "meal-orders",
+      "payroll-dispatch",
+      "planned-staff-exits",
       "pwa-usage-cleanup",
       "reminder-notifications",
       "rollover-deadline",
+      "school-vacation-sync",
       "session-cleanup",
       "session-end",
       "staff-document-file-cleanup",
       "staff-message-cleanup",
+      "staff-qualification-reminders",
       "status-flag-clear",
       "student-change-log-cleanup",
       "student-document-file-cleanup",
@@ -16412,7 +16416,8 @@
       "timetable-cleanup",
       "timetable-materialization",
       "token-cleanup",
-      "visit-cleanup"
+      "visit-cleanup",
+      "week-protocols"
     ],
     "backend_test_suite_seconds": 108.76,
     "measurement_environment": "macOS, local Docker PostgreSQL 17; cold Serve-root timing from three isolated test processes; full suite with Go test -p 6 -parallel 8",
@@ -16494,13 +16499,17 @@
     "holiday-guest-reconciliation",
     "instance-overdue",
     "meal-orders",
+    "payroll-dispatch",
+    "planned-staff-exits",
     "pwa-usage-cleanup",
     "reminder-notifications",
     "rollover-deadline",
+    "school-vacation-sync",
     "session-cleanup",
     "session-end",
     "staff-document-file-cleanup",
     "staff-message-cleanup",
+    "staff-qualification-reminders",
     "status-flag-clear",
     "student-change-log-cleanup",
     "student-document-file-cleanup",
@@ -16510,6 +16519,7 @@
     "timetable-cleanup",
     "timetable-materialization",
     "token-cleanup",
-    "visit-cleanup"
+    "visit-cleanup",
+    "week-protocols"
   ]
 }

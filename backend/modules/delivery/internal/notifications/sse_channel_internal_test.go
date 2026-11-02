@@ -64,6 +64,9 @@ func (b *recordingGuardianBroadcaster) BroadcastToAll(realtime.Event) error { re
 func (b *recordingGuardianBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
 	return nil
 }
+func (b *recordingGuardianBroadcaster) BroadcastLeadershipParentMessage(int64, int64, realtime.Event) error {
+	return nil
+}
 
 func (b *recordingGuardianBroadcaster) BroadcastToStaffAccounts(_ int64, accountIDs []int64, _ realtime.Event) error {
 	b.staff = append(b.staff, accountIDs...)

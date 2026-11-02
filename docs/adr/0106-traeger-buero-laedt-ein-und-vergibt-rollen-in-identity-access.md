@@ -95,3 +95,31 @@ Diese ADR hält fest, wie das umgesetzt ist und was es in den Registern
 - Zwei-Faktor-Pflicht für Träger-Konten kommt mit #4651; die Annahme stellt
   keine Sitzung aus, die Anmeldung danach läuft über den normalen Login.
 - Die Ansicht des Protokolls im Träger-Portal gehört zu #4655.
+
+## Nachtrag 2026-10-27: Einladung durch das moto-Team (#5144)
+
+Der offene Punkt „Operator-Einladung per Mail“ ist entschieden (Spec #4611,
+User Story 2). Das moto-Team lädt im Operator-Portal ein, auch die erste
+Person, ohne dass sie ein Schulkonto braucht.
+
+- **Dieselbe Einladung.** `POST /operator/organizations/{id}/traeger-members/invitations`
+  legt die Einladung in `auth.traeger_invitations` an, mit derselben Mail und
+  derselben Annahmeseite wie aus dem Träger-Portal. `created_by` bleibt leer:
+  Das moto-Team ist kein Konto des Trägers. Das Träger-Büro sieht die
+  Einladung unter den offenen Einladungen und kann sie zurücknehmen.
+- **Einheit und Protokoll.** Organisation & Tenancy besitzt die Einheit: Sie
+  prüft den Träger, ruft den Leaf-Befehl
+  `identityaccess.TraegerOperatorInvitation.InviteTraegerAccountForOperator`
+  (ADR 0067, Command Participation) und schreibt das Operator-Protokoll
+  (`create`/`traeger_invitation`, mit Adresse und Rollen) in derselben
+  Einheit. Der Leaf-Befehl verweigert ohne umgebende Admin-Transaktion und
+  nimmt zuerst die Verwaltungs-Sperre aus Punkt 5, wie jeder Befehl des
+  Träger-Büros. `audit.traeger_account_changes` erhält für das Anlegen keinen
+  Eintrag, weil der Handelnde dort ein Konto sein muss; die Annahme schreibt
+  wie bisher `invitation_accepted`.
+- **Mehrere Rollen.** „Person zuordnen“ nimmt jetzt eine Rollenmenge
+  (`roles`) statt einer Rolle; Organisation & Tenancy vergibt sie in einer
+  Einheit über den vorhandenen Leaf-Befehl je Rolle.
+- **Register.** `command-effects.json` erhält die Bindung
+  `ProvisioningIdentity.InviteTraegerAccount` als Leaf-Mutation. Kein Budget
+  steigt.

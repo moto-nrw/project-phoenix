@@ -1,0 +1,6 @@
+{
+  "scenario": "services.enrollment.template_roster_maintenance_feeds.reads",
+  "max": 5,
+  "exact": false,
+  "description": "Source validation adds one batched read each for the offering catalog,\nits auto-add rules, periods, phases and series roots; flat from 3 to 8."
+}

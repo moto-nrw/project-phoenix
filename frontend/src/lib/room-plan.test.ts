@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import {
   roomDayPlan,
@@ -103,6 +104,8 @@ describe("room plan days (#4768)", () => {
   it("snaps the weekend to Monday unless the school cares on weekends", () => {
     expect(roomPlanCareDay("2026-09-12", false)).toBe("2026-09-14");
     expect(roomPlanCareDay("2026-09-13", false)).toBe("2026-09-14");
+    expect(roomPlanCareDay("2026-09-12", true)).toBe("2026-09-14");
+    setTestClock("2026-09-12T12:00:00+02:00"); // Saturday
     expect(roomPlanCareDay("2026-09-12", true)).toBe("2026-09-12");
     expect(roomPlanCareDay("2026-09-09", false)).toBe("2026-09-09");
   });
@@ -110,7 +113,11 @@ describe("room plan days (#4768)", () => {
   it("steps from care day to care day", () => {
     expect(roomPlanStepDay("2026-09-11", 1, false)).toBe("2026-09-14");
     expect(roomPlanStepDay("2026-09-14", -1, false)).toBe("2026-09-11");
+    expect(roomPlanStepDay("2026-09-11", 1, true)).toBe("2026-09-14");
+    setTestClock("2026-09-12T12:00:00+02:00"); // Saturday
     expect(roomPlanStepDay("2026-09-11", 1, true)).toBe("2026-09-12");
+    expect(roomPlanStepDay("2026-09-14", -1, true)).toBe("2026-09-13");
+    expect(roomPlanStepDay("2026-09-18", 1, true)).toBe("2026-09-21");
   });
 
   it("lists the week from Monday and steps by whole weeks", () => {
@@ -121,9 +128,19 @@ describe("room plan days (#4768)", () => {
       "2026-09-10",
       "2026-09-11",
     ]);
+    expect(roomPlanStepWeek("2026-09-07", -1)).toBe("2026-08-31");
+  });
+
+  it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", () => {
+    // Test clock: Wednesday 2026-09-09.
+    expect(roomPlanWeekDays("2026-09-09", true)).toHaveLength(5);
+  });
+
+  it("lists Sa/So for the week of today's weekend", () => {
+    setTestClock("2026-09-13T12:00:00+02:00"); // Sunday
     expect(roomPlanWeekDays("2026-09-13", true)).toHaveLength(7);
     expect(roomPlanWeekDays("2026-09-13", true)[0]).toBe("2026-09-07");
-    expect(roomPlanStepWeek("2026-09-07", -1)).toBe("2026-08-31");
+    expect(roomPlanWeekDays("2026-09-14", true)).toHaveLength(5);
   });
 
   it("names the day in full", () => {

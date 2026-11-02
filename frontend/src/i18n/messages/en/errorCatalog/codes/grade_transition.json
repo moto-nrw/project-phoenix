@@ -1,0 +1,7 @@
+{
+  "graduates_checked_in": "{object} could not be changed. Please check its current status.",
+  "not_applied": "{object} could not be changed. Please check its current status.",
+  "not_draft": "{object} could not be changed. Please check its current status.",
+  "not_latest_transition": "{object} could not be changed. Please check its current status.",
+  "preview_stale": "{object} could not be changed. Please check its current status."
+}

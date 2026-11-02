@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.templates.booking_leftovers",
+  "max": 30,
+  "exact": false,
+  "description": "modules/timetable — GET /api/timetable/templates/booking-leftovers\n(#5102): the planning period, the period's template list with its\nindicator reads, the roster deviations to leave out, the planned rosters\n(enrollment rows, alumni, target members) in one batch, materialization's\noccurrence projection (periods, closing days, holidays, exceptions,\ntemplates, schedules) and the children's\nnames in two reads. Care Plan's booking read is stubbed here and budgeted\nas services.enrollment.offering_weekday_bookings.reads. Flat from 2 to 6\nRegeltermine."
+}

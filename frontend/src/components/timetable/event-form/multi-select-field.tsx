@@ -3,16 +3,15 @@ import { useMemo, useState } from "react";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Input } from "~/components/ui/input";
 import { getSchoolYear } from "~/lib/student-helpers";
 
 import {
   timetableMutedSurface,
   timetableNestedSurface,
-  timetableSearchClass,
 } from "../timetable-style";
 import type { PersonOption } from "./form-model";
 
-const FORM_SEARCH_CLASS = timetableSearchClass;
 const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
 export function MultiSelectField({
@@ -156,12 +155,13 @@ export function MultiSelectField({
             className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden
           />
-          <input
+          <Input
             type="search"
+            controlSize="compact"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`${label} suchen …`}
-            className={FORM_SEARCH_CLASS}
+            className="pl-9 hover:ring-gray-300"
           />
         </label>
         {metadata === "student" && gradeOptions.length > 0 && (

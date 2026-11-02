@@ -144,6 +144,12 @@ func TestValidateLegacyTemplateWorkdays(t *testing.T) {
 	}))
 }
 
+// ProjectOccurrences projects nothing; suites that compare against
+// occurrences compose the real materialization.
+func (m *mockMaterializationService) ProjectOccurrences(context.Context, []int64, calendar.Date, calendar.Date) (timetable.OccurrenceProjection, error) {
+	return timetable.OccurrenceProjection{Dates: map[int64][]calendar.Date{}, ClosedDays: map[calendar.Date]bool{}}, m.err
+}
+
 func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
 	m.from = from
 	m.to = to

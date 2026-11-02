@@ -35,8 +35,8 @@ func (s *lifecycleStoreStub) ReplaceSupervisors(context.Context, int64, []int64)
 func (s *lifecycleStoreStub) Supervisors(context.Context, int64) ([]ports.LifecycleSupervisor, error) {
 	return s.group.Supervisors, s.supervisorErr
 }
-func (s *lifecycleStoreStub) CountActiveVisitsByActiveGroupID(context.Context, int64) (int, error) {
-	return 4, s.countErr
+func (s *lifecycleStoreStub) CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error) {
+	return 4, 9, s.countErr
 }
 func (s *lifecycleStoreStub) Touch(context.Context, int64) error { s.touches++; return s.touchErr }
 func (s *lifecycleStoreStub) Conflict(context.Context, int64, int64) (devicescan.ConflictInfoResponse, error) {

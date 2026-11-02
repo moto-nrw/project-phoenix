@@ -87,12 +87,12 @@ func (r *nativeParentThreadRepository) FindByID(ctx context.Context, id int64) (
 	row, err := r.source.ParentThreadFindByID(ctx, id)
 	return (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err
 }
-func (r *nativeParentThreadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error) {
-	row, err := r.source.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID)
+func (r *nativeParentThreadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error) {
+	row, err := r.source.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID, audience)
 	return (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err
 }
-func (r *nativeParentThreadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error) {
-	row, err := r.source.ParentThreadGetOrCreate(ctx, tenantID, studentID, guardianAccountID)
+func (r *nativeParentThreadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error) {
+	row, err := r.source.ParentThreadGetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)
 	return (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err
 }
 func (r *nativeParentThreadRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*MessageableGuardian, error) {
@@ -142,14 +142,14 @@ func (r *nativeParentReadRepository) MarkStaffUnread(ctx context.Context, tenant
 func (r *nativeParentReadRepository) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {
 	return r.source.ParentReadClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)
 }
-func (r *nativeParentReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
-	return r.source.ParentReadUnreadMessageCountForStaff(ctx, accountID, allStudents)
+func (r *nativeParentReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach StaffReach) (int, error) {
+	return r.source.ParentReadUnreadMessageCountForStaff(ctx, accountID, reach)
 }
-func (r *nativeParentReadRepository) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
-	return r.source.ParentReadUnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
+func (r *nativeParentReadRepository) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach StaffReach, groupIDs []int64) (int, error) {
+	return r.source.ParentReadUnreadMessageCountForStaffInGroups(ctx, accountID, reach, groupIDs)
 }
-func (r *nativeParentReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*InboxThread, error) {
-	rows, err := r.source.ParentReadListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r *nativeParentReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, reach StaffReach, onlyUnread bool) ([]*InboxThread, error) {
+	rows, err := r.source.ParentReadListInboxForStaff(ctx, accountID, reach, onlyUnread)
 	if rows == nil {
 		return nil, err
 	}
@@ -167,8 +167,8 @@ func (r *nativeParentReadRepository) ListInboxForStaff(ctx context.Context, acco
 	return mapped, err
 }
 
-func (r *nativeParentReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*InboxThread, error) {
-	rows, err := r.source.ParentReadListThreadsForStudent(ctx, accountID, studentID)
+func (r *nativeParentReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach StaffReach) ([]*InboxThread, error) {
+	rows, err := r.source.ParentReadListThreadsForStudent(ctx, accountID, studentID, reach)
 	if rows == nil {
 		return nil, err
 	}

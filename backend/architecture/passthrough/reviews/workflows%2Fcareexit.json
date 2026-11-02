@@ -1,0 +1,29 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "workflows/careexit/Roster.CloseOpenStudentAssignments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/careexit/Roster.CountPlannedRosterForCareExit",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/careexit/Roster.LatestStudentAssignmentAttendanceDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/careexit/Roster.LockOpenStudentAssignments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/careexit/Roster.LockPlannedRosterForCareExit",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

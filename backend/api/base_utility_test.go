@@ -825,8 +825,8 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 
 	_, _, _, _, _, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
-	timetable := newTimetableResource(nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
-		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, slog.Default())
+	timetable := newTimetableResource(nil, nil, nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
+		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, planning.Planning.ConflictDetection, timetable.ConflictDetection,
@@ -835,7 +835,7 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	// The mounted routes reach it too: an unwired conflict probe answers 500.
 	db := testpkg.SetupTestDB(t)
 	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Conflict", "Probe")
-	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
 	probe := checkpointRequest(graph, checkpointScenario{
 		Method: http.MethodGet, Path: "/api/timetable/exception-conflicts?date=2099-01-05", Authenticated: true,
 	}, token)

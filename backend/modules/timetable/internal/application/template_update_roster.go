@@ -42,7 +42,7 @@ func (s *TemplateService) replaceTemplateRoster(
 		return nil, &ports.ScheduleError{Op: "update template: resolve roster", Err: err}
 	}
 
-	protectedCoverage, retiredStudentIDs, err := s.retireTemplateEnrollments(
+	protectedCoverage, retiredStudentIDs, decisions, err := s.retireTemplateEnrollments(
 		ctx,
 		in.TemplateID,
 		in.CalendarPeriodID,
@@ -57,7 +57,7 @@ func (s *TemplateService) replaceTemplateRoster(
 	// A child kept by a care-offering row is already on the roster with a
 	// provenance this editor must not overwrite on the weekdays it covers.
 	window := rosterWindow{from: rosterValidFrom, until: scheduleValidUntil, periodID: in.CalendarPeriodID}
-	if err := s.createTemplateEnrollments(ctx, in.TemplateID, tenantID, window, excludeProtectedStudentWeekdays(roster.Students, protectedCoverage)); err != nil {
+	if err := s.createTemplateEnrollments(ctx, in.TemplateID, tenantID, window, excludeProtectedStudentWeekdays(roster.Students, protectedCoverage), decisions); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +78,9 @@ type rosterWindow struct {
 	periodID *int64
 }
 
-func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templateID, tenantID int64, window rosterWindow, rows []resolvedRosterRow) error {
+// createTemplateEnrollments writes the replacement rows; each keeps the
+// school's „Bleibt so“ (#5102) its retired rows carried.
+func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templateID, tenantID int64, window rosterWindow, rows []resolvedRosterRow, decisions keptDecisions) error {
 	for _, row := range rows {
 		enrollment := &activityContract.StudentEnrollment{
 			StudentID:        row.PersonID,
@@ -88,6 +90,7 @@ func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templat
 			CalendarPeriodID: window.periodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
+		enrollment.KeptWithoutBooking = decisions.forRow(row.PersonID, enrollment.Weekday, nil)
 		enrollment.SetTenantID(tenantID)
 		if err := createLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, enrollment); err != nil {
 			return &ports.ScheduleError{Op: "update template: create enrollment", Err: err}
@@ -127,7 +130,8 @@ const (
 // retireTemplateEnrollments retires the roster rows the replacement is about
 // to rewrite. The second return value lists the students whose rows were
 // actually deleted or closed (#2147 review) — their future coverage shrank,
-// so already-materialized occurrences may need reconciling.
+// so already-materialized occurrences may need reconciling. The third is the
+// school's „Bleibt so“ (#5102) of the retired hand rows.
 func (s *TemplateService) retireTemplateEnrollments(
 	ctx context.Context,
 	templateID int64,
@@ -136,11 +140,12 @@ func (s *TemplateService) retireTemplateEnrollments(
 	replacementFrom calendar.Date,
 	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
-) (map[int64]protectedStudentCoverage, []int64, error) {
+) (map[int64]protectedStudentCoverage, []int64, keptDecisions, error) {
 	rows, err := groupStudentEnrollments(ctx, s.deps.StudentEnrollmentRepo, s.deps.Directories, templateID)
 	if err != nil {
-		return nil, nil, &ports.ScheduleError{Op: "update template: load enrollments", Err: err}
+		return nil, nil, nil, &ports.ScheduleError{Op: "update template: load enrollments", Err: err}
 	}
+	decisions := collectKeptDecisions(rows, replacementFrom)
 	protected, retiredStudentIDs, err := s.retireUnprotectedTemplateEnrollments(
 		ctx,
 		rows,
@@ -150,13 +155,13 @@ func (s *TemplateService) retireTemplateEnrollments(
 		previousCalendarPeriodID,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	coverage, err := s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID, weekdays)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return coverage, retiredStudentIDs, nil
+	return coverage, retiredStudentIDs, decisions, nil
 }
 
 func (s *TemplateService) retireUnprotectedTemplateEnrollments(

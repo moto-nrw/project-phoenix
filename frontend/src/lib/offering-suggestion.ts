@@ -7,16 +7,21 @@ import type { OfferingSelection } from "./roster-deviation";
  */
 export type DraftRoster = Record<number, string[]>;
 
-/** An offering whose bookings match the children the editor plans. */
+/** Offerings whose bookings match the children the editor plans. */
 export interface OfferingSuggestion {
-  offering: { id: string; name: string };
+  /** The suggested source; several offerings combine (#5139). */
+  offerings: Array<{ id: string; name: string }>;
+  /** Complete equal choices, including complementary offerings. */
+  combinations?: Array<Array<{ id: string; name: string }>>;
   /** Klassen- or Jahrgangsfilter, taken from the Zielgruppe. */
   gradeLevels: number[];
   schoolClasses: string[];
   unbookedCount: number;
   missingCount: number;
-  /** Every offering that passes the rule, best first. */
+  /** The suggested offerings, then every other one that passes the rule. */
   candidates: Array<{ id: string; name: string }>;
+  /** Another offering fits as well as a suggested one (#5138): the school picks. */
+  ambiguous: boolean;
 }
 
 export interface OfferingSuggestionQuery {
@@ -24,6 +29,8 @@ export interface OfferingSuggestionQuery {
   type: string;
   listKind?: string;
   roster: DraftRoster;
+  /** Planned end ("HH:MM"); tells which offerings carry the block (#5342). */
+  endTime?: string;
   schoolClasses: string[];
   gradeLevels: number[];
 }
@@ -35,12 +42,14 @@ interface BackendOfferingRef {
 
 export interface BackendOfferingSuggestionResponse {
   suggestion?: {
-    offering: BackendOfferingRef;
+    offerings?: BackendOfferingRef[] | null;
     grade_levels?: number[] | null;
     school_classes?: string[] | null;
     unbooked_count: number;
     missing_count: number;
     candidates?: BackendOfferingRef[] | null;
+    combinations?: BackendOfferingRef[][] | null;
+    ambiguous?: boolean;
   } | null;
 }
 
@@ -60,6 +69,7 @@ export function suggestionQuery(
   params.set("period_id", query.periodId);
   params.set("type", query.type);
   if (query.listKind) params.set("list_kind", query.listKind);
+  if (query.endTime) params.set("end_time", query.endTime);
   appendRoster(params, query.roster);
   if (query.schoolClasses.length > 0) {
     params.set("school_classes", query.schoolClasses.join(","));
@@ -101,12 +111,16 @@ export function mapOfferingSuggestion(
   const suggestion = raw.suggestion;
   if (!suggestion) return null;
   return {
-    offering: offeringRef(suggestion.offering),
+    offerings: (suggestion.offerings ?? []).map(offeringRef),
+    combinations: (suggestion.combinations ?? []).map((combination) =>
+      combination.map(offeringRef),
+    ),
     gradeLevels: suggestion.grade_levels ?? [],
     schoolClasses: suggestion.school_classes ?? [],
     unbookedCount: suggestion.unbooked_count,
     missingCount: suggestion.missing_count,
     candidates: (suggestion.candidates ?? []).map(offeringRef),
+    ambiguous: suggestion.ambiguous ?? false,
   };
 }
 
@@ -114,7 +128,7 @@ export function suggestionSelection(
   suggestion: OfferingSuggestion,
 ): OfferingSelection {
   return {
-    offeringIds: [suggestion.offering.id],
+    offeringIds: suggestion.offerings.map((offering) => offering.id),
     gradeLevels: suggestion.gradeLevels,
     schoolClasses: suggestion.schoolClasses,
   };

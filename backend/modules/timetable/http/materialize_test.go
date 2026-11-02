@@ -63,6 +63,10 @@ func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _
 	return nil, nil
 }
 
+func (m *mockMaterializer) ProjectOccurrences(context.Context, []int64, calendar.Date, calendar.Date) (timetableModule.OccurrenceProjection, error) {
+	return timetableModule.OccurrenceProjection{}, nil
+}
+
 // -----------------------------------------------------------------------------
 // resolveMaterializationWindow — pure logic, no HTTP plumbing.
 // -----------------------------------------------------------------------------

@@ -171,4 +171,7 @@ export const PARENT_PORTAL_ERROR_CODES = [
   "enrollment.change_request_guardian_linked",
   "enrollment.captcha_required",
   "enrollment.captcha_failed",
+  // Elternsprechtag (#4801): booking, moving or cancelling a slot.
+  "school.parent_conference_slot_taken",
+  "school.parent_conference_change_closed",
 ] as const satisfies readonly ErrorCode[];

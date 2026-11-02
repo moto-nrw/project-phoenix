@@ -53,6 +53,8 @@ export interface BackendStaffResponse {
   external_organization?: string | null;
   /** Account state of an external caregiver; absent for everyone else. */
   external_account_status?: ExternalAccountStatus | null;
+  /** Geplanter letzter Arbeitstag, "YYYY-MM-DD" (#4809). */
+  planned_exit_date?: string | null;
 }
 
 /**
@@ -128,6 +130,8 @@ export interface Staff {
   absenceType?: string;
   /** The school's own Abwesenheitsart wording, "" for a standard type (#2403). */
   absenceTypeLabel?: string;
+  /** Geplanter letzter Arbeitstag, "YYYY-MM-DD" (#4809). */
+  plannedExitDate?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
   /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
@@ -412,6 +416,7 @@ function mapStaffMember(
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
     externalAccountStatus: staff.external_account_status ?? null,
+    plannedExitDate: staff.planned_exit_date ?? undefined,
   };
 }
 
@@ -489,6 +494,7 @@ export function mapStaffRecord(staff: BackendStaffResponse): Staff {
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
     externalAccountStatus: staff.external_account_status ?? null,
+    plannedExitDate: staff.planned_exit_date ?? undefined,
   };
 }
 
@@ -2061,6 +2067,8 @@ export interface StammdatenArbeitsvertrag {
 
 export interface StammdatenQualifikation {
   id: string | null;
+  /** Nachweisart (#4808); null ist „Sonstiges“ mit freiem Namen. */
+  typeId: string | null;
   name: string;
   acquiredOn: string | null;
   expiresOn: string | null;
@@ -2111,7 +2119,8 @@ interface BackendStammdaten {
     employment_type: string | null;
   };
   qualifikationen: {
-    id?: number;
+    id?: string;
+    type_id?: string | null;
     name: string;
     acquired_on: string | null;
     expires_on: string | null;
@@ -2144,7 +2153,8 @@ function mapStammdatenResponse(data: BackendStammdaten): StaffStammdaten {
       employmentType: data.arbeitsvertrag.employment_type,
     },
     qualifikationen: (data.qualifikationen ?? []).map((q) => ({
-      id: q.id != null ? q.id.toString() : null,
+      id: q.id ?? null,
+      typeId: q.type_id ?? null,
       name: q.name,
       acquiredOn: q.acquired_on,
       expiresOn: q.expires_on,
@@ -2250,6 +2260,8 @@ class StaffStammdatenService {
   ): Promise<void> {
     await this.putSection(staffId, "qualifikationen", {
       qualifikationen: qualifikationen.map((q) => ({
+        ...(q.id !== null ? { id: q.id } : {}),
+        type_id: q.typeId,
         name: q.name,
         acquired_on: q.acquiredOn,
         expires_on: q.expiresOn,
@@ -2336,3 +2348,41 @@ export const staffMonthSummaryService = new StaffMonthSummaryService();
 export const staffBalanceAdjustmentService =
   new StaffBalanceAdjustmentService();
 export const staffMonthCloseService = new StaffMonthCloseService();
+
+/**
+ * Geplanter Austritt (#4809): die Leitung trägt den letzten Arbeitstag einer
+ * Person ein. Nach dem Ende dieses Tages löscht moto die Person wie über
+ * „Löschen“. Bis zum letzten Arbeitstag lässt sich der Tag ändern oder der
+ * Austritt zurücknehmen.
+ */
+export const staffPlannedExitService = {
+  async plan(staffId: string, lastWorkingDay: string): Promise<string> {
+    const response = await sessionFetch(`/api/staff/${staffId}/planned-exit`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_working_day: lastWorkingDay }),
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Der Austritt konnte nicht gespeichert werden",
+      );
+    }
+    const json = (await response.json()) as {
+      data?: { last_working_day?: string };
+    };
+    return json.data?.last_working_day ?? lastWorkingDay;
+  },
+
+  async withdraw(staffId: string): Promise<void> {
+    const response = await sessionFetch(`/api/staff/${staffId}/planned-exit`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Der Austritt konnte nicht zurückgenommen werden",
+      );
+    }
+  },
+};

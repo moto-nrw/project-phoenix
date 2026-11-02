@@ -1,0 +1,84 @@
+{
+  "packages": [
+    {
+      "path": "internal/architecture",
+      "owner": "architecture-check",
+      "role": "application",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "architecture/artifacts",
+      "owner": "architecture-check",
+      "role": "contract",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "architecture/querybudget",
+      "owner": "architecture-check",
+      "role": "contract",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "external.compiler-tooling.architecture",
+      "description": "The architecture evaluator may load Go syntax and type information.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "architecture-check",
+      "source_role": "application",
+      "target_class": "compiler-tooling"
+    },
+    {
+      "id": "external.process-exec.architecture",
+      "description": "The architecture evaluator may execute go list.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "architecture-check",
+      "source_role": "application",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "architecture-check.own-artifact-contract",
+      "description": "Architecture evaluation consumes its own public artifact storage capability (ADR 0132).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "architecture-check",
+      "target_owner": "architecture-check",
+      "target_role": "contract",
+      "source_role": "application"
+    },
+    {
+      "id": "architecture-artifacts.immutable-git-and-fingerprint",
+      "description": "Only the new engineering artifact reader executes pinned Git blob/tree reads and hashes its scanner-source fingerprint; no runtime module imports it (ADR 0132).",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "architecture/artifacts",
+      "target_class": "process-exec",
+      "source_owner": "architecture-check",
+      "source_role": "contract"
+    },
+    {
+      "id": "architecture-artifacts.source-fingerprint",
+      "description": "Only the new engineering artifact reader hashes its embedded source to preserve the pass-through selector scope (ADR 0132).",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "architecture/artifacts",
+      "target_class": "crypto",
+      "source_owner": "architecture-check",
+      "source_role": "contract"
+    }
+  ]
+}

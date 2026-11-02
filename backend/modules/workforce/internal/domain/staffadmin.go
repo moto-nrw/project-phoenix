@@ -217,6 +217,8 @@ type ContractSection struct {
 
 // QualificationInput is one row of the submitted qualification list.
 type QualificationInput struct {
+	ID         *int64
+	TypeID     *int64
 	Name       string
 	AcquiredOn *string
 	ExpiresOn  *string
@@ -311,13 +313,19 @@ func NormalizeQualifications(inputs []QualificationInput) ([]StaffQualification,
 	rows := make([]StaffQualification, 0, len(inputs))
 	for _, input := range inputs {
 		name := strings.TrimSpace(input.Name)
-		if name == "" {
+		// A row of a kind takes the kind's name when it is stored (#4808);
+		// only "Sonstiges" needs its own.
+		if name == "" && input.TypeID == nil {
 			return nil, invalidStammdaten("qualification name is required")
 		}
 		if input.AcquiredOn != nil && input.ExpiresOn != nil && *input.ExpiresOn < *input.AcquiredOn {
 			return nil, invalidStammdaten("qualification expiry before acquisition")
 		}
-		rows = append(rows, StaffQualification{Name: name, AcquiredOn: deref(input.AcquiredOn), ExpiresOn: deref(input.ExpiresOn)})
+		row := StaffQualification{TypeID: input.TypeID, Name: name, AcquiredOn: deref(input.AcquiredOn), ExpiresOn: deref(input.ExpiresOn)}
+		if input.ID != nil {
+			row.ID = *input.ID
+		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }

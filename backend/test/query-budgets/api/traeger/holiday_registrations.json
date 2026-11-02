@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.holiday_registrations",
+  "max": 7,
+  "exact": true,
+  "description": "modules/enrollment — GET /traeger/holiday-periods/{id}/registrations\n(#4663, ADR 0114): the Träger binding of the Träger transaction, the\nperiod with its weeks and time models, then the registrations, their\nchildren with the duplicate hint and their bookings; the audit entry\nwrites but selects nothing. Flat in the number of registrations."
+}

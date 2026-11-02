@@ -99,6 +99,7 @@ import {
 } from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -871,7 +872,7 @@ function MeinRaumPageContent() {
       empty={
         hasNoAccess
           ? {
-              icon: <MotoConceptIcon concept="rooms" size={48} />,
+              icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
               title: "Keine aktive Raum-Aufsicht",
               description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
                 nfcEnabled ? "an einem Terminal" : "in der Web-App"

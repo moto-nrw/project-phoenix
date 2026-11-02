@@ -2,6 +2,7 @@ package studentpresence
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -28,11 +29,16 @@ type PastVisit struct {
 	Entry, Exit              time.Time
 }
 
+// ErrPresenceHistoryInvalid rejects a past day that no finished care day
+// could have produced; nothing of the batch is written then.
+var ErrPresenceHistoryInvalid = errors.New("student presence: invalid presence history")
+
 // PresenceHistory writes the presence of past care days for the demo
-// seeder (#5031). No route reaches it: only the dev tools bind it, since no
-// production flow records presence after the fact. It requires a
-// tenant-scoped context and writes every day in one transaction, with each
-// row created at its own instant so the retention windows count from then.
+// seeder (#5031). No production flow records presence after the fact: the
+// dev tools bind it, and the server mounts it only for the operator of the
+// public demo (APP_ENV=demo, ADR 0127). It requires a tenant-scoped context
+// and writes every day in one transaction, with each row created at its own
+// instant so the retention windows count from then.
 type PresenceHistory interface {
 	RecordPresenceHistory(ctx context.Context, days []PastPresenceDay) (int, error)
 }

@@ -16,6 +16,7 @@ import (
 // Presence is the Student Presence command surface the close uses: lock the
 // group first, then close everything still open in it.
 type Presence interface {
+	PrepareVisitWrites(context.Context, studentpresence.VisitWriteScope) error
 	LockGroup(context.Context, int64) (studentpresence.LiveGroup, error)
 	EndGroupSession(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error)
 }

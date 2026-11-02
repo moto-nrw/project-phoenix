@@ -1,0 +1,559 @@
+{
+  "packages": [
+    {
+      "path": "modules/peopledirectory/internal/domain/userscontract",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/departure",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/enrollment",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/peoplepostgres",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/rows",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory",
+      "owner": "people-directory",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/contact",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/compose",
+      "owner": "people-directory",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/contracttest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/peopledirectory/http",
+      "owner": "people-directory",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/peopledirectory/inbound/students",
+      "owner": "people-directory",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/application",
+      "owner": "people-directory",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/calendar",
+      "owner": "people-directory",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/domain",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/inbound/birthdays",
+      "owner": "people-directory",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/peopledirectory/internal/adapters/postgres/runtime",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "users.guardian_phone_numbers",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.guardian_profiles",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.parent_request_share_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.parent_request_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.persons",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_family_protection_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_notes",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.students",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.students_guardians",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_guardian_relationships",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_profiles",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.guardian_financial_data",
+      "write_owner": "people-directory"
+    }
+  ],
+  "rules": [
+    {
+      "id": "people-directory.contracttest.workforce.public",
+      "description": "The staff suites of the People Directory contract suite name the canonical absence values they seed (#3422, moved from services/users with #3755).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.http.document-rendering-lists",
+      "description": "The student list, Gesundheitsliste, attendance-history and day-log exports fill and render the Document Rendering list contract (#3356, #2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.http.public",
+      "description": "The student routes drive the People Directory owner through its public capability (#2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.port-domain",
+      "description": "People Directory ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "people-directory.postgres.port",
+      "description": "The retained People Directory repositories implement the repository contracts and read the query vocabulary of the owner's ports (#4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "port"
+    },
+    {
+      "id": "people-directory.application.tenant-runtime",
+      "description": "People Directory application code stamps the caller's tenant on the rows the retained person directory writes (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.application.transaction-runtime",
+      "description": "People Directory application code classifies the retained repositories' missing rows through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.port.transaction-runtime",
+      "description": "The People Directory ports keep the no-rows sentinel in the not-found shape of a missing child through the transaction runtime (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.postgres.calendar-adapter",
+      "description": "People Directory persistence maps calendar dates through its internal calendar adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.compose.orm-sql",
+      "description": "People Directory composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "people-directory.compose.tenant-runtime",
+      "description": "People Directory composition binds the shared tenant transaction runtime and savepoints.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.internal-test.tenant-runtime",
+      "description": "People Directory composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.integration-test.support",
+      "description": "People Directory integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.public.contact",
+      "description": "Enrollment student commands use the new canonical contact contract, shared with retained model consumers (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.domain.contact",
+      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "domain",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.contracttest.staff-offboarding.public",
+      "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "staff-offboarding",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.staff-offboarding.compose",
+      "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "staff-offboarding",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.contracttest.student-presence.public",
+      "description": "The staff offboarding suite of the People Directory contract suite records a concurrent supervision through the public GroupSupervision value (#3422, moved from services/users with #3755).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.people-directory.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.tenant-runtime.public",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.security-runtime.contract",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.contracttest.identity-access.adapter",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "people-directory.contracttest.delivery-platform.public",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.http.tenant-runtime.common",
+      "description": "The student routes reuse the shared HTTP runtime of api/common: the tenant route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "people-directory.http.identity-adapter",
+      "description": "The student routes read the authenticated claims and permissions from the session token adapter (ADR 0031, #2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "people-directory.http.security-contract",
+      "description": "The student routes gate on the permission registry (#2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.http.security-public",
+      "description": "The student routes decide student read, write, absence and deletion access through the Security Runtime capability (#2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.http.tenant-runtime",
+      "description": "The student routes mark rollbacks and read the request tenant through the tenant runtime (#2731).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.adapter-test.tenant-runtime.common",
+      "description": "Student route tests drive the routes through the shared HTTP runtime of api/common (ADR 0031, #2731).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "people-directory.adapter-test.identity-adapter",
+      "description": "Student route tests mint the claims and permissions the routes read from the session token adapter (ADR 0031, #2731).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "people-directory.http.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of people-directory.http.security-public.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.adapter-test.authorization-port",
+      "description": "The same native note-audience inputs replace the Security Runtime public aliases; narrower successor of adapter-test.platform.public.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "adapter-test",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    },
+    {
+      "id": "people-directory.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "source_package": "modules/peopledirectory/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

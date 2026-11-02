@@ -1,5 +1,10 @@
 import "server-only";
 import type { Session } from "next-auth";
+import {
+  familyStateOf,
+  gateSessionCookieWrites,
+  type FamilyStates,
+} from "./session-cookie-writes";
 import type { ServerSession } from "./shared";
 
 /**
@@ -54,27 +59,47 @@ function isServerSession(value: unknown): value is ServerSession {
 }
 
 /**
- * Wraps a portal's Auth.js route handler so the session action (GET and the
- * POST of update()) answers with the browser session. Status and headers,
- * including the rotated session cookie, pass through unchanged; every other
- * action is left alone.
+ * Wraps a portal's Auth.js route handler. Every action (signin, the
+ * callbacks, session, update(), signout, csrf, …) leaves through
+ * gateSessionCookieWrites, the one exit of session cookies (#5399): a sign-in
+ * or renewal writes its cookie only while Identity & Access does not answer
+ * its family as revoked.
+ *
+ * The session action (GET and the POST of update()) also answers with the
+ * browser session, confirmed with Identity & Access on each call: a session
+ * whose refresh-token family is revoked reads as ended (`RefreshTokenError`),
+ * even when a late answer wrote its cookie back after the logout deleted it.
+ * A family that cannot be read leaves the session as it is.
  */
 export function withBrowserSession<A extends [Request, ...unknown[]]>(
   handler: (...args: A) => Promise<Response>,
 ): (...args: A) => Promise<Response> {
   return async (...args) => {
-    const response = await handler(...args);
-    if (!new URL(args[0].url).pathname.endsWith("/session")) return response;
-
-    const body: unknown = await response
+    const [request] = args;
+    const answer = await handler(...args);
+    const states: FamilyStates = new Map();
+    if (!new URL(request.url).pathname.endsWith("/session"))
+      return gateSessionCookieWrites(request, answer, states);
+    const body: unknown = await answer
       .clone()
       .json()
       .catch(() => null);
+    const response = await gateSessionCookieWrites(request, answer, states);
     if (!isServerSession(body)) return response;
+
+    const shown =
+      body.error === undefined && body.user.token
+        ? await familyStateOf(states, {
+            token: body.user.token,
+            scope: body.user.scope,
+          })
+        : null;
+    const session: ServerSession =
+      shown === "ended" ? { ...body, error: "RefreshTokenError" } : body;
 
     const headers = new Headers(response.headers);
     headers.delete("Content-Length");
-    return new Response(JSON.stringify(toBrowserSession(body)), {
+    return new Response(JSON.stringify(toBrowserSession(session)), {
       status: response.status,
       statusText: response.statusText,
       headers,

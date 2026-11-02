@@ -151,9 +151,10 @@ keine zweite Ansicht.
    Der Platz dafür ist fest: `error` an `FormModal`, `error` an
    `SlideOverBody`, sonst `FormErrorAlert` als erstes Element des
    Formulars; das Feld trägt seinen Fehler über das `error`-Prop des
-   Kit-Felds. Der Fehler-Zustand kommt aus `useFormError()`: der Alert
-   scrollt sich bei jedem fehlgeschlagenen Speichern in den sichtbaren
-   Bereich, auch beim zweiten Klick mit gleichem Text, weil ein langes
+   Kit-Felds. Der Fehler-Zustand kommt aus `useFormError()`: bei jedem
+   fehlgeschlagenen Speichern, auch beim zweiten Klick mit gleichem Text,
+   scrollt der Alert das erste markierte Feld seines Formulars in den
+   sichtbaren Bereich, ohne markiertes Feld sich selbst, weil ein langes
    Formular beim Speichern meist am Fuß steht.
    Ein Fehler-Toast aus dem Speichern-Handler entfällt ganz, auch neben
    einem Alert: eine Meldung, an einem Ort (#3113). Erfolgs-Toasts und

@@ -108,8 +108,6 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "authenticated",
-          access_token: "access",
-          refresh_token: "refresh",
         }),
       );
 
@@ -119,8 +117,6 @@ describe("passkey-api", () => {
 
     expect(result).toEqual({
       status: "authenticated",
-      access_token: "access",
-      refresh_token: "refresh",
     });
     expect(mockStartAuthentication).toHaveBeenCalledWith({
       optionsJSON: { challenge: "tenant-challenge" },
@@ -159,12 +155,12 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "authenticated",
-          access_token: "operator-access",
-          refresh_token: "operator-refresh",
         }),
       );
 
-    await loginWithPasskey("operator");
+    await expect(loginWithPasskey("operator")).resolves.toEqual({
+      status: "authenticated",
+    });
 
     expect(mockStartAuthentication).toHaveBeenCalledWith({
       optionsJSON: { challenge: "operator-challenge" },
@@ -175,6 +171,36 @@ describe("passkey-api", () => {
     expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toBe(
       "/api/operator/auth/passkeys/login/verify",
     );
+  });
+
+  it("uses the caterer passkey endpoints (#4497)", async () => {
+    mockAuthenticatedSession();
+    mockStartAuthentication.mockResolvedValue({ id: "caterer-assertion" });
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          session_id: "caterer-login",
+          options: { challenge: "caterer-challenge" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          status: "authenticated",
+          access_token: "caterer-access",
+          refresh_token: "caterer-refresh",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, []));
+
+    await loginWithPasskey("caterer");
+    await listPasskeys("caterer");
+
+    const urls = vi.mocked(global.fetch).mock.calls.map((call) => call[0]);
+    expect(urls).toEqual([
+      "/api/caterer/auth/passkeys/login/options",
+      "/api/caterer/auth/passkeys/login/verify",
+      "/api/caterer/auth/passkeys",
+    ]);
   });
 
   it("starts authenticated enrollment without a bearer token", async () => {

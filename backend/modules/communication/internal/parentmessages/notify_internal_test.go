@@ -83,6 +83,7 @@ func testThread() *ParentMessageThread {
 
 func newNotifyService(notifier communication.NotificationSender, prefs communication.NotificationPreferences) *Service {
 	return NewService(Config{
+		Leaders:     noLeaders{},
 		Session:     sessionlessRequest{},
 		Logger:      slog.Default(),
 		Notifier:    notifier,
@@ -140,6 +141,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 		locale := "en"
 		s := NewService(Config{
+			Leaders: noLeaders{},
 			Session: sessionlessRequest{}, Logger: slog.Default(), Notifier: notifier,
 			Preferences:      &stubPreferences{optedIn: []int64{42}},
 			GuardianProfiles: stubGuardianProfiles{profile: &communication.ParentMessageGuardianContact{PortalLocale: &locale}},
@@ -237,4 +239,12 @@ func TestPushGroupMessage_ContinuesAfterSuppressedRecipient(t *testing.T) {
 	require.Len(t, notifier.events, 2, "a suppressed push for one guardian must not skip later opted-in guardians")
 	assert.Equal(t, []int64{42}, notifier.events[0].Audience.GuardianAccountIDs)
 	assert.Equal(t, []int64{43}, notifier.events[1].Audience.GuardianAccountIDs)
+}
+
+// noLeaders is a leadership directory without anybody holding the
+// permission (#5200).
+type noLeaders struct{}
+
+func (noLeaders) ParentMessageLeaders(context.Context) ([]communication.ParentMessageLeader, error) {
+	return nil, nil
 }

@@ -1,0 +1,219 @@
+import { studentService } from "~/lib/api";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
+import { busDaysHaveAny } from "~/lib/student-helpers";
+import { userContextService } from "~/lib/usercontext-api";
+import { createLogger } from "~/lib/logger";
+const logger = createLogger({ component: "StudentData" });
+
+/**
+ * Extended Student type with additional detail page fields
+ */
+export interface ExtendedStudent extends Student {
+  bus: boolean;
+  /** Confirmation to widen a linked child's own departure plan on save. */
+  extend_companion_plans?: boolean;
+  current_room?: string;
+  location_since?: string;
+  birthday?: string;
+  buskind?: boolean;
+  extra_info?: string;
+  health_info?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
+  pickup_status?: string;
+  sick?: boolean;
+  sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
+  class_trip?: boolean;
+  class_trip_since?: string;
+}
+
+/**
+ * Maps raw student response to ExtendedStudent with proper access control
+ */
+function mapStudentResponse(
+  response: unknown,
+  hasAccess: boolean,
+  canManageAbsence: boolean,
+): ExtendedStudent {
+  interface WrappedResponse {
+    data?: unknown;
+    success?: boolean;
+    message?: string;
+  }
+  const wrappedResponse = response as WrappedResponse;
+  const studentData = wrappedResponse.data ?? response;
+
+  const mappedStudent = studentData as Student & {
+    has_full_access?: boolean;
+    group_supervisors?: SupervisorContact[];
+  };
+
+  const canSeeAbsenceStatus = hasAccess || canManageAbsence;
+
+  // Spread upstream-mapped student so future Student fields propagate without
+  // touching this whitelist. Explicit lines below either coerce nullish to a
+  // default (first_name/group_id/...) or apply access-control gating.
+  return {
+    ...mappedStudent,
+    first_name: mappedStudent.first_name ?? "",
+    second_name: mappedStudent.second_name ?? "",
+    group_id: mappedStudent.group_id ?? "",
+    group_name: mappedStudent.group_name ?? "",
+    // bus / buskind are derived from bus_days, the single source of truth (#1582).
+    bus: busDaysHaveAny(mappedStudent.bus_days),
+    buskind: busDaysHaveAny(mappedStudent.bus_days),
+    current_room: undefined,
+    location_since: hasAccess
+      ? (mappedStudent.location_since ?? undefined)
+      : undefined,
+    extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
+    address_street: hasAccess
+      ? (mappedStudent.address_street ?? undefined)
+      : undefined,
+    address_city: hasAccess
+      ? (mappedStudent.address_city ?? undefined)
+      : undefined,
+    address_postal_code: hasAccess
+      ? (mappedStudent.address_postal_code ?? undefined)
+      : undefined,
+    // The absence statuses follow read access OR the absence-write gate: they
+    // are the state the Krank-/Entschuldigt-Aktionen toggle, so blanking them
+    // for a caller who may write them would always render "melden" and turn a
+    // clearing click into a fresh report (#2232). The backend hands these
+    // fields to every authenticated staff member anyway.
+    sick: canSeeAbsenceStatus ? (mappedStudent.sick ?? false) : false,
+    sick_since: canSeeAbsenceStatus
+      ? (mappedStudent.sick_since ?? undefined)
+      : undefined,
+    excused: canSeeAbsenceStatus ? (mappedStudent.excused ?? false) : false,
+    excused_since: canSeeAbsenceStatus
+      ? (mappedStudent.excused_since ?? undefined)
+      : undefined,
+    class_trip: canSeeAbsenceStatus
+      ? (mappedStudent.class_trip ?? false)
+      : false,
+    class_trip_since: canSeeAbsenceStatus
+      ? (mappedStudent.class_trip_since ?? undefined)
+      : undefined,
+    actual_arrival_time: hasAccess
+      ? (mappedStudent.actual_arrival_time ?? undefined)
+      : undefined,
+    actual_pickup_time: hasAccess
+      ? (mappedStudent.actual_pickup_time ?? undefined)
+      : undefined,
+    has_full_access: hasAccess,
+    // Photo URL is visible to anyone with users:read who can see the
+    // student. The backend returns the authenticated proxy URL, so the
+    // browser can render <img src> with the same-origin session cookie.
+    // Forgetting this field on the detail-page hook was the bug where the
+    // big xl avatar in StudentDetailHeader stayed empty even though all
+    // other surfaces (register rows, search cards, OGS-room cards)
+    // showed the photo correctly.
+    photo_url: mappedStudent.photo_url ?? undefined,
+    photo_consent_given: mappedStudent.photo_consent_given ?? undefined,
+    photo_consent_given_at: mappedStudent.photo_consent_given_at ?? undefined,
+    photo_consent_given_by: mappedStudent.photo_consent_given_by ?? undefined,
+  };
+}
+
+/**
+ * Helper to extract room names from groups
+ */
+function extractRoomNames(
+  groups: Array<{ room?: { name?: string } }>,
+): string[] {
+  return groups.map((group) => group.room?.name).filter(Boolean) as string[];
+}
+
+export interface StudentDetailResponse {
+  student: ExtendedStudent;
+  hasFullAccess: boolean;
+  hasWriteAccess: boolean;
+  hasAbsenceWriteAccess: boolean;
+  hasSickExcusedWriteAccess: boolean;
+  attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
+  supervisors: SupervisorContact[];
+  myGroups: string[];
+  myGroupRooms: string[];
+  mySupervisedRooms: string[];
+}
+
+/** Canonical complete detail projection, shared with navigation intent. */
+export async function fetchStudentDetail(
+  studentId: string,
+): Promise<StudentDetailResponse> {
+  // Fetch student data and user context in parallel
+  const [studentResponse, groups, supervisedGroups] = await Promise.all([
+    studentService.getStudent(studentId),
+    // Own groups only refine access hints on the page; without them the
+    // child still loads, just without the "my group" shortcuts.
+    userContextService.getMyEducationalGroups().catch((err) => {
+      logger.debug("fetch_educational_groups_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
+    // Same for supervised rooms: optional context, not the child itself.
+    userContextService.getMySupervisedGroups().catch((err) => {
+      logger.debug("fetch_supervised_groups_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }),
+  ]);
+
+  interface WrappedResponse {
+    data?: unknown;
+  }
+  const wrappedResponse = studentResponse as WrappedResponse;
+  const rawStudentData = wrappedResponse.data ?? studentResponse;
+
+  const mappedStudent = rawStudentData as Student & {
+    has_full_access?: boolean;
+    has_write_access?: boolean;
+    has_absence_write_access?: boolean;
+    has_sick_excused_write_access?: boolean;
+    group_supervisors?: SupervisorContact[];
+    attendance_log_enabled?: boolean;
+    feedback_enabled?: boolean;
+  };
+
+  const hasAccess = mappedStudent.has_full_access ?? false;
+  const hasWriteAccess = mappedStudent.has_write_access ?? false;
+  // Falls back to the Stammdaten flag so an older backend keeps today's
+  // behavior instead of hiding the Krankmeldung action (#2232).
+  const hasAbsenceWriteAccess =
+    mappedStudent.has_absence_write_access ?? hasWriteAccess;
+  const hasSickExcusedWriteAccess =
+    mappedStudent.has_sick_excused_write_access ?? hasAbsenceWriteAccess;
+  const attendanceLogEnabled = mappedStudent.attendance_log_enabled ?? false;
+  const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
+  const groupSupervisors = mappedStudent.group_supervisors ?? [];
+  const extendedStudent = mapStudentResponse(
+    studentResponse,
+    hasAccess,
+    hasAbsenceWriteAccess,
+  );
+
+  const ogsGroupRoomNames = extractRoomNames(groups);
+  const groupIds = groups.map((group) => group.id);
+  const roomNames = extractRoomNames(supervisedGroups);
+
+  return {
+    student: extendedStudent,
+    hasFullAccess: hasAccess,
+    hasWriteAccess,
+    hasAbsenceWriteAccess,
+    hasSickExcusedWriteAccess,
+    attendanceLogEnabled,
+    feedbackEnabled,
+    supervisors: groupSupervisors,
+    myGroups: groupIds,
+    myGroupRooms: ogsGroupRoomNames,
+    mySupervisedRooms: roomNames,
+  };
+}

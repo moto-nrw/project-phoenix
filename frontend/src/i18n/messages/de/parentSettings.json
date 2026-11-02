@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Ihr Konto",
+  "title": "Einstellungen",
+  "description": "Legen Sie Sprache und Benachrichtigungen für Ihr Konto fest.",
+  "languageTitle": "Sprache",
+  "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird.",
+  "appInstallTitle": "moto als App hinzufügen",
+  "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome.",
+  "appInstallGenericDescription": "Fügen Sie moto zum Startbildschirm Ihres Handys hinzu. Dann öffnen Sie moto wie eine App.",
+  "appInstallGuide": "Anleitung öffnen"
+}

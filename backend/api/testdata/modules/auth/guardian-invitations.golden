@@ -1,0 +1,3 @@
+GET /auth/guardian-invitations/{token} -> eltern_app  (#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt)
+POST /auth/guardian-invitations/{id}/resend -> eltern_app
+POST /auth/guardian-invitations/{token}/accept -> eltern_app  (#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt)

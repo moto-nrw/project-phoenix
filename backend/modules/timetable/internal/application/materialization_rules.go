@@ -78,18 +78,9 @@ func candidateSlot(
 	timeframeByID map[int64]*schedule.Timeframe,
 	logger *slog.Logger,
 ) (materialParams, *schedule.CalendarPeriod, candidateSkip) {
-	if scheduleEndedOn(sch, date) || (tmpl.SeriesLastDay != nil && tmpl.SeriesLastDay.Before(date)) {
-		return materialParams{}, nil, candidateEnded
-	}
-	if scheduleNotStartedOn(sch, date) {
-		return materialParams{}, nil, candidateNotStarted
-	}
-	period := selectPeriod(tmpl, sch, date, periods, logger)
-	if period == nil {
-		return materialParams{}, nil, candidateNoPeriod
-	}
-	if !weekPatternApplies(sch.WeekPattern, date, period) {
-		return materialParams{}, nil, candidateABWeek
+	period, skip := scheduleValidOn(tmpl, sch, date, periods, logger)
+	if skip != candidateKept {
+		return materialParams{}, nil, skip
 	}
 	switch days.Skip(date.String(), tmpl.IncludeClosingDays) {
 	case timetable.SkipHoliday:
@@ -112,8 +103,8 @@ func candidateSlot(
 	if tmpl.PlannedRoomID != nil {
 		base.RoomID = *tmpl.PlannedRoomID
 	}
-	effective, skip := applyException(base, exc)
-	if skip {
+	effective, cancelled := applyException(base, exc)
+	if cancelled {
 		return materialParams{}, nil, candidateCancelled
 	}
 	if effective.RoomID <= 0 && tmpl.Type != activityContract.GroupTypeDuty {
@@ -122,6 +113,34 @@ func candidateSlot(
 		return materialParams{}, nil, candidateIncomplete
 	}
 	return effective, period, candidateKept
+}
+
+// scheduleValidOn applies the validity rules of one schedule row of the
+// template on a weekday-matching date: the row's validity dates and the
+// series' last day, the period selection and the A/B week pattern. It returns
+// the selected period of a valid row. Holidays, closing days, the timeframe,
+// the dated exception and the room are candidateSlot's own later rules.
+func scheduleValidOn(
+	tmpl *activityContract.Group,
+	sch *activityContract.Schedule,
+	date calendar.Date,
+	periods []*schedule.CalendarPeriod,
+	logger *slog.Logger,
+) (*schedule.CalendarPeriod, candidateSkip) {
+	if scheduleEndedOn(sch, date) || (tmpl.SeriesLastDay != nil && tmpl.SeriesLastDay.Before(date)) {
+		return nil, candidateEnded
+	}
+	if scheduleNotStartedOn(sch, date) {
+		return nil, candidateNotStarted
+	}
+	period := selectPeriod(tmpl, sch, date, periods, logger)
+	if period == nil {
+		return nil, candidateNoPeriod
+	}
+	if !weekPatternApplies(sch.WeekPattern, date, period) {
+		return nil, candidateABWeek
+	}
+	return period, candidateKept
 }
 
 // countSkippedCandidate files a skipped candidate under its bucket.

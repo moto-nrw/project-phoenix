@@ -36,6 +36,10 @@ func (*fakeIdentity) FindAccountIDByEmail(context.Context, string) (int64, bool,
 
 func (*fakeIdentity) AssignTraegerRole(context.Context, int64, int64, string) error { return nil }
 
+func (*fakeIdentity) InviteTraegerAccount(context.Context, int64, string, []string) (organizationtenancy.TraegerInvitation, error) {
+	return organizationtenancy.TraegerInvitation{}, nil
+}
+
 func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]organizationtenancy.TraegerAccount, error) {
 	return nil, nil
 }

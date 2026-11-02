@@ -45,7 +45,8 @@ func (r *RoleAdministration) createRoleFromTemplate(ctx context.Context, name, d
 // roleTemplate resolves the template system role to the tier and the
 // permissions a school role copies from it. The admin template stands for the
 // whole catalog: admin holds many permissions only through admin:*, which
-// stays reserved, so its explicit grants alone would fall short.
+// stays reserved, so its explicit grants alone would fall short. Permissions
+// a school grants only on purpose are never copied.
 func (r *RoleAdministration) roleTemplate(ctx context.Context, template identityaccess.RoleTemplate) (string, []domain.ManagedPermission, error) {
 	if !template.Valid() {
 		return "", nil, failed(opCreateRoleFromTemplate, domain.ErrRoleNotFound)
@@ -72,7 +73,8 @@ func (r *RoleAdministration) roleTemplate(ctx context.Context, template identity
 	}
 	copied := make([]domain.ManagedPermission, 0, len(permissions))
 	for _, permission := range permissions {
-		if !identityaccess.IsReservedPermission(permissionKey(permission)) {
+		name := permissionKey(permission)
+		if !identityaccess.IsReservedPermission(name) && !identityaccess.IsExplicitGrantPermission(name) {
 			copied = append(copied, permission)
 		}
 	}

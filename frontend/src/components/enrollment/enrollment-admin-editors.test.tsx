@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -14,6 +17,14 @@ import { StrictMode } from "react";
 // Anmeldephasen jetzt bearbeitet werden, bliebe im Test leer. Derselbe Ersatz
 // wie in components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
 // Animationsschicht fällt weg.
+// useTenantMutate scopes its keys to the signed-in account (#5006).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("vaul", async () => {
   const React = await import("react");
 
@@ -2383,6 +2394,26 @@ describe("PhasesEditor", () => {
       screen.getByText("Bitte wählen Sie den Beginn."),
     ).toBeInTheDocument();
     expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
+  it("marks the phase name as required through the kit field (#5217)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
+    );
+    const nameInput = await screen.findByLabelText("Name");
+    expect(nameInput).toHaveAttribute("name", "name");
+    expect(nameInput).toHaveAttribute("aria-required", "true");
+    // The star sits next to the label, not in its text, and is hidden
+    // from screen readers.
+    const label = document.querySelector('label[for="phase-name"]');
+    expect(label).toHaveTextContent(/^Name$/);
+    expect(label?.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+    expect(label?.nextElementSibling).toHaveTextContent("*");
   });
 
   it("shows a German validation error when the phase name is blank", async () => {
@@ -5134,4 +5165,20 @@ describe("information PDF validation", () => {
       screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-07-01"))(
+    "defaults the school year from Berlin July in %s",
+    async (zone, instant) => {
+      mocks.listSchemas.mockResolvedValue([schema()]);
+      setSchoolDateClock(zone, instant, "2026-07-01");
+      mocks.listPhases.mockResolvedValue([phase()]);
+      render(<PhasesEditor />);
+      await screen.findByText("Schuljahr 2026/27");
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+      );
+      expect(inputByName("service_start_date")).toHaveValue("2026-09-01");
+      expect(inputByName("service_end_date")).toHaveValue("2027-07-31");
+    },
+  );
 });

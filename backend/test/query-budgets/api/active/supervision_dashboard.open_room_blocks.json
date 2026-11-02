@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.supervision_dashboard.open_room_blocks",
+  "max": 54,
+  "exact": false,
+  "description": "api/active — the same aggregate with released rooms running timetable\nblocks (#3281): three rooms, five blocks, every block supervised. The\nblock rows cost four fixed statements on top of the shared view (the\nday's instances, their plan entries, the caller's person and staff\nrows); TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks asserts the\ncount is identical for one room with one block. 51 since #3946: the\nshared view's one read of today's Abholart (see above). 54 since #4354:\nthe supervisors' names (see above)."
+}

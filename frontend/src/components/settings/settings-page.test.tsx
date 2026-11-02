@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { useEffect, useState } from "react";
 import { render, waitFor, fireEvent, screen } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -74,7 +75,11 @@ const mockPermissions = { value: [] as string[] };
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
-      user: { token: "test-token", permissions: mockPermissions.value },
+      user: {
+        id: "1",
+        token: "test-token",
+        permissions: mockPermissions.value,
+      },
       expires: "2099-01-01",
     },
     status: "authenticated",
@@ -205,7 +210,7 @@ const mockSchema = {
 };
 
 interface TabsResult {
-  tabs: { id: string; label: string; icon: string }[];
+  tabs: { id: string; label: string; icon: MotoConcept }[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;
@@ -478,7 +483,7 @@ describe("useSettingsTabs", () => {
     });
   });
 
-  it("tabs have icon paths", async () => {
+  it("tabs have icon concepts", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
     let captured: TabsResult | null = null;
 
@@ -486,8 +491,8 @@ describe("useSettingsTabs", () => {
     await waitFor(() => {
       expect(captured).not.toBeNull();
     });
-    expect(typeof captured!.tabs[0]!.icon).toBe("string");
-    expect(captured!.tabs[0]!.icon.length).toBeGreaterThan(0);
+    expect(typeof captured!.tabs[0]!.icon.key).toBe("string");
+    expect(captured!.tabs[0]!.icon.key.length).toBeGreaterThan(0);
   });
 });
 

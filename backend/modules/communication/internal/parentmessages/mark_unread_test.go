@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -62,7 +64,7 @@ func assertTeamUnread(t *testing.T, f *fixture, accountID int64, expected int) {
 // fixture's staff account (A) has read.
 func startReadThread(t *testing.T, f *fixture) int64 {
 	t.Helper()
-	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery4(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo", "")
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 	_, err = testpkg.TenantQuery1(t, adminCtx(t, f.staffAccount), f.db, f.svc.GetThread, started.ThreadID)
@@ -243,7 +245,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	repos := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	staffCtx := adminCtx(t, f.staffAccount)
 	guardianCtx := adminCtx(t, f.chain.AccountID)
-	started, err := testpkg.TenantQuery3(t, staffCtx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery4(t, staffCtx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Hallo", "")
 	require.NoError(t, err)
 	threadID := started.ThreadID
 	// Append the guardian question the way the parent side does, so the thread
@@ -329,6 +331,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, f.db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, f.db))
 	disabled := messaging.NewService(messaging.Config{
+		Leaders:     communicationtest.Leaders{},
 		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread), MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)), ReadRepo: messaging.NewReadRepository(reposMessages.ParentMessageRead),

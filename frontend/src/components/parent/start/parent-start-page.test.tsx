@@ -1,7 +1,19 @@
+import { IsolatedSWRCache } from "~/lib/swr";
+vi.unmock("swr");
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: {
+      user: { id: "parent-test", scope: "parent" },
+      expires: "2099-01-01",
+    },
+  }),
+}));
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import {
@@ -121,9 +133,11 @@ function appointment(overrides: Partial<CalendarEvent>): CalendarEvent {
 
 function renderPage() {
   return render(
-    <NextIntlClientProvider locale="de" messages={deMessages}>
-      <ParentStartPage />
-    </NextIntlClientProvider>,
+    <IsolatedSWRCache>
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ParentStartPage />
+      </NextIntlClientProvider>
+    </IsolatedSWRCache>,
   );
 }
 

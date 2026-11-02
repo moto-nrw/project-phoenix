@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, X } from "lucide-react";
+import { Download, ExternalLink, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
@@ -32,7 +32,8 @@ interface AttachmentListProps {
 }
 
 /**
- * The list of files attached to something, with a download link per row.
+ * The list of files attached to something, with one link per row: a file the
+ * browser can show opens in a new tab, any other file downloads.
  *
  * Shared between the Elternmitteilungs-Assistent and the parents portal
  * (#2890) so a parent sees the same file, named and sized the same way, that
@@ -90,6 +91,13 @@ export function AttachmentList({
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </Button>
+            ) : viewable ? (
+              // A viewable file opens in a new tab, so its row must not
+              // promise a download (#5330).
+              <ExternalLink
+                className="h-4 w-4 shrink-0 text-gray-400"
+                aria-hidden="true"
+              />
             ) : (
               <Download
                 className="h-4 w-4 shrink-0 text-gray-400"

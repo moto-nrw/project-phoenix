@@ -29,13 +29,50 @@ through `devbox run` when the current process has not loaded the project environ
 | Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
 | Frontend E2E flows | seeded native stack, then `scripts/dev-native.sh frontend pnpm run test:e2e` |
+| Synthetic network E2E suites | `cd frontend && pnpm run test:network` / `pnpm run test:tenant-switch`, no stack needed ([ports](#synthetic-network-e2e-suites)) |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
-| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure) |
+| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
+| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`) and `test-changed.sh --fast` for committed, uncommitted and untracked changes. Steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
+| Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
+
+### Check exit status and captured output
+
+Run checks directly in Devbox. If output needs a log, enable `pipefail` in
+the **calling shell**, not just inside the checked script. Otherwise
+`pnpm --dir frontend run check 2>&1 | tee check.log` returns `tee`'s status,
+which can be 0 after a failed check. The same applies to `tail` and to
+`scripts/test-changed.sh`, even though that script enables `pipefail` internally.
+
+```bash
+# check-status-log: exercised by scripts/check-exit-status.test.mjs
+devbox run -- bash -c '
+  set -euo pipefail
+  pnpm --dir frontend run check 2>&1 | tee check.log
+  scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development 2>&1 | tee test-changed.log
+'
+```
+
+For a shortened report, redirect to a file, save `$?` immediately, then read
+the file and return the saved status. A subsequent `tail`, `echo` or cleanup
+command must not become the reported check status.
+
+Put status-capturing wrappers in a script file and pass its path to Devbox.
+In local Devbox 0.18.3, `devbox run -- bash -c 'false; exit $?'` returned 0,
+while `devbox run -- bash -c 'false'` returned 1: the inline `$?` was expanded
+before the inner command ran. The logging example above uses no shell-variable
+forwarding. This observation does not establish the original reported caller.
+
+Read the result summary as well as the status. A type/lint diagnostic or a
+failed test must return nonzero. Warnings and expected error logs from passing
+behavior tests are not test failures; do not infer failure by searching for
+the word `error`. Report unexpected warnings or logs separately, including
+the emitting test or tool. An Exit-0 report needs the complete caller command
+(shell, pipes, redirects and wrappers), status and relevant output.
 
 ### Native dev loop
 
@@ -63,21 +100,244 @@ when a selected app's published port is taken. Each `up` replaces both
 previously managed native app processes, then starts only the selected apps.
 All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
 and expects a separately running backend for API calls. Backend children default
-to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+to `GOFLAGS="-p=4 -trimpath"` and `GOMAXPROCS=4`, preserving explicit caller values.
+`down` captures both managed process trees before sending TERM and waits up to
+ten seconds for them to exit, including children whose launcher exits first.
+On timeout it returns an error without forcing KILL. A persisted shutdown
+snapshot tracks surviving children across retries, even if the supervisor
+removes the launcher PID files; start times guard against reused PIDs.
+Chain cache cleanup or a restart with `&&` so a failed stop blocks both.
+The same stop gate runs before `up` replaces apps or `docker` starts Compose apps.
 After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
 
+Seeded E2E (`test:e2e`) and guide generation use the frontend port from
+`PORT`, as `next dev` and `next start` do; without `PORT` that is 3000. Run
+them through `scripts/dev-native.sh frontend`, which sets `PORT` to the
+worktree's `FRONTEND_HOST_PORT`. Playwright then reuses or starts only the
+worktree's own frontend and never tests another checkout's server on 3000.
+If the port already serves a frontend started from another checkout, the
+Playwright config stops with that checkout's path (`e2e/own-server.ts`, local
+runs with `lsof` only).
+
+### Synthetic network E2E suites
+
+`test:network` and `test:tenant-switch` start their own synthetic fixture API
+and `next dev` through `frontend/e2e/network/server.mjs`. They need no seeded
+database, backend or native app server, unlike the seeded `test:e2e`. They also
+ignore `PORT` and the worktree's `FRONTEND_HOST_PORT`, so they never compete
+with a running native dev loop.
+
+| Suite | Frontend port | Fixture API port |
+|---|---|---|
+| `test:network` | `NETWORK_E2E_PORT` (13843) | `NETWORK_E2E_API_PORT` (18443) |
+| `test:tenant-switch` | `TENANT_SWITCH_PORT` (13845) | `TENANT_SWITCH_API_PORT` (18445) |
+
+The config, server and specs read the same variables, so origins, readiness
+URL, fixture calls and route matchers follow the chosen ports. Two runs of the
+same suite need different ports and separate worktrees for their Playwright
+result directories:
+
+```bash
+# worktree A
+cd frontend && pnpm run test:tenant-switch
+# worktree B, at the same time
+cd frontend && TENANT_SWITCH_PORT=23845 TENANT_SWITCH_API_PORT=28445 pnpm run test:tenant-switch
+```
+
+A taken port fails the run before any test, without switching ports or reusing
+the other server:
+
+- Frontend port answering the readiness URL: Playwright reports
+  `http://127.0.0.1:<port>/school-a is already used`.
+- Any other listener on either port, on `127.0.0.1` or `::1`: the server
+  reports `Network evidence: <fixture API|frontend> port <port> is already in
+  use on <host>` and names the variable to change.
+- An invalid value: `<variable> must be a port between 1024 and 65535`.
+
+Each run creates its own disposable app root under
+`tmp/network-e2e/run-*`, outside frontend test/type/source discovery: a source
+snapshot and copies of the app's build and TypeScript configuration, with links
+to installed dependencies and public assets. Its Next config wraps the real
+config and plugins, with the repository as the Turbopack workspace boundary.
+Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
+only there. Local env files are not copied. Changing suite or ports therefore
+never reuses another run's compilation, and the native dev loop can keep running
+in the same worktree without losing its warm cache or generated files
+([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+made after startup take effect on the next run, not in the current snapshot.
+Readiness compiles the tenant login page, not just a health endpoint, before
+browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
+
+Cleanup touches only the run's own processes and app root. Playwright sends
+SIGTERM to the server's process group and allows up to 10 seconds for shutdown;
+the server also stops when the Playwright runner ends and closes its stdin.
+After Next exits, the server removes only its own disposable app root. A direct
+SIGKILL of the server or machine crash can leave that directory behind; later
+runs neither reuse nor sweep it. Remove a leftover only after verifying that
+its owning run has ended. Neither shutdown path sends
+signals to processes by port or name, so a foreign listener stays reachable.
+If a port is still taken, check with `lsof -nP -iTCP:<port> -sTCP:LISTEN`
+whose process it is; stop only your own run, otherwise choose another port.
+
 ### Worktrees
 
-`wt add <issue|branch>` creates a worktree with copied local files (`.env`,
-`backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`, the Postgres
-certificates), rewritten host ports, an isolated Compose project, and the
-frozen frontend dependencies; see `.wtconfig`. `wt doctor` inside a worktree
-lists ignored files the worktree lacks and leased ports that the shell or
-`.envrc` shadows. `wt remove` tears down the worktree's Compose project and
-its `project-phoenix-testdb-<port>` test server, including volumes.
+#### New managed worktree
+
+Run `wt add <issue|branch>` from a configured source checkout. With `.wtconfig`,
+it copies `.env`, `backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`
+and `config/ssl/postgres/certs/` from that checkout, leases host ports, writes
+`COMPOSE_PROJECT_NAME` and `.wt.env`, and runs `devbox run bootstrap`.
+Bootstrap installs frozen frontend dependencies and generates route types;
+it does not create runtime configuration or certificates. If the source lacks
+these, initialize it first using `scripts/setup-dev.sh` (interactive, prints
+credentials; keep its output private). That script preserves existing files
+but does not isolate worktree ports or networks.
+
+`wt doctor` checks **managed** worktrees for missing ignored files, blocked
+direnv activation and leased ports shadowed by the shell or `.envrc`. It
+reports problems; it neither repairs configuration nor adopts another tool's
+worktree. `devbox run doctor` checks development tools and dependencies, not
+worktree isolation. Keep machine-wide env files free of ports and URLs that
+override the worktree's values; check the effective shell with `wt doctor`.
+
+**Before starting services:** `wt` copies the local Compose file, including
+any explicit `networks.*.ipam.config[].subnet`, fixed network name or external
+network. A separate project name does not isolate an explicit subnet. For a
+new, unused target, use `cp docker-compose.example.yml docker-compose.yml`
+inside that target to select the tracked template's project-scoped networks
+and Docker-assigned subnets. This discards copied Compose customizations only
+in the target; review any needed changes before reapplying them. Do not copy
+the source's fixed subnet back. Keep the source configuration and network intact.
+`docker compose config --quiet` validates the target without printing env
+contents; it does not prove that published ports are free or networks can start.
+
+If Docker reports `all predefined address pools have been fully subnetted`,
+the automatic address pool is exhausted. This differs from an overlapping
+copied subnet: changing the project name or removing fixed IPAM does not free
+address space. First check for [your own orphaned networks](#orphaned-worktree-networks);
+leave networks with uncertain ownership intact. Inspect allocated subnets
+without env contents:
+
+```bash
+docker network inspect $(docker network ls -q) \
+  --format '{{range .IPAM.Config}}{{println .Subnet}}{{end}}'
+```
+
+Also check host/VPN routes (`netstat -rn` on macOS, `ip route` on Linux).
+Choose an unused private subnet that overlaps neither those routes nor any
+Docker subnet, including the source's. Add it only to the new target's
+`docker-compose.yml`, for example the following **after checking the example
+range is free**:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.253.231.0/24
+```
+
+Validate with `docker compose config --quiet`, then
+`docker compose create --pull never postgres` to check network creation
+without starting the database (requires the template's Postgres image locally;
+this also creates the target's container and volume). If allocation fails,
+check the chosen range again; do not remove other projects' networks. This
+explicit range belongs to this target only, not to a reusable source config.
+
+#### Existing T3 or agent worktree without configuration
+
+`wt 0.4.0` has no import/adopt command. `wt doctor` rejects an unmanaged
+worktree, and `wt add` cannot check out a branch already used there. Preserve
+that worktree and continue in a new managed sibling:
+
+1. In the existing worktree, inspect `git status --short --branch`. Commit
+   only the work intended for the sibling, then create a free branch at that
+   commit: `git branch work/5303-managed-setup HEAD` (choose your own name).
+   Uncommitted and untracked files stay in the original, are not copied by
+   `wt`, and must be transferred deliberately if needed. Do not reset, clean
+   or delete the original worktree.
+2. Change to a configured source checkout, normally the main checkout, and
+   run `wt add --no-bootstrap work/5303-managed-setup`. Use the path it prints.
+   The existing branch carries the saved commits; the source supplies local
+   configuration, not code. `--no-bootstrap` postpones dependency setup, not
+   the copy or port allocation. It starts no app services.
+   If `wt` requires command trust, review `.wtconfig`'s bootstrap and teardown
+   before running `wt trust --yes` in the source and retrying.
+3. In the new target, before any start, run
+   `cp docker-compose.example.yml docker-compose.yml`, then
+   `docker compose config --quiet`. This is the subnet-free alternative above,
+   including when the source uses a fixed subnet and remains running. Keep
+   the copied env files, certificates and generated `.wt.env`; do not replace
+   them with the source's ports or Compose identity. If default address pools
+   are exhausted, use the checked target-only subnet fallback above.
+4. Run `devbox run bootstrap`, `devbox run doctor` and `wt doctor` in the
+   target. Resolve reported missing files or shadowed ports before starting
+   the smallest [native mode](#native-dev-loop) needed. No production API
+   request is part of setup. Reopen the editor/agent at the new path; the
+   original T3 thread remains bound to its original checkout.
+
+Keep the original worktree, its changes, services and persistent data until
+their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
+deletes the managed target's Compose and test-server volumes; it is not an
+adoption or harmless handoff step. Never prune or remove another worktree's
+networks or volumes to make setup succeed.
+
+For **tests only**, no app setup or sibling is needed: supply `TEST_DB_DSN`
+through a private process environment, pointing to a local test server, then
+run the relevant tests through `scripts/run-go-toolchain.sh`. Do not write the
+DSN into tracked files or print it. The test lifecycle uses the tracked
+`docker-compose.example.yml` and derives its project and port from that DSN;
+it does not need a copied `.env` or `docker-compose.yml`. Starting a new test
+server still needs Docker address space. Use only a test server, never the app
+database; servers on the same port are shared, not owned by one worktree.
+
+#### Local env and Compose drift
+
+Ignored local files do not update when their templates change. `wt` copies
+that drift too, and `scripts/setup-dev.sh` skips existing files. Missing env
+keys, stale service wiring and healthchecks are configuration drift, not proof
+of either subnet overlap or pool exhaustion. Native mode still starts Compose
+infrastructure, so it does not bypass either network failure.
+
+Compare required key names with the matching templates in the
+[env-sync inventory](../../.claude/rules/env-docker-sync.md#file-inventory),
+and reconcile missing keys privately without replacing existing secrets or
+leased ports. For a new, unused target, select the tracked Compose template as
+above; preserve customizations and persistent data in an already-used checkout.
+`docker compose config --quiet` checks syntax and interpolation, not template
+parity or network availability. Do not print env values, full resolved Compose
+configuration or secret-bearing diffs into logs or PR evidence.
+
+#### Orphaned worktree networks
+
+An empty network alone does not prove it is disposable. Confirm that the
+project belongs to your completed task and no other session or worktree needs
+it. Inspect only network metadata and container identities, not container
+environments. Filter by the exact network **name**, not its ID: never-started
+`Created` containers can have an empty `NetworkID` and be absent from both
+the ID-filtered container list and the network's endpoint map.
+
+```bash
+docker network ls --filter label=com.docker.compose.project
+# Set network_id to one confirmed task-owned candidate from the list.
+network_name=$(docker network inspect "$network_id" --format '{{.Name}}')
+docker network inspect "$network_id" \
+  --format '{{.Name}} {{json .Labels}} {{json .IPAM.Config}} {{json .Containers}}'
+docker ps -a --filter "network=$network_name" --format '{{.ID}} {{.Names}} {{.Status}}'
+```
+
+If that task still has containers, stop and remove only its disposable
+containers using its recorded project/configuration; preserve volumes and
+databases. Repeat the name-based `docker ps -a` check above, including
+`Created` and `Exited` containers. Only when it returns no containers, remove
+that one network with `docker network rm "$network_id"`. Verify its absence and
+that other projects remain available. Do not disconnect foreign containers,
+use blanket `docker network prune`/`docker system prune`, or delete volumes.
+If ownership or use is uncertain, keep it and use the checked target-only
+subnet fallback above instead.
 
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
@@ -89,6 +349,35 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
+Local `vollbetrieb` seeds against localhost also create the moto schule teacher
+Lena Weber with role `lehrkraft` and class `Klasse 1a` (OGS children). Find the login in
+the private `backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.lehrkraft` (key `lehrkraft`).
+The account reuses the existing staff seed password, including
+`--staff-password`; do not publish the credential file. Sign in to moto schule
+with this account, not the OGS portal. The profile opens all school write
+scopes through tenant settings and seeds today’s class arrival exception,
+class and child hints for the OGS, and morning attendance through the school
+portal contracts. Today means the Europe/Berlin calendar day, including the
+profile’s Friday-based weekend plan. In the supervision view, the hints appear
+only after the child has checked in, either through `simulate full-day` or a
+check-in. Standing and visitor demos do not create this account or open
+school-portal writes.
+
+Local `vollbetrieb` seeds against localhost also create the separate role and
+account `nachbearbeitung-ohne-planung` (#5300). Find its login in
+`backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.local` (key
+`nachbearbeitung-ohne-planung`); do not publish that credential file. It reuses
+the existing staff seed password, including `--staff-password`. The account can
+open enrollment follow-up work, correct offerings, and read the care plan
+(`config:manage`, `schedules:list`, `schedules:read`), but has no planning writes
+or wildcard permissions. After an offering correction, check both a manually
+maintained list and a class/year/group-based recurring activity: the impact
+remains readable, while “Mit Angebot verbinden” and manual removal are absent.
+The standing/visitor demo seeds and remote targets create neither this account
+nor its role; the public demo role switch and its two reduced roles stay unchanged.
+
 Seed and simulation commands keep refresh sessions in `.seed-sessions/` in
 their working directory (normally `backend/`, gitignored, private files).
 Separate commands renew the verified MFA session and switch schools through
@@ -96,6 +385,39 @@ the regular API. Expired or revoked proof falls back to a real login using
 Mailpit. Delete that directory to force fresh logins; it is local credential
 state and must not be uploaded. Keep the same working directory between seed
 and simulation commands.
+
+## Shared machine resources
+
+Several agent sessions, worktrees and their dev servers share one machine.
+These mistakes damage another session's work, not your own:
+
+1. **Stopping by pattern.** `pkill -f`, `pgrep … | xargs kill`, `killall` and
+   killing whatever holds a port match by name, path or port. Your own agent's
+   command line contains your worktree path, and other sessions run the same
+   tools. Stop a PID you captured when you started it, or a listener whose
+   working directory you checked (`lsof -a -p <pid> -d cwd`) is your worktree.
+   `scripts/dev-native.sh down` stops only its own PID files.
+2. **Shared state.** The Git stash stack belongs to every worktree: no bare
+   `git stash`/`git stash pop`. The test database server on `TEST_DB_PORT` is
+   shared on purpose; tests isolate through clones and run IDs, so never drop
+   its databases or stop it while other runs may use it. Never run
+   `docker compose down -v`, `docker volume rm` or `docker * prune` for a
+   Compose project that is not your worktree's.
+3. **Shared ports.** Every linked worktree gets its own frontend, backend,
+   Postgres and Mailpit ports: `wt add` leases them, and
+   `scripts/worktree-ports.sh` (run by `scripts/dev-native.sh` and
+   `devbox run bootstrap`) assigns a stable slot from the worktree path when a
+   worktree still has the main checkout's defaults. It also moves `localhost`
+   URLs in `.env`, `backend/dev.env` and `frontend/.env.local` that still name a
+   default port. The main checkout keeps 3000/8080.
+
+## Cached check results
+
+`scripts/pre-push.sh`, the frontend guard run in `scripts/test-frontend-changed.mjs`
+and `scripts/check-changed.mjs` reuse a pass for byte-identical inputs. A
+share of those hits runs anyway (`PHX_CACHE_VERIFY_RATE`, default `0.05`;
+`0` never, `1` always). A failing verification removes the cached pass and
+names the stage: its cache key misses an input, so report it.
 
 ## Cleanup CLI
 
@@ -499,6 +821,21 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   `cd frontend && pnpm exec vitest run scripts/product-screenshots/publish.test.ts`.
 
 ## PR screenshots and QA evidence
+
+Every PR that changes what a user can see must include screenshots of the
+affected surfaces, including text, layout and visible states in all portals,
+the kiosk, e-mails and help. Capture the running local product or rendered
+message. For frontend before/after pairs and viewport requirements, follow
+[the frontend screenshot rules](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
+New surfaces need screenshots of the new state.
+
+Before requesting review or re-review, ensure posted screenshots show the
+current PR state. If follow-up fixes change depicted content, recapture affected
+after screenshots and regenerate their before/after pairs; retain the base-ref
+before captures. Update the existing screenshot comment or description and its
+PR links so superseded after images are not presented as current. Unaffected
+screenshots can be reused. Embed the images in the PR description or link its
+**Screenshots** section to the current screenshot comment.
 
 Upload images and videos with `gh --attach` (gh >= 2.99, pinned in
 `devbox.json`). GitHub hosts them as `https://github.com/user-attachments/assets/...`.

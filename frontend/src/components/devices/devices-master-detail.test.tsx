@@ -1,3 +1,12 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "tenant" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

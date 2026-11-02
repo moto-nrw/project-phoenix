@@ -66,8 +66,7 @@ describe("MFAChallengeForm", () => {
 
   it("auto-submits when all 6 digits are entered", async () => {
     global.fetch = mockOk({
-      access_token: "access-tok",
-      refresh_token: "refresh-tok",
+      status: "authenticated",
     });
     const onSuccess = vi.fn();
 
@@ -94,8 +93,7 @@ describe("MFAChallengeForm", () => {
     });
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledWith({
-        access_token: "access-tok",
-        refresh_token: "refresh-tok",
+        status: "authenticated",
       });
     });
   });

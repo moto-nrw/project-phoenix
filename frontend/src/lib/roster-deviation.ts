@@ -1,4 +1,5 @@
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { schoolClassesLabel } from "~/lib/school-class-label";
 
 /**
  * A Regeltermin whose hand-kept children list no longer matches the bookings
@@ -7,17 +8,44 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
  */
 export interface RosterDeviation {
   templateId: string;
-  /** The offering the children list matches best. */
-  offering: { id: string; name: string };
+  /**
+   * The suggested source, best first. Several offerings together can explain
+   * the children list (#5139), for example Randstunde and Ganztag.
+   */
+  offerings: Array<{ id: string; name: string }>;
   /** Suggested filter, taken from the series' Klasse or Jahrgang target. */
   gradeLevels: number[];
   schoolClasses: string[];
-  /** Children in the series without a booking on that weekday. */
+  /**
+   * Children in the series without a booking of any suggested offering on
+   * that weekday.
+   */
   unbookedCount: number;
-  /** Booked children the series does not list. */
+  /** Children a suggested offering books whom the series does not list. */
   missingCount: number;
-  /** Every offering that passes the rule, best first. */
+  /**
+   * The children behind unbookedCount with their weekdays; empty when the
+   * reader may not see children's names.
+   */
+  unbooked?: RosterDeviationChild[];
+  /** The children behind missingCount, likewise. */
+  missing?: RosterDeviationChild[];
+  /** The suggested offerings, then every other one that passes the rule. */
   candidates: Array<{ id: string; name: string }>;
+  /** The equal combinations when ambiguous (#5139), otherwise empty. */
+  combinations: Array<Array<{ id: string; name: string }>>;
+  /**
+   * Another offering fits as well as a suggested one (#5138). The school
+   * picks; nothing is preselected, and the counts belong to no named choice.
+   */
+  ambiguous: boolean;
+}
+
+interface RosterDeviationChild {
+  studentId: string;
+  name: string;
+  /** ISO weekdays on which the child deviates, ascending. */
+  weekdays: number[];
 }
 
 /** An offering source with its Klassen- or Jahrgangsfilter. */
@@ -58,14 +86,24 @@ interface BackendOfferingRef {
   name: string;
 }
 
+interface BackendRosterDeviationChild {
+  student_id: number;
+  name: string;
+  weekdays?: number[] | null;
+}
+
 interface BackendRosterDeviation {
   template_id: number;
-  offering: BackendOfferingRef;
+  offerings?: BackendOfferingRef[] | null;
   grade_levels?: number[] | null;
   school_classes?: string[] | null;
   unbooked_count: number;
   missing_count: number;
+  unbooked?: BackendRosterDeviationChild[] | null;
+  missing?: BackendRosterDeviationChild[] | null;
   candidates?: BackendOfferingRef[] | null;
+  combinations?: BackendOfferingRef[][] | null;
+  ambiguous?: boolean;
 }
 
 export interface BackendRosterDeviationsResponse {
@@ -104,17 +142,31 @@ const offeringRef = (offering: BackendOfferingRef) => ({
   name: offering.name,
 });
 
+const deviationChild = (
+  child: BackendRosterDeviationChild,
+): RosterDeviationChild => ({
+  studentId: String(child.student_id),
+  name: child.name,
+  weekdays: child.weekdays ?? [],
+});
+
 export function mapRosterDeviations(
   raw: BackendRosterDeviationsResponse,
 ): RosterDeviation[] {
   return (raw.deviations ?? []).map((deviation) => ({
     templateId: String(deviation.template_id),
-    offering: offeringRef(deviation.offering),
+    offerings: (deviation.offerings ?? []).map(offeringRef),
     gradeLevels: deviation.grade_levels ?? [],
     schoolClasses: deviation.school_classes ?? [],
     unbookedCount: deviation.unbooked_count,
     missingCount: deviation.missing_count,
+    unbooked: (deviation.unbooked ?? []).map(deviationChild),
+    missing: (deviation.missing ?? []).map(deviationChild),
     candidates: (deviation.candidates ?? []).map(offeringRef),
+    combinations: (deviation.combinations ?? []).map((combination) =>
+      combination.map(offeringRef),
+    ),
+    ambiguous: deviation.ambiguous ?? false,
   }));
 }
 
@@ -147,39 +199,137 @@ function joinNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`;
 }
 
-function childCount(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+function quotedNames(
+  offerings: ReadonlyArray<{ name: string }>,
+  conjunction: "und" | "oder",
+): string {
+  const names = offerings.map((offering) => `„${offering.name}“`);
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} ${conjunction} ${names.at(-1)}`;
 }
 
-/** The hint text on the Regeltermin card and in the details. */
-export function describeRosterDeviation(deviation: RosterDeviation): string {
-  const parts: string[] = [];
-  if (deviation.unbookedCount > 0) {
-    parts.push(
-      `${childCount(deviation.unbookedCount, "Kind", "Kinder")} ohne Buchung`,
-    );
-  }
-  if (deviation.missingCount > 0) {
-    parts.push(
-      deviation.missingCount === 1
-        ? "1 angemeldetes Kind fehlt"
-        : `${deviation.missingCount} angemeldete Kinder fehlen`,
-    );
-  }
-  parts.push(`passt zu „${deviation.offering.name}“`);
-  return `Weicht von Anmeldungen ab: ${parts.join(" · ")}`;
+/** „A“, „B“ oder „C“: the names a choice is made between. */
+function offeringChoiceNames(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  return quotedNames(offerings, "oder");
 }
 
-/** One line naming which children of the offering the series takes. */
+/**
+ * „A“ oder „B“ after „für“: a child of a combined source books at least one
+ * of the offerings, not necessarily all of them.
+ */
+export function offeringNamesFor(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  return quotedNames(offerings, "oder");
+}
+
+/** „A“ und „B“: offerings that are taken together. */
+export function offeringSetNames(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  return quotedNames(offerings, "und");
+}
+
+/** The offerings the children list fits, the first line of the hint. */
+export function rosterDeviationMatch(deviation: RosterDeviation): string {
+  if (!deviation.ambiguous) {
+    return `Passt zu ${offeringSetNames(deviation.offerings)}.`;
+  }
+  // No choice is made yet. Equal combinations are named whole (#5139):
+  // „A“ und „B“ oder zu „C“ und „D“.
+  if (deviation.combinations.some((combination) => combination.length > 1)) {
+    return `Passt zu ${deviation.combinations
+      .map(offeringSetNames)
+      .join(" oder zu ")}.`;
+  }
+  return `Passt zu ${offeringChoiceNames(deviation.candidates)}.`;
+}
+
+/** One sentence of the hint and, for several children, their names. */
+export interface RosterDeviationGroup {
+  sentence: string;
+  children: Array<{ studentId: string; label: string }>;
+}
+
+const WEEKDAY_ADVERBS: Record<number, string> = {
+  1: "montags",
+  2: "dienstags",
+  3: "mittwochs",
+  4: "donnerstags",
+  5: "freitags",
+  6: "samstags",
+  7: "sonntags",
+};
+
+function weekdayAdverbs(weekdays: readonly number[]): string {
+  return joinNames(
+    weekdays.map((weekday) => WEEKDAY_ADVERBS[weekday] ?? `Tag ${weekday}`),
+  );
+}
+
+/**
+ * The children behind the counts (#5103 review): one child by name and
+ * weekday, several as a count with a list. Readers without the right to see
+ * children get the count only. A child counts as unbooked only when none of
+ * the named offerings books it on that day (#5139). When several offerings
+ * fit equally (#5138) the counts belong to no choice and nothing is named.
+ */
+export function rosterDeviationGroups(
+  deviation: RosterDeviation,
+): RosterDeviationGroup[] {
+  if (deviation.ambiguous) return [];
+  const notBooked =
+    deviation.offerings.length > 1
+      ? "für keines dieser Angebote angemeldet"
+      : "nicht für dieses Angebot angemeldet";
+  const groups: RosterDeviationGroup[] = [];
+  const add = (
+    count: number,
+    children: readonly RosterDeviationChild[],
+    one: (child: RosterDeviationChild) => string,
+    counted: string,
+  ) => {
+    if (count <= 0) return;
+    const [only] = children;
+    if (count === 1 && only) {
+      groups.push({ sentence: one(only), children: [] });
+      return;
+    }
+    groups.push({
+      sentence: counted,
+      children: children.map((child) => ({
+        studentId: child.studentId,
+        label: `${child.name}: ${weekdayAdverbs(child.weekdays)}`,
+      })),
+    });
+  };
+  add(
+    deviation.unbookedCount,
+    deviation.unbooked ?? [],
+    (child) =>
+      `${child.name} ist ${weekdayAdverbs(child.weekdays)} ${notBooked}.`,
+    deviation.unbookedCount === 1
+      ? `1 Kind ist ${notBooked}.`
+      : `${deviation.unbookedCount} Kinder sind ${notBooked}.`,
+  );
+  add(
+    deviation.missingCount,
+    deviation.missing ?? [],
+    (child) =>
+      `${child.name} ist ${weekdayAdverbs(child.weekdays)} angemeldet, fehlt aber in der Liste.`,
+    deviation.missingCount === 1
+      ? "1 angemeldetes Kind fehlt in der Liste."
+      : `${deviation.missingCount} angemeldete Kinder fehlen in der Liste.`,
+  );
+  return groups;
+}
+
+/** One line naming which children of the offerings the series takes. */
 export function describeSelectionFilter(selection: OfferingSelection): string {
   if (selection.schoolClasses.length > 0) {
-    // Some schools store the class as „Klasse 1b“; the word stands once.
-    const classes = selection.schoolClasses.map((schoolClass) =>
-      schoolClass.trim().replace(/^klasse\s+/i, ""),
-    );
-    return classes.length === 1
-      ? `Nur Kinder der Klasse ${classes[0]}`
-      : `Nur Kinder der Klassen ${joinNames(classes)}`;
+    return `Nur Kinder der ${schoolClassesLabel(selection.schoolClasses, joinNames)}`;
   }
   if (selection.gradeLevels.length > 0) {
     const grades = [...selection.gradeLevels].sort((a, b) => a - b).map(String);
@@ -187,7 +337,9 @@ export function describeSelectionFilter(selection: OfferingSelection): string {
       ? `Nur Kinder des Jahrgangs ${grades[0]}`
       : `Nur Kinder der Jahrgänge ${joinNames(grades)}`;
   }
-  return "Alle angemeldeten Kinder des Angebots";
+  return selection.offeringIds.length > 1
+    ? "Alle angemeldeten Kinder der Angebote"
+    : "Alle angemeldeten Kinder des Angebots";
 }
 
 export function previewQuery(

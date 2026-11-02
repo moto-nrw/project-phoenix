@@ -107,11 +107,14 @@ type StaffResponse struct {
 	// ExternalAccountStatus is set for external caregivers only: "account" |
 	// "invitation_pending" | "none". Every colleague sees all three on
 	// purpose: the pickers label these people.
-	IsExternal            bool      `json:"is_external"`
-	ExternalOrganization  string    `json:"external_organization,omitempty"`
-	ExternalAccountStatus string    `json:"external_account_status,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	IsExternal            bool   `json:"is_external"`
+	ExternalOrganization  string `json:"external_organization,omitempty"`
+	ExternalAccountStatus string `json:"external_account_status,omitempty"`
+	// PlannedExitDate is the planned last working day (#4809), personnel
+	// data like the employment type.
+	PlannedExitDate *calendar.Date `json:"planned_exit_date,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff).
@@ -254,6 +257,9 @@ type staffFieldAccess struct {
 	// personnel covers employment type, today's absence reason including the
 	// school's own wording, and the NFC tag.
 	personnel bool
+	// plannedExit lets the person who may change an exit see its state without
+	// opening the rest of the personnel file.
+	plannedExit bool
 }
 
 func (rs *Resource) fieldAccess(ctx context.Context) staffFieldAccess {
@@ -268,6 +274,7 @@ func fieldAccessFor(matches func(string, []string) bool, granted []string) staff
 		notes:          has(permissions.StaffManage),
 		qualifications: has(permissions.StaffManage) || has(permissions.StaffStammdaten),
 		personnel:      has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
+		plannedExit:    has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage) || has(permissions.UsersDelete),
 	}
 }
 
@@ -322,6 +329,7 @@ func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, p
 		AbsenceTypeLabel: data.absenceTypeLabel,
 		AccountRole:      data.accountRole,
 		EmploymentType:   staff.EmploymentType,
+		PlannedExitDate:  plannedExitDate(staff),
 		IsExternal:       isExternal,
 		CreatedAt:        staff.CreatedAt,
 		UpdatedAt:        staff.UpdatedAt,
@@ -352,6 +360,9 @@ func redactStaffFields(response *StaffResponse, access staffFieldAccess) {
 			response.Person.TagID = ""
 		}
 	}
+	if !access.plannedExit {
+		response.PlannedExitDate = nil
+	}
 }
 
 func buildTeacherResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, teacher schoolmembership.Teacher, data enrichment) TeacherResponse {
@@ -377,6 +388,13 @@ func buildResponse(access staffFieldAccess, staff schoolmembership.Staff, person
 		return buildTeacherResponse(access, staff, person, *teacher, data)
 	}
 	return buildStaffResponse(access, staff, person, false, data)
+}
+
+func plannedExitDate(staff schoolmembership.Staff) *calendar.Date {
+	if staff.PlannedExit == nil {
+		return nil
+	}
+	return &staff.PlannedExit.LastWorkingDay
 }
 
 func staffEndedOn(staff schoolmembership.Staff) *calendar.Date {

@@ -228,6 +228,10 @@
     "action": "register"
   },
   {
+    "resource": "parent_messages",
+    "action": "leadership"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },
@@ -329,6 +333,14 @@
   },
   {
     "resource": "staff_notices",
+    "action": "read"
+  },
+  {
+    "resource": "student_accidents",
+    "action": "manage"
+  },
+  {
+    "resource": "student_accidents",
     "action": "read"
   },
   {

@@ -24,11 +24,11 @@ func fixtureCtx() (context.Context, context.CancelFunc) {
 // The special-room flows match on the name, so no unique suffix is added.
 func CreateTestRoomNamed(tb testing.TB, db *bun.DB, name string) *Room {
 	tb.Helper()
-	ctx, cancel := fixtureCtx()
-	defer cancel()
-
 	room := &Room{Name: name, Building: "Test Building"}
 	room.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := fixtureCtx()
+	defer cancel()
 	err := db.NewInsert().Model(room).ModelTableExpr(`facilities.rooms`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test room %q", name)
 	return room
@@ -38,11 +38,11 @@ func CreateTestRoomNamed(tb testing.TB, db *bun.DB, name string) *Room {
 // name; released marks it as a permanently open room (#3064).
 func CreateTestSystemRoom(tb testing.TB, db *bun.DB, name string, released bool) *Room {
 	tb.Helper()
-	ctx, cancel := fixtureCtx()
-	defer cancel()
-
 	room := &Room{Name: name, Building: "Test Building", IsSystem: true, IsOpenRoom: released}
 	room.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := fixtureCtx()
+	defer cancel()
 	err := db.NewInsert().Model(room).ModelTableExpr(`facilities.rooms`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test system room %q", name)
 	return room
@@ -134,11 +134,11 @@ func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string
 // CreateTestPickupNote inserts a date-specific pickup note.
 func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, content string) *StudentPickupNote {
 	tb.Helper()
-	ctx, cancel := fixtureCtx()
-	defer cancel()
-
 	row := &StudentPickupNote{StudentID: studentID, NoteDate: calendar.Date(date.String()), Content: content, CreatedBy: staffID}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := fixtureCtx()
+	defer cancel()
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.student_pickup_notes`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test pickup note")
 	return row
@@ -214,12 +214,13 @@ func GroupSupervisorRowByID(tb testing.TB, db *bun.DB, id int64) *GroupSuperviso
 // CountRoomsNamed counts the fixture tenant's rooms carrying one of the names.
 func CountRoomsNamed(tb testing.TB, db *bun.DB, names ...string) int {
 	tb.Helper()
+	tenantID := fixtureTenantID(tb)
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
 	var count int
 	err := db.NewSelect().TableExpr(`facilities.rooms AS "room"`).ColumnExpr(`COUNT(*)`).
-		Where(`"room".tenant_id = ?`, fixtureTenantID(tb)).Where(`"room".name IN (?)`, bun.List(names)).Scan(ctx, &count)
+		Where(`"room".tenant_id = ?`, tenantID).Where(`"room".name IN (?)`, bun.List(names)).Scan(ctx, &count)
 	require.NoError(tb, err)
 	return count
 }

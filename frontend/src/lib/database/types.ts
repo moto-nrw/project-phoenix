@@ -1,7 +1,7 @@
 // Database Entity Configuration Types
 
 import type { ReactNode } from "react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 // Field types supported by the database forms
 type FieldType =
@@ -108,7 +108,7 @@ interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
 }
 
 // Section configuration for forms
@@ -118,7 +118,7 @@ export interface SectionConfig {
   fields: FieldConfig[];
   columns?: 1 | 2;
   /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
 }
 
 // Detail view item configuration
@@ -181,7 +181,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
 
   // Concept driving the entity's icon/tone across the database area (see
   // MOTO_CONCEPTS). Replaces the former hand-rolled per-entity theme object.
-  concept: MotoConceptKey;
+  concept: MotoConcept;
 
   // Navigation
   backUrl?: string;
@@ -258,7 +258,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
     mapRequest?: (data: Partial<T>) => Record<string, unknown>;
     // Custom CRUD methods
     create?: (data: Partial<T>) => Promise<T>;
-    update?: (id: string, data: Partial<T>) => Promise<T>;
+    update?: (id: string, data: Partial<T>, current?: T) => Promise<T>;
     delete?: (id: string) => Promise<void>;
     // Custom service methods
     customMethods?: Record<
@@ -349,7 +349,8 @@ export interface CrudService<T> {
   getList(filters?: Record<string, unknown>): Promise<PaginatedResponse<T>>;
   getOne(id: string): Promise<T>;
   create(data: Partial<T>): Promise<T>;
-  update(id: string, data: Partial<T>): Promise<T>;
+  /** Pass the loaded record when a custom update needs unchanged fields. */
+  update(id: string, data: Partial<T>, current?: T): Promise<T>;
   /**
    * Throws an `ApiError` with code, field errors and request ID instead of
    * returning a sentence. Resolves `false` when the `beforeDelete` hook

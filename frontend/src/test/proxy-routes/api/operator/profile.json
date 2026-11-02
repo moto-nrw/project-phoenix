@@ -1,0 +1,6 @@
+{
+  "api/operator/profile": [
+    "GET operator /operator/profile",
+    "PUT operator /operator/profile"
+  ]
+}

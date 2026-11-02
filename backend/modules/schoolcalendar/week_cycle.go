@@ -80,7 +80,9 @@ func WeekPatternApplies(weekPattern int, date string, cycle WeekCycle) bool {
 // schoolYearBounds in backend/simulate/fullday.go — all three derive the same
 // name ("Schuljahr YYYY/YYYY+1") and the same date bounds, so the bootstrap
 // endpoint, the client-side prefill, and the demo school-year rollover never
-// diverge. (simulate cannot import this module, hence its own copy.)
+// diverge. (simulate cannot import this module, hence its own copy.) The
+// absence list's fallbackHalfYear (modules/classday, #4793) splits the same
+// year at 1 February.
 func DefaultSchoolYear(today string) (name, startDate, endDate string) {
 	day, err := time.Parse(DateLayout, today)
 	if err != nil {

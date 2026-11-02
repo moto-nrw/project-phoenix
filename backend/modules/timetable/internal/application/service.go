@@ -322,13 +322,13 @@ func (s *Service) ListTemplateRowsForTemplatePeriod(ctx context.Context, templat
 	return result, err
 }
 
-func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) (result []timetable.TemplateListRow, err error) {
+func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, window *timetable.TemplateScheduleWindow) (result []timetable.TemplateListRow, err error) {
 	if periodID != nil && *periodID <= 0 {
 		return nil, s.reject("list_template_rows_for_period", timetable.ErrInvalidGroupQuery)
 	}
 
 	err = s.run(ctx, "list_template_rows_for_period", func(ctx context.Context, stats *domain.OperationStats) error {
-		values, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today())
+		values, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today(), window)
 		stats.Add(queryStats)
 		result = values
 		return listErr

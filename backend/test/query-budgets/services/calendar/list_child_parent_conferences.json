@@ -1,0 +1,6 @@
+{
+  "scenario": "services.calendar.list_child_parent_conferences",
+  "max": 10,
+  "exact": false,
+  "description": "Elternsprechtag (#4801): days, bookings and names or teachers in one batch each."
+}

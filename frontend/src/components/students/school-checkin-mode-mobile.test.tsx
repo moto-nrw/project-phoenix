@@ -274,7 +274,11 @@ describe("SchoolCheckinModeMobile", () => {
       expect(screen.getByText("3 ausgewählt")).toBeInTheDocument();
       const checkIn = screen.getByRole("button", { name: "Anmelden" });
       const checkOut = screen.getByRole("button", { name: "Abmelden" });
-      expect(checkIn).toHaveClass("bg-moto-green", "text-white", "rounded-lg");
+      expect(checkIn).toHaveClass(
+        "bg-moto-green-fill",
+        "text-white",
+        "rounded-lg",
+      );
       expect(checkOut).toHaveClass("bg-moto-red", "text-white", "rounded-lg");
 
       fireEvent.click(checkIn);

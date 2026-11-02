@@ -21,7 +21,7 @@ import { captureBffException } from "~/lib/sentry-bff.server";
 
 type JsonMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface JsonProxyOptions {
+export interface JsonProxyOptions {
   method: JsonMethod;
   path:
     | string
@@ -59,8 +59,11 @@ interface JsonProxyOptions {
 
 const logger = createLogger({ component: "JsonBackendProxy" });
 
-/** Execute transparent JSON proxy routes through one fetch/error-response path. */
-async function proxyJsonRequest(
+/**
+ * Execute transparent JSON proxy routes through one fetch/error-response path.
+ * Exported for the portal wrappers that bind their own session (caterer).
+ */
+export async function proxyJsonRequest(
   request: NextRequest,
   context: RouteContext | undefined,
   options: JsonProxyOptions,

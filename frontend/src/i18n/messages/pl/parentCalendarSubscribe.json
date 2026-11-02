@@ -1,0 +1,22 @@
+{
+  "title": "Subskrybuj kalendarz",
+  "description": "Wystarczy raz zasubskrybować terminy w kalendarzu w telefonie. Nowe, zmienione i odwołane terminy pojawią się potem same. Nie trzeba dodawać każdego terminu osobno.",
+  "showLink": "Pokaż link subskrypcji",
+  "subscribe": "Subskrybuj w kalendarzu",
+  "linkLabel": "Link subskrypcji (do skopiowania)",
+  "copy": "Kopiuj",
+  "copiedButton": "Skopiowano",
+  "copied": "Link skopiowany.",
+  "copyFailed": "Nie udało się skopiować. Proszę zaznaczyć link ręcznie.",
+  "linkOnce": "Ze względów bezpieczeństwa ten link widzą Państwo tylko teraz. Proszę od razu skopiować go do kalendarza.",
+  "howToTitle": "Jak to zrobić:",
+  "howToMac": "Mac: Jeśli nie pojawi się okno subskrypcji, proszę w aplikacji Kalendarz wybrać Ustawienia, Ogólne i ustawić Kalendarz Apple jako domyślną aplikację kalendarza. Inna droga: Plik, Nowa subskrypcja kalendarza, wkleić link subskrypcji.",
+  "howToApple": "iPhone/iPad: Ustawienia, Kalendarz, Konta, Dodaj konto, Inne, Dodaj subskrybowany kalendarz, potem wkleić link.",
+  "howToAndroid": "Android: W Kalendarzu Google na komputerze: Inne kalendarze, Z adresu URL, potem wkleić link. Kalendarz pojawi się potem także na telefonie.",
+  "regenerate": "Utwórz nowy link",
+  "regenerated": "Utworzono nowy link subskrypcji. Stary link już nie działa.",
+  "loadObject": "link subskrypcji",
+  "rotateObject": "link subskrypcji",
+  "alreadyActive": "Państwa link subskrypcji jest już aktywny. Ze względów bezpieczeństwa nie zostanie pokazany ponownie. Jeśli już go Państwo nie mają, proszę utworzyć nowy link. Dotychczasowy przestanie wtedy działać.",
+  "createNew": "Utwórz nowy link subskrypcji"
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.parentportal.pickup_permission_requests.list",
+  "max": 12,
+  "exact": false,
+  "description": "workflows/parentportal — the pickup permission request list resolves the\ncaller's child, then reads all requests once. The test uses three requests\nto prevent a per-row request lookup."
+}

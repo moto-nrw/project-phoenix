@@ -1,0 +1,64 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/Content.Close",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/adapters/documents/Coordinator.Remove",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/adapters/documents/Coordinator.Save",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListByOwner",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListDeletedPendingCleanupByOwner",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListPendingCleanupByOwner",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/CleanupRetention.DeleteRemovedFiles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/IdentityAdapter.ListShareableRoles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/ObjectStore.Open",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/ObjectStore.Remove",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/ObjectStore.Save",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/filestorage/internal/application/Service.CountAttachments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

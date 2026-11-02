@@ -1,7 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
-import { releaseFakeTimers } from "~/test/clock";
+import { setTestClock, releaseFakeTimers } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import { CareWeeklyPlanEditForm } from "./care-weekly-plan-editor";
 import type { PickupAdjustmentPreview } from "~/lib/pickup-schedule-api";
@@ -212,6 +221,30 @@ describe("CareWeeklyPlanEditForm", () => {
     vi.clearAllMocks();
   });
 
+  it.each(schoolDateCases("2026-05-25"))(
+    "allows an exception only when its Berlin effective day arrives in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-25");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onSubmitWeekly = vi.fn().mockResolvedValue({
+        ...decisionPreview("tomorrow"),
+        effective_from: "2026-05-26",
+        matching_offerings: [],
+      });
+      renderForm({ onSubmitWeekly });
+      save();
+      const button = await screen.findByRole("button", {
+        name: "Als dauerhafte Ausnahme speichern",
+      });
+      expect(button).toBeDisabled();
+      await act(async () => {
+        setTestClock("2026-05-25T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(button).toBeEnabled();
+    },
+  );
+
   it("shows the recurring plan with Speichern and Abbrechen below it", () => {
     renderForm();
 
@@ -310,48 +343,53 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(monday).not.toBeChecked();
   });
 
-  it("requires an explicit lasting exception when no offering matches", async () => {
-    const onSubmitWeekly = vi
-      .fn()
-      .mockResolvedValueOnce({
-        preview_token: "preview-1",
-        effective_from: "2026-05-25",
-        current_plan: "Mo 16:00 Uhr, Di 16:00 Uhr",
-        proposed_plan: "Mo 13:45 Uhr, Di 13:45 Uhr",
-        deviates_from_offering: true,
-        resolution_required: true,
-        matching_offerings: [],
-      })
-      .mockResolvedValueOnce(undefined);
-    const { onSaved } = renderForm({ onSubmitWeekly });
+  it.each(schoolDateCases("2026-05-25"))(
+    "requires an explicit lasting exception when no offering matches in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-25");
 
-    save();
-    expect(
-      await screen.findByRole("dialog", { name: "Wochenplan speichern" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Gehzeiten passen zu keinem Angebot"),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Als dauerhafte Ausnahme speichern",
-      }),
-    );
+      const onSubmitWeekly = vi
+        .fn()
+        .mockResolvedValueOnce({
+          preview_token: "preview-1",
+          effective_from: "2026-05-25",
+          current_plan: "Mo 16:00 Uhr, Di 16:00 Uhr",
+          proposed_plan: "Mo 13:45 Uhr, Di 13:45 Uhr",
+          deviates_from_offering: true,
+          resolution_required: true,
+          matching_offerings: [],
+        })
+        .mockResolvedValueOnce(undefined);
+      const { onSaved } = renderForm({ onSubmitWeekly });
 
-    await waitFor(() => {
-      expect(onSubmitWeekly).toHaveBeenLastCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          resolution: "exception",
-          confirm: true,
+      save();
+      expect(
+        await screen.findByRole("dialog", { name: "Wochenplan speichern" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Gehzeiten passen zu keinem Angebot"),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Als dauerhafte Ausnahme speichern",
         }),
       );
-    });
-    expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(toastSuccess).toHaveBeenCalledWith(
-      "Die dauerhafte Ausnahme ist gespeichert.",
-    );
-  });
+
+      await waitFor(() => {
+        expect(onSubmitWeekly).toHaveBeenLastCalledWith(
+          expect.any(Object),
+          expect.objectContaining({
+            resolution: "exception",
+            confirm: true,
+          }),
+        );
+      });
+      expect(onSaved).toHaveBeenCalledTimes(1);
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Die dauerhafte Ausnahme ist gespeichert.",
+      );
+    },
+  );
 
   it("does not resubmit the weekly form while the decision is open", async () => {
     const onSubmitWeekly = vi.fn().mockResolvedValueOnce({

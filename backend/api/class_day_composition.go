@@ -296,6 +296,10 @@ func (l classDayAccessLog) RecordSchoolDayView(ctx context.Context, entry classd
 	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSchoolDayView, entry))
 }
 
+func (l classDayAccessLog) RecordSharedNotes(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSchoolSharedNotes, entry))
+}
+
 func (l classDayAccessLog) RecordSupervisionSheet(ctx context.Context, entry classdayCompose.AccessRecord) error {
 	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSupervisionStudentSheet, entry))
 }

@@ -20,6 +20,8 @@ const ParentMessageEventRequestCreated = "request_created"
 // append-only and SenderName is frozen at send time, so a later rename or
 // offboarding never rewrites history.
 type ParentMessage struct {
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	SendReplayed    bool   `json:"-"`
 	ID              int64
 	TenantID        int64
 	ThreadID        int64
@@ -53,14 +55,24 @@ type ParentMessage struct {
 	UpdatedAt     time.Time
 }
 
-// ParentMessageThread is the single continuous conversation between the OGS
-// team and one guardian about one child. There is exactly one thread per
-// (school, student, guardian); the send path is get-or-create.
+// Thread audiences (#5200). A team conversation is read by every staff member
+// who reads the child; a leadership conversation only by accounts holding
+// parent_messages:leadership.
+const (
+	ParentAudienceTeam       = "team"
+	ParentAudienceLeadership = "leadership"
+)
+
+// ParentMessageThread is one continuous conversation between the OGS and one
+// guardian about one child. There is exactly one thread per (school, student,
+// guardian, audience); the send path is get-or-create.
 type ParentMessageThread struct {
 	ID                int64
 	TenantID          int64
 	StudentID         int64
 	GuardianAccountID int64
+	// Audience is ParentAudienceTeam or ParentAudienceLeadership.
+	Audience string
 	// LastMessageAt / LastMessageID / LastSenderKind / LastMessageBody are the
 	// denormalized preview the inbox orders and renders by. Every write path
 	// advances them together and only forward.

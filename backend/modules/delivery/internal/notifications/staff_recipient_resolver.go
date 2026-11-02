@@ -15,6 +15,12 @@ type StaffRecipientRequest struct {
 	StudentIDs         []int64
 	NotificationType   string
 	ExcludedAccountIDs []int64
+	// OnlyAccounts replaces responsibility by an explicit set: exactly the
+	// accounts in AccountIDs are responsible for every requested child, and
+	// neither group supervisors nor admins are added. A leadership parent
+	// conversation uses it (#5200). An empty set reaches nobody.
+	OnlyAccounts bool
+	AccountIDs   []int64
 }
 
 // StaffRecipientScope is one account and the requested children that account
@@ -112,7 +118,7 @@ func (r *staffRecipientResolver) Resolve(ctx context.Context, request StaffRecip
 		return nil, nil
 	}
 
-	visibleByAccount, err := r.resolveVisibility(ctx, allStudentIDs)
+	visibleByAccount, err := r.responsibleAccounts(ctx, request, allStudentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -253,6 +259,25 @@ func (r *staffRecipientResolver) studentIDsByGroup(ctx context.Context, studentI
 		groupIDs = append(groupIDs, groupID)
 	}
 	return studentsByGroup, groupIDs, nil
+}
+
+// responsibleAccounts maps each responsible account to its requested
+// children: the explicit set when the request names one, otherwise group
+// supervisors and admins.
+func (r *staffRecipientResolver) responsibleAccounts(ctx context.Context, request StaffRecipientRequest, studentIDs []int64) (map[int64]map[int64]struct{}, error) {
+	if request.OnlyAccounts {
+		return explicitVisibility(request.AccountIDs, studentIDs), nil
+	}
+	return r.resolveVisibility(ctx, studentIDs)
+}
+
+// explicitVisibility makes every given account responsible for every child.
+func explicitVisibility(accountIDs, studentIDs []int64) map[int64]map[int64]struct{} {
+	visibleByAccount := make(map[int64]map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		addVisibleStudents(visibleByAccount, accountID, studentIDs)
+	}
+	return visibleByAccount
 }
 
 func addVisibleStudents(visibleByAccount map[int64]map[int64]struct{}, accountID int64, studentIDs []int64) {

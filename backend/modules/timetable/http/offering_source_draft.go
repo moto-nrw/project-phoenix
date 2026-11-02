@@ -1,7 +1,7 @@
 // Package timetablehttp — offering suggestion for a Regeltermin that is still
 // being planned (#5104):
 //
-//	GET /api/timetable/offering-sources/suggestion?period_id=…&roster=1:4,5,6
+//	GET /api/timetable/offering-sources/suggestion?period_id=…&roster=1:4,5,6&end_time=12:45
 //	GET /api/timetable/offering-sources/preview?period_id=…&offering_ids=…&roster=…
 //
 // The dialog sends the children it would plan per weekday (`roster`, one
@@ -27,12 +27,17 @@ import (
 const maxDraftRosterChildren = 2000
 
 type offeringSuggestionResponse struct {
-	Offering      templateRosterMaintenanceOfferingResponse   `json:"offering"`
-	GradeLevels   []int                                       `json:"grade_levels"`
-	SchoolClasses []string                                    `json:"school_classes"`
-	UnbookedCount int                                         `json:"unbooked_count"`
-	MissingCount  int                                         `json:"missing_count"`
-	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
+	// Offerings is the suggested source; several offerings combine (#5139).
+	Offerings     []templateRosterMaintenanceOfferingResponse   `json:"offerings"`
+	GradeLevels   []int                                         `json:"grade_levels"`
+	SchoolClasses []string                                      `json:"school_classes"`
+	UnbookedCount int                                           `json:"unbooked_count"`
+	MissingCount  int                                           `json:"missing_count"`
+	Candidates    []templateRosterMaintenanceOfferingResponse   `json:"candidates"`
+	Combinations  [][]templateRosterMaintenanceOfferingResponse `json:"combinations"`
+	// Ambiguous: other offerings fit as well as suggested ones; the school
+	// picks.
+	Ambiguous bool `json:"ambiguous"`
 }
 
 type offeringSuggestionEnvelope struct {
@@ -42,7 +47,7 @@ type offeringSuggestionEnvelope struct {
 }
 
 // suggestDraftOfferingSource handles GET /offering-sources/suggestion: the
-// offering whose bookings the planned children obviously follow, with the
+// offerings whose bookings the planned children obviously follow, with the
 // Klassen- or Jahrgangsfilter of the planned targets.
 func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Request) {
 	if rs.OfferingSourceOptions == nil {
@@ -65,6 +70,7 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 			roster.TargetGradeLevels = append(roster.TargetGradeLevels, int(grade))
 		}
 	}
+	roster.Ends = draftRosterEnds(roster, query.Get("end_time"))
 	listKind := query.Get("list_kind")
 	roster.OfferingKind = timetable.RosterOfferingKindFor(query.Get("type"), &listKind)
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(r.Context(), &periodID, rs.todayDate())
@@ -74,17 +80,31 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 	}
 	envelope := offeringSuggestionEnvelope{}
 	if suggestion := timetable.SuggestOfferingSource(roster, bookings); suggestion != nil {
-		response := rosterDeviationResponseFrom(0, suggestion).withoutTemplate()
+		response := rosterDeviationResponseFrom(0, suggestion, nil).withoutTemplate()
 		envelope.Suggestion = &response
 	}
 	common.Respond(w, r, http.StatusOK, envelope, "Offering suggestion retrieved")
 }
 
+// draftRosterEnds applies the planned end ("HH:MM", optional) to every
+// weekday; it tells which offerings carry the Regeltermin (#5342).
+func draftRosterEnds(roster timetable.TemplateFutureRoster, end string) map[int]string {
+	if end == "" {
+		return nil
+	}
+	ends := make(map[int]string, len(roster.Weekdays))
+	for weekday := range roster.Weekdays {
+		ends[weekday] = end
+	}
+	return ends
+}
+
 // withoutTemplate drops the template id a planned Regeltermin does not have.
 func (d rosterDeviationResponse) withoutTemplate() offeringSuggestionResponse {
 	return offeringSuggestionResponse{
-		Offering: d.Offering, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
+		Offerings: d.Offerings, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
 		UnbookedCount: d.UnbookedCount, MissingCount: d.MissingCount, Candidates: d.Candidates,
+		Combinations: d.Combinations, Ambiguous: d.Ambiguous,
 	}
 }
 
@@ -136,7 +156,7 @@ func (rs *Resource) draftOfferingPreview(
 		return offeringPreviewResponse{}, err
 	}
 	changes := timetable.PreviewOfferingSource(roster, filter, bookings)
-	names, err := rs.previewStudentNames(ctx, changes, from)
+	names, err := rs.studentNames(ctx, changedStudentIDs(changes), from)
 	if err != nil {
 		return offeringPreviewResponse{}, err
 	}

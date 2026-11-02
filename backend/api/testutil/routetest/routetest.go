@@ -318,7 +318,7 @@ func AssertSuccessResponse(t *testing.T, rr *httptest.ResponseRecorder, expected
 // the shared error envelope's members a handler writes itself (ADR 0006,
 // #2520): `status` is the HTTP status number, the text travels in `detail`
 // (never `error` or `message`) and `code` is registered in
-// error-registry.json. type, title and instance are filled by
+// error-registry/. type, title and instance are filled by
 // ProblemResponseMiddleware where a renderer leaves them out; handler tests
 // bypass it.
 func AssertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int) {
@@ -337,7 +337,7 @@ func assertHandlerErrorEnvelope(t *testing.T, rr *httptest.ResponseRecorder) {
 	assert.Empty(t, legacyMemberViolations(body, rr.Code), "error body. Body: %s", rr.Body.String())
 	assert.NotEmpty(t, envelopeString(body, "detail"), "error body needs a detail. Body: %s", rr.Body.String())
 	code := envelopeString(body, "code")
-	assert.True(t, IsRegisteredCode(code), "error body code %q must be in error-registry.json. Body: %s", code, rr.Body.String())
+	assert.True(t, IsRegisteredCode(code), "error body code %q must be in error-registry/. Body: %s", code, rr.Body.String())
 }
 
 // AssertUnauthorized validates a 401 Unauthorized response.

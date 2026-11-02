@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -64,6 +65,7 @@ func TestWorkforceRecordWritesRollbackAndRetry(t *testing.T) {
 	var financial workforce.StaffFinancialData
 	var adjustment workforce.StaffBalanceAdjustment
 	var document workforce.StaffDocument
+	documentFilename := fmt.Sprintf("rollback-document-%d", testpkg.UniqueSuffix())
 	var err error
 	run([]writeStep{
 		{"master-create", func(ctx context.Context) error {
@@ -108,7 +110,7 @@ func TestWorkforceRecordWritesRollbackAndRetry(t *testing.T) {
 			return capability.UpsertStaffVacationQuota(ctx, workforce.StaffVacationQuota{StaffID: staff.ID, Year: 2026, EntitledDays: 31})
 		}},
 		{"document-create", func(ctx context.Context) error {
-			document, err = capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategorySonstiges, "rollback-document"))
+			document, err = capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategorySonstiges, documentFilename))
 			return err
 		}},
 	})

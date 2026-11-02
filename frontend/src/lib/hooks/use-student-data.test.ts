@@ -215,7 +215,7 @@ describe("useStudentData", () => {
         "student-detail-123",
         expect.any(Function),
         expect.objectContaining({
-          keepPreviousData: true,
+          keepPreviousData: false,
           revalidateOnFocus: false,
         }),
       );
@@ -455,8 +455,8 @@ describe("useStudentData", () => {
 
       const { result } = renderHook(() => useStudentData("1"));
 
-      // Default value should be true according to the implementation
-      expect(result.current.hasFullAccess).toBe(true);
+      // List identity never grants detail access before its response.
+      expect(result.current.hasFullAccess).toBe(false);
       // Write access defaults to false (deny-by-default)
       expect(result.current.hasWriteAccess).toBe(false);
       // Same for the absence-only write flag (#2232)

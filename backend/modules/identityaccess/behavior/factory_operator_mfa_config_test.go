@@ -30,6 +30,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		TraegerURL:       "http://traeger.localhost:3000",
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
+		HealthDataKeys:   testpkg.TestHealthDataKeys,
 	}
 
 	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), cfg)

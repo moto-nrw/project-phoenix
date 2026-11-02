@@ -4,6 +4,7 @@ import { defineEntityConfig } from "@/lib/database/types";
 import type { Group, BackendGroup } from "@/lib/group-helpers";
 import { mapGroupResponse } from "@/lib/group-helpers";
 import { apiErrorFromResponse, unavailableApiError } from "~/lib/api-error";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 /**
  * Loads one option list of the group form. A failure throws the ApiError, so
@@ -26,7 +27,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     plural: "Gruppen",
   },
 
-  concept: "groups",
+  concept: groupsConcept,
 
   backUrl: "/database",
 
@@ -38,7 +39,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     sections: [
       {
         title: "Gruppendetails",
-        concept: "groups",
+        concept: groupsConcept,
         columns: 2,
         fields: [
           {

@@ -154,6 +154,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
         aria-label={ariaLabel}
       >
         {slots.map((slotId, index) => (
+          // oxlint-disable-next-line ui-kit/no-raw-input -- one box per OTP digit with its own focus hop, paste spread and centered 2xl digit; the kit Input carries a label, error and full-width layout that a 6-box code grid cannot use
           <input
             key={slotId}
             ref={(el) => {

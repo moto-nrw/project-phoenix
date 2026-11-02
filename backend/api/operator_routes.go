@@ -41,6 +41,9 @@ type operatorIdentity struct {
 	// reuses it to read and write the MFA state of school staff accounts;
 	// mfa is the operator's own MFA service (operator login flow).
 	accountMFA identityOperatorAPI.AccountMFA
+	// caterers is the reset of a caterer's second factor (#4497). Without
+	// it the caterer routes are not mounted.
+	caterers identityOperatorAPI.CatererMFA
 }
 
 // operatorIdentityRoutes are the Identity & Access route resources the
@@ -53,10 +56,16 @@ type operatorIdentityRoutes struct {
 	mfaAdmin    *identityOperatorAPI.SchoolAccountMFAResource
 	profile     *identityOperatorAPI.ProfileResource
 	invitations *identityOperatorAPI.InvitationsResource
+	caterers    *identityOperatorAPI.CatererMFAResource
 }
 
 func (in operatorIdentity) routes() operatorIdentityRoutes {
+	var caterers *identityOperatorAPI.CatererMFAResource
+	if in.caterers != nil {
+		caterers = &identityOperatorAPI.CatererMFAResource{Caterers: in.caterers}
+	}
 	return operatorIdentityRoutes{
+		caterers:    caterers,
 		sessions:    in.sessions,
 		account:     in.account,
 		passkeys:    identityOperatorAPI.NewPasskeyResource(in.passkeys),
@@ -85,7 +94,9 @@ type operatorSchoolSettings struct {
 // operatorRouter builds the operator routes. billing (#2791) and
 // schoolSettings (#2736) are optional: without them their routes are not
 // mounted. unregisteredTagScans is the optional Device Fleet review of
-// unregistered RFID scans (#3232). The auth limiter guards operator login
+// unregistered RFID scans (#3232). demoPresenceHistory is Student Presence's
+// write of past care days for the public demo's seeder (ADR 0127); the root
+// passes it under APP_ENV=demo only. The auth limiter guards operator login
 // against brute force; e-mail confirmation and invitations have their own
 // limiters and fall back to the auth limiter.
 func operatorRouter(
@@ -98,6 +109,7 @@ func operatorRouter(
 	limiters authRateLimiters,
 	staffPersonMerge http.Handler,
 	sampleChildren http.HandlerFunc,
+	demoPresenceHistory http.HandlerFunc,
 ) chi.Router {
 	// The root provides the session chains; without the signer the verifier
 	// mounts below would fail with a nil dereference instead of naming the
@@ -126,13 +138,15 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
-		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings)
+		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings, demoPresenceHistory)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
 		mountOperatorTagScanRoutes(r, unregisteredTagScans, provisioningRoutes)
 		identityRoutes.mountAccountMFARoutes(r, provisioningRoutes)
+		identityRoutes.mountCatererMFARoutes(r, provisioningRoutes)
 		identityRoutes.mountAccountTenantAccessRoutes(r, provisioningRoutes)
 		identityRoutes.mountProfileRoutes(r)
+		identityRoutes.mountLogoutRoute(r)
 		identityRoutes.mountTrustedDeviceRoutes(r)
 		identityRoutes.mountInvitationRoutes(r)
 		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
@@ -290,6 +304,7 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationPersons, provisioning.ListOrganizationPersons))
 		r.Get("/{id}/traeger-members", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerMembers, provisioning.ListTraegerMembers))
 		r.Post("/{id}/traeger-members", provisioning.AssignTraegerMember)
+		r.Post("/{id}/traeger-members/invitations", provisioning.InviteTraegerMember)
 		r.Delete("/{id}/traeger-members/{accountId}/mfa", provisioning.ResetTraegerMemberMFA)
 		r.Get("/{id}/erasure-order", provisioning.TraegerErasureOrder)
 		r.Post("/{id}/erasure-order", provisioning.RecordTraegerErasureOrder)
@@ -301,12 +316,13 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the
-// optional per-school settings endpoints.
+// optional per-school settings endpoints and the demo's presence history.
 func mountOperatorSchoolRoutes(
 	r chi.Router,
 	provisioning *provisioningOperatorAPI.ProvisioningResource,
 	mfaAdmin *identityOperatorAPI.SchoolAccountMFAResource,
 	schoolSettings *operatorSchoolSettings,
+	demoPresenceHistory http.HandlerFunc,
 ) {
 	r.Route("/schools", func(r chi.Router) {
 		r.Get("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchools, provisioning.ListSchools))
@@ -334,6 +350,9 @@ func mountOperatorSchoolRoutes(
 		r.Get("/{id}/devices", provisioning.ListSchoolDevices)
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolPersons, provisioning.ListSchoolPersons))
 		r.Get("/{id}/pwa-usage", provisioning.GetSchoolPWAUsage)
+		if demoPresenceHistory != nil {
+			r.Post("/{id}/demo-presence-history", provisioning.AuditReadAccess(organizationtenancy.ReadDemoPresenceHistory, demoPresenceHistory))
+		}
 		if schoolSettings != nil {
 			values := schoolSettings.values
 			r.Route("/{id}/settings", func(r chi.Router) {
@@ -376,6 +395,17 @@ func (rs operatorIdentityRoutes) mountAccountMFARoutes(r chi.Router, provisionin
 	})
 }
 
+// mountCatererMFARoutes registers the operator's reset of a caterer's
+// second factor (#4497). A caterer belongs to no school, so the routes are
+// keyed by the caterer and its account.
+func (rs operatorIdentityRoutes) mountCatererMFARoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+	if rs.caterers == nil {
+		return
+	}
+	r.Get("/caterers", provisioning.AuditReadAccess(organizationtenancy.ReadCaterers, rs.caterers.ListCaterers))
+	r.Delete("/caterers/{id}/accounts/{accountId}/mfa", rs.caterers.ResetCatererMFA)
+}
+
 // mountAccountTenantAccessRoutes registers cross-school access management for a
 // single account (issue #1021). Keyed by account, not by school, because the
 // whole point is to see and change every school one account can reach.
@@ -404,6 +434,15 @@ func (rs operatorIdentityRoutes) mountProfileRoutes(r chi.Router) {
 		}
 		r.Post("/email-change", rs.profile.InitiateEmailChange)
 	})
+}
+
+// mountLogoutRoute registers the operator logout (#5194). It runs behind the
+// operator session chain, whose active-operator check proves the family the
+// access token names live and the operator's own.
+func (rs operatorIdentityRoutes) mountLogoutRoute(r chi.Router) {
+	if rs.account != nil {
+		r.Post("/auth/logout", rs.account.Logout)
+	}
 }
 
 // mountTrustedDeviceRoutes registers self-service trusted-device management.

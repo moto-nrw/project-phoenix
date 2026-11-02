@@ -1,0 +1,5 @@
+DELETE /api/meal-caterer/invitations/{invitationId} -> mittagessen
+DELETE /api/meal-caterer/supply -> mittagessen
+GET /api/meal-caterer/ -> mittagessen
+GET /api/meal-caterer/orders/export -> mittagessen
+POST /api/meal-caterer/invitations -> mittagessen

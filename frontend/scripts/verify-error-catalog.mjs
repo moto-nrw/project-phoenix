@@ -1,13 +1,16 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { format, resolveConfig } from "prettier";
+import { readRegistry } from "../../scripts/error-registry.mjs";
+import { readLocaleMessages } from "./message-sources.mjs";
 
-const registry = JSON.parse(
-  await readFile(new URL("../../error-registry.json", import.meta.url), "utf8"),
-);
+const registry = readRegistry();
 const locales = JSON.parse(
   await readFile(
-    new URL("../../backend/modules/delivery/internal/adapters/localization/locales.json", import.meta.url),
+    new URL(
+      "../../backend/modules/delivery/internal/adapters/localization/locales.json",
+      import.meta.url,
+    ),
     "utf8",
   ),
 );
@@ -22,12 +25,7 @@ const failures = [];
 const runtimeCatalog = {};
 
 for (const { code: locale } of locales) {
-  const messages = JSON.parse(
-    await readFile(
-      new URL(`../src/i18n/messages/${locale}.json`, import.meta.url),
-      "utf8",
-    ),
-  );
+  const messages = readLocaleMessages(locale);
   const catalog = messages.errorCatalog;
   const codes = catalog?.codes ?? {};
   const overrides = {};

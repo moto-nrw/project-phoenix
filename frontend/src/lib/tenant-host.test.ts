@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { tenantSlugFromHost } from "./tenant-host";
+import { isBareTenantDomainHost, tenantSlugFromHost } from "./tenant-host";
 
 const ORIGINAL_TENANT_DOMAIN = process.env.TENANT_DOMAIN;
 
@@ -61,10 +61,21 @@ describe("tenantSlugFromHost", () => {
     expect(tenantSlugFromHost("school-a.localhost:3000")).toBe("school-a");
   });
 
+  it("normalizes the hostname, configured domain, and slug", () => {
+    const prev = process.env.TENANT_DOMAIN;
+    process.env.TENANT_DOMAIN = "MOTO-APP.DE";
+    try {
+      expect(tenantSlugFromHost("SCHULE-A.moto-app.de:443")).toBe("schule-a");
+    } finally {
+      process.env.TENANT_DOMAIN = prev;
+    }
+  });
+
   it("returns null for reserved slugs", () => {
     expect(tenantSlugFromHost("operator.localhost:3000")).toBeNull();
     expect(tenantSlugFromHost("api.localhost")).toBeNull();
     expect(tenantSlugFromHost("www.localhost")).toBeNull();
+    expect(tenantSlugFromHost("OPERATOR.LOCALHOST")).toBeNull();
   });
 
   it("handles a different TENANT_DOMAIN value", () => {
@@ -79,4 +90,34 @@ describe("tenantSlugFromHost", () => {
       process.env.TENANT_DOMAIN = prev;
     }
   });
+});
+
+// quorum on #5175: the bare-domain check compared raw host names, so a
+// mixed-case or trailing-dot host slipped past the refusal (#5130).
+describe("isBareTenantDomainHost", () => {
+  beforeAll(() => {
+    process.env.TENANT_DOMAIN = "Moto-App.de.";
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_TENANT_DOMAIN === undefined) {
+      delete process.env.TENANT_DOMAIN;
+    } else {
+      process.env.TENANT_DOMAIN = ORIGINAL_TENANT_DOMAIN;
+    }
+  });
+
+  it.each(["moto-app.de", "MOTO-APP.DE", "moto-app.de.", "moto-app.de:443"])(
+    "treats %s as the bare domain",
+    (host) => {
+      expect(isBareTenantDomainHost(host)).toBe(true);
+    },
+  );
+
+  it.each(["school-a.moto-app.de", "moto-app.de.evil.org", "", null])(
+    "does not treat %s as the bare domain",
+    (host) => {
+      expect(isBareTenantDomainHost(host)).toBe(false);
+    },
+  );
 });

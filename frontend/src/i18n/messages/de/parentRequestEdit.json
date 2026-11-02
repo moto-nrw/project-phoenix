@@ -1,0 +1,19 @@
+{
+  "title": "Anfrage bearbeiten",
+  "intro": "Ändern Sie Ihre Anfrage, solange die OGS noch nicht entschieden hat.",
+  "editedAt": "Geändert am {date}",
+  "firstDay": "Erster Tag",
+  "lastDay": "Letzter Tag",
+  "day": "Tag",
+  "pickupTime": "Abholzeit",
+  "timeFormatHint": "Uhrzeit im Format 15:30",
+  "timeExample": "z. B. 15:30",
+  "reasonLabel": "Grund / Hinweis an die OGS",
+  "reasonRequired": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
+  "valueRequired": "Bitte tragen Sie einen Wert ein.",
+  "submit": "Änderung speichern",
+  "saving": "Wird gespeichert …",
+  "cancel": "Abbrechen",
+  "close": "Fenster schließen",
+  "errorObject": "die Anfrage"
+}

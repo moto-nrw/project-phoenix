@@ -1,0 +1,34 @@
+{
+  "codes": [
+    {
+      "code": "school.no_school_portal_role",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "no_school_portal_role"
+    },
+    {
+      "code": "school.setup_completed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school_setup_completed"
+    },
+    {
+      "code": "school.setup_incomplete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school_setup_incomplete"
+    },
+    {
+      "code": "school.parent_conference_slot_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school.parent_conference_slot_taken"
+    },
+    {
+      "code": "school.parent_conference_change_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school.parent_conference_change_closed"
+    }
+  ]
+}

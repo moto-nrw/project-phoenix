@@ -14,7 +14,7 @@ import {
   blockTintStyle,
 } from "~/components/timetable/block-row-parts";
 import { Alert } from "~/components/ui/alert";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { blockTimeRange } from "~/lib/block-children";
@@ -29,6 +29,13 @@ import type {
   PlannedTimetableInstance,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { childrenConcept } from "~/lib/concepts/children";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { substitutionConcept } from "~/lib/concepts/substitution";
+import { responsibilityConcept } from "~/lib/concepts/responsibility";
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
@@ -110,7 +117,7 @@ export function PlannedNowSection({
             </p>
           </div>
           <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
-            <MotoConceptIcon concept="carePlan" size={18} />
+            <MotoConceptIcon concept={carePlanConcept} size={18} />
             Heute
           </span>
         </div>
@@ -164,7 +171,7 @@ export function PlannedNowSection({
           aria-expanded={isSectionExpanded}
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoConceptIcon concept="carePlan" size={20} />
+            <MotoConceptIcon concept={carePlanConcept} size={20} />
           </span>
           <span className="min-w-0">
             <span className="block text-base font-semibold text-gray-900">
@@ -181,22 +188,25 @@ export function PlannedNowSection({
         </button>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <SummaryPill
-            concept="carePlan"
+            concept={carePlanConcept}
             label={`${sortedPlanned.length} geplant`}
             tone="info"
           />
           {showTimetableCounts && (
-            <SummaryPill concept="children" label={`${expectedCount} Kinder`} />
+            <SummaryPill
+              concept={childrenConcept}
+              label={`${expectedCount} Kinder`}
+            />
           )}
           {overdueCount > 0 ? (
             <SummaryPill
-              concept="emergency"
+              concept={emergencyConcept}
               label={`${overdueCount} überfällig`}
               tone="warning"
             />
           ) : soonCount > 0 ? (
             <SummaryPill
-              concept="careTimes"
+              concept={careTimesConcept}
               label={`${soonCount} startet gleich`}
               tone="success"
             />
@@ -236,12 +246,15 @@ export function PlannedNowSection({
                         </div>
                         <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                           <span className="inline-flex items-center gap-1.5">
-                            <MotoConceptIcon concept="careTimes" size={16} />
+                            <MotoConceptIcon
+                              concept={careTimesConcept}
+                              size={16}
+                            />
                             {blockTimeRange(instance)}
                           </span>
                           <span>
                             <MotoConceptIcon
-                              concept="rooms"
+                              concept={roomsConcept}
                               size={14}
                               className="mr-1 inline-block align-[-2px]"
                             />
@@ -311,7 +324,7 @@ export function PlannedNowSection({
                       aria-expanded={isExpanded}
                     >
                       <span className="inline-flex items-center gap-2">
-                        <MotoConceptIcon concept="children" size={18} />
+                        <MotoConceptIcon concept={childrenConcept} size={18} />
                         Kinder
                         <span className="text-xs font-normal text-gray-500">
                           {rosterPreviewLabel(
@@ -407,7 +420,9 @@ function ResponsibilityBadge({
   return (
     <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
       <MotoConceptIcon
-        concept={instance.isPrimary ? "responsibility" : "substitution"}
+        concept={
+          instance.isPrimary ? responsibilityConcept : substitutionConcept
+        }
         size={16}
       />
       {instance.isPrimary ? "Zuständig" : "Vertretung"}
@@ -443,7 +458,7 @@ function SummaryPill({
   label,
   tone = "neutral",
 }: Readonly<{
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   label: string;
   tone?: "neutral" | "info" | "success" | "warning";
 }>) {

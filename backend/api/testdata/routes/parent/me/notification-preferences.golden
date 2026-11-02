@@ -1,0 +1,3 @@
+DELETE /parent/me/notification-preferences/
+GET /parent/me/notification-preferences/
+PUT /parent/me/notification-preferences/{type}

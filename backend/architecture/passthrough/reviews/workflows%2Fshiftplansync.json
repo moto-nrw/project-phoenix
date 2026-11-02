@@ -1,0 +1,29 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.CreateAbsenceFor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.CreateOwnAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.DeleteAbsenceFor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.DeleteOwnAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "workflows/shiftplansync/SickReports.UpdateAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

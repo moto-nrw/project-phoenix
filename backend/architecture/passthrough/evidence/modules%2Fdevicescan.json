@@ -1,0 +1,256 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (c activityCatalog) CreateActivity(ctx context.Context, input devicescan.NewActivity) (devicescan.Activity, error) {\n\tcreated, err := c.activities.CreateCatalogGroup(ctx, timetable.GroupInput{Name: input.Name, MaxParticipants: input.MaxParticipants, IsOpen: input.IsOpen, CategoryID: input.CategoryID, PlannedRoomID: input.PlannedRoomID, IsSystem: input.IsSystem})\n\tif err != nil {\n\t\treturn devicescan.Activity{}, err\n\t}\n\treturn *activityFromGroup(\u0026created), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/activityCatalog.CreateActivity",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c activityCatalog) CreateCategory(ctx context.Context, input devicescan.NewCategory) (devicescan.Category, error) {\n\tcreated, err := c.activities.CreateCatalogCategory(ctx, timetable.CreateCategory{Name: input.Name, Description: input.Description, Color: input.Color, IsSystem: input.IsSystem})\n\tif err != nil {\n\t\treturn devicescan.Category{}, err\n\t}\n\treturn devicescan.Category{ID: created.ID, Name: created.Name}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/activityCatalog.CreateCategory",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c activityCatalog) Find(ctx context.Context, id int64) (*devicescan.Activity, error) {\n\tgroup, err := c.activities.FindCatalogGroup(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn activityFromGroup(group), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/activityCatalog.Find",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c activityCatalog) ListByName(ctx context.Context, name string) ([]devicescan.Activity, error) {\n\tgroups, err := c.activities.ListCatalogGroups(ctx, name)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]devicescan.Activity, 0, len(groups))\n\tfor _, group := range groups {\n\t\tif activity := activityFromGroup(\u0026group); activity != nil {\n\t\t\tresult = append(result, *activity)\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/activityCatalog.ListByName",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c activityCatalog) ListCategories(ctx context.Context) ([]devicescan.Category, error) {\n\tcategories, err := c.activities.ListCatalogCategories(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]devicescan.Category, 0, len(categories))\n\tfor _, category := range categories {\n\t\tresult = append(result, devicescan.Category{ID: category.ID, Name: category.Name})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/activityCatalog.ListCategories",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m mirrorTimetable) ActivityTitle(ctx context.Context, activityID int64) (string, error) {\n\tif m.activities == nil {\n\t\treturn \"\", nil\n\t}\n\tgroup, err := m.activities.FindCatalogGroup(ctx, activityID)\n\tif group == nil {\n\t\treturn \"\", err\n\t}\n\treturn group.Name, err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/mirrorTimetable.ActivityTitle",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m mirrorTimetable) HasInstance(ctx context.Context, sessionID int64) (bool, error) {\n\tinstance, err := m.records.FindSessionInstance(ctx, sessionID)\n\treturn instance != nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/mirrorTimetable.HasInstance",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *SessionActivityRequest) Bind(_ *http.Request) error {\n\tif err := validation.ValidateStruct(req, validation.Field(\u0026req.ActivityType, validation.Required, validation.In(\"rfid_scan\", \"button_press\", \"ui_interaction\"))); err != nil {\n\t\treturn err\n\t}\n\tif req.Timestamp.IsZero() {\n\t\treq.Timestamp = time.Now()\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/http/sessions/SessionActivityRequest.Bind",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Status(ctx context.Context) (*devicescan.DeviceStatus, error) {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026devicescan.DeviceStatus{Device: publicDevice(device), IsOnline: s.fleet.IsDeviceOnline(ctx, devicefleet.Device{LastSeen: device.LastSeen}), AuthenticatedAt: s.now()}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/Service.Status",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e mappedScanError) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicescan/internal/application/mappedScanError.Error",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q schoolNameQuery) DeviceSchoolName(ctx context.Context) (string, error) {\n\tdevice, ok := q.principals.Device(ctx)\n\tif !ok || device == nil {\n\t\treturn \"\", devicescan.ErrDeviceUnauthorized\n\t}\n\treturn q.lookup(ctx, device.TenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/schoolNameQuery.DeviceSchoolName",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *sessionLifecycle) CheckSessionConflict(ctx context.Context, activityID int64) (devicescan.ConflictInfoResponse, error) {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn devicescan.ConflictInfoResponse{}, err\n\t}\n\tinfo, err := s.store.Conflict(ctx, activityID, device.ID)\n\tif err != nil {\n\t\treturn info, classifyPresenceFailure(err)\n\t}\n\treturn info, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/sessionLifecycle.CheckSessionConflict",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *sessionLifecycle) SessionTimeoutInfo(ctx context.Context) (devicescan.SessionTimeoutInfoResponse, error) {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn devicescan.SessionTimeoutInfoResponse{}, err\n\t}\n\tinfo, err := s.store.TimeoutInfo(ctx, device.ID)\n\tif err != nil {\n\t\treturn info, classifyPresenceFailure(err)\n\t}\n\treturn info, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/sessionLifecycle.SessionTimeoutInfo",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *sessionLifecycle) SessionToEnd(ctx context.Context) (devicescan.SessionToEnd, error) {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn devicescan.SessionToEnd{}, err\n\t}\n\tgroup, err := s.store.Current(ctx, device.ID)\n\tif err != nil \u0026\u0026 !errors.Is(err, ports.ErrLifecycleSessionAbsent) {\n\t\treturn devicescan.SessionToEnd{}, classifyPresenceFailure(err)\n\t}\n\tif group == nil {\n\t\treturn devicescan.SessionToEnd{}, devicescan.InvalidRequestWithCode(\"no active session to end\", devicescan.CodeNoSessionToEnd)\n\t}\n\treturn devicescan.SessionToEnd{ID: group.ID, ActivityID: group.ActivityID, DeviceID: device.ID, StartTime: group.StartTime}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/sessionLifecycle.SessionToEnd",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *sessionLifecycle) TimeoutSession(ctx context.Context) (devicescan.SessionTimeoutResponse, error) {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn devicescan.SessionTimeoutResponse{}, err\n\t}\n\tresult, err := s.store.Timeout(ctx, device.ID)\n\tif err != nil {\n\t\treturn result, classifyPresenceFailure(err)\n\t}\n\tresult.Status = \"completed\"\n\tresult.Message = fmt.Sprintf(\"Session ended due to timeout. %d students checked out.\", result.StudentsCheckedOut)\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/sessionLifecycle.TimeoutSession",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *sessionLifecycle) ValidateTimeout(ctx context.Context, minutes int) error {\n\tdevice, err := s.device(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := s.store.ValidateTimeout(ctx, device.ID, minutes); err != nil {\n\t\treturn classifyPresenceFailure(err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicescan/internal/application/sessionLifecycle.ValidateTimeout",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *SessionStartConflict) Error() string {\n\treturn e.Cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicescan/ports/SessionStartConflict.Error",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a attendance) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (string, error) {\n\tresult, err := a.active.ConfirmDailyCheckout(ctx, studentID, deviceID, destination)\n\tif err != nil {\n\t\tif errors.Is(err, studentpresence.ErrNoAttendanceRecordForCheckout) {\n\t\t\treturn \"\", mapError(err, ports.ErrNoAttendanceRecord)\n\t\t}\n\t\treturn \"\", classifyPresence(err)\n\t}\n\treturn result.Action, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/attendance.ConfirmDailyCheckout",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a attendance) Status(ctx context.Context, studentID int64) (*ports.AttendanceState, error) {\n\tstatus, err := a.active.GetStudentAttendanceStatus(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026ports.AttendanceState{Status: status.Status, Date: status.Date, CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime, CheckedInBy: status.CheckedInBy, CheckedOutBy: status.CheckedOutBy}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/attendance.Status",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a attendance) Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error) {\n\tresult, err := a.active.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, skipAuthCheck)\n\tif err != nil {\n\t\treturn \"\", classifyPresence(err)\n\t}\n\treturn result.Action, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/attendance.Toggle",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g groupDirectory) Find(ctx context.Context, id int64) (*ports.Group, error) {\n\tgroup, err := g.education.GetGroup(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif group == nil {\n\t\treturn nil, nil\n\t}\n\treturn \u0026ports.Group{ID: group.ID, Name: group.Name, RoomID: group.RoomID}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/groupDirectory.Find",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) Conflict(ctx context.Context, activityID, deviceID int64) (devicescan.ConflictInfoResponse, error) {\n\tinfo, err := s.active.CheckActivityConflict(ctx, activityID, deviceID)\n\tif err != nil {\n\t\treturn devicescan.ConflictInfoResponse{}, classifyPresence(err)\n\t}\n\tresult := devicescan.ConflictInfoResponse{HasConflict: info.HasConflict, ConflictMessage: info.ConflictMessage, CanOverride: info.CanOverride}\n\tif info.ConflictingDevice != nil {\n\t\tif id, parseErr := strconv.ParseInt(*info.ConflictingDevice, 10, 64); parseErr == nil {\n\t\t\tresult.ConflictingDevice = \u0026id\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.Conflict",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) ReplaceSupervisors(ctx context.Context, sessionID int64, ids []int64) (ports.LifecycleSession, error) {\n\tgroup, err := s.active.UpdateActiveGroupSupervisors(ctx, sessionID, ids)\n\treturn lifecycleSession(group), classifyPresence(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.ReplaceSupervisors",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) Timeout(ctx context.Context, deviceID int64) (devicescan.SessionTimeoutResponse, error) {\n\tresult, err := s.active.ProcessSessionTimeout(ctx, deviceID)\n\tif err != nil {\n\t\tclassified := classifyPresence(err)\n\t\tif errors.Is(err, studentpresence.ErrNoActiveSession) {\n\t\t\tclassified = mapError(classified, ports.ErrNoActiveSession)\n\t\t}\n\t\treturn devicescan.SessionTimeoutResponse{}, classified\n\t}\n\treturn devicescan.SessionTimeoutResponse{SessionID: result.SessionID, ActivityID: result.ActivityID, StudentsCheckedOut: result.StudentsCheckedOut, TimeoutAt: result.TimeoutAt}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.Timeout",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) TimeoutInfo(ctx context.Context, deviceID int64) (devicescan.SessionTimeoutInfoResponse, error) {\n\tinfo, err := s.active.GetSessionTimeoutInfo(ctx, deviceID)\n\tif err != nil {\n\t\treturn devicescan.SessionTimeoutInfoResponse{}, classifyPresence(err)\n\t}\n\treturn devicescan.SessionTimeoutInfoResponse{SessionID: info.SessionID, ActivityID: info.ActivityID, StartTime: info.StartTime, LastActivity: info.LastActivity, TimeoutMinutes: info.TimeoutMinutes, InactivitySeconds: int(info.InactivityDuration.Seconds()), TimeUntilTimeoutSeconds: int(info.TimeUntilTimeout.Seconds()), IsTimedOut: info.IsTimedOut, ActiveStudentCount: info.ActiveStudentCount}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.TimeoutInfo",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) Touch(ctx context.Context, sessionID int64) error {\n\treturn classifyPresence(s.active.UpdateSessionActivity(ctx, sessionID))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.Touch",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s lifecycleStore) ValidateTimeout(ctx context.Context, deviceID int64, minutes int) error {\n\treturn classifyPresence(s.active.ValidateSessionTimeout(ctx, deviceID, minutes))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/lifecycleStore.ValidateTimeout",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e mappedError) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "forward-debt",
+      "id": "roots/devicescanbinding/mappedError.Error",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p pickupPlan) Effective(ctx context.Context, studentID int64, day calendar.Date) (*ports.Pickup, error) {\n\teffective, err := p.pickups.GetEffectivePickupTimeForDate(ctx, studentID, day)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif effective == nil {\n\t\treturn nil, nil\n\t}\n\tpickup := \u0026ports.Pickup{Time: effective.PickupTime, Notes: effective.Notes}\n\tfor _, note := range effective.DayNotes {\n\t\tpickup.DayNotes = append(pickup.DayNotes, note.Content)\n\t}\n\treturn pickup, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/pickupPlan.Effective",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) Current(ctx context.Context, deviceID int64) (*devicescan.Session, error) {\n\tgroup, err := s.active.GetDeviceCurrentSession(ctx, deviceID)\n\tif err != nil {\n\t\tif errors.Is(err, studentpresence.ErrNoActiveSession) {\n\t\t\treturn nil, nil\n\t\t}\n\t\treturn nil, err\n\t}\n\tif group == nil {\n\t\treturn nil, nil\n\t}\n\tsession := sessionFromGroup(group)\n\treturn \u0026session, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.Current",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) End(ctx context.Context, sessionID int64) error {\n\terr := s.active.EndActiveGroupSession(ctx, sessionID)\n\tif err != nil \u0026\u0026 !errors.Is(err, studentpresence.ErrGroupAlreadyEnded) {\n\t\treturn err\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.End",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) EnsureRoomSession(ctx context.Context, input devicescan.NewSession) (devicescan.Session, error) {\n\tgroup, err := s.active.EnsureOpenRoomSession(ctx, input.RoomID, input.ActivityID)\n\tif err != nil {\n\t\treturn devicescan.Session{}, err\n\t}\n\treturn sessionFromGroup(group), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.EnsureRoomSession",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) FindDeviceSessionInRoom(ctx context.Context, roomID, deviceID int64) (*devicescan.Session, error) {\n\tgroup, err := s.active.FindDeviceActiveGroupInRoom(ctx, roomID, deviceID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif group == nil {\n\t\treturn nil, nil\n\t}\n\tsession := sessionFromGroup(group)\n\treturn \u0026session, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.FindDeviceSessionInRoom",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) ListOpenInRoom(ctx context.Context, roomID int64) ([]devicescan.Session, error) {\n\tgroups, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: \u0026roomID, OpenOnly: true})\n\tif err != nil {\n\t\treturn nil, \u0026studentpresence.OperationError{Op: \"FindActiveGroupsByRoomID\", Err: fmt.Errorf(\"find by room: %w\", err)}\n\t}\n\tresult := make([]devicescan.Session, 0, len(groups))\n\tfor _, group := range groups {\n\t\tresult = append(result, devicescan.Session{ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime, DeviceID: group.DeviceID, TemplateID: group.ActivityGroupID})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.ListOpenInRoom",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s sessions) ReplaceSupervisors(ctx context.Context, sessionID int64, staffIDs []int64) error {\n\t_, err := s.active.UpdateActiveGroupSupervisors(ctx, sessionID, staffIDs)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/sessions.ReplaceSupervisors",
+      "owner": "modules/devicescan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]devicescan.Supervision, error) {\n\ttoday := calendar.TodayDate()\n\tday := today.String()\n\trows, err := q.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: \u0026day})\n\tif err != nil {\n\t\treturn nil, \u0026studentpresence.OperationError{Op: \"FindSupervisorsByActiveGroupID\", Err: studentpresence.ErrDatabaseOperation}\n\t}\n\tresult := make([]devicescan.Supervision, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, devicescan.Supervision{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today.String())})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/devicescanbinding/supervisionQuery.ActiveSupervisions",
+      "owner": "modules/devicescan"
+    }
+  ]
+}

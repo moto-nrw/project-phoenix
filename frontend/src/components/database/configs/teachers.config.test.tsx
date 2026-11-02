@@ -338,15 +338,31 @@ describe("teachersConfig", () => {
       last_name: "Teacher",
     } as Teacher);
 
-    const result = await teachersConfig.service!.update!("7", {
-      first_name: "Updated",
+    const current: Teacher = {
+      id: "7",
+      name: "Original Teacher",
+      first_name: "Original",
       last_name: "Teacher",
-    });
+      person_id: "9007199254740993",
+      is_teacher: false,
+    };
+    const result = await teachersConfig.service!.update!(
+      "7",
+      {
+        first_name: "Updated",
+        last_name: "Teacher",
+      },
+      current,
+    );
 
-    expect(mockedUpdate).toHaveBeenCalledWith("7", {
-      first_name: "Updated",
-      last_name: "Teacher",
-    });
+    expect(mockedUpdate).toHaveBeenCalledWith(
+      "7",
+      {
+        first_name: "Updated",
+        last_name: "Teacher",
+      },
+      current,
+    );
     expect(result).toMatchObject({
       id: "7",
       first_name: "Updated",

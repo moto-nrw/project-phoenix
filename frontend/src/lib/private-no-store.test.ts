@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { withPrivateNoStore } from "./private-no-store";
+import {
+  withPrivateDownloadNoStore,
+  withPrivateNoStore,
+} from "./private-no-store";
 
 describe("withPrivateNoStore (#4999)", () => {
   it("marks a JSON answer and keeps its status and cookies", async () => {
@@ -44,4 +47,77 @@ describe("withPrivateNoStore (#4999)", () => {
     );
     expect((await file()).headers.has("Cache-Control")).toBe(false);
   });
+});
+
+describe("withPrivateDownloadNoStore (#5119)", () => {
+  it("keeps status, filename, length, cookies and the unread stream", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([0, 255]));
+        controller.close();
+      },
+    });
+    const original = new Response(stream, {
+      status: 206,
+      headers: {
+        "Content-Type": "image/png",
+        "Content-Disposition": 'attachment; filename="private.png"',
+        "Content-Length": "2",
+        "Cache-Control": "public, max-age=60",
+        "Set-Cookie": "session=rotated; Path=/; HttpOnly",
+      },
+    });
+    const response = await withPrivateDownloadNoStore(() => original)();
+    expect(response).toBe(original);
+    expect(response.status).toBe(206);
+    expect(response.body).toBe(stream);
+    expect(response.bodyUsed).toBe(false);
+    expect(Object.fromEntries(response.headers)).toMatchObject({
+      "cache-control": "private, no-store",
+      "content-type": "image/png",
+      "content-disposition": 'attachment; filename="private.png"',
+      "content-length": "2",
+      "set-cookie": "session=rotated; Path=/; HttpOnly",
+    });
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new Uint8Array([0, 255]),
+    );
+  });
+
+  it("copies immutable headers without reading the body", async () => {
+    const original = new Response(new Uint8Array([1, 2]), {
+      headers: { "Content-Type": "application/pdf" },
+    });
+    // The fetch header guard rejects writes; exercise that branch without I/O.
+    Object.defineProperty(original.headers, "set", {
+      value: () => {
+        throw new TypeError("immutable");
+      },
+    });
+    const response = await withPrivateDownloadNoStore(() => original)();
+    expect(response.status).toBe(200);
+    expect(response.body).toBe(original.body);
+    expect(response.bodyUsed).toBe(false);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("Content-Type")).toBe("application/pdf");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2]),
+    );
+  });
+
+  it.each(["image/png", "text/calendar", "text/event-stream"])(
+    "leaves ordinary %s responses outside the download policy",
+    async (contentType) => {
+      const original = new Response("resource", {
+        headers: {
+          "Content-Type": contentType,
+          "Cache-Control": "private, max-age=60",
+        },
+      });
+      const response = await withPrivateNoStore(() => original)();
+      expect(response).toBe(original);
+      expect(response.headers.get("Cache-Control")).toBe("private, max-age=60");
+      expect(await response.text()).toBe("resource");
+    },
+  );
 });

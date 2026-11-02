@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.templates.roster_deviations",
+  "max": 16,
+  "exact": false,
+  "description": "modules/timetable — GET /api/timetable/templates/roster-deviations\n(#5103): the period's template list with its indicator reads, then the\nfuture rosters (schedules, enrollment rows, alumni, targets and target\nmembers) in one batch. Care Plan's booking read is stubbed here and\nbudgeted as services.enrollment.offering_weekday_bookings.reads. Flat\nfrom 3 to 8 Regeltermine."
+}

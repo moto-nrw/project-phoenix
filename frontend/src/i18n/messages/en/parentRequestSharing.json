@@ -1,0 +1,16 @@
+{
+  "button": "Share request",
+  "title": "Share request with others",
+  "privacyHint": "Only selected guardians can see your request and the school's reply.",
+  "recipientLegend": "Share request (optional)",
+  "protected": "This request stays private. The school has enabled family protection.",
+  "noRecipients": "There are no other guardians with access to the parents app.",
+  "loading": "Loading recipients …",
+  "save": "Save selection",
+  "saving": "Saving …",
+  "cancel": "Cancel",
+  "close": "Close window",
+  "errorObjectRecipients": "the list of recipients",
+  "errorObjectSelection": "the selection",
+  "optionsHint": "You can still send the request and share it later."
+}

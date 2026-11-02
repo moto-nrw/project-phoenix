@@ -10,6 +10,8 @@ import { renderHook } from "@testing-library/react";
 
 const mockMutate = vi.fn();
 const mockUseSession = vi.fn();
+// Stable like SWR's own cache; empty, so only the mutate calls count.
+const mockCache = new Map();
 
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
@@ -17,6 +19,15 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("swr", () => ({
   mutate: (...args: unknown[]) => mockMutate(...args),
+  useSWRConfig: () => ({ cache: mockCache }),
+}));
+
+// useTenantMutateMatching invalidates through this one function (#5006);
+// its key predicate is the contract checked below.
+const mockInvalidate = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+vi.mock("~/lib/swr/scope", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr/scope")>()),
+  invalidateSWRKeys: (...args: unknown[]) => mockInvalidate(...args),
 }));
 
 const subscribers: Array<() => void> = [];
@@ -50,7 +61,9 @@ describe("useSettingsCacheBridge", () => {
     expect(subscribers).toHaveLength(1);
     subscribers[0]!();
 
-    expect(mockMutate).toHaveBeenCalledWith("test-tenant:settings-schema");
+    expect(mockMutate).toHaveBeenCalledWith(
+      "test-tenant:account-7:settings-schema",
+    );
   });
 
   it("revalidates only the active account's effective request access", () => {
@@ -59,29 +72,37 @@ describe("useSettingsCacheBridge", () => {
     subscribers[0]!();
 
     expect(mockMutate).toHaveBeenCalledWith(
-      "test-tenant:change-request-access:account-7",
+      "test-tenant:account-7:change-request-access:account-7",
     );
     expect(mockMutate).not.toHaveBeenCalledWith(
-      "test-tenant:change-request-access:account-8",
+      "test-tenant:account-7:change-request-access:account-8",
     );
-    const predicates = mockMutate.mock.calls
-      .map(([key]) => key)
-      .filter(
-        (key): key is (value: unknown) => boolean => typeof key === "function",
-      );
+    const predicates = mockInvalidate.mock.calls.map(
+      ([, matches]) => matches as (key: string) => boolean,
+    );
     expect(predicates).toHaveLength(1);
     const matches = predicates[0]!;
-    expect(matches("test-tenant:student-detail-42")).toBe(true);
-    expect(matches("test-tenant:timetable-roster-23")).toBe(true);
-    expect(matches("test-tenant:timetable-day-2026-09-12")).toBe(true);
-    expect(matches("test-tenant:timetable-week-2026-09-07")).toBe(true);
-    expect(matches("test-tenant:active-supervision-dashboard-23")).toBe(true);
-    expect(matches("test-tenant:home-day-flow")).toBe(true);
-    expect(matches("other-tenant:home-day-flow")).toBe(false);
-    expect(matches("other-tenant:student-detail-42")).toBe(false);
-    expect(matches("other-tenant:timetable-roster-23")).toBe(false);
-    expect(matches("test-tenant:change-request-access:account-8")).toBe(false);
-    expect(matches("test-tenant:staff-detail-42")).toBe(false);
+    expect(matches("test-tenant:account-7:student-detail-42")).toBe(true);
+    expect(matches("test-tenant:account-7:timetable-roster-23")).toBe(true);
+    expect(matches("test-tenant:account-7:timetable-day-2026-09-12")).toBe(
+      true,
+    );
+    expect(matches("test-tenant:account-7:timetable-week-2026-09-07")).toBe(
+      true,
+    );
+    expect(
+      matches("test-tenant:account-7:active-supervision-dashboard-23"),
+    ).toBe(true);
+    expect(matches("test-tenant:account-7:home-day-flow")).toBe(true);
+    expect(matches("other-tenant:account-7:home-day-flow")).toBe(false);
+    expect(matches("other-tenant:account-7:student-detail-42")).toBe(false);
+    expect(matches("other-tenant:account-7:timetable-roster-23")).toBe(false);
+    expect(
+      matches("test-tenant:account-7:change-request-access:account-8"),
+    ).toBe(false);
+    // Another account of the same school keeps its entries (#5006).
+    expect(matches("test-tenant:account-8:student-detail-42")).toBe(false);
+    expect(matches("test-tenant:account-7:staff-detail-42")).toBe(false);
   });
 
   it("switches access invalidation to the current account", () => {
@@ -95,10 +116,10 @@ describe("useSettingsCacheBridge", () => {
     subscribers.at(-1)!();
 
     expect(mockMutate).toHaveBeenCalledWith(
-      "test-tenant:change-request-access:account-8",
+      "test-tenant:account-8:change-request-access:account-8",
     );
     expect(mockMutate).not.toHaveBeenCalledWith(
-      "test-tenant:change-request-access:account-7",
+      "test-tenant:account-7:change-request-access:account-7",
     );
   });
 
@@ -107,7 +128,9 @@ describe("useSettingsCacheBridge", () => {
 
     window.dispatchEvent(new Event("phoenix:tenant-settings-stale"));
 
-    expect(mockMutate).toHaveBeenCalledWith("test-tenant:settings-schema");
+    expect(mockMutate).toHaveBeenCalledWith(
+      "test-tenant:account-7:settings-schema",
+    );
   });
 
   it("refreshes open request queues and their counts after a policy change", () => {

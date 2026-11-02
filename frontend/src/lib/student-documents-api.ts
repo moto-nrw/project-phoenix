@@ -5,6 +5,11 @@
 // caller may see plus the caller's visible categories.
 
 import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
+import {
+  mapAccidentReport,
+  type AccidentReportDetails,
+  type BackendAccidentReport,
+} from "./student-accident-reports-api";
 import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
@@ -25,6 +30,9 @@ export interface StudentDocument {
   contentType: string;
   uploadedAt: string;
   sensitive: boolean;
+  /** False for an accident report without a paper copy (#4771). */
+  hasFile: boolean;
+  accidentReport: AccidentReportDetails | null;
 }
 
 export interface StudentDocumentList {
@@ -42,6 +50,8 @@ interface BackendStudentDocument {
   content_type: string;
   uploaded_at: string;
   sensitive: boolean;
+  has_file: boolean;
+  accident_report?: BackendAccidentReport;
 }
 
 interface BackendStudentDocumentCategory {
@@ -67,6 +77,10 @@ function mapDocument(data: BackendStudentDocument): StudentDocument {
     contentType: data.content_type,
     uploadedAt: data.uploaded_at,
     sensitive: data.sensitive,
+    hasFile: data.has_file,
+    accidentReport: data.accident_report
+      ? mapAccidentReport(data.accident_report)
+      : null,
   };
 }
 

@@ -73,6 +73,7 @@ import {
   respondParentCalendar,
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "ParentCalendarPage" });
 const MAX_CALENDAR_WINDOW_OFFSET = 91;
@@ -999,7 +1000,7 @@ function CalendarEventDetails({
           />
           {event.student_name ? (
             <DetailRow
-              icon={<MotoConceptIcon concept="children" size={16} />}
+              icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
               label={t("forChild", { name: event.student_name })}
             />
           ) : null}

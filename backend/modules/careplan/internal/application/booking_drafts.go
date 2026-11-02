@@ -28,7 +28,8 @@ type careEnrollmentDraft struct {
 	// scheduleValidFrom/Until bound the draft's rows to the template segment's
 	// recurrence envelope (#2147 review): a split predecessor must not receive
 	// rows covering dates after its capped valid_until, nor a successor rows
-	// before its start. Only the sourced-template feed sets them; the legacy
+	// before its start. They also stop at the phase's overlap with the
+	// template's period. Only the sourced-template feed sets them; the legacy
 	// ActivityGroupID feed keeps its pre-#2137 phase-wide rows (nil = open).
 	scheduleValidFrom  *calendar.Date
 	scheduleValidUntil *calendar.Date
@@ -244,11 +245,11 @@ func (m *BookingMaterialization) addSourcedTemplateDrafts(
 			multiSource[tmpl.ID] = tmpl
 			continue
 		}
-		segment, ok := m.sourcedTemplateSegment(ctx, tmpl, feed, sources.schedules[tmpl.ID])
+		segment, phase, ok := m.sourcedTemplateSegment(ctx, tmpl, feed, sources.schedules[tmpl.ID])
 		if !ok {
 			continue
 		}
-		if err := addSourcedSegmentDraft(drafts, segment, sources.schedules[tmpl.ID], feed, days); err != nil {
+		if err := addSourcedSegmentDraft(drafts, segment, sources.schedules[tmpl.ID], feed, phase, days); err != nil {
 			return err
 		}
 	}
@@ -256,28 +257,42 @@ func (m *BookingMaterialization) addSourcedTemplateDrafts(
 }
 
 // sourcedTemplateSegment resolves a single-source template into the segment
-// the feed drafts on. ok is false for a template the approval skips.
+// the feed drafts on and the feed's phase clipped to the template's period,
+// as every resync clips it. ok is false for a template the approval skips.
 func (m *BookingMaterialization) sourcedTemplateSegment(
 	ctx context.Context,
 	tmpl ports.SourcedTemplate,
 	feed sourcedDraftFeed,
 	schedules []careplan.LinkedSchedule,
-) (careplan.LinkedSegment, bool) {
+) (careplan.LinkedSegment, careplan.OfferingPhase, bool) {
 	if len(schedules) == 0 || !careplan.SchedulesOverlapPhase(schedules, feed.phase) {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "no schedule overlaps the enrollment phase", nil)
-		return careplan.LinkedSegment{}, false
+		return careplan.LinkedSegment{}, careplan.OfferingPhase{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	period, err := m.catalog.ResolveTemplatePeriod(ctx, group)
+	// The phase is checked against the template's own period and the rows
+	// carry the period the instances materialize under (sourcedRowPeriodID),
+	// both exactly as every resync does. A template whose schedules name no
+	// period or different periods must not be skipped here, or a correction
+	// deletes rows it never re-creates (#5114, #5153, #5176).
+	checked, err := m.catalog.offeringSourcePeriod(ctx, group.CalendarPeriodID)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
-		return careplan.LinkedSegment{}, false
+		return careplan.LinkedSegment{}, careplan.OfferingPhase{}, false
 	}
-	if err := careplan.ValidatePhaseWithinPeriod(feed.phase, &period); err != nil {
-		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
-		return careplan.LinkedSegment{}, false
+	phase, err := careplan.ClipPhaseToPeriod(feed.phase, checked)
+	if err != nil {
+		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase does not overlap template period", err)
+		return careplan.LinkedSegment{}, careplan.OfferingPhase{}, false
 	}
-	return careplan.LinkedSegment{Group: group, Period: &period, Schedules: schedules}, true
+	period := checked
+	if rowPeriodID := sourcedRowPeriodID(group.CalendarPeriodID, schedules); !sameOptionalInt64(rowPeriodID, group.CalendarPeriodID) {
+		if period, err = m.catalog.offeringSourcePeriod(ctx, rowPeriodID); err != nil {
+			m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
+			return careplan.LinkedSegment{}, careplan.OfferingPhase{}, false
+		}
+	}
+	return careplan.LinkedSegment{Group: group, Period: period, Schedules: schedules}, phase, true
 }
 
 func addSourcedSegmentDraft(
@@ -285,6 +300,7 @@ func addSourcedSegmentDraft(
 	segment careplan.LinkedSegment,
 	schedules []careplan.LinkedSchedule,
 	feed sourcedDraftFeed,
+	phase careplan.OfferingPhase,
 	days []string,
 ) error {
 	templateID := segment.Group.ID
@@ -308,7 +324,8 @@ func addSourcedSegmentDraft(
 	// the same way: a link ending mid-phase must not plan the child after
 	// leaving the offering.
 	draft := drafts[templateID]
-	draft.scheduleValidFrom, draft.scheduleValidUntil = scheduleValidityBounds(schedules)
+	envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
+	draft.scheduleValidFrom, draft.scheduleValidUntil = clipBoundsToPhase(envelopeFrom, envelopeUntil, phase)
 	draft.linkValidFrom = cloneOptionalDate(feed.link.ValidFrom)
 	draft.linkValidUntil = cloneOptionalDate(feed.link.ValidUntil)
 	return nil
@@ -447,4 +464,19 @@ func sourceClassFilterMatches(classes []string, schoolClass string) bool {
 		}
 	}
 	return false
+}
+
+// clipBoundsToPhase narrows a segment's schedule envelope (from inclusive,
+// until exclusive, nil open) to the phase window clipped to the template's
+// period, so an approval row stops where the period does, as a resync row
+// does.
+func clipBoundsToPhase(from, until *calendar.Date, phase careplan.OfferingPhase) (*calendar.Date, *calendar.Date) {
+	start, end := phase.ServiceStart, phase.ServiceEnd.AddDays(1)
+	if from == nil || from.Before(start) {
+		from = &start
+	}
+	if until == nil || until.After(end) {
+		until = &end
+	}
+	return from, until
 }

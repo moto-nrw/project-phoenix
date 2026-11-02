@@ -3,6 +3,7 @@
 import type { DashboardRoomOccupancy } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 interface RoomOccupancyPanelProps {
   readonly rooms: DashboardRoomOccupancy[];
@@ -32,7 +33,7 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
     <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <ConceptIconTile concept="rooms" variant="display" />
+          <ConceptIconTile concept={roomsConcept} variant="display" />
           <h2 className="text-3xl font-bold text-gray-900">Räume</h2>
         </div>
         {totals && (

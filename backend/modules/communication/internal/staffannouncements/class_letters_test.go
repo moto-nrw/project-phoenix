@@ -8,6 +8,7 @@ import (
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -175,5 +176,5 @@ func TestClassLetterListQueryBudgetStaysFlat(t *testing.T) {
 	write(3)
 	many := count()
 	assert.Len(t, many, len(few), "the list does not grow with the letters")
-	testpkg.AssertQueryBudget(t, "modules.communication.school_parent_letters.list", many)
+	querybudgets.AssertQueryBudget(t, "modules.communication.school_parent_letters.list", many)
 }

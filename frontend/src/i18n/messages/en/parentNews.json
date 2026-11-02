@@ -1,0 +1,10 @@
+{
+  "kicker": "Post from the OGS",
+  "title": "Letters to parents",
+  "description": "Notices, surveys and important information from your OGS.",
+  "empty": "There are no new letters to parents right now.",
+  "open": "Open",
+  "openLabel": "Open, {count}",
+  "completed": "Completed",
+  "errorObjectList": "the list of letters to parents"
+}

@@ -89,3 +89,23 @@ func TestDerivePrivacyConsentExpiry(t *testing.T) {
 		}
 	})
 }
+
+func TestLatestAcceptedPrivacyConsent(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.October, 29, 12, 0, 0, 0, time.UTC)
+	values := []studentpresence.PrivacyConsent{
+		{Accepted: true, CreatedAt: now.Add(-time.Hour), DataRetentionDays: 12},
+		{Accepted: false, CreatedAt: now.Add(time.Hour), DataRetentionDays: 30},
+		{Accepted: true, CreatedAt: now, DataRetentionDays: 14},
+	}
+	got := studentpresence.LatestAcceptedPrivacyConsent(values)
+	if got == nil || got.DataRetentionDays != 14 {
+		t.Fatalf("latest accepted consent = %+v, want retention 14", got)
+	}
+	if studentpresence.LatestAcceptedPrivacyConsent(values[1:2]) != nil {
+		t.Fatal("refused consent must not become effective")
+	}
+	if studentpresence.LatestAcceptedPrivacyConsent(nil) != nil {
+		t.Fatal("missing consent must have no effective record")
+	}
+}

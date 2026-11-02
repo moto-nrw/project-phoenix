@@ -9,6 +9,11 @@ interface BuildArgs {
   readonly activeTransfersCount: number;
   /** Opens the group transfer modal. */
   readonly onOpenTransfer: () => void;
+  /**
+   * Opens the weekly protocols of the group (#4769). Given only when the
+   * caller sees them: an own or substituted group, or the leadership.
+   */
+  readonly onOpenWeekProtocols?: () => void;
 }
 
 /**
@@ -22,16 +27,18 @@ export function buildGroupOverflowItems({
   canTransfer,
   activeTransfersCount,
   onOpenTransfer,
+  onOpenWeekProtocols,
 }: BuildArgs): OverflowMenuItem[] {
-  if (viaSubstitution || !canTransfer) {
-    return [];
-  }
-
-  return [
-    {
+  const items: OverflowMenuItem[] = [];
+  if (!viaSubstitution && canTransfer) {
+    items.push({
       label: "Gruppe übergeben",
       badge: activeTransfersCount > 0 ? activeTransfersCount : undefined,
       onClick: onOpenTransfer,
-    },
-  ];
+    });
+  }
+  if (onOpenWeekProtocols) {
+    items.push({ label: "Wochenprotokolle", onClick: onOpenWeekProtocols });
+  }
+  return items;
 }

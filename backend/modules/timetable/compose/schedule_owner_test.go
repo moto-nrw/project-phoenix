@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -249,7 +250,7 @@ func TestScheduleListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{group.ID}})
 		require.NoError(t, err)
-		testpkg.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Queries())
 
 		return nil
 	}))

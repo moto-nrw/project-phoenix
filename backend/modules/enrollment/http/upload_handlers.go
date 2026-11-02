@@ -139,7 +139,11 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 		return nil, capability.UploadInput{}, errors.New("cannot measure upload")
 	}
 	phaseID, phaseErr := strconv.ParseInt(strings.TrimSpace(r.FormValue("phase_id")), 10, 64)
-	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) || phaseErr != nil || phaseID <= 0 {
+	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) {
+		common.CloseFile(uploaded.File)
+		return nil, capability.UploadInput{}, enrollmentUploadContentError(uploaded.Filename)
+	}
+	if phaseErr != nil || phaseID <= 0 {
 		common.CloseFile(uploaded.File)
 		return nil, capability.UploadInput{}, &capability.UploadRejection{MaxMB: capability.MaxFileFieldSizeMB}
 	}
@@ -174,9 +178,35 @@ func normalizeUploadContentType(contentType string) string {
 	return contentType
 }
 
+type uploadContentMismatch struct{ filename string }
+
+func (e *uploadContentMismatch) Error() string { return "file content does not match its extension" }
+
+// A valid but unsupported document is a format refusal, not a content mismatch.
+func enrollmentUploadContentError(filename string) error {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".pdf", ".png", ".jpg", ".jpeg":
+		return &uploadContentMismatch{filename: filename}
+	default:
+		return &capability.UploadRejection{MaxMB: capability.MaxFileFieldSizeMB}
+	}
+}
+
 // renderUploadRefusal answers a file the transport refused with the field's
 // upload code and the general size limit.
 func renderUploadRefusal(w http.ResponseWriter, r *http.Request, err error) {
+	if common.IsUploadTypeNotAllowed(err) && r.MultipartForm != nil {
+		if headers := r.MultipartForm.File["file"]; len(headers) > 0 {
+			err = enrollmentUploadContentError(headers[0].Filename)
+		}
+	}
+	var mismatch *uploadContentMismatch
+	errors.As(err, &mismatch)
+	if mismatch != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadContentMismatch,
+			map[string]any{"filename": mismatch.filename}))
+		return
+	}
 	common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 		map[string]any{"max_mb": capability.MaxFileFieldSizeMB}))
 }

@@ -72,8 +72,17 @@ var ErrTraegerAccountNotFound = errors.New("no account with this e-mail address"
 // Träger-Büro the operator acts on.
 var ErrTraegerMemberNotFound = errors.New("account is no member of this Träger-Büro")
 
-// ErrInvalidTraegerRole reports a role outside the Träger roles.
+// ErrInvalidTraegerRole reports a role outside the Träger roles or an empty
+// role set.
 var ErrInvalidTraegerRole = errors.New("invalid Träger role")
+
+// ErrTraegerAlreadyMember reports an invitation for a person who already
+// belongs to the Träger-Büro (#5144).
+var ErrTraegerAlreadyMember = errors.New("the person already belongs to the Träger-Büro")
+
+// ErrTraegerInvalidEmail reports an invitation address that cannot receive
+// mail (#5144).
+var ErrTraegerInvalidEmail = errors.New("invalid e-mail address")
 
 // TraegerAccount is an account at a Träger with its Träger roles, as Identity
 // & Access reports it to the operator listing.
@@ -92,14 +101,35 @@ type TraegerMember struct {
 	ActivatedAt *time.Time `json:"activated_at"`
 }
 
-// AssignTraegerMember is the operator's grant of a Träger membership with a
-// first Träger role (spec #4611 user stories 1 and 2).
+// AssignTraegerMember is the operator's grant of a Träger membership with
+// one or more Träger roles (spec #4611 user stories 1 and 2, #5144).
 type AssignTraegerMember struct {
 	OrganizationID int64
 	Email          string
-	Role           string
+	Roles          []string
 	OperatorID     int64
 	ClientIP       net.IP
+}
+
+// InviteTraegerMember is the operator's invitation into a Träger-Büro (spec
+// #4611 user story 2, #5144): the person gets the Träger-Büro's invitation
+// mail and sets a password at the acceptance, or confirms an existing moto
+// account. No school account is needed.
+type InviteTraegerMember struct {
+	OrganizationID int64
+	Email          string
+	Roles          []string
+	OperatorID     int64
+	ClientIP       net.IP
+}
+
+// TraegerInvitation is an open invitation into a Träger-Büro as the operator
+// sees it after inviting.
+type TraegerInvitation struct {
+	ID        int64     `json:"id"`
+	Email     string    `json:"email"`
+	Roles     []string  `json:"roles"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // ResetTraegerMemberMFA is the operator's reset of the second factor of a
@@ -113,11 +143,12 @@ type ResetTraegerMemberMFA struct {
 	ClientIP       net.IP
 }
 
-// TraegerMemberProvisioning lets the operator see and assign the people of a
-// Träger-Büro and reset their second factor. Each write is recorded in the
-// operator audit.
+// TraegerMemberProvisioning lets the operator see, assign and invite the
+// people of a Träger-Büro and reset their second factor. Each write is
+// recorded in the operator audit.
 type TraegerMemberProvisioning interface {
 	ListTraegerMembers(ctx context.Context, organizationID int64) ([]TraegerMember, error)
 	AssignTraegerMember(ctx context.Context, input AssignTraegerMember) (TraegerMember, error)
+	InviteTraegerMember(ctx context.Context, input InviteTraegerMember) (TraegerInvitation, error)
 	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
 }

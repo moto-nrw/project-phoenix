@@ -42,6 +42,7 @@ func operatorReadTarget(w http.ResponseWriter, r *http.Request, access *organiza
 		organizationtenancy.ReadSchool, organizationtenancy.ReadSchoolAdminInvitation,
 		organizationtenancy.ReadSchoolAccountCreation, organizationtenancy.ReadSchoolSettingsSchema,
 		organizationtenancy.ReadSchoolSettingReveal,
+		organizationtenancy.ReadDemoPresenceHistory,
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadSchoolAccountCaregiver:
 		access.SchoolID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
 		if !ok {

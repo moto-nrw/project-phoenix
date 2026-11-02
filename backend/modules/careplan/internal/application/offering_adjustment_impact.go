@@ -14,8 +14,9 @@ import (
 
 // The roster impact of an adjustment (#5102). The resync rewrites only the
 // rows a booking created; the office learns which Regeltermine followed and
-// which keep the child on a weekday the change took away because staff
-// maintain them by hand.
+// which staff maintain by hand and still keep the child on a weekday the
+// change dropped a booking on, where no remaining booking carries them
+// (#5342), also none of the student's other enrollments (#5366).
 
 // adjustedRosterRows lists the roster rows this request child materialized
 // for its student.
@@ -35,7 +36,8 @@ func (m *BookingMaterialization) adjustedRosterRows(ctx context.Context, work *o
 
 // offeringAdjustmentImpact compares the request child's rows before and
 // after the adjustment and asks Timetable where the child stays planned by
-// hand on the weekdays the change took away.
+// hand on the weekdays the change dropped a booking on, without a remaining
+// booking that carries the Regeltermin.
 func (m *BookingMaterialization) offeringAdjustmentImpact(
 	ctx context.Context, work *offeringAdjustmentWork, before []ports.RosterEnrollment,
 ) (careplan.RosterImpact, error) {
@@ -48,11 +50,14 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	if impact.Adjusted, err = m.adjustedRosterTemplates(ctx, before, after, from); err != nil {
 		return impact, err
 	}
-	lost := lostBookingWeekdays(work)
-	if len(lost) == 0 || m.deps.ManualPlans == nil {
+	change := bookingDayChange(work, from)
+	if len(change.DroppedWeekdays) == 0 || m.deps.ManualPlans == nil {
 		return impact, nil
 	}
-	manual, err := m.deps.ManualPlans.ManualStudentPlan(ctx, *work.child.CreatedStudentID, from, lost)
+	if change.OtherEnrollments, err = m.otherEnrollmentDayBookings(ctx, work, from); err != nil {
+		return impact, err
+	}
+	manual, err := m.deps.ManualPlans.ManualStudentPlan(ctx, *work.child.CreatedStudentID, from, change)
 	if err != nil {
 		return impact, fmt.Errorf("decision: list hand-maintained templates: %w", err)
 	}
@@ -60,19 +65,114 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	return impact, nil
 }
 
-// lostBookingWeekdays are the ISO weekdays on which the change drops more
-// offerings than it newly books. Timetable cannot tell which offering carries
-// a hand-maintained Regeltermin, so a switch (Ganztag "bis 14:30" to "bis 16
-// Uhr" on the same day) offsets the dropped offering and reports nothing,
-// while a Randstunde dropped beside a Ganztag that stays is still a loss.
-func lostBookingWeekdays(work *offeringAdjustmentWork) []int {
+// bookingDayChange summarizes what the change did to the child's weekdays.
+func bookingDayChange(work *offeringAdjustmentWork, from calendar.Date) careplan.BookingDayChange {
+	dropped, netLoss := changedBookingWeekdays(work)
+	return careplan.BookingDayChange{
+		DroppedWeekdays: dropped, NetLossWeekdays: netLoss,
+		Remaining: remainingDayBookings(work.replacement, work.offeringByID, from),
+	}
+}
+
+// otherEnrollmentDayBookings lists, per weekday, the offerings the student
+// books on the date through its other approved request children, which the
+// change leaves as they are (#5366). A student may hold enrollments of
+// several phases at once. A selection counts when it is in force on the
+// date, its phase serves the date and its offering is active; anything else
+// plans no care that could carry a Regeltermin from the date on.
+func (m *BookingMaterialization) otherEnrollmentDayBookings(
+	ctx context.Context, work *offeringAdjustmentWork, from calendar.Date,
+) ([]careplan.RemainingDayBooking, error) {
+	links, err := m.otherEnrollmentLinks(ctx, work, from)
+	if err != nil || len(links) == 0 {
+		return []careplan.RemainingDayBooking{}, err
+	}
+	offerings, err := m.catalog.listByIDs(ctx, bookedOfferingIDs(links))
+	if err != nil {
+		return nil, fmt.Errorf("decision: list the student's other offerings: %w", err)
+	}
+	return remainingDayBookings(links, activeOfferingsByID(offerings), from), nil
+}
+
+// otherEnrollmentLinks lists the selections of the student's other request
+// children that are in force on the date and whose phase serves it.
+func (m *BookingMaterialization) otherEnrollmentLinks(
+	ctx context.Context, work *offeringAdjustmentWork, from calendar.Date,
+) ([]*careplan.BookedOffering, error) {
+	selections, err := m.deps.Enrollment.StudentSelectionsAt(ctx, *work.child.CreatedStudentID, from)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list the student's other bookings: %w", err)
+	}
+	links := make([]*careplan.BookedOffering, 0, len(selections))
+	serves := make(map[int64]bool)
+	for i := range selections {
+		link := &selections[i]
+		if link.RequestChildID == work.child.ID {
+			continue
+		}
+		within, known := serves[link.RequestChildID]
+		if !known {
+			if within, err = m.requestChildServesOn(ctx, link.RequestChildID, from); err != nil {
+				return nil, err
+			}
+			serves[link.RequestChildID] = within
+		}
+		if within {
+			links = append(links, link)
+		}
+	}
+	return links, nil
+}
+
+// activeOfferingsByID keeps the active offerings by id.
+func activeOfferingsByID(offerings []careplan.CareOffering) map[int64]*careplan.CareOffering {
+	byID := offeringsByID(offerings)
+	for id, offering := range byID {
+		if !offering.IsActive {
+			delete(byID, id)
+		}
+	}
+	return byID
+}
+
+// requestChildServesOn reports whether the approved request child's phase
+// serves the date.
+func (m *BookingMaterialization) requestChildServesOn(ctx context.Context, childID int64, on calendar.Date) (bool, error) {
+	child, err := m.deps.Enrollment.Child(ctx, childID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load the student's other request child: %w", err)
+	}
+	if !child.Approved {
+		return false, nil
+	}
+	request, err := m.deps.Enrollment.Request(ctx, child.RequestID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load the student's other request: %w", err)
+	}
+	phase, err := m.deps.Enrollment.Phase(ctx, request.PhaseID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load the student's other phase: %w", err)
+	}
+	return !on.Before(phase.ServiceStart) && !on.After(phase.ServiceEnd), nil
+}
+
+// changedBookingWeekdays names the ISO weekdays on which the change drops an
+// offering the child booked before, and those on which it drops more
+// offerings than it newly books. Whether a hand-maintained Regeltermin on a
+// dropped day lost its booking is Timetable's decision with the remaining
+// bookings and their pickup times (#5342). The net loss decides only where
+// a pickup time or a Regeltermin end is missing: a switch between offerings
+// then offsets the dropped one, as before.
+func changedBookingWeekdays(work *offeringAdjustmentWork) (dropped, netLoss []int) {
 	before := bookedWeekdaysByOffering(work.beforeLinks, work.offeringByID)
 	after := bookedWeekdaysByOffering(work.replacement, work.offeringByID)
 	balance := make(map[int]int)
+	droppedDays := make(map[int]bool)
 	for offeringID, days := range before {
 		for weekday := range days {
 			if !after[offeringID][weekday] {
 				balance[weekday]++
+				droppedDays[weekday] = true
 			}
 		}
 	}
@@ -83,13 +183,42 @@ func lostBookingWeekdays(work *offeringAdjustmentWork) []int {
 			}
 		}
 	}
-	lost := make(map[int]bool)
-	for weekday, dropped := range balance {
-		if dropped > 0 {
-			lost[weekday] = true
+	lostDays := make(map[int]bool)
+	for weekday, count := range balance {
+		if count > 0 {
+			lostDays[weekday] = true
 		}
 	}
-	return sortedISOWeekdays(lost)
+	return sortedISOWeekdays(droppedDays), sortedISOWeekdays(lostDays)
+}
+
+// remainingDayBookings lists, per weekday, the offerings the child books
+// after the change from the date on, with the offering's kind flags and
+// pickup time that day. A link whose days cannot be resolved names no weekday, as in
+// bookedWeekdaysByOffering.
+func remainingDayBookings(links []*careplan.BookedOffering, offerings map[int64]*careplan.CareOffering, from calendar.Date) []careplan.RemainingDayBooking {
+	result := make([]careplan.RemainingDayBooking, 0, len(links))
+	for _, link := range links {
+		offering := offerings[link.CareOfferingID]
+		if offering == nil || (link.ValidUntil != nil && !link.ValidUntil.After(from)) {
+			continue
+		}
+		days, err := effectiveOfferingDaysForEnrollment(offering, link)
+		if err != nil {
+			continue
+		}
+		for _, day := range days {
+			weekday, ok := offeringDayWeekday(day)
+			if !ok {
+				continue
+			}
+			result = append(result, careplan.RemainingDayBooking{
+				Weekday: weekday, CountsAsCare: offering.CountsAsCare, IncludesLunch: offering.IncludesLunch,
+				PickupTime: offering.PickupTimes[strings.ToLower(strings.TrimSpace(day))],
+			})
+		}
+	}
+	return result
 }
 
 // bookedWeekdaysByOffering resolves each link's booked weekdays. The impact is

@@ -184,11 +184,19 @@ type TemplateListEntry struct {
 	SourceSchoolClasses   []string
 }
 
+// TemplateScheduleWindow selects all schedule segments overlapping the inclusive
+// date range, including bounded predecessors. A nil window keeps the editable
+// template list's open-ended schedules only.
+type TemplateScheduleWindow struct {
+	From  calendar.Date
+	Until calendar.Date
+}
+
 // TemplateListing reads the Vorlagen list with its capacity (#1839).
 type TemplateListing interface {
 	ListTemplateEntries(ctx context.Context, templateID *int64, childrenPerStaffRatio int) ([]TemplateListEntry, error)
 	ListTemplateEntriesForTemplatePeriod(ctx context.Context, templateID, periodID int64, childrenPerStaffRatio int) ([]TemplateListEntry, error)
-	ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]TemplateListEntry, error)
+	ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *TemplateScheduleWindow) ([]TemplateListEntry, error)
 	// ListTemplateWeekdayRoster returns the weekday-scoped roster
 	// memberships (#2129); a nil period selects only unscoped rows.
 	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]TemplateWeekdayRosterRow, error)

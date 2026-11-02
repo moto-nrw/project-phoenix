@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const classDayAllClassesPermission = "class_day:all_classes"
@@ -72,7 +73,7 @@ func TestSchoolDayAPI(t *testing.T) {
 	addClass(4)
 	large := overview("2026-08-06", 4)
 	assert.Equal(t, small, large, "the overview must not grow with the number of classes")
-	testpkg.AssertQueryBudget(t, "modules.classday.school_day", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.classday.school_day", counter.Queries())
 
 	rec = get("/school-day?date=2026-08-05", classDayReadPermission, classDayAllClassesPermission)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

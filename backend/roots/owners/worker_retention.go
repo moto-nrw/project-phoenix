@@ -23,6 +23,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	schoolcalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -449,7 +450,7 @@ func schoolContentRetentionSteps(
 	settings settingsModule.StatisticsRetentionSource, announcements communicationModule.ParentAnnouncementRetention,
 	staffNotices timetable.StaffNoticeRetention, appointments appointmentRetention,
 	transitions schoolstructure.GradeTransitionRetention, removedFiles fileStorageModule.CleanupRetention,
-	homework homeworkRetention,
+	homework homeworkRetention, weekProtocols weekProtocolRetention,
 ) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if announcements != nil {
@@ -466,6 +467,11 @@ func schoolContentRetentionSteps(
 		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeHomeworkRetention,
 			settingsModule.HomeworkRetentionWindow(settings), timetable.ErrHomeworkRetentionWindow,
 			homework.DeleteExpiredHomework))
+	}
+	if weekProtocols != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeWeekProtocolRetention,
+			settingsModule.WeekProtocolRetentionWindow(settings), timetable.ErrWeekProtocolRetentionWindow,
+			weekProtocols.DeleteExpiredWeekProtocols))
 	}
 	if appointments != nil {
 		steps = append(steps,
@@ -503,6 +509,19 @@ func surveyRetentionSteps(settings settingsModule.StatisticsRetentionSource, sur
 				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceStaff, days)
 			}),
 	}
+}
+
+// weekProtocolRetention deletes the weekly protocols of the groups after the
+// school's attendance window (#4769); the Timetable owner is one.
+type weekProtocolRetention interface {
+	DeleteExpiredWeekProtocols(ctx context.Context, retentionDays int) (int, error)
+}
+
+// timetableContentRetention is the Timetable owner's retention of the
+// content a school creates itself: the homework and the weekly protocols.
+type timetableContentRetention interface {
+	homeworkRetention
+	weekProtocolRetention
 }
 
 // homeworkRetention deletes the homework of the classes and the OGS feedback
@@ -557,7 +576,7 @@ func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, i
 
 // newSchoolContentRetentionSteps builds the owners of the content a school
 // creates itself (#4045) over db and returns their retention steps.
-func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention, homework homeworkRetention) ([]schedulerPorts.RetentionStep, error) {
+func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention, homework timetableContentRetention) ([]schedulerPorts.RetentionStep, error) {
 	appointments, err := BuildServeAppointments(db)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker appointment retention: %w", err)
@@ -566,8 +585,49 @@ func newSchoolContentRetentionSteps(db transactionruntime.Database, settings ret
 	if err != nil {
 		return nil, fmt.Errorf("compose worker grade transition retention: %w", err)
 	}
-	return schoolContentRetentionSteps(
+	steps := schoolContentRetentionSteps(
 		settings, announcements, timetable.NewStaffNoticeRetention(timetableCompose.NewStaffNoticeRepository(db.Pool()), calendar.TodayDate),
 		appointments, transitions, fileStorageCompose.NewCleanupRetention(), homework,
-	), nil
+		homework,
+	)
+	if conferences := BuildServeParentConferences(db); conferences != nil {
+		steps = append(steps, parentConferenceRetentionSteps(conferences, appointments, calendar.TodayDate)...)
+	}
+	return steps, nil
+}
+
+// parentConferenceRetentionSteps delete the Elternsprechtag of past school
+// years (#4801): when a school year ends, its bookings end. The School
+// Calendar deletes the days with their bookings, Appointments the
+// appointments that showed the bookings in the calendars. The school year
+// starts on 1 August (schoolcalendar.DefaultSchoolYear); the logged window
+// is the number of days since that start.
+func parentConferenceRetentionSteps(conferences schoolcalendarModule.ParentConferences, appointments appointmentsModule.AppointmentRetention, today func() calendar.Date) []schedulerPorts.RetentionStep {
+	schoolYearStart := func() (calendar.Date, int, error) {
+		day := today()
+		_, start, _ := schoolcalendarModule.DefaultSchoolYear(day.String())
+		startDate, err := calendar.ParseDate(start)
+		if err != nil {
+			return "", 0, fmt.Errorf("parent conference retention: school year start: %w", err)
+		}
+		return startDate, startDate.DaysUntil(day), nil
+	}
+	return []schedulerPorts.RetentionStep{
+		ownerRetentionStep(auditModels.DeletionTypeParentConferenceRetention, func(ctx context.Context) (int, int, error) {
+			start, days, err := schoolYearStart()
+			if err != nil {
+				return 0, 0, err
+			}
+			deleted, err := conferences.DeleteParentConferencesBefore(ctx, start)
+			return deleted, days, err
+		}),
+		ownerRetentionStep(auditModels.DeletionTypeParentConferenceRetention, func(ctx context.Context) (int, int, error) {
+			start, days, err := schoolYearStart()
+			if err != nil {
+				return 0, 0, err
+			}
+			deleted, err := appointments.DeleteParentConferenceAppointmentsBefore(ctx, appointmentsModule.Date(start.String()))
+			return deleted, days, err
+		}),
+	}
 }

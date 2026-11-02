@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,9 +31,8 @@ const schedule: StaffSchedule = {
   validFrom: "2026-08-10",
 };
 
-vi.mock("swr", () => ({ useSWRConfig: () => ({ mutate: vi.fn() }) }));
-
 vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null) => {
     if (key === "staff-schedule-42") {
       return { data: schedule, isLoading: false, mutate: vi.fn() };
@@ -107,17 +109,37 @@ describe("Arbeitszeitmodell preview", () => {
     mocks.projectionError = undefined;
   });
 
-  it("reads the four weeks from the daily Soll the time tracking uses", () => {
-    render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
+  it.each(schoolDateCases("2026-09-16"))(
+    "reads the four weeks from the daily Soll the time tracking uses in %s",
+    (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-16");
 
-    expect(mocks.projectionKey).toBe(
-      "staff-schedule-targets-preview-42-2026-09-14-2026-10-11",
-    );
-    expect(within(weekRow("KW 38")).getByText("40h")).toBeInTheDocument();
-    expect(
-      within(weekRow("KW 38")).queryByText("Sonderarbeitszeit"),
-    ).toBeNull();
-  });
+      render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
+
+      expect(mocks.projectionKey).toBe(
+        "staff-schedule-targets-preview-42-2026-09-14-2026-10-11",
+      );
+      expect(within(weekRow("KW 38")).getByText("40h")).toBeInTheDocument();
+      expect(
+        within(weekRow("KW 38")).queryByText("Sonderarbeitszeit"),
+      ).toBeNull();
+    },
+  );
+
+  it.each(["UTC", "Pacific/Honolulu"])(
+    "starts the new preview week at Berlin Monday 00:30 in %s",
+    (zone) => {
+      setSchoolDateClock(zone, "2026-09-14T00:30:00+02:00", "2026-09-14");
+      expect(new Date().toLocaleDateString("sv-SE")).toBe("2026-09-13");
+
+      render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
+
+      expect(mocks.projectionKey).toBe(
+        "staff-schedule-targets-preview-42-2026-09-14-2026-10-11",
+      );
+      expect(within(weekRow("KW 38")).getByText("40h")).toBeInTheDocument();
+    },
+  );
 
   it("shows a Sonderarbeitszeit week with its own hours and marks it", () => {
     render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);

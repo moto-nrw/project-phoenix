@@ -8,8 +8,9 @@ frontend-specific knowledge only.
 
 Read versions and scripts from `frontend/package.json`.
 Run `cd frontend && pnpm run check` with zero warnings and relevant behavior
-tests after code changes. Before push, run `scripts/test-changed.sh origin/development`
-without `--fast`. Service and screenshot workflows: `docs/agents/operations.md`.
+tests after code changes. Before push, run
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs`. Service and screenshot
+workflows: `docs/agents/operations.md`.
 
 ## Test clock (MANDATORY)
 
@@ -56,7 +57,7 @@ the same PR when required.
 
 ### Before/After Screenshots for UI Changes (MANDATORY)
 
-When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`frontend/.claude/skills/ui-before-after/SKILL.md`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and post them on the PR as native attachments with `gh pr comment --attach` (see `docs/agents/operations.md` PR screenshots and QA evidence). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
+When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`frontend/.claude/skills/ui-before-after/SKILL.md`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, one pair at a desktop and one at a phone viewport for each changed surface, and post them on the PR as native attachments with `gh pr comment --attach` (see `docs/agents/operations.md` PR screenshots and QA evidence). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
 
 ## Data contracts
 
@@ -67,7 +68,7 @@ SSE streaming is the explicit exception in the SSE contract below.
 
 ## Date Handling (MANDATORY)
 
-Calendar dates travel as `"YYYY-MM-DD"` strings; never derive one via `.toISOString()` (UTC shifts a day around Berlin midnight — the custom oxlint rule `date-safety/no-utc-date-extraction` rejects it). Use `toISODate` / `todayISO` / `parseISODate` / `formatDate` from `~/lib/date-helpers`. Full table: `.claude/rules/calendar-dates.md`.
+Calendar dates travel as `"YYYY-MM-DD"` strings; never derive one via `.toISOString()` (UTC shifts a day around Berlin midnight — the custom oxlint rule `date-safety/no-utc-date-extraction` rejects it). Use `berlinTodayISO()` for school-day defaults and comparisons, `useBerlinToday()` for views that stay mounted across midnight, and `todayISO()` only for browser-local dates. Convert and render calendar dates with `toISODate` / `parseISODate` / `formatDate` from `~/lib/date-helpers`. Full table: `.claude/rules/calendar-dates.md`.
 
 ## Logging (MANDATORY)
 
@@ -84,7 +85,7 @@ retry behavior, and authentication when changing real-time updates.
 ## TypeScript & Linting
 
 - `tsconfig`: `strict`, `noUncheckedIndexedAccess`, paths `~/*` and `@/*` → `./src/*`, target ES2022
-- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-absence-assertion.mjs` (absence assertions need a positive anchor, see `docs/agents/frontend-testing.md`), `scripts/oxlint-plugin-date-safety.mjs`, `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — five hard-zero rules, see `.claude/rules/frontend-ui-kit.md`) and `scripts/oxlint-plugin-bauart.mjs` (Bauarten ratchet — `bauart/one-delete-confirm`, `bauart/no-unconfirmed-destructive-click`, `bauart/no-autosave`, `bauart/no-toast-form-error`, `bauart/no-manage-surface-in-overlay`, `bauart/one-detail-per-type`, `bauart/no-disabled-menu-item`, `bauart/no-local-field-grid`, `bauart/no-own-skeleton` and `bauart/no-raw-status-hex` hard-zero, `bauart/no-row-action-buttons` with a location-bound exception list for form-internal remove buttons, `bauart/no-edit-overlay` with a shrink-only baseline for list entries without an object route, `bauart/no-autosave` with a named baseline; see `src/components/ui/BAUARTEN-SPEC.md`). Every page under `app/[tenant]/(protected)` also declares its Bauart in `src/components/ui/tenant-page-scaffold.test.ts` (`BAUART` / `OHNE_BAUART`); a new page without an entry fails the test.
+- Linting: **oxlint** (`.oxlintrc.json` — plugins react/nextjs/jsx-a11y/import/promise; correctness+perf = error). Disabled rules and their rationale live in `.oxlintrc.json`; custom plugins live in `scripts/oxlint-plugin-absence-assertion.mjs` (absence assertions need a positive anchor, see `docs/agents/frontend-testing.md`), `scripts/oxlint-plugin-date-safety.mjs`, `scripts/oxlint-plugin-school-class.mjs` (`school-class/no-hand-built-label`: "Klasse " before a class name only through `~/lib/school-class-label`, #5101), `scripts/oxlint-plugin-ui-kit.mjs` (UI-kit drift ratchet — five hard-zero rules, see `.claude/rules/frontend-ui-kit.md`) and `scripts/oxlint-plugin-bauart.mjs` (Bauarten ratchet — `bauart/one-delete-confirm`, `bauart/no-unconfirmed-destructive-click`, `bauart/no-autosave`, `bauart/no-toast-form-error`, `bauart/no-manage-surface-in-overlay`, `bauart/one-detail-per-type`, `bauart/no-disabled-menu-item`, `bauart/no-local-field-grid`, `bauart/no-own-skeleton` and `bauart/no-raw-status-hex` hard-zero, `bauart/no-row-action-buttons` with a location-bound exception list for form-internal remove buttons, `bauart/no-edit-overlay` with a shrink-only baseline for list entries without an object route, `bauart/no-autosave` with a named baseline; see `src/components/ui/BAUARTEN-SPEC.md`). Every page under `app/[tenant]/(protected)` also declares its Bauart in `src/components/ui/tenant-page-scaffold.test.ts` (`BAUART` / `OHNE_BAUART`); a new page without an entry fails the test.
 - Conventions: `??` over `||` for ordinary data defaults (not required infrastructure configuration), `import type` for types, `_` prefix for unused vars, `useSearchParams` needs a Suspense boundary, only server components may be async
 
 ## Performance

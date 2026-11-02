@@ -14,16 +14,11 @@ export const timetableMutedSurface =
 export const timetablePopoverSurface =
   "moto-popover-surface overflow-hidden rounded-xl border";
 
-export const timetableSearchClass =
-  "block h-10 w-full rounded-lg border-0 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset transition-colors placeholder:text-gray-400 hover:ring-gray-300 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
-
 export const timetableTextAreaClass =
   "w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset transition-colors hover:ring-gray-300 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
 
 export const timetableDangerPanel =
   "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
-
-export const timetableRequiredMark = "ml-0.5 text-moto-red";
 
 /** Readable dark-amber text pairing with white/gray-50 backgrounds. */
 export const timetableWarningText = "text-moto-amber-strong";

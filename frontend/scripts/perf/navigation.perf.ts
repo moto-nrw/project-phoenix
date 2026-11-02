@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  dismissNotificationHint,
   gotoTolerant,
   loadAccess,
   loadRoleAccess,
@@ -274,21 +275,6 @@ async function measureHop(
       .filter((path) => SHELL_ENDPOINTS.includes(path)),
     paths: countByPath(records),
   };
-}
-
-/**
- * Der Hinweis zu Browser-Benachrichtigungen legt sich als Dialog über die
- * Seitenleiste; ein Klick dorthin wartet sonst ohne Ende. Er merkt sich das
- * Schließen im localStorage, der gespeicherte Zustand trägt es weiter.
- */
-async function dismissNotificationHint(
-  page: Page,
-  baseUrl: string,
-): Promise<void> {
-  await gotoTolerant(page, `${baseUrl}/home`);
-  const dismiss = page.getByRole("button", { name: "Verstanden" });
-  await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
-  if (await dismiss.isVisible()) await dismiss.click();
 }
 
 test.describe.configure({ mode: "serial" });

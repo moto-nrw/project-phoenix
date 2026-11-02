@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { FetchEventSource } from "~/lib/fetch-event-source";
 import type {
   SSEEvent,
   SSEHookOptions,
@@ -36,15 +38,33 @@ export function useSSE(
     reconnectKey,
   } = options;
 
+  const { data: session } = useSession();
+  // The stream is bound to the tab's account (#5385). A provider answer for
+  // the same account and authorization leaves an open stream alone (#5017).
+  // Otherwise every session poll would create a gap to reconcile. It still
+  // restarts a stream that is down, refused or out of retries
+  // (restartIfDownRef).
+  const sessionAccount = session?.user?.id ?? null;
+  // The server snapshots authorization when opening the stream. Replace it
+  // when rights change, but not for fresh arrays or a different array order.
+  const sessionAuthorization = JSON.stringify([
+    session?.user?.isAdmin ?? false,
+    [...(session?.user?.roles ?? [])].sort(),
+    [...(session?.user?.permissions ?? [])].sort(),
+  ]);
+
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const eventSourceRef = useRef<FetchEventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
   const reconnectKeyRef = useRef(reconnectKey);
+  const confirmedAccountRef = useRef(sessionAccount);
+  const confirmedAuthorizationRef = useRef(sessionAuthorization);
+  const restartIfDownRef = useRef<() => void>(() => undefined);
 
   // Stable onMessage callback
   const stableOnMessage = useCallback(
@@ -70,10 +90,16 @@ export function useSSE(
   // closes that ref and clears the reconnect timer. The scanner cannot follow
   // the nested connection factory to its cleanup.
   useEffect(() => {
-    const reconnectKeyChanged = reconnectKeyRef.current !== reconnectKey;
+    const reconnectKeyChanged =
+      reconnectKeyRef.current !== reconnectKey ||
+      confirmedAccountRef.current !== sessionAccount ||
+      confirmedAuthorizationRef.current !== sessionAuthorization;
+    confirmedAccountRef.current = sessionAccount;
+    confirmedAuthorizationRef.current = sessionAuthorization;
     reconnectKeyRef.current = reconnectKey;
 
     if (!enabled) {
+      reconnectAttemptsRef.current = 0;
       setIsConnected(false);
       setError(null);
       setReconnectAttempts(0);
@@ -92,19 +118,9 @@ export function useSSE(
       setReconnectAttempts(0);
     }
 
-    // Check if EventSource is supported
-    if (typeof EventSource === "undefined") {
-      logger.warn("eventsource not supported", {
-        endpoint,
-        browser: navigator.userAgent.substring(0, 100),
-      });
-      setError("Browser does not support Server-Sent Events");
-      return;
-    }
-
     // Event handler for SSE messages - handles parsing and error reporting
     const handleSSEMessage = (
-      eventSource: EventSource,
+      eventSource: FetchEventSource,
       eventType: string,
       event: Event,
     ) => {
@@ -119,10 +135,15 @@ export function useSSE(
           event_type: eventType,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(`Ungültige Server-Event-Daten (${eventType})`);
+        setError(
+          eventType === "message"
+            ? "Ungültige Server-Event-Daten empfangen"
+            : `Ungültige Server-Event-Daten (${eventType})`,
+        );
       }
     };
 
+    let sessionRefused = false;
     const connect = () => {
       if (!mountedRef.current) return;
 
@@ -134,7 +155,7 @@ export function useSSE(
       };
 
       try {
-        const eventSource = new EventSource(endpoint);
+        const eventSource = new FetchEventSource(endpoint);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
@@ -147,23 +168,8 @@ export function useSSE(
           setReconnectAttempts(0); // Reset state
         };
 
-        // Handle default message events
-        eventSource.onmessage = (event) => {
-          if (!mountedRef.current || eventSourceRef.current !== eventSource) {
-            return;
-          }
-          try {
-            const parsed = JSON.parse(String(event.data)) as SSEEvent;
-            stableOnMessage(parsed);
-          } catch (err) {
-            logger.error("failed to parse sse message", {
-              endpoint,
-              error: err instanceof Error ? err.message : String(err),
-              data_preview: String(event.data).substring(0, 100),
-            });
-            setError("Ungültige Server-Event-Daten empfangen");
-          }
-        };
+        eventSource.onmessage = (event) =>
+          handleSSEMessage(eventSource, "message", event);
 
         // Handle specific event types
         const eventTypes = [
@@ -263,9 +269,15 @@ export function useSSE(
           }
           stableOnError(err);
 
+          sessionRefused = eventSource.sessionRefused;
+
           // Close the failed connection
           eventSource?.close();
           eventSourceRef.current = null;
+
+          // A session refusal waits for the provider/cache reconciliation,
+          // not a timer or a wake event that would repeat the same refusal.
+          if (sessionRefused) return;
 
           // Attempt reconnection with exponential backoff
           // Read from ref to get live count (not stale closure value)
@@ -311,7 +323,7 @@ export function useSSE(
 
     // Reconnect when device wakes from sleep or network restores
     const handleWakeReconnect = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || sessionRefused) return;
       // Skip if already connected
       if (eventSourceRef.current?.readyState === 1) {
         return;
@@ -347,12 +359,23 @@ export function useSSE(
       handleWakeReconnect();
     };
 
+    // A confirmed provider session resumes a refused stream and retries one
+    // that is down or out of retries; an open or opening stream stays.
+    restartIfDownRef.current = () => {
+      if (!mountedRef.current) return;
+      const readyState = eventSourceRef.current?.readyState;
+      if (readyState === 0 || readyState === 1) return;
+      sessionRefused = false;
+      handleWakeReconnect();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     globalThis.addEventListener("online", handleOnline);
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
+      restartIfDownRef.current = () => undefined;
 
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       globalThis.removeEventListener("online", handleOnline);
@@ -375,7 +398,17 @@ export function useSSE(
     maxReconnectAttempts,
     enabled,
     reconnectKey,
+    sessionAccount,
+    sessionAuthorization,
   ]);
+
+  // Every provider answer (lookup, poll, update()) confirms the session.
+  const confirmedSessionRef = useRef(session);
+  useEffect(() => {
+    if (confirmedSessionRef.current === session) return;
+    confirmedSessionRef.current = session;
+    restartIfDownRef.current();
+  }, [session]);
 
   // Compute connection status based on state
   const status = useMemo<ConnectionStatus>(() => {

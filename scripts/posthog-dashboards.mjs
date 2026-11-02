@@ -249,8 +249,8 @@ export const FEATURES = Object.freeze([
   { name: 'Startseite', pages: { ogs: ['/home', '/dashboard'], parents: ['/'], school: ['/'] } },
   {
     name: 'Kinder und Kindakte',
-    pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse'] },
-    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed'],
+    pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse', '/klasse/kind'] },
+    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed', 'accident_report_recorded', 'accident_report_signed'],
   },
   { name: 'Gruppen', pages: { ogs: ['/ogs-groups', '/ogs-groups/overview'] }, events: ['group_created', 'group_updated'] },
   {
@@ -260,7 +260,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Abwesenheiten',
-    pages: { ogs: ['/absences'] },
+    pages: { ogs: ['/absences'], school: ['/fehlzeiten'] },
     events: ['absence_reported', 'absence_request_submitted', 'arrival_exception_changed', 'class_trip_reported'],
   },
   {
@@ -278,16 +278,16 @@ export const FEATURES = Object.freeze([
     events: [
       'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_messages_marked_all_read',
       'parent_message_count_scope_changed', 'parent_declaration_submitted', 'staff_notice_acknowledged',
-      'class_parent_letter_sent',
+      'class_parent_letter_sent', 'staff_group_created',
     ],
   },
   {
     name: 'Tagesplan und Tagesinfos',
-    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables'], school: ['/tagesinformationen'] },
+    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables', '/wochenprotokolle', '/wochenprotokolle/:protocolId'], school: ['/tagesinformationen'] },
   },
   {
     name: 'Kalender und Speiseplan',
-    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'], school: ['/kalender'] },
+    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'], school: ['/kalender', '/elternsprechtag'] },
   },
   {
     name: 'Personal und Dienstplan',
@@ -306,7 +306,7 @@ export const FEATURES = Object.freeze([
   },
   { name: 'Stammdaten und Export', pages: { ogs: ['/database/**', '/eltern/bankverbindungen'] }, events: ['data_exported'] },
   { name: 'Einstellungen', pages: { ogs: ['/settings', '/profile'], parents: ['/settings'], school: ['/einstellungen'] }, events: ['settings_changed'] },
-  { name: 'Weitere Werkzeuge', pages: { ogs: ['/lists', '/reminders', '/emergency', '/info-displays', '/dateien', '/statistics'] } },
+  { name: 'Weitere Werkzeuge', pages: { ogs: ['/lists', '/reminders', '/emergency', '/info-displays', '/dateien', '/statistics'], parents: ['/documents'] } },
 ]);
 
 /** Login, invitation, and demo entry pages: getting in, not using a feature. */
@@ -418,6 +418,7 @@ const PARENT_PAGE_NAMES = new Map([
 const SCHOOL_PAGE_NAMES = new Map([
   ['/', 'Start'], ['/login', 'Anmeldung'], ['/klasse', 'Klasse'], ['/aufsichten', 'Aufsichten'],
   ['/tagesinformationen', 'Tagesinformationen'], ['/kalender', 'Kalender'], ['/einstellungen', 'Einstellungen'],
+  ['/fehlzeiten', 'Fehlzeiten'],
 ]);
 
 /** HogQL expression: the page's name, '' when it has none. */

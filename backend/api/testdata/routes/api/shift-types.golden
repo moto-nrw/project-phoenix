@@ -1,0 +1,5 @@
+DELETE /api/shift-types/{id}
+GET /api/shift-types/
+POST /api/shift-types/
+POST /api/shift-types/defaults
+PUT /api/shift-types/{id}

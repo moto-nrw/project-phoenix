@@ -1,0 +1,16 @@
+{
+  "codes": [
+    {
+      "code": "attendance.log_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "attendance.log_disabled"
+    },
+    {
+      "code": "attendance.web_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "attendance.web_disabled"
+    }
+  ]
+}

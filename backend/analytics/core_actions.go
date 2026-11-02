@@ -61,6 +61,9 @@ func export(exportType string) CoreAction {
 // Adding a writing route: classify it here. New core action: name the event
 // in snake_case after what succeeded (group_created, not create_group).
 var coreActions = map[RouteKey]CoreAction{
+	// Period-owned PDFs have no school to count them for (#5199).
+	{http.MethodPost, "/traeger/holiday-periods/{id}/form/documents"}:                notCaptured,
+	{http.MethodDelete, "/traeger/holiday-periods/{id}/form/documents/{documentId}"}: notCaptured,
 	// OGS portal (tenant API).
 	{http.MethodPost, "/api/absence-types/"}:                                                               notCaptured,
 	{http.MethodPut, "/api/absence-types/{id}"}:                                                            notCaptured,
@@ -277,8 +280,13 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/shift-types/defaults"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/shift-types/{id}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/shift-types/{id}"}:                                                              notCaptured,
+	{http.MethodPost, "/api/staff-messages/groups"}:                                                        event("staff_group_created"),
+	{http.MethodPut, "/api/staff-messages/threads/{threadID}/name"}:                                        notCaptured,
 	{http.MethodPost, "/api/staff-messages/threads/open"}:                                                  notCaptured,
 	{http.MethodPost, "/api/staff-messages/threads/{threadID}"}:                                            notCaptured,
+	{http.MethodPost, "/api/staff-messages/threads/{threadID}/leave"}:                                      notCaptured,
+	{http.MethodPost, "/api/staff-messages/threads/{threadID}/members"}:                                    notCaptured,
+	{http.MethodDelete, "/api/staff-messages/threads/{threadID}/members/{accountID}"}:                      notCaptured,
 	{http.MethodPost, "/api/staff-notices/"}:                                                               notCaptured,
 	{http.MethodDelete, "/api/staff-notices/{noticeId}"}:                                                   notCaptured,
 	{http.MethodPut, "/api/staff-notices/{noticeId}"}:                                                      notCaptured,
@@ -310,6 +318,10 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/week-protocols/{protocolId}/notes"}:                                             notCaptured,
+	{http.MethodPost, "/api/week-protocols/{protocolId}/close"}:                                            event("week_protocol_closed"),
+	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
+	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,
 	{http.MethodPut, "/api/staff/{id}/school-classes"}:                                                     notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/arbeitsvertrag"}:                                          notCaptured,
@@ -318,6 +330,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/staff/{id}/stammdaten/kontakt"}:                                                 notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/person"}:                                                  notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/qualifikationen"}:                                         notCaptured,
+	{http.MethodPost, "/api/staff/qualification-types"}:                                                    notCaptured,
+	{http.MethodPut, "/api/staff/qualification-types/{typeId}"}:                                            notCaptured,
 	{http.MethodPost, "/api/staff/{id}/target-overrides"}:                                                  notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/target-overrides/{overrideId}"}:                                   notCaptured,
 	{http.MethodPost, "/api/staff/{id}/time-tracking/adjustments"}:                                         notCaptured,
@@ -360,6 +374,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/students/status-days/bulk"}:                                                    event("absence_reported"),
 	{http.MethodDelete, "/api/students/{id}"}:                                                              notCaptured,
 	{http.MethodPut, "/api/students/{id}"}:                                                                 notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports"}:                                               event("accident_report_recorded"),
+	{http.MethodPut, "/api/students/{id}/accident-reports/{documentId}"}:                                   notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/corrections"}:                      notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/paper-copy"}:                       event("accident_report_signed"),
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/signature"}:                        event("accident_report_signed"),
 	{http.MethodPost, "/api/students/{id}/arrival-exceptions"}:                                             notCaptured,
 	{http.MethodDelete, "/api/students/{id}/arrival-exceptions/{exceptionId}"}:                             notCaptured,
 	{http.MethodPut, "/api/students/{id}/arrival-exceptions/{exceptionId}"}:                                notCaptured,
@@ -423,6 +442,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/timetable/conflict-acks/{fingerprint}"}:                                       notCaptured,
 	{http.MethodPost, "/api/timetable/instances/"}:                                                       notCaptured,
 	{http.MethodPost, "/api/timetable/instances/bulk-cancel"}:                                            notCaptured,
+	{http.MethodPost, "/api/timetable/school-vacation-hints/acknowledgements"}:                           notCaptured,
+	{http.MethodPost, "/api/timetable/school-vacations/seed"}:                                            notCaptured,
 	{http.MethodPost, "/api/timetable/instances/re-plan-week"}:                                           notCaptured,
 	{http.MethodDelete, "/api/timetable/instances/{id}"}:                                                 notCaptured,
 	{http.MethodPut, "/api/timetable/instances/{id}"}:                                                    notCaptured,
@@ -467,8 +488,10 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/timetable/templates/{id}/end"}:                                               notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/split"}:                                             notCaptured,
 	{http.MethodPut, "/api/timetable/templates/{id}/manual-roster"}:                                      notCaptured,
+	{http.MethodPut, "/api/timetable/offering-gaps/{offeringId}/acknowledgement"}:                        notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/offering-connection"}:                               event("template_offering_connected"),
 	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
+	{http.MethodPut, "/api/timetable/templates/{id}/students/{studentId}/kept-days"}:                     notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,
 	{http.MethodDelete, "/api/users/{id}"}:                                                               notCaptured,
 	{http.MethodPut, "/api/users/{id}"}:                                                                  notCaptured,
@@ -552,6 +575,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation"}:                                        notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/weeks/{date}"}:                           notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/meal-participation/{date}"}:                              notCaptured,
+	{http.MethodPut, "/parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking"}:                 event("parent_conference_booked"),
+	{http.MethodDelete, "/parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking"}:              event("parent_conference_cancelled"),
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/{date}"}:                                 notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/pickup-change-requests/{requestId}"}:                        notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/pickup-signature-statement"}:                               notCaptured,
@@ -580,6 +605,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
@@ -588,6 +615,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	// The form of a holiday period (#5198) belongs to the Träger, not to a
+	// school: no school to count it for.
+	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/cancel"}:                     notCaptured,
@@ -603,9 +633,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                                      notCaptured,
 	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                                                  notCaptured,
 	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                                               notCaptured,
-	// The public holiday registration of a Träger (#4661) has no session
-	// and no school, so no collection policy admits it yet.
-	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,
+	// The public holiday registration of a Träger (#4661) and the upload of
+	// its proof of benefits (#5238) have no session and no school, so no
+	// collection policy admits them yet.
+	{http.MethodPost, "/traeger/holiday-registrations/{token}"}:         notCaptured,
+	{http.MethodPost, "/traeger/holiday-registrations/{token}/uploads"}: notCaptured,
 	// The Elternabrechnung (#4664, ADR 0115) belongs to the Träger: its
 	// rules, the confirmation that freezes a contribution and the public
 	// contribution of the form have no school to count them for.
@@ -641,6 +673,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/school/calendar/appointments/{appointmentId}"}:                               event("school_appointment_deleted"),
 	{http.MethodPut, "/school/calendar/appointments/{appointmentId}"}:                                  event("school_appointment_updated"),
 	{http.MethodPost, "/school/calendar/feed/rotate"}:                                                  notCaptured,
+	{http.MethodPost, "/school/calendar/parent-conferences"}:                                           event("parent_conference_created"),
+	{http.MethodDelete, "/school/calendar/parent-conferences/{conferenceId}"}:                          event("parent_conference_deleted"),
+	{http.MethodPut, "/school/calendar/parent-conferences/{conferenceId}"}:                             event("parent_conference_updated"),
 	{http.MethodPost, "/school/calendar/recipients/{recipientId}/response"}:                            notCaptured,
 	{http.MethodPut, "/school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}"}:    event("absence_report_entered"),
 	{http.MethodDelete, "/school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}"}: event("absence_report_withdrawn"),
@@ -670,6 +705,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/notifications/test"}:                                                    notCaptured,
 	{http.MethodPost, "/school/staff-messages/threads/open"}:                                           notCaptured,
 	{http.MethodPost, "/school/staff-messages/threads/{threadID}"}:                                     event("staff_message_sent"),
+	{http.MethodPost, "/school/staff-messages/threads/{threadID}/leave"}:                               notCaptured,
 	{http.MethodPost, "/school/staff-notices/{noticeId}/acknowledge"}:                                  event("staff_notice_acknowledged"),
 	{http.MethodPost, "/school/supervisions/{id}/complete"}:                                            event("supervision_completed"),
 	{http.MethodPost, "/school/supervisions/{id}/start"}:                                               event("supervision_started"),
@@ -690,6 +726,22 @@ var coreActions = map[RouteKey]CoreAction{
 
 	// Caterer portal (ADR 0077). Accepting the mailed invitation starts no
 	// session yet, so it counts on the caterer surface itself.
+	// The caterer's second factor (#4497): a redeemed code or passkey
+	// starts the session like the login; switching the factor on or off and
+	// managing devices and passkeys are account settings.
+	{http.MethodPost, "/caterer/account/mfa/confirm"}:                         notCaptured,
+	{http.MethodPost, "/caterer/account/mfa/disable"}:                         notCaptured,
+	{http.MethodPost, "/caterer/account/mfa/start"}:                           notCaptured,
+	{http.MethodPost, "/caterer/auth/mfa/resend"}:                             notCaptured,
+	{http.MethodDelete, "/caterer/auth/mfa/trusted-devices/{deviceId}"}:       notCaptured,
+	{http.MethodPost, "/caterer/auth/mfa/verify"}:                             session("login_success"),
+	{http.MethodPost, "/caterer/auth/passkeys/enrollment/challenge"}:          notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/login/options"}:                 notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/login/verify"}:                  session("login_success"),
+	{http.MethodPost, "/caterer/auth/passkeys/register/options"}:              notCaptured,
+	{http.MethodPost, "/caterer/auth/passkeys/register/verify"}:               notCaptured,
+	{http.MethodDelete, "/caterer/auth/passkeys/{passkeyId}"}:                 notCaptured,
+	{http.MethodPost, "/caterer/account/password"}:                            notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,
 	{http.MethodPost, "/caterer/auth/login"}:                                  session("login_success"),
@@ -709,9 +761,10 @@ func CoreActionPrefixes() []string {
 }
 
 // CoreActionExcludedPrefixes are routes under those prefixes that do not
-// belong to a portal: the kiosk and CalDAV clients.
+// belong to a portal: the kiosk, CalDAV clients, and the development-only
+// weekly-protocol seeder.
 func CoreActionExcludedPrefixes() []string {
-	return []string{"/api/iot/", "/api/caldav"}
+	return []string{"/api/iot/", "/api/caldav", "/api/week-protocols/seed"}
 }
 
 // IsWritingMethod reports whether a route with method writes, so the route

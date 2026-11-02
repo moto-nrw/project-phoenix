@@ -18,6 +18,10 @@ func (m *mockProvisioningService) AssignTraegerMember(context.Context, organizat
 	return organizationtenancy.TraegerMember{}, nil
 }
 
+func (m *mockProvisioningService) InviteTraegerMember(context.Context, organizationtenancy.InviteTraegerMember) (organizationtenancy.TraegerInvitation, error) {
+	return organizationtenancy.TraegerInvitation{}, nil
+}
+
 func (m *mockProvisioningService) ResetTraegerMemberMFA(context.Context, organizationtenancy.ResetTraegerMemberMFA) error {
 	return nil
 }

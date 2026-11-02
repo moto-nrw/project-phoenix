@@ -94,6 +94,13 @@ func GradeTransitionRetentionWindow(source StatisticsRetentionSource) RetentionW
 	return RetentionWindow{source: source, key: configModel.KeyGDPRStudentRetentionDays}
 }
 
+// WeekProtocolRetentionWindow is the window of the weekly protocols of the
+// groups (#4769): the school's attendance window, counted from the week's
+// Sunday, since a protocol records the attendance of its week.
+func WeekProtocolRetentionWindow(source StatisticsRetentionSource) RetentionWindow {
+	return RetentionWindow{source: source, key: configModel.KeyGDPRAttendanceRetentionDays}
+}
+
 // Days resolves the window.
 func (w RetentionWindow) Days(ctx context.Context) (int, error) {
 	days, err := w.source.ResolveInt(ctx, w.key)

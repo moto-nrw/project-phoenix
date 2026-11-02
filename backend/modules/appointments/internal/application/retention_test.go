@@ -14,6 +14,7 @@ type retentionStore struct {
 	listed, locked []appointments.RetentionCandidate
 	lockedIDs      []int64
 	deletedIDs     []int64
+	conferenceCut  appointments.Date
 }
 
 func (s *retentionStore) ListRetentionCandidates(context.Context, appointments.Date) ([]appointments.RetentionCandidate, error) {
@@ -28,6 +29,30 @@ func (s *retentionStore) LockRetentionCandidates(_ context.Context, _ appointmen
 func (s *retentionStore) DeleteAppointments(_ context.Context, ids []int64) (int, error) {
 	s.deletedIDs = append([]int64(nil), ids...)
 	return len(ids), nil
+}
+
+func (s *retentionStore) ListParentConferenceAppointments(_ context.Context, cutoff appointments.Date) ([]int64, error) {
+	s.conferenceCut = cutoff
+	return []int64{7}, nil
+}
+
+func (s *retentionStore) DeleteParentConferenceAppointments(_ context.Context, ids []int64) (int, error) {
+	s.deletedIDs = append([]int64(nil), ids...)
+	return len(ids), nil
+}
+
+func TestRetentionDeletesParentConferenceAppointmentsBeforeTheCutoff(t *testing.T) {
+	t.Parallel()
+	store := &retentionStore{}
+	retention := NewRetention(store)
+	deleted, err := retention.DeleteParentConferenceAppointmentsBefore(context.Background(), appointments.NewDate(2026, 8, 1))
+	require.NoError(t, err)
+	assert.Equal(t, 1, deleted)
+	assert.Equal(t, appointments.NewDate(2026, 8, 1), store.conferenceCut)
+	assert.Equal(t, []int64{7}, store.deletedIDs)
+
+	_, err = retention.DeleteParentConferenceAppointmentsBefore(context.Background(), "")
+	require.ErrorIs(t, err, appointments.ErrInvalidAppointment, "nothing is deleted without a cutoff")
 }
 
 func TestRetentionRereadsCandidateBeforeDeleting(t *testing.T) {

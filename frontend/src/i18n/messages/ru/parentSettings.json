@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Ваш аккаунт",
+  "title": "Настройки",
+  "description": "Настройте язык и уведомления для своей учётной записи.",
+  "languageTitle": "Язык",
+  "languageDescription": "Выберите язык интерфейса moto.",
+  "appInstallTitle": "Установить moto как приложение",
+  "appInstallDescription": "Не устанавливайте moto через Samsung Internet. Откройте moto в Chrome.",
+  "appInstallGenericDescription": "Добавьте moto на главный экран телефона и открывайте его как приложение.",
+  "appInstallGuide": "Открыть инструкцию"
+}

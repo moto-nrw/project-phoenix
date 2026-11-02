@@ -21,6 +21,19 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// LoginResponse is a caterer's password sign-in: the session, or, where the
+// caterer switched its second factor on, the challenge of the mailed code
+// (#4497).
+type LoginResponse struct {
+	Status               string `json:"status"`
+	AccessToken          string `json:"access_token,omitempty"`
+	RefreshToken         string `json:"refresh_token,omitempty"`
+	ChallengeToken       string `json:"challenge_token,omitempty"`
+	MaskedEmail          string `json:"masked_email,omitempty"`
+	TrustedDeviceEnabled bool   `json:"trusted_device_enabled,omitempty"`
+	TrustedDeviceDays    int    `json:"trusted_device_days,omitempty"`
+}
+
 // PreviewResponse is what the acceptance page shows.
 type PreviewResponse struct {
 	Email             string    `json:"email"`
@@ -130,7 +143,9 @@ func dayResponse(day mealplan.OrderDay) DayResponse {
 	return response
 }
 
-// login signs a caterer in to the caterer portal.
+// login signs a caterer in to the caterer portal. A caterer that switched
+// its second factor on gets the challenge of a mailed code, unless the
+// browser presents a device it remembered.
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	var request loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -142,12 +157,19 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errLoginFieldsRequired))
 		return
 	}
-	access, refresh, err := rs.portal.LoginCatererWithAudit(r.Context(), request.Email, request.Password, common.GetClientIPString(r), r.Header.Get("User-Agent"))
+	result, err := rs.runtime.SignIn.LoginCaterer(r.Context(), identityaccess.CatererLoginRequest{
+		Email: request.Email, Password: request.Password, IPAddress: common.GetClientIPString(r),
+		UserAgent: r.Header.Get("User-Agent"), TrustedDeviceCookie: trustedDeviceCookie(r),
+	})
 	if err != nil {
-		renderFailure(w, r, err)
+		renderSecondFactorFailure(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, TokenResponse{AccessToken: access, RefreshToken: refresh}, "Login successful")
+	common.Respond(w, r, http.StatusOK, LoginResponse{
+		Status: string(result.Status), AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
+		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
+		TrustedDeviceEnabled: result.TrustedDeviceDays > 0, TrustedDeviceDays: result.TrustedDeviceDays,
+	}, "Login successful")
 }
 
 func invitationPath(r *http.Request) (int64, string, bool) {

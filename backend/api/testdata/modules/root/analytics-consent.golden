@@ -1,0 +1,2 @@
+GET /analytics-consent/ -> basis
+PUT /analytics-consent/ -> basis

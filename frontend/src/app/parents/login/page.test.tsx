@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
-import enMessages from "~/i18n/messages/en.json";
+import enMessages from "~/i18n/messages/en.generated";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -48,7 +48,7 @@ vi.mock("~/lib/parent-url", () => ({
 }));
 
 vi.mock("next-intl", async () => {
-  const en = (await import("~/i18n/messages/en.json")).default as Record<
+  const en = (await import("~/i18n/messages/en.generated")).default as Record<
     string,
     unknown
   >;

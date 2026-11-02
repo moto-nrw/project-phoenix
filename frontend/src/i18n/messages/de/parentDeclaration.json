@@ -1,0 +1,90 @@
+{
+  "sectionTitle": "Ihre Antwort",
+  "signersAny": "Eine sorgeberechtigte Person pro Kind genügt.",
+  "signersAll": "Jede sorgeberechtigte Person antwortet selbst.",
+  "nothingPreselected": "Nichts ist vorausgewählt.",
+  "version": "Fassung {version}",
+  "deadline": "Frist bis {date}",
+  "closed": "Frist abgelaufen",
+  "passwordNote": "Bevor Sie antworten, fragt moto Ihr Passwort ab.",
+  "signatureNote": "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
+  "state": {
+    "open": "Offen",
+    "partial": "Teilweise beantwortet",
+    "agreed": "Zugestimmt",
+    "declined": "Abgelehnt",
+    "revoked": "Widerrufen",
+    "no_signer": "Niemand kann antworten",
+    "expired": "Frist abgelaufen"
+  },
+  "action": {
+    "agreed": "Zustimmen",
+    "declined": "Ablehnen",
+    "revoked": "Zustimmung widerrufen"
+  },
+  "done": {
+    "agreed": "Zugestimmt",
+    "declined": "Abgelehnt",
+    "revoked": "Zustimmung widerrufen"
+  },
+  "explain": {
+    "agreed": "Mit „Zustimmen“ erklären Sie für {name}, dass Sie einverstanden sind.",
+    "declined": "Mit „Ablehnen“ erklären Sie für {name}, dass Sie nicht einverstanden sind."
+  },
+  "settled": {
+    "agreed": "{name} hat zugestimmt.",
+    "declined": "{name} hat abgelehnt.",
+    "revoked": "{name} hat die Zustimmung widerrufen."
+  },
+  "settledOnDate": {
+    "agreed": "{name} hat am {date} Uhr zugestimmt.",
+    "declined": "{name} hat am {date} Uhr abgelehnt.",
+    "revoked": "{name} hat die Zustimmung am {date} Uhr widerrufen."
+  },
+  "settledUnknown": "Für {name} liegt schon eine Antwort vor.",
+  "oneIsEnough": "Eine Antwort genügt.",
+  "ownAnyway": "Sie können trotzdem selbst antworten.",
+  "cannotSubmit": "Für {name} können Sie hier nicht antworten. Das machen die sorgeberechtigten Personen.",
+  "myAction": "Ihre Antwort: {action} am {date} Uhr",
+  "myActionNoDate": "Ihre Antwort: {action}",
+  "proof": "Nachweis ansehen",
+  "othersTitle": "Andere sorgeberechtigte Personen",
+  "otherOpen": "noch keine Antwort",
+  "revokeHint": "Sie können Ihre Zustimmung zurücknehmen. Die Schule sieht das sofort.",
+  "closedNoAction": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
+  "confirmTitle": "Ihre Antwort prüfen",
+  "confirmBody": "Ihre Antwort für {name}: {action}.",
+  "confirmChild": "Kind",
+  "confirmAction": "Ihre Antwort",
+  "confirmVersion": "Text",
+  "confirmRecorded": "moto speichert Ihre Antwort mit Datum und Uhrzeit. Die Schule sieht sie.",
+  "passwordLabel": "Passwort Ihres Eltern-Kontos",
+  "signature": {
+    "label": "Ihre Unterschrift",
+    "hint": "Unterschreiben Sie im Feld mit dem Finger, dem Stift oder der Maus.",
+    "canvas": "Feld zum Unterschreiben",
+    "clear": "Feld leeren",
+    "typeInstead": "Namen tippen",
+    "drawInstead": "Lieber zeichnen",
+    "typedName": "Ihr Vor- und Nachname",
+    "confirm": "Unterschrift bestätigen",
+    "confirmed": "Ihre Unterschrift ist bereit.",
+    "confirmedTyped": "Ihr getippter Name ist bereit.",
+    "change": "Neu unterschreiben",
+    "preview": "Ihre Unterschrift",
+    "emptyDrawing": "Bitte unterschreiben Sie im Feld.",
+    "nameTooShort": "Bitte tippen Sie Ihren Namen."
+  },
+  "revokeTitle": "Zustimmung widerrufen",
+  "revokeBody": "Sie nehmen Ihre Zustimmung für {name} zurück.",
+  "revokeConfirm": "Widerrufen",
+  "cancel": "Abbrechen",
+  "saving": "Wird gespeichert …",
+  "saved": "Ihre Antwort für {name} ist gespeichert.",
+  "errors": {
+    "passwordRequired": "Bitte geben Sie Ihr Passwort ein.",
+    "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten.",
+    "signatureRequired": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
+  },
+  "errorObjectAnswer": "die Antwort"
+}

@@ -1,0 +1,20 @@
+{
+  "errorObject": "lista e fazave të regjistrimit",
+  "back": "Kthehu te portali i prindërve",
+  "kicker": "Regjistrimi për kujdesin pas shkollës",
+  "title": "Regjistrim i ri",
+  "description": "Zgjidhni një shkollë dhe një fazë regjistrimi për të regjistruar fëmijën tuaj.",
+  "loading": "Duke ngarkuar fazat e regjistrimit …",
+  "empty": "Aktualisht nuk ka faza regjistrimi të disponueshme.",
+  "yourSchools": "Shkollat tuaja",
+  "otherSchools": "Shkolla të tjera",
+  "kindSchoolYear": "Viti shkollor",
+  "kindHoliday": "Kujdesi gjatë pushimeve",
+  "kindCustom": "Të tjera",
+  "closesAt": "Regjistrimi deri më {date}",
+  "audienceNewStudents": "Vetëm fëmijë të rinj",
+  "audienceExistingStudents": "Vetëm fëmijë të regjistruar",
+  "audienceLinkedParents": "Vetëm për prindër të lidhur",
+  "rangeConnector": "deri",
+  "openPhase": "Hap regjistrimin"
+}

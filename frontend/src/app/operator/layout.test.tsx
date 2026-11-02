@@ -84,7 +84,7 @@ describe("OperatorAuthGuard", () => {
   it("wraps children in shell and breadcrumb providers when not on login page", () => {
     mockUsePathname.mockReturnValue("/operator/organizations");
     mockUseSession.mockReturnValue({
-      data: { user: { scope: "platform", name: "Op" } },
+      data: { user: { id: "operator-a", scope: "platform", name: "Op" } },
       status: "authenticated",
     });
 
@@ -103,7 +103,7 @@ describe("OperatorAuthGuard", () => {
   it("handles announcements page", () => {
     mockUsePathname.mockReturnValue("/operator/announcements");
     mockUseSession.mockReturnValue({
-      data: { user: { scope: "platform", name: "Op" } },
+      data: { user: { id: "operator-a", scope: "platform", name: "Op" } },
       status: "authenticated",
     });
 
@@ -120,7 +120,7 @@ describe("OperatorAuthGuard", () => {
   it("handles settings page", () => {
     mockUsePathname.mockReturnValue("/operator/settings");
     mockUseSession.mockReturnValue({
-      data: { user: { scope: "platform", name: "Op" } },
+      data: { user: { id: "operator-a", scope: "platform", name: "Op" } },
       status: "authenticated",
     });
 

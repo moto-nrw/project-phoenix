@@ -1,7 +1,7 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -41,7 +41,7 @@ import {
   startOfWeek,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
 import {
@@ -110,7 +110,7 @@ export function ArbeitszeitmodellTab({
     staffScheduleService.getSchedule(staffId),
   );
 
-  const { mutate } = useSWRConfig();
+  const invalidate = useInvalidateMatching();
   const load = useApiLoadError();
   const showLoadError = load.show;
   const clearLoadError = load.clear;
@@ -150,7 +150,7 @@ export function ArbeitszeitmodellTab({
     );
   }
 
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   const weeklyTotal = schedule.weeklyTotals.reduce((s, m) => s + m, 0);
   const weeksLabel =
     schedule.rotationLength > 1
@@ -160,7 +160,7 @@ export function ArbeitszeitmodellTab({
     schedule.rotationLength > 0 ? weeklyTotal / schedule.rotationLength : 0;
   const handleScheduleSaved = () => {
     mutateSchedule();
-    void mutate(isStaleAfterModelSave);
+    void invalidate(isStaleAfterModelSave);
     setEditing(false);
   };
 
@@ -939,6 +939,7 @@ function CustomEditor({
           const isInvalid = invalidDecimalHourInputs.has(key);
           const durationId = `arbeitszeitmodell-duration-${activeWeekTab}-${d}`;
           const errorId = `arbeitszeitmodell-error-${activeWeekTab}-${d}`;
+          const startId = `arbeitszeitmodell-start-${activeWeekTab}-${d}`;
           return (
             <div
               key={d}
@@ -973,18 +974,22 @@ function CustomEditor({
                 />
               </div>
               <span className="text-xs text-gray-400">Dezimalstd.</span>
-              <label className="flex items-center gap-1 text-xs text-gray-500">
-                <span>Start</span>
-                <input
-                  type="time"
-                  value={startTime}
-                  disabled={minutes <= 0}
-                  onChange={(e) =>
-                    onStartTimeChange(activeWeekTab, d, e.target.value)
-                  }
-                  className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-                />
-              </label>
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <label htmlFor={startId}>Start</label>
+                <div className="w-28">
+                  <Input
+                    id={startId}
+                    type="time"
+                    controlSize="compact"
+                    value={startTime}
+                    disabled={minutes <= 0}
+                    onChange={(e) =>
+                      onStartTimeChange(activeWeekTab, d, e.target.value)
+                    }
+                    className="tabular-nums disabled:cursor-not-allowed"
+                  />
+                </div>
+              </div>
               <span
                 id={durationId}
                 role="status"

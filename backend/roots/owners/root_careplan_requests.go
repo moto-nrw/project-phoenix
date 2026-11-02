@@ -34,6 +34,7 @@ type CarePlanRequests struct {
 	MasterData      *carePlanCompose.MasterDataDecisions
 	ParentRequests  parentrequests.Coordinator
 	Documents       careplan.StudentDocuments
+	AccidentReports careplan.StudentAccidentReports
 }
 
 // NewRequestShareVisibility builds People Directory's sharing rules over the
@@ -143,9 +144,11 @@ func buildCarePlanDecisions(
 		return CarePlanRequests{}, fmt.Errorf("compose care plan documents: %w", err)
 	}
 	deps.DB = db.Pool()
-	if requests.Documents, err = carePlanCompose.NewStudentDocuments(deps); err != nil {
+	documents, err := carePlanCompose.NewStudentDocuments(deps)
+	if err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose care plan documents: %w", err)
 	}
+	requests.Documents, requests.AccidentReports = documents, documents
 	events := peopleCompose.NewParentRequestEventRepository(db.Pool())
 	if requests.MasterData, err = NewMasterDataDecisions(
 		carePlan, persons, people.Students, people.Persons,

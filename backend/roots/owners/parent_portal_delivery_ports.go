@@ -77,6 +77,6 @@ func bindParentMessageNotifier(notifier deliveryCompose.StaffParentMessageNotifi
 func (n parentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report parentportal.StaffParentMessageReport) error {
 	return n.notifier.NotifyStaffParentMessage(ctx, deliveryCompose.StaffParentMessageReport{
 		TenantID: report.TenantID, ThreadID: report.ThreadID, MessageID: report.MessageID,
-		StudentID: report.StudentID, ActorAccountID: report.ActorAccountID,
+		StudentID: report.StudentID, ActorAccountID: report.ActorAccountID, Leadership: report.Leadership,
 	})
 }

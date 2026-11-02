@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, StickyNote } from "lucide-react";
@@ -19,7 +20,6 @@ import {
   WEEKDAYS,
 } from "~/lib/arrival-schedule-helpers";
 import {
-  formatDateISO,
   type PickupScheduleFormData,
   type WeekdayNoteEntry,
 } from "~/lib/pickup-schedule-helpers";
@@ -691,6 +691,7 @@ export function CareWeeklyPlanEditForm({
   onCancel,
   onSaved,
 }: CareWeeklyPlanEditFormProps) {
+  const today = useBerlinToday();
   const toast = useToast();
   const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup, weeklyNotes);
   const pickupNeedsCareDay = careDaysSource === "bookings";
@@ -1018,9 +1019,7 @@ export function CareWeeklyPlanEditForm({
             reason={offeringReason}
             selectedOfferingId={selectedOfferingId}
             effectiveFrom={offeringEffectiveFrom}
-            canSaveException={
-              offeringEffectiveFrom <= formatDateISO(new Date())
-            }
+            canSaveException={offeringEffectiveFrom <= today}
             confirmed={offeringConfirmed}
             busy={isSubmitting}
             onReasonChange={setOfferingReason}

@@ -11,7 +11,8 @@ import { PROXY_ROUTES } from "~/test/proxy-routes.table";
  * `src/lib/route-proxy.server.test.ts`, `src/lib/route-wrapper.test.ts` and the
  * portal wrapper tests; per route only the portal, the backend path (with the
  * route params encoded) and the `raw` flag can differ. Those live in
- * `src/test/proxy-routes.table.ts`. A new pure proxy route without a table row fails.
+ * capability-local JSON files under `src/test/proxy-routes/` fragments. The loader
+ * rejects duplicate identities; a new pure proxy route without an expectation fails.
  */
 
 type Portal =

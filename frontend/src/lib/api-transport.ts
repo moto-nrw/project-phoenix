@@ -8,6 +8,11 @@ import {
   recordRateLimit,
 } from "~/lib/rate-limit-backoff";
 import { hasSessionAccess } from "~/lib/session-access";
+import {
+  boundSessionAccount,
+  isOwnApiUrl,
+  SESSION_ACCOUNT_HEADER,
+} from "~/lib/session-account";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
 /**
@@ -33,12 +38,18 @@ const api = createAxios({
   withCredentials: true,
 });
 
-// Request interceptor: rate-limit backoff only. The browser holds no token
-// (#5005); BFF routes authenticate through the session cookie.
+// Request interceptor: rate-limit backoff and, for this tab's own BFF, the
+// account the tab holds data for (#5183). The browser holds no token
+// (#5005); BFF routes authenticate through the session cookie. Other
+// origins never get the header: it would need a CORS preflight.
 api.interceptors.request.use(
   (config) => {
     const rateLimitError = rateLimitBlockedError(config.method);
     if (rateLimitError) return Promise.reject(rateLimitError);
+    const accountId = boundSessionAccount();
+    if (accountId !== null && isOwnApiUrl(api.getUri(config))) {
+      config.headers.set(SESSION_ACCOUNT_HEADER, accountId);
+    }
     return config;
   },
   (error: Error) => {

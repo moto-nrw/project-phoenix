@@ -8,6 +8,7 @@ import { ApiError } from "~/lib/api-error";
 import { resolveChangeRequestAccess } from "~/lib/change-request-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useTimetableEnabled } from "~/lib/tenant-context";
+import type { CourseWaitlist } from "~/lib/course-waitlist-helpers";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { mockUseSession, mockRedirect } = vi.hoisted(() => ({
@@ -38,6 +39,25 @@ vi.mock("~/lib/tenant-context", () => ({
   useTimetableEnabled: vi.fn(() => true),
 }));
 
+const waitlistState = vi.hoisted(() => ({
+  waitlists: undefined as CourseWaitlist[] | undefined,
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: (key: string | null) => ({
+    data: key === "course-waitlists" ? waitlistState.waitlists : undefined,
+    error: undefined,
+    isLoading: false,
+    mutate: vi.fn(() => Promise.resolve(undefined)),
+  }),
+}));
+
+vi.mock("~/lib/swr/course-waitlist-keys", () => ({
+  courseWaitlistKeys: {
+    all: () => "course-waitlists",
+  },
+}));
+
 vi.mock("~/components/timetable/pickup-extension-access", () => ({
   PickupExtensionAccessProvider: ({
     value,
@@ -58,14 +78,17 @@ vi.mock("~/components/students/aggregated-request-list", () => ({
   AggregatedRequestList: ({
     view,
     filters,
+    focusRequest,
   }: {
     view: string;
     filters: AggregatedRequestFilters;
+    focusRequest?: { studentId: string } | null;
   }) => (
     <div
       data-testid="aggregated-list"
       data-view={view}
       data-filters={JSON.stringify(filters)}
+      data-focus={focusRequest?.studentId ?? ""}
     />
   ),
 }));
@@ -116,6 +139,7 @@ function listProbe() {
   const probe = screen.getByTestId("aggregated-list");
   return {
     view: probe.getAttribute("data-view"),
+    focus: probe.getAttribute("data-focus"),
     filters: JSON.parse(
       probe.getAttribute("data-filters") ?? "{}",
     ) as AggregatedRequestFilters,
@@ -141,6 +165,7 @@ function umschalten(label: "Offen" | "Historie") {
 describe("AnfragenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    waitlistState.waitlists = undefined;
     mockUseTimetableEnabled.mockReturnValue(true);
     mockUseSession.mockReturnValue(sessionWith(["users:update"]));
     mockUseChangeRequestAccess.mockImplementation(
@@ -245,6 +270,103 @@ describe("AnfragenPage", () => {
     expect(probe.view).toBe("open");
     expect(probe.filters.search).toBe("");
     expect(probe.filters.types).toEqual([]);
+  });
+
+  it("zeigt die Warteliste und das nächste Kind, wenn ein Platz frei ist", () => {
+    waitlistState.waitlists = [
+      {
+        activityGroupId: "70",
+        name: "Theater-AG",
+        participantLimit: 8,
+        participants: 7,
+        freeSlots: 1,
+        slotFreeForNext: true,
+        entries: [
+          {
+            requestId: "11",
+            studentId: "101",
+            studentName: "Lina Amini",
+            rank: 1,
+            submittedAt: "2026-09-01T10:00:00Z",
+          },
+        ],
+      },
+    ];
+    render(<AnfragenPage />);
+
+    const theater = screen.getByRole("region", { name: "Theater-AG" });
+    expect(theater).toHaveTextContent("Lina Amini");
+    expect(theater).toHaveTextContent("Als Nächstes dran");
+  });
+
+  it("öffnet aus der Warteliste die Anfrage des Kindes in der Liste", () => {
+    waitlistState.waitlists = [
+      {
+        activityGroupId: "70",
+        name: "Theater-AG",
+        participantLimit: 8,
+        participants: 8,
+        freeSlots: 0,
+        slotFreeForNext: false,
+        entries: [
+          {
+            requestId: "11",
+            studentId: "101",
+            studentName: "Lina Amini",
+            rank: 1,
+            submittedAt: "2026-09-01T10:00:00Z",
+          },
+        ],
+      },
+    ];
+    render(<AnfragenPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage von Lina Amini öffnen" }),
+    );
+
+    expect(listProbe().focus).toBe("101");
+  });
+
+  it("leert Such- und Art-Filter vor dem Sprung aus der Warteliste", () => {
+    waitlistState.waitlists = [
+      {
+        activityGroupId: "70",
+        name: "Theater-AG",
+        participantLimit: 8,
+        participants: 8,
+        freeSlots: 0,
+        slotFreeForNext: false,
+        entries: [
+          {
+            requestId: "11",
+            studentId: "101",
+            studentName: "Lina Amini",
+            rank: 1,
+            submittedAt: "2026-09-01T10:00:00Z",
+          },
+        ],
+      },
+    ];
+    render(<AnfragenPage />);
+
+    const [input] = screen.getAllByPlaceholderText("Kind suchen…");
+    fireEvent.change(input!, { target: { value: "Anderes Kind" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    fireEvent.click(screen.getAllByText("Stammdaten")[0]!);
+    expect(listProbe().filters).toMatchObject({
+      search: "Anderes Kind",
+      types: ["master_data"],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage von Lina Amini öffnen" }),
+    );
+
+    expect(listProbe()).toMatchObject({
+      focus: "101",
+      filters: { search: "", types: [] },
+    });
   });
 
   it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {

@@ -104,25 +104,59 @@ func moduleRoutesMiddleware(booking *settings.ModuleBooking, guardianSchools ide
 func requireBookedModule(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requirement, ok := r.Context().Value(moduleRequirementKey{}).(moduleRequirement)
-		tenantID := tenant.FromContext(r.Context())
-		if !ok || tenantID <= 0 {
+		if !ok {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// The gate runs before the request's tenant transaction, so it reads
-		// the switch in a tenant transaction of its own; the request cache
-		// still serves every later read of the same switch.
-		err := requirement.booking.RequireForTenant(r.Context(), tenantID, requirement.module)
-		var notBooked *settings.ModuleNotBookedError
-		switch {
-		case errors.As(err, &notBooked):
-			common.RenderError(w, r, moduleNotBookedResponse(notBooked))
-		case err != nil:
-			common.RenderError(w, r, common.ErrorInternalServerWrap("module booking could not be read", err))
-		default:
-			next.ServeHTTP(w, r)
-		}
+		serveBookedModules(w, r, next, requirement.booking, requirement.module)
 	})
+}
+
+// gateDeviceAuthentication puts the module lock of the kiosk behind a device
+// authenticator (#4896). Devices carry no session, so TenantScopeMiddleware
+// never sees them; the school is the device's, bound by the authenticator.
+// Every kiosk route needs NFC-Anwesenheit, and a route of a further module
+// needs that module too: the staff clock needs Zeiterfassung as well. The
+// lock runs after authentication, so only a valid device learns about the
+// booking of its school.
+func gateDeviceAuthentication(authenticator func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return authenticator(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requirement, ok := r.Context().Value(moduleRequirementKey{}).(moduleRequirement)
+			if !ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			modules := []settings.ModuleKey{settings.ModuleNFCAnwesenheit}
+			if requirement.module != settings.ModuleNFCAnwesenheit {
+				modules = append(modules, requirement.module)
+			}
+			serveBookedModules(w, r, next, requirement.booking, modules...)
+		}))
+	}
+}
+
+// serveBookedModules serves the request once the bound school booked every
+// module, and answers module.not_booked for the first one it did not.
+func serveBookedModules(w http.ResponseWriter, r *http.Request, next http.Handler, booking *settings.ModuleBooking, modules ...settings.ModuleKey) {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		next.ServeHTTP(w, r)
+		return
+	}
+	// The gate runs before the request's tenant transaction, so it reads
+	// the switch in a tenant transaction of its own; the request cache
+	// still serves every later read of the same switch.
+	err := booking.RequireForTenant(r.Context(), tenantID, modules...)
+	var notBooked *settings.ModuleNotBookedError
+	switch {
+	case errors.As(err, &notBooked):
+		common.RenderError(w, r, moduleNotBookedResponse(notBooked))
+	case err != nil:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("module booking could not be read", err))
+	default:
+		next.ServeHTTP(w, r)
+	}
 }
 
 func moduleNotBookedResponse(notBooked *settings.ModuleNotBookedError) render.Renderer {

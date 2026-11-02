@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -71,4 +72,4 @@ async function POSTHandler(request: NextRequest) {
   }
 }
 
-export const POST = withTenantAuth(POSTHandler);
+export const POST = withPrivateDownloadNoStore(withTenantAuth(POSTHandler));

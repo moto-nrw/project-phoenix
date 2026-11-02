@@ -1,16 +1,14 @@
 "use client";
 
+import { me as meKeys } from "~/lib/swr/me";
+import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import {
-  useSWRAuth,
-  useTenantMutate,
-  useTenantMutateMatching,
-} from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
@@ -24,12 +22,12 @@ import {
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
-import { roomService, studentService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
 import type { Room } from "~/lib/room-helpers";
-import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -37,6 +35,7 @@ import {
   useAttendanceWebEnabled,
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
+import { transitConcept } from "~/lib/concepts/transit";
 
 const DETAIL_CARD_CLASS =
   "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
@@ -97,6 +96,8 @@ interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
   /** Meldet die geladene Zahl für die Statuszeile der eigenständigen Seite. */
   readonly onTotalCountChange?: (totalCount: number | null) => void;
+  /** Beschränkt die Liste auf dieselbe Tagesplanung wie den Einstieg. */
+  readonly dayStatus?: "comes_today" | "not_coming_today";
   readonly fromReferrer?: string;
   readonly collapsible?: boolean;
 }
@@ -104,6 +105,7 @@ interface TransitStudentsSectionProps {
 export function TransitStudentsSection({
   onSelectionActiveChange,
   onTotalCountChange,
+  dayStatus,
   fromReferrer: fromReferrerOverride,
   collapsible = false,
 }: TransitStudentsSectionProps) {
@@ -133,18 +135,20 @@ export function TransitStudentsSection({
   // „Wiederholen“ weist die aktuell gewählten Kinder dem aktuellen Ziel zu.
   const retryAssignRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
-  const mutateKey = useTenantMutate();
   // "dashboard" (matching the aggregated active-supervision-dashboard key,
   // which carries the room's visits since #2096) and "timetable-roster-"
   // keep the /active-supervisions room grid and roster in sync when this
   // section is embedded there — without them the assigned children only
-  // appear once an SSE event happens to arrive.
+  // appear once an SSE event happens to arrive. "dashboard" also covers the
+  // Unterwegs counter (dashboard-analytics); the search-students prefix
+  // refreshes „Alle Kinder“, whose card leads here (#5026).
   const mutateMatching = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
-    "rooms-list",
+    roomsKeys.family,
     "dashboard",
     "timetable-roster-",
+    SEARCH_STUDENTS_KEY_PREFIX,
   ]);
 
   const {
@@ -155,8 +159,12 @@ export function TransitStudentsSection({
   } = useSWRAuth<{
     students: Student[];
     pagination?: { total_records: number };
-  }>("transit-students", () =>
-    studentService.getStudents({ locationState: "transit", pageSize: 200 }),
+  }>(dayStatus ? `transit-students-${dayStatus}` : "transit-students", () =>
+    studentService.getStudents({
+      locationState: "transit",
+      ...(dayStatus ? { dayStatus } : {}),
+      pageSize: 200,
+    }),
   );
 
   const {
@@ -172,10 +180,7 @@ export function TransitStudentsSection({
     error: staffError,
     isLoading: staffLoading,
     mutate: reloadStaff,
-  } = useSWRAuth<Staff>(
-    showAllTargets ? null : "transit-target-current-staff",
-    () => userContextService.getCurrentStaff(),
-  );
+  } = useSWRAuth<Staff>(showAllTargets ? null : meKeys.key(), meKeys.fetcher);
   const {
     data: activeSupervisions = [],
     error: supervisionsError,
@@ -194,8 +199,8 @@ export function TransitStudentsSection({
     isLoading: roomsLoading,
     mutate: refreshTargetRooms,
   } = useSWRAuth<Room[]>(
-    canTargetOpenRooms ? "transit-target-rooms" : null,
-    () => roomService.getRooms(),
+    canTargetOpenRooms ? roomsKeys.key() : null,
+    roomsKeys.fetcher,
   );
   // Ladefehler einer der fünf Listen: eine Meldung, „Wiederholen“ lädt alle.
   const loadError = useSwrLoadError(
@@ -333,7 +338,6 @@ export function TransitStudentsSection({
       setSelectedIds(new Set());
       setTargetValue("");
       await mutateStudents();
-      await mutateKey("rooms-list");
       await mutateMatching();
       toastSuccess(message);
     } catch (err) {
@@ -407,7 +411,7 @@ export function TransitStudentsSection({
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100"
             aria-hidden="true"
           >
-            <MotoConceptIcon concept="transit" size={18} />
+            <MotoConceptIcon concept={transitConcept} size={18} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">

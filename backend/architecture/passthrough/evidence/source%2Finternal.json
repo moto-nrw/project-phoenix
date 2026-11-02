@@ -1,0 +1,123 @@
+{
+  "sites": [
+    {
+      "build": "tool",
+      "evidence": "func (c *Client) CheckHealth() error {\n\treturn c.adapter.CheckHealth(context.Background())\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Client.CheckHealth",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (c *Client) Login(email, password string, tenantSlug ...string) error {\n\tslug := \"\"\n\tif len(tenantSlug) \u003e 0 {\n\t\tslug = tenantSlug[0]\n\t}\n\tauth, err := c.adapter.LoginTenant(context.Background(), email, password, slug)\n\tif err != nil {\n\t\treturn err\n\t}\n\tc.BindAuth(auth)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Client.Login",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (c *Client) LoginOperator(email, password string) error {\n\tauth, err := c.adapter.LoginOperator(context.Background(), email, password)\n\tif err != nil {\n\t\treturn err\n\t}\n\tc.BindAuth(auth)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Client.LoginOperator",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (c *Client) LoginParent(email, password string) error {\n\tauth, err := c.adapter.LoginParent(context.Background(), email, password)\n\tif err != nil {\n\t\treturn err\n\t}\n\tc.BindAuth(auth)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Client.LoginParent",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (c *Client) LoginTraeger(email, password string, organizationID int64) (AuthRef, error) {\n\treturn c.adapter.LoginTraeger(context.Background(), email, password, organizationID)\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Client.LoginTraeger",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (r *Runtime) SetOperatorAuth(auth AuthRef) {\n\tr.OperatorAuth = auth\n\tr.Client.BindAuth(auth)\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Runtime.SetOperatorAuth",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (r *Runtime) SetTenantAuth(auth AuthRef) {\n\tr.TenantAuth = auth\n\tr.Client.BindAuth(auth)\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/Runtime.SetTenantAuth",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *loginCachingAdapter) LoginParent(ctx context.Context, email, password string) (AuthRef, error) {\n\treturn a.login(loginCacheKey{\"parent\", email, password, \"\"}, func() (AuthRef, error) {\n\t\treturn a.Adapter.LoginParent(ctx, email, password)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/loginCachingAdapter.LoginParent",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *loginCachingAdapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (AuthRef, error) {\n\treturn a.login(loginCacheKey{\"tenant\", email, password, tenantSlug}, func() (AuthRef, error) {\n\t\treturn a.Adapter.LoginTenant(ctx, email, password, tenantSlug)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/loginCachingAdapter.LoginTenant",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (s manualProfileStep) Run(ctx context.Context, rt *Runtime) error {\n\tprofile, err := s.seeder.seedManualProfile(ctx, rt)\n\tif err != nil {\n\t\treturn err\n\t}\n\trt.AdditionalProfiles[profile.Key] = profile\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/manualProfileStep.Run",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {\n\tif rt.Bootstrap == nil {\n\t\treturn fmt.Errorf(\"bootstrap state not available\")\n\t}\n\tif rt.Result == nil {\n\t\treturn fmt.Errorf(\"seed result not available\")\n\t}\n\tif s.seeder.options.StandingDemo {\n\t\treturn nil\n\t}\n\ts.seeder.printSuccessSummary(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Result, rt.State)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/printSummaryStep.Run",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) CheckHealth(ctx context.Context) error {\n\treturn a.retry(ctx, func() error {\n\t\treturn a.Adapter.CheckHealth(ctx)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.CheckHealth",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) LoginOperator(ctx context.Context, email, password string) (auth AuthRef, err error) {\n\terr = a.retry(ctx, func() error {\n\t\tauth, err = a.Adapter.LoginOperator(ctx, email, password)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginOperator",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) LoginParent(ctx context.Context, email, password string) (auth AuthRef, err error) {\n\terr = a.retry(ctx, func() error {\n\t\tauth, err = a.Adapter.LoginParent(ctx, email, password)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginParent",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (auth AuthRef, err error) {\n\terr = a.retry(ctx, func() error {\n\t\tauth, err = a.Adapter.LoginTenant(ctx, email, password, tenantSlug)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginTenant",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) (raw []byte, status int, err error) {\n\terr = a.retry(ctx, func() error {\n\t\traw, status, err = a.Adapter.Raw(ctx, auth, method, path, body, headers)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.Raw",
+      "owner": "source/internal"
+    },
+    {
+      "build": "tool",
+      "evidence": "func (a *retryingAdapter) RawUpload(ctx context.Context, auth AuthRef, method, path, contentType string, body []byte) (raw []byte, status int, err error) {\n\terr = a.retry(ctx, func() error {\n\t\traw, status, err = a.Adapter.RawUpload(ctx, auth, method, path, contentType, body)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "internal/devtools/seedapi/retryingAdapter.RawUpload",
+      "owner": "source/internal"
+    }
+  ]
+}

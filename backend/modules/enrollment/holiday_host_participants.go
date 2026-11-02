@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -27,6 +28,10 @@ type HolidayHost struct {
 	SchoolID  int64
 	AccountID int64
 	Role      string
+	// ReadsHealth is true when the account may read the children's health
+	// information (users:read, like the health field of a child); without
+	// it the participant list leaves the health information out (#4722).
+	ReadsHealth bool
 }
 
 // HostedHolidayWeek is a week the school hosts whose last day has not passed,
@@ -47,15 +52,56 @@ type HostedHolidayWeek struct {
 // HolidayParticipant is one confirmed child of a hosted week with the
 // minimum fields: name, date of birth, home school and booked time model. A
 // nil HomeSchoolID marks a holiday guest; GuestSchoolName is the school the
-// parents named for it, if any.
+// parents named for it, if any. SecondGuardian and Answers are what the
+// Träger shares beyond them (#5202): the second guardian with name and
+// phone, nil without one, and the answers to the shared questions of the
+// form version of the child's registration, empty without such questions.
 type HolidayParticipant struct {
-	ChildID         int64         `json:"child_id"`
-	FirstName       string        `json:"first_name"`
-	LastName        string        `json:"last_name"`
-	BirthDate       calendar.Date `json:"birth_date"`
-	HomeSchoolID    *int64        `json:"home_school_id"`
-	GuestSchoolName string        `json:"guest_school_name"`
-	TimeModelID     int64         `json:"time_model_id"`
+	ChildID         int64                `json:"child_id"`
+	FirstName       string               `json:"first_name"`
+	LastName        string               `json:"last_name"`
+	BirthDate       calendar.Date        `json:"birth_date"`
+	HomeSchoolID    *int64               `json:"home_school_id"`
+	GuestSchoolName string               `json:"guest_school_name"`
+	TimeModelID     int64                `json:"time_model_id"`
+	SecondGuardian  *HolidayHostGuardian `json:"second_guardian"`
+	Answers         []HolidayHostAnswer  `json:"answers"`
+	// Health is the health information the hosting school sees (#4722):
+	// nil without any, or when the parents did not agree under consent
+	// texts of HolidayConsentVersionHostHealth.
+	Health *HolidayHostHealth `json:"health"`
+	// Sealed carries the sealed health information from the store to the
+	// service, which opens it into Health; it never leaves Enrollment.
+	Sealed *HolidaySealedHostHealth `json:"-"`
+}
+
+// HolidayHostGuardian is the second guardian of a registration as the
+// hosting school sees it: name and phone, never the e-mail address. Phone
+// is empty when the parents gave none.
+type HolidayHostGuardian struct {
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+}
+
+// HolidayHostAnswer is the answer to a question the Träger shares with the
+// hosting school (#5202). Only a question without health information can be
+// shared; the database decides that per form version (ADR 0116 addendum).
+// Value is a JSON boolean for a yes/no question, the label of the chosen
+// option for a selection, a string for every other question ("YYYY-MM-DD"
+// for a date), and null when the parents gave no answer.
+type HolidayHostAnswer struct {
+	Key   string          `json:"key"`
+	Label string          `json:"label"`
+	Type  FormFieldType   `json:"type"`
+	Value json.RawMessage `json:"value"`
+}
+
+// HolidayHostQuestion is a shared question of a participant list: one
+// column of the list and its export.
+type HolidayHostQuestion struct {
+	Key   string        `json:"key"`
+	Label string        `json:"label"`
+	Type  FormFieldType `json:"type"`
 }
 
 // HolidayTimeModelCount is a time model of the week with the number of
@@ -76,10 +122,13 @@ type HolidayHomeSchoolCount struct {
 }
 
 // HolidayParticipantList is the participant list of one hosted week.
+// Questions are the shared questions its children answered, in the order
+// of the form; empty when the period shares none.
 type HolidayParticipantList struct {
 	Week         HostedHolidayWeek        `json:"week"`
 	TimeModels   []HolidayTimeModelCount  `json:"time_models"`
 	HomeSchools  []HolidayHomeSchoolCount `json:"home_schools"`
+	Questions    []HolidayHostQuestion    `json:"questions"`
 	Participants []HolidayParticipant     `json:"participants"`
 }
 
@@ -93,7 +142,10 @@ type HolidayParticipantAccess struct {
 	StartsOn       calendar.Date
 	EndsOn         calendar.Date
 	Participants   int
-	Format         string
+	// HealthParticipants counts the children whose health information the
+	// list showed (#4722).
+	HealthParticipants int
+	Format             string
 }
 
 // HolidayParticipantAccessLog writes a read of a participant list into the
@@ -101,6 +153,7 @@ type HolidayParticipantAccess struct {
 // root binds it to the Audit Platform.
 type HolidayParticipantAccessLog interface {
 	RecordHolidayParticipantAccess(ctx context.Context, access HolidayParticipantAccess) error
+	RecordHolidayStudentHealthAccess(ctx context.Context, access HolidayStudentHealthAccess) error
 }
 
 // HolidayHostParticipants serves the participant lists to the hosting
@@ -115,8 +168,59 @@ type HolidayHostParticipants interface {
 	// the read.
 	HolidayParticipants(ctx context.Context, host HolidayHost, weekID int64) (HolidayParticipantList, error)
 	// ExportHolidayParticipants returns the same list for an export file
-	// and records the export with its format.
+	// and records the export with its format. The export carries no health
+	// information (#4722).
 	ExportHolidayParticipants(ctx context.Context, host HolidayHost, weekID int64, format string) (HolidayParticipantList, error)
+	// HolidayStudentHealth returns the health information the registrations
+	// of the school's own child give for the weeks the school hosts, until
+	// the last day of each week, and records the read when there is any
+	// (#4722). It never changes the child's health field.
+	HolidayStudentHealth(ctx context.Context, host HolidayHost, studentID int64) ([]HolidayStudentHealth, error)
+}
+
+// HolidayStudentHealth is the health information a confirmed registration
+// gives for a child of the hosting school in one week it hosts (#4722): the
+// registration names the school as the child's home school and the child's
+// names and date of birth. The school keeps its own health field; this
+// stands beside it as "Angaben aus der Ferienanmeldung".
+type HolidayStudentHealth struct {
+	WeekID     int64             `json:"week_id"`
+	PeriodName string            `json:"period_name"`
+	StartsOn   calendar.Date     `json:"starts_on"`
+	EndsOn     calendar.Date     `json:"ends_on"`
+	Health     HolidayHostHealth `json:"health"`
+	// Sealed carries the sealed values from the store to the service.
+	Sealed *HolidaySealedHostHealth `json:"-"`
+}
+
+// HolidayStudentIdentity is what matches a child of the school to the
+// children of the registrations: names and date of birth.
+type HolidayStudentIdentity struct {
+	FirstName string
+	LastName  string
+	BirthDate calendar.Date
+}
+
+// HolidayStudentIdentities reads the names and the date of birth of a child
+// of the school in its tenant transaction; ErrHolidayStudentNotFound for a
+// child the school does not have. The root binds the People Directory.
+type HolidayStudentIdentities interface {
+	HolidayStudentIdentity(ctx context.Context, studentID int64) (HolidayStudentIdentity, error)
+}
+
+// ErrHolidayStudentNotFound reports a child that is not a child of the
+// school.
+var ErrHolidayStudentNotFound = errors.New("student of the hosting school not found")
+
+// HolidayStudentHealthAccess is one read of the health information of the
+// school's own child for its access log.
+type HolidayStudentHealthAccess struct {
+	ActorAccountID int64
+	ActorRole      string
+	StudentID      int64
+	WeekIDs        []int64
+	StartsOn       calendar.Date
+	EndsOn         calendar.Date
 }
 
 // HolidayHostSchoolNames names the schools of the hosting school's Träger,

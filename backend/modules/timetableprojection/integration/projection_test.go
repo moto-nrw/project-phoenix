@@ -44,7 +44,7 @@ func projectionReads(id int64, ids []int64) map[string]projectionRead {
 			return (timetableprojection.Reader{}).LockCourseGroups(ctx, db, tenantID, ids)
 		}),
 		"course occupancy": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
+			return (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), nil)
 		}),
 		"request enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
@@ -111,7 +111,7 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, locked)
 	assert.Empty(t, locked)
-	courseCounts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, calendar.NewDate(2026, 9, 4), calendar.NewDate(2026, 9, 5), 0)
+	courseCounts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, calendar.NewDate(2026, 9, 4), calendar.NewDate(2026, 9, 5), nil)
 	require.NoError(t, err)
 	assert.NotNil(t, courseCounts)
 	assert.Empty(t, courseCounts)
@@ -188,7 +188,7 @@ func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
 	}
 
 	counts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(
-		ctx, db, testpkg.Tenant(t), []int64{group.ID}, date, date.AddDays(1), approving.ID,
+		ctx, db, testpkg.Tenant(t), []int64{group.ID}, date, date.AddDays(1), map[int64]int64{group.ID: approving.ID},
 	)
 
 	require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestCourseOccupancyUsesThePeakAcrossTheEnrollmentWindow(t *testing.T) {
 	}
 
 	counts, err := (timetableprojection.Reader{}).CountActiveCourseEnrollments(
-		ctx, db, testpkg.Tenant(t), []int64{group.ID}, from, until, 0,
+		ctx, db, testpkg.Tenant(t), []int64{group.ID}, from, until, nil,
 	)
 
 	require.NoError(t, err)

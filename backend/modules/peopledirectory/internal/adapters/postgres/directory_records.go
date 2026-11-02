@@ -225,6 +225,18 @@ func (s *studentDirectoryReads) FindRecord(
 	studentID int64,
 	lock string,
 ) (directory.StudentRecord, bool, directoryStats, error) {
+	return s.findRecord(ctx, studentID, lock, nil)
+}
+
+// findRecord reads one owned row. A locking read given a gate query joins
+// the gate as a materialized CTE, so one statement takes the gate before the
+// row lock.
+func (s *studentDirectoryReads) findRecord(
+	ctx context.Context,
+	studentID int64,
+	lock string,
+	gate *bun.SelectQuery,
+) (directory.StudentRecord, bool, directoryStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return directory.StudentRecord{}, false, directoryStats{}, err
@@ -232,12 +244,18 @@ func (s *studentDirectoryReads) FindRecord(
 	rows := []directoryRecordRow{}
 	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), scope)
-	if lock != "" {
-		query = query.For(lock)
+	scan := query.Scan
+	switch {
+	case lock != "" && gate != nil:
+		scan = db.NewRaw(`WITH class_write_gate AS MATERIALIZED (?)
+  SELECT record.* FROM (?) AS record CROSS JOIN class_write_gate
+  FOR ?`, gate, query, bun.Safe(lock)).Scan
+	case lock != "":
+		scan = query.For(lock).Scan
 	}
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
-	err = query.Scan(ctx, &rows)
+	err = scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		// A NOWAIT acquisition the holder refuses is the caller's retriable

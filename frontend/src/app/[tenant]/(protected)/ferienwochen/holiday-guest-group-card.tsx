@@ -6,12 +6,12 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
-import { groupService } from "~/lib/api";
+import { groups as groupResource } from "~/lib/swr/groups";
 import {
   assignHolidayGuestGroup,
   type HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
@@ -39,9 +39,7 @@ export function HolidayGuestGroupCard({
   canAssign: boolean;
   onAssigned: () => void;
 }>) {
-  const groups = useSWRAuth("holiday-guest-groups", () =>
-    groupService.getGroups(),
-  );
+  const groups = useSWRAuth(groupResource.key(), groupResource.fetcher);
   const groupsError = useSwrLoadError(groups.error, "die Gruppen", () =>
     groups.mutate(),
   );
@@ -90,7 +88,7 @@ export function HolidayGuestGroupCard({
     // Before the week the guests wait outside the group, like children
     // before their first care day.
     status =
-      week.startsOn > todayISO()
+      week.startsOn > berlinTodayISO()
         ? `Ab ${formatDate(week.startsOn)} ${week.guests === 1 ? "steht" : "stehen"} ${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`
         : `${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`;
   }
@@ -98,7 +96,7 @@ export function HolidayGuestGroupCard({
   return (
     <SectionCard
       title="Feriengruppe"
-      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe sehen Sie Betreuung, Notfall und Abholung und melden die Kinder an und ab."
+      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe melden Sie die Kinder an und ab. Sie sehen Betreuung, Notfall, Abholung, Gesundheit und die Angaben, die der Träger freigibt."
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-700">{status}</p>

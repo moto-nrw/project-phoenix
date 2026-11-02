@@ -435,3 +435,5 @@ func equalStrings(got, want []string) bool {
 	}
 	return true
 }
+
+func (f *fakeMoves) PrepareOpenRoomMove(context.Context, []int64, int64) error { return nil }

@@ -1,11 +1,3 @@
-import type { NextRequest } from "next/server";
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
 
-// Caterer-portal login (ADR 0077). Static route wins over the NextAuth
-// [...nextauth] catch-all, as for the school portal.
-async function POSTHandler(request: NextRequest) {
-  return forwardJsonPost(request, "/caterer/auth/login");
-}
-
-export const POST = withPrivateNoStore(POSTHandler);
+export const POST = createPortalLoginRoute("caterer", "login");

@@ -68,10 +68,13 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
@@ -81,20 +84,27 @@ import {
 } from "~/components/ui/slide-over";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
+import {
+  formatChatDateTime,
+  formatDate,
+  parseISODate,
+  berlinTodayISO,
+} from "~/lib/date-helpers";
 import {
   DataTable,
   DataTableStatusBadge,
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Radio } from "~/components/ui/radio";
 import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { useTenantMutate } from "~/lib/swr";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -165,7 +175,7 @@ type SchemaSource = "base" | "reuse";
 function blankInput(): PhaseInput {
   // Pre-fill service dates with the next school year so admins do not
   // start from "0001-01-01". They can edit before saving.
-  const now = new Date();
+  const now = parseISODate(berlinTodayISO());
   const startYear =
     now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return {
@@ -508,7 +518,7 @@ export function PhasesEditor() {
       });
       if (conflicting) {
         formErrors.invalid(
-          `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
+          `Die ${schoolClassLabel(conflicting)} passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
         );
         return;
       }
@@ -887,7 +897,7 @@ export function PhasesEditor() {
           className="inline-flex shrink-0 items-center justify-center gap-2"
         >
           <MotoConceptIcon
-            concept="calendarPeriods"
+            concept={calendarPeriodsConcept}
             colorMode="inherit"
             size={16}
           />
@@ -905,7 +915,7 @@ export function PhasesEditor() {
                 "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
               icon: (
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                  <MotoConceptIcon concept="calendarPeriods" size={24} />
+                  <MotoConceptIcon concept={calendarPeriodsConcept} size={24} />
                 </span>
               ),
             }
@@ -1041,7 +1051,7 @@ export function PhasesEditor() {
           <EnrollmentStatTile
             leading={
               <MotoConceptIcon
-                concept="calendarPeriods"
+                concept={calendarPeriodsConcept}
                 colorMode="inherit"
                 size={16}
               />
@@ -1050,12 +1060,14 @@ export function PhasesEditor() {
             value={phases.length}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="careTimes" size={16} />}
+            leading={<MotoConceptIcon concept={careTimesConcept} size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+            leading={
+              <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
+            }
             label="In Vorbereitung"
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
@@ -1118,7 +1130,7 @@ function FormSchemaCell({
         className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100"
         aria-hidden="true"
       >
-        <MotoConceptIcon concept="enrollments" size={16} />
+        <MotoConceptIcon concept={enrollmentsConcept} size={16} />
       </span>
       <span className="min-w-0">
         <span className="block truncate font-medium text-gray-900">
@@ -1232,19 +1244,19 @@ function PhaseActions({
     },
     {
       label: "Manuelle Anmeldung",
-      icon: <MotoConceptIcon concept="enrollments" size={18} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={18} />,
       disabled: saving,
       onClick: () => setManualOpen(true),
     },
     {
       label: "Anmeldungen ansehen",
-      icon: <MotoConceptIcon concept="enrollments" size={16} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
       href: enrollmentsHref,
       onClick: () => undefined,
     },
     {
       label: "Formular zuweisen",
-      icon: <MotoConceptIcon concept="enrollments" size={16} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
       disabled: saving,
       onClick: onAssignForm,
     },
@@ -1252,7 +1264,7 @@ function PhaseActions({
       label: "Anschlussphase erstellen",
       icon: (
         <MotoConceptIcon
-          concept="calendarPeriods"
+          concept={calendarPeriodsConcept}
           colorMode="inherit"
           size={16}
         />
@@ -1369,50 +1381,35 @@ function PhaseForm(props: PhaseFormProps) {
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Name</span>
-          <input
-            name="name"
-            type="text"
-            value={draft.name}
-            onChange={(e) => update({ name: e.target.value })}
-            placeholder="z. B. Schuljahr 2026/27"
-            aria-required="true"
-            aria-invalid={fieldError("name") ? true : undefined}
-            aria-describedby={
-              fieldError("name") ? "phase-name-error" : undefined
-            }
-            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              fieldError("name")
-                ? "border-moto-red bg-moto-red/5"
-                : "border-gray-200 hover:border-gray-300"
-            }`}
-          />
-          {fieldError("name") ? (
-            <span
-              id="phase-name-error"
-              className="text-moto-red-strong mt-1 block text-xs"
-            >
-              {fieldError("name")}
-            </span>
-          ) : null}
-        </label>
+        <Input
+          id="phase-name"
+          name="name"
+          type="text"
+          label="Name"
+          controlSize="compact"
+          value={draft.name}
+          onChange={(e) => update({ name: e.target.value })}
+          placeholder="z. B. Schuljahr 2026/27"
+          aria-required="true"
+          error={fieldError("name")}
+        />
 
-        <label className="block" htmlFor="phase-kind" id="phase-kind-label">
-          <span className="text-xs font-medium text-gray-700">Typ</span>
+        <div>
+          <FieldLabel htmlFor="phase-kind" id="phase-kind-label">
+            Typ
+          </FieldLabel>
           <CustomSelect
             ariaLabelledBy="phase-kind-label"
             id="phase-kind"
             value={draft.kind}
             onChange={(value) => update({ kind: value as PhaseKind })}
-            className="mt-1"
             options={[
               { value: "school_year", label: KIND_LABELS.school_year },
               { value: "holiday", label: KIND_LABELS.holiday },
               { value: "custom", label: KIND_LABELS.custom },
             ]}
           />
-        </label>
+        </div>
       </div>
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1635,9 +1632,8 @@ function PhaseForm(props: PhaseFormProps) {
             htmlFor="schema-source-base"
             className="flex items-start gap-2"
           >
-            <input
+            <Radio
               id="schema-source-base"
-              type="radio"
               name="schema-source"
               value="base"
               checked={schemaSource === "base"}
@@ -1658,9 +1654,8 @@ function PhaseForm(props: PhaseFormProps) {
               schemas.length === 0 ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
-            <input
+            <Radio
               id="schema-source-reuse"
-              type="radio"
               name="schema-source"
               value="reuse"
               checked={schemaSource === "reuse"}
@@ -2054,7 +2049,7 @@ function SchoolClassListEditor({
               <button
                 type="button"
                 onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`Klasse ${cls} entfernen`}
+                aria-label={`${schoolClassLabel(cls)} entfernen`}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // ErrInvalidTenantID reports a missing or non-positive projection tenant.
@@ -72,9 +73,9 @@ func participantLimit(limit int) *int {
 
 // CountActiveCourseEnrollments returns each course's peak roster occupancy in
 // [from, until). A seat is held for the full enrollment window, independently
-// of individual days. excludeStudentID omits an existing seat of the child
-// currently being checked.
-func (Reader) CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
+// of individual days. excludedStudentByGroup omits each group's child being
+// checked, so batch reads match the individual approval checks.
+func (Reader) CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -85,18 +86,29 @@ func (Reader) CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tena
 	if !from.Before(until) {
 		return nil, fmt.Errorf("timetable projection: course occupancy range must not be empty")
 	}
+	excludedGroupIDs := make([]int64, 0, len(excludedStudentByGroup))
+	excludedStudentIDs := make([]int64, 0, len(excludedStudentByGroup))
+	for _, groupID := range groupIDs {
+		if studentID := excludedStudentByGroup[groupID]; studentID > 0 {
+			excludedGroupIDs = append(excludedGroupIDs, groupID)
+			excludedStudentIDs = append(excludedStudentIDs, studentID)
+		}
+	}
 	var rows []struct {
 		GroupID int64 `bun:"activity_group_id"`
 		Count   int   `bun:"count"`
 	}
-	err := db.NewRaw(`WITH intervals AS (
-		SELECT activity_group_id, student_id,
-		       GREATEST(valid_from, ?) AS starts_at,
-		       LEAST(COALESCE(valid_until, ?), ?) AS ends_at
-		FROM activities.student_enrollments
-		WHERE tenant_id = ? AND activity_group_id IN (?)
-		  AND valid_from < ? AND (valid_until IS NULL OR valid_until > ?)
-		  AND (? = 0 OR student_id <> ?)
+	err := db.NewRaw(`WITH excluded AS (
+		SELECT * FROM unnest(?::bigint[], ?::bigint[]) AS excluded(activity_group_id, student_id)
+	), intervals AS (
+		SELECT enrollment.activity_group_id, enrollment.student_id,
+		       GREATEST(enrollment.valid_from, ?) AS starts_at,
+		       LEAST(COALESCE(enrollment.valid_until, ?), ?) AS ends_at
+		FROM activities.student_enrollments AS enrollment
+		LEFT JOIN excluded USING (activity_group_id)
+		WHERE enrollment.tenant_id = ? AND enrollment.activity_group_id IN (?)
+		  AND enrollment.valid_from < ? AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?)
+		  AND (excluded.student_id IS NULL OR enrollment.student_id <> excluded.student_id)
 	), boundaries AS (
 		SELECT activity_group_id, starts_at AS boundary FROM intervals
 		UNION
@@ -111,7 +123,8 @@ func (Reader) CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tena
 	)), 0)::int AS count
 	FROM boundaries
 	GROUP BY boundaries.activity_group_id`,
-		from, until, until, tenantID, bun.List(groupIDs), until, from, excludeStudentID, excludeStudentID,
+		pgdialect.Array(excludedGroupIDs), pgdialect.Array(excludedStudentIDs),
+		from, until, until, tenantID, bun.List(groupIDs), until, from,
 	).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: count active course enrollments: %w", err)

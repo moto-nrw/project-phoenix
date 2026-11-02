@@ -25,6 +25,7 @@ import { ExternalBadge } from "~/components/staff/external-badge";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -378,7 +379,7 @@ export function SpontaneousActivityStart({
           onClick={() => setIsOpen(true)}
           className="border-moto-green/40 bg-moto-green/10 hover:border-moto-green hover:bg-moto-green/15 flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="bg-moto-green flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-950">
+          <span className="bg-moto-green-fill flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white">
             <Plus className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
@@ -608,7 +609,7 @@ export function SpontaneousActivityStart({
           {isLoadingRefs || !staffLoaded ? null : (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <MotoConceptIcon concept="staff" size={16} />
+                <MotoConceptIcon concept={staffConcept} size={16} />
                 Weitere Betreuer
               </div>
               {staff.length > 0 ? (

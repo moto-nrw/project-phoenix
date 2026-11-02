@@ -6,14 +6,14 @@
 // der das Konto eine Schul-Portal-Rolle hält.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -25,6 +25,8 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
@@ -32,7 +34,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
+import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 
@@ -120,7 +122,11 @@ function LoginForm() {
 
       // The layout's server snapshot carries no token (#4991) and redirects
       // too; a stripped session (empty token) stays on the form.
-      if (status === "authenticated" && hasSessionAccess(session)) {
+      if (
+        status === "authenticated" &&
+        hasSessionAccess(session) &&
+        !enrollmentStep
+      ) {
         window.location.href = schoolPath("/school");
         return;
       }
@@ -131,7 +137,7 @@ function LoginForm() {
     };
 
     void checkAndRedirect();
-  }, [status, session]);
+  }, [status, session, enrollmentStep]);
 
   // Session-abgelaufen-Hinweis, außer nach bewusstem Logout.
   useEffect(() => {
@@ -154,31 +160,14 @@ function LoginForm() {
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;
 
-  // seedSessionWithTokens übergibt ein bereits gemintetes school-Token-Paar
-  // an NextAuth (internalRefresh-Pfad) — nach MFA-Verify/Enroll oder einem
-  // Login ohne zweite Stufe.
-  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+  const completeLogin = async () => {
     clearSessionErrorFromUrl();
-    const result = await signIn("school-credentials", {
-      redirect: false,
-      internalRefresh: "true",
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-    if (result?.error) {
-      logger.error("session_seed_failed", { error: result.error });
-      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
-      void formErrors.show(new Error(result.error), {
-        object: "die Anmeldung",
-      });
-      return;
-    }
     setAwaitingRedirect(true);
     window.location.href = schoolPath("/school");
   };
 
-  const handleMFASuccess = async (tokens: MFATokenResponse) => {
-    await seedSessionWithTokens(tokens);
+  const handleMFASuccess = async () => {
+    await completeLogin();
     setMfaStep(null);
   };
 
@@ -214,10 +203,7 @@ function LoginForm() {
         return;
       }
 
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await completeLogin();
     } catch (err) {
       // Konto ohne Schul-Portal-Rolle: das Passwort war korrekt, die
       // Ablehnung kommt von der Rolle — die spezifische Meldung verrät
@@ -307,12 +293,9 @@ function LoginForm() {
                 clearFormError();
                 setPassword("");
               }}
-              onComplete={async (tokens) => {
+              onComplete={async () => {
                 setEnrollmentStep(null);
-                await seedSessionWithTokens({
-                  access_token: tokens.access_token,
-                  refresh_token: tokens.refresh_token,
-                });
+                await completeLogin();
               }}
             />
           ) : (
@@ -343,48 +326,36 @@ function LoginForm() {
 
               <div className="space-y-4">
                 <div className="text-left">
-                  <label
-                    htmlFor="email"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    E-Mail-Adresse
-                  </label>
-                  <input
+                  <Input
                     id="email"
                     name="email"
                     type="email"
+                    label="E-Mail-Adresse"
+                    controlSize="compact"
                     data-testid="input-email"
                     autoComplete="username"
                     required
                     disabled={isSubmitting}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    aria-invalid={Boolean(formErrors.fieldError("email"))}
-                    aria-describedby={
-                      formErrors.fieldError("email") ? "email-error" : undefined
-                    }
-                    className={authInputClass(
-                      Boolean(formErrors.fieldError("email")),
-                    )}
-                  />
-                  <AuthFieldError
-                    id="email-error"
-                    message={formErrors.fieldError("email")}
+                    error={formErrors.fieldError("email")}
                   />
                 </div>
 
                 <div className="text-left">
-                  <label
+                  <FieldLabel
                     htmlFor="password"
-                    className="mb-1 block text-sm font-medium text-gray-700"
+                    required
+                    invalid={Boolean(formErrors.fieldError("password"))}
                   >
                     Passwort
-                  </label>
+                  </FieldLabel>
                   <div className="relative">
-                    <input
+                    <Input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
+                      controlSize="compact"
                       data-testid="input-password"
                       autoComplete="current-password"
                       required
@@ -397,7 +368,7 @@ function LoginForm() {
                           ? "password-error"
                           : undefined
                       }
-                      className={`${authInputClass(Boolean(formErrors.fieldError("password")))} pr-10`}
+                      className="pr-10"
                     />
                     <PasswordToggleButton
                       showPassword={showPassword}
@@ -415,7 +386,7 @@ function LoginForm() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                    className={authTextButtonClassName}
                   >
                     Passwort vergessen?
                   </button>

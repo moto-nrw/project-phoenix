@@ -16,6 +16,7 @@ import {
   submitCareScheduleRequest,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
+import { calendarConcept } from "~/lib/concepts/calendar";
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
@@ -58,7 +59,7 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
     <>
       <ParentSection
         title={tc("care.weekTitle")}
-        concept="calendar"
+        concept={calendarConcept}
         prominent
         actions={
           showAction ? (

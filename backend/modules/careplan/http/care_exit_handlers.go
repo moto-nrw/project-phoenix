@@ -170,8 +170,8 @@ func (rs *Resource) previewCareExit(w http.ResponseWriter, r *http.Request) {
 // confirmCareExit ends the care for exactly the previewed state, or changes
 // nothing at all.
 func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	body := new(careExitRequest)
@@ -185,7 +185,7 @@ func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-	result, err := rs.CareLifecycleService.Confirm(r.Context(), body.Token, input, actorID)
+	result, err := rs.CareExitRestoration.Confirm(r.Context(), body.Token, input, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
@@ -348,8 +348,8 @@ func (rs *Resource) previewWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	id, ok := common.ParsePositiveInt64IDWithError(w, r, "completionId", "invalid completion ID")
@@ -366,7 +366,7 @@ func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	result, err := rs.CareLifecycleService.ConfirmWithdrawalCareEnd(
+	result, err := rs.CareExitRestoration.ConfirmWithdrawalCareEnd(
 		r.Context(), id, body.Token, input, int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
 	)
 	if err != nil {
@@ -392,8 +392,8 @@ func (b *careExitCancelRequest) Bind(_ *http.Request) error {
 
 // cancelCareExit withdraws exits that have not taken effect yet.
 func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	body := new(careExitCancelRequest)
@@ -411,7 +411,7 @@ func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
 		ids = append(ids, id)
 	}
 	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-	cancelled, err := rs.CareLifecycleService.Cancel(r.Context(), ids, actorID)
+	cancelled, err := rs.CareExitRestoration.Cancel(r.Context(), ids, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
 		return

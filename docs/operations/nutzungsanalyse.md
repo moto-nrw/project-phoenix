@@ -6,12 +6,14 @@
 getrennte Playwright-Suite mit dem echten Next.js-Frontend und synthetischer
 API auf localhost. Docker, Seed-Daten und echte Konten sind nicht nötig.
 Voraussetzungen: installierte Devbox-Pakete, `pnpm install --frozen-lockfile`
-in `frontend`, installiertes Playwright-Chromium und freie Ports 13843/18443.
+in `frontend`, installiertes Playwright-Chromium und freie Ports 13843/18443 (änderbar mit
+`NETWORK_E2E_PORT`/`NETWORK_E2E_API_PORT`, siehe
+[Synthetic network E2E suites](../agents/operations.md#synthetic-network-e2e-suites)).
 Bei fehlendem Browser einmal `cd frontend && pnpm exec playwright install chromium`
 ausführen. Die Browserinstallation ist Vorbereitung, nicht Teil des Nachweises.
 
 Die Bereitschaftsprüfung läuft in Node über
-`http://127.0.0.1:13843/api/health`, nicht über einen Portalhost. Sie benötigt
+`http://127.0.0.1:<Frontend-Port>/api/health` (Standard 13843), nicht über einen Portalhost. Sie benötigt
 keine systemweite Auflösung von `*.localhost`. Vor den Tests wird zusätzlich
 HTTP 200 ohne Weiterleitung geprüft. Chromium löst die Portalhosts selbst
 als Loopback-Adressen auf.
@@ -94,7 +96,7 @@ den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
 Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
 Danach folgt **Upload sanitized network evidence**, anschließend
 **Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
-gehört nicht zum Job `lint / frontend-build` des Hauptworkflows.
+gehört nicht zum Job `Lint / Frontend build` des Hauptworkflows.
 
 Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
 `development` bei Änderungen an E2E-Dateien, den Playwright-Konfigurationen,

@@ -114,11 +114,11 @@ func TestNativeParentWritesForwardNilRecordsAndMissingSources(t *testing.T) {
 
 type nativeParentInboxProbe struct {
 	communication.ParentReadRecords
-	list func(context.Context, int64, bool, bool) ([]*communication.PortalInboxThread, error)
+	list func(context.Context, int64, communication.ParentMessageStaffReach, bool) ([]*communication.PortalInboxThread, error)
 }
 
-func (p nativeParentInboxProbe) ParentReadListInboxForStaff(ctx context.Context, id int64, all, unread bool) ([]*communication.PortalInboxThread, error) {
-	return p.list(ctx, id, all, unread)
+func (p nativeParentInboxProbe) ParentReadListInboxForStaff(ctx context.Context, id int64, reach communication.ParentMessageStaffReach, unread bool) ([]*communication.PortalInboxThread, error) {
+	return p.list(ctx, id, reach, unread)
 }
 
 func TestNativeParentInboxRetainsCompleteSnapshotSelectorsAndPartialError(t *testing.T) {
@@ -130,14 +130,14 @@ func TestNativeParentInboxRetainsCompleteSnapshotSelectorsAndPartialError(t *tes
 	source := communication.PortalInboxThread{ThreadID: 11, TenantID: 13, StudentID: 17, StudentName: "child", SchoolClass: "class", SchoolName: "school", GroupID: &group, GroupName: "group", GuardianAccountID: 19, GuardianName: "guardian", RelationshipType: "parent", LastMessageAt: &at, LastSenderKind: "system", LastMessageBody: "body", LastMessageKind: "event", LastEventType: "request_status", LastRequestType: "care_schedule", LastRequestStatus: "offen", LastMessagePayload: map[string]json.RawMessage{"large": json.RawMessage(`9007199254740993`)}, LastMessageReadByStaff: true, UnreadCount: 3, ReadBound: &communication.PortalReadCursorBound{ThreadID: 11, ReadAt: at, MessageID: 23}}
 	expected := InboxThread{ThreadID: 11, TenantID: 13, StudentID: 17, StudentName: "child", SchoolClass: "class", SchoolName: "school", GroupID: &group, GroupName: "group", GuardianAccountID: 19, GuardianName: "guardian", RelationshipType: "parent", LastMessageAt: &at, LastSenderKind: "system", LastMessageBody: "body", LastMessageKind: "event", LastEventType: "request_status", LastRequestType: "care_schedule", LastRequestStatus: "offen", LastMessagePayload: map[string]any{"large": json.Number("9007199254740993")}, LastMessageReadByStaff: true, UnreadCount: 3}
 	cause := errors.New("partial owner result")
-	repo := NewReadRepository(nativeParentInboxProbe{list: func(got context.Context, id int64, all, unread bool) ([]*communication.PortalInboxThread, error) {
+	repo := NewReadRepository(nativeParentInboxProbe{list: func(got context.Context, id int64, reach communication.ParentMessageStaffReach, unread bool) ([]*communication.PortalInboxThread, error) {
 		assert.Same(t, ctx, got)
 		assert.Equal(t, int64(29), id)
-		assert.False(t, all)
+		assert.False(t, reach.AllStudents)
 		assert.True(t, unread)
 		return []*communication.PortalInboxThread{nil, &source}, cause
 	}})
-	rows, err := repo.ListInboxForStaff(ctx, 29, false, true)
+	rows, err := repo.ListInboxForStaff(ctx, 29, StaffReach{}, true)
 	assert.Same(t, cause, err)
 	require.Len(t, rows, 2)
 	assert.Nil(t, rows[0])
@@ -155,13 +155,13 @@ func TestNativeParentInboxRetainsNilAndEmptyCollections(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "nil", true: "empty"}[empty], func(t *testing.T) {
 			t.Parallel()
-			repo := NewReadRepository(nativeParentInboxProbe{list: func(context.Context, int64, bool, bool) ([]*communication.PortalInboxThread, error) {
+			repo := NewReadRepository(nativeParentInboxProbe{list: func(context.Context, int64, communication.ParentMessageStaffReach, bool) ([]*communication.PortalInboxThread, error) {
 				if empty {
 					return []*communication.PortalInboxThread{}, nil
 				}
 				return nil, nil
 			}})
-			rows, err := repo.ListInboxForStaff(context.Background(), 0, true, false)
+			rows, err := repo.ListInboxForStaff(context.Background(), 0, StaffReach{AllStudents: true}, false)
 			require.NoError(t, err)
 			if empty {
 				assert.NotNil(t, rows)

@@ -9,12 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
-  confirmCatererOrder: vi.fn(),
-  onConfirmed: vi.fn(),
-}));
-
-vi.mock("~/lib/caterer-api", () => ({
-  confirmCatererOrder: mocks.confirmCatererOrder,
+  onConfirm: vi.fn(),
 }));
 
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -45,7 +40,7 @@ function renderOrders(
     <CatererSchoolOrders
       school={school}
       orders={orders}
-      onConfirmed={mocks.onConfirmed}
+      onConfirm={mocks.onConfirm}
     />,
     { wrapper: ToastProvider },
   );
@@ -78,8 +73,7 @@ function change(sequence: number, schoolClass: string, delta: number) {
 describe("CatererSchoolOrders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.confirmCatererOrder.mockResolvedValue(undefined);
-    mocks.onConfirmed.mockResolvedValue(undefined);
+    mocks.onConfirm.mockResolvedValue(undefined);
   });
 
   it("shows numbers only, and one confirmation per order (ADR 0077)", async () => {
@@ -111,10 +105,8 @@ describe("CatererSchoolOrders", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(buttons[0]!);
-    await waitFor(() =>
-      expect(mocks.confirmCatererOrder).toHaveBeenCalledWith("42", "7"),
-    );
-    expect(mocks.onConfirmed).toHaveBeenCalled();
+    await waitFor(() => expect(mocks.onConfirm).toHaveBeenCalledWith("7"));
+    expect(mocks.onConfirm).toHaveBeenCalled();
   });
 
   it("confirms in the state row and shows the green badge there afterwards", async () => {
@@ -137,7 +129,7 @@ describe("CatererSchoolOrders", () => {
       <CatererSchoolOrders
         school={school}
         orders={orders("confirmed")}
-        onConfirmed={mocks.onConfirmed}
+        onConfirm={mocks.onConfirm}
       />,
     );
     expect(within(stateCell).getByText("Bestätigt")).toBeInTheDocument();

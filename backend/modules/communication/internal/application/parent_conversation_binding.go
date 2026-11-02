@@ -11,7 +11,7 @@ type ParentConversationSource interface {
 }
 
 // BindParentConversationCore adapts complete native writes and receipt facts.
-func BindParentConversationCore(appendMessage func(context.Context, *ParentMessage) error, markRead func(context.Context, int64, int64, int64, bool, []*ParentMessage) (bool, error), decorate func(context.Context, int64, int64, []*ParentMessage), broadcast, broadcastRead func(int64, int64, int64, int64)) ParentConversationSource {
+func BindParentConversationCore(appendMessage func(context.Context, *ParentMessage) error, markRead func(context.Context, int64, int64, int64, bool, []*ParentMessage) (bool, error), decorate func(context.Context, int64, int64, []*ParentMessage), broadcast, broadcastRead func(int64, int64, int64, int64, string)) ParentConversationSource {
 	return communication.NewPortalConversationCore(func(ctx context.Context, row *communication.PortalParentMessage) error {
 		return appendPortalMessage(ctx, appendMessage, row)
 	}, func(ctx context.Context, a, b, c int64, staff bool, rows []*communication.PortalParentMessage) (bool, error) {

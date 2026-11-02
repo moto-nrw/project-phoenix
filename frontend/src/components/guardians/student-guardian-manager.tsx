@@ -58,6 +58,7 @@ import { useSession } from "next-auth/react";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { StudentPaymentCard } from "./student-payment-card";
 import { hasPermission } from "~/lib/auth-utils";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -666,7 +667,7 @@ export default function StudentGuardianManager({
       <ConceptSectionHeader
         className="mb-4"
         title="Erziehungsberechtigte"
-        concept="parents"
+        concept={parentsConcept}
         actions={
           <div className="flex items-center gap-2">
             {readOnly && (

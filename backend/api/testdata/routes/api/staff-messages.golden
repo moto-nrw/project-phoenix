@@ -1,0 +1,11 @@
+DELETE /api/staff-messages/threads/{threadID}/members/{accountID}
+GET /api/staff-messages/
+GET /api/staff-messages/recipients
+GET /api/staff-messages/threads/{threadID}
+GET /api/staff-messages/unread-count
+POST /api/staff-messages/groups
+POST /api/staff-messages/threads/open
+POST /api/staff-messages/threads/{threadID}
+POST /api/staff-messages/threads/{threadID}/leave
+POST /api/staff-messages/threads/{threadID}/members
+PUT /api/staff-messages/threads/{threadID}/name

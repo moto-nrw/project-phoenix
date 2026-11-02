@@ -1,0 +1,1185 @@
+{
+  "developmentRevision": "2446b9837128419bb7fdc98da871d0848e813834",
+  "frontendTree": "fad016f09c0e0342e81ea2e9ad76a83b024c23c9",
+  "image": "node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c",
+  "pnpm": "10.34.5",
+  "historical": {
+    "runId": "41283980408",
+    "sourceRevision": "02729196ab7f092c4ccfdcab359ab6d6ec8fb9e8",
+    "routes": {
+      "/": 522882,
+      "/[tenant]": 645314,
+      "/[tenant]/[...not-found]": 605546,
+      "/[tenant]/absences": 943405,
+      "/[tenant]/active-supervisions": 1038405,
+      "/[tenant]/activities": 932557,
+      "/[tenant]/admin/change-requests": 868860,
+      "/[tenant]/admin/enrollments": 920075,
+      "/[tenant]/admin/enrollments/[id]": 977195,
+      "/[tenant]/admin/enrollments/change-requests": 868860,
+      "/[tenant]/admin/enrollments/change-requests/[id]": 911280,
+      "/[tenant]/admin/enrollments/phases/[phaseId]": 935352,
+      "/[tenant]/admin/guardian-approvals": 906967,
+      "/[tenant]/anfragen": 1028828,
+      "/[tenant]/anmeldung": 643281,
+      "/[tenant]/anmeldung/[phaseId]": 815722,
+      "/[tenant]/anmeldung/preview": 803898,
+      "/[tenant]/anmeldung/status/[token]": 673595,
+      "/[tenant]/anmeldung/status/[token]/adjust": 802769,
+      "/[tenant]/anmeldung/status/[token]/edit": 802769,
+      "/[tenant]/anmeldung/submitted": 632611,
+      "/[tenant]/betreuungsplan": 1103021,
+      "/[tenant]/calendar": 1127675,
+      "/[tenant]/calendar-periods": 989318,
+      "/[tenant]/care-offerings": 942528,
+      "/[tenant]/dashboard": 869061,
+      "/[tenant]/database": 918567,
+      "/[tenant]/database/absence-types": 939268,
+      "/[tenant]/database/activities": 943743,
+      "/[tenant]/database/categories": 939447,
+      "/[tenant]/database/devices": 944618,
+      "/[tenant]/database/exports": 927889,
+      "/[tenant]/database/grade-transitions": 928828,
+      "/[tenant]/database/groups": 949848,
+      "/[tenant]/database/permissions": 934863,
+      "/[tenant]/database/personal": 947627,
+      "/[tenant]/database/personal/import": 924729,
+      "/[tenant]/database/personal/opening-balances": 962135,
+      "/[tenant]/database/planning-tracks": 940754,
+      "/[tenant]/database/roles": 951492,
+      "/[tenant]/database/rooms": 940547,
+      "/[tenant]/database/shift-types": 941135,
+      "/[tenant]/database/students": 1065954,
+      "/[tenant]/database/students/class-list": 920367,
+      "/[tenant]/database/students/class-list/import": 919209,
+      "/[tenant]/database/students/ended-care": 972686,
+      "/[tenant]/database/students/import": 920876,
+      "/[tenant]/dateien": 917696,
+      "/[tenant]/day-log": 944720,
+      "/[tenant]/demo": 610328,
+      "/[tenant]/dienstplan": 1033395,
+      "/[tenant]/display": 617047,
+      "/[tenant]/eltern/bankverbindungen": 906804,
+      "/[tenant]/emergency": 897986,
+      "/[tenant]/enrollment-form": 948091,
+      "/[tenant]/enrollment-phases": 1085789,
+      "/[tenant]/enrollment-phases/[id]/review": 901030,
+      "/[tenant]/enrollment-phases/[id]/rollover": 946746,
+      "/[tenant]/ferienwochen": 914887,
+      "/[tenant]/home": 1051088,
+      "/[tenant]/info-displays": 919266,
+      "/[tenant]/invite": 627163,
+      "/[tenant]/lists": 956398,
+      "/[tenant]/meal-plan": 987271,
+      "/[tenant]/mein-dienstplan": 937966,
+      "/[tenant]/messages": 918696,
+      "/[tenant]/messages/[threadId]": 918646,
+      "/[tenant]/messages/groups": 918696,
+      "/[tenant]/messages/groups/[groupThreadId]": 907629,
+      "/[tenant]/ogs-groups": 1057001,
+      "/[tenant]/ogs-groups/overview": 914512,
+      "/[tenant]/parent-announcements": 989889,
+      "/[tenant]/parent-announcements/[id]": 1009519,
+      "/[tenant]/payroll": 909105,
+      "/[tenant]/profile": 953936,
+      "/[tenant]/reminders": 897262,
+      "/[tenant]/reset-password": 617154,
+      "/[tenant]/rooms": 918401,
+      "/[tenant]/rooms/[id]": 988681,
+      "/[tenant]/rooms/unterwegs": 929286,
+      "/[tenant]/settings": 989870,
+      "/[tenant]/staff": 975887,
+      "/[tenant]/staff/[id]": 1285810,
+      "/[tenant]/statistics": 951829,
+      "/[tenant]/students/[id]": 1210045,
+      "/[tenant]/students/[id]/change-history": 913277,
+      "/[tenant]/students/[id]/feedback-history": 1103510,
+      "/[tenant]/students/[id]/room-history": 1107598,
+      "/[tenant]/students/[id]/unfallanzeigen/[reportId]": 952387,
+      "/[tenant]/students/search": 1087568,
+      "/[tenant]/substitutions": 926124,
+      "/[tenant]/tagesinformationen": 950542,
+      "/[tenant]/tagesplan": 915630,
+      "/[tenant]/team-chat": 909733,
+      "/[tenant]/team-chat/[threadID]": 919388,
+      "/[tenant]/time-tracking": 1210591,
+      "/[tenant]/traeger-uebergabe": 608413,
+      "/[tenant]/umfragen": 984055,
+      "/[tenant]/umfragen/[id]": 982429,
+      "/[tenant]/vertretung": 1015061,
+      "/[tenant]/wochenprotokolle": 917990,
+      "/[tenant]/wochenprotokolle/[protocolId]": 919483,
+      "/_global-error": 305204,
+      "/_not-found": 503938,
+      "/caterer": 672024,
+      "/caterer/einladung/[schoolId]/[token]": 663967,
+      "/caterer/konto": 668454,
+      "/caterer/login": 667039,
+      "/caterer/reset-password": 664288,
+      "/demo": 519203,
+      "/help/[[...topic]]": 731014,
+      "/help/nfc/erste-schritte": 503938,
+      "/invite": 539987,
+      "/lohnbuero/[link]": 523725,
+      "/manifest.webmanifest": 0,
+      "/onboarding": 503938,
+      "/operator": 788405,
+      "/operator/accounts": 850873,
+      "/operator/announcements": 942517,
+      "/operator/billing": 822073,
+      "/operator/devices": 836517,
+      "/operator/email-confirm": 790121,
+      "/operator/invite": 799160,
+      "/operator/login": 811229,
+      "/operator/operators": 800756,
+      "/operator/organizations": 832682,
+      "/operator/organizations/[slug]": 907846,
+      "/operator/organizations/[slug]/schools/[schoolSlug]": 860530,
+      "/operator/persons": 832731,
+      "/operator/provisioning": 788405,
+      "/operator/schools": 830014,
+      "/operator/schools/[id]/settings": 866322,
+      "/operator/settings": 842023,
+      "/operator/unregistered-tags": 825748,
+      "/parents": 788481,
+      "/parents/accept-guardian-invite/[token]": 762031,
+      "/parents/anmeldung": 755353,
+      "/parents/anmeldung/[tenantSlug]/[phaseId]": 907265,
+      "/parents/anmeldung/status/[token]": 779012,
+      "/parents/anmeldung/status/[token]/adjust": 910465,
+      "/parents/anmeldung/status/[token]/edit": 910465,
+      "/parents/calendar": 768487,
+      "/parents/children": 896018,
+      "/parents/children/[id]": 896018,
+      "/parents/children/[id]/elternsprechtag": 756451,
+      "/parents/demo": 755101,
+      "/parents/documents": 763422,
+      "/parents/ferienanmeldung/[token]": 900374,
+      "/parents/invite": 766043,
+      "/parents/login": 765986,
+      "/parents/meal-plan": 768730,
+      "/parents/messages": 850693,
+      "/parents/messages/[studentId]": 843301,
+      "/parents/messages/group/[groupThreadId]": 760684,
+      "/parents/news": 777973,
+      "/parents/news/[id]/nachweis": 757018,
+      "/parents/reset-password": 763385,
+      "/parents/settings": 779298,
+      "/reset-password": 559461,
+      "/school": 760771,
+      "/school/aufsichten": 760810,
+      "/school/einstellungen": 729963,
+      "/school/elternbriefe": 743251,
+      "/school/elternbriefe/[id]": 780191,
+      "/school/elternsprechtag": 785611,
+      "/school/fehlzeiten": 784989,
+      "/school/invite": 716208,
+      "/school/kalender": 806242,
+      "/school/klasse": 793777,
+      "/school/klasse/kind": 714639,
+      "/school/login": 721531,
+      "/school/nachrichten": 745803,
+      "/school/nachrichten/[threadID]": 731919,
+      "/school/reset-password": 712932,
+      "/school/tagesinformationen": 705351,
+      "/start": 507429,
+      "/traeger": 738042,
+      "/traeger/abrechnung": 745233,
+      "/traeger/abrechnung/[id]": 801019,
+      "/traeger/access-log": 783357,
+      "/traeger/accounts": 745616,
+      "/traeger/beitraege": 789613,
+      "/traeger/briefkopf": 813591,
+      "/traeger/einstellungen": 800812,
+      "/traeger/ferien": 739479,
+      "/traeger/ferien/[id]": 787626,
+      "/traeger/ferien/[id]/anmeldungen": 747464,
+      "/traeger/ferien/[id]/anmeldungen/[registrationId]": 805550,
+      "/traeger/ferien/[id]/formular": 793244,
+      "/traeger/ferien/neu": 783664,
+      "/traeger/invite": 705354,
+      "/traeger/login": 716747,
+      "/traeger/reset-password": 707293
+    }
+  },
+  "runs": [
+    {
+      "node": "v24.22.2",
+      "platform": "linux",
+      "arch": "arm64",
+      "routes": {
+        "/": 522892,
+        "/_global-error": 305213,
+        "/_not-found": 503948,
+        "/[tenant]": 645464,
+        "/[tenant]/[...not-found]": 605696,
+        "/[tenant]/absences": 943763,
+        "/[tenant]/active-supervisions": 1038763,
+        "/[tenant]/activities": 932915,
+        "/[tenant]/admin/change-requests": 869218,
+        "/[tenant]/admin/enrollments": 920433,
+        "/[tenant]/admin/enrollments/[id]": 977553,
+        "/[tenant]/admin/enrollments/change-requests": 869218,
+        "/[tenant]/admin/enrollments/change-requests/[id]": 911638,
+        "/[tenant]/admin/enrollments/phases/[phaseId]": 935710,
+        "/[tenant]/admin/guardian-approvals": 907325,
+        "/[tenant]/anfragen": 1029186,
+        "/[tenant]/anmeldung": 643431,
+        "/[tenant]/anmeldung/[phaseId]": 815872,
+        "/[tenant]/anmeldung/preview": 804048,
+        "/[tenant]/anmeldung/status/[token]": 673745,
+        "/[tenant]/anmeldung/status/[token]/adjust": 802919,
+        "/[tenant]/anmeldung/status/[token]/edit": 802919,
+        "/[tenant]/anmeldung/submitted": 632761,
+        "/[tenant]/betreuungsplan": 1104148,
+        "/[tenant]/calendar": 1128807,
+        "/[tenant]/calendar-periods": 989917,
+        "/[tenant]/care-offerings": 943127,
+        "/[tenant]/dashboard": 869419,
+        "/[tenant]/database": 918925,
+        "/[tenant]/database/absence-types": 939626,
+        "/[tenant]/database/activities": 944101,
+        "/[tenant]/database/categories": 939805,
+        "/[tenant]/database/devices": 944976,
+        "/[tenant]/database/exports": 928247,
+        "/[tenant]/database/grade-transitions": 929186,
+        "/[tenant]/database/groups": 950206,
+        "/[tenant]/database/permissions": 935221,
+        "/[tenant]/database/personal": 947985,
+        "/[tenant]/database/personal/import": 925087,
+        "/[tenant]/database/personal/opening-balances": 962493,
+        "/[tenant]/database/planning-tracks": 941112,
+        "/[tenant]/database/roles": 951850,
+        "/[tenant]/database/rooms": 940905,
+        "/[tenant]/database/shift-types": 941493,
+        "/[tenant]/database/students": 1066552,
+        "/[tenant]/database/students/class-list": 920725,
+        "/[tenant]/database/students/class-list/import": 919567,
+        "/[tenant]/database/students/ended-care": 973044,
+        "/[tenant]/database/students/import": 921234,
+        "/[tenant]/dateien": 918054,
+        "/[tenant]/day-log": 945078,
+        "/[tenant]/demo": 610478,
+        "/[tenant]/dienstplan": 1033753,
+        "/[tenant]/display": 617197,
+        "/[tenant]/eltern/bankverbindungen": 907162,
+        "/[tenant]/emergency": 898344,
+        "/[tenant]/enrollment-form": 948611,
+        "/[tenant]/enrollment-phases": 1086147,
+        "/[tenant]/enrollment-phases/[id]/review": 901388,
+        "/[tenant]/enrollment-phases/[id]/rollover": 947104,
+        "/[tenant]/ferienwochen": 915245,
+        "/[tenant]/home": 1051700,
+        "/[tenant]/info-displays": 919624,
+        "/[tenant]/invite": 627313,
+        "/[tenant]/lists": 956756,
+        "/[tenant]/meal-plan": 987629,
+        "/[tenant]/mein-dienstplan": 938324,
+        "/[tenant]/messages": 919054,
+        "/[tenant]/messages/[threadId]": 919004,
+        "/[tenant]/messages/groups": 919055,
+        "/[tenant]/messages/groups/[groupThreadId]": 907987,
+        "/[tenant]/ogs-groups": 1057359,
+        "/[tenant]/ogs-groups/overview": 914870,
+        "/[tenant]/parent-announcements": 990247,
+        "/[tenant]/parent-announcements/[id]": 1009877,
+        "/[tenant]/payroll": 909463,
+        "/[tenant]/profile": 954294,
+        "/[tenant]/reminders": 897620,
+        "/[tenant]/reset-password": 617304,
+        "/[tenant]/rooms": 918759,
+        "/[tenant]/rooms/[id]": 989039,
+        "/[tenant]/rooms/unterwegs": 929644,
+        "/[tenant]/settings": 990228,
+        "/[tenant]/staff": 976245,
+        "/[tenant]/staff/[id]": 1286168,
+        "/[tenant]/statistics": 952187,
+        "/[tenant]/students/[id]": 1210389,
+        "/[tenant]/students/[id]/change-history": 913635,
+        "/[tenant]/students/[id]/feedback-history": 1103868,
+        "/[tenant]/students/[id]/room-history": 1107956,
+        "/[tenant]/students/[id]/unfallanzeigen/[reportId]": 952745,
+        "/[tenant]/students/search": 1087926,
+        "/[tenant]/substitutions": 926482,
+        "/[tenant]/tagesinformationen": 950900,
+        "/[tenant]/tagesplan": 915988,
+        "/[tenant]/team-chat": 910091,
+        "/[tenant]/team-chat/[threadID]": 919746,
+        "/[tenant]/time-tracking": 1210949,
+        "/[tenant]/traeger-uebergabe": 608563,
+        "/[tenant]/umfragen": 984413,
+        "/[tenant]/umfragen/[id]": 982787,
+        "/[tenant]/vertretung": 1015667,
+        "/[tenant]/wochenprotokolle": 918348,
+        "/[tenant]/wochenprotokolle/[protocolId]": 919841,
+        "/caterer": 676398,
+        "/caterer/einladung/[schoolId]/[token]": 664116,
+        "/caterer/konto": 668603,
+        "/caterer/login": 667188,
+        "/caterer/reset-password": 664437,
+        "/demo": 519213,
+        "/help/[[...topic]]": 731344,
+        "/help/nfc/erste-schritte": 503948,
+        "/invite": 539997,
+        "/lohnbuero/[link]": 523735,
+        "/manifest.webmanifest": 0,
+        "/onboarding": 503948,
+        "/operator": 788774,
+        "/operator/accounts": 851242,
+        "/operator/announcements": 942886,
+        "/operator/billing": 822442,
+        "/operator/devices": 836886,
+        "/operator/email-confirm": 790490,
+        "/operator/invite": 799529,
+        "/operator/login": 811598,
+        "/operator/operators": 801125,
+        "/operator/organizations": 833051,
+        "/operator/organizations/[slug]": 908215,
+        "/operator/organizations/[slug]/schools/[schoolSlug]": 860899,
+        "/operator/persons": 833100,
+        "/operator/provisioning": 788774,
+        "/operator/schools": 830383,
+        "/operator/schools/[id]/settings": 866691,
+        "/operator/settings": 842392,
+        "/operator/unregistered-tags": 826117,
+        "/parents": 788630,
+        "/parents/accept-guardian-invite/[token]": 762180,
+        "/parents/anmeldung": 755502,
+        "/parents/anmeldung/[tenantSlug]/[phaseId]": 907414,
+        "/parents/anmeldung/status/[token]": 779161,
+        "/parents/anmeldung/status/[token]/adjust": 910614,
+        "/parents/anmeldung/status/[token]/edit": 910614,
+        "/parents/calendar": 768636,
+        "/parents/children": 896167,
+        "/parents/children/[id]": 896167,
+        "/parents/children/[id]/elternsprechtag": 756600,
+        "/parents/demo": 755250,
+        "/parents/documents": 763571,
+        "/parents/ferienanmeldung/[token]": 900523,
+        "/parents/invite": 766192,
+        "/parents/login": 766135,
+        "/parents/meal-plan": 768879,
+        "/parents/messages": 850842,
+        "/parents/messages/[studentId]": 843450,
+        "/parents/messages/group/[groupThreadId]": 760833,
+        "/parents/news": 778122,
+        "/parents/news/[id]/nachweis": 757167,
+        "/parents/reset-password": 763534,
+        "/parents/settings": 779447,
+        "/reset-password": 559471,
+        "/school": 763430,
+        "/school/aufsichten": 760960,
+        "/school/einstellungen": 730113,
+        "/school/elternbriefe": 743401,
+        "/school/elternbriefe/[id]": 780551,
+        "/school/elternsprechtag": 785970,
+        "/school/fehlzeiten": 785348,
+        "/school/invite": 716358,
+        "/school/kalender": 806392,
+        "/school/klasse": 796499,
+        "/school/klasse/kind": 714789,
+        "/school/login": 721681,
+        "/school/nachrichten": 746159,
+        "/school/nachrichten/[threadID]": 732276,
+        "/school/reset-password": 713082,
+        "/school/tagesinformationen": 705501,
+        "/start": 507439,
+        "/traeger": 738399,
+        "/traeger/abrechnung": 745383,
+        "/traeger/abrechnung/[id]": 801169,
+        "/traeger/access-log": 783713,
+        "/traeger/accounts": 745766,
+        "/traeger/beitraege": 789763,
+        "/traeger/briefkopf": 813948,
+        "/traeger/einstellungen": 801198,
+        "/traeger/ferien": 739836,
+        "/traeger/ferien/[id]": 787842,
+        "/traeger/ferien/[id]/anmeldungen": 747822,
+        "/traeger/ferien/[id]/anmeldungen/[registrationId]": 805905,
+        "/traeger/ferien/[id]/formular": 796248,
+        "/traeger/ferien/neu": 784016,
+        "/traeger/invite": 705504,
+        "/traeger/login": 716897,
+        "/traeger/reset-password": 707443
+      }
+    },
+    {
+      "node": "v24.22.2",
+      "platform": "linux",
+      "arch": "arm64",
+      "routes": {
+        "/": 522892,
+        "/_global-error": 305213,
+        "/_not-found": 503948,
+        "/[tenant]": 645464,
+        "/[tenant]/[...not-found]": 605696,
+        "/[tenant]/absences": 943763,
+        "/[tenant]/active-supervisions": 1038763,
+        "/[tenant]/activities": 932915,
+        "/[tenant]/admin/change-requests": 869218,
+        "/[tenant]/admin/enrollments": 920433,
+        "/[tenant]/admin/enrollments/[id]": 977553,
+        "/[tenant]/admin/enrollments/change-requests": 869218,
+        "/[tenant]/admin/enrollments/change-requests/[id]": 911638,
+        "/[tenant]/admin/enrollments/phases/[phaseId]": 935710,
+        "/[tenant]/admin/guardian-approvals": 907325,
+        "/[tenant]/anfragen": 1029186,
+        "/[tenant]/anmeldung": 643431,
+        "/[tenant]/anmeldung/[phaseId]": 815872,
+        "/[tenant]/anmeldung/preview": 804048,
+        "/[tenant]/anmeldung/status/[token]": 673745,
+        "/[tenant]/anmeldung/status/[token]/adjust": 802919,
+        "/[tenant]/anmeldung/status/[token]/edit": 802919,
+        "/[tenant]/anmeldung/submitted": 632761,
+        "/[tenant]/betreuungsplan": 1104148,
+        "/[tenant]/calendar": 1128807,
+        "/[tenant]/calendar-periods": 989917,
+        "/[tenant]/care-offerings": 943127,
+        "/[tenant]/dashboard": 869419,
+        "/[tenant]/database": 918925,
+        "/[tenant]/database/absence-types": 939626,
+        "/[tenant]/database/activities": 944101,
+        "/[tenant]/database/categories": 939805,
+        "/[tenant]/database/devices": 944976,
+        "/[tenant]/database/exports": 928247,
+        "/[tenant]/database/grade-transitions": 929186,
+        "/[tenant]/database/groups": 950206,
+        "/[tenant]/database/permissions": 935221,
+        "/[tenant]/database/personal": 947985,
+        "/[tenant]/database/personal/import": 925087,
+        "/[tenant]/database/personal/opening-balances": 962493,
+        "/[tenant]/database/planning-tracks": 941112,
+        "/[tenant]/database/roles": 951850,
+        "/[tenant]/database/rooms": 940905,
+        "/[tenant]/database/shift-types": 941493,
+        "/[tenant]/database/students": 1066552,
+        "/[tenant]/database/students/class-list": 920725,
+        "/[tenant]/database/students/class-list/import": 919567,
+        "/[tenant]/database/students/ended-care": 973044,
+        "/[tenant]/database/students/import": 921234,
+        "/[tenant]/dateien": 918054,
+        "/[tenant]/day-log": 945078,
+        "/[tenant]/demo": 610478,
+        "/[tenant]/dienstplan": 1033753,
+        "/[tenant]/display": 617197,
+        "/[tenant]/eltern/bankverbindungen": 907162,
+        "/[tenant]/emergency": 898344,
+        "/[tenant]/enrollment-form": 948611,
+        "/[tenant]/enrollment-phases": 1086147,
+        "/[tenant]/enrollment-phases/[id]/review": 901388,
+        "/[tenant]/enrollment-phases/[id]/rollover": 947104,
+        "/[tenant]/ferienwochen": 915245,
+        "/[tenant]/home": 1051700,
+        "/[tenant]/info-displays": 919624,
+        "/[tenant]/invite": 627313,
+        "/[tenant]/lists": 956756,
+        "/[tenant]/meal-plan": 987629,
+        "/[tenant]/mein-dienstplan": 938324,
+        "/[tenant]/messages": 919054,
+        "/[tenant]/messages/[threadId]": 919004,
+        "/[tenant]/messages/groups": 919055,
+        "/[tenant]/messages/groups/[groupThreadId]": 907987,
+        "/[tenant]/ogs-groups": 1057359,
+        "/[tenant]/ogs-groups/overview": 914870,
+        "/[tenant]/parent-announcements": 990247,
+        "/[tenant]/parent-announcements/[id]": 1009877,
+        "/[tenant]/payroll": 909463,
+        "/[tenant]/profile": 954294,
+        "/[tenant]/reminders": 897620,
+        "/[tenant]/reset-password": 617304,
+        "/[tenant]/rooms": 918759,
+        "/[tenant]/rooms/[id]": 989039,
+        "/[tenant]/rooms/unterwegs": 929644,
+        "/[tenant]/settings": 990228,
+        "/[tenant]/staff": 976245,
+        "/[tenant]/staff/[id]": 1286168,
+        "/[tenant]/statistics": 952187,
+        "/[tenant]/students/[id]": 1210389,
+        "/[tenant]/students/[id]/change-history": 913635,
+        "/[tenant]/students/[id]/feedback-history": 1103868,
+        "/[tenant]/students/[id]/room-history": 1107956,
+        "/[tenant]/students/[id]/unfallanzeigen/[reportId]": 952745,
+        "/[tenant]/students/search": 1087926,
+        "/[tenant]/substitutions": 926482,
+        "/[tenant]/tagesinformationen": 950900,
+        "/[tenant]/tagesplan": 915988,
+        "/[tenant]/team-chat": 910091,
+        "/[tenant]/team-chat/[threadID]": 919746,
+        "/[tenant]/time-tracking": 1210949,
+        "/[tenant]/traeger-uebergabe": 608563,
+        "/[tenant]/umfragen": 984413,
+        "/[tenant]/umfragen/[id]": 982787,
+        "/[tenant]/vertretung": 1015667,
+        "/[tenant]/wochenprotokolle": 918348,
+        "/[tenant]/wochenprotokolle/[protocolId]": 919841,
+        "/caterer": 676398,
+        "/caterer/einladung/[schoolId]/[token]": 664116,
+        "/caterer/konto": 668603,
+        "/caterer/login": 667188,
+        "/caterer/reset-password": 664437,
+        "/demo": 519213,
+        "/help/[[...topic]]": 731344,
+        "/help/nfc/erste-schritte": 503948,
+        "/invite": 539997,
+        "/lohnbuero/[link]": 523735,
+        "/manifest.webmanifest": 0,
+        "/onboarding": 503948,
+        "/operator": 788774,
+        "/operator/accounts": 851242,
+        "/operator/announcements": 942886,
+        "/operator/billing": 822442,
+        "/operator/devices": 836886,
+        "/operator/email-confirm": 790490,
+        "/operator/invite": 799529,
+        "/operator/login": 811598,
+        "/operator/operators": 801125,
+        "/operator/organizations": 833051,
+        "/operator/organizations/[slug]": 908215,
+        "/operator/organizations/[slug]/schools/[schoolSlug]": 860899,
+        "/operator/persons": 833100,
+        "/operator/provisioning": 788774,
+        "/operator/schools": 830383,
+        "/operator/schools/[id]/settings": 866691,
+        "/operator/settings": 842392,
+        "/operator/unregistered-tags": 826117,
+        "/parents": 788630,
+        "/parents/accept-guardian-invite/[token]": 762180,
+        "/parents/anmeldung": 755502,
+        "/parents/anmeldung/[tenantSlug]/[phaseId]": 907414,
+        "/parents/anmeldung/status/[token]": 779161,
+        "/parents/anmeldung/status/[token]/adjust": 910614,
+        "/parents/anmeldung/status/[token]/edit": 910614,
+        "/parents/calendar": 768636,
+        "/parents/children": 896167,
+        "/parents/children/[id]": 896167,
+        "/parents/children/[id]/elternsprechtag": 756600,
+        "/parents/demo": 755250,
+        "/parents/documents": 763571,
+        "/parents/ferienanmeldung/[token]": 900523,
+        "/parents/invite": 766192,
+        "/parents/login": 766135,
+        "/parents/meal-plan": 768879,
+        "/parents/messages": 850842,
+        "/parents/messages/[studentId]": 843450,
+        "/parents/messages/group/[groupThreadId]": 760833,
+        "/parents/news": 778122,
+        "/parents/news/[id]/nachweis": 757167,
+        "/parents/reset-password": 763534,
+        "/parents/settings": 779447,
+        "/reset-password": 559471,
+        "/school": 763430,
+        "/school/aufsichten": 760960,
+        "/school/einstellungen": 730113,
+        "/school/elternbriefe": 743401,
+        "/school/elternbriefe/[id]": 780551,
+        "/school/elternsprechtag": 785970,
+        "/school/fehlzeiten": 785348,
+        "/school/invite": 716358,
+        "/school/kalender": 806392,
+        "/school/klasse": 796499,
+        "/school/klasse/kind": 714789,
+        "/school/login": 721681,
+        "/school/nachrichten": 746159,
+        "/school/nachrichten/[threadID]": 732276,
+        "/school/reset-password": 713082,
+        "/school/tagesinformationen": 705501,
+        "/start": 507439,
+        "/traeger": 738399,
+        "/traeger/abrechnung": 745383,
+        "/traeger/abrechnung/[id]": 801169,
+        "/traeger/access-log": 783713,
+        "/traeger/accounts": 745766,
+        "/traeger/beitraege": 789763,
+        "/traeger/briefkopf": 813948,
+        "/traeger/einstellungen": 801198,
+        "/traeger/ferien": 739836,
+        "/traeger/ferien/[id]": 787842,
+        "/traeger/ferien/[id]/anmeldungen": 747822,
+        "/traeger/ferien/[id]/anmeldungen/[registrationId]": 805905,
+        "/traeger/ferien/[id]/formular": 796248,
+        "/traeger/ferien/neu": 784016,
+        "/traeger/invite": 705504,
+        "/traeger/login": 716897,
+        "/traeger/reset-password": 707443
+      }
+    }
+  ],
+  "maxRepeatDifferenceBytes": 0,
+  "staleReferencePercent": 5,
+  "changes": {
+    "/operator/billing": {
+      "before": {
+        "referenceBytes": 866525,
+        "maxBytes": 883856
+      },
+      "after": {
+        "referenceBytes": 822442,
+        "maxBytes": 838891
+      }
+    },
+    "/operator/email-confirm": {
+      "before": {
+        "referenceBytes": 838697,
+        "maxBytes": 855471
+      },
+      "after": {
+        "referenceBytes": 790490,
+        "maxBytes": 806300
+      }
+    },
+    "/operator": {
+      "before": {
+        "referenceBytes": 836981,
+        "maxBytes": 853721
+      },
+      "after": {
+        "referenceBytes": 788774,
+        "maxBytes": 804549
+      }
+    },
+    "/operator/invite": {
+      "before": {
+        "referenceBytes": 846524,
+        "maxBytes": 863454
+      },
+      "after": {
+        "referenceBytes": 799529,
+        "maxBytes": 815520
+      }
+    },
+    "/operator/login": {
+      "before": {
+        "referenceBytes": 855952,
+        "maxBytes": 873071
+      },
+      "after": {
+        "referenceBytes": 811598,
+        "maxBytes": 827830
+      }
+    },
+    "/operator/operators": {
+      "before": {
+        "referenceBytes": 848187,
+        "maxBytes": 865151
+      },
+      "after": {
+        "referenceBytes": 801125,
+        "maxBytes": 817148
+      }
+    },
+    "/operator/organizations": {
+      "before": {
+        "referenceBytes": 876816,
+        "maxBytes": 894352
+      },
+      "after": {
+        "referenceBytes": 833051,
+        "maxBytes": 849712
+      }
+    },
+    "/operator/persons": {
+      "before": {
+        "referenceBytes": 876686,
+        "maxBytes": 894220
+      },
+      "after": {
+        "referenceBytes": 833100,
+        "maxBytes": 849762
+      }
+    },
+    "/operator/provisioning": {
+      "before": {
+        "referenceBytes": 836981,
+        "maxBytes": 853721
+      },
+      "after": {
+        "referenceBytes": 788774,
+        "maxBytes": 804549
+      }
+    },
+    "/operator/schools/[id]/settings": {
+      "before": {
+        "referenceBytes": 912135,
+        "maxBytes": 930378
+      },
+      "after": {
+        "referenceBytes": 866691,
+        "maxBytes": 884025
+      }
+    },
+    "/operator/unregistered-tags": {
+      "before": {
+        "referenceBytes": 869831,
+        "maxBytes": 887228
+      },
+      "after": {
+        "referenceBytes": 826117,
+        "maxBytes": 842639
+      }
+    },
+    "/parents/accept-guardian-invite/[token]": {
+      "before": {
+        "referenceBytes": 814780,
+        "maxBytes": 831076
+      },
+      "after": {
+        "referenceBytes": 762180,
+        "maxBytes": 777424
+      }
+    },
+    "/parents/anmeldung/[tenantSlug]/[phaseId]": {
+      "before": {
+        "referenceBytes": 986925,
+        "maxBytes": 1006664
+      },
+      "after": {
+        "referenceBytes": 907414,
+        "maxBytes": 925562
+      }
+    },
+    "/parents/anmeldung/status/[token]": {
+      "before": {
+        "referenceBytes": 826685,
+        "maxBytes": 843219
+      },
+      "after": {
+        "referenceBytes": 779161,
+        "maxBytes": 794744
+      }
+    },
+    "/parents/anmeldung/status/[token]/adjust": {
+      "before": {
+        "referenceBytes": 989792,
+        "maxBytes": 1009588
+      },
+      "after": {
+        "referenceBytes": 910614,
+        "maxBytes": 928826
+      }
+    },
+    "/parents/anmeldung/status/[token]/edit": {
+      "before": {
+        "referenceBytes": 989792,
+        "maxBytes": 1009588
+      },
+      "after": {
+        "referenceBytes": 910614,
+        "maxBytes": 928826
+      }
+    },
+    "/parents/reset-password": {
+      "before": {
+        "referenceBytes": 816134,
+        "maxBytes": 832457
+      },
+      "after": {
+        "referenceBytes": 763534,
+        "maxBytes": 778805
+      }
+    },
+    "/school/aufsichten": {
+      "before": {
+        "referenceBytes": 840352,
+        "maxBytes": 857159
+      },
+      "after": {
+        "referenceBytes": 760960,
+        "maxBytes": 776179
+      }
+    },
+    "/school/einstellungen": {
+      "before": {
+        "referenceBytes": 811737,
+        "maxBytes": 827972
+      },
+      "after": {
+        "referenceBytes": 730113,
+        "maxBytes": 744715
+      }
+    },
+    "/school/elternbriefe": {
+      "before": {
+        "referenceBytes": 833308,
+        "maxBytes": 849974
+      },
+      "after": {
+        "referenceBytes": 743401,
+        "maxBytes": 758269
+      }
+    },
+    "/school/elternbriefe/[id]": {
+      "before": {
+        "referenceBytes": 860406,
+        "maxBytes": 877614
+      },
+      "after": {
+        "referenceBytes": 780551,
+        "maxBytes": 796162
+      }
+    },
+    "/school/elternsprechtag": {
+      "before": {
+        "referenceBytes": 874935,
+        "maxBytes": 892434,
+        "_reason": "#4801: Neue Elternsprechtag-Seite. Referenz aus der Branch-Messung übernommen; unverändert 2 % Toleranz."
+      },
+      "after": {
+        "referenceBytes": 785970,
+        "maxBytes": 801689
+      }
+    },
+    "/school/fehlzeiten": {
+      "before": {
+        "referenceBytes": 867051,
+        "maxBytes": 884392
+      },
+      "after": {
+        "referenceBytes": 785348,
+        "maxBytes": 801055
+      }
+    },
+    "/school": {
+      "before": {
+        "referenceBytes": 850715,
+        "maxBytes": 867729
+      },
+      "after": {
+        "referenceBytes": 763430,
+        "maxBytes": 778699
+      }
+    },
+    "/school/invite": {
+      "before": {
+        "referenceBytes": 806970,
+        "maxBytes": 823109
+      },
+      "after": {
+        "referenceBytes": 716358,
+        "maxBytes": 730685
+      }
+    },
+    "/school/kalender": {
+      "before": {
+        "referenceBytes": 890341,
+        "maxBytes": 908148
+      },
+      "after": {
+        "referenceBytes": 806392,
+        "maxBytes": 822520
+      }
+    },
+    "/school/klasse": {
+      "before": {
+        "referenceBytes": 881780,
+        "maxBytes": 899416
+      },
+      "after": {
+        "referenceBytes": 796499,
+        "maxBytes": 812429
+      }
+    },
+    "/school/klasse/kind": {
+      "before": {
+        "referenceBytes": 805163,
+        "maxBytes": 821266
+      },
+      "after": {
+        "referenceBytes": 714789,
+        "maxBytes": 729085
+      }
+    },
+    "/school/login": {
+      "before": {
+        "referenceBytes": 811923,
+        "maxBytes": 828161
+      },
+      "after": {
+        "referenceBytes": 721681,
+        "maxBytes": 736115
+      }
+    },
+    "/school/nachrichten": {
+      "before": {
+        "referenceBytes": 821451,
+        "maxBytes": 837880
+      },
+      "after": {
+        "referenceBytes": 746159,
+        "maxBytes": 761082
+      }
+    },
+    "/school/nachrichten/[threadID]": {
+      "before": {
+        "referenceBytes": 826529,
+        "maxBytes": 843060,
+        "_reason": "#4776: Gruppenchats im Schulportal mit Mitgliederansicht, Verlassen und Lesestatus. CI-Messung: 804077 auf 826529 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
+      },
+      "after": {
+        "referenceBytes": 732276,
+        "maxBytes": 746922
+      }
+    },
+    "/school/reset-password": {
+      "before": {
+        "referenceBytes": 802984,
+        "maxBytes": 819044
+      },
+      "after": {
+        "referenceBytes": 713082,
+        "maxBytes": 727344
+      }
+    },
+    "/school/tagesinformationen": {
+      "before": {
+        "referenceBytes": 796360,
+        "maxBytes": 812287
+      },
+      "after": {
+        "referenceBytes": 705501,
+        "maxBytes": 719611
+      }
+    },
+    "/[tenant]/anmeldung": {
+      "before": {
+        "referenceBytes": 716260,
+        "maxBytes": 730585
+      },
+      "after": {
+        "referenceBytes": 643431,
+        "maxBytes": 656300
+      }
+    },
+    "/[tenant]/anmeldung/[phaseId]": {
+      "before": {
+        "referenceBytes": 909266,
+        "maxBytes": 927451
+      },
+      "after": {
+        "referenceBytes": 815872,
+        "maxBytes": 832189
+      }
+    },
+    "/[tenant]/anmeldung/preview": {
+      "before": {
+        "referenceBytes": 905851,
+        "maxBytes": 923968
+      },
+      "after": {
+        "referenceBytes": 804048,
+        "maxBytes": 820129
+      }
+    },
+    "/[tenant]/anmeldung/status/[token]": {
+      "before": {
+        "referenceBytes": 739443,
+        "maxBytes": 754232
+      },
+      "after": {
+        "referenceBytes": 673745,
+        "maxBytes": 687220
+      }
+    },
+    "/[tenant]/display": {
+      "before": {
+        "referenceBytes": 676678,
+        "maxBytes": 690212
+      },
+      "after": {
+        "referenceBytes": 617197,
+        "maxBytes": 629541
+      }
+    },
+    "/[tenant]": {
+      "before": {
+        "referenceBytes": 705066,
+        "maxBytes": 719167
+      },
+      "after": {
+        "referenceBytes": 645464,
+        "maxBytes": 658373
+      }
+    },
+    "/[tenant]/students/[id]/unfallanzeigen/[reportId]": {
+      "before": {
+        "referenceBytes": 1005103,
+        "maxBytes": 1025205
+      },
+      "after": {
+        "referenceBytes": 952745,
+        "maxBytes": 971800
+      }
+    },
+    "/traeger/abrechnung": {
+      "before": {
+        "referenceBytes": 825652,
+        "maxBytes": 842165
+      },
+      "after": {
+        "referenceBytes": 745383,
+        "maxBytes": 760291
+      }
+    },
+    "/traeger/abrechnung/[id]": {
+      "before": {
+        "referenceBytes": 881170,
+        "maxBytes": 898793
+      },
+      "after": {
+        "referenceBytes": 801169,
+        "maxBytes": 817192
+      }
+    },
+    "/traeger/access-log": {
+      "before": {
+        "referenceBytes": 861050,
+        "maxBytes": 878271
+      },
+      "after": {
+        "referenceBytes": 783713,
+        "maxBytes": 799387
+      }
+    },
+    "/traeger/accounts": {
+      "before": {
+        "referenceBytes": 826008,
+        "maxBytes": 842528
+      },
+      "after": {
+        "referenceBytes": 745766,
+        "maxBytes": 760681
+      }
+    },
+    "/traeger/beitraege": {
+      "before": {
+        "referenceBytes": 869922,
+        "maxBytes": 887320
+      },
+      "after": {
+        "referenceBytes": 789763,
+        "maxBytes": 805558
+      }
+    },
+    "/traeger/briefkopf": {
+      "before": {
+        "referenceBytes": 890446,
+        "maxBytes": 908255
+      },
+      "after": {
+        "referenceBytes": 813948,
+        "maxBytes": 830227
+      }
+    },
+    "/traeger/einstellungen": {
+      "before": {
+        "referenceBytes": 877950,
+        "maxBytes": 895509
+      },
+      "after": {
+        "referenceBytes": 801198,
+        "maxBytes": 817222
+      }
+    },
+    "/traeger/ferien": {
+      "before": {
+        "referenceBytes": 817566,
+        "maxBytes": 833917
+      },
+      "after": {
+        "referenceBytes": 739836,
+        "maxBytes": 754633
+      }
+    },
+    "/traeger/ferien/[id]": {
+      "before": {
+        "referenceBytes": 864724,
+        "maxBytes": 882018
+      },
+      "after": {
+        "referenceBytes": 787842,
+        "maxBytes": 803599
+      }
+    },
+    "/traeger/ferien/[id]/anmeldungen": {
+      "before": {
+        "referenceBytes": 824973,
+        "maxBytes": 841472
+      },
+      "after": {
+        "referenceBytes": 747822,
+        "maxBytes": 762778
+      }
+    },
+    "/traeger/ferien/[id]/anmeldungen/[registrationId]": {
+      "before": {
+        "referenceBytes": 889571,
+        "maxBytes": 907362,
+        "_reason": "#5199: Historischen Zustimmungswortlaut aus der gespeicherten Formularversion mit dem gemeinsamen sicheren Markdown-Renderer anzeigen. Lokale kalte Messung: 822556 auf 889571 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
+      },
+      "after": {
+        "referenceBytes": 805905,
+        "maxBytes": 822023
+      }
+    },
+    "/traeger/ferien/neu": {
+      "before": {
+        "referenceBytes": 861284,
+        "maxBytes": 878510
+      },
+      "after": {
+        "referenceBytes": 784016,
+        "maxBytes": 799696
+      }
+    },
+    "/traeger/ferien/[id]/formular": {
+      "before": {
+        "referenceBytes": 876825,
+        "maxBytes": 894362,
+        "_reason": "#5199: Neuer gemeinsamer Rechtsblock-Editor mit PDF-Upload und Vorschau. Die kalte Messung steigt von 836329 auf 876825 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz. Nachgeladene Chunks zählen vollständig mit."
+      },
+      "after": {
+        "referenceBytes": 796248,
+        "maxBytes": 812173
+      }
+    },
+    "/traeger": {
+      "before": {
+        "referenceBytes": 816136,
+        "maxBytes": 832459
+      },
+      "after": {
+        "referenceBytes": 738399,
+        "maxBytes": 753167
+      }
+    },
+    "/traeger/invite": {
+      "before": {
+        "referenceBytes": 791749,
+        "maxBytes": 807584
+      },
+      "after": {
+        "referenceBytes": 705504,
+        "maxBytes": 719614
+      }
+    },
+    "/traeger/login": {
+      "before": {
+        "referenceBytes": 798950,
+        "maxBytes": 814929
+      },
+      "after": {
+        "referenceBytes": 716897,
+        "maxBytes": 731235
+      }
+    },
+    "/traeger/reset-password": {
+      "before": {
+        "referenceBytes": 804196,
+        "maxBytes": 820280
+      },
+      "after": {
+        "referenceBytes": 707443,
+        "maxBytes": 721592
+      }
+    }
+  }
+}

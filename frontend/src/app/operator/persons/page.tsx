@@ -1,8 +1,10 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
+import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -19,6 +21,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
+import { peopleConcept } from "~/lib/concepts/people";
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -28,12 +31,19 @@ function OperatorPersonsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
     organizationsLoadError,
     schoolsLoadError,
   } = useOrgSchoolFilter("/operator/persons");
+
+  const invalidate = useInvalidateMatching();
+  const refreshPersons = useCallback(
+    () => invalidate(operatorProvisioningKeys.personChanges),
+    [invalidate],
+  );
 
   const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
@@ -43,13 +53,13 @@ function OperatorPersonsPageContent() {
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
-    isAuthenticated && selectedSchool
-      ? `operator-school-persons-${selectedSchool.id}`
+  } = useSWRAuth(
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolPersons(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -78,7 +88,11 @@ function OperatorPersonsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Personen" concept="people" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Personen"
+        concept={peopleConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="person"
@@ -170,7 +184,7 @@ function OperatorPersonsPageContent() {
           key={selectedSchool.id}
           schoolId={selectedSchool.id}
           schoolName={selectedSchool.name}
-          onMerged={() => mutateSchoolPersons()}
+          onMerged={refreshPersons}
         />
       )}
 
@@ -182,7 +196,9 @@ function OperatorPersonsPageContent() {
             (persons) =>
               persons?.filter((person) => person.id !== deletedPerson.id),
             { revalidate: false },
-          ).then(() => undefined)
+          ).then(async () => {
+            await refreshPersons();
+          })
         }
       />
     </div>

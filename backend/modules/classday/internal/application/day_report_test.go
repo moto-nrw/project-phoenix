@@ -95,6 +95,7 @@ type fakeClassDayAccessLog struct {
 	views       []AccessRecord
 	sheets      []AccessRecord
 	schoolViews []AccessRecord
+	sharedNotes []AccessRecord
 }
 
 func (f *fakeClassDayAccessLog) SchoolDayViewSeenSince(_ context.Context, actorAccountID int64, date string, _ time.Time) (bool, error) {
@@ -130,6 +131,11 @@ func (f *fakeClassDayAccessLog) RecordClassDayView(_ context.Context, entry Acce
 
 func (f *fakeClassDayAccessLog) RecordSupervisionSheet(_ context.Context, entry AccessRecord) error {
 	f.sheets = append(f.sheets, entry)
+	return nil
+}
+
+func (f *fakeClassDayAccessLog) RecordSharedNotes(_ context.Context, entry AccessRecord) error {
+	f.sharedNotes = append(f.sharedNotes, entry)
 	return nil
 }
 

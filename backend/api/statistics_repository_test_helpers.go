@@ -11,10 +11,10 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// StatisticsTestRepositories are the statistics suites' Care Plan status
-// days over the Timetable owner's participants.
+// StatisticsTestRepositories are the statistics suites' Care Plan (status
+// days and weekly plans) over the Timetable owner's participants.
 type StatisticsTestRepositories struct {
-	CarePlan careplan.StudentStatusDaysQuery
+	CarePlan careplan.Capability
 }
 
 func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {

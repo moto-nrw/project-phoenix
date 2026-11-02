@@ -1,0 +1,57 @@
+{
+  "packages": [
+    {
+      "path": "workflows/careexit",
+      "owner": "care-exit",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "care-exit.to.care-plan",
+      "description": "Care Exit coordinates the Care Plan care-exit ledger entries and offering bookings through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.enrollment",
+      "description": "Care Exit reads the Enrollment applications and offering snapshots behind ended bookings through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.student-presence",
+      "description": "Care Exit replays and closes Student Presence attendance and reapplies day statuses through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-exit.to.timetable-activities",
+      "description": "Care Exit removes and restores Timetable roster rows and resolves pickup extensions through their public contract (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit",
+      "source_role": "public",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    }
+  ]
+}

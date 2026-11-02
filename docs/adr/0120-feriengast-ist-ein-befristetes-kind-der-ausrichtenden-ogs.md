@@ -146,3 +146,85 @@ die `tenant_id` der ausrichtenden Schule (D4).
 - `GET /api/active/cross-tenant-students` (ADR 0084 Abschnitt 6) bleibt
   bestehen, bis Gruppen und Kiosk keine Besuche fremder Kinder mehr
   brauchen; ein eigenes Ticket entfernt ihn.
+
+## Nachtrag 2026-10-28: Zweite sorgeberechtigte Person und freigegebene Antworten (#5202)
+
+Mit der Entscheidung des Nutzers vom 28.10.2026 für Option B
+([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Nachtrag
+zu ADR 0116) gilt Punkt 4 mit dieser Erweiterung:
+
+- **Zweite Person als Notfallkontakt.** `enrollment.holiday_host_guest_contacts`
+  liefert die zweite sorgeberechtigte Person (#5197) als Notfallkontakt
+  „Eltern“ mit Name und Telefon, direkt nach der anmeldenden Person.
+- **Freigegebene Antworten.** Die Kopie übernimmt die Antworten der
+  freigegebenen Fragen ohne Gesundheitsangabe, so wie die Teilnehmerliste sie
+  liefert, in `enrollment.holiday_guests.answers` (JSONB). Das Blatt
+  `GET /api/holiday-guests/{studentId}` zeigt sie unter „Angaben aus der
+  Ferienanmeldung“.
+- Weiter gilt: keine Gesundheitsangaben, keine Einwilligungen, keine
+  E-Mail-Adresse, keine Anschrift.
+- **Löschung wie bei den Kontakten.** Die Antworten folgen Punkt 5: sieben
+  Tage nach der Woche nur lesbar, dann löscht der Abgleich sie mit den
+  Kontakten. Eine Stornierung oder Umbuchung löscht sie beim nächsten
+  Abgleich.
+- **Prüfung beim Lesen.** Die Kopie liest ihre Antworten nur über
+  `enrollment.holiday_guest_shared_answers`. Die Funktion prüft jede Antwort
+  noch einmal gegen alle Formularversionen des Zeitraums, mit denselben Regeln
+  wie die Teilnehmerliste. Stuft der Träger eine Frage später als
+  Gesundheitsangabe ein, ist die kopierte Antwort sofort verborgen, auch in den
+  sieben Tagen nur lesend, in denen kein Abgleich die Kopie mehr erneuert.
+- **Register.** Migration `1.15.712` ergänzt die Spalte und ersetzt die
+  Funktion; der Down-Pfad stellt die alte Signatur wieder her. Migration
+  `1.15.713` ergänzt die Prüfung beim Lesen. Der Eintrag
+  `enrollment.holiday_guests` im Datenkatalog nennt die Antworten. Keine neue
+  Tabelle, kein neuer `data_objects`-Eintrag.
+
+## Nachtrag 2026-11-01: Informationsfluss statt Datensilos
+
+Der [Nachtrag zu ADR 0116](0116-ausrichtende-ogs-liest-ihre-teilnehmer-in-der-schul-transaktion.md#nachtrag-2026-11-01-informationsfluss-statt-datensilos)
+ersetzt auch hier „keine Gesundheitsangaben“ aus Punkt 4 und dem Nachtrag
+vom 28.10.2026 als dauerhaftes Produktziel. Die für die Betreuung benötigten
+Angaben aus der Ferienanmeldung sollen dem berechtigten Team am Feriengast
+im Betreuungsalltag zur Verfügung stehen, statt nur beim Träger zu bleiben.
+
+Die Umsetzung läuft mit
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Die dort
+unterschiedenen Fälle Feriengast und eigenes Kind der ausrichtenden OGS
+bleiben getrennt: Angaben für eine Ferienbetreuung überschreiben nicht
+stillschweigend die Stammdaten eines eigenen Kindes. Rechtsgrundlage,
+Zugriffsschutz und die bestehende Befristung gelten auch für diese Angaben.
+Dieser Dokumentationsnachtrag ändert noch keine Kopie, Lesefunktion oder
+Löschroutine; die bisherigen Gesundheitsfilter bleiben bis zur
+nachgewiesenen Umsetzung wirksam.
+
+## Nachtrag 2026-11-01: Gesundheitsangaben des Feriengasts (#4722)
+
+Mit der Entscheidung des Nutzers vom 01.11.2026 („keine Datensilos“,
+Nachtrag zu ADR 0116) gilt Punkt 4 und der Nachtrag vom 28.10.2026 mit
+dieser Änderung:
+
+- **Gesundheitsfeld.** Die Kopie trägt die Gesundheitsangaben, die die
+  Teilnehmerliste liefert, im Gesundheitsfeld des Kindes (`health_info`),
+  geschrieben über den Enrollment-Befehl des People Directory
+  (`ApplyEnrollmentProfile`, wie die übrige Kopie). Das Team sieht sie dort,
+  wo es alle Kinder sieht: Kinderkarte, Gruppe, Gesundheitsliste. Ein
+  späterer Abgleich schreibt das Feld nur neu, wenn sich die Angaben der
+  Anmeldung ändern, und überschreibt sonst nicht, was das Team einträgt.
+- **Blatt.** `GET /api/holiday-guests/{studentId}` zeigt die Angaben unter
+  „Gesundheit“. Die Kopie hält sie verschlüsselt in
+  `enrollment.holiday_guests.health_data`, gebunden an Schule und Kind.
+- **Ende mit der Woche.** Die Gesundheitsangaben sieht die Schule wie die
+  Teilnehmerliste nur bis zum letzten Tag der Woche (Nachtrag zu ADR 0116).
+  Ab dem Tag danach zeigen Blatt, Kindakte, Gesundheitsliste und
+  Notfallliste sie nicht mehr (People Directory liest das Gesundheitsfeld
+  eines Kindes der Klasse `Feriengast` nach seinem Betreuungsende leer, auch
+  vor dem Abgleich), und der stündliche
+  Abgleich löscht Kopie und Gesundheitsfeld; die sieben Tage nur lesend aus
+  Punkt 5 gelten für Kontakte und Antworten, nicht für Gesundheitsangaben.
+  Eine Stornierung oder Umbuchung beendet den Gast und löscht beides beim
+  nächsten Abgleich.
+- Weiter gilt: keine Einwilligungen, keine E-Mail-Adresse, keine Anschrift.
+  Ohne Einwilligung der Version 2 bekommt der Gast keine Gesundheitsangaben.
+- Die Verschlüsselung des Gesundheitsfelds für alle Kinder der Schule ist
+  nicht Teil dieses Nachtrags; die Kopie hat denselben Schutz wie die
+  eigenen Kinder der Schule.

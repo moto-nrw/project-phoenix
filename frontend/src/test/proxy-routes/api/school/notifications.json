@@ -1,0 +1,12 @@
+{
+  "api/school/notifications/preferences": [
+    "DELETE school /school/notifications/preferences/",
+    "GET school /school/notifications/preferences/"
+  ],
+  "api/school/notifications/push/public-key": [
+    "GET school /school/notifications/push/public-key"
+  ],
+  "api/school/notifications/test": [
+    "POST school /school/notifications/test"
+  ]
+}

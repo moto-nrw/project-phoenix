@@ -12,12 +12,14 @@ interface BackendThreadSummary {
   last_message_body?: string;
   last_message_payload?: Record<string, unknown>;
   unread: number;
+  audience: "team" | "leadership";
+  readers: { school: { kind: string; names: string[] } };
 }
 
 /**
  * Proxy GET /api/parent/me/messages/children/{studentId}/threads → backend.
  * Returns the guardian's conversation summary/summaries for one child (at most
- * one per the chat model), WITHOUT marking the thread read — the child detail
+ * one per audience: team and leadership, #5200), WITHOUT marking the thread read — the child detail
  * page uses this instead of fetching the whole inbox. Guardian ownership is
  * enforced server-side.
  */

@@ -1,0 +1,6 @@
+{
+  "scenario": "services.enrollment.list_child_offerings.reads",
+  "max": 5,
+  "exact": false,
+  "description": "Enrollment decision and Care Plan offering source reads (formerly\nservices/enrollment) stay flat as rows grow (#2941)."
+}

@@ -64,6 +64,17 @@ type PayrollStatus struct {
 	// StaffWithoutPersonnelNumber counts active staff the payroll system
 	// could not match. Count only — names stay behind time_tracking:manage.
 	StaffWithoutPersonnelNumber int `json:"staff_without_personnel_number"`
+	// Dispatch is the Lohnbüro of the school (#4805).
+	Dispatch PayrollDispatchSettings `json:"dispatch"`
+}
+
+// PayrollDispatchSettings are the values of the automatic send after the
+// Monatsabschluss, as /payroll edits them.
+type PayrollDispatchSettings struct {
+	Auto    bool   `json:"auto"`
+	Channel string `json:"channel"`
+	Format  string `json:"format"`
+	Email   string `json:"email"`
 }
 
 // PayrollStatusGetter reports the payroll configuration state.

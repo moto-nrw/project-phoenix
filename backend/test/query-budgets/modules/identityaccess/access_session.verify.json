@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.access_session.verify",
+  "max": 4,
+  "exact": true,
+  "description": "modules/identityaccess — the session family check every authenticated\nrequest runs before its route (#5194): BEGIN, SET LOCAL ROLE, one indexed\nread of the family's latest generation, COMMIT. No cache, so a revocation\nholds on every instance. Router budgets count their route without it."
+}

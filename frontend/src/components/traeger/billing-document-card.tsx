@@ -2,16 +2,35 @@
 
 // Eine Rechnung im Abrechnungslauf (#4668): je Kind die Positionen aus dem
 // festgehaltenen Ferienbeitrag und die Korrekturen mit Begründung. Vor der
-// Freigabe ein Entwurf ohne Nummer, danach die ausgestellte Rechnung.
+// Freigabe ein Entwurf ohne Nummer, danach die ausgestellte Rechnung. Seit
+// #5146 steht sie im Seitenpanel, geöffnet aus dem Menü ihrer Zeile in der
+// Rechnungstabelle (BillingRunOverviewCard), statt als eigene Karte.
 
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { SectionCard } from "~/components/ui/section-card";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingChild, BillingDocument } from "~/lib/traeger-billing-api";
 import { billingPositionLabel } from "./billing-format";
 import { formatEuro } from "./contribution-format";
 import { formatDateRange } from "./holiday-period-format";
+
+export function recipientName(document: BillingDocument): string {
+  return `${document.recipientFirstName} ${document.recipientLastName}`;
+}
+
+function issuedText(document: BillingDocument): string {
+  return document.number
+    ? `Rechnung ${document.number}${document.issuedOn ? ` vom ${formatDate(document.issuedOn)}` : ""}`
+    : "Entwurf ohne Nummer";
+}
 
 function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
   if (child.corrections.length === 0) return null;
@@ -36,69 +55,53 @@ function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
   );
 }
 
-export function BillingDocumentCard({
+/** Die Aufschlüsselung einer Rechnung: Positionen je Kind und Korrekturen. */
+export function BillingDocumentBreakdown({
   document,
-  onCorrect,
-  onDownloadLetter,
-}: Readonly<{
-  document: BillingDocument;
-  /** Set while the run is a preview; corrects one child. */
-  onCorrect?: (child: BillingChild) => void;
-  /** Set once the letters of the released run exist (#4669). */
-  onDownloadLetter?: () => void;
-}>) {
-  const recipient = `${document.recipientFirstName} ${document.recipientLastName}`;
-  const issued = document.number
-    ? `Rechnung ${document.number}${document.issuedOn ? ` vom ${formatDate(document.issuedOn)}` : ""}`
-    : "Entwurf ohne Nummer";
+  onClose,
+}: Readonly<{ document: BillingDocument | null; onClose: () => void }>) {
   return (
-    <SectionCard
-      title={recipient}
-      description={`${issued} · ${document.recipientEmail} · Betreuung ${formatDateRange(document.serviceFrom, document.serviceUntil)}`}
-      actions={
-        onCorrect || onDownloadLetter ? (
-          <OverflowMenu
-            ariaLabel={`Aktionen für die Rechnung an ${recipient}`}
-            triggerSize="sm"
-            items={[
-              ...(onCorrect
-                ? document.children.map((child) => ({
-                    label: `Betrag für ${child.firstName} korrigieren`,
-                    onClick: () => onCorrect(child),
-                  }))
-                : []),
-              ...(onDownloadLetter
-                ? [
-                    {
-                      label: "Schreiben herunterladen",
-                      onClick: onDownloadLetter,
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        ) : null
-      }
+    <SlideOver
+      open={document !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="space-y-4">
-        <ContributionBreakdown
-          items={document.children.map((child) => ({
-            key: child.childId,
-            name: `${child.firstName} ${child.lastName}`,
-            lines: child.positions.map((position) => ({
-              label: billingPositionLabel(position),
-              amount: formatEuro(position.amountCents),
-            })),
-            total: formatEuro(child.totalCents),
-          }))}
-          childTotalLabel="Summe"
-          totalLabel="Rechnungsbetrag"
-          total={formatEuro(document.totalCents)}
-        />
-        {document.children.map((child) => (
-          <CorrectionHistory key={child.childId} child={child} />
-        ))}
-      </div>
-    </SectionCard>
+      {document ? (
+        <SlideOverContent>
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <SlideOverTitle>
+                Rechnung an {recipientName(document)}
+              </SlideOverTitle>
+              <SlideOverDescription>
+                {issuedText(document)} · {document.recipientEmail} · Betreuung{" "}
+                {formatDateRange(document.serviceFrom, document.serviceUntil)}
+              </SlideOverDescription>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <SlideOverBody className="space-y-4">
+            <ContributionBreakdown
+              items={document.children.map((child) => ({
+                key: child.childId,
+                name: `${child.firstName} ${child.lastName}`,
+                lines: child.positions.map((position) => ({
+                  label: billingPositionLabel(position),
+                  amount: formatEuro(position.amountCents),
+                })),
+                total: formatEuro(child.totalCents),
+              }))}
+              childTotalLabel="Summe"
+              totalLabel="Rechnungsbetrag"
+              total={formatEuro(document.totalCents)}
+            />
+            {document.children.map((child) => (
+              <CorrectionHistory key={child.childId} child={child} />
+            ))}
+          </SlideOverBody>
+        </SlideOverContent>
+      ) : null}
+    </SlideOver>
   );
 }

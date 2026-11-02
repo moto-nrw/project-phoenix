@@ -62,6 +62,8 @@ func (c *SessionCodec) IssueTokenPair(access identityaccess.SessionClaims, refre
 	put(claims, "tenant_id", refresh.TenantID, refresh.TenantID != 0)
 	put(claims, "org_id", refresh.OrgID, refresh.OrgID != 0)
 	put(claims, "scope", refresh.Scope, refresh.Scope != "")
+	put(claims, "family_id", refresh.FamilyID, refresh.FamilyID != "")
+	put(claims, "lineage_id", refresh.LineageID, refresh.LineageID != "")
 	refreshToken, err := c.sign(claims)
 	if err != nil {
 		return "", "", err

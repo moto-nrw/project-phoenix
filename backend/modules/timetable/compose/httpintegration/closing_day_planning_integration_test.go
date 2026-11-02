@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Closing days and statutory holidays (#3594). makeScenario builds a Monday
@@ -351,5 +352,5 @@ func TestBulkCancelPlanned_DryRunQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 2 occurrences → %d queries, 5 occurrences → %d queries", small, large)
 	assert.Equal(t, small, large, "the dry run must not load per occurrence")
-	testpkg.AssertQueryBudget(t, "services.schedule.bulk_cancel_dry_run", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.bulk_cancel_dry_run", counter.Queries())
 }

@@ -1,0 +1,6 @@
+{
+  "scenario": "services.calendar.resolve_targets.reads",
+  "max": 5,
+  "exact": true,
+  "description": "modules/schoolcalendar/portal — appointment target resolution, 8 explicit guardians."
+}

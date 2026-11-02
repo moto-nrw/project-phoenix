@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Portali i prindërve",
+  "title": "Mirë se vini",
+  "fallbackSchool": "shkollës suaj",
+  "subtitle": "Konfirmoni ftesën tuaj për {school} dhe vendosni fjalëkalimin personal.",
+  "errorHelpBefore": "Mund të kërkoni një ftesë të re nga shkolla ose të hyni përmes",
+  "startPage": "faqes fillestare",
+  "errorHelpAfter": ".",
+  "formErrors": {
+    "passwordRules": "Fjalëkalimi ende nuk i plotëson të gjitha kërkesat e sigurisë.",
+    "passwordMismatch": "Fjalëkalimet nuk përputhen."
+  },
+  "acceptedTitle": "Llogaria u krijua",
+  "acceptedText": "Ju lutemi hyni me të dhënat tuaja të reja.",
+  "invitationFor": "Ftesë për",
+  "passwordLabel": "Fjalëkalimi",
+  "confirmPasswordLabel": "Konfirmo fjalëkalimin",
+  "showPassword": "Shfaq fjalëkalimin",
+  "hidePassword": "Fshih fjalëkalimin",
+  "requirementsTitle": "Kërkesat për fjalëkalimin",
+  "submitting": "Duke pranuar...",
+  "submit": "Prano ftesën",
+  "passwordRules": {
+    "0": "Të paktën 8 karaktere",
+    "1": "Një shkronjë e madhe",
+    "2": "Një shkronjë e vogël",
+    "3": "Një numër",
+    "4": "Një karakter special"
+  },
+  "errorObject": "ftesa"
+}

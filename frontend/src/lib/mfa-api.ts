@@ -1,13 +1,7 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
-export type LoginScope = "tenant" | "operator" | "school" | "traeger";
-
-interface AuthenticatedLoginResponse {
-  status: "authenticated";
-  access_token: string;
-  refresh_token: string;
-  mfa_enrollment_required?: boolean;
-}
+export type LoginScope =
+  "tenant" | "operator" | "school" | "traeger" | "caterer";
 
 interface MFARequiredLoginResponse {
   status: "mfa_required";
@@ -44,15 +38,12 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-type LoginResponse =
-  | AuthenticatedLoginResponse
-  | MFARequiredLoginResponse
-  | MFAEnrollmentRequiredLoginResponse;
-
-export interface MFATokenResponse {
-  access_token: string;
-  refresh_token: string;
+export interface MFAResult {
+  status: "authenticated";
 }
+
+type LoginResponse =
+  MFAResult | MFARequiredLoginResponse | MFAEnrollmentRequiredLoginResponse;
 
 interface OperatorEnvelope<T> {
   status: string;
@@ -85,6 +76,10 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
       return `/api/school/auth/mfa/${suffix}`;
     case "traeger":
       return `/api/traeger/auth/mfa/${suffix}`;
+    case "caterer":
+      // The caterer portal's second factor is voluntary (#4497); its
+      // endpoints answer top-level JSON like the tenant ones.
+      return `/api/caterer/auth/mfa/${suffix}`;
     default:
       return `/api/auth/mfa/${suffix}`;
   }
@@ -196,7 +191,7 @@ function organizationField(organizationId?: string) {
 export async function verifyMFA(
   scope: LoginScope,
   params: VerifyParams,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
@@ -205,13 +200,10 @@ export async function verifyMFA(
     ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload);
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload);
+  return postJson<MFAResult>(url, payload);
 }
 
 interface ResendParams {
@@ -291,7 +283,7 @@ export async function enrollConfirm(
   rememberDevice = false,
   challengeToken?: string,
   organizationId?: string,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
@@ -302,17 +294,15 @@ export async function enrollConfirm(
     ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-      { bearerToken },
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload, {
+      bearerToken,
+    });
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload, { bearerToken });
+  return postJson<MFAResult>(url, payload, { bearerToken });
 }
 
-// ----- Self-service trusted devices (Tenant-only) -----
+// ----- Self-service trusted devices (tenant, operator and caterer) -----
 //
 // These and the admin calls below act for the signed-in account: their BFF
 // routes read the session cookie, so no bearer token leaves the browser
@@ -328,9 +318,14 @@ export interface TrustedDeviceDTO {
 }
 
 function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
-  return isOperator(scope)
-    ? `/api/operator/auth/mfa/trusted-devices${suffix}`
-    : `/api/auth/mfa/trusted-devices${suffix}`;
+  switch (scope) {
+    case "operator":
+      return `/api/operator/auth/mfa/trusted-devices${suffix}`;
+    case "caterer":
+      return `/api/caterer/auth/mfa/trusted-devices${suffix}`;
+    default:
+      return `/api/auth/mfa/trusted-devices${suffix}`;
+  }
 }
 
 export async function listTrustedDevices(
@@ -438,6 +433,22 @@ export async function operatorAdminResetTraegerMFA(
 ): Promise<void> {
   await postJson<unknown>(
     `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
+    { reason },
+    { method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+/**
+ * Resets the second factor of one caterer account (#4497), scoped by the
+ * caterer, not a school. Its passkeys stay; the backend mails the caterer.
+ */
+export async function operatorAdminResetCatererMFA(
+  catererId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    `/api/operator/caterers/${encodeURIComponent(catererId)}/accounts/${encodeURIComponent(accountId)}/mfa`,
     { reason },
     { method: "DELETE", allowEmptyBody: true },
   );

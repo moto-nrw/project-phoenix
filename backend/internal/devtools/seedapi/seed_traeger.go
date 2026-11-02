@@ -12,7 +12,7 @@ import (
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
-// (#4650), one per role it hands out besides the Verwaltung. The Träger-Portal
+// (#4650), one per role it hands out besides the Verwaltung and the Leitung. The Träger-Portal
 // shows people by address only; the reserved TLD .example receives no mail.
 var seedTraegerInvitees = []struct {
 	email string
@@ -22,12 +22,26 @@ var seedTraegerInvitees = []struct {
 	{"tobias.engel@ganztag-nord.example", "personnel"},
 }
 
+// seedTraegerOperatorInvitee is the person the moto team invites into the
+// Träger-Büro from the operator portal (#5144), with two roles in one step.
+// The Träger-Büro already has its Leitung, so she gets Verwaltung without
+// Leitung and Schulzugang (#5471).
+var seedTraegerOperatorInvitee = struct {
+	email string
+	roles []string
+}{"petra.hoffmann@ganztag-nord.example", []string{"administration", "billing"}}
+
+// seedTraegerAdminRoles are the Träger roles of the bootstrap school admin.
+var seedTraegerAdminRoles = []string{"administration", "leadership", "school_access", "billing"}
+
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
-// credentials and sees the Träger's schools. The admin also holds the role
-// Abrechnung, so the dev database shows the contribution rules (#4664).
-// Signed in to the Träger-Portal,
+// credentials and sees the Träger's schools. The admin holds Leitung and
+// Schulzugang besides Verwaltung (#5471), so the dev database manages the
+// accounts and opens the schools, and the role Abrechnung, so it shows the
+// contribution rules (#4664); all roles go in one assignment (#5144). The operator also invites a person
+// without a moto account (#5144). Signed in to the Träger-Portal,
 // the admin then invites a colleague for the Abrechnung and one for the
 // Personal (#4650), so the page "Personen" shows a person and open
 // invitations.
@@ -43,12 +57,14 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.OperatorAuth)
 	defer rt.Client.BindAuth(previousAuth)
 	path := fmt.Sprintf("/operator/organizations/%d/traeger-members", rt.Bootstrap.OrganizationID)
-	for _, role := range []string{"administration", "billing"} {
-		if _, err := rt.Client.Post(path, map[string]string{"email": rt.Bootstrap.AdminEmail, "role": role}); err != nil {
-			return fmt.Errorf("assign the Träger-Büro: %w", err)
-		}
+	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": seedTraegerAdminRoles}); err != nil {
+		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
-	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung and Abrechnung")
+	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung, Leitung, Schulzugang and Abrechnung")
+	if _, err := rt.Client.Post(path+"/invitations", map[string]any{"email": seedTraegerOperatorInvitee.email, "roles": seedTraegerOperatorInvitee.roles}); err != nil {
+		return fmt.Errorf("invite into the Träger-Büro from the operator portal: %w", err)
+	}
+	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung and Abrechnung")
 	return seedTraegerInvitation(rt)
 }
 
@@ -115,6 +131,8 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
+	rt.Values[seedHolidayLegalPeriodKey] = periodID
+	rt.Values[seedHolidayLegalPublishedKey] = published
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
 	if err := seedContributionRules(rt.Client, auth, calendar.TodayDate()); err != nil {
 		return err
@@ -211,10 +229,11 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 
 // seedHolidayRegistrations registers two siblings through the public link
 // (#4661), then a second parent registers the first sibling once more for
-// the second week, a possible duplicate. The Träger-Büro reviews the list
-// and confirms the siblings' registration (#4663), which freezes its
-// contribution (#4664); the duplicate stays received. The form shows the
-// siblings' contribution before it is sent.
+// the second week, a possible duplicate, stating benefits with the uploaded
+// proof (#5238). The Träger-Büro reviews the list and confirms the siblings'
+// registration (#4663), which freezes its contribution (#4664); the
+// duplicate stays received. The form shows the siblings' contribution before
+// it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	token, registration, err := seedHolidayRegistration(published, homeSchool)
 	if err != nil {
@@ -237,7 +256,11 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("read the holiday registration: %w", err)
 	}
 	fmt.Println("  Ferienanmeldung: two siblings registered, one of them a holiday guest")
-	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration)); err != nil {
+	proof, err := seedHolidayBenefitsProof(rt.Client, token)
+	if err != nil {
+		return "", err
+	}
+	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration, proof)); err != nil {
 		return "", fmt.Errorf("register the possible duplicate: %w", err)
 	}
 	registrations := fmt.Sprintf("/traeger/holiday-periods/%d/registrations", periodID)
@@ -326,9 +349,29 @@ func seedHolidayQuote(registration map[string]any) map[string]any {
 	return map[string]any{"children": quoted, "benefits_declared": false}
 }
 
+// seedHolidayBenefitsProof uploads the proof of benefits of the second
+// parent through the public link (#5238) and returns its token.
+func seedHolidayBenefitsProof(client *Client, token string) (string, error) {
+	raw, err := client.PostPublicFile("/traeger/holiday-registrations/"+token+"/uploads", "file", "Bescheid-Buergergeld-2027.pdf",
+		demoPDF("Bewilligungsbescheid Bürgergeld", []string{"Familie Ferienkind", "Bewilligungszeitraum Januar bis Juni 2027", "Kopie für die Ferienanmeldung"}))
+	if err != nil {
+		return "", fmt.Errorf("upload the proof of benefits: %w", err)
+	}
+	var upload struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &upload); err != nil || upload.Data.Token == "" {
+		return "", fmt.Errorf("the proof upload returned no token: %s", string(raw))
+	}
+	return upload.Data.Token, nil
+}
+
 // seedHolidayDuplicate is a second parent's registration of the first
-// sibling of registration for the last booked week of the guest sibling.
-func seedHolidayDuplicate(registration map[string]any) map[string]any {
+// sibling of registration for the last booked week of the guest sibling. The
+// parent states benefits and names the uploaded proof.
+func seedHolidayDuplicate(registration map[string]any, proof string) map[string]any {
 	children := registration["children"].([]map[string]any)
 	child := map[string]any{}
 	for key, value := range children[0] {
@@ -343,6 +386,8 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 	}
 	duplicate["guardian"] = map[string]any{"first_name": "Markus", "last_name": "Ferienkind", "email": "markus.ferienkind@example.org", "phone": "0151 0000003"}
 	duplicate["children"] = []map[string]any{child}
+	duplicate["benefits_declared"] = true
+	duplicate["benefits_proof_tokens"] = []string{proof}
 	return duplicate
 }
 
@@ -368,7 +413,9 @@ const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skippe
 
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
-// holiday guest for both weeks. All names are invented.
+// holiday guest for both weeks, with answers to the questions of the
+// period's standard template (#5198), under the consent texts that share the
+// health information with the hosting OGS (#4722). All names are invented.
 func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[string]any, error) {
 	var envelope struct {
 		Data struct {
@@ -392,17 +439,24 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		return map[string]any{"week_id": period.Weeks[week].ID, "time_model_id": period.Weeks[week].TimeModels[model].ID}
 	}
 	return period.PublicToken, map[string]any{
-		"guardian": map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
+		"second_guardian": map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
+		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
-				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)}},
+				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)},
+				"custom_data": map[string]any{"lebensmittelunvertraeglichkeiten": "Laktose", "tetanus_impfschutz": "ja",
+					"darf_allein_nach_hause": false, "darf_an_ausfluegen_teilnehmen": true}},
 			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
-				"guest_school_name": "Grundschule am See", "bookings": []map[string]any{booking(0, 0), booking(1, 0)}},
+				"guest_school_name": "Grundschule am See", "medication": "Asthmaspray bei Bedarf",
+				"bookings": []map[string]any{booking(0, 0), booking(1, 0)},
+				"custom_data": map[string]any{"tetanus_impfschutz": "weiss_nicht", "darf_allein_nach_hause": true,
+					"darf_an_ausfluegen_teilnehmen": true}},
 		},
 		"emergency_contacts": []map[string]any{{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"}},
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
-		"captcha_token": seedTurnstileTestToken,
+		"consent_version": 2,
+		"captcha_token":   seedTurnstileTestToken,
 	}, nil
 }
 

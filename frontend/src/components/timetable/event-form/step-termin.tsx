@@ -5,15 +5,13 @@ import { Repeat } from "lucide-react";
 import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { categorySelectProps } from "./category-option";
 import type { PlanningTrack } from "~/lib/planning-track-api";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getActivityColor } from "~/lib/timetable-helpers";
-import {
-  timetableRequiredMark,
-  timetableTextAreaClass,
-} from "../timetable-style";
+import { timetableTextAreaClass } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
@@ -132,7 +130,7 @@ export function StepTermin({
         <>
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gray-700">
-              Typ <span className={timetableRequiredMark}>*</span>
+              Typ <RequiredMark />
             </span>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {TYPE_OPTIONS.map((option) => {

@@ -22,7 +22,7 @@
  *   - any future room-attribute that finds its way into a student/visit row
  *
  * **What does NOT belong**: caches that fetch Room data directly
- * (`/api/rooms` lists). Those belong in `ROOM_LIST_CACHE_KEYS` below. This
+ * (`/api/rooms` lists). Invalidate those through the rooms resource family. This
  * list is for *consumers* of room data, not the room data itself.
  *
  * If you add a new SWR key that fits the criteria above, add its substring
@@ -51,21 +51,4 @@ export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "active-supervision-dashboard-",
   "ogs-students-",
   "search-students-",
-] as const;
-
-export const DATABASE_ROOMS_LIST_CACHE_KEY = "database-rooms-list";
-export const SEARCH_ROOMS_LIST_CACHE_KEY = "search-rooms-list";
-const ROOMS_PAGE_LIST_CACHE_KEY = "rooms-list";
-
-/**
- * Exact SWR keys for pages that fetch `/api/rooms` directly.
- *
- * Any room create, rename, update, or delete must invalidate all of these.
- * Otherwise a user who opened one page before changing a room on another page
- * keeps stale room names/options until a hard reload.
- */
-export const ROOM_LIST_CACHE_KEYS: readonly string[] = [
-  DATABASE_ROOMS_LIST_CACHE_KEY,
-  ROOMS_PAGE_LIST_CACHE_KEY,
-  SEARCH_ROOMS_LIST_CACHE_KEY,
 ] as const;

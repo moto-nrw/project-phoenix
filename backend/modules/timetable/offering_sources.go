@@ -35,11 +35,26 @@ type OfferingSourceSupport interface {
 	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
 }
 
+// OfferingTemplateGapDecision stores the school's decision that the booked
+// children of the listed classes need no Regeltermin of an offering in one
+// planning period (#5140); an empty list withdraws it for that period. Care
+// Plan owns the offering row; the composition root binds its catalog.
+type OfferingTemplateGapDecision interface {
+	DecideOfferingTemplateGap(ctx context.Context, offeringID, calendarPeriodID int64, schoolClasses []string) error
+}
+
 // OfferingWeekdayBooking is one child's approved booking of an offering with
 // the ISO weekdays it plans (#5103).
 type OfferingWeekdayBooking struct {
 	OfferingID   int64
 	OfferingName string
+	// PhaseID is the offering's enrollment phase; a combined source must
+	// stay within one phase (#5139).
+	PhaseID int64
+	// HolidayPhase is true when that phase is of the kind Ferienbetreuung;
+	// such an offering is never suggested as a Regeltermin source (#5139).
+	// The offering's own IncludesHolidayCare flag plays no part.
+	HolidayPhase bool
 	StudentID    int64
 	SchoolClass  string
 	// GradeLevel is the Jahrgang derived from the school class; nil when
@@ -49,6 +64,32 @@ type OfferingWeekdayBooking struct {
 	// CountsAsCare and IncludesLunch are the offering's catalog flags.
 	CountsAsCare  bool
 	IncludesLunch bool
+	// TemplateGapAckClasses are the classes the school decided need no
+	// Regeltermin of the offering in the requested planning period (#5140);
+	// empty without a decision there.
+	TemplateGapAckClasses []string
+	// ClassDayApplies is true when the offering runs on school days only (a
+	// school-year phase without holiday care), so the Klassentag tells when
+	// its children arrive (#5343).
+	ClassDayApplies bool
+	// PickupTimes are the offering's pickup times ("HH:MM") per ISO weekday;
+	// a weekday without one has no known end.
+	PickupTimes map[int]string
+	// Windows are the child's links to the offering that still run, each
+	// with its validity and weekdays; Weekdays is their union. Without
+	// windows the weekdays hold for the whole period.
+	Windows []OfferingBookingWindow
+}
+
+// OfferingBookingWindow is one booking link: the ISO weekdays it plans from
+// ValidFrom (inclusive, nil = open) to ValidUntil (exclusive, nil = open).
+type OfferingBookingWindow struct {
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
+	Weekdays   []int
+	// Ended is true when the booking itself ends at ValidUntil, by a
+	// booking change or a withdrawal, not its phase (#5102).
+	Ended bool
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot of the editor with
@@ -128,6 +169,8 @@ type TemplateRosterMaintenanceQuery struct {
 // TemplateRosterMaintenance is the Regeltermin indicator (#3140): whether
 // children approved later reach the roster without staff action.
 type TemplateRosterMaintenance struct {
+	// LinkedOfferingIDs preserves effective direct links independently of source filters.
+	LinkedOfferingIDs []int64
 	// Mode is "automatic", "partial" or "manual".
 	Mode              string
 	Offerings         []OfferingRef

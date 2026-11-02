@@ -1,0 +1,6 @@
+GET /api/absence-types/ -> zeiterfassung
+GET /api/absence-types/{id}/allowances/{staffId} -> zeiterfassung
+GET /api/absence-types/{id}/allowances/{staffId}/preview -> zeiterfassung
+POST /api/absence-types/ -> zeiterfassung
+PUT /api/absence-types/{id} -> zeiterfassung
+PUT /api/absence-types/{id}/allowances/{staffId} -> zeiterfassung

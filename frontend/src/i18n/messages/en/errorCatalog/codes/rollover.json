@@ -1,0 +1,9 @@
+{
+  "deadline_required": "{object} could not be saved. Please check your entries.",
+  "duplicate_name": "{object} could not be changed. Please check its current status.",
+  "invalid_request": "{object} could not be saved. Please check your entries.",
+  "review_invalid": "{object} could not be saved. Please check your entries.",
+  "review_not_found": "{object} could not be changed. Please check its current status.",
+  "source_already_rolled": "{object} could not be changed. Please check its current status.",
+  "source_not_found": "{object} could not be changed. Please check its current status."
+}

@@ -118,21 +118,60 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return err
 		}
 
-		finalRoomID, err := s.determineRoomIDWithStrategy(txCtx, activityID, roomID, RoomConflictIgnore, true)
+		finalRoomID, err := s.determineRoomIDWithStrategy(txCtx, activityID, roomID, RoomConflictIgnore, false)
 		if err != nil {
 			return err
+		}
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{DeviceID: deviceID, RoomID: finalRoomID}); err != nil {
+			return &ActiveError{Op: operation, Err: err}
 		}
 		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
-		if err := s.checkSessionStartConflicts(txCtx, activityID, deviceID, finalRoomID, operation); err != nil {
-			return err
-		}
-
-		_, err = createSession(txCtx, finalRoomID)
-		return err
+		return s.startInRoom(txCtx, activityID, deviceID, finalRoomID, operation, createSession)
 	})
-	return markRollbackOnRoomCapacity(ctx, err)
+	return markRollbackOnFailure(ctx, err)
+}
+
+// errJoinedSessionChanged reports that the room stay a start joins ended,
+// left the room or switched its activity while the start took over the
+// device's visits.
+var errJoinedSessionChanged = errors.New("joined session changed during the takeover")
+
+// startInRoom checks the room's conflicts and creates or joins the session
+// under a savepoint. When the joined stay ended, moved to another room or
+// switched its activity during the takeover (#5206), the savepoint undoes the
+// takeover and the start runs once more against the room's new state, in
+// which that stay is no longer joinable.
+func (s *service) startInRoom(ctx context.Context, activityID, deviceID, roomID int64, operation string, createSession func(context.Context, int64) (*ports.ActiveGroup, error)) error {
+	attempt := func() error {
+		return tenant.WithSavepoint(ctx, func(spCtx context.Context) error {
+			if err := s.checkSessionStartConflicts(spCtx, activityID, deviceID, roomID, operation); err != nil {
+				return err
+			}
+			_, err := createSession(spCtx, roomID)
+			return err
+		})
+	}
+	err := attempt()
+	if errors.Is(err, errJoinedSessionChanged) {
+		err = attempt()
+	}
+	return sessionStartError(operation, err)
+}
+
+// sessionStartError turns a start's session conflict into the operation
+// error the kiosk contract classifies as 409. A bare sentinel would leave the
+// IoT route without a classification and answer 500.
+func sessionStartError(operation string, err error) error {
+	var activeErr *ActiveError
+	if errors.As(err, &activeErr) {
+		return err
+	}
+	if errors.Is(err, errJoinedSessionChanged) || errors.Is(err, ErrSessionConflict) {
+		return &ActiveError{Op: operation, Err: ErrSessionConflict}
+	}
+	return err
 }
 
 // ensureDeviceHasNoSession rejects a start on a device that already runs a
@@ -315,13 +354,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		if existing.DeviceID != nil && *existing.DeviceID != deviceID {
 			return nil, 0, ErrSessionConflict
 		}
-		if existing.DeviceID == nil && deviceID > 0 {
-			existing.DeviceID = &deviceID
-			if err := s.GroupRepo.Update(ctx, existing); err != nil {
-				return nil, 0, err
-			}
-		}
-		return s.finishSessionStart(ctx, existing, deviceID, roomID)
+		return s.joinOpenSession(ctx, existing, deviceID, roomID)
 	}
 
 	now := time.Now()
@@ -338,17 +371,59 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	if err := s.GroupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
-	return s.finishSessionStart(ctx, newGroup, deviceID, roomID)
-}
-
-func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
-	if deviceID > 0 {
-		s.updateDeviceLocation(ctx, deviceID, roomID)
-	}
-
-	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, group.ID, deviceID)
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
+	}
+	return s.finishSessionStart(ctx, newGroup, deviceID, roomID, transferredCount)
+}
+
+// joinOpenSession attaches the device to a running session of the room and
+// moves the device's open visits into it. A scan closes a child's visit, then
+// locks the session it checks into and then the room row for its capacity
+// check; the join takes the same rows in the same order (#5206). It moves the
+// visits first and locks the session afterwards. While the takeover waited,
+// the session may have ended, moved to another room (UpdateActiveGroup locks
+// only the new room) or switched its activity; the locked row is checked
+// against what made it joinable, and startInRoom undoes the takeover when it
+// no longer matches. The device's room, whose foreign key shares the room
+// row, follows in finishSessionStart.
+func (s *service) joinOpenSession(ctx context.Context, existing *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, existing.ID, deviceID)
+	if err != nil {
+		return nil, 0, err
+	}
+	group, err := s.lockActiveGroupOpenForUpdate(ctx, existing.ID)
+	if errors.Is(err, ErrActiveGroupNotFound) {
+		return nil, 0, errJoinedSessionChanged
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	if group.RoomID != roomID || !sameActivity(group, existing) {
+		return nil, 0, errJoinedSessionChanged
+	}
+	if group.DeviceID != nil && *group.DeviceID != deviceID {
+		return nil, 0, ErrSessionConflict
+	}
+	if group.DeviceID == nil && deviceID > 0 {
+		group.DeviceID = &deviceID
+		if err := s.GroupRepo.Update(ctx, group); err != nil {
+			return nil, 0, err
+		}
+	}
+	return s.finishSessionStart(ctx, group, deviceID, roomID, transferredCount)
+}
+
+func sameActivity(a, b *ports.ActiveGroup) bool {
+	aID, aOK := a.TemplateID()
+	bID, bOK := b.TemplateID()
+	return aOK == bOK && aID == bID
+}
+
+func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID, transferredCount int64) (*ports.ActiveGroup, int, error) {
+	if deviceID > 0 {
+		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 	if transferredCount > 0 {
 		if err := s.ensureRoomCapacity(ctx, roomID, 0); err != nil {

@@ -15,6 +15,14 @@ vi.mock("~/env", () => ({
   },
 }));
 
+const { setTenantSession } = vi.hoisted(() => ({
+  setTenantSession: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("~/server/auth", () => ({
+  setTenantSession,
+  withTenantSessionResponse: (handler: unknown) => handler,
+}));
+
 const { POST } = await import("./route");
 
 // ============================================================================
@@ -33,7 +41,10 @@ function createMockRequest(
 
   if (options.body) {
     requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
+    requestInit.headers = {
+      "Content-Type": "application/json",
+      Origin: "http://localhost:3000",
+    };
   }
 
   return new NextRequest(url, requestInit);
@@ -59,7 +70,7 @@ describe("POST /api/auth/login", () => {
     global.fetch = originalFetch;
   });
 
-  it("forwards login request to backend and returns JSON response", async () => {
+  it("forwards credentials and returns only a session confirmation", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
     const backendResponse = {
       access_token: "jwt-token",
@@ -96,9 +107,8 @@ describe("POST /api/auth/login", () => {
     });
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<typeof backendResponse>(response);
-    expect(json.access_token).toBe("jwt-token");
-    expect(json.refresh_token).toBe("refresh-token");
+    expect(await response.json()).toEqual({ status: "authenticated" });
+    expect(setTenantSession).toHaveBeenCalledWith("jwt-token", "refresh-token");
   });
 
   it("returns 401 when credentials are invalid", async () => {
@@ -163,12 +173,12 @@ describe("POST /api/auth/login", () => {
     });
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("application/json");
-    expect(await response.text()).toBe("invalid json");
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ code: "general.server" });
+    expect(setTenantSession).not.toHaveBeenCalled();
   });
 
-  it("returns fallback payload when backend sends an empty JSON body", async () => {
+  it("rejects an empty success body without starting a session", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -183,8 +193,9 @@ describe("POST /api/auth/login", () => {
     });
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("");
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ code: "general.server" });
+    expect(setTenantSession).not.toHaveBeenCalled();
   });
 
   it("replaces an empty backend 5xx response with a safe envelope", async () => {
@@ -231,6 +242,7 @@ describe("POST /api/auth/login", () => {
     const secret = "cleartext-password-123";
     const request = new NextRequest("http://localhost:3000/api/auth/login", {
       method: "POST",
+      headers: { Origin: "http://localhost:3000" },
       body: `{not-json ${secret}`,
     });
 
@@ -245,7 +257,8 @@ describe("POST /api/auth/login", () => {
   it("returns 400 when request parsing throws a non-Error value", async () => {
     const request = {
       json: vi.fn().mockRejectedValueOnce("bad payload"),
-      headers: new Headers(),
+      headers: new Headers({ Origin: "http://localhost:3000" }),
+      nextUrl: new URL("http://localhost:3000/api/auth/login"),
     } as unknown as NextRequest;
 
     const response = await POST(request);

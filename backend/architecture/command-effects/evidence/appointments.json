@@ -1,0 +1,692 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointmentOccurrence",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ClaimReminderPushDelivery",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CountAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointmentRecipients",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateOccurrenceOverride",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteFeedTombstonesBefore",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentForUpdate",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipient",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipients",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentTargets",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindCancelledOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRules",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToStaff",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianReminderCandidates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListStaffCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReleaseReminderPushDelivery",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReplaceAppointmentTargets",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.SoftDeleteAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CancelAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CancelAppointmentOccurrence",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointmentOccurrence",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ClaimReminderPushDelivery",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ClaimReminderPushDelivery",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CountAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CountAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CreateAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CreateAppointmentRecipients",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointmentRecipients",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CreateOccurrenceOverride",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateOccurrenceOverride",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.CreateRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.DeleteAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.DeleteFeedTombstonesBefore",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteFeedTombstonesBefore",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.DeleteOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.DeleteRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentForUpdate",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentForUpdate",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentRecipient",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipient",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentRecipients",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipients",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindAppointmentTargets",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentTargets",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindCancelledOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindCancelledOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverridesByStartDates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.FindRecurrenceRules",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRules",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToGuardians",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ListAppointmentsVisibleToStaff",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToStaff",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ListGuardianCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ListGuardianReminderCandidates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianReminderCandidates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ListStaffCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListStaffCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ReleaseReminderPushDelivery",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReleaseReminderPushDelivery",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.ReplaceAppointmentTargets",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReplaceAppointmentTargets",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.SoftDeleteAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.SoftDeleteAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.UpdateAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/appointments/internal/application.Service.UpdateAppointmentRecipientResponse",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.CountAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointment",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentForUpdate",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentRecipient",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentRecipientStudents",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentRecipients",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindAppointmentTargets",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindCancelledOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindOccurrenceOverrides",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindOccurrenceOverridesByStartDates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindRecurrenceRule",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.FindRecurrenceRules",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.ListAppointmentsVisibleToGuardians",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.ListAppointmentsVisibleToStaff",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.ListGuardianCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.ListGuardianReminderCandidates",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "binding_digest": "ddd3d19244c4b1317e89b28b520b8a40",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Query.ListStaffCancellationTombstones",
+      "source_owner": "appointments",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    }
+  ]
+}

@@ -77,6 +77,7 @@ func (noHolidays) HolidayDates(context.Context, timezone.Date, timezone.Date) (m
 // Lohnarten and DATEV identifiers through.
 type PayrollSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
 // NewPayrollExportSettings binds the payroll export settings to the Settings

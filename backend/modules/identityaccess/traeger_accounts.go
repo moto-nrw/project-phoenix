@@ -27,9 +27,9 @@ var (
 	// ErrTraegerMemberNotFound reports an account without an active
 	// membership at the Träger of the session.
 	ErrTraegerMemberNotFound = errors.New("the person does not belong to the Träger-Büro")
-	// ErrTraegerLastAdministrator refuses a change that would leave the
-	// Träger-Büro without a person holding the role Verwaltung.
-	ErrTraegerLastAdministrator = errors.New("the Träger-Büro needs at least one person with the role Verwaltung")
+	// ErrTraegerLastLeader refuses a change that would leave the
+	// Träger-Büro without a usable person holding the role Leitung (#5471).
+	ErrTraegerLastLeader = errors.New("the Träger-Büro needs at least one person with the role Leitung")
 	// ErrTraegerInvalidEmail reports an invitation address that cannot
 	// receive mail.
 	ErrTraegerInvalidEmail = errors.New("invalid e-mail address")
@@ -115,7 +115,8 @@ const (
 // TraegerAccountManagement serves the Träger-Büro account routes. Role sets
 // are validated against the Träger roles; an empty set is invalid. A change
 // that would leave the Träger-Büro without a person holding the role
-// Verwaltung is refused with ErrTraegerLastAdministrator. Changed roles reach
+// Leitung is refused with ErrTraegerLastLeader; only a person with
+// Leitung grants, withdraws or removes Leitung (#5471). Changed roles reach
 // a session at its next refresh; a removal ends the person's Träger sessions
 // at once.
 type TraegerAccountManagement interface {
@@ -127,4 +128,18 @@ type TraegerAccountManagement interface {
 	PreviewTraegerInvitation(ctx context.Context, token string) (TraegerInvitationPreview, error)
 	// AcceptTraegerInvitation returns the address the invitee signs in with.
 	AcceptTraegerInvitation(ctx context.Context, token string, acceptance TraegerInvitationAcceptance) (string, error)
+}
+
+// TraegerOperatorInvitation lets the moto team invite a person into a
+// Träger-Büro from the operator portal (spec #4611 user story 2, #5144),
+// also the first one: the same invitation, mail and acceptance as the
+// Träger-Büro's own, so the Träger-Büro sees it among its open invitations.
+// It participates in the caller's administrative transaction and refuses
+// without one (ErrTraegerTransactionRequired); the operator audit of the
+// caller records the step. A Träger that is not live is
+// ErrNoTraegerMembership. While the Träger has no usable person with
+// Leitung, the invitation adds Leitung to the chosen roles: the first person
+// the moto team invites can manage the Träger-Büro (#5471).
+type TraegerOperatorInvitation interface {
+	InviteTraegerAccountForOperator(ctx context.Context, organizationID int64, email string, roles []string) (TraegerInvitation, error)
 }

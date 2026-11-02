@@ -40,9 +40,25 @@ beforeAll(() => {
 afterAll(() => {
   vi.unstubAllEnvs();
 });
+/** The answer of Identity & Access on the session's family (#5399). */
+let familyStatus = 200;
+
+/** Only the family check reaches the backend from the session route. */
+function familyChecks() {
+  return backend.mock.calls.filter(([url]) =>
+    String(url).endsWith("/auth/session/validate"),
+  );
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", backend);
   backend.mockReset();
+  familyStatus = 200;
+  backend.mockImplementation(async (url: unknown) =>
+    String(url).endsWith("/auth/session/validate")
+      ? Response.json({ id: 7 }, { status: familyStatus })
+      : new Response(null, { status: 404 }),
+  );
 });
 
 type Route = (request: NextRequest) => Promise<Response>;
@@ -118,7 +134,11 @@ const PORTALS: ReadonlyArray<{
   },
 ];
 
-async function sessionCookie(cookieName: string, scope: string) {
+async function sessionCookie(
+  cookieName: string,
+  scope: string,
+  overrides: Record<string, unknown> = {},
+) {
   const value = await encode({
     token: {
       id: "7",
@@ -136,6 +156,7 @@ async function sessionCookie(cookieName: string, scope: string) {
       scope,
       tokenExpiry: Date.now() + 10 * 60_000,
       refreshTokenExpiry: Date.now() + 24 * 60 * 60_000,
+      ...overrides,
     },
     secret: SECRET,
     salt: cookieName,
@@ -174,7 +195,14 @@ describe.each(PORTALS)(
       expect(JSON.parse(body)).toMatchObject({
         user: { id: "7", email: "erika@example.com", scope },
       });
-      expect(backend).not.toHaveBeenCalled();
+      // #5399: the family is confirmed with Identity & Access, without the
+      // refresh token; nothing else reaches the backend.
+      expect(backend).toHaveBeenCalledOnce();
+      expect(familyChecks()).toHaveLength(1);
+      const check = JSON.parse(String(familyChecks()[0]?.[1]?.body)) as {
+        refresh_token?: string;
+      };
+      expect(check.refresh_token).toBeUndefined();
     });
 
     it("answers the update() POST without any token", async () => {
@@ -212,6 +240,171 @@ describe.each(PORTALS)(
           .getSetCookie()
           .some((value) => value.startsWith(`${name}=`)),
       ).toBe(true);
+    });
+
+    // #5399: a poll or update() that only re-reads the session answers
+    // without its cookie. Arriving after a logout or a school switch, it
+    // would otherwise write the old session back into the browser.
+    // #5399, server invariant: a session whose refresh-token family is gone
+    // reads as ended and writes no cookie, however late its answer arrives
+    // or whenever its request started.
+    it("reads the session of a revoked family as ended and writes no cookie", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+      familyStatus = 401;
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: { cookie: await sessionCookie(name, scope) },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(await response.text())).toMatchObject({
+        user: { id: "7" },
+        error: "RefreshTokenError",
+      });
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
+    });
+
+    // Quorum review of #5403: Identity & Access refuses an expired access
+    // token before it reads the family. After a refresh that failed for the
+    // moment, the session keeps its expired token; its refusal must not end
+    // a session whose refresh token is still valid.
+    it("keeps a session whose refresh failed for the moment", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+      const expired = Math.floor(Date.now() / 1000) - 60;
+      const part = (value: unknown) =>
+        Buffer.from(JSON.stringify(value)).toString("base64url");
+      familyStatus = 401;
+      backend.mockImplementation(async (url: unknown) =>
+        String(url).endsWith("/auth/session/validate")
+          ? Response.json({ id: 7 }, { status: familyStatus })
+          : new Response(null, { status: 503 }),
+      );
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: {
+            cookie: await sessionCookie(name, scope, {
+              token: `${part({ alg: "HS256" })}.${part({ id: 7, scope, exp: expired })}.sig`,
+              tokenExpiry: expired * 1000,
+            }),
+          },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const body = JSON.parse(await response.text()) as {
+        user?: { id?: string };
+        error?: string;
+      };
+      expect(body.user?.id).toBe("7");
+      expect(body.error).toBeUndefined();
+      expect(familyChecks()).toEqual([]);
+    });
+
+    it.each([
+      [401, "a revoked family"],
+      [503, "a family that cannot be read"],
+    ])(
+      "writes no cookie when update() changes the session of %s (%s)",
+      async (status) => {
+        const { GET, POST } = await route();
+        const csrfResponse = await GET(
+          new NextRequest(`http://localhost:3000${basePath}/csrf`),
+        );
+        const { csrfToken } = (await csrfResponse.json()) as {
+          csrfToken: string;
+        };
+        const csrfCookie = csrfResponse.headers
+          .getSetCookie()
+          .map((value) => value.split(";")[0])
+          .join("; ");
+        const name = await cookieName();
+        familyStatus = status;
+
+        const response = await POST(
+          new NextRequest(`http://localhost:3000${basePath}/session`, {
+            method: "POST",
+            headers: {
+              cookie: `${await sessionCookie(name, scope)}; ${csrfCookie}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ csrfToken, data: { name: "Erika B." } }),
+          }),
+        );
+
+        expect(response.status).toBe(200);
+        expect(
+          response.headers
+            .getSetCookie()
+            .filter((value) => value.startsWith(name)),
+        ).toEqual([]);
+        // A family that cannot be read is not ended: the session stays.
+        expect(
+          (JSON.parse(await response.text()) as { error?: string }).error,
+        ).toBe(status === 401 ? "RefreshTokenError" : undefined);
+      },
+    );
+
+    it("writes no session cookie when GET only re-reads the session", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: { cookie: await sessionCookie(name, scope) },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(await response.text())).toMatchObject({
+        user: { id: "7", scope },
+      });
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
+    });
+
+    it("writes no session cookie for an update() that changes nothing", async () => {
+      const { GET, POST } = await route();
+      const csrfResponse = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/csrf`),
+      );
+      const { csrfToken } = (await csrfResponse.json()) as {
+        csrfToken: string;
+      };
+      const csrfCookie = csrfResponse.headers
+        .getSetCookie()
+        .map((value) => value.split(";")[0])
+        .join("; ");
+      const name = await cookieName();
+
+      const response = await POST(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          method: "POST",
+          headers: {
+            cookie: `${await sessionCookie(name, scope)}; ${csrfCookie}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ csrfToken, data: {} }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
     });
   },
 );

@@ -1,0 +1,43 @@
+{
+  "kicker": "Terminet me një vështrim",
+  "title": "Kalendari",
+  "description": "Terminet dhe aktivitetet e fëmijëve tuaj me një vështrim.",
+  "empty": "Nuk ka takime në 3 muajt e ardhshëm.",
+  "groups": {
+    "thisWeek": "Këtë javë",
+    "nextWeek": "Javën e ardhshme",
+    "later": "Më vonë"
+  },
+  "when": "{date} në orën {time}",
+  "whenAllDay": "{date}, gjithë ditën",
+  "forChild": "Për {name}",
+  "types": {
+    "care": "Orari i kujdesit",
+    "invitation": "Ftesë",
+    "appointment": "Takim"
+  },
+  "accept": "Pranoni",
+  "decline": "Refuzoni",
+  "accepted": "Takimi u pranua.",
+  "declined": "Takimi u refuzua.",
+  "answeredAccepted": "Pranuar",
+  "answeredDeclined": "Refuzuar",
+  "cancelledByOgs": "Anuluar nga OGS",
+  "previousMonth": "Muaji i mëparshëm",
+  "nextMonth": "Muaji tjetër",
+  "close": "Mbyll",
+  "allDay": "Gjithë ditën",
+  "moreEvents": "+ {count} të tjera",
+  "responseRequired": "Kërkohet përgjigje",
+  "weekdayShort": {
+    "1": "Hën",
+    "2": "Mar",
+    "3": "Mër",
+    "4": "Enj",
+    "5": "Pre",
+    "6": "Sht",
+    "7": "Die"
+  },
+  "errorObjectList": "lista e takimeve",
+  "errorObjectResponse": "përgjigjja"
+}

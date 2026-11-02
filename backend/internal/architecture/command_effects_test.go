@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 )
 
 // The public loader/check boundary must see runtime edges hidden by root glue.
@@ -115,7 +118,7 @@ func Build() { enrollment.Run(binding{}) }
 func TestCommandEffectsCannotExpandExceptionAtPRBase(t *testing.T) {
 	t.Parallel()
 	project, _ := commandEffectFixture(t)
-	runGit(t, project, "init", "--quiet")
+	gitfixture.Init(t, project)
 	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "add", ".")
 	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 	base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -333,7 +336,7 @@ func TestCommandEffectsCompareChangedEffectsAndEvidenceWithBase(t *testing.T) {
 				return `{"schema_version":1,"entries":[{"port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign","binding_digest":"` + digest + `","effect":"` + effect + `","classification":"` + classification + `","adr":"0067","reason":"` + reason + `","approval_adr":"` + approval + `"}]}`
 			}
 			writeFile(t, filename, manifest("mutation", "leaf", "before", "before", ""))
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -432,7 +435,7 @@ func TestCommandEffectsBootstrapIsBoundToNewImplementationDecision(t *testing.T)
 				document += "\n## Implementation addendum 2026-10-23 (#4739)\n"
 			}
 			writeFile(t, filepath.Join(project, commandEffectDecision), document)
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -477,7 +480,7 @@ func TestCommandEffectsCheckRejectsNoncanonicalRegister(t *testing.T) {
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(project, commandEffectInventory)
+	filename := filepath.Join(project, "architecture", "command-effects", "reviews", "enrollment.json")
 	var document any
 	if err := json.Unmarshal([]byte(readFile(t, filename)), &document); err != nil {
 		t.Fatal(err)
@@ -516,7 +519,7 @@ func TestCommandEffectsRejectConflictingEffectsForOneTargetMethod(t *testing.T) 
 		SchemaVersion int              `json:"schema_version"`
 		Entries       []map[string]any `json:"entries"`
 	}
-	if err := json.Unmarshal([]byte(readFile(t, filename)), &document); err != nil {
+	if err := json.Unmarshal([]byte(readMaterializedEffects(t, filename)), &document); err != nil {
 		t.Fatal(err)
 	}
 	if len(document.Entries) != 2 {
@@ -534,7 +537,9 @@ func TestCommandEffectsRejectConflictingEffectsForOneTargetMethod(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filename, string(blob))
+	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, blob); err != nil {
+		t.Fatal(err)
+	}
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +579,7 @@ func Fail() error { return Failure{} }
 			t.Fatalf("external error interface pulled unrelated implementers into port: %+v", v)
 		}
 	}
-	if !strings.Contains(readFile(t, filepath.Join(project, commandEffectInventory)), "Ledger.Record") {
+	if !strings.Contains(readMaterializedEffects(t, filepath.Join(project, commandEffectInventory)), "Ledger.Record") {
 		t.Fatal("real command disappeared with error noise")
 	}
 }
@@ -630,7 +635,7 @@ func TestCommandEffectsDomainExpansionApprovalCannotBeReused(t *testing.T) {
 				document += marker
 			}
 			writeFile(t, filepath.Join(project, commandEffectDecision), document)
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -734,7 +739,7 @@ func TestCommandEffectsDomainExpansionReviewsExistingPortProvidersNotNewPorts(t 
 			entry := `{"port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Contract.Record","target_owner":"foreign","binding_digest":"before","effect":"mutation","classification":"E1","adr":"0067","approval_adr":"0083","reason":"Existing E1 reviewed protocol."}`
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`]}`)
 			writeFile(t, filepath.Join(project, commandEffectDecision), "# Existing ADR 0083\n")
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -806,7 +811,7 @@ func Run(writer Writer) { writer.Record() }
 			Port        string `json:"port"`
 		} `json:"entries"`
 	}
-	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(project, commandEffectInventory))), &document); err != nil {
+	if err := json.Unmarshal([]byte(readMaterializedEffects(t, filepath.Join(project, commandEffectInventory))), &document); err != nil {
 		t.Fatal(err)
 	}
 	sources := map[string]bool{}
@@ -851,7 +856,7 @@ func TestCommandEffectsDomainExpansionReviewsNewUnresolvedEvidenceNotNewPorts(t 
 			entry := `{"port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Contract.Record","target_owner":"foreign","binding_digest":"before","effect":"mutation","classification":"E1","adr":"0067","approval_adr":"0083","reason":"Existing E1 reviewed protocol."}`
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`]}`)
 			writeFile(t, filepath.Join(project, commandEffectDecision), "# Existing ADR 0083\n")
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -886,7 +891,7 @@ func TestCommandEffectsDomainExpansionKeepsAllReviewedEffectsForABinding(t *test
 			other = strings.Replace(other, `"classification":"E1"`, `"classification":"query"`, 1)
 			writeFile(t, filename, `{"schema_version":1,"entries":[`+entry+`,`+other+`]}`)
 			writeFile(t, filepath.Join(project, commandEffectDecision), "# Existing ADR 0083\n")
-			runGit(t, project, "init", "--quiet")
+			gitfixture.Init(t, project)
 			runGit(t, project, "add", ".")
 			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
@@ -910,7 +915,7 @@ func TestCommandEffectsCanonicalFormRequiresExplicitCurrentSourceOwner(t *testin
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(project, commandEffectInventory)
+	filename := filepath.Join(project, "architecture", "command-effects", "reviews", "enrollment.json")
 	original := readFile(t, filename)
 	omitted := strings.Replace(original, "      \"source_owner\": \"enrollment\",\n", "", 1)
 	if omitted == original {
@@ -918,7 +923,7 @@ func TestCommandEffectsCanonicalFormRequiresExplicitCurrentSourceOwner(t *testin
 	}
 	writeFile(t, filename, omitted)
 	_, err := LoadGraph(project, policy)
-	if err == nil || !strings.Contains(err.Error(), "canonical JSON") {
+	if err == nil || !strings.Contains(err.Error(), "source_owner") {
 		t.Fatalf("omitted generator source_owner was accepted: %v", err)
 	}
 }
@@ -926,7 +931,7 @@ func TestCommandEffectsCanonicalFormRequiresExplicitCurrentSourceOwner(t *testin
 func TestCommandEffectsKnownDebtStillNeedsNewApproval(t *testing.T) {
 	t.Parallel()
 	project, _ := commandEffectFixture(t)
-	runGit(t, project, "init", "--quiet")
+	gitfixture.Init(t, project)
 	runGit(t, project, "add", ".")
 	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 	base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))

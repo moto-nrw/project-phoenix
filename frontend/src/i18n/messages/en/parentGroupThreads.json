@@ -1,0 +1,19 @@
+{
+  "sectionTitle": "Group messages from the OGS",
+  "sectionDescription": "Here the OGS writes to your child's group, class or club.",
+  "closed": "Closed",
+  "forChildren": "For {names}",
+  "privacyNote": "Your reply goes only to the OGS. Other parents do not see it.",
+  "replyTitle": "Reply to the OGS",
+  "replyChildLabel": "Reply for",
+  "replyPlaceholder": "Write a reply to the OGS",
+  "replyFieldLabel": "Reply",
+  "sentConfirmation": "The OGS has received your reply.",
+  "toChat": "Go to the chat with the OGS",
+  "closedNote": "This group message is closed. You can still write to the OGS in the chat about your child.",
+  "writingDisabled": "You cannot reply to this message. You can still read it.",
+  "answerTo": "Reply to: {title}",
+  "errorObjectThread": "the group message",
+  "errorObjectAnswer": "the reply",
+  "errorObjectList": "the group messages"
+}

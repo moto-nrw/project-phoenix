@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // classArrivalExceptionReasonMaxLength caps the free-text reason, mirroring
@@ -75,14 +76,9 @@ func (e *ClassArrivalException) Validate() error {
 // the class, so a Betreuungskraft can tell a class-wide change from a
 // per-child one.
 func (e *ClassArrivalException) Label() string {
-	// Schools name their classes either "3b" or "Klasse 3b"; without the
-	// strip the label reads "Klasse Klasse 3b".
-	class := strings.TrimSpace(e.SchoolClass)
-	if len(class) > 7 && strings.EqualFold(class[:7], "klasse ") {
-		class = strings.TrimSpace(class[7:])
-	}
+	class := collation.SchoolClassLabel(e.SchoolClass)
 	if e.Reason != nil && strings.TrimSpace(*e.Reason) != "" {
-		return "Klasse " + class + ": " + strings.TrimSpace(*e.Reason)
+		return class + ": " + strings.TrimSpace(*e.Reason)
 	}
-	return "Klasse " + class + ": andere Ankunftszeit"
+	return class + ": andere Ankunftszeit"
 }

@@ -57,6 +57,10 @@ type WorkerStats struct {
 	Retried      int
 	DeadLettered int
 	LeaseLost    int
+	// DeadLetters says why the deliveries counted in DeadLettered failed for
+	// good: transport, template, delivery id and last error, or the expired
+	// dispatches of a transport. ErrDeadLettered carries them to Sentry.
+	DeadLetters []string
 }
 
 // ErrDeadLettered fails a run in which deliveries failed for good after all

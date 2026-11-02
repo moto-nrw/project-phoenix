@@ -72,6 +72,9 @@ func (rs *StaffAdminResource) closeMonth(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	result, err := rs.MonthCloseService.CloseMonth(r.Context(), closedBy, req.Year, req.Month, req.Reason)
+	if err == nil {
+		err = rs.queuePayrollDispatch(r.Context(), result)
+	}
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderMonthCloseError(w, r, err)

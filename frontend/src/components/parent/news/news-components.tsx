@@ -61,6 +61,10 @@ import {
   ParentSurveySection,
 } from "~/components/parent/news/survey-section";
 import { useSurveyClosesAtLabel } from "~/components/surveys/survey-questionnaire";
+import { schoolClassName } from "~/lib/school-class-label";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { newsConcept } from "~/lib/concepts/news";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 const logger = createLogger({ component: "ParentNews" });
 
@@ -773,7 +777,7 @@ function senderLabel(
     name: item.sender_name,
     // The text names the class itself: "3a", even where the school
     // stores "Klasse 3a".
-    schoolClass: item.sender_school_class.replace(/^klasse\s+/i, ""),
+    schoolClass: schoolClassName(item.sender_school_class),
     school: item.school_name,
   });
 }
@@ -797,10 +801,10 @@ export function NewsCard({
   const outstanding = isOutstandingAnnouncement(item);
   const concept =
     isPoll(item) || isSurveyItem(item)
-      ? "polls"
+      ? pollsConcept
       : item.requires_acknowledgement || isDeclarationItem(item)
-        ? "confirmations"
-        : "news";
+        ? confirmationsConcept
+        : newsConcept;
 
   return (
     <ChoiceTile
@@ -1064,7 +1068,11 @@ function NewsActionContext({
 
   return (
     <div className="flex items-start gap-3 px-1">
-      <ConceptIconTile concept="confirmations" variant="section" tone="blue" />
+      <ConceptIconTile
+        concept={confirmationsConcept}
+        variant="section"
+        tone="blue"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-gray-900">

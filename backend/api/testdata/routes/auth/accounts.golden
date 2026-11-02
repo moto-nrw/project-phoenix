@@ -1,0 +1,13 @@
+DELETE /auth/accounts/{accountId}/caregiver-capability
+DELETE /auth/accounts/{accountId}/mfa/
+DELETE /auth/accounts/{accountId}/tokens/
+GET /auth/accounts/
+GET /auth/accounts/by-role/{roleName}
+GET /auth/accounts/{accountId}/caregiver-capability
+GET /auth/accounts/{accountId}/mfa/
+GET /auth/accounts/{accountId}/roles/
+GET /auth/accounts/{accountId}/tokens/
+POST /auth/accounts/{accountId}/caregiver-capability
+PUT /auth/accounts/{accountId}/
+PUT /auth/accounts/{accountId}/mfa/override
+PUT /auth/accounts/{accountId}/roles/

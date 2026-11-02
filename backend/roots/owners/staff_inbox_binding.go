@@ -23,7 +23,7 @@ func (r communicationStaffInbox) ListInbox(ctx context.Context, accountID int64,
 	}
 	rows := make([]*communication.StaffInboxRecord, 0, len(values))
 	for _, value := range values {
-		rows = append(rows, &communication.StaffInboxRecord{ThreadID: value.ThreadID, TenantID: value.TenantID, CounterpartAccountID: value.CounterpartAccountID, CounterpartName: value.CounterpartName, LastMessageAt: value.LastMessageAt, LastMessageBody: value.LastMessageBody, LastSenderAccountID: value.LastSenderAccountID, UnreadCount: value.UnreadCount})
+		rows = append(rows, &communication.StaffInboxRecord{ThreadID: value.ThreadID, TenantID: value.TenantID, CounterpartAccountID: value.CounterpartAccountID, CounterpartName: value.CounterpartName, LastMessageAt: value.LastMessageAt, LastMessageBody: value.LastMessageBody, LastSenderAccountID: value.LastSenderAccountID, UnreadCount: value.UnreadCount, Kind: value.Kind, GroupName: value.GroupName, MemberCount: value.MemberCount, LastSenderName: value.LastSenderName})
 	}
 	return rows, nil
 }

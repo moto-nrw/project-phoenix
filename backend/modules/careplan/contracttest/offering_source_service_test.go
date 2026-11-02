@@ -139,6 +139,7 @@ func (r timetableRosterResyncer) ResyncTemplateOfferingRoster(ctx context.Contex
 		TemplateID: in.TemplateID, OfferingIDs: in.OfferingIDs, GradeLevels: in.GradeLevels,
 		SchoolClasses: in.SchoolClasses, CalendarPeriodID: in.CalendarPeriodID, EffectiveFrom: in.EffectiveFrom,
 		ScopeRequestChildIDs: in.ScopeRequestChildIDs, TolerateDriftedSources: in.TolerateDriftedSources,
+		StoredOfferingIDs: in.StoredOfferingIDs,
 	})
 }
 
@@ -2035,13 +2036,14 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
-	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
-	// period's end, so the template's source fails the period-fit validation.
+	// The phase's service window (2026-09-01 .. 2027-07-31) starts after this
+	// period ends, so the template's source fails the period-fit validation.
+	// A phase that merely reaches past the period end is clipped instead.
 	shortPeriod := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("drift-short"+"-"+
 		t.Name()),
 
 		calendar.NewDate(2026, 8, 1),
-		calendar.NewDate(2026, 12, 31))
+		calendar.NewDate(2026, 8, 31))
 	offering := createSourceOffering(t, env, "DriftQuelle", nil)
 	createSourcedTemplate(t, env, "DriftTermin", offering.ID, nil, shortPeriod.ID)
 
@@ -2074,7 +2076,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase. // 2026-08-01 .. 2027-08-31
 																													ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "PhasenWechsel", nil)
-	createSourcedTemplate(t, env, "PhasenTermin", offering.ID, nil, period.ID)
+	template := createSourcedTemplate(t, env, "PhasenTermin", offering.ID, nil, period.ID)
 
 	latePhase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("late-phase-" + t.Name()),
@@ -2100,6 +2102,12 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid,
 		"an edit invalidating a sourced template must be rejected as client-correctable")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
+	// #5313: the refusal names its problem, the offering and the template.
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingSourceConflict)
+	var conflict *careplan.CareOfferingSourceConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.Equal(t, careplan.CodeCareOfferingTemplateOutsidePeriod, conflict.ErrorCode())
+	assert.Equal(t, careplan.CareOfferingSourceConflictValues{Offering: offering.Name, Template: template.Name}, conflict.ErrorDetails())
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written offering row via the ambient-transaction rollback marker")
 }

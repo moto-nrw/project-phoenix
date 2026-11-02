@@ -83,13 +83,48 @@ func (s *Store) Begin(ctx context.Context, entry domain.JournalEntry) (int64, er
 
 	var id int64
 	if err := db.NewRaw(`INSERT INTO audit.export_transfers
- (tenant_id,actor_account_id,actor_name,export_kind,export_format,filename,byte_size,target_host,target_port,target_directory,status,failure_reason,dispatch_state,dispatch_expires_at)
- VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pending',clock_timestamp()+INTERVAL '2 minutes') RETURNING id`,
+ (tenant_id,actor_account_id,actor_name,export_kind,export_format,filename,byte_size,target_host,target_port,target_directory,status,failure_reason,export_channel,export_period,dispatch_state,dispatch_expires_at)
+ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'sftp',?,'pending',clock_timestamp()+INTERVAL '2 minutes') RETURNING id`,
 		record.TenantID, record.ActorAccountID, record.ActorName, record.ExportKind, record.ExportFormat,
-		record.Filename, record.ByteSize, record.TargetHost, record.TargetPort, record.TargetDirectory, record.Status, record.FailureReason).Scan(ctx, &id); err != nil {
+		record.Filename, record.ByteSize, record.TargetHost, record.TargetPort, record.TargetDirectory, record.Status, record.FailureReason,
+		entry.Period).Scan(ctx, &id); err != nil {
 		return 0, fmt.Errorf("export transfer postgres: record intent: %w", err)
 	}
 	return id, nil
+}
+
+// Record writes one settled e-mail send as a terminal entry (#4805). It has
+// no dispatch fence: Delivery already carried the mail out, so there is no
+// remote operation left to fence. The row names the recipient instead of a
+// host; host, port and directory stay empty.
+func (s *Store) Record(ctx context.Context, entry domain.JournalEntry) error {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if entry.Channel != domain.ChannelEmail || entry.TargetEmail == "" {
+		return errors.New("export transfer postgres: only an e-mail send with its recipient is recorded directly")
+	}
+	status, reason := statusSuccess, ""
+	if !entry.Success {
+		status, reason = statusFailed, entry.Reason
+		if reason == "" {
+			return errors.New("export transfer postgres: a failed send must name a reason")
+		}
+	}
+	var actor *int64
+	if entry.ActorAccountID > 0 {
+		accountID := entry.ActorAccountID
+		actor = &accountID
+	}
+	if _, err := db.NewRaw(`INSERT INTO audit.export_transfers
+ (tenant_id,actor_account_id,actor_name,export_kind,export_format,filename,byte_size,target_host,target_port,target_directory,status,failure_reason,export_channel,export_period,target_email)
+ VALUES (?,?,?,?,?,?,?,'',0,'',?,?,'email',?,?)`,
+		tenantID, actor, entry.ActorName, entry.Kind, entry.Format, entry.Filename, entry.ByteSize,
+		status, reason, entry.Period, entry.TargetEmail).Exec(ctx); err != nil {
+		return fmt.Errorf("export transfer postgres: record e-mail send: %w", err)
+	}
+	return nil
 }
 
 // Claim installs the dispatch fence for exactly this committed intent.

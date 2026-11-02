@@ -1,4 +1,5 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 // Editor for a Jahrgangswechsel draft: one row per class with the target
 // class or "Abgang" (child leaves the OGS, soft-deactivated as alumnus).
@@ -23,6 +24,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import {
   createGradeTransition,
   fetchSuggestedMappings,
@@ -75,7 +77,8 @@ export function TransitionEditor({
   onReadyForPreview,
 }: TransitionEditorProps) {
   const [academicYear, setAcademicYear] = useState(
-    existingDraft?.academicYear ?? suggestAcademicYear(new Date()),
+    existingDraft?.academicYear ??
+      suggestAcademicYear(parseISODate(berlinTodayISO())),
   );
   const [notes, setNotes] = useState(existingDraft?.notes ?? "");
   const [rows, setRows] = useState<EditorRow[] | null>(
@@ -344,7 +347,7 @@ export function TransitionEditor({
                   </div>
                   <div className="w-56 shrink-0">
                     <CustomSelect
-                      ariaLabel={`Aktion für Klasse ${row.fromClass}`}
+                      ariaLabel={`Aktion für ${schoolClassLabel(row.fromClass)}`}
                       value={row.mode}
                       options={MODE_OPTIONS.map((o) => ({
                         value: o.value,
@@ -379,7 +382,7 @@ export function TransitionEditor({
                       variant="ghost"
                       size="compact"
                       onClick={() => removeRow(index)}
-                      aria-label={`Klasse ${row.fromClass} nicht ändern`}
+                      aria-label={`${schoolClassLabel(row.fromClass)} nicht ändern`}
                     >
                       Nicht ändern
                     </Button>

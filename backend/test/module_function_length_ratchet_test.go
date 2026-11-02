@@ -83,11 +83,11 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
-	"api/root_test_root.go:composeTestRootWith":                          283,
-	"api/serve_mounts_students.go:mountStudentRoutes":                    120,
+	"api/root_test_root.go:composeTestRootWith":                          282,
+	"api/serve_mounts_students.go:mountStudentRoutes":                    117,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,
-	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 168,
+	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 164,
 	"api/student_owner_http_test_helpers.go:newStudentHTTPTestReviews":   103,
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,
@@ -546,15 +546,13 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 261,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 258,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_extras.go:(seedCareExitsStep).Run": 63,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 69,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_student_notes.go:(seedStudentNotesStep).Run": 88,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_time_tracking.go:(seedTimeTrackingHistoryStep).Run": 160,
 	// ADR 0087.
@@ -599,7 +597,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/root_worker.go:ComposeWorker": 347,
 	// ADR 0110: the worker passes the retention of the public holiday
 	// registrations.
-	"roots/owners/worker.go:NewWorker": 90,
+	"roots/owners/worker.go:NewWorker": 87,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.
@@ -619,7 +617,7 @@ func TestModuleFunctionLengthRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 

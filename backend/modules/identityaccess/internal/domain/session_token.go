@@ -32,7 +32,7 @@ func DecodeMFAChallengeToken(wire map[string]any, now time.Time) (MFAChallengeCl
 		return MFAChallengeClaims{}, errors.New("missing required claim: account_id")
 	}
 	scope := text(wire, "scope")
-	if scope != "tenant" && scope != "platform" && scope != "school" && scope != "org" {
+	if scope != MFAChallengeScopePlatform && !AccountMFAChallengeScope(scope) {
 		return MFAChallengeClaims{}, fmt.Errorf("invalid scope claim: %q", scope)
 	}
 	if !flag(wire, "mfa_pending") {
@@ -86,7 +86,10 @@ func DecodeRefreshToken(wire map[string]any) (RefreshClaims, error) {
 	if err != nil {
 		return RefreshClaims{}, err
 	}
-	return RefreshClaims{AccountID: id, Token: value, TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"), Scope: text(wire, "scope"), ExpiresAt: number(wire, "exp")}, nil
+	return RefreshClaims{
+		AccountID: id, Token: value, TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"), Scope: text(wire, "scope"),
+		FamilyID: text(wire, "family_id"), LineageID: text(wire, "lineage_id"), ExpiresAt: number(wire, "exp"),
+	}, nil
 }
 
 func rejectPending(wire map[string]any, kind string) error {

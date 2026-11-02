@@ -2,7 +2,7 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
 
 /**
  * Types a wire code for comparison against registry codes, so a literal that
- * is not in error-registry.json fails the type check. The value itself is not
+ * is not in error-registry/ fails the type check. The value itself is not
  * validated: an unknown code simply never equals a registered one.
  */
 export function wireErrorCode(code: unknown): ErrorCode | undefined {
@@ -162,6 +162,51 @@ export function problemDetail(body: unknown): string | undefined {
   return typeof detail === "string" && detail.trim() ? detail : undefined;
 }
 
+type SessionRefusalListener = (code: ErrorCode) => void;
+
+const sessionTenantMismatchListeners = new Set<SessionRefusalListener>();
+
+/**
+ * The BFF's refusals of a session that no longer fits the tab: another
+ * school than this subdomain (#5130) or another account than the one the
+ * tab holds data for (#5183).
+ */
+const SESSION_REFUSAL_CODES: ReadonlySet<ErrorCode> = new Set([
+  "identity.session_tenant_mismatch",
+  "identity.session_account_mismatch",
+]);
+
+export function isSessionRefusalCode(code: unknown): code is ErrorCode {
+  const wire = wireErrorCode(code);
+  return wire !== undefined && SESSION_REFUSAL_CODES.has(wire);
+}
+
+/**
+ * Who learns that the BFF refused a request because the session no longer
+ * fits this tab: it belongs to another school than this subdomain (#5130)
+ * or to another account than the tab's (#5183). The session cache drops its
+ * session and wakes the SessionProvider; TenantGuard hides the page until
+ * the provider's answer is known and then switches back. Another account
+ * resets the SWR scope (SWRScopeBoundary) and leaves the page
+ * (PersonalStorageGuard). Error answers that become an ApiError report here,
+ * and the fetch observer reports every fetch answer, also of clients that
+ * never read the body. Returns the unsubscribe function.
+ */
+export function onSessionTenantMismatch(
+  listener: SessionRefusalListener,
+): () => void {
+  sessionTenantMismatchListeners.add(listener);
+  return () => {
+    sessionTenantMismatchListeners.delete(listener);
+  };
+}
+
+export function reportSessionTenantMismatch(
+  code: ErrorCode = "identity.session_tenant_mismatch",
+): void {
+  for (const listener of sessionTenantMismatchListeners) listener(code);
+}
+
 /**
  * Turns an error body into an ApiError. The caller supplies the user-safe
  * message; the envelope's diagnostic `detail` remains separate for logs.
@@ -188,13 +233,17 @@ export function apiErrorFromBody(
           typeof entry.reason === "string",
       )
     : undefined;
-  return new ApiError(message, status, {
+  const error = new ApiError(message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
     detail: problemDetail(data),
     details,
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
+  if (isSessionRefusalCode(error.code)) {
+    reportSessionTenantMismatch(error.code);
+  }
+  return error;
 }
 
 /**

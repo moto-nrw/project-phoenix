@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,7 +77,7 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 		assert.NotEmpty(t, r.StartedOn)
 	}
 	assert.Len(t, largeQueries, len(smallQueries), "flat in the number of former employments")
-	testpkg.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former", largeQueries)
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former", largeQueries)
 }
 
 // TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount ensures the
@@ -123,5 +123,5 @@ func TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount(t *testing.T
 	require.Len(t, small, 1)
 	require.Len(t, large, 3)
 	assert.Len(t, largeQueries, len(smallQueries), "role filtering stays flat in the number of former employments")
-	testpkg.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former.role", largeQueries)
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former.role", largeQueries)
 }

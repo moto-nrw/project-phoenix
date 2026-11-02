@@ -101,6 +101,41 @@ describe("BFF Sentry ownership", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("does not report a client that disconnected while sending its body", () => {
+    // Node's IncomingMessage rejects the body read like this (FRONTEND-1C).
+    const aborted = Object.assign(new Error("aborted"), {
+      code: "ECONNRESET",
+    });
+    expect(handleApiError(aborted, request()).status).toBe(400);
+
+    const controller = new AbortController();
+    controller.abort();
+    const closed = new NextRequest("http://localhost:3000/api/example", {
+      signal: controller.signal,
+    });
+    expect(handleApiError(new TypeError("terminated"), closed).status).toBe(
+      400,
+    );
+    expect(captureException).not.toHaveBeenCalled();
+
+    const backendReset = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("socket hang up"), {
+        code: "ECONNRESET",
+      }),
+    });
+    handleApiError(backendReset, request());
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(backendReset, {
+      tags: { request_id: requestId },
+    });
+    vi.clearAllMocks();
+
+    const unrelated = new Error("aborted");
+    handleApiError(unrelated, request());
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(unrelated, {
+      tags: { request_id: requestId },
+    });
+  });
+
   it("does not include a parsed input fragment in a captured SyntaxError", () => {
     const rawError = new SyntaxError("Unexpected token in password=secret-123");
     handleApiError(rawError, request());

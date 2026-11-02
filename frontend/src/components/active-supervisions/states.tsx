@@ -17,6 +17,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useNFCEnabled } from "~/lib/tenant-context";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 interface MinimalActiveGroup {
   id: string;
@@ -89,7 +90,7 @@ export function NoActiveSupervisionAccessView() {
       title="Aktuelle Aufsicht"
       stats="Keine Aufsicht aktiv"
       empty={{
-        icon: <MotoConceptIcon concept="rooms" size={48} />,
+        icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
         title: "Keine aktive Raum-Aufsicht",
         description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
           nfcEnabled ? "an einem Terminal" : "in der Web-App"
@@ -122,7 +123,7 @@ export function EmptyRoomsView({
       <div className="flex flex-col" data-setup-tour="supervision-empty">
         <SectionCard>
           <EmptyState
-            icon={<MotoConceptIcon concept="rooms" size={48} />}
+            icon={<MotoConceptIcon concept={roomsConcept} size={48} />}
             title="Keine aktive Raum-Aufsicht"
             description="Sie beaufsichtigen aktuell keinen Raum."
           />

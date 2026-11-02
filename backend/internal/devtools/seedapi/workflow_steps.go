@@ -219,7 +219,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
 	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedBookingLeftoverStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
@@ -235,14 +235,22 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentLetterStep{},
 		seedParentPollStep{},
 		seedParentDeclarationStep{}, seedSurveysStep{},
+		// End care only after the last parent write. A seed spanning midnight
+		// must not end a child's care before its poll/declaration answers.
+		seedCareExitsStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
 		seedSchoolSetupStep{},
 		seedStaffOnboardingStep{},
+		seedLocalCarePlanAccountStep{seeder: seeder},
+		seedSchoolTeacherStep{seeder: seeder},
 		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
 		// zählt alle, auch Besuch, Admin und Externe (#5032).
 		seedPayrollNumbersStep{},
+		// Nach der Abrechnung: Der geplante Austritt ändert keine Zahl dort
+		// (#4809).
+		seedPlannedStaffExitStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {
@@ -252,15 +260,15 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
 		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}
-	steps = append(steps,
-		buildStateStep{seeder: seeder},
-		printSummaryStep{seeder: seeder},
-	)
+	if seeder.options.SeedWeekProtocols {
+		steps = append(steps, seedWeekProtocolStep{})
+	}
+	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
 	return Workflow{Name: "full-demo", Steps: steps}
 }
 
@@ -292,7 +300,7 @@ func deferredPastSteps() []Step {
 // counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedBookingLeftoverStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		// The meal orders ran before the phase existed; the bookings follow it.
 		seedRegularBookingsStep{},
 		// The past presence of every child, once the requests have added the
@@ -319,15 +327,19 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		// Before the parents' invitations queue up in the outbox.
 		seedMealCatererInvitationStep{seeder: seeder},
 		seedShiftSeriesStep{},
+		// After the shift series: its autumn holiday period is the seeded
+		// autumn vacation (#5345).
+		seedSchoolVacationsStep{},
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
 		seedStaffMasterDataStep{},
+		seedStaffQualificationsStep{},
 		seedImportAuditStep{},
 		seedAuditLifecycleStep{},
 		seedPrivacyConsentsStep{},
+		seedAccidentReportsStep{},
 		seedFamilyProtectionStep{},
 		markStudentsSickStep{},
-		seedCareExitsStep{},
 		seedAnnouncementsStep{},
 		seedStaffMessagingStep{},
 		seedParentMessageCountScopeStep{},

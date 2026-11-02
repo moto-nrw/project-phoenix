@@ -1,0 +1,14 @@
+{
+  "api/school-setup": [
+    "GET tenant /api/school-setup"
+  ],
+  "api/school-setup/complete": [
+    "POST tenant /api/school-setup/complete"
+  ],
+  "api/school-setup/dismissal": [
+    "PUT tenant /api/school-setup/dismissal"
+  ],
+  "api/school-setup/steps/[step]": [
+    "PUT tenant /api/school-setup/steps/step%2F1"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (b *cappedBuffer) Write(p []byte) (int, error) {\n\tif b.overflow {\n\t\treturn len(p), nil\n\t}\n\tif b.Len()+len(p) \u003e b.limit {\n\t\tb.overflow = true\n\t\tb.Reset()\n\t\treturn len(p), nil\n\t}\n\treturn b.Buffer.Write(p)\n}",
+      "form": "unclassified-evidence",
+      "id": "analytics/cappedBuffer.Write",
+      "owner": "source/analytics"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s httpSender) Post(endpoint string, body []byte) (int, error) {\n\tresp, err := s.client.Post(endpoint, \"application/json\", bytes.NewReader(body))\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tdefer func() {\n\t\t_ = resp.Body.Close()\n\t}()\n\t_, _ = io.Copy(io.Discard, resp.Body)\n\treturn resp.StatusCode, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "analytics/httpSender.Post",
+      "owner": "source/analytics"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *httpTracker) Close() error {\n\tt.closeOnce.Do(func() {\n\t\tclose(t.done)\n\t})\n\t\u003c-t.stopped\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "analytics/httpTracker.Close",
+      "owner": "source/analytics"
+    }
+  ]
+}

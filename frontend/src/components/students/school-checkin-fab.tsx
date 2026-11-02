@@ -96,11 +96,12 @@ export function SchoolCheckinFab({
   // is unmistakable.
   const surfaceStyle: React.CSSProperties = isActive
     ? {
-        backgroundColor: GROUP_ROOM_SHADES.base,
+        // Füllton, nicht base: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
+        backgroundColor: GROUP_ROOM_SHADES.fill,
         color: "var(--color-white)",
         boxShadow:
           resolved === "floating"
-            ? `0 12px 28px ${GROUP_ROOM_SHADES.base}66, 0 4px 10px rgb(0 0 0 / 0.10)`
+            ? `0 12px 28px ${GROUP_ROOM_SHADES.fill}66, 0 4px 10px rgb(0 0 0 / 0.10)`
             : `0 1px 3px rgb(0 0 0 / 0.08)`,
       }
     : {

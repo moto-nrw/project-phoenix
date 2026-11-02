@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -313,7 +315,10 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 	}
 	var answers []answer
 	var logins []string
+	var mu sync.Mutex // the families answer in parallel
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		mu.Lock()
+		defer mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/parent-announcements/":
@@ -351,9 +356,12 @@ func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
 	}
 	require.NoError(t, (seedParentPollStep{}).Run(t.Context(), rt))
 
-	assert.Equal(t, []string{"second@example.test", "third@example.test"}, logins,
+	assert.ElementsMatch(t, []string{"second@example.test", "third@example.test"}, logins,
 		"the first parent never signs in to answer")
 	require.Len(t, answers, 2, "one answer per child outside the first family")
+	slices.SortFunc(answers, func(a, b answer) int {
+		return strings.Compare(a.body["student_id"].(string), b.body["student_id"].(string))
+	})
 	assert.Equal(t, "Bearer token-second", answers[0].auth)
 	assert.Equal(t, "2", answers[0].body["student_id"])
 	assert.Equal(t, "Bearer token-third", answers[1].auth)

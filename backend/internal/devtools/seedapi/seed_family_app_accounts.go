@@ -56,38 +56,51 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	// The approval's own link is stored as hash only (#4902) and reaches
 	// nobody but the parent's mailbox: the seeder accepts a fresh invitation
 	// of the same guardian, issued through the seed-only token exposure.
-	for _, invitation := range invitations {
-		token, err := step.inviteGuardian(rt, adminAuth, invitation.GuardianProfileID)
+	if err := forEachParallel(rt, invitations, func(worker *Runtime, _ int, invitation enrollmentInvitation) error {
+		token, err := step.inviteGuardian(worker, adminAuth, invitation.GuardianProfileID)
 		if err != nil {
 			return fmt.Errorf("invite guardian %d: %w", invitation.GuardianProfileID, err)
 		}
-		if _, err := step.acceptGuardianInvitation(rt, token, password); err != nil {
+		if _, err := step.acceptGuardianInvitation(worker, token, password); err != nil {
 			return fmt.Errorf("accept guardian invitation %d: %w", invitation.GuardianProfileID, err)
 		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := seedFurtherWaitlistedCourseRequests(ctx, rt, password); err != nil {
+		return err
 	}
 	fmt.Printf("  %d parent app accounts created\n", len(guardians)+len(invitations))
 	return nil
 }
 
-// createFamilyAccounts invites and accepts an account for each guardian and
-// keeps the credentials of those with full parent rights in the runtime.
+// createFamilyAccounts invites and accepts an account for each guardian, in
+// parallel, and keeps the credentials of those with full parent rights in
+// the runtime, in guardian order.
 func createFamilyAccounts(rt *Runtime, step parentEnrollmentSeedStep, adminAuth AuthRef, guardians []int, password string) error {
 	rt.FamilyAccounts = rt.FamilyAccounts[:0]
-	for _, index := range guardians {
+	accounts := make([]ParentCredentials, len(guardians))
+	withRights := make([]bool, len(guardians))
+	err := forEachParallel(rt, guardians, func(worker *Runtime, position, index int) error {
 		guardianID := rt.FixedSeeder.guardianIDs[demoGuardianKey(DemoGuardians[index])]
-		token, err := step.inviteGuardian(rt, adminAuth, guardianID)
+		token, err := step.inviteGuardian(worker, adminAuth, guardianID)
 		if err != nil {
 			return fmt.Errorf("invite guardian %d: %w", guardianID, err)
 		}
-		accountID, err := step.acceptGuardianInvitation(rt, token, password)
+		accountID, err := step.acceptGuardianInvitation(worker, token, password)
 		if err != nil {
 			return fmt.Errorf("accept guardian invitation %d: %w", guardianID, err)
 		}
-		if account, ok := familyAccount(rt, index, guardianID, accountID, password); ok {
+		accounts[position], withRights[position] = familyAccount(worker, index, guardianID, accountID, password)
+		return nil
+	})
+	for position, account := range accounts {
+		if withRights[position] {
 			rt.FamilyAccounts = append(rt.FamilyAccounts, account)
 		}
 	}
-	return nil
+	return err
 }
 
 // familyAccount returns the credentials of a family app account, so later

@@ -1,3 +1,6 @@
+import { groupKeys } from "~/lib/swr/groups-keys";
+import { staffKeys } from "~/lib/swr/staff-keys";
+import { meKeys } from "~/lib/swr/me-keys";
 /**
  * Tests for use-global-sse.ts hook
  *
@@ -9,14 +12,33 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SSEEvent, SSEHookOptions, SSEHookState } from "~/lib/sse-types";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 import { act, renderHook } from "@testing-library/react";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     status: "authenticated",
-    data: { user: { token: "test-token", tenantId: 1, roles: ["user"] } },
+    // A signed-in session always names its account; events bind to it.
+    data: {
+      user: {
+        id: "account-1",
+        token: "test-token",
+        tenantId: 1,
+        roles: ["user"],
+      },
+    },
   })),
+}));
+
+// Matchers stay observable here; the factory integration tests exercise real
+// scoped invalidation, including infinite and preload-only keys.
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useInvalidateFamily: () => (family: string) =>
+    mutate(
+      (key: unknown) => typeof key === "string" && key.includes(`:${family}`),
+    ),
 }));
 
 vi.mock("swr", () => ({
@@ -104,6 +126,18 @@ describe("useGlobalSSE", () => {
     return inventory.filter((key) => matchers.some((m) => m(key)));
   }
 
+  it.each([
+    ["student_checkin", [roomKeys.key()]],
+    ["group_access_changed", [groupKeys.key(), staffKeys.key(), meKeys.key()]],
+    ["staff_time_tracking_changed", [staffKeys.key()]],
+  ] as const)("invalidates shared resource families on %s", (type, keys) => {
+    renderHook(() => useGlobalSSE());
+    fire({ type, data: { student_id: "7" }, active_group_id: "1" });
+    act(() => vi.advanceTimersByTime(500));
+    const inventory = keys.map((key) => `school-a:account-7:${key}`);
+    expect(matchedKeys(inventory)).toEqual(inventory);
+  });
+
   describe("hook initialization", () => {
     it("returns SSE connection state", () => {
       const { result } = renderHook(() => useGlobalSSE());
@@ -151,7 +185,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["admin"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["admin"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -189,7 +228,7 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { tenantId: 1, roles: ["user"] },
+          user: { id: "account-1", tenantId: 1, roles: ["user"] },
           error: "RefreshTokenError",
         } as never,
         update: vi.fn(),
@@ -209,7 +248,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["guardian"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["guardian"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -228,7 +272,7 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1 },
+          user: { id: "account-1", token: "test-token", tenantId: 1 },
         } as never,
         update: vi.fn(),
       });
@@ -247,7 +291,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 42, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 42,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -267,7 +316,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValue({
         status: "authenticated",
         data: {
-          user: { token: "test-token", tenantId: 1, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "test-token",
+            tenantId: 1,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -285,7 +339,12 @@ describe("useGlobalSSE", () => {
       vi.mocked(useSession).mockReturnValue({
         status: "authenticated",
         data: {
-          user: { token: "new-token", tenantId: 2, roles: ["user"] },
+          user: {
+            id: "account-1",
+            token: "new-token",
+            tenantId: 2,
+            roles: ["user"],
+          },
         } as never,
         update: vi.fn(),
       });
@@ -300,7 +359,7 @@ describe("useGlobalSSE", () => {
       );
     });
 
-    it("revalidates the supervision dashboard after an SSE reconnect", () => {
+    it("reconciles every SSE-driven cache after an SSE reconnect (#5017)", () => {
       let connectionState: SSEHookState = {
         status: "connected",
         isConnected: true,
@@ -328,12 +387,18 @@ describe("useGlobalSSE", () => {
       };
       rerender();
 
+      // The gap may have swallowed any event: every cache an event keeps
+      // fresh reconciles, caches no event touches stay.
       expect(
         matchedKeys([
           "tenant:active-supervision-dashboard-0-224",
           "tenant:timetable-week-2026-09-01",
+          "tenant:time-tracking-config",
         ]),
-      ).toEqual(["tenant:active-supervision-dashboard-0-224"]);
+      ).toEqual([
+        "tenant:active-supervision-dashboard-0-224",
+        "tenant:timetable-week-2026-09-01",
+      ]);
     });
 
     it("revalidates the supervision dashboard after a reconnect-key change", () => {
@@ -1042,7 +1107,9 @@ describe("useGlobalSSE", () => {
         const m = call[0];
         return (
           typeof m === "function" &&
-          (m as (key: string) => boolean)("my-tenant:rooms-list")
+          (m as (key: string) => boolean)(
+            `my-tenant:account-1:${roomKeys.key({ includeSystem: true })}`,
+          )
         );
       });
       expect(listCall).toBeDefined();

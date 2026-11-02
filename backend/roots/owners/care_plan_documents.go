@@ -115,5 +115,6 @@ func StudentDocumentDependencies(
 		Access:      studentDocumentAccess{students: students, userContext: userContext},
 		Permissions: documentPermissions,
 		Audit:       studentDocumentAudit{edits: edits, accessLog: accessLog},
+		Signatures:  AccidentReportSignatures{Ledger: SignatureLedger()},
 	}, nil
 }

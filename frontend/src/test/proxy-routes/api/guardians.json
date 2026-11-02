@@ -1,0 +1,58 @@
+{
+  "api/guardians": [
+    "GET tenant /api/guardians raw",
+    "POST tenant /api/guardians"
+  ],
+  "api/guardians/[id]/delete-preview": [
+    "GET tenant /api/guardians/id%2F1/delete-preview"
+  ],
+  "api/guardians/[id]/payment": [
+    "GET tenant /api/guardians/id%2F1/payment",
+    "PUT tenant /api/guardians/id%2F1/payment"
+  ],
+  "api/guardians/[id]/payment/reveal": [
+    "POST tenant /api/guardians/id%2F1/payment/reveal"
+  ],
+  "api/guardians/[id]/phone-numbers": [
+    "GET tenant /api/guardians/id%2F1/phone-numbers",
+    "POST tenant /api/guardians/id%2F1/phone-numbers"
+  ],
+  "api/guardians/[id]/phone-numbers/[phoneId]": [
+    "DELETE tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1",
+    "PUT tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1"
+  ],
+  "api/guardians/[id]/phone-numbers/[phoneId]/set-primary": [
+    "POST tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1/set-primary"
+  ],
+  "api/guardians/bulk-invite": [
+    "POST tenant /api/guardians/bulk-invite"
+  ],
+  "api/guardians/invitations/pending-approval": [
+    "GET tenant /api/guardians/invitations/pending-approval"
+  ],
+  "api/guardians/payment-overview": [
+    "GET tenant /api/guardians/payment-overview"
+  ],
+  "api/guardians/relationships/[relationshipId]": [
+    "PUT tenant /api/guardians/relationships/relationshipId%2F1"
+  ],
+  "api/guardians/search": [
+    "GET tenant /api/guardians/search"
+  ],
+  "api/guardians/students/[studentId]/guardians": [
+    "GET tenant /api/guardians/students/studentId%2F1/guardians",
+    "POST tenant /api/guardians/students/studentId%2F1/guardians"
+  ],
+  "api/guardians/students/[studentId]/guardians/[guardianId]": [
+    "DELETE tenant /api/guardians/students/studentId%2F1/guardians/guardianId%2F1"
+  ],
+  "api/guardians/students/[studentId]/guardians/batch": [
+    "POST tenant /api/guardians/students/studentId%2F1/guardians/batch"
+  ],
+  "api/guardians/students/[studentId]/invite": [
+    "POST tenant /api/guardians/students/studentId%2F1/invite"
+  ],
+  "api/guardians/students/[studentId]/payer": [
+    "PUT tenant /api/guardians/students/studentId%2F1/payer"
+  ]
+}

@@ -5,6 +5,8 @@ package api
 import (
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -51,7 +53,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
-	var publisher deliveryCompose.RealtimePublisher = deliveryCompose.NewRealtimeHub(slog.Default())
+	var publisher deliveryCompose.RealtimePublisher = realtime.NewHub(slog.Default())
 	if len(publishers) > 0 {
 		publisher = publishers[0]
 	}

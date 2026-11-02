@@ -1,12 +1,18 @@
 "use client";
 
 // Eine Ferienanmeldung prüfen (#4663): alles, was die Eltern angegeben
-// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Jedes
-// Öffnen steht im Protokoll.
+// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Die
+// Gesundheitsangaben lädt die Seite getrennt und nur mit dem Recht
+// „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
 
+import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
+import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
@@ -14,28 +20,49 @@ import {
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
+import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { BackLink } from "~/components/ui/back-link";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
+import {
+  AttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
+import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
+import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { formatBerlinDate } from "~/lib/date-helpers";
+import { hasPermission } from "~/lib/auth-utils";
+import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayContribution,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
   fetchHolidayRegistration,
+  fetchHolidayRegistrationHealth,
   type HolidayRegistrationContact,
   type HolidayRegistrationDetail,
+  type HolidayRegistrationHealthDetail,
+  TRAEGER_HEALTH_RIGHT,
+  withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+const PDF_LABELS: AttachmentLabels = {
+  open: "Öffnen",
+  download: "Herunterladen",
+  openLabel: (label) => `${label} öffnen`,
+  downloadLabel: (label) => `${label} herunterladen`,
+  popupBlocked:
+    "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
+  errorObject: "die PDF-Datei",
+};
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
 
@@ -70,7 +97,16 @@ export default function TraegerHolidayRegistrationPage() {
   const params = useParams<{ id: string; registrationId: string }>();
   const periodId = params?.id ?? "";
   const registrationId = params?.registrationId ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
+    null,
+  );
+  const {
+    data: period,
+    loadError: periodError,
+    error: periodFailure,
+  } = useTraegerHolidayPeriod(periodId);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
   const [contribution, setContribution] = useState<HolidayContribution | null>(
@@ -83,21 +119,27 @@ export default function TraegerHolidayRegistrationPage() {
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
-  const { schools, error: schoolsError } = useTraegerSchools();
+  const {
+    schools,
+    error: schoolsError,
+    fetchError: schoolsFailure,
+  } = useTraegerSchools();
   const registrationLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = registrationLoad;
 
   const load = useCallback(async () => {
     try {
-      const [loadedPeriod, loadedRegistration, loadedContribution] =
+      const [loadedRegistration, loadedContribution, loadedHealth] =
         await Promise.all([
-          fetchHolidayPeriod(periodId),
           fetchHolidayRegistration(periodId, registrationId),
           fetchHolidayContribution(periodId, registrationId),
+          canSeeHealth
+            ? fetchHolidayRegistrationHealth(periodId, registrationId)
+            : Promise.resolve(null),
         ]);
       latestContribution.current++;
-      setPeriod(loadedPeriod);
       setRegistration(loadedRegistration);
+      setHealth(loadedHealth);
       setContribution(loadedContribution);
       setExemption(loadedRegistration.benefitsDeclared);
       clearLoadError();
@@ -110,7 +152,7 @@ export default function TraegerHolidayRegistrationPage() {
         retry: () => void load(),
       });
     }
-  }, [periodId, registrationId, clearLoadError, showLoadError]);
+  }, [periodId, registrationId, canSeeHealth, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -164,8 +206,19 @@ export default function TraegerHolidayRegistrationPage() {
     [refreshContribution],
   );
 
-  const loadError = registrationLoad.error ?? schoolsError;
+  const loadError =
+    registrationLoad.error ??
+    metadataLoadError(
+      periodError ?? schoolsError,
+      Boolean(registration && period && schools),
+      periodFailure,
+      schoolsFailure,
+    );
   const names = schoolNames(schools);
+  // The health answers stand beside the other answers, marked "(Gesundheit)".
+  const view = registration
+    ? withHolidayHealthAnswers(registration, health)
+    : null;
   const emergency = (registration?.contacts ?? []).filter(
     (contact) => contact.kind === "emergency",
   );
@@ -173,38 +226,41 @@ export default function TraegerHolidayRegistrationPage() {
     (contact) => contact.kind === "pickup",
   );
 
-  return (
-    <div className="w-full space-y-6">
-      <div className="space-y-2">
-        <BackLink
-          href={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
-          label="Zurück zu den Anmeldungen"
-        />
-        {registration ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-                Anmeldung Nr. {registration.id}
-              </h1>
-              <StatusBadge
-                tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
-                label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
-              />
-              {registration.frozen ? (
-                <StatusBadge tone="gray" label="Eingefroren" />
-              ) : null}
-            </div>
-            <p className="text-sm text-gray-500">
-              {period ? `${period.name} · ` : ""}Eingegangen am{" "}
-              {formatBerlinDate(registration.submittedAt)}
-            </p>
-          </>
-        ) : null}
-      </div>
+  // Der Titel nennt die Eltern, nicht die Datenbanknummer. Die Nummer bleibt
+  // in der Statuszeile: Export und Hinweis auf Doppelanmeldungen verweisen
+  // mit „Anmeldung Nr.“ auf sie.
+  const title = registration
+    ? `Anmeldung von ${registration.guardianFirstName} ${registration.guardianLastName}`
+    : "Anmeldung";
 
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : registration && period && schools ? (
+  return (
+    <TenantPage
+      title={title}
+      back
+      backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
+      backLabel="Zurück zu den Anmeldungen"
+      stats={
+        registration ? (
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+            <StatusBadge
+              tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
+              label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
+            />
+            {registration.frozen ? (
+              <StatusBadge tone="gray" label="Eingefroren" />
+            ) : null}
+            <span>
+              Nr. {registration.id} · {period ? `${period.name} · ` : ""}
+              Eingegangen am {formatBerlinDate(registration.submittedAt)}
+            </span>
+          </span>
+        ) : null
+      }
+      statsLoading={!registration && !loadError}
+      error={loadError}
+      loading={!loadError && !(registration && period && schools)}
+    >
+      {registration && view && period && schools ? (
         <>
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -215,6 +271,10 @@ export default function TraegerHolidayRegistrationPage() {
             onExemptionChange={changeExemption}
             onChanged={changed}
             onConfirmed={load}
+          />
+          <HolidayRegistrationProofCard
+            periodId={periodId}
+            registration={registration}
           />
           {contribution &&
           (registration.status !== "cancelled" || contribution.frozen) ? (
@@ -245,19 +305,98 @@ export default function TraegerHolidayRegistrationPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
-          {registration.children.map((child) => (
+          {registration.secondGuardian ? (
+            <SectionCard title="Zweite sorgeberechtigte Person">
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.secondGuardian.firstName}{" "}
+                  {registration.secondGuardian.lastName}
+                </DataField>
+                <DataField label="E-Mail">
+                  {registration.secondGuardian.email || "Nicht angegeben"}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.secondGuardian.phone || "Nicht angegeben"}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          ) : null}
+          {view.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}
               period={period}
-              registration={registration}
+              registration={view}
               child={child}
-              health={registration.health.find(
+              health={health?.children.find(
                 (entry) => entry.childId === child.id,
               )}
+              healthHidden={
+                !canSeeHealth && registration.healthConsentAt !== null
+              }
               names={names}
               onChanged={changed}
             />
           ))}
+          {registration.form.fields.length > 0 ? (
+            <SectionCard
+              title="Weitere Angaben zur Familie"
+              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+            >
+              {answeredQuestions(registration.form.fields, false, view.answers)
+                .length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={answeredQuestions(
+                    registration.form.fields,
+                    false,
+                    view.answers,
+                  )}
+                  answers={view.answers}
+                />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Keine Antworten zur Familie.
+                </p>
+              )}
+            </SectionCard>
+          ) : null}
+          {registration.form.legalBlocks?.some((block) => block.enabled) ? (
+            <SectionCard title="Hinweise und Einwilligungen">
+              <div className="space-y-4">
+                {registration.form.legalBlocks
+                  .filter((block) => block.enabled)
+                  .map((block) => {
+                    const at = registration.legalAcceptances?.[block.key];
+                    return (
+                      <div key={block.key}>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {block.title}
+                        </h3>
+                        <p className="text-sm text-gray-700">{block.label}</p>
+                        {block.text.trim() ? (
+                          <div className="mt-2 text-sm text-gray-700">
+                            <LegalMarkdown text={block.text} />
+                          </div>
+                        ) : null}
+                        {block.kind === "notice" && !block.required ? null : (
+                          <p className="text-sm text-gray-700">
+                            {at
+                              ? `Zugestimmt am ${formatChatDateTime(at)} Uhr`
+                              : "Nicht zugestimmt"}
+                          </p>
+                        )}
+                        <AttachmentList
+                          labels={PDF_LABELS}
+                          attachments={block.attachments}
+                          documentURL={(documentId) =>
+                            holidayDocumentPath(periodId, documentId)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            </SectionCard>
+          ) : null}
           <SectionCard title="Notfallkontakte und Abholung">
             <div className="space-y-4">
               <div className="space-y-1">
@@ -282,9 +421,7 @@ export default function TraegerHolidayRegistrationPage() {
             registration={registration}
           />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

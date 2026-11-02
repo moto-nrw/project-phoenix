@@ -1,18 +1,28 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
   type RefObject,
 } from "react";
-import useSWR from "swr";
+import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
+import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { MessagesSquare } from "lucide-react";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { formErrorMessage, type FormError } from "~/components/ui/form-error";
 import {
@@ -23,6 +33,10 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { TeamThreadSkeleton } from "~/components/messaging/team-chat-skeletons";
+import {
+  GroupMembersPanel,
+  GroupReadReceipt,
+} from "~/components/messaging/team-group-parts";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -30,6 +44,7 @@ import {
   type StaffMessage,
   type StaffThreadDetail,
   isCounterpartUnavailable,
+  isGroupThread,
   isStaffMessagingDisabled,
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
@@ -60,10 +75,18 @@ export interface TeamChatThreadBack {
 export interface TeamChatThreadParts {
   /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
   readonly title: string;
+  readonly previewTitle?: string;
   /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
   readonly roleLabel: string | null;
   /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
   readonly stats: string;
+  /** Eine Zeile unter dem Titel: wer die Nachrichten sieht. */
+  readonly audience: string;
+  /**
+   * Kopfaktion; bei einer Gruppe (#4776) der Wechsel zwischen Verlauf und
+   * Mitgliedern, sonst `null`.
+   */
+  readonly actions: ReactNode | null;
   readonly statsLoading: boolean;
   /**
    * `ready`: Verlauf (oder sein Skelett) steht in `body`.
@@ -121,20 +144,21 @@ export function TeamChatThread({
   const { api } = portal;
   const flagSaysEnabled = portal.flagSaysEnabled !== false;
 
+  // Same gate as the inbox: with the feature off there is nothing to fetch,
+  // and firing anyway leaves the page in a permanent skeleton while SWR
+  // retries a 403 (isLoading is !data && isValidating). The backend code is
+  // still consulted below for the case the cached flag is stale.
+  const threadKey = flagSaysEnabled
+    ? messageKeys.teamChatThread(threadID)
+    : null;
   const {
-    data: thread,
+    data: confirmedThread,
     error: loadError,
     isLoading,
     isValidating,
     mutate,
-  } = useSWR<StaffThreadDetail>(
-    // Same gate as the inbox: with the feature off there is nothing to fetch,
-    // and firing anyway leaves the page in a permanent skeleton while SWR
-    // retries a 403 (isLoading is !data && isValidating). The backend code is
-    // still consulted below for the case the cached flag is stale.
-    flagSaysEnabled
-      ? [`${portal.cacheScope}:team-chat-thread`, threadID]
-      : null,
+  } = useSWRAuth<StaffThreadDetail>(
+    threadKey,
     () => api.fetchThread(threadID),
     {
       revalidateOnFocus: false,
@@ -154,38 +178,62 @@ export function TeamChatThread({
     },
   );
 
+  // Eine gesendete Nachricht steht sofort im Verlauf (#5011), markiert, bis
+  // die Antwort sie bestätigt oder ihr Fehlschlag sie als nicht gesendet
+  // zeigt.
+  const send = useOptimisticAction(threadKey, confirmedThread);
+  const thread = send.data;
+
   // Die Schule kann den Chat abschalten, WÄHREND diese Seite offen steht. Dann
   // lädt der Verlauf längst, nur das Senden fällt in den 403. Ohne diesen
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
-  // denselben Fehler.
-  const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
+  // denselben Fehler. Schaltet die Schule den Chat wieder ein, endet er.
+  const {
+    switchedOff: disabledWhileOpen,
+    markSwitchedOff: markDisabledWhileOpen,
+  } = useSwitchedOffWhileOpen(flagSaysEnabled, threadID);
   // Das Gegenüber hat die Schule verlassen, während diese Seite offen stand.
   // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
   const [counterpartGone, setCounterpartGone] = useState(false);
 
   const messages: StaffMessage[] = thread?.messages ?? [];
+  // Gruppenchat (#4776): Mitglieder statt eines Gegenübers.
+  const group = thread ? isGroupThread(thread) : false;
+  const [view, setView] = useState<"chat" | "members">("chat");
+  const showMembers = group && view === "members";
 
   // Reads are gated too: the service calls requireEnabled before loading a
   // thread, so a switched-off school gets a 403 here, not just on send. The
   // backend's stable code decides, exactly as on the inbox page.
-  const disabledByBackend = isStaffMessagingDisabled(loadError);
+  // Lehnt der Server beim Senden die Unterhaltung ab, ist sie verworfen
+  // (#5011). Die Ablehnung steht dann dort, wo der Verlauf fehlt, bis ein
+  // neuer Abruf wieder Daten liefert.
+  const [refusal, setRefusal] = useState<{
+    readonly id: string;
+    readonly error: unknown;
+  }>();
+  const threadError =
+    loadError ??
+    (thread || refusal?.id !== threadID ? undefined : refusal.error);
+  const disabledByBackend = isStaffMessagingDisabled(threadError);
   const chatEnabled =
     flagSaysEnabled && !disabledByBackend && !disabledWhileOpen;
   const chatDisabled =
     !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
-  const threadLoadFailed = Boolean(loadError) && !disabledByBackend;
+  const threadLoadFailed = Boolean(threadError) && !disabledByBackend;
   // Getrennt vom Aus-Zustand: der Chat läuft, nur DIESE Unterhaltung ist zu.
   const readOnlyThread = !chatDisabled && counterpartGone;
 
   // Katalogtext, Wiederholen und Vorgangskennung für einen Ladefehler (#2517).
   const shownLoadError = useSwrLoadError(
-    threadLoadFailed ? loadError : undefined,
+    threadLoadFailed ? threadError : undefined,
     "die Unterhaltung",
     mutate,
   );
 
   const [draft, setDraft] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const draftRevision = useRef(0);
+  const isSending = send.pending;
   // Ein Sendefehler steht direkt über dem Eingabefeld, nie als Toast.
   const sendError = useApiFormError();
   const latestSendRef = useRef<() => void>(() => undefined);
@@ -215,54 +263,111 @@ export function TeamChatThread({
 
   // Loading the conversation marks it read server-side, so nudge the nav
   // badge. Gate on !isValidating so this fires only once the real read landed.
+  // Only the server's data counts: a message on its way marks nothing read.
   useEffect(() => {
-    if (thread && !isValidating && typeof window !== "undefined") {
+    if (confirmedThread && !isValidating && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));
     }
-  }, [thread, isValidating]);
+  }, [confirmedThread, isValidating]);
 
   // Keep the newest message in view.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [thread]);
+    // A send error shrinks the list; keep the bubble marked as not sent in
+    // view (#5011).
+  }, [thread, sendError.error]);
 
+  const attempt = useMessageSendAttempt(threadKey);
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || isSending) return;
-    setIsSending(true);
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
-    try {
-      const sent = await api.postMessage(threadID, body);
-      // Show the sent message immediately, then revalidate as a freshness
-      // backstop.
-      await mutate(
-        (prev) =>
-          prev ? { ...prev, messages: [...prev.messages, sent] } : prev,
-        { revalidate: true },
-      );
-      setDraft("");
-    } catch (err) {
-      logger.error("team_chat_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        thread_id: threadID,
+    // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
+    send.dismiss();
+    setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
+    const outcome = await send.run({
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        sendError.clear();
+      },
+      confirmed: (current) =>
+        current.messages.some(
+          (message) =>
+            message.client_message_id === clientMessageId &&
+            message.sender_account_id === myAccountId,
+        ),
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id,
+            sender_account_id: myAccountId,
+            sender_name: "",
+            body,
+            created_at: "",
+          },
+        ],
+      }),
+      request: () => api.postMessage(threadID, body, clientMessageId),
+      // Revalidate stays as a freshness backstop.
+      commit: (sent) =>
+        void mutate(
+          (prev) =>
+            prev
+              ? { ...prev, messages: withMessage(prev.messages, sent) }
+              : prev,
+          { revalidate: true },
+        ),
+      keepFailed: true,
+      refusal: {
+        codes: TEAM_CHAT_SEND_REFUSALS,
+        matches: (key) =>
+          key === messageKeys.teamChatThread(threadID) ||
+          key.startsWith(messageKeys.teamChatInboxFamily()),
+      },
+    });
+    if (outcome.status === "done") attempt.complete(clientMessageId);
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
+      return;
+    failed = true;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
+    const err = outcome.error;
+    // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
+    logger.error("team_chat_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      thread_id: threadID,
+    });
+    if (outcome.refused) {
+      setRefusal({ id: threadID, error: err });
+    } else if (isCounterpartUnavailable(err)) {
+      // Auch das ist ein Zustand, kein Fehlschlag: ohne diesen Zweig bliebe
+      // der Composer bedienbar und liefe bei jedem Versuch in denselben 409.
+      setCounterpartGone(true);
+    } else if (isStaffMessagingDisabled(err)) {
+      // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
+      markDisabledWhileOpen();
+    } else {
+      void sendError.show(err, {
+        object: "die Nachricht",
+        retry: () => latestSendRef.current(),
       });
-      if (isCounterpartUnavailable(err)) {
-        // Auch das ist ein Zustand, kein Fehlschlag: ohne diesen Zweig bliebe
-        // der Composer bedienbar und liefe bei jedem Versuch in denselben 409.
-        setCounterpartGone(true);
-      } else if (isStaffMessagingDisabled(err)) {
-        // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
-        setDisabledWhileOpen(true);
-      } else {
-        void sendError.show(err, {
-          object: "die Nachricht",
-          retry: () => latestSendRef.current(),
-        });
-      }
-    } finally {
-      setIsSending(false);
     }
   };
   // „Wiederholen“ sendet den Text, der dann im Feld steht.
@@ -281,27 +386,76 @@ export function TeamChatThread({
   const errorTextPending =
     threadLoadFailed && formErrorMessage(shownLoadError) === null;
   const showSkeleton =
-    (!thread && isLoading && !loadError && !chatDisabled) ||
+    (!thread && isLoading && !threadError && !chatDisabled) ||
     (!thread && errorTextPending);
 
-  const roleLabel = staffRoleKindLabel(
-    thread?.counterpart_role_kind,
-    portal.kind,
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      showSkeleton && threadKey
+        ? seedFrom(
+            messageKeys.teamChatPreviewSources,
+            threadKey,
+            (data: unknown) => messageKeys.teamChatPreview(data, threadID),
+          )
+        : undefined,
+    [seedFrom, showSkeleton, threadKey, threadID],
   );
+
+  const roleLabel = group
+    ? null
+    : staffRoleKindLabel(thread?.counterpart_role_kind, portal.kind);
+  const members = thread?.members ?? [];
 
   const state: TeamChatThreadParts["state"] =
     showSkeleton || thread ? "ready" : chatDisabled ? "disabled" : "error";
 
   // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
   // Unterhaltung und wer sie sehen kann.
-  const stats = `${messages.length} ${
-    messages.length === 1 ? "Nachricht" : "Nachrichten"
-  } · nur Sie beide sehen sie`;
+  // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
+  const sentCount = confirmedThread?.messages.length ?? 0;
+  const messageCount = `${sentCount} ${
+    sentCount === 1 ? "Nachricht" : "Nachrichten"
+  }`;
+  const stats = group
+    ? `${messageCount} · ${members.length} ${members.length === 1 ? "Mitglied" : "Mitglieder"}`
+    : `${messageCount} · nur Sie beide sehen sie`;
+  const audience = group
+    ? "Nur die Mitglieder sehen diese Nachrichten. Wer neu dazukommt, sieht sie ab dem Beitritt."
+    : "Nur Sie beide sehen diese Nachrichten.";
 
-  const body = (
+  const actions =
+    group && thread && !showSkeleton ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => setView(showMembers ? "chat" : "members")}
+      >
+        {showMembers ? "Zum Verlauf" : `Mitglieder (${members.length})`}
+      </Button>
+    ) : null;
+
+  const membersPanel =
+    showMembers && thread ? (
+      // Innenabstand rundum: Knöpfe zeichnen ihren Rand als Ring außerhalb
+      // der Box, und der Scroll-Container schneidet sonst die linke Kante ab.
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        <GroupMembersPanel
+          api={api}
+          portal={portal.kind}
+          thread={thread}
+          myAccountId={myAccountId}
+          onChanged={(next) => void mutate(next, { revalidate: false })}
+          onLeft={() => portal.navigate(portal.inboxHref)}
+        />
+      </div>
+    ) : null;
+
+  const body = membersPanel ?? (
     <>
       {showSkeleton ? (
-        <TeamThreadSkeleton />
+        <TeamThreadSkeleton header={portal.kind !== "school" || !preview} />
       ) : (
         <div
           ref={scrollRef}
@@ -312,18 +466,29 @@ export function TeamChatThread({
           )}
 
           {messages.length > 0 ? (
-            messages.map((message) => (
-              <ChatBubble
-                key={message.id}
-                body={message.body}
-                own={message.sender_account_id === myAccountId}
-                senderName={message.sender_name}
-                createdAt={message.created_at}
-                // One counterpart per conversation, so the viewer's own
-                // name on their own bubbles is pure noise.
-                showOwnSenderName={false}
-              />
-            ))
+            messages.map((message) => {
+              const own = message.sender_account_id === myAccountId;
+              const pending = send.stateOf(message.id);
+              return (
+                <div key={message.id} className="flex flex-col items-end">
+                  <div className="w-full">
+                    <ChatBubble
+                      body={message.body}
+                      own={own}
+                      senderName={message.sender_name}
+                      createdAt={message.created_at}
+                      // The viewer's own name on their own bubbles is pure
+                      // noise; in a group the others' names say who wrote.
+                      showOwnSenderName={false}
+                      pending={pending}
+                    />
+                  </div>
+                  {group && own && pending === undefined && (
+                    <GroupReadReceipt message={message} members={members} />
+                  )}
+                </div>
+              );
+            })
           ) : threadLoadFailed ? (
             <LoadErrorAlert error={shownLoadError} />
           ) : (
@@ -346,7 +511,10 @@ export function TeamChatThread({
         ) : chatEnabled ? (
           <MessageComposer
             value={draft}
-            onChange={setDraft}
+            onChange={(value) => {
+              draftRevision.current += 1;
+              setDraft(value);
+            }}
             onSend={() => void handleSend()}
             sending={isSending}
             disabled={showSkeleton}
@@ -363,9 +531,15 @@ export function TeamChatThread({
   );
 
   const parts: TeamChatThreadParts = {
-    title: thread?.counterpart_name ?? "Unterhaltung",
+    title:
+      (group ? thread?.group_name : thread?.counterpart_name) ??
+      preview?.name ??
+      "Unterhaltung",
+    previewTitle: preview?.name,
     roleLabel: roleLabel ?? null,
     stats,
+    audience,
+    actions,
     statsLoading: showSkeleton,
     state,
     empty: {
@@ -394,6 +568,7 @@ function DefaultThreadFrame({
   const {
     title,
     roleLabel,
+    previewTitle,
     state,
     empty,
     error,
@@ -401,6 +576,8 @@ function DefaultThreadFrame({
     back,
     containerRef,
     body,
+    audience,
+    actions,
   } = parts;
 
   if (state !== "ready") {
@@ -427,23 +604,38 @@ function DefaultThreadFrame({
     >
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         <BackLink href={back.href} label={back.label} className="mb-2" />
-        {!loading && (
-          <div className="mb-4 min-w-0">
-            <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-              {title}
-              {roleLabel && (
-                <span className="ml-2 text-sm font-normal text-gray-500">
-                  {roleLabel}
-                </span>
+        {(!loading || previewTitle) && (
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+                {title}
+                {roleLabel && (
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    {roleLabel}
+                  </span>
+                )}
+              </h1>
+              {loading ? (
+                <Skeleton className="mt-0.5 h-5 w-56" />
+              ) : (
+                <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
               )}
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-500">
-              Nur Sie beide sehen diese Nachrichten.
-            </p>
+            </div>
+            {actions}
           </div>
         )}
         {body}
       </div>
     </div>
   );
+}
+
+/** The sent message once, also when a refresh already brought it. */
+function withMessage(
+  messages: readonly StaffMessage[],
+  sent: StaffMessage,
+): StaffMessage[] {
+  return messages.some((message) => message.id === sent.id)
+    ? [...messages]
+    : [...messages, sent];
 }

@@ -66,6 +66,7 @@ const KEPT_LOCAL = {
   "sidebar-collapsed": "true",
   "sidebar-open-groups": '["planning"]',
   "sidebar-accordion-expanded": "groups",
+  "traeger-sidebar-settings-open": "false",
   "collection-view:students:tenant-1:7": '{"view":"table"}',
   "moto.tenant.notification-setup.v1.schule.7": '{"done":true}',
   "parent-first-steps:v1:7": '{"completed":[],"dismissed":true}',
@@ -242,8 +243,6 @@ describe("inventory", () => {
     "src/app/school/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/app/traeger/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/tenant/tenant-relogin.ts":
-      "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/components/traeger/traeger-shell.tsx":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/ui/logout-modal.tsx":
       "DELIBERATE_LOGOUT_KEY (session-cache)",

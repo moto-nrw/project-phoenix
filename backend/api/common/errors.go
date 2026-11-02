@@ -428,6 +428,14 @@ func ErrorInvalidRequestMessageWithCode(message, code string) render.Renderer {
 	return resp
 }
 
+// ErrorInvalidRequestMessageWithCodeAndDetails returns a 400 with user-facing
+// copy, a stable domain code and structured values named by that copy.
+func ErrorInvalidRequestMessageWithCodeAndDetails(message, code string, details map[string]any) render.Renderer {
+	resp := ErrorInvalidRequestMessageWithCode(message, code).(*ErrResponse)
+	resp.Details = details
+	return resp
+}
+
 // ErrorForbiddenMessage returns a 403 Forbidden with a user-facing message
 // string. See ErrorInvalidRequestMessage for why.
 func ErrorForbiddenMessage(message string) render.Renderer {

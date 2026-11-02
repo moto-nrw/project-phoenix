@@ -158,3 +158,9 @@ func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*carepl
 	}
 	return &careplan.CompanionEdge{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
 }
+
+// NewCarePlanRestoration binds the production care-exit workflow that
+// re-plans a restored care plan over a suite's lifecycle and bookings.
+func NewCarePlanRestoration(lifecycle careplan.CareLifecycle, rosters careplan.SourcedRosters, today func() owner0.Date) carePlanHTTP.CareExitRestoration {
+	return owners.NewCarePlanRestoration(lifecycle, rosters, today)
+}

@@ -1,0 +1,126 @@
+{
+  "packages": [
+    {
+      "path": "modules/feedback/http",
+      "owner": "feedback",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/feedback/internal/adapters/postgres",
+      "owner": "feedback",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/domain",
+      "owner": "feedback",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/ports",
+      "owner": "feedback",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback",
+      "owner": "feedback",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/compose",
+      "owner": "feedback",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/application",
+      "owner": "feedback",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "feedback.entries",
+      "write_owner": "feedback"
+    }
+  ],
+  "rules": [
+    {
+      "id": "feedback.http.public",
+      "description": "The Feedback HTTP adapter calls its own public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.port-domain",
+      "description": "Feedback ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "feedback.compose.orm-sql",
+      "description": "Feedback composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "feedback.compose.tenant-runtime",
+      "description": "Feedback composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.internal-test.tenant-runtime",
+      "description": "Feedback composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "feedback",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.http.security-contract",
+      "description": "The Feedback HTTP adapter binds its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    }
+  ]
+}

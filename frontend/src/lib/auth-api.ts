@@ -212,6 +212,26 @@ export async function confirmCatererPasswordReset(
   );
 }
 
+/** The Träger-Portal's reset: the link lands on the Träger host (#5149). */
+export async function requestTraegerPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
+  return requestPasswordResetAt("/api/traeger/auth/password-reset", email);
+}
+
+export async function confirmTraegerPasswordReset(
+  token: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  return confirmPasswordResetAt(
+    "/api/traeger/auth/password-reset/confirm",
+    token,
+    password,
+    confirmPassword,
+  );
+}
+
 async function confirmPasswordResetAt(
   endpoint: string,
   token: string,

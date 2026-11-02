@@ -115,8 +115,8 @@ func responsePickupStatus(student *peopleModule.StudentState, derived string) st
 
 // populateSensitiveStudentFields sets fields visible only with users:read.
 func populateSensitiveStudentFields(response *StudentResponse, student *peopleModule.StudentState) {
-	if student.HealthInfo != nil {
-		response.HealthInfo = *student.HealthInfo
+	if health := student.HealthInfoOn(calendar.TodayDate()); health != nil {
+		response.HealthInfo = *health
 	}
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo

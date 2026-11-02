@@ -54,7 +54,7 @@ function optionIcon(option: ExportMenuOption) {
  * Regel 2): one per format, with the format names of Regel 3. Pages put them
  * into their own `OverflowMenu`, next to their other actions.
  */
-function exportMenuItems({
+export function exportMenuItems({
   options,
   onSelect,
   busyKey = null,

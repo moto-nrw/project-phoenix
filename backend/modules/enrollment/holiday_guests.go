@@ -18,8 +18,8 @@ import (
 // school's groups, its check-in and the kiosk work with the copy unchanged;
 // from the day after the week the copy is no longer cared for and leaves the
 // group and the check-in by itself. A cancellation or rebooking ends the copy
-// at the next reconciliation. The contacts stay readable for seven days after
-// the week and are deleted then. Every operation runs in the tenant
+// at the next reconciliation. The contacts and the shared answers stay
+// readable for seven days after the week and are deleted then. Every operation runs in the tenant
 // transaction of the hosting school, which the caller opens.
 
 // ErrHolidayGuestNotFound reports a child that is no holiday guest of the
@@ -35,12 +35,6 @@ var ErrHolidayGuestPlanAuthorMissing = errors.New("holiday guest plan author has
 // hosting school's.
 var ErrHolidayGuestGroupInvalid = errors.New("holiday guest group is not a group of the school")
 
-// HolidayGuestSchoolClass is the class of the child a guest becomes: People
-// Directory requires one, and the groups and lists of the school show it
-// where they show a class, so the staff tell a guest from their own
-// children at a glance.
-const HolidayGuestSchoolClass = "Feriengast"
-
 // HolidayGuestReadOnlyDays is how long the sheet of a guest stays readable
 // after the last day of its week (ADR 0084 section 6).
 const HolidayGuestReadOnlyDays = 7
@@ -55,8 +49,9 @@ type HolidayGuestContact struct {
 
 // HolidayGuestSheet is everything the hosting school sees of a guest beyond
 // its name: the care it booked, its emergency contacts and who may collect
-// it. A nil HomeSchoolID marks a child without a school of the Träger;
-// GuestSchoolName is the school its parents named, if any.
+// it, and the answers the Träger shares (#5202). A nil HomeSchoolID marks a
+// child without a school of the Träger; GuestSchoolName is the school its
+// parents named, if any.
 type HolidayGuestSheet struct {
 	StudentID       int64                 `json:"student_id"`
 	WeekID          int64                 `json:"week_id"`
@@ -69,6 +64,10 @@ type HolidayGuestSheet struct {
 	GuestSchoolName string                `json:"guest_school_name"`
 	Emergency       []HolidayGuestContact `json:"emergency_contacts"`
 	Pickup          []HolidayGuestContact `json:"pickup_contacts"`
+	Answers         []HolidayHostAnswer   `json:"answers"`
+	// Health is the health information the Träger shares with the hosting
+	// school (#4722); nil without any.
+	Health *HolidayHostHealth `json:"health"`
 	// ReadOnly is true after the last day of the week: the guest is no
 	// longer cared for and the sheet stays only for questions afterwards.
 	ReadOnly bool `json:"read_only"`
@@ -103,6 +102,11 @@ type HolidayGuestPeople interface {
 	CreateHolidayGuestChild(ctx context.Context, child HolidayGuestChild) (studentID int64, err error)
 	ReadHolidayGuestChild(ctx context.Context, studentID int64) (HolidayGuestChild, error)
 	UpdateHolidayGuestChild(ctx context.Context, studentID int64, child HolidayGuestChild) error
+	// SetHolidayGuestHealthInfo writes the health information of a guest
+	// into the health field of its child, so the team sees it where it sees
+	// every child (#4722, ADR 0120 addendum); nil clears it when the guest's
+	// health information goes.
+	SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error
 }
 
 // HolidayGuestCareDays plans the booked days of a guest in Care Plan, so the
@@ -154,7 +158,8 @@ type HolidayGuests interface {
 	AssignHolidayGuestGroup(ctx context.Context, host HolidayHost, weekID, groupID int64) (HolidayGuestTransfer, error)
 	// ReconcileHolidayGuests brings the guests of every hosted week with a
 	// group in line with the confirmed bookings: new guests are copied,
-	// cancelled ones end, and contacts past the read-only days go.
+	// cancelled ones end, and contacts and shared answers past the
+	// read-only days go.
 	ReconcileHolidayGuests(ctx context.Context, schoolID int64) error
 	// HolidayGuestSheet returns the sheet of a guest and records the read;
 	// ErrHolidayGuestNotFound for a child that is no guest or whose access
@@ -181,7 +186,8 @@ type HolidayGuestWeek struct {
 }
 
 // HolidayGuestSource is one confirmed child of a hosted week that is no
-// student of the school, with its booked time model and its contacts, as
+// student of the school, with its booked time model, its contacts (the
+// second guardian among the emergency contacts) and its shared answers, as
 // the Träger's registration holds it.
 type HolidayGuestSource struct {
 	ChildID         int64
@@ -195,10 +201,16 @@ type HolidayGuestSource struct {
 	TimeModelEnds   string
 	Emergency       []HolidayGuestContact
 	Pickup          []HolidayGuestContact
+	Answers         []HolidayHostAnswer
+	// Health is the opened health information of the child (#4722), nil
+	// without any; Sealed carries it from the store to the service.
+	Health *HolidayHostHealth
+	Sealed *HolidaySealedHostHealth
 }
 
 // HolidayGuest is the stored copy of a guest at the hosting school. EndedOn
-// is the day its access ended early (cancellation or rebooking).
+// is the day its access ended early (cancellation or rebooking). Answers go
+// with the contacts.
 type HolidayGuest struct {
 	ID              int64
 	OrganizationID  int64
@@ -215,4 +227,10 @@ type HolidayGuest struct {
 	TimeModelEnds   string
 	Emergency       []HolidayGuestContact
 	Pickup          []HolidayGuestContact
+	Answers         []HolidayHostAnswer
+	// Health is the copied health information (#4722), nil without any. The
+	// store keeps it sealed for the school and the child; HealthSealed
+	// carries the stored value between the store and the service.
+	Health       *HolidayHostHealth
+	HealthSealed []byte
 }

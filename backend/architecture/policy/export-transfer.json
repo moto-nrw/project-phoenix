@@ -1,0 +1,153 @@
+{
+  "packages": [
+    {
+      "path": "modules/exporttransfer",
+      "owner": "export-transfer",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/compose",
+      "owner": "export-transfer",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/postgres",
+      "owner": "export-transfer",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/sftp",
+      "owner": "export-transfer",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/domain",
+      "owner": "export-transfer",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/sftp/sftptest",
+      "owner": "export-transfer",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/application",
+      "owner": "export-transfer",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/ports",
+      "owner": "export-transfer",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "audit.export_transfers",
+      "write_owner": "export-transfer"
+    }
+  ],
+  "rules": [
+    {
+      "id": "export-transfer.test-support.dependencies",
+      "description": "The shared in-process SFTP counterpart runs a real SSH server: it needs the SSH stack, the SFTP server implementation, a generated host key and the test helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "test-support",
+      "target_class": "delivery"
+    },
+    {
+      "id": "export-transfer.test-support.crypto",
+      "description": "Generating the test counterpart's host key needs a key type and a random source.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "test-support",
+      "target_class": "crypto"
+    },
+    {
+      "id": "export-transfer.internal-test.tenant-runtime",
+      "description": "The capability's integration test opens the tenant transaction that TenantTxMiddleware provides in production, so the journal entry is written where it would really be written.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "export-transfer.adapter.delivery",
+      "description": "The SFTP transport uses classified delivery dependencies: the SFTP client and the SSH stack that carries it.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "adapter",
+      "target_class": "delivery"
+    },
+    {
+      "id": "export-transfer.port-domain",
+      "description": "Export Transfer ports are declared over domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "port",
+      "target_owner": "export-transfer",
+      "target_role": "domain"
+    },
+    {
+      "id": "export-transfer.compose.tenant-runtime",
+      "description": "Export Transfer composition writes its journal on the caller's tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "export-transfer.compose.orm-sql",
+      "description": "Export Transfer composition passes the database handle to its journal adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "export-transfer.application.export-transfer.contract",
+      "description": "The Export Transfer service speaks its own public request and result vocabulary (ADR 0074, #4461).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "application",
+      "target_owner": "export-transfer",
+      "target_role": "contract",
+      "target_package": "modules/exporttransfer"
+    }
+  ]
+}

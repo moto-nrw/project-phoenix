@@ -7,12 +7,14 @@ import { SeriesRosterReview } from "./series-roster-review";
 
 const deviation: RosterDeviation = {
   templateId: "7",
-  offering: { id: "3", name: "Randstunde" },
+  offerings: [{ id: "3", name: "Randstunde" }],
   gradeLevels: [1],
   schoolClasses: [],
   unbookedCount: 3,
   missingCount: 2,
   candidates: [{ id: "3", name: "Randstunde" }],
+  combinations: [],
+  ambiguous: false,
 };
 
 describe("SeriesRosterReview (#5103)", () => {
@@ -28,22 +30,22 @@ describe("SeriesRosterReview (#5103)", () => {
       />,
     );
 
+    expect(screen.getByText("Weicht von Anmeldungen ab")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Weicht von Anmeldungen ab: 3 Kinder ohne Buchung · 2 angemeldete Kinder fehlen · passt zu „Randstunde“",
-      ),
+      screen.getByText("3 Kinder sind nicht für dieses Angebot angemeldet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("2 angemeldete Kinder fehlen in der Liste."),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Mit Angebot verbinden" }),
     );
     expect(onConnect).toHaveBeenCalledWith(deviation);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bleibt von Hand gepflegt" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Liste so lassen" }));
     expect(onSetManualRoster).toHaveBeenCalledWith(true);
   });
 
-  it("lets planners undo „Bleibt von Hand gepflegt“", () => {
+  it("lets planners undo „Liste so lassen“", () => {
     const onSetManualRoster = vi.fn();
     render(
       <SeriesRosterReview
@@ -53,7 +55,7 @@ describe("SeriesRosterReview (#5103)", () => {
     );
 
     expect(
-      screen.getByText("Sie pflegen die Kinder hier bewusst selbst."),
+      screen.getByText("Die Kinderliste bleibt bewusst so."),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Hinweis wieder zeigen" }),
@@ -65,7 +67,7 @@ describe("SeriesRosterReview (#5103)", () => {
     render(<SeriesRosterReview manualRosterConfirmed />);
 
     expect(
-      screen.getByText("Sie pflegen die Kinder hier bewusst selbst."),
+      screen.getByText("Die Kinderliste bleibt bewusst so."),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Hinweis wieder zeigen" }),

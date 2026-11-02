@@ -9,14 +9,15 @@
  * (ADR 0084). Every backend portal outside the Träger portal rejects them.
  *
  * Providers: Träger credentials only, and only the token seeding path: the
- * login page calls the backend login through /api/traeger/auth/login (it
- * may first ask which Träger to open) and then hands the minted pair to
- * NextAuth here. A password never passes through this provider.
+ * BFF calls the backend login through /api/traeger/auth/login (it may first
+ * ask which Träger to open) and installs the minted pair here in its
+ * server-only mutation context. A password never passes through this provider.
  * SignIn page: "/traeger/login"  (rewritten from "/login" by proxy.ts)
  * BasePath: "/api/traeger/auth"
  */
 
 import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -42,6 +43,10 @@ export const traegerAuthConfig = {
       },
       async authorize(credentials) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         if (
           creds?.internalRefresh !== "true" ||
           !creds.token ||

@@ -1,9 +1,3 @@
-import type { NextRequest } from "next/server";
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { createTenantLoginRoute } from "~/lib/tenant-login-route.server";
 
-async function POSTHandler(request: NextRequest) {
-  return forwardJsonPost(request, "/auth/passkeys/login/verify");
-}
-
-export const POST = withPrivateNoStore(POSTHandler);
+export const POST = createTenantLoginRoute("/auth/passkeys/login/verify");

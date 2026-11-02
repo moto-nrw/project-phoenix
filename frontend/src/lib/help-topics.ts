@@ -72,6 +72,7 @@ export const HELP_TOPICS = {
   dayLog: "betreuungstag-pruefen",
   ownGroups: "meine-gruppen",
   transferGroup: "gruppe-uebergeben",
+  weekProtocol: "wochenprotokoll-ergaenzen",
   rooms: "raeume-und-belegung",
   activeSupervision: "aktuelle-aufsicht",
   homeworkFeedback: "rueckmeldung-zu-hausaufgaben-geben",
@@ -126,6 +127,7 @@ export const HELP_TOPICS = {
   studentNotes: "notizen-zu-einem-kind",
   leadInviteGuardians: "eltern-einladen",
   leadEndCare: "betreuung-eines-kindes-beenden",
+  leadAccidentReport: "unfall-erfassen",
   leadDeleteStudent: "kind-dauerhaft-loeschen",
   leadGradeTransition: "kinder-in-den-naechsten-jahrgang-uebernehmen",
   leadClassListEntries: "kinder-ohne-ogs-betreuung-erfassen",
@@ -143,6 +145,7 @@ export const HELP_TOPICS = {
   leadEnrollmentExport: "anmeldungen-exportieren",
   leadEnrollmentCleanup: "fehlerhafte-anmeldung-loeschen",
   leadInviteStaff: "mitarbeitende-anlegen-und-einladen",
+  leadStaffQualifications: "nachweise",
   leadStaffRecord: "personalakte-fuehren",
   leadTargetOverride: "sonderarbeitszeit-eintragen",
   leadRemoveStaff: "person-aus-dem-team-entfernen",
@@ -159,6 +162,7 @@ export const HELP_TOPICS = {
   leadWorkTimeReview: "arbeitszeiten-des-teams-pruefen",
   leadAbsenceReport: "abwesenheiten-auswerten",
   leadStatistics: "statistik-oeffnen",
+  careTimeComparison: "soll-und-ist",
   leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
   leadHolidayGuestGroup: "feriengruppe-waehlen",
   leadExports: "liste-exportieren",
@@ -195,6 +199,7 @@ export const HELP_TOPICS = {
   parentNews: "elternbriefe-lesen",
   parentSurveys: "an-einer-umfrage-der-ogs-teilnehmen",
   parentCalendar: "als-elternteil-den-kalender-ansehen",
+  parentConference: "einen-termin-am-elternsprechtag-buchen",
   parentMealPlan: "mittagessen-ansehen",
   parentDocuments: "dokumente-vom-traeger-finden",
   parentEnroll: "mein-kind-anmelden",
@@ -217,6 +222,7 @@ export const HELP_TOPICS = {
   traegerAccounts: "personen-ins-traeger-buero-einladen",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
+  traegerHolidayForm: "traeger-ferien-anmeldeformular",
   traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
   traegerHolidayContribution: "traeger-ferienbeitrag",
   traegerBillingRun: "ferien-abrechnen",
@@ -234,7 +240,9 @@ export const HELP_TOPICS = {
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
   teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
+  teacherAbsenceList: "fehlzeiten-einer-klasse-ansehen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
+  teacherSharedNotes: "beobachtungen-der-ogs-lesen",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
@@ -242,6 +250,7 @@ export const HELP_TOPICS = {
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
   teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
   teacherParentLetters: "einen-elternbrief-an-meine-klasse-schreiben",
+  teacherParentConference: "einen-elternsprechtag-anbieten",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -258,6 +267,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/tagesplan": HELP_TOPICS.dayPlan,
   "/ogs-groups": HELP_TOPICS.ownGroups,
   "/ogs-groups/overview": HELP_TOPICS.ownGroups,
+  "/wochenprotokolle": HELP_TOPICS.weekProtocol,
   "/active-supervisions": HELP_TOPICS.activeSupervision,
   "/absences": HELP_TOPICS.absences,
   "/day-log": HELP_TOPICS.dayLog,
@@ -298,6 +308,8 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/database/groups": HELP_TOPICS.leadGroups,
   "/database/permissions": HELP_TOPICS.leadStaffPermissions,
   "/database/personal": HELP_TOPICS.leadInviteStaff,
+  "/database/qualifications": HELP_TOPICS.leadStaffQualifications,
+  "/database/qualification-types": HELP_TOPICS.leadStaffQualifications,
   "/database/roles": HELP_TOPICS.leadStaffPermissions,
   "/database/rooms": HELP_TOPICS.leadRooms,
   "/database/students": HELP_TOPICS.leadCreateStudent,
@@ -321,6 +333,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/rooms", HELP_TOPICS.rooms],
   ["/team-chat", HELP_TOPICS.teamChat],
   ["/umfragen", HELP_TOPICS.leadSurveys],
+  ["/wochenprotokolle", HELP_TOPICS.weekProtocol],
   // Der erste Treffer gewinnt, nicht der längste: die Unterbereiche der
   // Datenverwaltung müssen vor `/database` stehen.
   ["/database/students/class-list", HELP_TOPICS.leadClassListEntries],
@@ -376,9 +389,11 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
 const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/": HELP_TOPICS.teacherClassDay,
   "/klasse": HELP_TOPICS.teacherClassList,
+  "/klasse/kind": HELP_TOPICS.teacherSharedNotes,
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
   "/kalender": HELP_TOPICS.teacherCalendar,
+  "/fehlzeiten": HELP_TOPICS.teacherAbsenceList,
   "/einstellungen": HELP_TOPICS.teacherSettings,
 };
 
@@ -387,6 +402,7 @@ const SCHOOL_PREFIX_HELP_TOPICS: ReadonlyArray<
 > = [
   ["/nachrichten", HELP_TOPICS.teacherMessages],
   ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
+  ["/elternsprechtag", HELP_TOPICS.teacherParentConference],
 ];
 
 /** Finds the help article for a page of the parents portal. */
@@ -396,6 +412,10 @@ export function getParentHelpTopicForPath(
   const path = pathname.replace(/^\/parents(?=\/|$)/, "") || "/";
   const exactTopic = PARENT_EXACT_HELP_TOPICS[path];
   if (exactTopic) return exactTopic;
+  // Der Elternsprechtag eines Kindes (#4801) liegt unter dessen Seite.
+  if (/^\/children\/[^/]+\/elternsprechtag$/.test(path)) {
+    return HELP_TOPICS.parentConference;
+  }
 
   for (const [prefix, topic] of PARENT_PREFIX_HELP_TOPICS) {
     if (matchesPathPrefix(path, prefix)) return topic;

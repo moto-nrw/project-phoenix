@@ -15,6 +15,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -841,7 +842,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	// batched reads — below the 7 of a fully populated active week, because
 	// the assignment-dependent reads early-return. The point pinned here:
 	// series_id/detached ride the existing shift rows and add ZERO reads.
-	testpkg.AssertQueryBudget(t, "services.schedule.staff_overview.shift_only_week", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.shift_only_week", queryCounter.Queries())
 
 	require.NotEmpty(t, overview.Shifts)
 	for _, shift := range overview.Shifts {

@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR, { useSWRConfig } from "swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -20,12 +22,7 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
-
-const DEVICE_SWR_PREFIXES = [
-  "operator-all-devices",
-  "operator-school-devices-",
-  "operator-org-devices-",
-];
+import { devicesConcept } from "~/lib/concepts/devices";
 
 function OperatorDevicesPageContent() {
   useSetBreadcrumb({ pageTitle: "Geräte" });
@@ -36,6 +33,7 @@ function OperatorDevicesPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -50,19 +48,21 @@ function OperatorDevicesPageContent() {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
-  const { mutate: globalMutate } = useSWRConfig();
+  const refreshFamily = useTenantMutateMatching(
+    operatorProvisioningKeys.deviceFamilies,
+  );
 
   const {
     data: schoolDevices,
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
-  } = useSWR(
-    isAuthenticated && selectedSchool
-      ? `operator-school-devices-${selectedSchool.id}`
+  } = useSWRAuth(
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolDevices(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolDevices(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolDevices(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -72,13 +72,13 @@ function OperatorDevicesPageContent() {
     data: orgDevices,
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
-  } = useSWR(
-    isAuthenticated && filterOrgId && !selectedSchool
-      ? `operator-org-devices-${filterOrgId}`
+  } = useSWRAuth(
+    isAuthenticated && filterOrgId && !urlSchoolId
+      ? operatorProvisioningKeys.orgDevices(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationDevices(filterOrgId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -88,29 +88,23 @@ function OperatorDevicesPageContent() {
     data: allDevices,
     error: allDevicesError,
     isLoading: allDevicesLoading,
-  } = useSWR(
-    isAuthenticated && !filterOrgId && !selectedSchool
-      ? "operator-all-devices"
+  } = useSWRAuth(
+    isAuthenticated && !filterOrgId && !urlSchoolId
+      ? operatorProvisioningKeys.allDevices()
       : null,
     () => operatorProvisioningService.listAllDevices(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
   );
 
-  const refreshDevices = useCallback(() => {
-    return globalMutate(
-      (key: unknown) =>
-        typeof key === "string" &&
-        DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
-    );
-  }, [globalMutate]);
+  const refreshDevices = useCallback(() => refreshFamily(), [refreshFamily]);
 
   // Only one of the three lists is active at a time.
   const devicesLoadError = useSwrLoadError(
-    selectedSchool
+    urlSchoolId
       ? schoolDevicesError
       : filterOrgId
         ? orgDevicesError
@@ -169,7 +163,7 @@ function OperatorDevicesPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Geräte"
-        concept="devices"
+        concept={devicesConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}
@@ -189,7 +183,7 @@ function OperatorDevicesPageContent() {
       <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={devicesLoadError} className="mb-4" />
 
-      {!selectedSchool && filterOrgId && (
+      {!urlSchoolId && filterOrgId && (
         <>
           {!orgDevicesError &&
           !orgDevicesLoading &&
@@ -212,7 +206,7 @@ function OperatorDevicesPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && (
+      {!urlSchoolId && !filterOrgId && (
         <>
           {!allDevicesError &&
           !allDevicesLoading &&

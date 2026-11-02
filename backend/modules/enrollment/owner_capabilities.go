@@ -101,6 +101,7 @@ type ChildQueries interface {
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]PhaseResponseChild, error)
 	CountCreatedStudentsByPhase(ctx context.Context, phaseID int64) (int, error)
 	StudentCarePeriods(ctx context.Context, studentID int64) ([]*StudentCarePeriod, error)
+	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentCarePeriod, error)
 	CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []int64) ([]int64, error)
 }
 

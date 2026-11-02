@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
@@ -96,4 +97,4 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
   }
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));

@@ -1,5 +1,5 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
@@ -24,7 +24,7 @@ const CONCEPT_ICON_TILE_VARIANTS: Record<
 };
 
 interface ConceptIconTileProps {
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly variant: ConceptIconTileVariant;
   readonly tone?: MotoDuotoneTone;
   readonly className?: string;

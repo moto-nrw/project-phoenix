@@ -1,6 +1,14 @@
 "use client";
 
 import {
+  buildStudentSearchFilters,
+  fetchStudentSearch,
+  type StudentSearchFilterInput,
+} from "~/lib/student-search-resource";
+import { studentKeys } from "~/lib/swr/portal-keys";
+import { rooms as roomKeys } from "~/lib/swr/rooms";
+import { groups as groupKeys } from "~/lib/swr/groups";
+import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
   handoverLine,
@@ -45,7 +53,7 @@ import type {
   FilterSection,
 } from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
-import { studentService, groupService, roomService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -58,6 +66,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { schoolClassesLabel } from "~/lib/school-class-label";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -148,17 +157,13 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
-import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
-import {
-  normalizeSearchStudentsGroupId,
-  SEARCH_STUDENTS_KEY_PREFIX,
-  searchStudentsGroupScope,
-} from "~/lib/swr/search-students-key";
+import { normalizeSearchStudentsGroupId } from "~/lib/swr/search-students-key";
 import {
   encodeMultiValueParam,
   normalizeMultiValues,
@@ -167,7 +172,6 @@ import {
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
-import { createLogger } from "~/lib/logger";
 import {
   getStudentAbsence,
   getStudentDayTimes,
@@ -188,8 +192,8 @@ import {
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 import { useSamePageLinkClick } from "./use-same-page-link-click";
 import { useChildScopeTabs } from "./use-child-scope-tabs";
+import { childrenConcept } from "~/lib/concepts/children";
 
-const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
 const EMPTY_STUDENT_ARRAY: Student[] = [];
 
@@ -310,6 +314,8 @@ const FILTER_QUERY_PARAMS = [
   "view",
 ] as const;
 
+const SEARCH_QUERY_PARAM = "search";
+
 type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
 type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
 type SearchParamReader = Pick<URLSearchParams, "get" | "getAll" | "has">;
@@ -340,16 +346,14 @@ function readFilterParam(
 }
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
-const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 // This view shows every match at once — it has no pagination control, and the
 // grouping modes, the counts and the export selection all read the rendered
-// list. The proxy route caps a response at FULL_STUDENT_SEARCH_PAGE_SIZE rows
+// list. The proxy route caps a response at 1000 rows
 // (app/api/students/route.ts), so a selection larger than one page has to be
 // walked here; otherwise every child past the first page is unreachable
 // (#2218 review). The bound stops a bad total from looping forever: 20 pages
 // are 20.000 Kinder, far beyond any OGS, and hitting it is logged rather than
 // silently truncating.
-const MAX_STUDENT_SEARCH_PAGES = 20;
 
 // The card skeleton has no end of its own: a request that never answers (weak
 // school Wi-Fi) or a session without a token keeps it up for good, with nothing
@@ -498,7 +502,10 @@ function validQueryValue<T extends string>(
 }
 
 function searchParamsHavePersistedFilters(searchParams: SearchParamReader) {
-  return FILTER_QUERY_PARAMS.some((key) => searchParams.has(key));
+  return (
+    searchParams.has(SEARCH_QUERY_PARAM) ||
+    FILTER_QUERY_PARAMS.some((key) => searchParams.has(key))
+  );
 }
 
 function persistedFiltersToSearchParams(filters: PersistedSearchFilters) {
@@ -1098,7 +1105,9 @@ function SearchPageContent() {
   // Search and filter state
   // The search field keeps an immediate local draft and only calls this setter
   // after its debounce. This avoids rendering the full result grid per key.
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    initialFilterParams.get(SEARCH_QUERY_PARAM) ?? "",
+  );
   const [searchResetKey, setSearchResetKey] = useState(0);
   // Class, group and school year are multi-selects (#2218): two groups working
   // together need both their cohorts in one list. An empty array means "alle".
@@ -1175,7 +1184,9 @@ function SearchPageContent() {
     (
       patch: Partial<
         Record<
-          (typeof FILTER_QUERY_PARAMS)[number] | typeof DATE_QUERY_PARAM,
+          | (typeof FILTER_QUERY_PARAMS)[number]
+          | typeof DATE_QUERY_PARAM
+          | typeof SEARCH_QUERY_PARAM,
           string
         >
       >,
@@ -1201,6 +1212,14 @@ function SearchPageContent() {
       );
     },
     [storageKey, storageOwner],
+  );
+
+  const updateSearchTerm = useCallback(
+    (value: string) => {
+      setSearchTerm(value);
+      updateUrlParams({ [SEARCH_QUERY_PARAM]: value });
+    },
+    [updateUrlParams],
   );
 
   const applyPersistedFilters = useCallback(
@@ -1469,38 +1488,16 @@ function SearchPageContent() {
 
   // Fetch groups with SWR (immutable - only fetched once)
   const { data: groups = [] } = useImmutableSWR<Group[]>(
-    "search-groups-list",
-    async () => {
-      try {
-        return await groupService.getGroups();
-      } catch {
-        // Bewusst still: ohne groups:read fehlt die Liste regelmäßig. Der
-        // Filter bietet dann keine Gruppen an, die Kinderliste selbst lädt
-        // und filtert unverändert weiter.
-        logger.warn("could not load groups for filter");
-        return [];
-      }
-    },
+    groupKeys.key(),
+    groupKeys.fetcher,
   );
-
-  // Room names/options are mutable from the rooms admin page, so this must
-  // revalidate stale cache entries when the search page remounts.
   const { data: rooms = [] } = useSWRAuth<Room[]>(
-    SEARCH_ROOMS_LIST_CACHE_KEY,
-    async () => {
-      try {
-        return await roomService.getRooms({ page: 1, pageSize: 1000 });
-      } catch {
-        // Bewusst still wie bei den Gruppen: ohne Raumliste bietet der
-        // Filter keine Räume an, die Kinderliste lädt unverändert weiter.
-        logger.warn("could not load rooms for filter");
-        return [];
-      }
-    },
+    roomKeys.key({ page: 1, pageSize: 1000 }),
+    () => roomKeys.fetcher({ page: 1, pageSize: 1000 }),
   );
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
-    "search-student-school-classes",
+    studentKeys.schoolClasses(),
     async () => studentService.getSchoolClasses(),
     { revalidateOnFocus: false },
   );
@@ -1548,7 +1545,22 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${searchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
+  const studentSearchParams = {
+    groupIds: selectedGroupIds,
+    search: searchTerm,
+    schoolClasses: selectedSchoolClasses,
+    roomId: effectiveRoomId,
+    dayStatus: dayStatusFilter,
+    date: selectedDate,
+    isToday,
+    photoState: photoConsentFeatureState,
+    bus: busFilter,
+    photoConsent: requestedPhotoConsentFilter,
+    companions: wantsCompanions,
+    years: selectedYears,
+    pickupStatus: pickupStatusFilter,
+  } satisfies StudentSearchFilterInput & { photoState: string };
+  const studentsCacheKey = studentKeys.search(studentSearchParams);
 
   // Any change to the result query — the server-side cache key or one of the
   // client-only filters — replaces the visual context a selection was made
@@ -1591,99 +1603,9 @@ function SearchPageContent() {
   }>(
     studentsCacheKey,
     async () => {
-      const filters = {
-        search: searchTerm,
-        groupId: selectedGroupIds,
-        schoolClass: selectedSchoolClasses,
-        // The school year is filtered server-side (#2218) so the reported
-        // count and any future pagination cover the whole selection instead of
-        // only the rows this page happened to hold.
-        gradeLevel: selectedYears,
-        roomId: effectiveRoomId || undefined,
-        dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
-        // Planning date (#1939): omitted for today so today's requests stay
-        // byte-identical with the pre-date behavior.
-        date: isToday ? undefined : selectedDate,
-        // Administrative filters (#1492) are now applied server-side, so the
-        // backend returns the correctly-filtered, correctly-counted page set
-        // directly, no client-side full-page fetch + filter required.
-        bus: busFilter === "all" ? undefined : busFilter,
-        photoConsent:
-          requestedPhotoConsentFilter === "all"
-            ? undefined
-            : requestedPhotoConsentFilter,
-        pickupStatus:
-          pickupStatusFilter === "all" ? undefined : pickupStatusFilter,
-        // When filtering by room, this page is the "see all" target the
-        // room-detail modal links to (#1374). The modal itself caps at
-        // 200 cards and shows a truncation notice; this page must show
-        // every occupant so the overflow link actually delivers.
-        // 1000 covers any realistic combined-group / assembly-room
-        // session. General search sends nothing on purpose: the proxy route
-        // (app/api/students/route.ts) already defaults an absent page_size to
-        // its 1000 maximum, so the backend's own ParsePagination default of 50
-        // is never reached from here. A school with more matching children than
-        // one page is picked up by the page walk below, not by a larger
-        // page_size — the proxy caps that at 1000 either way.
-        pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
-        includePickupTimes: true,
-        includeArrivalTimes: true,
-        includeCompanions: wantsCompanions,
-        // Slim wire projection (#2097): this page requests up to 1000 rows in
-        // one trip, and the full StudentResponse ships address, health info,
-        // supervisor notes, guardian contacts, the weekday departure maps and
-        // consent/row timestamps that no card, filter or grouping mode here
-        // reads — the child detail page fetches the full record itself.
-        // Measured 78% smaller for the same rows.
-        view: "slim" as const,
-      };
+      const filters = buildStudentSearchFilters(studentSearchParams);
 
-      const result = await studentService.getStudents(filters);
-      const students = [...result.students];
-
-      // Walk the remaining pages when the selection is larger than one page.
-      // The first request stays untouched (no page parameter), so the common
-      // single-page case is byte-identical with before.
-      //
-      // Separate requests only add up to the whole selection because the list
-      // query carries a total order (repositories/users/student.go orders by id
-      // unless a caller asks for something else). Without one, PostgreSQL may
-      // answer two windows out of two different row orders, and children then
-      // appear twice or not at all (#2218 review).
-      const totalPages = result.pagination?.total_pages ?? 1;
-      const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
-      for (let page = 2; page <= lastPage; page++) {
-        const nextPage = await studentService.getStudents({ ...filters, page });
-        students.push(...nextPage.students);
-      }
-      // Past the bound the list is incomplete, and everything downstream — the
-      // count badge, the grouping headers, the export scope — reads exactly the
-      // rows loaded here. Reporting that as a finished result would present a
-      // truncated list as the complete one, so the number the backend counted
-      // travels along and the page says on screen that it is showing a part
-      // (#2218 review). The log line stays for the server-side view.
-      let truncatedTotal: number | null = null;
-      if (totalPages > lastPage) {
-        truncatedTotal = result.pagination?.total_records ?? students.length;
-        logger.warn("student_search_pages_truncated", {
-          total_pages: totalPages,
-          fetched_pages: lastPage,
-        });
-      }
-
-      // Tag the response with the date AND today/planning mode it was fetched
-      // for so date-sensitive rendering can tell a fresh result apart from
-      // keepPreviousData holding the previous request's rows. The mode matters
-      // on top of the date: when a selected future date rolls over to today at
-      // midnight, selectedDate is unchanged but the semantics flip from planning
-      // to live — the stale planning rows must not be shown under live presence
-      // badges and check-in controls (#1939).
-      return {
-        students,
-        requestDate: selectedDate,
-        requestIsToday: isToday,
-        truncatedTotal,
-      };
+      return fetchStudentSearch(filters, selectedDate, isToday);
     },
     {
       // Keep previous data while fetching (prevents loading flash)
@@ -1861,6 +1783,7 @@ function SearchPageContent() {
     updateUrlParams({
       ...Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
       [DATE_QUERY_PARAM]: "",
+      [SEARCH_QUERY_PARAM]: "",
     });
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
@@ -2453,7 +2376,7 @@ function SearchPageContent() {
       filters.push({
         id: "search",
         label: `"${searchTerm}"`,
-        onRemove: () => setSearchTerm(""),
+        onRemove: () => updateSearchTerm(""),
       });
     }
 
@@ -2482,7 +2405,7 @@ function SearchPageContent() {
     if (selectedSchoolClasses.length > 0) {
       filters.push({
         id: "schoolClass",
-        label: `Klasse ${selectedSchoolClasses.join(", ")}`,
+        label: schoolClassesLabel(selectedSchoolClasses),
         onRemove: () => updateSelectedSchoolClasses([]),
       });
     }
@@ -2629,6 +2552,7 @@ function SearchPageContent() {
     return filters;
   }, [
     searchTerm,
+    updateSearchTerm,
     selectedYears,
     selectedSchoolClasses,
     selectedGroupIds,
@@ -2709,7 +2633,66 @@ function SearchPageContent() {
     ],
   );
 
-  // Apply additional client-side filtering for attendance statuses and year
+  // These filters are applied after the backend result. The transit card uses
+  // the unfiltered loaded result because its target cannot apply these
+  // client-side filters.
+  const matchesNonStatusClientFilters = useCallback(
+    (student: Student) => {
+      if (
+        dayStatusFilter !== "all" &&
+        student.day_planning_status !== dayStatusFilter
+      ) {
+        return false;
+      }
+
+      // The school year (#2218), like bus / photo_consent / pickup_status below,
+      // is filtered server-side now, so the fetched page is already the filtered
+      // set and re-filtering here would only risk the two grammars drifting.
+
+      // bus / photo_consent / pickup_status (#1492) are filtered server-side now
+      // (see api/students applyAdministrativeFilters), so the page no longer
+      // re-filters them here. The fetched page is already the filtered set.
+
+      // Apply pickup time filter. For redacted students, missing pickup_time
+      // due to has_full_access=false is not the same as "no schedule")
+      if (pickupTimeFilter.length > 0) {
+        if (student.has_full_access === false) return false;
+        const matchesPickupTime = pickupTimeFilter.some((time) =>
+          time === "none"
+            ? !student.pickup_time && !student.pickup_is_exception
+            : student.pickup_time === time,
+        );
+        if (!matchesPickupTime) return false;
+      }
+
+      if (arrivalTimeFilter !== "all") {
+        if (student.has_full_access === false) return false;
+        if (arrivalTimeFilter === "none") {
+          if (student.arrival_time || student.arrival_is_exception)
+            return false;
+        } else if (student.arrival_time !== arrivalTimeFilter) {
+          return false;
+        }
+      }
+
+      if (
+        !matchesTrackingFilter(student, effectiveTrackingFilter, trackingData)
+      ) {
+        return false;
+      }
+
+      return true;
+    },
+    [
+      dayStatusFilter,
+      pickupTimeFilter,
+      arrivalTimeFilter,
+      effectiveTrackingFilter,
+      trackingData,
+    ],
+  );
+
+  // Apply additional client-side filtering for attendance statuses and year.
   const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter (neutralized for non-today planning dates)
     if (effectiveAttendanceFilter !== "all") {
@@ -2742,49 +2725,7 @@ function SearchPageContent() {
       }
     }
 
-    if (
-      dayStatusFilter !== "all" &&
-      student.day_planning_status !== dayStatusFilter
-    ) {
-      return false;
-    }
-
-    // The school year (#2218), like bus / photo_consent / pickup_status below,
-    // is filtered server-side now, so the fetched page is already the filtered
-    // set and re-filtering here would only risk the two grammars drifting.
-
-    // bus / photo_consent / pickup_status (#1492) are filtered server-side now
-    // (see api/students applyAdministrativeFilters), so the page no longer
-    // re-filters them here. The fetched page is already the filtered set.
-
-    // Apply pickup time filter. For redacted students, missing pickup_time
-    // due to has_full_access=false is not the same as "no schedule")
-    if (pickupTimeFilter.length > 0) {
-      if (student.has_full_access === false) return false;
-      const matchesPickupTime = pickupTimeFilter.some((time) =>
-        time === "none"
-          ? !student.pickup_time && !student.pickup_is_exception
-          : student.pickup_time === time,
-      );
-      if (!matchesPickupTime) return false;
-    }
-
-    if (arrivalTimeFilter !== "all") {
-      if (student.has_full_access === false) return false;
-      if (arrivalTimeFilter === "none") {
-        if (student.arrival_time || student.arrival_is_exception) return false;
-      } else if (student.arrival_time !== arrivalTimeFilter) {
-        return false;
-      }
-    }
-
-    if (
-      !matchesTrackingFilter(student, effectiveTrackingFilter, trackingData)
-    ) {
-      return false;
-    }
-
-    return true;
+    return matchesNonStatusClientFilters(student);
   });
 
   // Apply sort mode (name = stable A-Z; arrival/pickup = daily operational order)
@@ -2992,6 +2933,7 @@ function SearchPageContent() {
 
   const fromParam = useMemo(() => {
     const qs = new URLSearchParams();
+    if (searchTerm) qs.set(SEARCH_QUERY_PARAM, searchTerm);
     if (effectiveRoomId) {
       qs.set("room_id", effectiveRoomId);
       if (selectedRoomName) qs.set("room_name", selectedRoomName);
@@ -3022,6 +2964,7 @@ function SearchPageContent() {
       ? "/students/search"
       : encodeURIComponent(`/students/search?${qs.toString()}`);
   }, [
+    searchTerm,
     effectiveRoomId,
     selectedRoomName,
     selectedGroupIds,
@@ -3269,7 +3212,7 @@ function SearchPageContent() {
           rowsLoaded
             ? {
                 count: filteredStudents.length,
-                icon: <MotoConceptIcon concept="children" size={20} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={20} />,
               }
             : undefined
         }
@@ -3294,7 +3237,7 @@ function SearchPageContent() {
         desktopFiltersFrom="xl"
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: updateSearchTerm,
           placeholder: "Name suchen…",
           debounceMs: 300,
           resetKey: searchResetKey,
@@ -3446,6 +3389,22 @@ function SearchPageContent() {
             </div>
           )}
 
+          {/* Unterwegs-Kinder einem Raum zuweisen (#5026): wie auf „Räume“
+              führt die Karte zur Seite „Unterwegs“, der Rückweg zurück
+              hierher. Gezählt wird vor dem Statusfilter: Ein krank
+              gemeldetes Kind ohne Raum steht in der Liste unter „Krank“,
+              auf der Seite „Unterwegs“ aber mit. */}
+          <StudentSearchTransitCard
+            students={students}
+            show={
+              isToday &&
+              (effectiveAttendanceFilter === "unterwegs" ||
+                effectiveGroupMode === "status" ||
+                effectiveGroupMode === "room")
+            }
+            fromParam={fromParam}
+          />
+
           {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
           {/* In der Liste markieren die Kästchen; der Modus gehört zu den
@@ -3563,51 +3522,6 @@ function SearchPageContent() {
                 }
                 // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)
                 // und ersetzen den Inhalt dort.
-                // Preserve the URL-rehydrating filters in the back-link so stepping
-                // from the search page → child → back returns to the same operational
-                // view. Free-text search intentionally remains transient.
-                const buildFromParam = (() => {
-                  const qs = new URLSearchParams();
-                  if (effectiveRoomId) {
-                    qs.set("room_id", effectiveRoomId);
-                    if (selectedRoomName) qs.set("room_name", selectedRoomName);
-                  }
-                  if (selectedGroupIds.length > 0)
-                    qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
-                  if (selectedSchoolClasses.length > 0)
-                    qs.set(
-                      "school_class",
-                      encodeMultiValueParam(selectedSchoolClasses),
-                    );
-                  if (selectedYears.length > 0)
-                    qs.set("year", encodeMultiValueParam(selectedYears));
-                  if (effectiveAttendanceFilter !== "all")
-                    qs.set("status", effectiveAttendanceFilter);
-                  if (busFilter !== "all") qs.set("bus", busFilter);
-                  if (effectivePhotoConsentFilter !== "all")
-                    qs.set("photo_consent", effectivePhotoConsentFilter);
-                  if (pickupStatusFilter !== "all")
-                    qs.set("pickup_status", pickupStatusFilter);
-                  if (dayStatusFilter !== "all")
-                    qs.set("day_status", dayStatusFilter);
-                  if (!isToday) qs.set("date", selectedDate);
-                  if (pickupTimeFilter.length > 0)
-                    qs.set(
-                      "pickup_time",
-                      encodeMultiValueParam(pickupTimeFilter),
-                    );
-                  if (arrivalTimeFilter !== "all")
-                    qs.set("arrival_time", arrivalTimeFilter);
-                  if (effectiveTrackingFilter !== "all")
-                    qs.set("tracking", effectiveTrackingFilter);
-                  if (sortMode !== "name") qs.set("sort", sortMode);
-                  if (effectiveGroupMode !== "none")
-                    qs.set("view", effectiveGroupMode);
-                  if (qs.size === 0) return "/students/search";
-                  return encodeURIComponent(
-                    `/students/search?${qs.toString()}`,
-                  );
-                })();
                 const _renderStudentCard = (student: Student) => {
                   const checkinState = deriveCheckinState(
                     student.current_location,
@@ -3626,9 +3540,7 @@ function SearchPageContent() {
                       lastName={student.second_name}
                       photoUrl={student.photo_url ?? null}
                       onClick={() =>
-                        router.push(
-                          `/students/${student.id}?from=${buildFromParam}`,
-                        )
+                        router.push(`/students/${student.id}?from=${fromParam}`)
                       }
                       checkinMode={
                         checkinModeAvailable && schoolCheckin.isActive

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestQueryBudgetRatchet is the source-level half of the query-budget gate
@@ -16,7 +18,7 @@ import (
 //
 // Two checks, both with empty allowlists:
 //
-//   - Register ↔ tests: every entry in queryBudgets is referenced by an
+//   - Register ↔ tests: every registered entry is referenced by an
 //     AssertQueryBudget call with its scenario name, and every referenced
 //     scenario is registered. A stale entry or a typo fails here instead of
 //     at runtime.
@@ -29,7 +31,7 @@ func TestQueryBudgetRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 
@@ -38,17 +40,19 @@ func TestQueryBudgetRatchet(t *testing.T) {
 		t.Fatalf("query budget scan failed: %v", err)
 	}
 
+	registered := make(map[string]bool)
 	var violations []string
-	for _, scenario := range QueryBudgetScenarios() {
+	for _, scenario := range querybudgets.QueryBudgetScenarios() {
+		registered[scenario] = true
 		if len(refs[scenario]) == 0 {
 			violations = append(violations, fmt.Sprintf(
-				"[register] %q is registered in test/query_budgets.go but no test calls AssertQueryBudget with it.\n  Remove the entry or add the test.", scenario))
+				"[register] %q is registered in test/query-budgets/ but no test calls AssertQueryBudget with it.\n  Remove the entry or add the test.", scenario))
 		}
 	}
 	for scenario, files := range refs {
-		if _, ok := queryBudgets[scenario]; !ok {
+		if !registered[scenario] {
 			violations = append(violations, fmt.Sprintf(
-				"[register] %q is used in %s but not registered.\n  Add it to queryBudgets in test/query_budgets.go with the measured count.",
+				"[register] %q is used in %s but not registered.\n  Add it to test/query-budgets/ with the measured count.",
 				scenario, strings.Join(files, ", ")))
 		}
 	}

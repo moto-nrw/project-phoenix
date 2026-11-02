@@ -1,0 +1,17 @@
+{
+  "title": "Përdorni moto si aplikacion",
+  "samsungDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome dhe hyni aty.",
+  "samsungStep": "Pastaj zgjidhni në menunë e Chrome",
+  "samsungFallback": "Nëse kjo nuk funksionon, hapni Chrome dhe shkoni te {host}.",
+  "oneTapDescription": "Instaloni moto direkt nga kjo faqe. moto hapet gjithmonë në ekran të plotë, pa shirit shfletuesi.",
+  "iosBefore": "Në Safari prekni",
+  "iosBetween": "pastaj",
+  "androidBefore": "Hapni menunë e shfletuesit dhe prekni",
+  "androidOr": "ose",
+  "share": "Ndaj",
+  "homeScreen": "Shto në ekranin kryesor",
+  "install": "Instalo aplikacionin",
+  "addToHome": "Shto në ekranin kryesor",
+  "openInChrome": "Hap në Chrome",
+  "close": "Mbyll njoftimin"
+}

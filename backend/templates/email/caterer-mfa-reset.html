@@ -1,0 +1,17 @@
+{{define "caterer-mfa-reset.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Ihre Zwei-Faktor-Anmeldung wurde zurückgesetzt</h1>
+    <p>Hallo,</p>
+    <p>das moto-Team hat am {{.ResetAt}} die Zwei-Faktor-Anmeldung Ihres Caterer-Kontos ausgeschaltet. Auch Ihre gemerkten Geräte sind gelöscht.</p>
+    <p>Sie melden sich jetzt wieder nur mit E-Mail-Adresse und Passwort an. Ihre Passkeys bleiben erhalten.</p>
+    <p>Sie können die Zwei-Faktor-Anmeldung jederzeit wieder einschalten: im Caterer-Portal unter <em>„Konto“</em>.</p>
+
+    <p class="security-note"><strong>Haben Sie das nicht beauftragt?</strong></p>
+    <p>Dann ändern Sie bitte sofort Ihr Passwort und melden Sie sich beim moto-Team.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

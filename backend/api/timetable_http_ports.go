@@ -313,6 +313,7 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 		result[template.TemplateID] = timetable.TemplateRosterMaintenance{
 			Mode:                  string(derived.Mode),
 			Offerings:             timetableOfferingRefs(derived.Offerings),
+			LinkedOfferingIDs:     derived.LinkedOfferingIDs,
 			GradeLevels:           derived.GradeLevels,
 			SchoolClasses:         derived.SchoolClasses,
 			InactiveOfferings:     timetableOfferingRefs(derived.InactiveOfferings),
@@ -339,17 +340,35 @@ func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, c
 			grade = &value
 		}
 		result = append(result, timetable.OfferingWeekdayBooking{
-			OfferingID:    booking.OfferingID,
-			OfferingName:  booking.OfferingName,
-			StudentID:     booking.StudentID,
-			SchoolClass:   booking.SchoolClass,
-			GradeLevel:    grade,
-			Weekdays:      booking.Weekdays,
-			CountsAsCare:  booking.CountsAsCare,
-			IncludesLunch: booking.IncludesLunch,
+			OfferingID:            booking.OfferingID,
+			OfferingName:          booking.OfferingName,
+			PhaseID:               booking.PhaseID,
+			HolidayPhase:          booking.HolidayPhase,
+			StudentID:             booking.StudentID,
+			SchoolClass:           booking.SchoolClass,
+			GradeLevel:            grade,
+			Weekdays:              booking.Weekdays,
+			CountsAsCare:          booking.CountsAsCare,
+			IncludesLunch:         booking.IncludesLunch,
+			TemplateGapAckClasses: booking.TemplateGapAckClasses,
+			ClassDayApplies:       booking.ClassDayApplies,
+			PickupTimes:           booking.PickupTimes,
+			Windows:               timetableBookingWindows(booking.Windows),
 		})
 	}
 	return result, nil
+}
+
+// timetableBookingWindows translates the validity of each booking link
+// (#5140).
+func timetableBookingWindows(windows []careplan.OfferingBookingWindow) []timetable.OfferingBookingWindow {
+	result := make([]timetable.OfferingBookingWindow, 0, len(windows))
+	for _, window := range windows {
+		result = append(result, timetable.OfferingBookingWindow{
+			ValidFrom: window.ValidFrom, ValidUntil: window.ValidUntil, Weekdays: window.Weekdays, Ended: window.Ended,
+		})
+	}
+	return result
 }
 
 func timetableOfferingRefs(offerings []careplan.RosterMaintenanceOffering) []timetable.OfferingRef {

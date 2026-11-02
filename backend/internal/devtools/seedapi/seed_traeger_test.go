@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 
 	var mu sync.Mutex
 	requests := map[string]seedTraegerRequest{}
-	var invitations, assignments []map[string]any
+	var invitations, assignments, operatorInvitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		raw, err := io.ReadAll(r.Body)
@@ -41,6 +42,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 		}
 		if r.URL.Path == "/operator/organizations/12/traeger-members" {
 			assignments = append(assignments, body)
+		}
+		if r.URL.Path == "/operator/organizations/12/traeger-members/invitations" {
+			operatorInvitations = append(operatorInvitations, body)
 		}
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -68,9 +72,13 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assign := requests["/operator/organizations/12/traeger-members"]
 	assert.Equal(t, "Bearer operator-token", assign.authorization)
 	assert.Equal(t, []map[string]any{
-		{"email": "admin@example.test", "role": "administration"},
-		{"email": "admin@example.test", "role": "billing"},
-	}, assignments, "the admin holds the Verwaltung and the Abrechnung")
+		{"email": "admin@example.test", "roles": []any{"administration", "leadership", "school_access", "billing"}},
+	}, assignments, "the admin holds Verwaltung, Leitung, Schulzugang and Abrechnung, granted in one assignment")
+	operatorInvite := requests["/operator/organizations/12/traeger-members/invitations"]
+	assert.Equal(t, "Bearer operator-token", operatorInvite.authorization, "the moto team invites with the operator session")
+	assert.Equal(t, []map[string]any{
+		{"email": "petra.hoffmann@ganztag-nord.example", "roles": []any{"administration", "billing"}},
+	}, operatorInvitations, "the operator invites a person without a moto account, with two roles at once")
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
@@ -79,7 +87,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assert.Equal(t, []map[string]any{
 		{"email": "jana.krause@ganztag-nord.example", "roles": []any{"billing"}},
 		{"email": "tobias.engel@ganztag-nord.example", "roles": []any{"personnel"}},
-	}, invitations, "one colleague per role besides the Verwaltung, with personal addresses")
+	}, invitations, "one colleague per role besides the Verwaltung and the Leitung, with personal addresses")
 	assert.Equal(t, tenantAuth, client.auth, "the step restores the client's own session")
 }
 
@@ -90,6 +98,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	var period map[string]any
 	var registrations []map[string]any
 	var correction, release map[string]any
+	var proofs int
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
@@ -107,6 +116,10 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		case "/traeger/holiday-periods/5/publish":
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
+		case "/traeger/holiday-registrations/link-key/uploads":
+			proofs++
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"token":"proof-token"}}`))
 		case "/traeger/holiday-registrations/link-key":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -149,6 +162,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/contribution-rules/ Bearer traeger-token",
 		"POST /traeger/holiday-quotes/link-key ",
 		"POST /traeger/holiday-registrations/link-key ",
+		"POST /traeger/holiday-registrations/link-key/uploads ",
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
@@ -188,6 +202,10 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, children[0].(map[string]any)["birth_date"], duplicateChildren[0].(map[string]any)["birth_date"],
 		"same name and date of birth: a possible duplicate")
 	assert.Equal(t, []any{map[string]any{"week_id": float64(52), "time_model_id": float64(63)}}, duplicateChildren[0].(map[string]any)["bookings"])
+	assert.Equal(t, 1, proofs, "the second parent uploads the proof of benefits through the public link")
+	assert.Equal(t, true, duplicate["benefits_declared"])
+	assert.Equal(t, []any{"proof-token"}, duplicate["benefits_proof_tokens"], "the registration names the uploaded proof")
+	assert.Nil(t, registration["benefits_proof_tokens"], "the siblings send no proof")
 }
 
 // The Träger plans the two Herbstferien weeks the school plans around, under
@@ -268,6 +286,9 @@ func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
 				case "/traeger/holiday-periods/5/publish":
 					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 						`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63}]}]}}`))
+				case "/traeger/holiday-registrations/link-key/uploads":
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":"success","data":{"token":"proof-token"}}`))
 				case "/parent/auth/login":
 					_, _ = w.Write([]byte(`{"status":"success","data":{"access_token":"parent-token"}}`))
 				case "/parent/holiday-registrations/link-key/family":
@@ -333,6 +354,9 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 				case "/api/holiday-weeks/51/participants":
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 					_, _ = w.Write([]byte(`{"status":"success","data":{"participants":[]}}`))
+				case "/traeger/holiday-registrations/link-key/uploads":
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":"success","data":{"token":"proof-token"}}`))
 				case "/api/holiday-weeks/51/guest-group":
 					// The holiday guests join the new group (#4666).
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
@@ -425,12 +449,13 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		case "/traeger/holiday-periods/5/publish":
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
-		case "/traeger/holiday-registrations/link-key", "/traeger/holiday-quotes/link-key":
-			// The public registration of the holiday step (#4661) and its
-			// contribution (#4664) have no session by design; they are no
-			// Träger requests of the shared one.
+		case "/traeger/holiday-registrations/link-key", "/traeger/holiday-quotes/link-key", "/traeger/holiday-registrations/link-key/uploads":
+			// The public registration of the holiday step (#4661), its
+			// contribution (#4664) and its proof of benefits (#5238) have no
+			// session by design; they are no Träger requests of the shared
+			// one.
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"token":"proof-token"}}`))
 			return
 		case "/traeger/billing-runs/5", "/traeger/billing-runs/5/corrections":
 			// The billing run of the holiday step (#4668) checks one invoice.
@@ -438,7 +463,7 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
 		}
-		if r.URL.Path != "/operator/organizations/12/traeger-members" {
+		if !strings.HasPrefix(r.URL.Path, "/operator/organizations/12/traeger-members") {
 			traegerAuthorizations = append(traegerAuthorizations, r.Header.Get("Authorization"))
 		}
 	})

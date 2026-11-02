@@ -114,8 +114,8 @@ type ParentMessageThreadRepository interface {
 	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
 	ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error)
 	FindByID(ctx context.Context, id int64) (*communication.PortalParentMessageThread, error)
-	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error)
-	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error)
+	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error)
+	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error)
 	ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*communication.ParentGuardianRecipient, error)
 	ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }
@@ -133,12 +133,12 @@ type MessageReadCommands interface {
 	ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error)
 }
 type MessageInboxQueries interface {
-	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*communication.PortalInboxThread, error)
-	ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error)
+	ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error)
+	ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error)
 	ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error)
 	ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error)
-	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
-	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
+	UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach) (int, error)
+	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, groupIDs []int64) (int, error)
 	UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
 	FindThreadHeader(ctx context.Context, threadID int64) (*communication.ParentThreadHeaderRecord, error)
 	LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*communication.ParentReadCursorRecord, error)

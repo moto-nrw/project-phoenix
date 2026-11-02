@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -29,17 +30,19 @@ type HolidayHostResource struct {
 	participants  capability.HolidayHostParticipants
 	schoolNames   capability.HolidayHostSchoolNames
 	requireRead   common.Middleware
+	requireHealth common.Middleware
 	guests        capability.HolidayGuests
 	requireAssign common.Middleware
 }
 
 // NewHolidayHostResource builds the routes. requireRead is the school
-// permission that opens the participant lists.
-func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireRead common.Middleware) *HolidayHostResource {
-	if participants == nil || schoolNames == nil || requireRead == nil {
-		panic("enrollment holiday host resource: participants, school names and the permission are required")
+// permission that opens the participant lists; requireHealth the one that
+// opens the health information of a child of the school (#4722).
+func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireRead, requireHealth common.Middleware) *HolidayHostResource {
+	if participants == nil || schoolNames == nil || requireRead == nil || requireHealth == nil {
+		panic("enrollment holiday host resource: participants, school names and the permissions are required")
 	}
-	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireRead: requireRead}
+	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireRead: requireRead, requireHealth: requireHealth}
 }
 
 // Router mounts the routes behind the school session.
@@ -51,6 +54,7 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 		read := r.With(rs.requireRead, rs.withSchoolNames, withTx)
 		read.Get("/{weekId}/participants", rs.getParticipants)
 		read.Get("/{weekId}/participants/export", rs.exportParticipants)
+		r.With(rs.requireHealth, withTx).Get("/students/{studentId}/health", rs.getStudentHealth)
 		if rs.guests != nil {
 			r.With(rs.requireRead, rs.requireAssign, withTx).Put("/{weekId}/guest-group", rs.assignGuestGroup)
 		}
@@ -65,7 +69,10 @@ func hostOf(w http.ResponseWriter, r *http.Request) (capability.HolidayHost, boo
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return capability.HolidayHost{}, false
 	}
-	return capability.HolidayHost{SchoolID: principal.TenantID(), AccountID: principal.AccountID(), Role: actorRoleFromClaims(principal.Roles())}, true
+	return capability.HolidayHost{
+		SchoolID: principal.TenantID(), AccountID: principal.AccountID(), Role: actorRoleFromClaims(principal.Roles()),
+		ReadsHealth: principal.HasPermission(permissions.UsersRead),
+	}, true
 }
 
 func (rs *HolidayHostResource) listWeeks(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +107,7 @@ type holidayParticipantListResponse struct {
 	Week         capability.HostedHolidayWeek       `json:"week"`
 	TimeModels   []capability.HolidayTimeModelCount `json:"time_models"`
 	HomeSchools  []holidayHomeSchoolResponse        `json:"home_schools"`
+	Questions    []capability.HolidayHostQuestion   `json:"questions"`
 	Participants []holidayParticipantResponse       `json:"participants"`
 }
 
@@ -115,7 +123,7 @@ func (rs *HolidayHostResource) getParticipants(w http.ResponseWriter, r *http.Re
 	}
 	names := hostSchoolNames(r.Context())
 	response := holidayParticipantListResponse{
-		Week: list.Week, TimeModels: list.TimeModels,
+		Week: list.Week, TimeModels: list.TimeModels, Questions: list.Questions,
 		HomeSchools:  make([]holidayHomeSchoolResponse, len(list.HomeSchools)),
 		Participants: make([]holidayParticipantResponse, len(list.Participants)),
 	}
@@ -158,6 +166,27 @@ func (rs *HolidayHostResource) exportParticipants(w http.ResponseWriter, r *http
 	_, _ = w.Write(file.Data)
 }
 
+// getStudentHealth answers GET /students/{studentId}/health: what the
+// confirmed registrations of the weeks the school hosts give as health
+// information for its own child (#4722), empty without any.
+func (rs *HolidayHostResource) getStudentHealth(w http.ResponseWriter, r *http.Request) {
+	host, ok := hostOf(w, r)
+	if !ok {
+		return
+	}
+	studentID, err := common.ParseIDParam(r, "studentId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	entries, err := rs.participants.HolidayStudentHealth(r.Context(), host, studentID)
+	if err != nil {
+		renderHolidayHostError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, entries, "Holiday registration health information retrieved successfully")
+}
+
 func hostedWeekKey(w http.ResponseWriter, r *http.Request) (capability.HolidayHost, int64, bool) {
 	host, ok := hostOf(w, r)
 	if !ok {
@@ -176,6 +205,10 @@ func hostedWeekKey(w http.ResponseWriter, r *http.Request) (capability.HolidayHo
 func renderHolidayHostError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, capability.ErrHostedHolidayWeekNotFound) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHostedHolidayWeekNotFound))
+		return
+	}
+	if errors.Is(err, capability.ErrHolidayStudentNotFound) {
+		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
 	common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -240,6 +273,37 @@ var holidayParticipantColumns = []lists.Column{
 	{ID: "time_model", Label: "Zeitmodell"},
 }
 
+// holidayParticipantExtraColumns adds to the minimum fields the second
+// guardian, when a child has one, and one column per shared question
+// (#5202). A list without either keeps exactly the columns of before.
+func holidayParticipantExtraColumns(list capability.HolidayParticipantList) []lists.Column {
+	columns := append([]lists.Column{}, holidayParticipantColumns...)
+	for _, participant := range list.Participants {
+		if participant.SecondGuardian != nil {
+			columns = append(columns,
+				lists.Column{ID: "second_guardian", Label: "Zweite sorgeberechtigte Person"},
+				lists.Column{ID: "second_guardian_phone", Label: "Telefon zweite sorgeberechtigte Person"})
+			break
+		}
+	}
+	for _, question := range list.Questions {
+		columns = append(columns, lists.Column{ID: hostAnswerColumnID(question.Key), Label: lists.SanitizeUserText(question.Label)})
+	}
+	return columns
+}
+
+// hostAnswerText is a shared answer as a cell, written like the Träger's
+// export writes it; empty without an answer. A selection arrives as the
+// label of its option already.
+func hostAnswerText(answer capability.HolidayHostAnswer) string {
+	if len(answer.Value) == 0 || string(answer.Value) == "null" {
+		return ""
+	}
+	return holidayAnswerText(capability.HolidayFormField{FormField: capability.FormField{Key: answer.Key, Type: answer.Type}}, answer.Value)
+}
+
+func hostAnswerColumnID(key string) lists.ColumnID { return lists.ColumnID("answer." + key) }
+
 // holidayParticipantDocument is the export of a participant list: one row
 // per child, the counts per time model and home school as header lines.
 func holidayParticipantDocument(list capability.HolidayParticipantList, names holidaySchoolNameMap) lists.Document {
@@ -260,6 +324,13 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 			"birth_date": participant.BirthDate.Format("02.01.2006"), "home_school": names.participantSchool(participant),
 			"time_model": models[participant.TimeModelID],
 		}
+		if participant.SecondGuardian != nil {
+			values["second_guardian"] = participant.SecondGuardian.Name
+			values["second_guardian_phone"] = participant.SecondGuardian.Phone
+		}
+		for _, answer := range participant.Answers {
+			values[hostAnswerColumnID(answer.Key)] = hostAnswerText(answer)
+		}
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
 		}
@@ -267,7 +338,7 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 	}
 	return lists.Document{
 		Title: "Teilnehmerliste", Subtitle: list.Week.PeriodName, GeneratedAt: time.Now(),
-		Filters: header, Columns: holidayParticipantColumns, Rows: rows,
+		Filters: header, Columns: holidayParticipantExtraColumns(list), Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
 }

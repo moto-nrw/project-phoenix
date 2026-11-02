@@ -1,0 +1,81 @@
+{
+  "packages": [
+    {
+      "path": "database/migrations",
+      "owner": "migrations",
+      "role": "migration",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "active.presence_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "platform.storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.students_guardians_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "auth.parent_declaration_permission_grants",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.student_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.student_compatibility_writes",
+      "write_owner": "migrations"
+    }
+  ],
+  "rules": [
+    {
+      "id": "migrations.security-runtime.compose",
+      "description": "The health data migration (#4722) seals existing holiday registrations with the field cipher Security Runtime composes, the same one the server opens them with.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "migrations",
+      "source_role": "migration",
+      "target_owner": "security-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "migrations.internal-test.security-runtime.compose",
+      "description": "The test of the health data migration (#4722) opens what it sealed with the same field cipher.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "migrations",
+      "source_role": "module-internal-test",
+      "target_owner": "security-runtime",
+      "target_role": "compose"
+    }
+  ]
+}

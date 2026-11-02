@@ -20,9 +20,12 @@ type sseConnection[E Event, C Client[E]] struct {
 	accountID int64
 	tenantID  int64
 	isAdmin   bool
-	client    C
-	topics    *sseTopics
-	logger    *slog.Logger
+	// readsLeadership marks a staff connection that hears about leadership
+	// parent conversations (#5200).
+	readsLeadership bool
+	client          C
+	topics          *sseTopics
+	logger          *slog.Logger
 }
 
 // sseTopics holds subscription topic information
@@ -116,6 +119,7 @@ func (conn *sseConnection[E, C]) sendHeartbeat() error {
 // createAndRegisterClient creates the SSE client and registers it with the hub
 func (rs *Resource[E, C]) createAndRegisterClient(conn *sseConnection[E, C]) {
 	conn.client = rs.runtime.NewClient(make(chan E, 32), conn.staffID, conn.accountID, conn.tenantID, conn.isAdmin, make(map[string]bool))
+	conn.client.MarkReadsLeadershipMessages(conn.readsLeadership)
 	rs.hub.Register(conn.client, conn.tenantID, conn.topics.allTopics)
 }
 
@@ -165,7 +169,7 @@ func (conn *sseConnection[E, C]) sendEvent(event E) error {
 	return conn.writeSSEMessage(event.SSEType(), eventData)
 }
 
-// Registered class codes (error-registry.json) of the stream's refusals.
+// Registered class codes (error-registry/) of the stream's refusals.
 // This package may not import api/common, so it names them once here.
 const (
 	codeGeneralPermission  = "general.permission"

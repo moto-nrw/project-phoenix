@@ -122,7 +122,7 @@ func (c *CareOfferingCatalog) UpdateOffering(ctx context.Context, offering carep
 	if err := c.replaceTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return careplan.CareOffering{}, err
 	}
-	if err := c.resyncSourcedTemplates(ctx, offering.ID); err != nil {
+	if err := c.resyncSourcedTemplates(ctx, updated); err != nil {
 		return careplan.CareOffering{}, err
 	}
 	if err := c.resyncPickupProjection(ctx, offering.ID); err != nil {
@@ -369,17 +369,25 @@ func (c *CareOfferingCatalog) resyncPickupProjection(ctx context.Context, offeri
 // resyncSourcedTemplates re-reconciles every template sourcing this offering
 // after an update (#2147 review): changed days or a moved phase change the
 // wanted roster, and the sourced rows plus already-materialized occurrences
-// follow immediately. An edit that makes the source incompatible with a
-// template's planning period is rejected (#2147 review round 7). Runs under
-// the recurrence lock the update holds; history before today stays untouched.
-func (c *CareOfferingCatalog) resyncSourcedTemplates(ctx context.Context, offeringID int64) error {
-	if err := c.deps.SourcedTemplates.ResyncTemplatesSourcedFromOffering(ctx, offeringID, c.todayDate()); err != nil {
+// follow immediately. An inactive source contributes nothing while another
+// stays valid, so deactivating one of several sources is accepted (#5313).
+// An edit that leaves a template without a valid source (its last active
+// source switched off, mixed phases, a phase outside the template's period)
+// is rejected and names the offering and the template (#2147 review round 7,
+// #5313). Runs under the recurrence lock the update holds; history before
+// today stays untouched.
+func (c *CareOfferingCatalog) resyncSourcedTemplates(ctx context.Context, offering careplan.CareOffering) error {
+	if err := c.deps.SourcedTemplates.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, c.todayDate()); err != nil {
 		if c.deps.SourceRules.IsRejection(err) {
 			// The tenant transaction commits ordinary 4xx responses. Mark it
 			// so the already-written offering update is discarded together
 			// with the rejection.
 			c.deps.MarkRollback(ctx)
-			return fmt.Errorf("%w: %w", careplan.ErrCareOfferingConfigInvalid, err)
+			invalid := fmt.Errorf("%w: %w", careplan.ErrCareOfferingConfigInvalid, err)
+			if conflict := careplan.CareOfferingSourceConflict(offering.Name, invalid); conflict != nil {
+				return conflict
+			}
+			return invalid
 		}
 		return fmt.Errorf("care offering update: resync sourced templates: %w", err)
 	}

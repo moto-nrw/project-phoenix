@@ -106,13 +106,8 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			return nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	membership, err := NewStudentHTTPTestMembership(store)
+	usages, err := newStudentHTTPTestChildQuota(store)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
-	}
-	usages, ok := membership.(schoolmembership.ChildQuotaUsages)
-	if !ok {
-		err = errors.New("school membership does not expose child quota usage")
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	people, care, projection, status, deletion, review := NewStudentHTTPResources(
@@ -132,7 +127,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		careStudentsHTTP.ResourceConfig{
 			ArrivalScheduleService: live.ArrivalSchedule,
 			Broadcaster:            broadcaster,
-			CareLifecycleService:   lifecycle, CareResumption: resumption,
+			CareLifecycleService:   lifecycle, CareResumption: resumption, CareExitRestoration: lifecycle,
 			CareRequestReviews:       careReviews,
 			CareRequestService:       svc.CareRequests,
 			CompanionService:         NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
@@ -156,6 +151,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			WeekdayPickupNotes:       students.CarePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
+			PrivacyConsents:        presence,
 			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(livePeople)),
 			ActiveService:          livePresence.Active,
 			ArrivalScheduleService: live.ArrivalSchedule,
@@ -220,6 +216,18 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	return people, care, projection, status, deletion, review, router, nil
 
 }
+func newStudentHTTPTestChildQuota(store transactionruntime.Database) (schoolmembership.ChildQuotaUsages, error) {
+	membership, err := NewStudentHTTPTestMembership(store)
+	if err != nil {
+		return nil, err
+	}
+	usages, ok := membership.(schoolmembership.ChildQuotaUsages)
+	if !ok {
+		return nil, errors.New("school membership does not expose child quota usage")
+	}
+	return usages, nil
+}
+
 func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTestModule, live *owners.CallerRows, liveSettings ActiveSettings, peopleServices StudentTestPeople, studentRows carePlanCompose.StudentDirectory, clock func() time.Time) (requestreview.Query, careplan.CareScheduleReviewQuery, error) {
 	reviewGroups, err := owners.NewSchoolStructure(store)
 	if err != nil {
