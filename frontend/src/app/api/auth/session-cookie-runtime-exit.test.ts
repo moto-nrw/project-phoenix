@@ -1,5 +1,6 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -29,6 +30,10 @@ import { parentAuthConfig } from "~/server/auth/parent-config";
 import { schoolAuthConfig } from "~/server/auth/school-config";
 import { traegerAuthConfig } from "~/server/auth/traeger-config";
 import { setTestClock } from "~/test/clock";
+import { randomUUID } from "node:crypto";
+import { LOCALE_COOKIE_NAME } from "~/i18n/locales";
+import { operatorInvitationCookieName } from "~/lib/operator/operator-invitation-session.server";
+import { DEMO_TOKEN_COOKIE } from "../demo/access/forward";
 import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
 
 // #5520: invariant I1 of #5399 at run time. Whatever code builds a response,
@@ -523,28 +528,51 @@ describe("the lock at the server's exit", () => {
 
 // #5520 re-check: Auth.js' SessionStore (also behind getToken) takes every
 // cookie whose name starts with the configured name as a session chunk. The
-// lock treats a superset of those names as session cookies, and only the
-// names Auth.js writes can be approved.
+// lock treats exactly those names (behind any __Secure-/__Host- prefix) as
+// session cookies, and only the names Auth.js writes can be approved.
 describe("session cookie names at the exit", () => {
-  /** Every configured session cookie name of the six portals. */
+  const TENANT_DOMAIN = "moto-app.de";
+  /** Every configured session cookie name, the tenant one for TENANT_DOMAIN. */
   const CONFIGURED = [
     catererAuthConfig.cookies.sessionToken.name,
     operatorAuthConfig.cookies.sessionToken.name,
     parentAuthConfig.cookies.sessionToken.name,
     schoolAuthConfig.cookies.sessionToken.name,
     traegerAuthConfig.cookies.sessionToken.name,
-    // Tenant: derived from TENANT_DOMAIN, Auth.js' default on localhost.
     "moto-app-de.session-token",
     "authjs.session-token",
-    "__Secure-authjs.session-token",
-    "__Host-authjs.session-token",
   ];
+  const PREFIXES = ["", "__Secure-", "__Host-", "__secure-", "__HOST-"];
   /** Names a reader takes for the session next to the configured name. */
-  const READER_SUFFIXES = [".evil", "_shadow", ".0extra", ".0.1", "x", "-1"];
+  const READER_SUFFIXES = [
+    "",
+    ".0",
+    ".evil",
+    "_shadow",
+    ".0extra",
+    ".0.1",
+    "x",
+    "-1",
+    ".evil.session-token",
+    "-x.session-token",
+  ];
+  const PROBES = CONFIGURED.flatMap((base) =>
+    PREFIXES.flatMap((prefix) =>
+      READER_SUFFIXES.map((suffix) => `${prefix}${base}${suffix}`),
+    ),
+  );
+  let tenantDomain: string | undefined;
+  beforeEach(() => {
+    tenantDomain = env.TENANT_DOMAIN;
+    (env as { TENANT_DOMAIN?: string }).TENANT_DOMAIN = TENANT_DOMAIN;
+  });
+  afterEach(() => {
+    (env as { TENANT_DOMAIN?: string }).TENANT_DOMAIN = tenantDomain;
+  });
 
   it("a reader takes a cookie whose name only starts with the session name", async () => {
     const value = await sealed();
-    for (const suffix of READER_SUFFIXES.filter((s) => s !== ".0.1")) {
+    for (const suffix of ["", ".evil", "_shadow", ".0extra", "x", "-1"]) {
       const token = await getToken({
         req: { headers: { cookie: `${NAME}${suffix}=${value}` } },
         secret: env.NEXTAUTH_SECRET,
@@ -556,42 +584,49 @@ describe("session cookie names at the exit", () => {
     }
   });
 
-  it("treats every name a reader accepts as a session cookie, approves only written names", () => {
+  it("knows every configured name, also the tenant one for TENANT_DOMAIN", async () => {
+    vi.resetModules();
+    vi.doMock("~/env", async () => ({
+      env: { ...env, TENANT_DOMAIN },
+    }));
+    try {
+      const { tenantAuthConfig } = await import("~/server/auth/tenant-config");
+      const tenant = (
+        tenantAuthConfig.cookies as { sessionToken?: { name: string } }
+      ).sessionToken?.name;
+      expect(tenant).toBe("moto-app-de.session-token");
+    } finally {
+      vi.doUnmock("~/env");
+      vi.resetModules();
+    }
     for (const base of CONFIGURED) {
       expect(isWrittenSessionCookieName(base), base).toBe(true);
       expect(isWrittenSessionCookieName(`${base}.0`), base).toBe(true);
       expect(isWrittenSessionCookieName(`${base}.12`), base).toBe(true);
-      for (const suffix of READER_SUFFIXES) {
-        expect(isSessionCookieName(`${base}${suffix}`), base + suffix).toBe(
-          true,
-        );
-        expect(
-          isWrittenSessionCookieName(`${base}${suffix}`),
-          base + suffix,
-        ).toBe(false);
-      }
-      expect(isSessionCookieName(base.toUpperCase()), base).toBe(true);
+      expect(isWrittenSessionCookieName(`__Secure-${base}`), base).toBe(true);
     }
   });
 
-  it.each([
-    ...READER_SUFFIXES.map((suffix) => `${NAME}${suffix}`),
-    `__Secure-${NAME}`,
-    `__Host-${NAME}.evil`,
-    `__secure-${NAME}`,
-    `__HOST-${NAME}`,
-    "__Secure-authjs.session-token.evil",
-    "PARENT.SESSION-TOKEN",
-    `${NAME}.evil.session-token`,
-    `${NAME}-x.session-token`,
-  ])("drops %s written past the gate", async (name) => {
+  it(`treats all ${PROBES.length} reader names as session cookies, approves only written ones`, () => {
+    for (const name of PROBES) {
+      expect(isSessionCookieName(name), name).toBe(true);
+      const suffix = READER_SUFFIXES.find((s) => s && name.endsWith(s));
+      if (suffix && suffix !== ".0")
+        expect(isWrittenSessionCookieName(name), name).toBe(false);
+    }
+  });
+
+  it("drops every reader name written past the gate", async () => {
     const value = await sealed();
-    rawRoutes.set("/name", (res) => {
-      res.setHeader("Set-Cookie", [`${name}=${value}; Path=/`, "other=1"]);
+    rawRoutes.set("/names", (res) => {
+      res.setHeader("Set-Cookie", [
+        ...PROBES.map((name) => `${name}=${value}; Path=/`),
+        "other=1",
+      ]);
       res.end();
     });
 
-    expect(await setCookiesAt("/name")).toEqual(["other=1"]);
+    expect(await setCookiesAt("/names")).toEqual(["other=1"]);
   });
 
   it.each([".evil", "_shadow", ".0extra", ".0.1", ".evil.session-token"])(
@@ -622,22 +657,65 @@ describe("session cookie names at the exit", () => {
     expect(await setCookiesAt("/clear")).toEqual(lines);
   });
 
-  it("leaves cookies with similar names alone", async () => {
-    const lines = [
-      "parent.session=1",
-      "parent.session_token=1",
-      "parent.sessiontoken=1",
-      "parent.session-tok=1",
-      "parent-session.token=1",
-      "session=1",
-      "token=1",
-      "moto-demo-token=1",
+  it("leaves foreign cookies with similar names alone", async () => {
+    const value = await sealed();
+    const names = [
+      "parent-session-token",
+      "xparent.session-token",
+      "session-token",
+      "PARENT.SESSION-TOKEN",
+      "Parent.session-token",
+      "my.session-token",
+      "__Secure-session-token",
+      "parent.session",
+      "parent.session_token",
+      "parent.sessiontoken",
+      "parent.session-tok",
+      "moto-app.session-token",
+      "authjs.session",
     ];
+    const lines = names.map((name) => `${name}=${value}; Path=/`);
     rawRoutes.set("/similar", (res) => {
       res.setHeader("Set-Cookie", lines);
       res.end();
     });
 
     expect(await setCookiesAt("/similar")).toEqual(lines);
+  });
+
+  it("leaves every other cookie of the app alone", async () => {
+    const portals = [
+      "caterer",
+      "operator",
+      "parent",
+      "school",
+      "traeger",
+      "moto-app-de",
+    ];
+    const names = [
+      ...portals.flatMap((p) => [`${p}.callback-url`, `${p}.csrf-token`]),
+      // Auth.js' defaults of the tenant portal on localhost and https.
+      "authjs.csrf-token",
+      "__Host-authjs.csrf-token",
+      "authjs.callback-url",
+      "__Secure-authjs.callback-url",
+      "authjs.pkce.code_verifier",
+      "authjs.state",
+      "authjs.nonce",
+      "authjs.challenge",
+      LOCALE_COOKIE_NAME,
+      DEMO_TOKEN_COOKIE,
+      operatorInvitationCookieName(randomUUID()),
+      // The backend's trusted device (TrustedDeviceCookieName).
+      "mfa_trust_device",
+    ];
+    const lines = names.map((name) => `${name}=1; Path=/`);
+    rawRoutes.set("/app-cookies", (res) => {
+      res.setHeader("Set-Cookie", lines);
+      res.end();
+    });
+
+    expect(names.some(isSessionCookieName)).toBe(false);
+    expect(await setCookiesAt("/app-cookies")).toEqual(lines);
   });
 });

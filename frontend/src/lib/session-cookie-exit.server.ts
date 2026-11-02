@@ -2,6 +2,7 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Server, ServerResponse } from "node:http";
 import { Server as HttpsServer } from "node:https";
+import { env } from "~/env";
 import { createLogger } from "~/lib/logger";
 
 /**
@@ -22,28 +23,64 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SessionCookieExit" });
 
+/** The session cookie of each portal; their Auth.js configs use these. */
+export const PORTAL_SESSION_COOKIE_NAMES = {
+  caterer: "caterer.session-token",
+  operator: "operator.session-token",
+  parent: "parent.session-token",
+  school: "school.session-token",
+  traeger: "traeger.session-token",
+} as const;
+
+/** Auth.js' default name, the tenant portal's without a TENANT_DOMAIN. */
+const AUTHJS_SESSION_COOKIE = "authjs.session-token";
+
+/** The tenant portal's session cookie for TENANT_DOMAIN (tenant-config.ts). */
+export function tenantSessionCookieName(tenantDomain: string | undefined) {
+  return !tenantDomain || tenantDomain === "localhost"
+    ? AUTHJS_SESSION_COOKIE
+    : `${tenantDomain.replace(/\./g, "-")}.session-token`;
+}
+
+/** Every configured session cookie name of this deployment. */
+function sessionCookieBases(): string[] {
+  return [
+    ...Object.values(PORTAL_SESSION_COOKIE_NAMES),
+    tenantSessionCookieName(env.TENANT_DOMAIN),
+    AUTHJS_SESSION_COOKIE,
+  ];
+}
+
+/** The browser's cookie name prefixes, in any case. */
+const COOKIE_PREFIX = /^__(?:secure|host)-/i;
+
 /**
  * Every cookie a session reader could take for a session cookie (#5520).
  * Auth.js (SessionStore, also behind getToken in the layout snapshots) takes
- * every cookie whose name starts with the configured name as a chunk:
+ * every cookie whose name starts with its configured name as a chunk:
  * `parent.session-token.evil`, `…_shadow`, `….0extra` and `….0.1` read as
- * the session. Every configured name, `__Secure-`/`__Host-` included,
- * contains `session-token`, so every name a reader accepts does too. Matched
- * without case, a superset of what any reader takes.
+ * the session. So does this, for every configured name, also behind a
+ * `__Secure-`/`__Host-` prefix in any case: a superset of what any reader
+ * takes, and no other cookie (`parent-session-token`, `session-token`).
  */
 export function isSessionCookieName(name: string): boolean {
-  return name.toLowerCase().includes("session-token");
+  const bare = name.replace(COOKIE_PREFIX, "");
+  return sessionCookieBases().some((base) => bare.startsWith(base));
 }
 
 /**
- * The names Auth.js writes: a configured name (an optional cookie prefix,
- * one segment without a dot, `.session-token`) or one of its chunks
- * `<name>.<n>`. Only these can be approved; every other session cookie name
- * leaves the server only as a deletion.
+ * The names Auth.js writes: a configured name, with Auth.js' own
+ * `__Secure-`/`__Host-` prefix, or one of its chunks `<name>.<n>`. Only
+ * these can be approved; every other session cookie name leaves the server
+ * only as a deletion.
  */
 export function isWrittenSessionCookieName(name: string): boolean {
-  return /^(?:__Secure-|__Host-)?[A-Za-z0-9-]+\.session-token(?:\.\d+)?$/.test(
-    name,
+  const bare = name.replace(/^__(?:Secure|Host)-/, "");
+  return sessionCookieBases().some(
+    (base) =>
+      bare === base ||
+      (bare.startsWith(`${base}.`) &&
+        /^\d+$/.test(bare.slice(base.length + 1))),
   );
 }
 

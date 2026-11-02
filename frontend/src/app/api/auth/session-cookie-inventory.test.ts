@@ -324,17 +324,32 @@ describe("session cookie writers", () => {
     ]);
     const lock = code("src/lib/session-cookie-exit.server.ts");
     expect(
-      [...lock.matchAll(/^export (?:async )?function (\w+)/gm)].map(
-        ([, name]) => name,
-      ),
+      [
+        ...lock.matchAll(/^export (?:async function|function|const) (\w+)/gm),
+      ].map(([, name]) => name),
     ).toEqual([
+      "PORTAL_SESSION_COOKIE_NAMES",
+      "tenantSessionCookieName",
       "isSessionCookieName",
       "isWrittenSessionCookieName",
       "isSessionCookieExitLocked",
       "approveSessionCookieWrites",
       "installSessionCookieExit",
     ]);
-    expect(lock).not.toMatch(/^export (?!function)/m);
+    expect(lock).not.toMatch(/^export (?!function|const)/m);
+    // The six portals' Auth.js configs take their session cookie name from
+    // the lock, the one source of what the lock and the readers match.
+    expect(
+      matching(/\b(?:PORTAL_SESSION_COOKIE_NAMES|tenantSessionCookieName)\b/),
+    ).toEqual([
+      "src/lib/session-cookie-exit.server.ts",
+      "src/server/auth/caterer-config.ts",
+      "src/server/auth/operator-config.ts",
+      "src/server/auth/parent-config.ts",
+      "src/server/auth/school-config.ts",
+      "src/server/auth/tenant-config.ts",
+      "src/server/auth/traeger-config.ts",
+    ]);
     expect(isSessionCookieName(DEMO_TOKEN_COOKIE)).toBe(false);
     expect(
       isSessionCookieName(operatorInvitationCookieName(randomUUID())),
@@ -358,20 +373,13 @@ describe("session cookie writers", () => {
       "src/lib/operator-session-snapshot.server.ts",
       "src/lib/parent-session-snapshot.server.ts",
       "src/lib/school-session-snapshot.server.ts",
-      // isSessionCookieName (every name a reader takes for a session) and
-      // isWrittenSessionCookieName (the names Auth.js writes), #5520.
+      // The six portals' session cookie names (their configs take them from
+      // here), isSessionCookieName and isWrittenSessionCookieName, #5520.
       "src/lib/session-cookie-exit.server.ts",
       "src/lib/tenant-session-snapshot.server.ts",
       "src/lib/traeger-session-snapshot.server.ts",
-      // The six portals' Auth.js configs name their cookie.
-      "src/server/auth/caterer-config.ts",
-      "src/server/auth/operator-config.ts",
-      "src/server/auth/parent-config.ts",
-      "src/server/auth/school-config.ts",
       // The gate's own grouping of session cookie chunks, unchanged.
       "src/server/auth/session-cookie-writes.ts",
-      "src/server/auth/tenant-config.ts",
-      "src/server/auth/traeger-config.ts",
       // The inventory's own pattern.
       "src/test/session-cookie-writers.ts",
     ]);
@@ -388,14 +396,8 @@ describe("session cookie writers", () => {
       "src/lib/auth-proxy.server.ts", // listed writer
       "src/lib/login-route.server.ts", // listed writer
       "src/lib/session-cookie-exit.server.ts", // the lock at the exit
-      "src/server/auth/caterer-config.ts", // names its portal cookie
-      "src/server/auth/operator-config.ts", // names its portal cookie
-      "src/server/auth/parent-config.ts", // names its portal cookie
       "src/server/auth/route-handler.ts", // listed writer
-      "src/server/auth/school-config.ts", // names its portal cookie
       "src/server/auth/session-cookie-writes.ts", // the exit
-      "src/server/auth/tenant-config.ts", // names its portal cookie
-      "src/server/auth/traeger-config.ts", // names its portal cookie
       "src/test/session-cookie-writers.ts", // the inventory's own pattern
     ]);
   });

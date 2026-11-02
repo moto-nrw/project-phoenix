@@ -7,6 +7,7 @@
  */
 
 import "server-only";
+import { tenantSessionCookieName } from "~/lib/session-cookie-exit.server";
 import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
@@ -162,7 +163,7 @@ export const tenantAuthConfig = {
       const cookiePrefix = env.TENANT_DOMAIN.replace(/\./g, "-");
       return {
         sessionToken: {
-          name: `${cookiePrefix}.session-token`,
+          name: tenantSessionCookieName(env.TENANT_DOMAIN),
           options: {
             httpOnly: true,
             sameSite: "lax" as const,

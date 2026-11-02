@@ -17,6 +17,7 @@
  */
 
 import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
 import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
@@ -98,7 +99,7 @@ export const traegerAuthConfig = {
     // Host-only (no domain) and SameSite=Strict like the school portal: the
     // Träger portal has no cross-site flow that needs the cookie.
     sessionToken: {
-      name: "traeger.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.traeger,
       options: {
         httpOnly: true,
         sameSite: "strict" as const,

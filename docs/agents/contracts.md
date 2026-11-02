@@ -570,10 +570,14 @@ old session back; the browser only saves requests.
    Auth.js (`SessionStore`, also behind `getToken` in the layout snapshots)
    reads every cookie whose name starts with the configured name as a
    session chunk (`parent.session-token.evil`, `…_shadow`, `….0.1`). The lock
-   therefore treats every name containing `session-token`, in any case, as a
-   session cookie, a superset of what any reader accepts, and the gate
-   approves only names Auth.js writes (`[__Secure-|__Host-]<name>.session-token`
-   and its chunks `.<n>`). A Set-Cookie line with a session cookie name
+   therefore treats every name that starts with a configured session cookie
+   name, also behind a `__Secure-`/`__Host-` prefix in any case, as a session
+   cookie: a superset of what any reader accepts and no other cookie
+   (`parent-session-token`, `session-token` pass). The names have one source,
+   `PORTAL_SESSION_COOKIE_NAMES` and `tenantSessionCookieName` in that module,
+   which the six portal configs use. The gate approves only names Auth.js
+   writes: a configured name (with Auth.js' `__Secure-`/`__Host-` prefix) and
+   its chunks `.<n>`. A Set-Cookie line with a session cookie name
    leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
    (names in any case), at least one of them, a `Max-Age` of plain digits
    ≤ 0 and an `Expires` that is a valid date not later than now. Any value,

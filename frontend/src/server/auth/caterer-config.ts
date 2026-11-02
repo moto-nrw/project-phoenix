@@ -11,6 +11,7 @@
  */
 
 import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
 import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
@@ -140,7 +141,7 @@ export const catererAuthConfig = {
     // Host-only and SameSite=Strict, like the parents portal: the caterer
     // portal has no cross-site flow that needs the session cookie.
     sessionToken: {
-      name: "caterer.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.caterer,
       options: sessionCookie("strict", true),
     },
     callbackUrl: {
