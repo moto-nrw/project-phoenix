@@ -71,22 +71,15 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	removalFrom := from
-	if tomorrow := rs.todayDate().AddDays(1); removalFrom.Before(tomorrow) {
-		removalFrom = tomorrow
-	}
-	if until != nil && until.After(removalFrom) {
-		var err error
-		removalFrom, err = rs.validateBoundedStudentTemplateDaysRemoval(r.Context(), templateID, studentID, req.Weekdays, removalFrom, until)
-		if err != nil {
-			switch {
-			case errors.Is(err, errBoundedStudentTemplateDaysRemovalStale):
-				common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableTemplateBookingGapStale))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServerWrap("validate bounded student template days removal failed", err))
-			}
-			return
+	removalFrom, err := rs.boundedStudentTemplateDaysRemovalFrom(r.Context(), templateID, studentID, req.Weekdays, from, until)
+	if err != nil {
+		switch {
+		case errors.Is(err, errBoundedStudentTemplateDaysRemovalStale):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableTemplateBookingGapStale))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServerWrap("validate bounded student template days removal failed", err))
 		}
+		return
 	}
 	result, err := rs.StudentTemplateDays.RemoveStudentTemplateDays(r.Context(), timetableModule.StudentTemplateDaysRemoval{
 		TemplateID: templateID, StudentID: studentID, Weekdays: req.Weekdays, From: removalFrom, Until: until,
@@ -107,14 +100,25 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// boundedStudentTemplateDaysRemovalFrom clamps the mutable start, then
+// confirms a bounded removal still names the current booking gap.
+func (rs *Resource) boundedStudentTemplateDaysRemovalFrom(
+	ctx context.Context, templateID, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
+) (calendar.Date, error) {
+	removalFrom := max(from, rs.todayDate().AddDays(1))
+	if until == nil || !until.After(removalFrom) {
+		return removalFrom, nil
+	}
+	return rs.validateBoundedStudentTemplateDaysRemoval(ctx, templateID, studentID, weekdays, removalFrom, until)
+}
+
 // validateBoundedStudentTemplateDaysRemoval recalculates a bounded gap under
 // the recurrence gate shared with booking changes. The command takes the gate
 // again before it writes; PostgreSQL advisory locks are transaction-reentrant.
 func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 	ctx context.Context, templateID, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
 ) (calendar.Date, error) {
-	if rs.RecurrenceLock == nil || rs.CalendarPeriods == nil || rs.TimetableData == nil || rs.RosterReview == nil ||
-		rs.MaterializationService == nil || rs.OfferingSourceOptions == nil {
+	if !rs.boundedStudentTemplateDaysRemovalWired() {
 		return "", errors.New("bounded student template days removal not wired")
 	}
 	if err := rs.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
@@ -132,17 +136,30 @@ func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 			return "", err
 		}
 		for _, leftover := range leftovers {
-			if leftover.TemplateID != templateID || leftover.StudentID != studentID || leftover.Until == nil ||
-				*leftover.Until != *until || !sameRemovalWeekdays(leftover.Weekdays, weekdays) || leftover.BookingEndedOn.After(from) {
-				continue
-			}
-			effectiveFrom := max(from, leftover.From)
-			if until.After(effectiveFrom) {
+			if effectiveFrom, matches := boundedStudentTemplateDaysRemovalMatches(leftover, templateID, studentID, weekdays, from, until); matches {
 				return effectiveFrom, nil
 			}
 		}
 	}
 	return "", errBoundedStudentTemplateDaysRemovalStale
+}
+
+func (rs *Resource) boundedStudentTemplateDaysRemovalWired() bool {
+	return rs.RecurrenceLock != nil && rs.CalendarPeriods != nil && rs.TimetableData != nil && rs.RosterReview != nil &&
+		rs.MaterializationService != nil && rs.OfferingSourceOptions != nil
+}
+
+func boundedStudentTemplateDaysRemovalMatches(
+	leftover timetableModule.BookingLeftover, templateID, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
+) (calendar.Date, bool) {
+	if leftover.TemplateID != templateID || leftover.StudentID != studentID || leftover.Until == nil || leftover.BookingEndedOn.After(from) {
+		return "", false
+	}
+	if *leftover.Until != *until || !sameRemovalWeekdays(leftover.Weekdays, weekdays) {
+		return "", false
+	}
+	effectiveFrom := max(from, leftover.From)
+	return effectiveFrom, until.After(effectiveFrom)
 }
 
 func sameRemovalWeekdays(left, right []int) bool {
