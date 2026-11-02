@@ -18,6 +18,8 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   Eye,
   GripVertical,
@@ -460,10 +462,9 @@ export function FieldEditorRow({
                 disabled={disabled || index === 0}
                 variant="surface"
                 size="icon"
-                className="text-sm"
                 aria-label="Frage nach oben verschieben"
               >
-                ↑
+                <ArrowUp className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
                 type="button"
@@ -471,10 +472,9 @@ export function FieldEditorRow({
                 disabled={disabled || index === total - 1}
                 variant="surface"
                 size="icon"
-                className="text-sm"
                 aria-label="Frage nach unten verschieben"
               >
-                ↓
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
                 type="button"
@@ -482,7 +482,6 @@ export function FieldEditorRow({
                 disabled={disabled}
                 variant="surface"
                 size="icon"
-                className="hover:bg-moto-red/10 hover:text-moto-red-strong hover:ring-moto-red/30"
                 aria-label="Frage entfernen"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />

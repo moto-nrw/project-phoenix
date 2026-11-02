@@ -19,6 +19,7 @@ import {
   type MFAResult,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "MFAChallengeForm" });
 
@@ -239,16 +240,17 @@ export function MFAChallengeForm({
             : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
         </p>
         <div className="flex justify-center">
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="md"
             onClick={() => {
               void handleResend();
             }}
             disabled={resendIn > 0 || isResending || isVerifying}
-            className="text-sm font-medium text-gray-700 underline-offset-2 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
           >
             {resendLabel}
-          </button>
+          </Button>
         </div>
       </div>
 

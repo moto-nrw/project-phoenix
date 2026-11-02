@@ -331,7 +331,7 @@ function HelpMobileHeader({
           aria-controls={MOBILE_HELP_DRAWER_ID}
           aria-expanded={drawerOpen && drawerMode === "topics"}
           onClick={(event) => onOpenDrawer("topics", event.currentTarget)}
-          className="min-h-11 min-w-11 shrink-0"
+          className="shrink-0"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
@@ -350,15 +350,10 @@ function HelpMobileHeader({
             aria-controls={MOBILE_HELP_DRAWER_ID}
             aria-expanded={drawerOpen && drawerMode === "search"}
             onClick={(event) => onOpenDrawer("search", event.currentTarget)}
-            className="min-h-11 min-w-11"
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <BackToAppLink
-            href={appHref}
-            label="Zur App"
-            className="min-h-11 shrink-0 px-3"
-          />
+          <BackToAppLink href={appHref} label="Zur App" className="shrink-0" />
         </div>
       </div>
     </header>
@@ -942,7 +937,7 @@ function HelpMobileDrawer({
               variant="ghost"
               size="icon"
               aria-label="Schließen"
-              className="min-h-11 min-w-11 shrink-0"
+              className="shrink-0"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </Button>
@@ -1057,10 +1052,9 @@ function HelpDocumentationShell({
           action={
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
+              variant="link"
+              size="md"
               onClick={() => onSearchQueryChange("")}
-              className="min-h-11 px-3 text-sm font-semibold underline decoration-gray-300 underline-offset-4 lg:min-h-10"
             >
               Suche löschen
             </Button>

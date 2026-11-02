@@ -267,6 +267,9 @@ export function InvitationOwnerAcceptForm({
       </div>
       <Button
         type="submit"
+        variant="primary"
+        size="field"
+        className="w-full"
         isLoading={pending}
         loadingText="Wird angenommen…"
         disabled={pending}

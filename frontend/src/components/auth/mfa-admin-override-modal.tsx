@@ -446,7 +446,6 @@ export function MFAAdminOverrideModal({
                   variant="danger"
                   size="md"
                   disabled={isWorking}
-                  className="font-semibold"
                 >
                   {isWorking
                     ? "Wird ausgeführt…"
@@ -565,7 +564,6 @@ export function MFAAdminOverrideModal({
                   size="md"
                   disabled={overrideWorking || selectedOverride === override}
                   onClick={() => void handleOverrideSubmit()}
-                  className="font-semibold"
                 >
                   {overrideWorking ? "Wird gespeichert…" : "Änderung speichern"}
                 </Button>
@@ -678,7 +676,6 @@ export function MFAAdminOverrideModal({
                     globalWorking || selectedGlobalOverride === globalOverride
                   }
                   onClick={() => void handleGlobalOverrideSubmit()}
-                  className="font-semibold"
                 >
                   {globalWorking
                     ? "Wird gespeichert…"
@@ -703,13 +700,7 @@ export function MFAAdminOverrideModal({
                 : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={onClose}
-              className="font-semibold"
-            >
+            <Button type="button" variant="primary" size="md" onClick={onClose}>
               Schließen
             </Button>
           </div>
