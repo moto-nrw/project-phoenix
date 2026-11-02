@@ -35,7 +35,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -82,7 +81,7 @@ func requestReviewDependencies(
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := NewRequestReviewMasterData(db,
-		studentDirectoryView.NewReader(),
+		owners.StudentDirectoryReader(),
 		persons,
 		reviewScope,
 		carePlanModule.Today,
@@ -93,7 +92,7 @@ func requestReviewDependencies(
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	careReviews, err := NewRequestReviewSchedules(db,
-		studentDirectoryView.NewReader(),
+		owners.StudentDirectoryReader(),
 		persons,
 		reviewScope,
 		func(ctx context.Context) (bool, error) {

@@ -33,10 +33,7 @@ func healthListClaims(tb testing.TB, accountID int64) sessiontoken.AppClaims {
 
 func setStudentHealthInfo(t *testing.T, db *bun.DB, studentID int64, note string) {
 	t.Helper()
-	_, err := db.NewRaw(`UPDATE users.student_care_profiles SET health_info = ?
-		WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`,
-		note, studentID).Exec(context.Background())
-	require.NoError(t, err, "failed to store health note")
+	testpkg.SetTestStudentHealth(t, db, studentID, &note)
 }
 
 func healthListAuditCount(t *testing.T, db *bun.DB, accountID int64) int {

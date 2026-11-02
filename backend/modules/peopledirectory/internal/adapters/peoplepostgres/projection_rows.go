@@ -16,6 +16,8 @@ type StudentDirectoryRows interface {
 	AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
 	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
+	// OpenStudentHealth opens the sealed health field a row carries (#5472).
+	OpenStudentHealth(tenantID, membershipID int64, sealed []byte) (*string, error)
 }
 
 // GuardianLinkRows is the retained repositories' reader port onto the

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -39,7 +37,7 @@ func ComposePeopleDirectory(
 	directory.GuardianLinkOwners = guardianLinks
 	directory.GuardianRolePresets = GuardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
-	directory.StudentDirectory = studentDirectoryView.NewReader()
+	directory.StudentDirectory = StudentDirectoryReader()
 	return peopleCompose.New(directory, guardianMemberships)
 }
 

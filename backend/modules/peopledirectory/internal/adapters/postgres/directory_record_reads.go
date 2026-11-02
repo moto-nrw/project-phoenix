@@ -35,11 +35,8 @@ func (s *studentDirectoryReads) selectStudentRecords(
 		return nil, stats, fmt.Errorf("student directory projection: %s: %w", operation, err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]directory.StudentRecord, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toDomain())
-	}
-	return result, stats, nil
+	result, err := directoryRecords(rows, s.rows)
+	return result, stats, err
 }
 
 // inScope applies the roster guard unless the caller asked for every child: a
@@ -147,11 +144,8 @@ func (s *studentDirectoryReads) LockRecordsByIDs(
 		return nil, stats, fmt.Errorf("student directory projection: lock student records: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]directory.StudentRecord, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toDomain())
-	}
-	return result, stats, nil
+	result, err := directoryRecords(rows, s.rows)
+	return result, stats, err
 }
 
 // CountByGroups counts the non-alumni children of each group.

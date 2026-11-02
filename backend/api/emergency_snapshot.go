@@ -12,14 +12,17 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -74,8 +77,11 @@ type emergencySnapshotSources struct {
 	Contacts     emergencySnapshotContacts
 	Rooms        emergencySnapshotRooms
 	Renderer     lists.Renderer
-	Now          func() time.Time
-	Logger       *slog.Logger
+	// AccessLog is the school's data access log the export of a list with
+	// health information is recorded in (#5472).
+	AccessLog owners.DataAccessAppender
+	Now       func() time.Time
+	Logger    *slog.Logger
 }
 
 // errEmergencySnapshotSources reports a missing source. Missing wiring is a
@@ -86,24 +92,43 @@ var errEmergencySnapshotSources = errors.New("emergency snapshot adapters are no
 func newEmergencySnapshot(sources emergencySnapshotSources) (emergencysnapshot.Query, error) {
 	if sources.Presence == nil || sources.PresenceMode == nil || sources.Students == nil ||
 		sources.Persons == nil || sources.Contacts == nil || sources.Rooms == nil ||
-		sources.Renderer == nil {
+		sources.Renderer == nil || sources.AccessLog == nil {
 		return nil, errEmergencySnapshotSources
 	}
 	projection, err := emergencysnapshotCompose.New(emergencysnapshot.Dependencies{
-		Presence: emergencySnapshotPresenceReads{facade: sources.Presence, mode: sources.PresenceMode},
-		Rooms:    emergencySnapshotRoomNames{facade: sources.Rooms},
-		Students: emergencySnapshotStudentRecords{repo: sources.Students},
-		Persons:  emergencySnapshotPersonNames{facade: sources.Persons},
-		Contacts: emergencySnapshotGuardianContacts{repo: sources.Contacts},
-		Calendar: emergencySnapshotCalendar{},
-		Renderer: emergencySnapshotRenderer{renderer: sources.Renderer},
-		Now:      sources.Now,
-		Logger:   sources.Logger,
+		Presence:  emergencySnapshotPresenceReads{facade: sources.Presence, mode: sources.PresenceMode},
+		Rooms:     emergencySnapshotRoomNames{facade: sources.Rooms},
+		Students:  emergencySnapshotStudentRecords{repo: sources.Students},
+		Persons:   emergencySnapshotPersonNames{facade: sources.Persons},
+		Contacts:  emergencySnapshotGuardianContacts{repo: sources.Contacts},
+		Calendar:  emergencySnapshotCalendar{},
+		Renderer:  emergencySnapshotRenderer{renderer: sources.Renderer},
+		AccessLog: emergencySnapshotAccessLog(sources.AccessLog.Create),
+		Now:       sources.Now,
+		Logger:    sources.Logger,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return projection, nil
+}
+
+// emergencySnapshotAccessLog records the caller's export of a Notfallliste
+// with health information in audit.data_access_log (#5472).
+type emergencySnapshotAccessLog func(context.Context, *auditModels.DataAccessLog) error
+
+func (l emergencySnapshotAccessLog) RecordEmergencyListExport(ctx context.Context, at time.Time) error {
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	role := strings.Join(claims.Roles, ",")
+	if role == "" {
+		role = "unknown"
+	}
+	day := calendar.DateFromTime(at)
+	return l(ctx, &auditModels.DataAccessLog{
+		ActorAccountID: int64(claims.ID), ActorRole: role,
+		ResourceType: auditModels.ResourceTypeEmergencyListExport,
+		RangeStart:   day.BerlinMidnight(), RangeEnd: day.EndOfDay(), AccessedAt: at,
+	})
 }
 
 type emergencySnapshotPresenceReads struct {

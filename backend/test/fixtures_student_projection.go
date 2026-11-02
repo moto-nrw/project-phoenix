@@ -3,7 +3,10 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
@@ -103,7 +106,7 @@ const studentDirectorySource = `(SELECT p.id, p.tenant_id, p.person_id, p.create
 	p.photo_path, p.photo_consent_given_at, p.photo_consent_given_by,
 	p.agb_accepted_at, p.data_processing_accepted_at, p.email_contact_accepted_at,
 	m.id AS membership_id, m.school_class, m.group_id, m.status, m.enrolled_from, m.enrolled_until,
-	c.health_info, c.pickup_status, c.departure_days,
+	c.health_data, c.pickup_status, c.departure_days,
 	c.allowed_departure_modes, c.departure_companion_note, c.pickup_days, c.bus_days,
 	c.sick, c.sick_since, c.excused, c.excused_since
 	FROM users.student_profiles AS p
@@ -166,4 +169,95 @@ func (StudentDirectory) AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery {
 }
 func (StudentDirectory) AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(studentDirectorySource)
+}
+
+// TestHealthDataCipher is the field cipher over TestHealthDataKeys, the key
+// ring the test configuration serves as HEALTH_DATA_KEYS. Roots built in
+// tests bind it like the server binds its own (#4722, #5472).
+var TestHealthDataCipher = mustTestHealthDataCipher()
+
+func mustTestHealthDataCipher() userpasstest.FieldCipher {
+	cipher, err := userpasstest.ParseFieldCipher(TestHealthDataKeys)
+	if err != nil {
+		panic("build test health data cipher: " + err.Error())
+	}
+	return cipher
+}
+
+// studentHealthContext is the context the student directory projection binds
+// a child's sealed health field to (studentdirectoryview.StudentHealthContext,
+// #5472); test support may not reach the projection.
+func studentHealthContext(tenantID, membershipID int64) []byte {
+	return fmt.Appendf(nil, "users.student_care_profiles.health_data:%d:%d", tenantID, membershipID)
+}
+
+// SealStudentHealth seals a child's health field with the test key ring.
+func (StudentDirectory) SealStudentHealth(tenantID, membershipID int64, value *string) ([]byte, error) {
+	return SealStudentHealth(tenantID, membershipID, value)
+}
+
+// OpenStudentHealth opens a child's sealed health field with the test key ring.
+func (StudentDirectory) OpenStudentHealth(tenantID, membershipID int64, sealed []byte) (*string, error) {
+	return OpenStudentHealth(tenantID, membershipID, sealed)
+}
+
+// SealStudentHealth seals value for the care row of membershipID as the
+// server does; nil stays NULL.
+func SealStudentHealth(tenantID, membershipID int64, value *string) ([]byte, error) {
+	if value == nil {
+		return nil, nil
+	}
+	return TestHealthDataCipher.Seal([]byte(*value), studentHealthContext(tenantID, membershipID))
+}
+
+// OpenStudentHealth opens a sealed health field of the care row of
+// membershipID; NULL opens to nil.
+func OpenStudentHealth(tenantID, membershipID int64, sealed []byte) (*string, error) {
+	if sealed == nil {
+		return nil, nil
+	}
+	plaintext, err := TestHealthDataCipher.Open(sealed, studentHealthContext(tenantID, membershipID))
+	if err != nil {
+		return nil, err
+	}
+	value := string(plaintext)
+	return &value, nil
+}
+
+// studentCareRow names a child's live care row and its school.
+func studentCareRow(tb testing.TB, db bun.IDB, studentID int64) (tenantID, membershipID int64) {
+	tb.Helper()
+	var row struct {
+		ID       int64 `bun:"id"`
+		TenantID int64 `bun:"tenant_id"`
+	}
+	require.NoError(tb, db.NewRaw(`SELECT id, tenant_id FROM users.student_school_memberships
+		WHERE student_profile_id = ? AND deleted_at IS NULL`, studentID).Scan(context.Background(), &row),
+		"read the live membership of student %d", studentID)
+	return row.TenantID, row.ID
+}
+
+// SetTestStudentHealth stores a child's health field sealed, as Care Plan
+// stores it (#5472); nil clears it. Fixtures never write it in plaintext.
+func SetTestStudentHealth(tb testing.TB, db bun.IDB, studentID int64, value *string) {
+	tb.Helper()
+	tenantID, membershipID := studentCareRow(tb, db, studentID)
+	sealed, err := SealStudentHealth(tenantID, membershipID, value)
+	require.NoError(tb, err)
+	_, err = db.NewRaw(`UPDATE users.student_care_profiles SET health_data = ? WHERE membership_id = ?`,
+		sealed, membershipID).Exec(context.Background())
+	require.NoError(tb, err, "store the health field of student %d", studentID)
+}
+
+// ReadTestStudentHealth reads a child's stored health field straight from
+// the table and opens it. sealed is the column as stored, so a test can
+// assert that it holds no plaintext.
+func ReadTestStudentHealth(tb testing.TB, db bun.IDB, studentID int64) (value *string, sealed []byte) {
+	tb.Helper()
+	tenantID, membershipID := studentCareRow(tb, db, studentID)
+	require.NoError(tb, db.NewRaw(`SELECT health_data FROM users.student_care_profiles WHERE membership_id = ?`,
+		membershipID).Scan(context.Background(), &sealed), "read the health field of student %d", studentID)
+	value, err := OpenStudentHealth(tenantID, membershipID, sealed)
+	require.NoError(tb, err, "open the health field of student %d", studentID)
+	return value, sealed
 }
