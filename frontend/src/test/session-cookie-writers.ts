@@ -398,7 +398,12 @@ function references(declared: ts.Identifier): ts.Identifier[] {
     )
       return;
     for (let up = node.parent; up !== scope; up = up.parent)
-      if (declaredNames(up).some((name) => name.text === node.text)) return;
+      if (
+        declaredNames(up).some(
+          (name) => name !== declared && name.text === node.text,
+        )
+      )
+        return;
     found.push(node);
   });
   return found;
@@ -576,7 +581,11 @@ class Inventory {
     const text = spelledText(node);
     if (text === undefined || !SET_COOKIE.test(text)) return;
     this.report("cookie-header", node);
-    if (ts.isTemplateLiteralToken(node)) {
+    if (
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
       let template: ts.Node = node.parent;
       while (!ts.isTemplateExpression(template)) template = template.parent;
       this.track(template, "cookie-header-name");

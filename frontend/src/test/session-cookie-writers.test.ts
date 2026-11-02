@@ -563,6 +563,52 @@ describe("cookie readers", () => {
 });
 
 describe("cookieWrites", () => {
+  it.each([
+    "`Set-Cookie`",
+    "`Set-Cookie${suffix}`",
+    "`${prefix}Set-Cookie${suffix}`",
+    "`${prefix}Set-Cookie`",
+  ])("tracks the template header name %s through exports", (literal) => {
+    expect(kinds("route.ts", `headers.set(${literal}, value);`)).toEqual([
+      "cookie-header",
+    ]);
+    expect(kinds("header.ts", `export const name = ${literal};`)).toEqual([
+      "cookie-header",
+      "module-export",
+    ]);
+  });
+
+  it.each(["module", "function"])(
+    "tracks a block-contained var alias in %s scope",
+    (scope) => {
+      const block = `if (true) {
+  var store = await cookies();
+  store.set(${WRITE});
+}`;
+      const source =
+        scope === "module" ? block : `async function write() { ${block} }`;
+      expect(kinds("route.ts", `${JAR}${source}`)).toEqual(["next-cookie-jar"]);
+    },
+  );
+
+  it("respects a block-scoped declaration shadowing a var alias", () => {
+    expect(
+      cookieWrites(
+        "route.ts",
+        `${JAR}async function read() {
+  if (true) {
+    var store = await cookies();
+    store.get("locale");
+    {
+      const store = new Map();
+      store.set("a", "b");
+    }
+  }
+}`,
+      ),
+    ).toEqual([]);
+  });
+
   it("flags every file of the inventory the regex inventory flagged", () => {
     const root = process.cwd();
     const missed = inventoryFiles(root, INVENTORY_ROOTS).filter((file) => {
