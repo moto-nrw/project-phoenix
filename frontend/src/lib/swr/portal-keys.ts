@@ -321,3 +321,12 @@ export const catererKeys = {
       to,
     }),
 } as const;
+
+/**
+ * Die Gesundheitsangaben aus der Ferienanmeldung bei einem eigenen Kind der
+ * ausrichtenden OGS (#4722).
+ */
+export const holidayKeys = {
+  studentHealth: (studentId: string) =>
+    `holiday-student-health:${encodeURIComponent(studentId)}`,
+};

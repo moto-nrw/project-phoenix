@@ -16,7 +16,7 @@ import (
 
 // HolidayAccessFilter selects trail entries between the instants From
 // (inclusive) and To (exclusive). AccountID and Kind narrow further when
-// set; Kind is "read" for the reads (list, detail, export, proof) and
+// set; Kind is "read" for the reads (list, detail, export, proof, health) and
 // "change" for the changes (confirm, cancel, rebook, freeze, reopen). Limit
 // bounds the number of entries, newest first.
 type HolidayAccessFilter struct {

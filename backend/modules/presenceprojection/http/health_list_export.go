@@ -4,6 +4,7 @@ import (
 	errors "errors"
 	slog "log/slog"
 	http "net/http"
+	slices "slices"
 	strings "strings"
 	time "time"
 
@@ -72,6 +73,58 @@ func healthInfoExportCell(note string) string {
 		return healthInfoMissingLabel
 	}
 	return note
+}
+
+// writeStudentHealthViewAudit records in audit.data_access_log that the
+// child's record answers with its health field (#5472). A record without a
+// health field, or one the caller may not read, discloses none and writes no
+// row. Like the health list: no audit record, no data.
+func (rs *Resource) writeStudentHealthViewAudit(r *http.Request, studentID int64, health string) error {
+	if strings.TrimSpace(health) == "" {
+		return nil
+	}
+	return rs.recordHealthAccess(r, dataAccessStudentHealthView, &studentID)
+}
+
+// writeStudentHealthListViewAudit records a child list answer that shows the
+// health field of at least one child (#5472), one row per answer.
+func (rs *Resource) writeStudentHealthListViewAudit(r *http.Request, responses []StudentResponse) error {
+	if !slices.ContainsFunc(responses, hasHealthInfo) {
+		return nil
+	}
+	return rs.recordHealthAccess(r, dataAccessStudentHealthListView, nil)
+}
+
+// recordHealthAccess appends the caller's read of health information to the
+// school's access log for today; it refuses when it cannot.
+func (rs *Resource) recordHealthAccess(r *http.Request, resourceType string, studentID *int64) error {
+	if rs.StudentHistoryService == nil {
+		rs.getLogger().Error("audit log repo not configured, refusing to show a student's health information")
+		return errors.New("audit log repository not configured")
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	actorRole := strings.Join(claims.Roles, ",")
+	if actorRole == "" {
+		actorRole = "unknown"
+	}
+	today := rs.todayDate()
+	entry := &studentpresence.DataAccessEvent{
+		ActorAccountID: int64(claims.ID),
+		ActorRole:      actorRole,
+		ResourceType:   resourceType,
+		StudentID:      studentID,
+		RangeStart:     today.BerlinMidnight(),
+		RangeEnd:       today.EndOfDay(),
+		AccessedAt:     time.Now(),
+	}
+	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
+		rs.getLogger().Error("audit log write failed, refusing to show a student's health information",
+			slog.String("resource_type", resourceType),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	return nil
 }
 
 // writeHealthListAudit records the export in audit.data_access_log. Like the

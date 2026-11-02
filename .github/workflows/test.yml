@@ -44,7 +44,7 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
-  GOFLAGS: -tags=testhooks
+  GOFLAGS: -tags=testhooks -trimpath
 
 jobs:
   plan-backend:
@@ -104,7 +104,7 @@ jobs:
           printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
 
   test-backend:
-    name: Backend tests${{ inputs.backend-race && ' with race detector' || '' }} (${{ matrix.shard }})
+    name: Backend tests (${{ matrix.shard }})
     needs: plan-backend
     if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
@@ -293,8 +293,8 @@ jobs:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           # The route-table golden builds the production API, whose serve
           # connection uses the role created above with this password. The
-          # value must stay identical to testdb.AuthRolePassword — the test
-          # lifecycle pins the cluster-global phoenix_auth role to it.
+          # value must stay identical to testdb.AuthRolePassword: the test
+          # lifecycle validates existing role credentials without changing them.
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
@@ -374,6 +374,7 @@ jobs:
           detailed_summary: true
 
   test-frontend:
+    name: Frontend tests (${{ matrix.project }})
     if: ${{ inputs.run-frontend }}
     # The existing Vitest projects are independent, but groupOrder runs Node
     # before DOM in one process. Split them without raising worker counts or
@@ -474,7 +475,7 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke (${{ matrix.scenario }})
+    name: Seed and simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
     strategy:
       fail-fast: false
@@ -547,6 +548,8 @@ jobs:
       # that, which a green CI missed until the demo failed on 2026-10-27.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
+      # The development key ring of .env.example for the holiday health data (#4722).
+      HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000

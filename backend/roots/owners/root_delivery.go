@@ -50,7 +50,7 @@ type DeliveryNotifications struct {
 // Consent rows back both the notification preferences and the opt-in "Neue
 // Anmeldung" mail of the intake.
 func BuildDeliveryNotifications(
-	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module deliveryModule.Capability,
+	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, delivery DeliveryRuntime,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity identityaccess.Owner, people PeopleRows, structure StructureRows, workTime workforce.Capability,
 	messaging parentStore.MessagingRepositories, assignments schoolmembership.TeachingAssignmentQuery,
@@ -59,12 +59,12 @@ func BuildDeliveryNotifications(
 	if !pushVAPID.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
-	sse, err := deliveryCompose.NewTenantSSEChannel(unit, hub, db.Pool(), people.StudentGuardians, logger.With("channel", "sse"))
+	sse, err := deliveryCompose.NewTenantSSEChannel(unit, hub, db.Pool(), people.StudentGuardians, logger.With("channel", "sse"), delivery.Runtime.Store)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
 	push, err := deliveryCompose.NewTenantDurableWebPushChannel(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()),
-		pushVAPID, deliveryCompose.NewDurablePushOutbox(module), logger.With("channel", "web_push"))
+		pushVAPID, deliveryCompose.NewDurablePushOutbox(DeliveryModuleOf(delivery)), logger.With("channel", "web_push"))
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}

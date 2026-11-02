@@ -251,6 +251,19 @@ type Event struct {
 	ActiveGroupID string    `json:"active_group_id"`
 	Data          EventData `json:"data"`
 	Timestamp     time.Time `json:"timestamp"`
+	// notificationID names the stored copy of a notification event, which
+	// other processes load instead of receiving its content (#5504). It never
+	// reaches a browser.
+	notificationID int64
+}
+
+// WithNotificationID marks a notification event as stored under id, so a
+// relaying hub can tell other processes to load it.
+func (e Event) WithNotificationID(id int64) Event {
+	if e.Type == EventNotification && id > 0 {
+		e.notificationID = id
+	}
+	return e
 }
 
 // EventData contains the payload for an SSE event. Fields follow the

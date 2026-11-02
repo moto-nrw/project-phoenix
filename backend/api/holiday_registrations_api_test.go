@@ -20,6 +20,7 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
@@ -55,7 +56,7 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	}))
 	t.Cleanup(turnstile.Close)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, slog.Default())
+		turnstile.URL, testHealthCipher(), slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -227,17 +228,27 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 		FirstName       string `bun:"first_name"`
 		HomeSchoolID    *int64 `bun:"home_school_id"`
 		GuestSchoolName string `bun:"guest_school_name"`
-		Allergies       string `bun:"allergies"`
+		HealthData      []byte `bun:"health_data"`
+		Position        int    `bun:"position"`
 		Bookings        int    `bun:"bookings"`
 	}
-	require.NoError(t, f.db.NewRaw(`SELECT child.first_name, child.home_school_id, child.guest_school_name, child.allergies,
+	require.NoError(t, f.db.NewRaw(`SELECT child.first_name, child.home_school_id, child.guest_school_name, child.health_data, child.position,
 			(SELECT COUNT(*) FROM enrollment.holiday_registration_bookings AS booking WHERE booking.holiday_registration_child_id = child.id) AS bookings
 		FROM enrollment.holiday_registration_children AS child
 		WHERE child.organization_id = ? ORDER BY child.position`, office.organization).Scan(ctx, &children))
 	require.Len(t, children, 2)
 	require.NotNil(t, children[0].HomeSchoolID)
 	assert.Equal(t, office.schools[0], *children[0].HomeSchoolID)
-	assert.Equal(t, "Erdnüsse", children[0].Allergies)
+	// The allergy is sealed (#4722): no plaintext in the table, and it opens
+	// only with the key ring for this child's row.
+	assert.NotContains(t, string(children[0].HealthData), "Erdnüsse")
+	var registrationID int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registrations WHERE organization_id = ?`, office.organization).Scan(ctx, &registrationID))
+	opened, err := testHealthCipher().Open(children[0].HealthData,
+		enrollment.HolidayChildHealthContext(office.organization, registrationID, children[0].Position))
+	require.NoError(t, err)
+	assert.Contains(t, string(opened), "Erdnüsse")
+	assert.Nil(t, children[1].HealthData, "a child without health information gets no sealed value")
 	assert.Equal(t, 1, children[0].Bookings)
 	assert.Nil(t, children[1].HomeSchoolID, "the child without a school of the Träger is a holiday guest")
 	assert.Equal(t, "Grundschule Melle", children[1].GuestSchoolName)

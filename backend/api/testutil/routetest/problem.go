@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 )
 
@@ -77,12 +77,32 @@ func envelopeRaw(body map[string]json.RawMessage, member string) string {
 	return string(value)
 }
 
-var registeredCodes = sync.OnceValue(func() map[string]bool {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("routetest: locate error-registry/")
+// BackendRoot walks up from the working directory to the directory holding
+// go.mod. Test binaries run in their package directory. Source paths from
+// runtime.Caller are not used because -trimpath makes them module-relative.
+func BackendRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
 	}
-	entries, err := ReadErrorRegistry(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "error-registry"))
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no go.mod above %s", dir)
+		}
+		dir = parent
+	}
+}
+
+var registeredCodes = sync.OnceValue(func() map[string]bool {
+	root, err := BackendRoot()
+	if err != nil {
+		panic("routetest: locate error-registry/: " + err.Error())
+	}
+	entries, err := ReadErrorRegistry(filepath.Join(root, "..", "error-registry"))
 	if err != nil {
 		panic("routetest: read error registry: " + err.Error())
 	}

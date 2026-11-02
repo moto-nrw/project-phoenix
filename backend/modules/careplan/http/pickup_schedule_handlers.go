@@ -174,7 +174,7 @@ func buildPickupDataResponse(data *careplan.StudentPickupData) PickupDataRespons
 // student lists) keep showing the previous time until a manual reload.
 //
 // Scoped to the writing tenant (BroadcastToTenant, like broadcastStudentUpdated
-// — deliberately NOT the BroadcastToAll its arrival sibling still uses): only
+// and its arrival sibling): only
 // that school can read the affected child, so a global fan-out would make every
 // other school refetch student and care-plan data for a write they can never
 // see. Tenant scope loses no recipient — the hub indexes every staff client

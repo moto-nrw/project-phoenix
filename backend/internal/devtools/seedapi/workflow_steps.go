@@ -235,6 +235,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentLetterStep{},
 		seedParentPollStep{},
 		seedParentDeclarationStep{}, seedSurveysStep{},
+		// End care only after the last parent write. A seed spanning midnight
+		// must not end a child's care before its poll/declaration answers.
+		seedCareExitsStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
@@ -337,7 +340,6 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		seedAccidentReportsStep{},
 		seedFamilyProtectionStep{},
 		markStudentsSickStep{},
-		seedCareExitsStep{},
 		seedAnnouncementsStep{},
 		seedStaffMessagingStep{},
 		seedParentMessageCountScopeStep{},

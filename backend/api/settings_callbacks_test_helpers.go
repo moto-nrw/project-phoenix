@@ -8,9 +8,6 @@ import (
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -38,13 +35,13 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}
-	hub := deliveryCompose.NewRealtimeHub(slog.Default())
+	hub := realtime.NewHub(slog.Default())
 	photoDeps := StudentPhotoRuntimeDependencies{
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 		ActingAccount: actingAccountID,
 	}
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
+		StudentDirectory: owners.StudentDirectoryReader(),
 		DB:               db.Pool(), Observe: func(peopleCompose.Observation) {},
 		StudentPhotos: NewStudentPhotoRuntime(photoDeps),
 	}, nil)

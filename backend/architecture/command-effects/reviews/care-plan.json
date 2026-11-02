@@ -8770,6 +8770,16 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.SealStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentDisplayRows",
       "classification": "query",
       "effect": "query",
@@ -10630,9 +10640,9 @@
       "classification": "platform",
       "effect": "notice",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareScheduleBroadcaster.ArrivalScheduleChanged",
-      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through roots/owners.careRequestBroadcaster.ArrivalScheduleChanged. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "School-scoped losable approval invalidation through Delivery Platform; the Care Plan after-commit port now binds BroadcastToTenant. No durable write or cross-owner coordinator (ADRs 0098/0147).",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
     },
     {

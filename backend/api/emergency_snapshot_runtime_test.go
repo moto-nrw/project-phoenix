@@ -36,7 +36,7 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	query, err := newEmergencySnapshot(emergencySnapshotSources{Presence: emergencyPresenceModule(t, db), PresenceMode: emergencyFakeMode{mode: "detailed"},
 		Students: newEmergencyOwnerStudents(t, db), Persons: people, Contacts: peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{Students: testpkg.StudentDirectory{}, Links: testpkg.GuardianLinks{}}),
-		Rooms: rooms, Renderer: lists.NewRendererService()})
+		Rooms: rooms, Renderer: lists.NewRendererService(), AccessLog: emergencyFakeAccessLog{}})
 	require.NoError(t, err)
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))

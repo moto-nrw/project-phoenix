@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -183,14 +184,15 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	// Fresh templates skip the lifecycle lock. The role pin remains because a
-	// different worktree may have changed the cluster-global password.
+	// Validate existing roles without changing cluster-global credentials.
+	if err := verifyAuthRolePassword(ctx, cfg, maint, pingServer); err != nil {
+		return nil, err
+	}
+
+	// Fresh templates skip the lifecycle lock.
 	if fresh, err := templateIsFresh(ctx, maint, name, o.hash); err != nil {
 		return nil, err
 	} else if fresh {
-		if err := pinAuthRolePassword(ctx, maint); err != nil {
-			return nil, err
-		}
 		return tcfg, nil
 	}
 
@@ -200,9 +202,6 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) (*
 	}
 	defer unlock()
 
-	if err := ensureAuthRolePassword(ctx, conn); err != nil {
-		return nil, err
-	}
 	if err := ensureTemplateLocked(ctx, conn, cfg, tcfg, o); err != nil {
 		return nil, err
 	}
@@ -330,49 +329,23 @@ func adoptBaseTemplate(ctx context.Context, conn sqlExecutor, cfg, tcfg *Config,
 	return true, nil
 }
 
-// pinAuthRolePassword is ensureAuthRolePassword for the callers that hold no
-// lifecycle lock. ALTER ROLE writes a pg_authid tuple, and two sessions doing
-// that at the same moment fail with "tuple concurrently updated" (XX000) — on
-// CI that took 1041 tests down at once, because the pin runs inside
-// SetupTestDB and a failure there fails the whole package binary.
-//
-// The lock is taken inside ensureAuthRolePassword so the lifecycle path and
-// this lock-free path cannot accidentally use different exclusion domains.
-func pinAuthRolePassword(ctx context.Context, db *sql.DB) error {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("open connection for phoenix_auth password pin: %w", err)
+// verifyAuthRolePassword checks the cluster-global role created by migrations.
+// A missing role is initialized by the migration, but an existing role belongs
+// to all sessions sharing the server and must never be repaired here.
+func verifyAuthRolePassword(ctx context.Context, cfg *Config, db *sql.DB, ping serverPinger) error {
+	var exists bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT FROM pg_roles WHERE rolname = 'phoenix_auth')`).Scan(&exists); err != nil {
+		return fmt.Errorf("check phoenix_auth test role: %w", err)
 	}
-	defer func() { _ = conn.Close() }()
-	return ensureAuthRolePassword(ctx, conn)
-}
-
-// ensureAuthRolePassword pins the cluster-global phoenix_auth role of the
-// TEST server to AuthRolePassword. Migration 1.14.1 only creates the role IF
-// NOT EXISTS, so without this the first worktree to migrate decides the
-// password for every other worktree on the same container (#2419). No-op
-// when the role does not exist yet — the migration creates it with the same
-// value, because buildTemplate exports it.
-//
-// The auth-role lock is session-scoped and deliberately taken here, on the
-// same connection as ALTER ROLE. A lifecycle lock alone does not exclude the
-// lock-free fast path because it uses a different advisory-lock key.
-func ensureAuthRolePassword(ctx context.Context, conn *sql.Conn) error {
-	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey); err != nil {
-		return fmt.Errorf("lock phoenix_auth password pin: %w", err)
+	if !exists {
+		return nil
 	}
-	defer func() {
-		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
-	}()
-
-	_, err := conn.ExecContext(ctx, fmt.Sprintf(`
-		DO $$ BEGIN
-			IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'phoenix_auth') THEN
-				ALTER ROLE phoenix_auth WITH PASSWORD %s;
-			END IF;
-		END $$`, quoteLiteral(AuthRolePassword)))
-	if err != nil {
-		return fmt.Errorf("pin phoenix_auth test password: %w", err)
+	roleURL := *cfg.templateURL
+	roleURL.User = url.UserPassword("phoenix_auth", AuthRolePassword)
+	roleCfg := *cfg
+	roleCfg.templateURL = &roleURL
+	if err := ping(ctx, &roleCfg); err != nil {
+		return fmt.Errorf("test database phoenix_auth authentication failed; existing role was not changed; use a separately owned test server initialized by this harness or ask the server owner to resolve credential drift; see docs/agents/operations.md#test-database")
 	}
 	return nil
 }

@@ -103,3 +103,63 @@ Current holder from the database:
 SELECT lease_name, holder_id, fencing_token, lease_until, lease_until > clock_timestamp() AS running
 FROM platform.worker_leases;
 ```
+
+## Realtime across processes (#5457)
+
+The event transport uses PostgreSQL LISTEN/NOTIFY on the existing application
+pool's database, not a new broker or durable outbox. Delivery Platform owns
+transport and routing; process roots only construct and close it.
+
+Transport invariants:
+
+1. Producers retain their after-commit hooks. A committed Worker signal reaches
+   subscribers of the same school in every API process listening at that time.
+2. Each envelope carries the school ID and its original group, account or
+   guardian addressing. Receiving a signal never broadens its audience.
+   The unauthenticated channel carries allowlisted invalidations only, with
+   numeric IDs and fixed reasons, never names, notes, text or links. Receivers
+   reconstruct events and ignore unknown content. Tenant-wide producer contracts
+   remain identity-free. Invalid envelopes are discarded.
+3. Delivery is lossy: disconnects, oversized messages and full client buffers
+   can lose signals, never redirect them. No replay or durable delivery is
+   promised. The existing poll reconcile remains five minutes while SSE is
+   connected, otherwise 60 seconds.
+4. Every API has one dedicated listener connection. A standalone Worker only
+   publishes. Local browsers receive immediately, even if NOTIFY fails. A
+   nonblocking queue holds at most 128 outbound signals and logs overflow. Own
+   origin echoes are ignored. Startup waits for a content-free readiness probe
+   on the same listener before exposing the API hub; a socket write alone is
+   not proof of LISTEN registration. Listeners reconnect; shutdown cancels queued
+   publications and closes the listener before the pool.
+5. Existing required database configuration is reused and still fails startup
+   when missing. No new environment variable, fallback DSN, table or migration
+   is needed. All processes must use the same database and a direct PostgreSQL
+   connection (not transaction-mode pooling) for LISTEN.
+
+Until the transport implementation is deployed to both API and Worker, a
+standalone Worker has no connected browsers: cutting over disables realtime
+job signals, and a second API cannot see the first API's local signals.
+
+The relay covers the school-scoped Worker producers and school/group/account/
+guardian broadcasts. Legacy unscoped API `BroadcastToAll` calls remain local;
+they cannot safely enter the school-scoped channel without an audience contract. That migration is tracked in
+[#5492](https://github.com/moto-nrw/project-phoenix/issues/5492).
+
+Content-bearing `notification` events cross processes by ID only
+([#5504](https://github.com/moto-nrw/project-phoenix/issues/5504)): the
+producing process stores a two-minute copy in `platform.realtime_notifications`,
+and each API loads it in the school's transaction and shows it only to the
+recipients the copy names. Content is never accepted from the unauthenticated
+channel. Guardian copies also store the event's student IDs in the JSON
+(`relay_student_ids`), never in the signal or browser payload. Before remote
+delivery, the API rechecks the addressed accounts with the Web Push
+delivery-time rules through `platform.delivery_realtime_recipients`: active
+account and school membership, the staff role and for moto schule the
+Lehrkraft role or a school role marked `school_portal`, and for guardians
+the guardian role and `parent_portal.access` for one of those students. These
+expressions are the push view's, compared by a migration test. Missing check metadata (legacy copies), ended membership, a revoked role or
+access, or a failed lookup suppress delivery. An explicit empty student list
+keeps producer-authorized announcements unchanged.
+
+Storage has a 250 ms timeout, including waiting for a pool connection. If the
+copy cannot be stored within that budget, the notification stays local.

@@ -2872,13 +2872,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (t *Timeframe) IsOpen() bool {\n\treturn t.EndTime == nil || t.EndTime.IsZero()\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/timetable/internal/domain/schedulerecords/Timeframe.IsOpen",
-      "owner": "modules/timetable"
-    },
-    {
-      "build": "production",
       "evidence": "func (e markedRecordError) Error() string {\n\treturn e.err.Error()\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/timetable/ports/markedRecordError.Error",

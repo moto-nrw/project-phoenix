@@ -110,8 +110,8 @@ func (f holidaySharedAnswersFixture) register(t *testing.T, r holidaySharedRegis
 		VALUES (?, ?, 'Eva', 'Muster', 'eva@example.org', '0123', NOW(), NOW(), ?, ?, ?::jsonb, ?, ?, ?, ?) RETURNING id`,
 		r.organization, r.period, r.status, r.version, r.family, second.first, second.last, second.email, second.phone).Scan(ctx, &registration))
 	require.NoError(t, f.db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
-			holiday_registration_id, position, first_name, last_name, birth_date, home_school_id, allergies, custom_data)
-		VALUES (?, ?, ?, 1, 'Lia', 'Muster', '2018-03-01', ?, 'Erdnüsse', ?::jsonb) RETURNING id`,
+			holiday_registration_id, position, first_name, last_name, birth_date, home_school_id, health_data, custom_data)
+		VALUES (?, ?, ?, 1, 'Lia', 'Muster', '2018-03-01', ?, convert_to('Erdnüsse', 'UTF8'), ?::jsonb) RETURNING id`,
 		r.organization, r.period, registration, r.homeSchool, r.child).Scan(ctx, &child))
 	_, err := f.db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_contacts (organization_id, holiday_registration_id, kind, position, name, phone, relationship)
 		VALUES (?, ?, 'emergency', 1, 'Oma Muster', '05402 1', 'Großmutter')`, r.organization, registration)
@@ -290,6 +290,9 @@ func TestHolidayHostSharedAnswersDownRestoresTheFunctionsOfBefore(t *testing.T) 
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
+	// The health data migration of #4722 replaces the participant function
+	// again; step back to the state of #5202 first.
+	require.NoError(t, holidayHealthDataDownWith(ctx, db, nil))
 	columns := func(function string) []string {
 		var names []string
 		require.NoError(t, db.NewRaw(`SELECT unnest(proargnames) FROM pg_proc

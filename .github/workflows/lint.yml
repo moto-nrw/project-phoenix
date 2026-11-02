@@ -35,6 +35,7 @@ env:
 
 jobs:
   error-code-registry:
+    name: Error code registry
     if: ${{ inputs.run-error-codes }}
     runs-on: ubuntu-latest
     permissions:
@@ -51,6 +52,7 @@ jobs:
           node scripts/generate-error-codes.mjs --check
 
   backend-quality:
+    name: Backend quality
     if: ${{ inputs.run-backend }}
     runs-on: ubuntu-latest
     permissions:
@@ -104,6 +106,7 @@ jobs:
           key: ${{ steps.build-cache-key.outputs.key }}
 
   backend-lint:
+    name: Backend lint
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
@@ -166,6 +169,7 @@ jobs:
           skip-cache: true
 
   frontend-quality:
+    name: Frontend quality
     if: ${{ inputs.run-frontend }}
     runs-on: ubuntu-latest
     permissions:
@@ -197,6 +201,7 @@ jobs:
         run: pnpm run build-storybook
 
   frontend-react-doctor:
+    name: Frontend React Doctor
     # Changed-scope only: the existing codebase has ~1000 findings, so a full
     # scan would always fail. This gates only issues introduced by the PR
     # (fails on error severity, warnings are advisory). Push builds skip it —
@@ -223,6 +228,7 @@ jobs:
 
 
   frontend-build:
+    name: Frontend build
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:

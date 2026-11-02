@@ -35,14 +35,25 @@ func FillWideStudentFields(tb testing.TB, db *bun.DB, studentID, personID int64)
 			email_contact_accepted_at = now()
 		WHERE id = ?`, studentID).Exec(ctx)
 	require.NoError(tb, err, "failed to fill wide profile fields")
+	// The health field is sealed like the server seals it (#5472).
+	var membership struct {
+		ID       int64 `bun:"id"`
+		TenantID int64 `bun:"tenant_id"`
+	}
+	require.NoError(tb, db.NewRaw(`SELECT id, tenant_id FROM users.student_school_memberships
+		WHERE student_profile_id = ? AND deleted_at IS NULL`, studentID).Scan(ctx, &membership),
+		"failed to read the wide student's membership")
+	health := "Laktoseintoleranz, Notfallmedikament im Gruppenraum"
+	sealed, err := SealStudentHealth(membership.TenantID, membership.ID, &health)
+	require.NoError(tb, err, "failed to seal the wide student's health field")
 	_, err = db.NewRaw(`UPDATE users.student_care_profiles SET
-			health_info = 'Laktoseintoleranz, Notfallmedikament im Gruppenraum',
+			health_data = ?,
 			pickup_status = 'Wird abgeholt',
 			bus_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
 			pickup_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
 			departure_days = '{"mon":"pickup","tue":"pickup","wed":"pickup","thu":"pickup","fri":"pickup"}'::jsonb,
 			allowed_departure_modes = '{"mon":["pickup"],"tue":["pickup"],"wed":["pickup"],"thu":["pickup"],"fri":["pickup"]}'::jsonb
-		WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, studentID).Exec(ctx)
+		WHERE membership_id = ?`, sealed, membership.ID).Exec(ctx)
 	require.NoError(tb, err, "failed to fill wide student fields")
 
 	_, err = db.NewRaw(`UPDATE users.persons SET birthday = DATE '2019-02-02' WHERE id = ?`, personID).Exec(ctx)

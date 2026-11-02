@@ -29,7 +29,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -96,7 +95,7 @@ type guardianRetention struct {
 
 func newGuardianRetention(db transactionruntime.Database, invitations identityaccess.GuardianInvitationReads) guardianRetention {
 	return guardianRetention{
-		people:      peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
+		people:      peopleCompose.MustNewReads(db.Pool(), StudentDirectoryReader()),
 		invitations: openGuardianInvitations(invitations),
 	}
 }
@@ -354,7 +353,7 @@ func newStaffRetention(db transactionruntime.Database, audit auditModels.Command
 			return ids, err
 		},
 		RemoveSupervision: presence.RemoveSupervision,
-		People:            peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()),
+		People:            peopleCompose.MustNewReads(db.Pool(), StudentDirectoryReader()),
 		AppendAudit: func(ctx context.Context, erasure staffoffboarding.Erasure) error {
 			return audit.Append(ctx, auditModels.NewStaffRetentionDeletion(
 				tenant.FromContext(ctx), erasure.StaffID, erasure.Records(), erasure.PersonAnonymized, erasure.Counts(),

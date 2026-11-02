@@ -19,7 +19,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -47,7 +46,7 @@ func NewClassDay(
 	deps.MorningChanged = func(ctx context.Context) {
 		if broadcaster != nil {
 			deliveryCompose.QueueArrivalScheduleChanged(ctx, classDayMorningBroadcaster{
-				broadcaster: broadcaster, tenantID: tenant.FromContext(ctx),
+				broadcaster: broadcaster,
 			}, logger)
 		}
 	}
@@ -369,9 +368,8 @@ func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context,
 // data participate. The existing queue owns the after-commit boundary.
 type classDayMorningBroadcaster struct {
 	broadcaster realtime.Broadcaster
-	tenantID    int64
 }
 
-func (b classDayMorningBroadcaster) BroadcastToAll(event realtime.Event) error {
-	return b.broadcaster.BroadcastToTenant(b.tenantID, realtime.NewEvent(realtime.EventStudentUpdated, "", event.Data))
+func (b classDayMorningBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
+	return b.broadcaster.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventStudentUpdated, "", event.Data))
 }

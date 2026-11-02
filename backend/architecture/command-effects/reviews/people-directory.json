@@ -8470,6 +8470,16 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.StudentDirectoryRows.OpenStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentModelRows",
       "classification": "query",
       "effect": "query",
@@ -8670,6 +8680,26 @@
       "target_owner": "guardian-link-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.HealthOpener.OpenStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.HealthOpener.OpenStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.AllSchoolsStudentModelRows",
       "classification": "query",
       "effect": "query",
@@ -8707,6 +8737,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentdirectoryview/internal/adapters/postgres.Reader.AllSchoolsStudentRows; modules/studentdirectoryview/internal/adapters/postgres/care_reader.go:66. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.AllSchoolsStudentRows",
+      "target_owner": "student-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
       "target_owner": "student-directory-view"
     },
     {

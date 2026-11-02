@@ -61,7 +61,11 @@ func sharedQuestions() []map[string]any {
 	}
 }
 
-func TestTraegerCannotShareAHealthQuestionWithTheHostingSchool(t *testing.T) {
+// A health question can be shared with the hosting school since #4722 (user
+// decision of 01.11.2026 "keine Datensilos"): the template shares its health
+// questions like the way home, and a save that shares one is accepted. Before
+// #4722 the builder refused it with enrollment.holiday_form_field_not_allowed.
+func TestTraegerSharesAHealthQuestionWithTheHostingSchool(t *testing.T) {
 	t.Parallel()
 	f := newHolidayRegistrationFixture(t)
 	office := newTraegerOffice(t, f.db, f.traeger, "Träger Freigabe Formular", identityaccess.TraegerRoleAdministration)
@@ -81,22 +85,22 @@ func TestTraegerCannotShareAHealthQuestionWithTheHostingSchool(t *testing.T) {
 	}
 	assert.Equal(t, true, shared["darf_allein_nach_hause"], "the template shares the way home")
 	assert.Equal(t, true, shared["darf_an_ausfluegen_teilnehmen"], "the template shares the trips")
-	assert.Equal(t, false, shared["tetanus_impfschutz"], "a health question of the template stays with the Träger")
+	assert.Equal(t, true, shared["tetanus_impfschutz"], "the template shares its health questions like the fixed health fields")
 
 	questions := sharedQuestions()
 	questions[1]["share_with_host"] = true
-	rec = traegerJSON(t, f.traeger, office.token, http.MethodPut, holidayFormPath(period.ID), map[string]any{"fields": questions})
-	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	code, fields := registrationRefusalOf(t, rec)
-	assert.Equal(t, "enrollment.holiday_form_field_not_allowed", code)
-	assert.Equal(t, []string{"fields.1.share_with_host"}, fields, "the refusal names the share of the health question")
-	assert.Equal(t, []int{1}, formVersions(t, f, period.ID), "a refused save writes no version")
+	saved := saveHolidayForm(t, f, office, period.ID, questions)
+	assert.Equal(t, 2, saved.Version, "a shared health question is accepted")
+	var sharedHealth bool
+	require.NoError(t, f.db.NewRaw(`SELECT (fields->1->'share_with_host')::boolean AND (fields->1->'health')::boolean
+		FROM enrollment.holiday_period_forms WHERE holiday_period_id = ? AND version = 2`, period.ID).Scan(t.Context(), &sharedHealth))
+	assert.True(t, sharedHealth, "the version keeps the shared health question")
 
-	saved := saveHolidayForm(t, f, office, period.ID, sharedQuestions())
-	assert.Equal(t, 2, saved.Version)
+	saved = saveHolidayForm(t, f, office, period.ID, sharedQuestions())
+	assert.Equal(t, 3, saved.Version)
 	var encoded string
 	require.NoError(t, f.db.NewRaw(`SELECT fields::text FROM enrollment.holiday_period_forms
-		WHERE holiday_period_id = ? AND version = 2`, period.ID).Scan(t.Context(), &encoded))
+		WHERE holiday_period_id = ? AND version = 3`, period.ID).Scan(t.Context(), &encoded))
 	var stored []map[string]any
 	require.NoError(t, json.Unmarshal([]byte(encoded), &stored))
 	require.Len(t, stored, len(sharedQuestions()))

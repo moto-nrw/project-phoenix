@@ -5,16 +5,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
-
-func NewRealtimeHub(logger *slog.Logger) *realtime.Hub {
-	return realtime.NewHub(logger, realtime.Observers{
-		Connection: observability.RecordSSEConnection,
-		Broadcast:  observability.RecordSSEBroadcast,
-	})
-}
 
 // QueueStaffTimeTrackingChanged emits the tenant-wide time-tracking
 // invalidation after the surrounding transaction commits. The root binds it
@@ -36,7 +28,7 @@ func QueueInstanceStarted(ctx context.Context, broadcaster realtime.Broadcaster,
 // QueueArrivalScheduleChanged announces an arrival schedule change after the
 // surrounding transaction commits. The root binds it to the class day's
 // announcer.
-func QueueArrivalScheduleChanged(ctx context.Context, broadcaster interface{ BroadcastToAll(realtime.Event) error }, logger *slog.Logger) {
+func QueueArrivalScheduleChanged(ctx context.Context, broadcaster realtimeevents.TenantPublisher, logger *slog.Logger) {
 	realtimeevents.QueueArrivalScheduleChanged(ctx, broadcaster, logger)
 }
 

@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,7 +48,7 @@ func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOf
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
 		People: people, Holidays: noHolidays{},
-		Events: owners.TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), Logger: slog.Default(),
+		Events: owners.TimeTrackingEvents(realtime.NewHub(slog.Default())), Logger: slog.Default(),
 	})
 	if err != nil {
 		return nil, nil, err

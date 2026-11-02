@@ -272,7 +272,7 @@ var accountErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrTraegerAlreadyMember, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeTraegerAlreadyMember)
 	}},
-	{Target: identityaccess.ErrTraegerLastAdministrator, Render: func(err error) render.Renderer {
+	{Target: identityaccess.ErrTraegerLastLeader, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeTraegerLastAdministrator)
 	}},
 	{Target: identityaccess.ErrTraegerMemberNotFound, Render: func(err error) render.Renderer {

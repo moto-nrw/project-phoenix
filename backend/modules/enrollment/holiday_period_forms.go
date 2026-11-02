@@ -19,9 +19,10 @@ import (
 
 // HolidayFormField is one question of a holiday period's form: a FormField
 // of the online registration that may be marked as health information.
-// Health answers need the consent to health information and appear only in
-// the detail of a registration, never in a list, an export, the hosting
-// school's participants or a mail (ADR 0110 point 7, ADR 0114 point 7).
+// Health answers need the consent to health information, are sealed at rest
+// and appear only in the health read of a registration (right
+// traeger_health:read) and, when shared, at the hosting school, never in a
+// list, an export or a mail (ADR 0110 point 7, ADR 0114 point 7, #4722).
 // Health is the one marker for that: every stored version and every answer
 // on the wire carries it, false included, so a later reader such as the
 // hosting school's copy without health information (#5202) can tell the two
@@ -29,10 +30,13 @@ import (
 //
 // ShareWithHost lets the school that hosts a week see the answer in its
 // participant list and on the sheet of a holiday guest (#5202, ADR 0116 and
-// ADR 0120 addenda). A health question cannot carry it; the hosting school's
-// functions check both markers again in the database and treat a missing
-// marker as health information. It is stored on every version, false
-// included, and acts from the version that sets it on.
+// ADR 0120 addenda). A health question carries it too since #4722: its answer
+// reaches the hosting school with the fixed health fields, sealed, and only
+// when the parents agreed under consent texts of
+// HolidayConsentVersionHostHealth. The hosting school's functions check both
+// markers again in the database and treat a missing marker as health
+// information. It is stored on every version, false included, and acts from
+// the version that sets it on.
 type HolidayFormField struct {
 	FormField
 	Health        bool `json:"health"`
@@ -141,8 +145,6 @@ func validateHolidayFormField(f *HolidayFormField) error {
 		return notAllowed("health", "an information block collects no health information")
 	case f.ShareWithHost && f.Type == FormFieldInfo:
 		return notAllowed("share_with_host", "an information block has no answer to share")
-	case f.ShareWithHost && f.Health:
-		return notAllowed("share_with_host", "a health question stays with the Träger (ADR 0116)")
 	}
 	// A check of the online registration without a wire code of its own
 	// refuses an attribute the field cannot carry, such as a required
@@ -160,7 +162,8 @@ func validateHolidayFormField(f *HolidayFormField) error {
 // HolidayFormTemplate is the standard template of a new period (B7 of the
 // requirements memo of 14.10.2026): per child, optional, the health
 // questions marked. The way home and the trips go to the hosting school
-// (#5202). "Standardvorlage einfügen" in the editor adds the fields whose
+// (#5202), and so do the health questions, like the fixed health fields
+// (#4722). "Standardvorlage einfügen" in the editor adds the fields whose
 // key is missing.
 func HolidayFormTemplate() []HolidayFormField {
 	child := func(order int, key, label string, typ FormFieldType, health bool, options ...FormFieldOption) HolidayFormField {
@@ -173,12 +176,12 @@ func HolidayFormTemplate() []HolidayFormField {
 		return field
 	}
 	return []HolidayFormField{
-		child(1, "lebensmittelunvertraeglichkeiten", "Lebensmittelunverträglichkeiten", FormFieldTextarea, true),
-		child(2, "tetanus_impfschutz", "Tetanus-Impfschutz", FormFieldSelect, true,
+		shared(child(1, "lebensmittelunvertraeglichkeiten", "Lebensmittelunverträglichkeiten", FormFieldTextarea, true)),
+		shared(child(2, "tetanus_impfschutz", "Tetanus-Impfschutz", FormFieldSelect, true,
 			FormFieldOption{Label: "Ja", Value: "ja"}, FormFieldOption{Label: "Nein", Value: "nein"},
-			FormFieldOption{Label: "Weiß nicht", Value: "weiss_nicht"}),
-		child(3, "foerderbedarf", "Förderbedarf", FormFieldTextarea, true),
-		child(4, "koerperliche_einschraenkungen", "Körperliche Einschränkungen", FormFieldTextarea, true),
+			FormFieldOption{Label: "Weiß nicht", Value: "weiss_nicht"})),
+		shared(child(3, "foerderbedarf", "Förderbedarf", FormFieldTextarea, true)),
+		shared(child(4, "koerperliche_einschraenkungen", "Körperliche Einschränkungen", FormFieldTextarea, true)),
 		shared(child(5, "darf_allein_nach_hause", "Darf allein nach Hause gehen", FormFieldBoolean, false)),
 		shared(child(6, "darf_an_ausfluegen_teilnehmen", "Darf an Ausflügen teilnehmen", FormFieldBoolean, false)),
 	}

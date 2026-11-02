@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { cleanLog, digest, failedStep, jobKey, localCommand, repeatedFailures } from './ci-failures.mjs';
+import { cleanLog, digest, failedStep, jobKey, localCommand, localCommands, repeatedFailures } from './ci-failures.mjs';
 
 const log = [
   '﻿2026-10-31T19:49:15.6579162Z Current runner version: \'2.338.1\'',
@@ -23,11 +24,11 @@ const log = [
 ];
 
 test('job keys drop the caller workflow and matrix suffix', () => {
-  assert.equal(jobKey('lint / frontend-quality'), 'frontend-quality');
-  assert.equal(jobKey('test / test-frontend (dom-2)'), 'test-frontend');
+  assert.equal(jobKey('Lint / Frontend quality'), 'Frontend quality');
+  assert.equal(jobKey('Test / Frontend tests (dom-2)'), 'Frontend tests');
   assert.equal(jobKey('ci-gate'), 'ci-gate');
-  assert.match(localCommand('lint / backend-quality'), /check-deadcode\.sh/);
-  assert.equal(localCommand('lint / not-a-mapped-job'), undefined);
+  assert.match(localCommand('Lint / Backend quality'), /check-deadcode\.sh/);
+  assert.equal(localCommand('Lint / Not a mapped job'), undefined);
 });
 
 test('the failed step is the last run group before the non-zero exit', () => {
@@ -74,21 +75,28 @@ test('the digest leads with findings, skips passing noise and keeps the tail', (
 
 test('repeated failures compare jobs, not matrix shards', () => {
   assert.deepEqual(
-    repeatedFailures(['test / test-frontend (node)', 'lint / frontend-quality'], ['test / test-frontend (dom-1)', 'lint / backend-lint']),
-    ['test-frontend'],
+    repeatedFailures(['Test / Frontend tests (node)', 'Lint / Frontend quality'], ['Test / Frontend tests (dom-1)', 'Lint / Backend lint']),
+    ['Frontend tests'],
   );
-  assert.deepEqual(repeatedFailures(['lint / frontend-build'], []), []);
+  assert.deepEqual(repeatedFailures(['Lint / Frontend build'], []), []);
 });
 
 test('every reproduction is one shell command that stops at the first failure', () => {
-  for (const job of ['backend-quality', 'backend-lint', 'frontend-quality', 'frontend-react-doctor', 'frontend-build',
-    'test-frontend', 'test-backend', 'seed-smoke', 'env-sync-check']) {
-    const command = localCommand(`lint / ${job}`);
+  for (const job of ['Backend quality', 'Backend lint', 'Frontend quality', 'Frontend React Doctor', 'Frontend build',
+    'Frontend tests', 'Backend tests', 'Seed and simulate smoke', 'Env sync check', 'Backend architecture ratchet']) {
+    const command = localCommand(`CI / ${job}`);
     assert.ok(command, job);
     assert.equal(spawnSync('bash', ['-n', '-c', command]).status, 0, `${job}: ${command}`);
     assert.doesNotMatch(command.replace(/#.*$/, ''), /;/, `${job} must not ignore an earlier failure`);
   }
-  assert.match(localCommand('lint / frontend-build'), /--prepare-ci .*--build-base .*perf:bundle-ratchet/);
-  assert.match(localCommand('test / Backend tests (0)'), /test-changed\.sh/);
+  assert.match(localCommand('Lint / Frontend build'), /--prepare-ci .*--build-base .*perf:bundle-ratchet/);
+  assert.match(localCommand('Test / Backend tests (0)'), /test-changed\.sh/);
   assert.match(localCommand('Backend architecture ratchet'), /backend-architecture\.sh check/);
+});
+
+test('every reproduction is keyed by a job display name of the CI workflow', () => {
+  const names = new Set(['main.yml', 'lint.yml', 'test.yml'].flatMap(file =>
+    [...readFileSync(new URL(`../.github/workflows/${file}`, import.meta.url), 'utf8').matchAll(/^ {4}name: (.+)$/gm)]
+      .map(([, name]) => jobKey(name))));
+  for (const key of Object.keys(localCommands)) assert.ok(names.has(key), `no CI job is named ${key}`);
 });

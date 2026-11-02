@@ -638,6 +638,7 @@ func materializedInstance(tmpl *activityContract.Group, date calendar.Date, peri
 	periodID := period.ID
 	templateID := tmpl.ID
 	return &schedule.ActivityInstance{
+		ClockTimesSet:    true,
 		Date:             calendar.Date(date),
 		ActivityGroupID:  &templateID,
 		CalendarPeriodID: &periodID,

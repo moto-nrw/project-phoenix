@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { HolidayHealthCell } from "~/components/holiday/holiday-health-lines";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -44,6 +45,9 @@ const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 //
 // Gibt der Träger Fragen ohne Gesundheitsangabe frei, steht je Frage eine
 // Spalte in der Liste, dazu die zweite sorgeberechtigte Person (#5202).
+// Die Gesundheitsangaben der Kinder, deren Eltern der Weitergabe zugestimmt
+// haben, stehen in einer Spalte „Gesundheit“; Export und Druck tragen sie
+// nicht (#4722).
 //
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
@@ -82,6 +86,7 @@ const participantColumns = (
   const withSecondGuardian = list.participants.some(
     (child) => child.secondGuardian !== null,
   );
+  const withHealth = list.participants.some((child) => child.health !== null);
   const answer = (child: HolidayParticipant, key: string) =>
     child.answers.find((entry) => entry.key === key);
   return [
@@ -132,6 +137,17 @@ const participantColumns = (
         return typeof value === "boolean" ? String(value) : value;
       },
     })),
+    ...(withHealth
+      ? [
+          {
+            key: "health",
+            header: "Gesundheit",
+            render: (child: HolidayParticipant) => (
+              <HolidayHealthCell health={child.health} />
+            ),
+          },
+        ]
+      : []),
   ];
 };
 
@@ -244,7 +260,7 @@ export default function FerienwochenPage() {
   return (
     <TenantPage
       title="Ferienwochen"
-      info="Hier stehen die Ferienwochen, die Ihre OGS für den Träger ausrichtet. Sie sehen nur Kinder, deren Anmeldung der Träger bestätigt hat. Nach dem letzten Tag der Woche ist die Liste nicht mehr da."
+      info="Hier stehen die Ferienwochen, die Ihre OGS für den Träger ausrichtet. Sie sehen nur Kinder, deren Anmeldung der Träger bestätigt hat. Nach dem letzten Tag der Woche ist die Liste nicht mehr da. Gesundheitsangaben stehen nur hier, nicht in der Excel- oder CSV-Datei."
       stats={stats}
       statsLoading={loadingWeeks}
       loading={loading}
@@ -328,11 +344,17 @@ function ParticipantList({ list }: { readonly list: HolidayParticipantList }) {
       </div>
       <SectionCard
         title="Kinder"
-        description={
+        description={[
+          "Nur zur Information. Anmeldungen prüft und bestätigt der Träger.",
           list.questions.length > 0
-            ? "Nur zur Information. Anmeldungen prüft und bestätigt der Träger. Dazu kommen Antworten der Eltern, die der Träger für Sie freigibt."
-            : "Nur zur Information. Anmeldungen prüft und bestätigt der Träger."
-        }
+            ? "Dazu kommen Antworten der Eltern, die der Träger für Sie freigibt."
+            : "",
+          list.participants.some((child) => child.health !== null)
+            ? "Gesundheitsangaben stehen bei den Kindern, deren Eltern zugestimmt haben."
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         <DataTable
           columns={columns}

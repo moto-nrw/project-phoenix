@@ -80,7 +80,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	if err != nil {
 		return
 	}
-	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
+	hub = realtime.NewHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
 	var (
 		yard             FacilitiesYard
@@ -235,7 +235,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, owners.DeliveryModuleOf(delivery), settings.Service,
+			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, delivery, settings.Service,
 				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},

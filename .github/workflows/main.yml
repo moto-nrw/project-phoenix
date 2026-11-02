@@ -34,6 +34,7 @@ jobs:
   # `needs: detect-changes`; ci-gate carries the same guard explicitly. The full
   # suite runs on the ready_for_review event.
   detect-changes:
+    name: Detect changes
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     permissions:
       contents: read
@@ -484,6 +485,7 @@ jobs:
         run: scripts/backend-affected-packages_test.sh
 
   lint:
+    name: Lint
     permissions:
       contents: read
       actions: read
@@ -629,6 +631,7 @@ jobs:
         run: scripts/backend-architecture.sh audit-issues --api-url "$GITHUB_API_URL"
 
   test:
+    name: Test
     permissions:
       contents: read
       checks: write
@@ -647,6 +650,7 @@ jobs:
 
   # Verify all environments have matching env var keys (no secrets needed)
   env-sync-check:
+    name: Env sync check
     needs: detect-changes
     if: needs.detect-changes.outputs.run-env-check == 'true'
     permissions:

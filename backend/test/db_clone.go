@@ -131,10 +131,11 @@ func packageTestConfig() (*testdb.Config, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf(`test database not configured.
 
-To run integration tests, ensure .env contains:
-  TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
+Use TEST_DB_DSN from the server-owning checkout's root .env, not
+backend/dev.env.example. An exported TEST_DB_DSN takes precedence.
+See docs/agents/operations.md#test-database.
 
-The suite starts the postgres-test container and migrates the template
+The suite starts the postgres-test container and migrates its template
 automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	}
 	return testdb.NewConfig(dsn)
@@ -222,6 +223,7 @@ func applyViperTestConfig() {
 
 func applyStaticViperTestConfig() {
 	viper.Set("auth_jwt_secret", TestJWTSecret)
+	viper.Set("health_data_keys", TestHealthDataKeys)
 	viper.Set("auth_jwt_expiry", "15m")
 	viper.Set("auth_jwt_refresh_expiry", "1h")
 	viper.Set("frontend_url", "http://tenant.invalid")

@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -88,7 +89,7 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	require.NoError(t, err)
 	staff, err := NewRFIDTestPeople(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, clock)
+	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, testHealthCipher(), clock)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
 	unit := testpkg.TenantRuntime(t, f.db)
@@ -98,7 +99,7 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), unit)))
 		})
 	})
-	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, accessLog, clock), guests).Router(ProtectedTenantRoutes))
+	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, persons, accessLog, testHealthCipher(), clock), guests).Router(ProtectedTenantRoutes))
 	router.Mount("/api/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 	nord := f.office.schools[0]
 	group := testpkg.CreateTestEducationGroupForTenant(t, f.db, nord, "Feriengruppe").ID
@@ -241,7 +242,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	}, f.careDays(t, ben), "each day of the week expects the guest with the times of its time model")
 	assert.Equal(t, waiting, ben, "the first day of the week moves the waiting copy into the group")
 	class, status, from, until, health := f.child(t, ben)
-	assert.Equal(t, enrollment.HolidayGuestSchoolClass, class)
+	assert.Equal(t, peopledirectory.HolidayGuestSchoolClass, class)
 	assert.Equal(t, "active", status)
 	assert.Equal(t, "2099-07-06", from)
 	assert.Equal(t, "2099-07-10", until)

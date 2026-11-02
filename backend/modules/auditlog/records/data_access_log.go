@@ -106,6 +106,19 @@ const (
 	// many children at once. StudentID stays NULL; metadata carries the
 	// group filter and the export day.
 	ResourceTypeStudentHealthListExport = "student_health_list_export"
+	// ResourceTypeStudentHealthView records a staff member opening ONE
+	// child's record whose answer carries the child's health field (#5472):
+	// the stored health information (Art. 9 data). StudentID is SET;
+	// RangeStart and RangeEnd span the day. Every read writes its own row.
+	ResourceTypeStudentHealthView = "student_health_view"
+	// ResourceTypeEmergencyListExport records an export of the Notfallliste
+	// that prints the health field of at least one child (#5472). StudentID
+	// stays NULL; RangeStart and RangeEnd span the day.
+	ResourceTypeEmergencyListExport = "emergency_list_export"
+	// ResourceTypeStudentHealthListView records a child list answer that
+	// shows the health field of at least one child (#5472). StudentID stays
+	// NULL; RangeStart and RangeEnd span the day.
+	ResourceTypeStudentHealthListView = "student_health_list_view"
 
 	// ResourceTypeAttendanceStatistics is the Statistik report (#2606):
 	// attendance quotas per child over a window. Views are deduplicated per
@@ -138,6 +151,12 @@ const (
 	// sheet of one holiday guest (#4666): booked care, emergency contacts
 	// and pickup persons. StudentID is SET; metadata carries week_id.
 	ResourceTypeHolidayGuestSheet = "holiday_guest_sheet"
+	// ResourceTypeHolidayStudentHealth records a staff member reading what
+	// the holiday registrations give as health information for a child of
+	// the hosting school itself (#4722): allergies, medication, health notes
+	// and answers to health questions. StudentID is SET; RangeStart and
+	// RangeEnd span the weeks; metadata carries week_ids.
+	ResourceTypeHolidayStudentHealth = "holiday_student_health"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

@@ -49,6 +49,7 @@ const sheet: HolidayGuestSheet = {
   ],
   pickupContacts: [{ name: "Opa Muster", phone: "", relationship: "" }],
   answers: [],
+  health: null,
   readOnly: false,
 };
 
@@ -117,6 +118,24 @@ describe("HolidayGuestSection", () => {
     expect(screen.getByText("–")).toBeInTheDocument();
   });
 
+  it("shows the health information the parents agreed to share (#4722)", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      health: {
+        allergies: "",
+        medication: "Asthmaspray",
+        healthNotes: "Trägt eine Brille",
+        answers: [],
+      },
+    });
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+
+    expect(await screen.findByText("Asthmaspray")).toBeInTheDocument();
+    expect(screen.getByText("Gesundheit")).toBeInTheDocument();
+    expect(screen.getByText("Medikamente")).toBeInTheDocument();
+    expect(screen.getByText("Trägt eine Brille")).toBeInTheDocument();
+  });
+
   it("keeps the sheet of before without shared answers", async () => {
     sheetMock.mockResolvedValue(sheet);
 
@@ -153,7 +172,7 @@ describe("HolidayGuestSection", () => {
 
     expect(
       screen.getByText(
-        "Notfall und Abholung sieht, wer die Angaben der Kinder lesen darf. Bitte fragen Sie Ihre Leitung.",
+        "Notfall, Abholung und Gesundheit sieht, wer die Angaben der Kinder lesen darf. Bitte fragen Sie Ihre Leitung.",
       ),
     ).toBeInTheDocument();
     expect(sheetMock).not.toHaveBeenCalled();

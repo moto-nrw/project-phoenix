@@ -2,7 +2,7 @@
 
 // Personen des Träger-Büros (#4650): wer im Träger-Portal arbeitet, mit
 // welcher Rolle, und wer eingeladen ist. Nur mit dem Recht „Konten
-// verwalten“ (Rolle Verwaltung).
+// verwalten“ (Rolle Leitung, #5471).
 
 import { useCallback, useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -265,6 +265,7 @@ export default function TraegerAccountsPage() {
           />
           <ChangeTraegerRolesModal
             member={editing}
+            members={buero.members}
             onClose={() => setEditing(null)}
             onChanged={load}
           />
