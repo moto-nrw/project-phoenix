@@ -208,34 +208,26 @@ func gapUntil(
 			lastLost = occurrence.Date
 			continue
 		}
-		until := max(carryingBookingStart(bookings, template.Kind, weekday, occurrence.End, occurrence.Date, endedOn), lastLost.AddDays(1))
+		until := max(latestBookingStart(bookings, weekday, occurrence.Date), lastLost.AddDays(1))
 		return &until
 	}
 	return nil
 }
 
-// carryingBookingStart is the first booking change after the loss that makes
-// the Regeltermin carried. A booking that does not carry the Regeltermin must
-// not postpone the end of its gap.
-func carryingBookingStart(
-	bookings []OfferingWeekdayBooking, kind RosterOfferingKind, weekday int, end string, on, endedOn calendar.Date,
-) calendar.Date {
-	var starts []calendar.Date
+// latestBookingStart is the latest start of a link that plans the weekday on
+// the day the Regeltermin is carried again. The removal resumes the hand row
+// at that boundary, as ADR 0128 specifies.
+func latestBookingStart(bookings []OfferingWeekdayBooking, weekday int, on calendar.Date) calendar.Date {
+	var latest calendar.Date
 	for _, booking := range bookings {
 		for _, window := range booking.Windows {
-			if slices.Contains(window.Weekdays, weekday) && window.ValidFrom != nil && window.ValidFrom.After(endedOn) &&
-				!window.ValidFrom.After(on) {
-				starts = append(starts, *window.ValidFrom)
+			if slices.Contains(window.Weekdays, weekday) && window.ValidFrom != nil && !window.ValidFrom.After(on) &&
+				(window.ValidUntil == nil || window.ValidUntil.After(on)) {
+				latest = max(latest, *window.ValidFrom)
 			}
 		}
 	}
-	slices.Sort(starts)
-	for _, start := range slices.Compact(starts) {
-		if bookingsCarry(bookings, kind, weekday, end, start, endedOn) {
-			return start
-		}
-	}
-	return ""
+	return latest
 }
 
 // endedBookingDays lists, ascending, the days on which a change or a
