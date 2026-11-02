@@ -8,6 +8,9 @@
   "api/traeger/accounts/[accountId]/roles": [
     "PUT traeger /traeger/accounts/accountId%2F1/roles"
   ],
+  "api/traeger/accounts/history": [
+    "GET traeger /traeger/accounts/history"
+  ],
   "api/traeger/accounts/invitations": [
     "POST traeger /traeger/accounts/invitations"
   ],
