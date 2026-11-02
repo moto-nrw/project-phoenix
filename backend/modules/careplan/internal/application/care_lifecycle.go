@@ -26,6 +26,11 @@ type CareLifecycleOwners struct {
 	Calendar    ports.CareCalendarPeriods
 	Tags        ports.CareExitTagReleaser
 	ChangeTrail ports.CareEndRecorder
+	// PlanningStaffing is the one optional owner: Timetable wakes, after
+	// commit, the staff views that show the children's planning and
+	// bookings, which a care end or its withdrawal changes (#5554). Tests
+	// may leave it nil.
+	PlanningStaffing ports.BookingPlanningStaffing
 }
 
 // CareExitSourceBookings are Care Plan's own offering bookings behind the
@@ -67,6 +72,7 @@ type CareLifecycle struct {
 	lockCareBookingWrites func(context.Context) error
 	bookingsAuthoritative func(context.Context) (bool, error)
 	fingerprint           func([]byte) string
+	planningStaffing      ports.BookingPlanningStaffing
 	logger                *slog.Logger
 	today                 func() calendar.Date
 }
@@ -91,7 +97,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (*CareLifecycle, error) {
 	return &CareLifecycle{
 		owners: owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
 		lockCareBookingWrites: deps.LockCareBookingWrites, bookingsAuthoritative: deps.BookingsAuthoritative,
-		fingerprint: deps.Fingerprint, logger: logger, today: deps.Today,
+		fingerprint: deps.Fingerprint, planningStaffing: owners.PlanningStaffing, logger: logger, today: deps.Today,
 	}, nil
 }
 
@@ -170,7 +176,18 @@ func (s *CareLifecycle) applyCareExitConfirmation(ctx context.Context, state *ca
 		return err
 	}
 	state.result.StudentsEnded = len(state.studentIDs)
+	s.announcePlanningChange(ctx)
 	return nil
+}
+
+// announcePlanningChange hands the committed change of the children's
+// bookings and planned rows to the staff views that read them (#5554). It
+// runs inside the transaction; the wake-up itself waits for the commit, so a
+// refused or rolled-back change announces nothing.
+func (s *CareLifecycle) announcePlanningChange(ctx context.Context) {
+	if s.planningStaffing != nil {
+		s.planningStaffing.AnnounceBookingChange(ctx)
+	}
 }
 
 // lockCareExitWrites establishes class (shared) -> recurrence -> child/plan
@@ -356,6 +373,7 @@ func (s *CareLifecycle) cancelCareExits(ctx context.Context, ids []int64, actorA
 			return err
 		}
 	}
+	s.announcePlanningChange(ctx)
 	return nil
 }
 
