@@ -75,3 +75,20 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 	_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(record.ID))
 	require.Error(t, err)
 }
+
+// TestRetainedStudentListOpensTheHealthField: the retained repository's List
+// selects the sealed health field with its care row and opens it (#5472), so
+// it does not hand a child back without its health information.
+func TestRetainedStudentListOpensTheHealthField(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Liste", "Gesundheit", "1a")
+	testpkg.SetTestStudentHealth(t, db, student.ID, testpkg.StrPtr("Asthmaspray"))
+	repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
+	rows, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{"id": student.ID})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].HealthInfo)
+	require.Equal(t, "Asthmaspray", *rows[0].HealthInfo)
+}

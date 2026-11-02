@@ -73,8 +73,8 @@ type Student struct {
 	// (HealthData), bound to the school and the care row of MembershipID
 	// (#5472); the repository opens it after the scan.
 	HealthInfo   *string `bun:"-" json:"health_info,omitempty"`
-	HealthData   []byte  `bun:"health_data,scanonly" json:"-"`
-	MembershipID int64   `bun:"membership_id,scanonly" json:"-"`
+	HealthData   []byte  `bun:"health_data" json:"-"`
+	MembershipID int64   `bun:"membership_id" json:"-"`
 	PickupStatus *string `bun:"pickup_status" json:"pickup_status,omitempty"`
 	// DepartureDays is the single source of truth for how a child leaves each
 	// weekday (#1610): alone / bus / pickup. It unifies the formerly independent
