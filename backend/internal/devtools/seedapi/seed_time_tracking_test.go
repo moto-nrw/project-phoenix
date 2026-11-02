@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand/v2"
 	"reflect"
 	"slices"
@@ -301,35 +302,68 @@ func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
 	assert.Equal(t, []any{"2026-06-03"}, validFrom)
 }
 
+// F9 gates early arrivals and late departures on planned workdays only.
+// A seed captured on Sunday may reach its live stamp on Monday before 08:00.
 func TestSeedBreakClockingCarriesDeviationReasonsAtMidnight(t *testing.T) {
 	t.Parallel()
-	now := time.Date(2026, 11, 1, 23, 59, 59, 0, seedBerlinLocation())
-	var stamps []string
-	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/api/time-tracking/check-in", "/api/time-tracking/check-out":
-			now = now.Add(2 * time.Second)
-			var body struct {
-				Reason string `json:"reason"`
-			}
-			if r.Body != nil {
-				_ = json.NewDecoder(r.Body).Decode(&body)
-			}
-			if body.Reason == "" {
-				w.WriteHeader(409)
-				_, _ = fmt.Fprint(w, `{"status":409,"code":"iot.deviation_reason_required"}`)
-				return
-			}
-			stamps = append(stamps, r.URL.Path)
-		}
-		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":42}}`)
-	})
-	defer srv.Close()
-	_, err := seedSessionViaAPI(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2)), time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC), seedBerlinLocation(), false)
-	require.NoError(t, err)
-	assert.Len(t, stamps, 2)
-	assert.Equal(t, 2, now.Day())
+	for _, tc := range []struct {
+		name          string
+		seedAt        time.Time
+		wantDeviation bool
+	}{
+		{"weekend without a shift", time.Date(2026, 11, 1, 12, 0, 0, 0, seedBerlinLocation()), false},
+		{"workday at shift start", time.Date(2026, 11, 2, 8, 0, 0, 0, seedBerlinLocation()), false},
+		{"Sunday seed stamps before Monday shift", time.Date(2026, 11, 1, 23, 59, 59, 0, seedBerlinLocation()), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			now := tc.seedAt
+			var paths []string
+			var deviations []bool
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				paths = append(paths, r.URL.Path)
+				switch r.URL.Path {
+				case "/api/time-tracking/check-in", "/api/time-tracking/check-out":
+					now = now.Add(2 * time.Second)
+					var body struct {
+						Reason string `json:"reason"`
+					}
+					if r.Body != nil {
+						err := json.NewDecoder(r.Body).Decode(&body)
+						if err != io.EOF {
+							require.NoError(t, err)
+						}
+					}
+					plannedStart := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, seedBerlinLocation())
+					plannedEnd := plannedStart.Add(8 * time.Hour)
+					hasShift := now.Weekday() >= time.Monday && now.Weekday() <= time.Friday
+					delta := plannedStart.Sub(now)
+					if r.URL.Path == "/api/time-tracking/check-out" {
+						delta = now.Sub(plannedEnd)
+					}
+					deviates := hasShift && delta > 15*time.Minute
+					deviations = append(deviations, deviates)
+					if deviates && body.Reason == "" {
+						w.WriteHeader(409)
+						_, _ = fmt.Fprint(w, `{"status":409,"code":"iot.deviation_reason_required"}`)
+						return
+					}
+				case "/api/time-tracking/break/start":
+					now = now.Add(time.Minute)
+				case "/api/time-tracking/break/end":
+					now = now.Add(30 * time.Minute)
+				}
+				_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":42}}`)
+			})
+			defer srv.Close()
+			created, err := seedSessionViaAPI(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2)), time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC), seedBerlinLocation(), true)
+			require.NoError(t, err)
+			require.True(t, created)
+			assert.Equal(t, []bool{tc.wantDeviation, false}, deviations)
+			assert.Equal(t, []string{"/api/time-tracking/check-in", "/api/time-tracking/break/start", "/api/time-tracking/break/end", "/api/time-tracking/check-out", "/api/time-tracking/42"}, paths)
+		})
+	}
 }
 
 // Run the real care-exit and poll steps in workflow order while the injected

@@ -78,24 +78,18 @@ func listActiveSessionInstances(ctx context.Context, reads ports.LegacyInstanceR
 func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input timetable.ScheduledInstance) (int64, error) {
 	row := &schedule.ActivityInstance{
 		Date: calendar.Date(input.Date), ActivityGroupID: input.ActivityGroupID, CalendarPeriodID: input.CalendarPeriodID, Title: input.Title, Description: input.Description,
-		StartTime: calendar.NormalizeWallClock(input.StartTime), EndTime: calendar.NormalizeWallClock(input.EndTime), RoomID: input.RoomID,
+		RoomID: input.RoomID,
 		Status: schedule.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, IsSpontaneous: true,
 		CreatedBy: input.CreatedBy, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
 		RequiredStaff: input.RequiredStaff, ListKind: input.ListKind, UnderstaffedAck: input.UnderstaffedAck,
 		UnderstaffedNote: input.UnderstaffedNote, CancelReason: input.CancelReason, Notes: input.Notes,
 	}
 	row.SetTenantID(tenant.FromContext(ctx))
-	// The public plan command validates clock strings, where 00:00:00 is
-	// distinct from a missing value. The legacy row's time.Time validation
-	// cannot make that distinction after wall-clock normalization.
-	created, err := r.Instances.Plans.CreateActivityInstance(ctx, publicActivityInstanceInput(row))
-	if err != nil {
-		return 0, WrapDatabaseError("create", err)
+	row.SetWallClockTimes(input.StartTime, input.EndTime)
+	if err := createLegacyInstance(ctx, r.Instances, row); err != nil {
+		return 0, err
 	}
-	if err := createInstanceSession(ctx, r.Instances.Sessions, created.ID, row); err != nil {
-		return 0, WrapDatabaseError("create", err)
-	}
-	return created.ID, nil
+	return row.ID, nil
 }
 
 func (r SessionRecords) AddSessionInstanceStaff(ctx context.Context, instanceID, staffID int64) error {
