@@ -5,6 +5,11 @@ export async function register() {
     const { validateServerRuntimeEnv } =
       await import("./lib/server-runtime-env");
     validateServerRuntimeEnv();
+    // No response leaves this server with a session cookie that
+    // gateSessionCookieWrites did not approve (#5520).
+    const { installSessionCookieExit } =
+      await import("./server/auth/session-cookie-exit");
+    installSessionCookieExit();
     await import("./sentry.server.config");
   }
 

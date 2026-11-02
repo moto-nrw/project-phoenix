@@ -8,6 +8,10 @@ import {
 } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 import { env } from "~/env";
 import {
+  approveSessionCookieWrites,
+  isSessionCookieName,
+} from "./session-cookie-exit";
+import {
   portalOfScope,
   sessionFamilyState,
   type SessionFamilyState,
@@ -17,14 +21,13 @@ import {
  * The one exit of every session cookie of every portal (#5399). Auth.js
  * re-encodes the session cookie on every session read, and a response that
  * arrives after a logout or a school switch deleted or replaced the cookie
- * wrote the old session back. See gateSessionCookieWrites; the inventory in
- * session-cookie-inventory.test.ts keeps every writer on this path.
+ * wrote the old session back. See gateSessionCookieWrites; the lock in
+ * session-cookie-exit.ts drops every session cookie write it did not approve
+ * (#5520), and the inventory in session-cookie-inventory.test.ts keeps the
+ * known writers on this path.
  */
 
-/** Auth.js' session cookie of any portal, chunks included. */
-export function isSessionCookieName(name: string): boolean {
-  return /session-token(?:\.\d+)?$/.test(name);
-}
+export { isSessionCookieName };
 
 /** Set-Cookie headers of the backend without a BFF session cookie. */
 export function withoutSessionCookies(setCookies: string[]): string[] {
@@ -233,6 +236,14 @@ export async function gateSessionCookieWrites(
   );
   const setCookies = [...fromJar, ...own];
   const allowed = await allowedSetCookies(request, setCookies, states);
+  // The lock at the server's exit lets only these session cookie writes go
+  // (#5520); a write that bypasses this gate is dropped there.
+  approveSessionCookieWrites(
+    allowed.filter((cookie) => {
+      const write = parseSetCookie(cookie);
+      return write && isSessionCookieName(write.name) && !write.deletes;
+    }),
+  );
   if (!fromJar.length && allowed.length === own.length) return response;
 
   const headers = new Headers(response.headers);

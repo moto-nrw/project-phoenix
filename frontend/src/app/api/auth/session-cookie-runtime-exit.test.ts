@@ -1,0 +1,265 @@
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import {
+  createServer,
+  get,
+  ServerResponse,
+  type IncomingMessage,
+  type Server,
+} from "node:http";
+import type { AddressInfo } from "node:net";
+import { encode } from "next-auth/jwt";
+import { NextResponse } from "next/server";
+import {
+  NodeNextRequest,
+  NodeNextResponse,
+} from "next/dist/server/base-http/node";
+import { sendResponse } from "next/dist/server/send-response";
+import { env } from "~/env";
+import { installSessionCookieExit } from "~/server/auth/session-cookie-exit";
+import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
+
+// #5520: invariant I1 of #5399 at run time. Whatever code builds a response,
+// a session cookie leaves the Node server only when gateSessionCookieWrites
+// approved it; a deletion always leaves. The routes below run on a real Node
+// server with the lock instrumentation.ts installs, and Next's own
+// sendResponse writes their responses, as it does for every route handler.
+
+const NAME = "parent.session-token";
+const SESSION = {
+  id: "7",
+  name: "Erika Beispiel",
+  token: "access-1",
+  refreshToken: "refresh-1",
+  scope: "parent",
+  tokenExpiry: Date.now() + 10 * 60_000,
+  refreshTokenExpiry: Date.now() + 24 * 60 * 60_000,
+};
+const DELETION = `${NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0`;
+
+const backend = vi.fn<typeof fetch>();
+/** The answer of Identity & Access on the session's family. */
+let familyStatus = 200;
+
+function sealed(token: Record<string, unknown> = SESSION) {
+  return encode({ token, secret: env.NEXTAUTH_SECRET, salt: NAME });
+}
+
+/** The request of a browser without a session cookie. */
+const browserRequest = () =>
+  new Request("http://parents.localhost:3000/api/parent/auth/session");
+
+/** One route per path, answered through Next's sendResponse. */
+let routes = new Map<string, () => Promise<Response>>();
+/** Responses whose head a route writes itself, past sendResponse. */
+let rawRoutes = new Map<string, (res: ServerResponse) => void>();
+
+/** ServerResponse of this server only: the lock stays out of other tests. */
+class LockedResponse<
+  Request extends IncomingMessage = IncomingMessage,
+> extends ServerResponse<Request> {}
+installSessionCookieExit(LockedResponse.prototype);
+
+const server: Server = createServer(
+  { ServerResponse: LockedResponse },
+  (req, res) => {
+    const path = req.url ?? "";
+    const raw = rawRoutes.get(path);
+    if (raw) return raw(res);
+    const route = routes.get(path);
+    if (!route) return res.writeHead(404).end();
+    void route().then((response) =>
+      sendResponse(
+        new NodeNextRequest(req),
+        new NodeNextResponse(res),
+        response,
+      ),
+    );
+  },
+);
+
+/** The Set-Cookie lines the browser receives for a path. */
+function setCookiesAt(path: string): Promise<string[]> {
+  const { port } = server.address() as AddressInfo;
+  return new Promise((resolve, reject) => {
+    get({ host: "127.0.0.1", port, path }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.headers["set-cookie"] ?? []));
+    }).on("error", reject);
+  });
+}
+
+const sessionCookies = (lines: string[]) =>
+  lines.filter((line) => line.startsWith(`${NAME}=`));
+
+beforeAll(async () => {
+  vi.stubEnv("AUTH_SECRET", env.NEXTAUTH_SECRET);
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", () => resolve()),
+  );
+});
+afterAll(async () => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  await new Promise((resolve) => server.close(resolve));
+});
+beforeEach(() => {
+  routes = new Map();
+  rawRoutes = new Map();
+  familyStatus = 200;
+  backend.mockReset();
+  backend.mockImplementation(async (url) =>
+    String(url).endsWith("/auth/session/validate")
+      ? Response.json({ id: 7 }, { status: familyStatus })
+      : new Response(null, { status: 404 }),
+  );
+  vi.stubGlobal("fetch", backend);
+});
+
+describe("the lock at the server's exit", () => {
+  it("drops a session cookie a route writes past the gate, other cookies leave", async () => {
+    const value = await sealed();
+    routes.set("/bypass", async () => {
+      const response = NextResponse.json({ ok: true });
+      const key = ["coo", "kies"].join("") as "cookies";
+      response[key].set(NAME, value, { path: "/", httpOnly: true });
+      response.headers.append("Set-Cookie", "other=1; Path=/");
+      return response;
+    });
+
+    const received = await setCookiesAt("/bypass");
+
+    expect(received).toEqual(["other=1; Path=/"]);
+    expect(backend).not.toHaveBeenCalled();
+  });
+
+  it("drops a session cookie of a backend response handed through unfiltered (#5517)", async () => {
+    const value = await sealed();
+    routes.set("/forward", async () => {
+      const upstream = new Response("{}", {
+        headers: [
+          ["Content-Type", "application/json"],
+          ["Set-Cookie", `${NAME}=${value}; Path=/; HttpOnly`],
+          ["Set-Cookie", `${NAME}.0=${value}; Path=/; HttpOnly`],
+          ["Set-Cookie", "trusted_device=abc; Path=/; HttpOnly"],
+        ],
+      });
+      // private-no-store.ts copies an immutable fetch result like this.
+      return new Response(upstream.body, upstream);
+    });
+
+    const received = await setCookiesAt("/forward");
+
+    expect(received).toEqual(["trusted_device=abc; Path=/; HttpOnly"]);
+  });
+
+  it("lets a session cookie the gate approved arrive unchanged", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly; SameSite=Lax`;
+    routes.set("/sign-in", async () => {
+      const answer = new Response(null);
+      answer.headers.append("Set-Cookie", line);
+      return gateSessionCookieWrites(browserRequest(), answer);
+    });
+
+    const received = await setCookiesAt("/sign-in");
+
+    expect(received).toEqual([line]);
+  });
+
+  it("admits an approval once: the same line in a later response is dropped", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly; SameSite=Lax`;
+    routes.set("/sign-in", async () => {
+      const answer = new Response(null);
+      answer.headers.append("Set-Cookie", line);
+      return gateSessionCookieWrites(browserRequest(), answer);
+    });
+    routes.set("/replay", async () => {
+      const answer = new Response(null);
+      answer.headers.append("Set-Cookie", line);
+      return answer;
+    });
+
+    expect(await setCookiesAt("/sign-in")).toEqual([line]);
+    expect(sessionCookies(await setCookiesAt("/replay"))).toEqual([]);
+  });
+
+  it("delivers no cookie of a family the gate found revoked", async () => {
+    familyStatus = 401;
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+    routes.set("/late", async () => {
+      const answer = new Response(null);
+      answer.headers.append("Set-Cookie", line);
+      return gateSessionCookieWrites(browserRequest(), answer);
+    });
+
+    expect(sessionCookies(await setCookiesAt("/late"))).toEqual([]);
+  });
+
+  it("lets every deletion arrive, also past the gate", async () => {
+    const cleared = NextResponse.json({ ok: true });
+    cleared.cookies.delete(NAME);
+    const [nextDeletion = ""] = cleared.headers.getSetCookie();
+    routes.set("/sign-out", async () => {
+      const answer = new Response(null);
+      answer.headers.append("Set-Cookie", DELETION);
+      answer.headers.append("Set-Cookie", `${NAME}.1=; Path=/; Max-Age=0`);
+      answer.headers.append("Set-Cookie", nextDeletion);
+      return answer;
+    });
+
+    expect(await setCookiesAt("/sign-out")).toEqual([
+      DELETION,
+      `${NAME}.1=; Path=/; Max-Age=0`,
+      nextDeletion,
+    ]);
+  });
+
+  it("reads a deletion as the browser does: Max-Age wins over Expires", async () => {
+    const value = await sealed();
+    routes.set("/disguised", async () => {
+      const answer = new Response(null);
+      // The browser keeps these for an hour or as a session cookie.
+      answer.headers.append(
+        "Set-Cookie",
+        `${NAME}=${value}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=3600`,
+      );
+      answer.headers.append(
+        "Set-Cookie",
+        `${NAME}.0=${value}; Max-Age=0; Max-Age=3600`,
+      );
+      answer.headers.append("Set-Cookie", `${NAME}.1=${value}; Expires=0`);
+      return answer;
+    });
+
+    expect(await setCookiesAt("/disguised")).toEqual([]);
+  });
+
+  it("covers heads a response writes itself, explicitly or on its first write", async () => {
+    const value = await sealed();
+    rawRoutes.set("/explicit-object", (res) =>
+      res
+        .writeHead(200, "OK", {
+          "SET-COOKIE": [`${NAME}=${value}; Path=/`, "other=1"],
+        })
+        .end(),
+    );
+    rawRoutes.set("/explicit-pairs", (res) =>
+      res.writeHead(200, ["Set-Cookie", `${NAME}=${value}; Path=/`]).end(),
+    );
+    rawRoutes.set("/implicit", (res) => {
+      res.setHeader("Set-Cookie", `${NAME}=${value}; Path=/`);
+      res.end("body");
+    });
+
+    expect(await setCookiesAt("/explicit-object")).toEqual(["other=1"]);
+    expect(await setCookiesAt("/explicit-pairs")).toEqual([]);
+    expect(await setCookiesAt("/implicit")).toEqual([]);
+  });
+});

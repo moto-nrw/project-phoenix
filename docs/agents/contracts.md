@@ -554,8 +554,22 @@ old session back; the browser only saves requests.
    `cookieStore`, and exports that carry a cookie name; every place that names
    a session cookie is listed too. It is a tripwire for known patterns, not a
    guarantee: static analysis of JavaScript cannot be complete, and the known
-   limits are listed in that file (#5517). Runtime enforcement at the exit is
-   #5520. A cookie leaves
+   limits are listed in that file.
+   **Runtime lock at the server's exit (#5520).** The gate records every
+   session cookie line it lets go (`approveSessionCookieWrites`,
+   `frontend/src/server/auth/session-cookie-exit.ts`). `instrumentation.ts`
+   installs a lock on Node's `ServerResponse#writeHead` before Next handles a
+   request; every response of the server writes its head there, explicitly
+   or on its first write: route handlers through Next's `sendResponse`,
+   Auth.js routes, server actions, pages, proxy answers and backend headers a
+   route hands through (#5517). A Set-Cookie line with a session cookie name
+   leaves only once, approved, or as a deletion (empty value, last valid
+   `Max-Age` ≤ 0, or without `Max-Age` an HTTP-date `Expires` in the past, as
+   the browser reads it). Every other is dropped and logged as
+   `session_cookie_write_refused_at_exit` with the cookie name, never the
+   value. Approvals stay on the server for at most 60 seconds. Not covered:
+   an HTTP/2 server and the Edge runtime (neither is used; every route runs
+   on Node). The inventory stays as an extra tripwire. A cookie leaves
    only for a changed session (sign-in, rotation, `update()` with a change,
    school switch, preview) whose refresh-token family Identity & Access
    confirms live while the response is built. An unchanged re-encoding

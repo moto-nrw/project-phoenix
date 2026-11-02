@@ -33,7 +33,9 @@ import {
 // passes the exit. #5444: the writers come from the syntax tree
 // (src/test/session-cookie-writers.ts), with aliases, destructuring and
 // JavaScript files. It is a tripwire for known patterns, not a guarantee;
-// its limits are listed there, and runtime enforcement is #5520.
+// its limits are listed there. At run time the lock at the server's exit
+// (session-cookie-exit.ts, #5520) drops every session cookie write the gate
+// did not approve.
 
 const ROOT = process.cwd();
 /** Source without comments: a comment that names Set-Cookie writes nothing. */
@@ -265,6 +267,12 @@ describe("session cookie writers", () => {
         ],
         proof: null,
       },
+      // The lock at the server's exit only drops unapproved session cookie
+      // writes (#5520); it writes none.
+      "src/server/auth/session-cookie-exit.ts": {
+        kinds: ["cookie-header"],
+        proof: /const admitted = admitSetCookies\(lines\);/,
+      },
       // finishResponse composes the route's cookies, then calls the exit.
       "src/server/auth/route-handler.ts": {
         kinds: ["cookie-header"],
@@ -339,8 +347,8 @@ describe("session cookie writers", () => {
       "src/server/auth/operator-config.ts",
       "src/server/auth/parent-config.ts",
       "src/server/auth/school-config.ts",
-      // The exit's isSessionCookieName.
-      "src/server/auth/session-cookie-writes.ts",
+      // isSessionCookieName, of the gate and the lock at the exit.
+      "src/server/auth/session-cookie-exit.ts",
       "src/server/auth/tenant-config.ts",
       "src/server/auth/traeger-config.ts",
       // The inventory's own pattern.
@@ -363,10 +371,28 @@ describe("session cookie writers", () => {
       "src/server/auth/parent-config.ts", // names its portal cookie
       "src/server/auth/route-handler.ts", // listed writer
       "src/server/auth/school-config.ts", // names its portal cookie
+      "src/server/auth/session-cookie-exit.ts", // the lock at the exit
       "src/server/auth/session-cookie-writes.ts", // the exit
       "src/server/auth/tenant-config.ts", // names its portal cookie
       "src/server/auth/traeger-config.ts", // names its portal cookie
       "src/test/session-cookie-writers.ts", // the inventory's own pattern
+    ]);
+  });
+
+  it("approves session cookie writes only in the gate, locks the exit once (#5520)", () => {
+    // An approval lets a session cookie pass the lock at the server's exit.
+    expect(matching(/\bapproveSessionCookieWrites\(/)).toEqual([
+      "src/server/auth/session-cookie-exit.ts",
+      "src/server/auth/session-cookie-writes.ts",
+    ]);
+    expect(
+      code("src/server/auth/session-cookie-writes.ts").match(
+        /\bapproveSessionCookieWrites\(/g,
+      ),
+    ).toHaveLength(1);
+    expect(matching(/\binstallSessionCookieExit\(/)).toEqual([
+      "src/instrumentation.ts",
+      "src/server/auth/session-cookie-exit.ts",
     ]);
   });
 
