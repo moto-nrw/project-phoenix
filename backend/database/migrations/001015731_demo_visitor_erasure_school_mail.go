@@ -22,65 +22,11 @@ func init() {
 }
 
 func demoVisitorErasureSchoolMailUp(ctx context.Context, db *bun.DB) error {
-	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, demoVisitorErasureSchoolMailUpSQL); err != nil {
-			return fmt.Errorf("erase the mail of retired demo schools with their visitor: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, erasedDemoVisitorDeliveriesSQL); err != nil {
-			return fmt.Errorf("erase the deliveries left in demo schools of erased visitors: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, erasedDemoVisitorOutboxSQL); err != nil {
-			return fmt.Errorf("erase the mail left in demo schools of erased visitors: %w", err)
-		}
-		return nil
-	})
+	if _, err := db.ExecContext(ctx, demoVisitorErasureSchoolMailUpSQL); err != nil {
+		return fmt.Errorf("erase the mail of retired demo schools with their visitor: %w", err)
+	}
+	return nil
 }
-
-// erasedDemoVisitorDeliveriesSQL and erasedDemoVisitorOutboxSQL remove the
-// mail the function of 1.15.646 left behind. A visitor it erased has no
-// platform.demo_school_states row any more, so the function never reaches
-// those schools again. Their visitor accounts are recognizable: an account
-// the function anonymized carries the address demo-besuch-<id>@example.invalid
-// of its own id, and its persons and guardian profiles still link it to the
-// hidden demo schools. Only those schools lose their mail, not every
-// soft-deleted school; a school an open order still names is left to the
-// function. Running both again finds nothing. The old address of mail
-// without a school cannot be told reliably, so that mail is left (#5521).
-const erasedDemoVisitorDeliveriesSQL = `
-DELETE FROM platform.email_delivery
-WHERE tenant_id IN (
-	SELECT school.id FROM platform.schools AS school
-	WHERE school.deleted_at IS NOT NULL
-		AND EXISTS (
-			SELECT 1 FROM auth.accounts AS account
-			WHERE account.email = 'demo-besuch-' || account.id || '@example.invalid'
-				AND (
-					EXISTS (SELECT 1 FROM users.persons AS person
-						WHERE person.tenant_id = school.id AND person.account_id = account.id)
-					OR EXISTS (SELECT 1 FROM users.guardian_profiles AS guardian
-						WHERE guardian.tenant_id = school.id AND guardian.account_id = account.id)))
-		AND NOT EXISTS (
-			SELECT 1 FROM platform.demo_school_states AS state
-			WHERE state.tenant_id = school.id OR school.id = ANY (state.visitor_school_ids)))
-`
-
-const erasedDemoVisitorOutboxSQL = `
-DELETE FROM platform.email_outbox
-WHERE tenant_id IN (
-	SELECT school.id FROM platform.schools AS school
-	WHERE school.deleted_at IS NOT NULL
-		AND EXISTS (
-			SELECT 1 FROM auth.accounts AS account
-			WHERE account.email = 'demo-besuch-' || account.id || '@example.invalid'
-				AND (
-					EXISTS (SELECT 1 FROM users.persons AS person
-						WHERE person.tenant_id = school.id AND person.account_id = account.id)
-					OR EXISTS (SELECT 1 FROM users.guardian_profiles AS guardian
-						WHERE guardian.tenant_id = school.id AND guardian.account_id = account.id)))
-		AND NOT EXISTS (
-			SELECT 1 FROM platform.demo_school_states AS state
-			WHERE state.tenant_id = school.id OR school.id = ANY (state.visitor_school_ids)))
-`
 
 // demoVisitorErasureSchoolMailDown reinstalls the function exactly as 1.15.646
 // left it.
