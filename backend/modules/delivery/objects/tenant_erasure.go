@@ -35,28 +35,33 @@ func (l *Local) TenantObjects(ctx context.Context, kind, layout string, tenantID
 	defer func() { _ = dir.Close() }()
 	id := strconv.FormatInt(tenantID, 10)
 	if layout == "tenantDir" {
-		if err := plainDirectory(dir, id); err != nil {
-			return 0, err
-		}
-		tenant, err := dir.OpenRoot(id)
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		if err != nil {
-			return 0, errors.New("storage: tenant namespace unavailable")
-		}
-		count, err := visitTenantObjects(ctx, tenant, "", remove)
-		_ = tenant.Close()
-		if err != nil || !remove {
-			return count, err
-		}
-		// The emptied tenant directory goes too, so no path names the tenant.
-		if err := dir.Remove(id); err != nil && !os.IsNotExist(err) {
-			return count, errors.New("storage: removal failed")
-		}
-		return count, nil
+		return tenantDirectoryObjects(ctx, dir, id, remove)
 	}
 	return visitTenantObjects(ctx, dir, id+"_", remove)
+}
+
+// tenantDirectoryObjects counts or removes kind/tenant/. A removal also
+// deletes the emptied tenant directory, so no path names the tenant.
+func tenantDirectoryObjects(ctx context.Context, dir *os.Root, id string, remove bool) (int64, error) {
+	if err := plainDirectory(dir, id); err != nil {
+		return 0, err
+	}
+	tenant, err := dir.OpenRoot(id)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, errors.New("storage: tenant namespace unavailable")
+	}
+	count, err := visitTenantObjects(ctx, tenant, "", remove)
+	_ = tenant.Close()
+	if err != nil || !remove {
+		return count, err
+	}
+	if err := dir.Remove(id); err != nil && !os.IsNotExist(err) {
+		return count, errors.New("storage: removal failed")
+	}
+	return count, nil
 }
 
 func plainDirectory(root *os.Root, name string) error {
