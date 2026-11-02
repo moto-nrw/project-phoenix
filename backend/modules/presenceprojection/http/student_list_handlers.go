@@ -72,6 +72,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		common.RespondPaginated(w, r, http.StatusOK, nameStudentResponses(responses), pagination, "Students retrieved successfully")
 		return
 	}
+	if err := rs.writeStudentHealthListViewAudit(r, responses); err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to record student health access", err))
+		return
+	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
 }
 

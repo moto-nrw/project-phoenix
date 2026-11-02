@@ -142,6 +142,7 @@ type StudentDirectory interface {
 	carePlanCompose.StudentDirectory
 	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+	OpenStudentHealth(tenantID, membershipID int64, sealed []byte) (*string, error)
 }
 
 func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) peopledirectory.Capability {

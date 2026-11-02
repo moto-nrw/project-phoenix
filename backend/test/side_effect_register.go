@@ -50,7 +50,7 @@ func sideEffectRegisterAgainstBase(run func(...string) ([]byte, error), current 
 	if err := json.Unmarshal(raw, &previous); err != nil {
 		return err
 	}
-	return sideEffectRegisterSubset(current, previous)
+	return sideEffectRegisterSubset(current, arrivalSchoolNoticeBase(previous))
 }
 
 const sideEffectNoticeRegister = "test/durable_side_effect_notices.json"

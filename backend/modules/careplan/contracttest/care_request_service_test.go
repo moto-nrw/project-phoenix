@@ -966,7 +966,7 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 
 // TestDecide_ApproveBroadcastsCacheInvalidation proves that applying a care
 // request fans out the cache-invalidation events (student_updated tenant-wide,
-// arrival_schedule_changed globally) so every open kiosk/dashboard refetches the
+// arrival_schedule_changed tenant-wide) so every open kiosk/dashboard refetches the
 // new plan. The shared fixture wires a nil broadcaster; this rebuilds the service
 // with a capturing one against the SAME db/repos.
 func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
@@ -991,7 +991,15 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Positive(t, len(bc.CallsByMethod("tenant")), "approve must broadcast student_updated to the tenant")
-	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
+	var arrivalFound bool
+	for _, call := range bc.CallsByMethod("tenant") {
+		if call.Event.Type == realtime.EventArrivalScheduleChanged {
+			arrivalFound = true
+			assert.Equal(t, testpkg.Tenant(t), call.TenantID)
+		}
+	}
+	assert.True(t, arrivalFound, "approve must broadcast arrival_schedule_changed to its school")
+	assert.Empty(t, bc.CallsByMethod("all"), "approve must never wake other schools")
 }
 
 // TestDecide_ApproveCompanionEventOnlyOnEffectiveChange pins WHO the approval

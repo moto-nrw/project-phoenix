@@ -54,6 +54,10 @@ vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
 
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => "2026-09-09",
+}));
+
 import { ApiError } from "~/lib/api-error";
 import { BookingLeftoverHints } from "./booking-leftover-hints";
 
@@ -65,6 +69,7 @@ const hannah: BookingLeftover = {
   weekdays: [3],
   bookingEndedOn: "2026-09-07",
   from: "2026-09-10",
+  until: null,
   kept: false,
 };
 
@@ -143,12 +148,71 @@ describe("BookingLeftoverHints", () => {
         studentId: "42",
         weekdays: [3],
         effectiveFrom: "2026-09-10",
+        effectiveUntil: null,
       }),
     );
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
       "Hannah Schmitz ist aus „Hausaufgabenbetreuung“ entfernt.",
     );
     expect(mocks.mutate).toHaveBeenCalled();
+  });
+
+  it("removes only the gap a later booking closes (#5497)", async () => {
+    mocks.leftovers.current = [
+      { ...hannah, weekdays: [4], from: "2026-11-05", until: "2026-11-16" },
+    ];
+    renderHints();
+
+    const row = within(openSection()).getByRole("listitem");
+    expect(
+      within(row).getByText(
+        "„Hausaufgabenbetreuung“ · donnerstags · ohne passende Buchung vom 05.11.2026 bis 15.11.2026",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Entfernen: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/vom 05\.11\.2026 bis 15\.11\.2026 donnerstags/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /Ab 16\.11\.2026 passt die neue Buchung wieder\. Dann bleibt Hannah Schmitz eingeplant\./,
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Jetzt entfernen" }),
+    );
+    await waitFor(() =>
+      expect(mocks.remove).toHaveBeenCalledWith({
+        templateId: "9",
+        studentId: "42",
+        weekdays: [4],
+        effectiveFrom: "2026-11-05",
+        effectiveUntil: "2026-11-16",
+      }),
+    );
+  });
+
+  it("does not offer removal after a bounded gap has ended", () => {
+    mocks.leftovers.current = [{ ...hannah, until: "2026-09-10" }];
+    renderHints();
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Entfernen: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Bleibt so: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the failed removal open with its error", async () => {

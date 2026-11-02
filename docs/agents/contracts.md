@@ -554,8 +554,43 @@ old session back; the browser only saves requests.
    `cookieStore`, and exports that carry a cookie name; every place that names
    a session cookie is listed too. It is a tripwire for known patterns, not a
    guarantee: static analysis of JavaScript cannot be complete, and the known
-   limits are listed in that file (#5517). Runtime enforcement at the exit is
-   #5520. A cookie leaves
+   limits are listed in that file.
+   **Runtime lock at the server's exit (#5520).** `instrumentation.ts`
+   installs a lock (`frontend/src/lib/session-cookie-exit.server.ts`) before
+   Next handles a request. It opens one approval context per request where
+   Node's HTTP(S) server emits it (`AsyncLocalStorage`, tied to that
+   request's `ServerResponse`) and filters `ServerResponse#writeHead` and its
+   legacy `writeHeader` alias, where every response writes its head, explicitly
+   or on its first write: route handlers through Next's `sendResponse`,
+   Auth.js routes, server actions, pages, proxy answers and backend headers
+   a route hands through (#5517).
+   The gate records each session cookie line it lets go for the request it
+   runs in (`approveSessionCookieWrites`); the approval holds as long as that
+   response exists, with no time limit, and no other request can use it.
+   Auth.js (`SessionStore`, also behind `getToken` in the layout snapshots)
+   reads every cookie whose name starts with the configured name as a
+   session chunk (`parent.session-token.evil`, `…_shadow`, `….0.1`). The lock
+   therefore treats every name that starts with a configured session cookie
+   name, also behind a `__Secure-`/`__Host-` prefix in any case, as a session
+   cookie: a superset of what any reader accepts and no other cookie
+   (`parent-session-token`, `session-token` pass). The names have one source,
+   `PORTAL_SESSION_COOKIE_NAMES` and `tenantSessionCookieName` in that module,
+   which the six portal configs use. The gate approves only names Auth.js
+   writes: a configured name (with Auth.js' `__Secure-`/`__Host-` prefix) and
+   its chunks `.<n>`. A Set-Cookie line with a session cookie name
+   leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
+   (names in any case), at least one of them, a `Max-Age` of plain digits
+   ≤ 0 and an `Expires` that is a valid date not later than now. Any value,
+   a repeated, contradicting or unreadable lifetime needs an approval. Every
+   other line is dropped and logged as `session_cookie_write_refused_at_exit`
+   with the cookie name, never the value. The exit itself never throws: a
+   head it cannot read leaves without any Set-Cookie line and is logged as
+   `session_cookie_exit_failed`; Node judges the rest. Without the lock the
+   gate throws,
+   so every response through it fails loudly instead of leaving the exit
+   open; the test setup installs it as production does. Not covered: an
+   HTTP/2 server and the Edge runtime (neither is used; every route runs on
+   Node). The inventory stays as an extra tripwire. A cookie leaves
    only for a changed session (sign-in, rotation, `update()` with a change,
    school switch, preview) whose refresh-token family Identity & Access
    confirms live while the response is built. An unchanged re-encoding
@@ -904,6 +939,10 @@ demo process ticks only schools redeemed in the last 30 minutes (#3464) and,
 for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `auth.demo_accesses` and delete rows, and read and set `deleted_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
+For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
+adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
+changes or deletes one, and reads `platform.demo_school_origins`, which only a
+trigger on `platform.demo_school_states` writes.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,

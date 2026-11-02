@@ -7,6 +7,8 @@ import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal";
+import { CloseIcon } from "./close-icon";
+import { Button } from "./button";
 import { FormErrorAlert } from "./form-error-alert";
 import type { FormErrorInput } from "./form-error";
 import { useLatest } from "~/lib/hooks/use-latest";
@@ -253,35 +255,16 @@ export function FormModal({
                 {title}
               </h3>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={handleClose}
-              className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+              className="shrink-0"
               aria-label="Modal schließen"
             >
-              {/* Animated X icon */}
-              <svg
-                className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-
-              {/* Subtle hover glow */}
-              <div
-                className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                style={{
-                  boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-                }}
-              />
-            </button>
+              <CloseIcon />
+            </Button>
           </div>
 
           {/* Content area with custom scrollbar and reveal animation */}

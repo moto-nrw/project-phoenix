@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
+import { Button, ButtonLink } from "./button";
 
 // Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
 vi.mock("next-auth/react", () => ({
@@ -85,6 +86,47 @@ describe("TenantPage", () => {
       screen.getByRole("button", { name: "Kind anlegen" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Inhalt")).toBeInTheDocument();
+  });
+
+  // #5531: Die Kopfkarte setzt ihre Bedienhöhe über Nachfahren-Selektoren.
+  // Ein Link in Button-Optik muss davon genauso erfasst sein wie ein Knopf,
+  // sonst steht er mit 32 oder 36 px neben 40-px-Knöpfen.
+  it("bringt einen ButtonLink in der Kopfkarte auf die Höhe des Knopfs daneben", () => {
+    render(
+      <TenantPage
+        title="Kinder"
+        actions={
+          <>
+            <ButtonLink href="/students/import" variant="outline" size="md">
+              Importieren
+            </ButtonLink>
+            <Button type="button" size="md">
+              Kind anlegen
+            </Button>
+          </>
+        }
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Importieren" });
+    const button = screen.getByRole("button", { name: "Kind anlegen" });
+    const container = button.parentElement!;
+    expect(link.parentElement).toBe(container);
+
+    const selectorsFor = (prefix: string, height: string) =>
+      [...container.classList]
+        .map((c) => new RegExp(`^${prefix}\\[&_(.+)\\]:${height}$`).exec(c))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => m[1]!.replaceAll("_", " "));
+
+    for (const [prefix, height] of [
+      ["", "h-10"],
+      ["max-sm:", "h-11"],
+    ] as const) {
+      const selectors = selectorsFor(prefix, height);
+      expect(selectors.some((sel) => button.matches(sel))).toBe(true);
+      expect(selectors.some((sel) => link.matches(sel))).toBe(true);
+    }
   });
 
   it("bleibt auf dem Telefon eine Karte mit engerem Innenrand", () => {

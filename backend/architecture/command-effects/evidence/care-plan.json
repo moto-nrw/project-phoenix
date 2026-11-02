@@ -6281,6 +6281,14 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "binding_digest": "29b2be372097d3038b5c2988cb33b9d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.SealStudentHealth",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentDisplayRows",
       "binding_digest": "d09392f08ac5317022fc87c03b566ea5",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.StudentDisplayRows",
@@ -6953,16 +6961,16 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsAt",
-      "binding_digest": "a19e4fb6a7b768105586a3a7a459f7f7",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsAt",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsBetween",
+      "binding_digest": "df44d3a7bd4fb15af8a172d9d7d267b3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsBetween",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ApprovedSelectionsForStudents",
       "target_owner": "enrollment"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingManualPlans.ManualStudentPlan",
-      "binding_digest": "7f7201d7d002cb6b37914b9e2ad508d9",
+      "binding_digest": "dd819a8b9c91ae0b5959454ae6bbeb2e",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",
@@ -6999,6 +7007,14 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListCalendarPeriods",
       "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "binding_digest": "95e1a867b15a3cb4cd98f8081b5c57a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingPlanningStaffing.AnnounceBookingChange",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.BackfillRequestChildSource",
@@ -7674,10 +7690,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careRequestBroadcaster.ArrivalScheduleChanged",
-      "binding_digest": "9eba1482dd308e45d738f7f62558b7ec",
+      "binding_digest": "caa3e82bd088eee191b39b3ab8528aff",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareScheduleBroadcaster.ArrivalScheduleChanged",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
     },
     {

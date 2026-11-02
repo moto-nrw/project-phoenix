@@ -68,6 +68,10 @@
   "vacation_request_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "work_session_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "payroll_download_unavailable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "payroll_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "payroll_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "payroll_wage_type_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "payroll_wage_type_name_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "qualification_type_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "qualification_type_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

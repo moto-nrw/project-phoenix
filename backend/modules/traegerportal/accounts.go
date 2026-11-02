@@ -3,7 +3,9 @@ package traegerportal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +32,7 @@ func (rs *Resource) accountRouter(protectedTraegerRoutes func(chi.Router, func(c
 	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.Use(common.RequiresPermission(identityaccess.TraegerRightAccountsManage))
 		r.Get("/", rs.listAccounts)
+		r.Get("/history", rs.listHistory)
 		r.Post("/invitations", rs.inviteAccount)
 		r.Delete("/invitations/{invitationId}", rs.revokeInvitation)
 		r.Put("/{accountId}/roles", rs.changeRoles)
@@ -70,6 +73,24 @@ type InvitationResponse struct {
 type AccountsResponse struct {
 	Members     []MemberResponse     `json:"members"`
 	Invitations []InvitationResponse `json:"invitations"`
+}
+
+// HistoryEntryResponse is one change of the Träger-Büro (#5474).
+type HistoryEntryResponse struct {
+	ID          int64     `json:"id"`
+	OccurredAt  time.Time `json:"occurred_at"`
+	Action      string    `json:"action"`
+	ActorEmail  string    `json:"actor_email"`
+	TargetEmail string    `json:"target_email"`
+	RolesBefore []string  `json:"roles_before"`
+	RolesAfter  []string  `json:"roles_after"`
+}
+
+// HistoryResponse is one page of the history, newest first. The next page
+// passes the ID of the last entry as before.
+type HistoryResponse struct {
+	Entries []HistoryEntryResponse `json:"entries"`
+	HasMore bool                   `json:"has_more"`
 }
 
 // InviteRequest is the body of POST /traeger/accounts/invitations.
@@ -140,6 +161,38 @@ func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
 		response.Invitations = append(response.Invitations, invitationResponse(invitation))
 	}
 	common.Respond(w, r, http.StatusOK, response, "Träger-Büro retrieved successfully")
+}
+
+// listHistory answers GET /traeger/accounts/history: one page of the
+// changes, older than the optional before ID.
+func (rs *Resource) listHistory(w http.ResponseWriter, r *http.Request) {
+	actor, ok := rs.actor(w, r)
+	if !ok {
+		return
+	}
+	var before int64
+	if raw := r.URL.Query().Get("before"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid before %q", raw)))
+			return
+		}
+		before = parsed
+	}
+	history, err := rs.accounts.ListTraegerAccountHistory(r.Context(), actor, before)
+	if err != nil {
+		common.RenderError(w, r, renderAccountError(err))
+		return
+	}
+	response := HistoryResponse{Entries: make([]HistoryEntryResponse, 0, len(history.Entries)), HasMore: history.HasMore}
+	for _, entry := range history.Entries {
+		response.Entries = append(response.Entries, HistoryEntryResponse{
+			ID: entry.ID, OccurredAt: entry.OccurredAt, Action: entry.Action,
+			ActorEmail: entry.ActorEmail, TargetEmail: entry.TargetEmail,
+			RolesBefore: entry.RolesBefore, RolesAfter: entry.RolesAfter,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, response, "Träger-Büro history retrieved successfully")
 }
 
 func (rs *Resource) inviteAccount(w http.ResponseWriter, r *http.Request) {

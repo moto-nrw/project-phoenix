@@ -15,6 +15,10 @@ import (
 // manual overrides and refresh the materialized consumers that still depend
 // on a pickup baseline.
 
+// ReconcileOfferingPickupForStudents runs after every booking write of the
+// students (adjustment, change request, approval, offering edit) in the same
+// transaction. Besides the pickup effects it announces the booking change to
+// the staff views whose hints read the bookings (#5498).
 func (m *BookingMaterialization) ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64) error {
 	studentIDs = sortedPositiveIDs(studentIDs)
 	if len(studentIDs) == 0 {
@@ -27,6 +31,9 @@ func (m *BookingMaterialization) ReconcileOfferingPickupForStudents(ctx context.
 	}
 	if m.deps.AnnouncePickupChange != nil {
 		m.deps.AnnouncePickupChange(ctx, studentIDs)
+	}
+	if m.deps.PlanningStaffing != nil {
+		m.deps.PlanningStaffing.AnnounceBookingChange(ctx)
 	}
 	return nil
 }

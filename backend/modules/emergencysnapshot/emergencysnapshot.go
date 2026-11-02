@@ -119,6 +119,8 @@ type Dependencies struct {
 	Contacts Contacts
 	Calendar Calendar
 	Renderer Renderer
+	// AccessLog records an export that prints health information (#5472).
+	AccessLog AccessLog
 	// Collate orders two names in German dictionary order (DIN 5007-1).
 	Collate func(a, b string) int
 	// Now supplies the export instant; optional, defaults to time.Now.
@@ -137,7 +139,7 @@ type Projection struct {
 func New(deps Dependencies) (*Projection, error) {
 	if deps.Presence == nil || deps.Rooms == nil || deps.Students == nil || deps.Persons == nil ||
 		deps.Contacts == nil || deps.Calendar == nil || deps.Renderer == nil ||
-		deps.Collate == nil {
+		deps.AccessLog == nil || deps.Collate == nil {
 		return nil, ErrIncompleteDependencies
 	}
 	if deps.Now == nil {
@@ -149,12 +151,26 @@ func New(deps Dependencies) (*Projection, error) {
 	return &Projection{deps: deps}, nil
 }
 
+// Export renders the Notfallliste of now. A list that prints a child's
+// health field is recorded in the school's access log first (#5472): no
+// record, no list.
 func (p *Projection) Export(ctx context.Context) (File, error) {
-	doc, err := p.Document(ctx, p.deps.Now())
+	at := p.deps.Now()
+	snapshot, err := p.Snapshot(ctx, at)
 	if err != nil {
 		return File{}, err
 	}
-	return p.deps.Renderer.RenderPDF(doc, FilenameBase)
+	if snapshot.printsHealth() {
+		if err := p.deps.AccessLog.RecordEmergencyListExport(ctx, at); err != nil {
+			return File{}, fmt.Errorf("emergency snapshot: record health access: %w", err)
+		}
+	}
+	return p.deps.Renderer.RenderPDF(BuildDocument(snapshot), FilenameBase)
+}
+
+// printsHealth reports whether a row of the list carries a health field.
+func (s Snapshot) printsHealth() bool {
+	return slices.ContainsFunc(s.Rows, func(row Row) bool { return strings.TrimSpace(row.HealthInfo) != "" })
 }
 
 func (p *Projection) Document(ctx context.Context, at time.Time) (Document, error) {

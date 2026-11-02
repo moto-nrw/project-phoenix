@@ -133,9 +133,9 @@ type BookingEnrollment interface {
 	SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error)
 	// SelectionHistory lists every dated selection of the child.
 	SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error)
-	// StudentSelectionsAt lists the selections of all the student's approved
-	// request children in force on the date.
-	StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error)
+	// StudentSelectionsBetween lists the selections of all the student's
+	// approved request children that overlap the inclusive range.
+	StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error)
 	// ApprovedChildren lists the approved bookings of the offerings still in
 	// force on or after the date.
 	ApprovedChildren(ctx context.Context, offeringIDs []int64, onOrAfter calendar.Date) ([]ApprovedOfferingChild, error)
@@ -212,6 +212,15 @@ type BookingPickup interface {
 // PickupScheduleStaff wakes the staff views of a school's pickup schedule.
 type PickupScheduleStaff interface {
 	PickupScheduleChanged(tenantID int64) error
+}
+
+// BookingPlanningStaffing hears about a booking change inside its
+// transaction and wakes, after commit, the staff views that compare the
+// planning with the bookings: the hints for children a Regeltermin keeps by
+// hand without a booking (#5498), on the Startseite and in the
+// Betreuungsplan.
+type BookingPlanningStaffing interface {
+	AnnounceBookingChange(ctx context.Context)
 }
 
 // PickupScheduleGuardians refreshes one child's card in the guardians' portal.

@@ -9,6 +9,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldLabel } from "~/components/ui/field-label";
+import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 import { useSWRAuth } from "~/lib/swr";
@@ -961,40 +962,40 @@ export function DatabaseForm<T = Record<string, unknown>>({
           const isBusy = isLoading === true || isSubmitting;
           return stickyActions ? (
             <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="md"
                 onClick={onCancel}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
                 disabled={isBusy}
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                size="md"
                 data-setup-tour="form-submit"
-                className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
                 disabled={isBusy}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
-              </button>
+              </Button>
             </div>
           ) : (
-            <div className="flex justify-end pt-6 pb-2">
-              <button
+            <div className="flex justify-end gap-2 pt-6 pb-2">
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={onCancel}
-                className="mr-2 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-sm transition-colors hover:bg-gray-100 md:px-4 md:text-base"
                 disabled={isBusy}
               >
                 Abbrechen
-              </button>
-              <button
-                type="submit"
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg md:px-6 md:text-base"
-                disabled={isBusy}
-              >
+              </Button>
+              <Button type="submit" size="md" disabled={isBusy}>
                 {isBusy ? "Wird gespeichert..." : submitLabel}
-              </button>
+              </Button>
             </div>
           );
         })()}

@@ -26,6 +26,13 @@ const (
 	StatusOnYard    = "on_yard"
 )
 
+// AccessLog records in the school's access log that an export printed the
+// health field of the listed children (#5472). The root binds Audit
+// Platform's data access log and the caller of the context.
+type AccessLog interface {
+	RecordEmergencyListExport(ctx context.Context, at time.Time) error
+}
+
 // Presence reads the live presence facts of the Student Presence owner.
 type Presence interface {
 	// PresentStudentIDs lists the students with an open attendance on the

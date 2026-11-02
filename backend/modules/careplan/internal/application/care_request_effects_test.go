@@ -31,7 +31,10 @@ func (m *careRequestMessenger) EmitDecisionAudience(ctx context.Context, tenantI
 	return nil
 }
 
-type careRequestBroadcasts struct{ events []string }
+type careRequestBroadcasts struct {
+	events         []string
+	arrivalSchools []int64
+}
 
 func (b *careRequestBroadcasts) StudentUpdated(int64) error {
 	b.events = append(b.events, "student_updated")
@@ -41,7 +44,8 @@ func (b *careRequestBroadcasts) StudentCompanionsChanged(int64) error {
 	b.events = append(b.events, "student_companions_changed")
 	return nil
 }
-func (b *careRequestBroadcasts) ArrivalScheduleChanged() error {
+func (b *careRequestBroadcasts) ArrivalScheduleChanged(tenantID int64) error {
+	b.arrivalSchools = append(b.arrivalSchools, tenantID)
 	b.events = append(b.events, "arrival_schedule_changed")
 	return nil
 }
@@ -216,10 +220,13 @@ func TestCareRequestApprovalWakesStaffTabsAfterCommit(t *testing.T) {
 	t.Parallel()
 	h := newCareRequestHarness(t, careRequestRows{}, careRequestNames{})
 	ctx := context.Background()
-	require.NoError(t, h.effects.RegisterDecision(ctx, weeklyCareRequest(), carerequests.DecideInput{Approve: true, ReviewedBy: fakeReviewer}, "", false))
+	request := weeklyCareRequest()
+	request.TenantID = 0 // Address comes from the invocation context, not a row copy.
+	require.NoError(t, h.effects.RegisterDecision(ctx, request, carerequests.DecideInput{Approve: true, ReviewedBy: fakeReviewer}, "", false))
 	assert.Empty(t, h.broadcaster.events, "staff tabs refetch only the committed plan")
 	h.hooks.commit()
 	assert.Equal(t, []string{"student_updated", "arrival_schedule_changed"}, h.broadcaster.events)
+	assert.Equal(t, []int64{fakeTenantID}, h.broadcaster.arrivalSchools)
 
 	h.broadcaster.events = nil
 	require.NoError(t, h.effects.RegisterDecision(ctx, weeklyCareRequest(), carerequests.DecideInput{Approve: true, ReviewedBy: fakeReviewer}, "", true))

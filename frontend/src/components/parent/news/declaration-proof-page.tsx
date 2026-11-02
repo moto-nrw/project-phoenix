@@ -128,7 +128,7 @@ export function DeclarationProofPage({
             <Button
               type="button"
               variant="primary"
-              size="touch"
+              size="md"
               className="gap-1.5"
               onClick={() => void download()}
               isLoading={downloading}

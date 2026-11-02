@@ -12,6 +12,7 @@ import {
   OVERLAY_BACKDROP_TINT_HIDDEN_CLASS,
 } from "./overlay-styles";
 import { Button } from "./button";
+import { CloseIcon } from "./close-icon";
 
 // Shared a11y contract for all modal dialogs (also consumed by form-modal).
 export const dialogAriaProps = {
@@ -297,82 +298,44 @@ export function Modal({
           {/* Header with close button - only show border if title exists */}
           {title ? (
             <div className="flex shrink-0 items-start gap-4 border-b border-gray-100 p-4 sm:p-6">
-              {/* py-2 hebt die 28-px-Zeile auf die 44 px des X: eine Zeile
-                  steht mittig neben dem X, lange Titel brechen darunter um. */}
+              {/* Das Polster hebt die 28-px-Zeile auf die Höhe des X (32 px
+                  mit Maus, 44 px unter Fingerbedienung): eine Zeile steht
+                  mittig neben dem X, lange Titel brechen darunter um. */}
               <h3
                 id={titleId}
                 ref={titleRef}
                 tabIndex={focusTitleOnOpen ? -1 : undefined}
-                className="min-w-0 flex-1 py-2 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl"
+                className="min-w-0 flex-1 py-0.5 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl pointer-coarse:py-2"
               >
                 {title}
               </h3>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={handleClose}
                 disabled={isDismissDisabled}
-                className="group relative flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                className="shrink-0"
                 aria-label={closeLabel}
                 data-overlay-close=""
               >
-                {/* Animated X icon */}
-                <svg
-                  className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-
-                {/* Subtle hover glow */}
-                <div
-                  className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                  style={{
-                    boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-                  }}
-                />
-              </button>
+                <CloseIcon />
+              </Button>
             </div>
           ) : (
             /* X button positioned absolutely in top-right when no title */
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={handleClose}
               disabled={isDismissDisabled}
-              className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+              className="absolute top-4 right-4 z-10"
               aria-label={closeLabel}
               data-overlay-close=""
             >
-              {/* Animated X icon */}
-              <svg
-                className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-
-              {/* Subtle hover glow */}
-              <div
-                className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                style={{
-                  boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-                }}
-              />
-            </button>
+              <CloseIcon />
+            </Button>
           )}
 
           {/* Content area with hidden scrollbar and reveal animation */}

@@ -191,7 +191,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListByRoom",
-      "reason": "Read-only newly exposed target: facilities reaches modules/studentpresence.LiveGroup.StartedOn (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: facilities reaches modules/studentpresence.LiveGroup.StartedOn (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.LiveGroup.StartedOn",
       "target_owner": "student-presence"
@@ -201,7 +201,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListByRoom",
-      "reason": "Read-only already reviewed target: facilities reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only already reviewed target: facilities reaches modules/studentpresence.Owner.QueryLiveGroups (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
       "target_owner": "student-presence"
@@ -211,7 +211,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListSupervisors",
-      "reason": "Read-only newly exposed target: facilities reaches modules/studentpresence.GroupSupervision.EndedOn (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: facilities reaches modules/studentpresence.GroupSupervision.EndedOn (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.GroupSupervision.EndedOn",
       "target_owner": "student-presence"
@@ -222,7 +222,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListSupervisors",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: facilities reaches modules/studentpresence.Owner.QueryGroupSupervisions (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: facilities reaches modules/studentpresence.Owner.QueryGroupSupervisions (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence"
@@ -233,7 +233,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListVisits",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: facilities reaches modules/studentpresence.Owner.ListVisits (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListVisits. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: facilities reaches modules/studentpresence.Owner.ListVisits (student-presence) through modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListVisits. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence"

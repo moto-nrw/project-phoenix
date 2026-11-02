@@ -8770,6 +8770,16 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.SealStudentHealth",
+      "reason": "Read-only value computation (#5472): the student directory projection's reader seals or opens one health field with the HEALTH_DATA_KEYS field cipher, bound to its school and care row. No query, no lock, no persistent write; a value that does not open fails the read.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentDisplayRows",
       "classification": "query",
       "effect": "query",
@@ -9640,11 +9650,11 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsAt",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsBetween",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsAt",
-      "reason": "Reviewed read: the roster impact of a booking change reads the selections of the student's other approved request children in force on the first rewritten day, so their bookings may carry a hand-maintained Regeltermin (#5366, ADR 0128). The binding filters the student and maps the rows onto Care Plan's booked offerings. Target modules/enrollment.BookingProjection.ApprovedSelectionsForStudents; modules/enrollment/booking_approved.go:26 reads approved request children and Care Plan's booking history; no owned-row mutation or locking read.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsBetween",
+      "reason": "Reviewed read: the roster impact of a booking change reads the selections of the student's other approved request children from the first rewritten day over the next school year, so their bookings may carry a hand-maintained Regeltermin on that day (#5366, ADR 0128) or end its gap later (#5497). The binding filters the student and maps the rows onto Care Plan's booked offerings. Target modules/enrollment.BookingProjection.ApprovedSelectionsForStudents; modules/enrollment/booking_approved.go:26 reads approved request children and Care Plan's booking history; no owned-row mutation or locking read.",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ApprovedSelectionsForStudents",
       "target_owner": "enrollment"
@@ -9654,7 +9664,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
-      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change dropped a booking on, and passes the net-loss weekdays, the remaining bookings and the bookings of the student's other enrollments with their kind flags and pickup times so Timetable leaves out the Regeltermine they carry (#5102, #5342, #5366, ADR 0128). The binding only maps the day change onto the query. Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules, timeframes, active calendar periods and targets; no owned-row mutation or locking read.",
+      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change dropped a booking on, and passes the net-loss weekdays, the remaining bookings and the bookings of the student's other enrollments with their kind flags, pickup times and, for a booking that starts later, its start day, so Timetable leaves out the Regeltermine they carry and ends a gap where a later booking carries the weekday again (#5102, #5342, #5366, #5497, ADR 0128). The binding only maps the day change onto the query and the plans' gap end back. Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules, timeframes, active calendar periods and targets; no owned-row mutation or locking read.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",
       "target_owner": "timetable-activities"
@@ -9698,6 +9708,17 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListCalendarPeriods",
       "target_owner": "school-calendar"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "classification": "leaf",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingPlanningStaffing.AnnounceBookingChange",
+      "reason": "Non-durable staffing SSE invalidation only (#5498): Timetable queues its existing staffing_deviation_changed announcement (modules/timetable/internal/application/template_writes.go announceStaffingChanged) after the caller's commit; it carries no child and writes nothing. Target modules/timetable/student_template_days.go StudentTemplateDays.AnnounceBookingChange.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0067",
@@ -10630,9 +10651,9 @@
       "classification": "platform",
       "effect": "notice",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareScheduleBroadcaster.ArrivalScheduleChanged",
-      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through roots/owners.careRequestBroadcaster.ArrivalScheduleChanged. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "School-scoped losable approval invalidation through Delivery Platform; the Care Plan after-commit port now binds BroadcastToTenant. No durable write or cross-owner coordinator (ADRs 0098/0147).",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
     },
     {

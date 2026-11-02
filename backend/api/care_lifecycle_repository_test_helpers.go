@@ -14,14 +14,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -63,7 +62,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	return CareLifecycleTestRepositories{
 		carePlan: carePlan.CarePlan,
 		lifecycle: carePlanCompose.CareLifecycleDependencies{
-			StudentDirectory: studentDirectoryView.NewReader(),
+			StudentDirectory: owners.StudentDirectoryReader(),
 			DB:               db.Pool(), Records: carePlan.CarePlan,
 			Owners: owners.NewCareLifecycleOwners(
 				members.Student, members.Person, membership, people, tt.Timetable, calendar,
@@ -84,6 +83,9 @@ type CareLifecycleTestConfig struct {
 	LockCareBookingWrites func(context.Context) error
 	// Today defaults to the Berlin calendar day.
 	Today func() owner0.Date
+	// PlanningStaffing hears about committed care ends (#5554); nil
+	// announces nothing.
+	PlanningStaffing timetable.StudentTemplateDays
 }
 
 // NewCareLifecycle composes the native Care Plan lifecycle over these
@@ -98,6 +100,9 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	deps.LockCareBookingWrites = lock
 	deps.BookingsAuthoritative = config.BookingsAuthoritative
 	deps.Today = config.Today
+	if config.PlanningStaffing != nil {
+		deps.Owners.PlanningStaffing = config.PlanningStaffing
+	}
 	return carePlanCompose.NewCareLifecycle(deps)
 }
 

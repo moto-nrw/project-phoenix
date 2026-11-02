@@ -260,7 +260,7 @@ function SharingFooter({
       <Button
         type="button"
         variant="outline"
-        size="touch"
+        size="md"
         disabled={saving}
         onClick={close}
       >
@@ -269,7 +269,7 @@ function SharingFooter({
       <Button
         type="button"
         variant="primary"
-        size="touch"
+        size="md"
         isLoading={saving}
         loadingText={t("saving")}
         onClick={save}

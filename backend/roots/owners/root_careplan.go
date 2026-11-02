@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -126,11 +125,14 @@ func BuildCarePlanSchedules(
 	db transactionruntime.Database, logger *slog.Logger, carePlan careplan.Capability, persons peopledirectory.Capability,
 	rows CarePlanRows, classArrivals timetable.ClassArrivals, approved careplan.ApprovedBookingReader,
 	settings settingsCompose.SettingsService, lockRecurrence func(context.Context) error, presence studentpresence.Owner,
+	studentDays timetable.StudentTemplateDays,
 ) (CarePlanSchedules, error) {
 	authoritative := bookingsAuthoritative(settings)
+	lifecycleOwners := rows.LifecycleOwners
+	lifecycleOwners.PlanningStaffing = studentDays
 	lifecycle, err := carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
-		DB:               db.Pool(), Records: carePlan, Owners: rows.LifecycleOwners, LockCareBookingWrites: lockRecurrence,
+		StudentDirectory: StudentDirectoryReader(),
+		DB:               db.Pool(), Records: carePlan, Owners: lifecycleOwners, LockCareBookingWrites: lockRecurrence,
 		BookingsAuthoritative: authoritative, Fingerprint: securityruntime.Fingerprint,
 		Logger: logger.With("service", "care_lifecycle"),
 	})

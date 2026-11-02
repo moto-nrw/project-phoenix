@@ -55,7 +55,7 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 		`SELECT social_security_number FROM users.staff_financial_data LIMIT 0`,
 		`SELECT iban FROM users.guardian_financial_data LIMIT 0`,
 		`SELECT account_holder FROM users.guardian_financial_data LIMIT 0`,
-		`SELECT health_info FROM users.student_care_profiles LIMIT 0`,
+		`SELECT health_data FROM users.student_care_profiles LIMIT 0`,
 		`SELECT old_value FROM audit.staff_master_data_changes LIMIT 0`,
 		`SELECT new_value FROM audit.staff_master_data_changes LIMIT 0`,
 		`SELECT old_value FROM audit.guardian_financial_changes LIMIT 0`,

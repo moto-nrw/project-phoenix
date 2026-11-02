@@ -100,7 +100,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `warning` (proceed despite a side effect, orange) `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
+| Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input` — `required` (or `aria-required` on a form with its own check) shows the star itself; `error` renders the hint and `aria-invalid` | `~/components/ui/input` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
@@ -144,6 +144,38 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
 
 If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
+
+## Buttons
+
+Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot meet a rule, comment on the ticket instead of deviating.
+
+**Every action uses the kit.** `className` on a kit button carries layout only (`w-full`, `flex-1`, `gap-*`, `mt-*`, `shrink-0`, `self-*`, `hidden md:flex` …), never height, padding, radius, font size/weight, background, text/ring/shadow colour or `scale`. A missing look is a new kit variant.
+
+| Size | Height (mouse) | Use for |
+|---|---|---|
+| `md` | `px-4 py-2 text-sm` | **Default:** `TenantPage` head (sets its own height), `SectionCard` heads, modal/slide-over footers, forms |
+| `field` | 40 px (`h-10`, = `Input controlSize="compact"`) | Auth forms; a button in the same row as a 40-px field |
+| `compact`, `icon` | 32 px | Dense toolbars, table rows, icon actions |
+| `sm`, `base`, `lg`, `xl` | `px-5 py-3` | Only one large action standing alone (submit an enrolment) |
+
+| Variant | Use for |
+|---|---|
+| `primary` (gray-900), `secondary`, `outline`, `surface`, `ghost` | Neutral actions |
+| `ghost_tone` | Quiet action on a coloured notice (toast, alert): takes the notice's text colour |
+| `success` | Green confirm, every import submit |
+| `danger`, `outline_danger`, `ghost_danger` (quiet red) | Destructive |
+| `warning` | Proceed despite a side effect (orange) |
+| `link` | Text button, no padding, visible focus ring |
+| `fab` | Floating create button, round, 56 px, green |
+| `dashed` | Dashed add surface |
+
+**Finger rule.** Under `pointer: coarse` every kit button is at least 44 px high, `icon` 44 × 44 px; with a mouse nothing changes. The kit does this for every portal; no `min-h-11` overrides, no `touch` size.
+
+**Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`; on a coloured notice (toast) `ghost_tone` `icon`.
+
+**Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
+
+**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings are counted per file in `frontend/scripts/ui-kit-button-baseline.json`; more fails, fewer fails until lowered (`pnpm run ui-kit:button-baseline`). The exceptions above live with their reason in the allowlist in `ui-kit-button-baseline.mjs`, never in the baseline.
 
 ## Several notices of the same kind
 
@@ -226,7 +258,7 @@ Each concept's definition in `lib/concepts/<key>.ts` (collected in `MOTO_CONCEPT
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
 
 - Card → `p-6` (24px); `p-4` compact, `p-10` large
-- Button → page sizes `px-5 py-3`; `md` (modal/form action) `px-4 py-2 text-sm`; `compact` `h-8 px-2.5`
+- Button → `md` (default action) `px-4 py-2 text-sm`; `field` `h-10 px-4 text-sm`; `compact` `h-8 px-2.5`; single large actions `px-5 py-3`; under a finger at least 44 px (see [Buttons](#buttons))
 - Input → `px-4 py-3`
 
 ### Shadows
@@ -235,12 +267,12 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. A generic kebab/dropdown menu now EXISTS: `ui/page-header/OverflowMenu` covers action menus fully (portal-rendered, header/radio/checkbox/separator entries, `href` link items incl. `external`, destructive tone, badges) — never hand-roll a `menuOpen` + click-outside menu again. Semantic status pills (`ui/status-badge`, tone-based, with an optional `title` for a hover tooltip) and empty states (`ui/empty-state`) now EXIST too. A segmented single-choice control EXISTS at `ui/segmented-control` — reach for it instead of hand-rolling a `<button>` cluster whenever the choice is a **value** (work mode, Monat/Woche, a modal's section switcher) rather than a content panel; `ui/Tabs` is Radix and stays the answer for real panels. Note the test consequence when picking between them: Radix tabs activate on **mousedown**, so a screen whose existing tests drive the switcher with `fireEvent.click` must use `SegmentedControl` (plain buttons), not `Tabs`. Select dropdowns are covered by `ui/custom-select` and `ui/listbox-dropdown` — the old `moto-select` native-`<select>` convention is gone (no `moto-select` usage remains in the codebase); do not reintroduce styled native selects. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` (a **value** choice; `ui/Tabs` stays for real content panels — Radix tabs activate on **mousedown**, so tests driving a switcher with `fireEvent.click` need `SegmentedControl`) and `CustomSelect`/`ListboxDropdown` (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
-- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
+- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
@@ -260,8 +292,8 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on five drift patterns — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (hand-built card surfaces: unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element outside `ui/`, also when assembled across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). All five are hard-zero: the first production match fails. A deliberate non-card match (a white pill control, for example) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason repeated in the PR description; there is no baseline to grow. Test/stories files are exempt from the class-string rules.
-The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>` outside `ui/`; only `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (the OTP digit grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (hand-built card surfaces: unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element outside `ui/`, also when assembled across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero: the first production match fails. A deliberate non-card match (a white pill control, for example) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason repeated in the PR description; there is no baseline to grow. Test/stories files are exempt from the class-string rules.
+The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>` outside `ui/`; only `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (the OTP digit grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow: `border-gray-200`, `bg-white`, `bg-white/95`, `backdrop-blur` and `shadow-lg` next to them are dead and get deleted. Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 

@@ -176,14 +176,19 @@ func TestMain(m *testing.M) {
 func TestListNewParentRequestsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	counter := testpkg.CaptureQueries(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
 	counter.Reset()
 
-	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
-		_, listErr := NewReader(func(context.Context) (bun.IDB, error) { return tx, nil }).ListNewParentRequests(ctx, testpkg.Tenant(t), time.Now().Add(-30*24*time.Hour), true, true)
-		return listErr
-	})
-	require.NoError(t, err)
+	// Simulate the same read from another request while capture is active.
+	// A package pool is shared even when the callers have different tenants.
+	read := func(ctx context.Context) error {
+		return testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
+			_, listErr := NewReader(func(context.Context) (bun.IDB, error) { return tx, nil }).ListNewParentRequests(ctx, testpkg.Tenant(t), time.Now().Add(-30*24*time.Hour), true, true)
+			return listErr
+		})
+	}
+	require.NoError(t, read(testpkg.Ctx(t)))
+	require.NoError(t, read(counter.Context(testpkg.Ctx(t))))
 	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
 		return strings.Contains(sqlLower, "select kind, id, created_at")
 	}))

@@ -205,3 +205,36 @@ never hides more than before. Booking-created rows never carry it.
 asked for today: today's occurrences and rows stay as they are. The command
 `KeepStudentTemplateDays` reads no clock, so it adds no binding-flow
 diagnostic; the read reaches no other owner beyond the existing ports.
+
+## Addendum 2026-11-01: "Entfernen" covers the gap only (#5497)
+
+A report had a start and no end. When the same offering was booked again
+later, for example a Thursday booking that ends on 02.11. and starts again
+on 16.11., "Entfernen" took the child off every Thursday from 05.11. on,
+also from 19.11., where the new booking carries the Regeltermin again. The
+dialog named only the start, so nobody could see it.
+
+Decided (product decision of 2026-11-01): "Entfernen" covers the gap until
+a later booking carries the Regeltermin again, and the screens name that
+period. The report gets an end, `until` (exclusive): the start of the
+latest booking in force on the next planned day of the weekday that a
+booking carries again, but after the last planned day without one. Without
+such a day the end stays open, as before. Weekdays of one Regeltermin and
+child share a report only when their gaps start and end on the same days.
+
+`RemoveStudentTemplateDays` takes the optional end. It ends the hand rows at
+the start as before and continues the removed weekdays with weekday-scoped
+rows from the end on; occurrences from the end on keep the child. A row
+that starts on or after the end stays as it is. An end on or before the
+start is refused.
+
+The save response follows the same rule. It used to see only the bookings
+in force on the change's date. Care Plan now also hands over bookings of the
+student's other enrollments that start within the next school year, each
+with its start. They do not carry the change's date. For a lost weekday the
+first such start from which the carry rule holds again ends the gap; where
+the times do not decide, a later booking of the weekday offsets the dropped
+one, like a switch on the change's date. A series whose weekdays end at
+different days is listed once per end, so each removal takes nothing a
+booking carries. A booking change rewrites the changed enrollment from its
+date on as a whole, so only other enrollments can start later there.

@@ -667,9 +667,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (b classDayMorningBroadcaster) BroadcastToAll(event realtime.Event) error {\n\treturn b.broadcaster.BroadcastToTenant(b.tenantID, realtime.NewEvent(realtime.EventStudentUpdated, \"\", event.Data))\n}",
+      "evidence": "func (b classDayMorningBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {\n\treturn b.broadcaster.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventStudentUpdated, \"\", event.Data))\n}",
       "form": "unclassified-evidence",
-      "id": "api/classDayMorningBroadcaster.BroadcastToAll",
+      "id": "api/classDayMorningBroadcaster.BroadcastToTenant",
       "owner": "roots"
     },
     {
@@ -3845,9 +3845,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
+      "evidence": "func (e bookingEnrollment) StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(from), enrollmentOwner.Date(to))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
       "form": "unclassified-evidence",
-      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsBetween",
       "owner": "roots"
     },
     {
@@ -4510,7 +4510,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (b careRequestBroadcaster) ArrivalScheduleChanged() error {\n\treturn b.broadcaster.BroadcastToAll(careRequestEvent(realtime.EventArrivalScheduleChanged))\n}",
+      "evidence": "func (b careRequestBroadcaster) ArrivalScheduleChanged(tenantID int64) error {\n\treturn b.broadcaster.BroadcastToTenant(tenantID, careRequestEvent(realtime.EventArrivalScheduleChanged))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careRequestBroadcaster.ArrivalScheduleChanged",
       "owner": "roots"
@@ -6218,6 +6218,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a payrollRuleAudit) RecordPayrollRuleChange(ctx context.Context, change workforceModule.PayrollRuleChange) error {\n\ttenantID, err := tenant.TenantFromContext(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"payroll rule audit: %w\", err)\n\t}\n\tvar changedBy *int64\n\tif change.ActorAccountID \u003e 0 {\n\t\tactor := change.ActorAccountID\n\t\tchangedBy = \u0026actor\n\t}\n\treturn a.audit.Create(ctx, configModels.NewAuditEntry(tenantID.Int64(), change.Key, change.Action, change.Old, change.New, changedBy))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollRuleAudit.RecordPayrollRuleChange",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (t payrollTransfer) RecordEmail(ctx context.Context, result workforce.PayrollEmailResult) error {\n\trecord := exporttransfer.EmailRecord{Kind: exporttransfer.KindStaffTimeTracking, Format: result.Format, Period: result.Period, Filename: result.Filename, ByteSize: result.ByteSize, Recipient: result.Recipient, Delivered: result.Delivered, ActorAccountID: result.ActorAccountID, ActorName: result.ActorName}\n\tif !result.Delivered {\n\t\trecord.Reason = exporttransfer.ReasonMailFailed\n\t}\n\treturn t.module.RecordEmail(ctx, record)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/payrollTransfer.RecordEmail",
@@ -7411,6 +7418,13 @@
       "evidence": "func (r timetablePresenceReader) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to calendar.Date) ([]ports.ScheduledInstance, error) {\n\trows, err := r.timetablePresenceSource.ListScheduledInstancesForStudent(ctx, studentID, from, to)\n\treturn mapTimetablePresenceRows(rows, func(row presenceContract.ScheduledInstance) ports.ScheduledInstance {\n\t\treturn ports.ScheduledInstance{Instance: ports.ActivityInstance(row.Instance), Participant: ports.ParticipantAttendance(row.Participant)}\n\t}), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/timetablePresenceReader.ListScheduledInstancesForStudent",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d traegerInvitationDelivery) DispatchTraegerAccountChange(ctx context.Context, notice identityaccess.TraegerAccountChangeNotice) error {\n\tif d.dispatcher == nil {\n\t\treturn nil\n\t}\n\tmessage := *identityMessage(d.from, email.NewEmail(\"\", notice.TargetEmail), identityaccess.TraegerAccountChangeMail(notice, d.frontendURL))\n\treturn d.outbox.EnqueueTransactionalMail(ctx, DurableMail{Message: message, Type: \"traeger_account_change\", ReferenceID: notice.TargetAccountID, Backoff: d.backoff})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/traegerInvitationDelivery.DispatchTraegerAccountChange",
       "owner": "roots"
     },
     {

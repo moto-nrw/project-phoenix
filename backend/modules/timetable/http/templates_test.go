@@ -188,6 +188,7 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 	data := testTimetableData(db, clocks...)
 	res := newResourceForTest(Dependencies{
 		Templates:              data,
+		TemplateSeries:         repoFactory.Timetable,
 		TimetableData:          data.TimetableData(),
 		CalendarPeriods:        repoFactory.SchoolCalendar(),
 		CalendarPeriodUsage:    calendarPeriodUsageFor(repoFactory.CalendarPeriodUsage()),

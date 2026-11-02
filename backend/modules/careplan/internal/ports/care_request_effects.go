@@ -26,8 +26,8 @@ type CareScheduleBroadcaster interface {
 	StudentUpdated(tenantID int64) error
 	// StudentCompanionsChanged refreshes the "läuft mit" links of the school.
 	StudentCompanionsChanged(tenantID int64) error
-	// ArrivalScheduleChanged refreshes arrival and pickup plans everywhere.
-	ArrivalScheduleChanged() error
+	// ArrivalScheduleChanged refreshes arrival and pickup plans in the school.
+	ArrivalScheduleChanged(tenantID int64) error
 }
 
 // GuardianAccess answers whether the submitting guardian still holds the

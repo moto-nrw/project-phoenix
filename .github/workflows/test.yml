@@ -293,8 +293,8 @@ jobs:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           # The route-table golden builds the production API, whose serve
           # connection uses the role created above with this password. The
-          # value must stay identical to testdb.AuthRolePassword — the test
-          # lifecycle pins the cluster-global phoenix_auth role to it.
+          # value must stay identical to testdb.AuthRolePassword: the test
+          # lifecycle validates existing role credentials without changing them.
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
@@ -791,8 +791,8 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           # The standing school is the fallback of #3463 and keeps its coverage.
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once --demo-standing-school
 
       # One demo school per demo access (#3463): queue what the serving backend
       # queues for three prospects, let the demo process seed them with its
@@ -808,7 +808,7 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
              SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Zyxwolda', 'Quorbelt' FROM generate_series(1, 3) AS i"
-          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed|deferred seed failed)' || true
+          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once 2>&1 | grep -E 'demo school (ready|order failed|deferred seed failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
           visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Zyxwolda' AND p.last_name = 'Quorbelt'")
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
@@ -842,20 +842,40 @@ jobs:
       # expiry does 14 days after their last use, let the demo process run its
       # expiry, and search every text column of the database for the visitor.
       # A new place the seed copies the visitor's name to fails here; add it
-      # to platform.erase_closed_demo_visitors.
+      # to platform.erase_closed_demo_visitors. The schools were hidden two
+      # hours ago, so the same run also removes their uploads (#5544): an
+      # orphan per namespace and whatever the seed uploaded; afterwards no
+      # path names a school and each school has its marker.
       - name: Erase the visitors of retired demo schools
         if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          schools=$(psql "${DB_DSN}" -At -c "SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' ORDER BY tenant_id")
+          test "$(echo "${schools}" | wc -w)" = 3
+          for school in ${schools}; do
+            for kind in files announcement-attachments student-documents staff-documents enrollment-uploads avatars; do
+              mkdir -p "public/uploads/${kind}/${school}/smoke" && echo smoke > "public/uploads/${kind}/${school}/smoke/orphan.txt"
+            done
+            for kind in student-photos login-images enrollment-legal-documents enrollment-form-legal-documents; do
+              mkdir -p "public/uploads/${kind}" && echo smoke > "public/uploads/${kind}/${school}_orphan.txt"
+            done
+          done
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
-            "UPDATE platform.schools SET deleted_at = NOW()
+            "UPDATE platform.schools SET deleted_at = NOW() - INTERVAL '2 hours'
              WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
           orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
           echo "demo orders left after the erasure: ${orders}"
           test "${orders}" = 0
+          for school in ${schools}; do
+            left=$(find public/uploads \( -name "${school}" -o -name "${school}_*" \) | wc -l)
+            marker=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_file_erasures WHERE school_id = ${school}")
+            echo "demo school ${school}: paths left ${left}, marker ${marker}"
+            test "${left}" = 0
+            test "${marker}" = 1
+          done
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c "
             DO \$\$
             DECLARE col RECORD; found BIGINT; traces TEXT := '';

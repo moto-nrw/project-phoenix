@@ -116,6 +116,7 @@
   "substitute_self": "{object} could not be saved. Please check your entries.",
   "substitute_single_only": "{object} could not be saved. Please check your entries.",
   "template_care_offering_conflict": "{object} could not be saved. Please check your entries.",
+  "template_booking_gap_stale": "The booking has changed. Please reload the page.",
   "template_category_unavailable": "{object} could not be changed. Please check its current status.",
   "template_education_group_invalid": "{object} could not be saved. Please check your entries.",
   "template_end_before_start": "{object} could not be saved. Please check your entries.",

@@ -171,6 +171,30 @@
       "legacy": "workforce.payroll_download_unavailable"
     },
     {
+      "code": "workforce.payroll_rule_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.payroll_rule_invalid"
+    },
+    {
+      "code": "workforce.payroll_rule_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.payroll_rule_not_found"
+    },
+    {
+      "code": "workforce.payroll_wage_type_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.payroll_wage_type_in_use"
+    },
+    {
+      "code": "workforce.payroll_wage_type_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.payroll_wage_type_name_taken"
+    },
+    {
       "code": "workforce.personnel_number_invalid",
       "class": "input",
       "parameters": [],

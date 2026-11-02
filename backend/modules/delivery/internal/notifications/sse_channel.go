@@ -7,6 +7,8 @@ import (
 	"maps"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,6 +31,9 @@ type sseChannel struct {
 	guardians     GuardianChildAccessRepository
 	logger        *slog.Logger
 	tenantRuntime *tenant.UnitOfWork
+	// relayStore keeps notifications for other API processes (#5504); nil
+	// keeps them in this process.
+	relayStore deliveryPorts.RealtimeNotificationStore
 }
 
 func (c *sseChannel) withTenantRuntime(ctx context.Context) context.Context {
@@ -90,39 +95,57 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		NotificationData: maps.Clone(event.Data),
 	})
 
-	switch event.Audience.Scope {
+	audience := event.Audience
+	stored := domain.RealtimeNotification{TenantID: audience.TenantID}
+	switch audience.Scope {
 	case ScopeTenant:
-		return c.broadcaster.BroadcastToTenant(event.Audience.TenantID, sseEvent)
+		stored.Scope = domain.RealtimeScopeTenant
+		return c.broadcaster.BroadcastToTenant(audience.TenantID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeAdmin:
-		return c.broadcaster.BroadcastToTenantAdmins(event.Audience.TenantID, sseEvent)
+		stored.Scope = domain.RealtimeScopeAdmin
+		return c.broadcaster.BroadcastToTenantAdmins(audience.TenantID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeGuardian:
-		recipients, err := c.permittedGuardians(ctx, event.Audience)
-		if err != nil {
+		recipients, err := c.permittedGuardians(ctx, audience)
+		if err != nil || len(recipients) == 0 {
 			return err
 		}
+		stored.Scope, stored.AccountIDs = domain.RealtimeScopeGuardian, recipients
+		sseEvent = c.relayable(ctx, sseEvent, stored, audience.StudentIDs)
 		for _, accountID := range recipients {
-			if err := c.broadcaster.BroadcastToGuardian(event.Audience.TenantID, accountID, sseEvent); err != nil {
+			if err := c.broadcaster.BroadcastToGuardian(audience.TenantID, accountID, sseEvent); err != nil {
 				return err
 			}
 		}
 		return nil
 	case ScopeGroup:
-		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
+		stored.Scope = domain.RealtimeScopeGroup
+		return c.broadcaster.BroadcastToGroup(audience.TenantID, audience.ActiveGroupID, c.relayable(ctx, sseEvent, stored, nil))
 	case ScopeStaff:
-		accountIDs := staffAccountIDs(event.Audience)
-		if deliversToStaffPortal(event) {
-			if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
-				return err
-			}
-		}
-		if deliversToOpenSchoolPortal(event) {
-			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
-		}
-		return nil
+		return c.deliverToStaff(ctx, event, sseEvent, stored)
 	default:
 		return fmt.Errorf("sse channel cannot route audience scope %q (tenant %s)",
-			event.Audience.Scope, strconv.FormatInt(event.Audience.TenantID, 10))
+			audience.Scope, strconv.FormatInt(audience.TenantID, 10))
 	}
+}
+
+// deliverToStaff addresses the staff accounts in the portals the
+// notification type belongs to; the stored copy records the same portals.
+func (c *sseChannel) deliverToStaff(ctx context.Context, event Event, sseEvent realtime.Event, stored domain.RealtimeNotification) error {
+	accountIDs := staffAccountIDs(event.Audience)
+	stored.Scope, stored.AccountIDs = domain.RealtimeScopeStaff, accountIDs
+	stored.StaffPortal, stored.SchoolPortal = deliversToStaffPortal(event), deliversToOpenSchoolPortal(event)
+	if len(accountIDs) > 0 && (stored.StaffPortal || stored.SchoolPortal) {
+		sseEvent = c.relayable(ctx, sseEvent, stored, nil)
+	}
+	if stored.StaffPortal {
+		if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
+			return err
+		}
+	}
+	if stored.SchoolPortal {
+		return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
+	}
+	return nil
 }
 
 func deliversToOpenSchoolPortal(event Event) bool {

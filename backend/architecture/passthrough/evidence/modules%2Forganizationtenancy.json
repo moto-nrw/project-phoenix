@@ -317,6 +317,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *DemoSchoolFileStore) RecordDemoSchoolFileErasure(ctx context.Context, standingSlug string, schoolID int64, counts map[string]int64) (bool, error) {\n\tdata, err := json.Marshal(counts)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"encode demo school file counts: %w\", err)\n\t}\n\tresult, err := s.db.NewRaw(recordDemoSchoolFileErasure, string(data), schoolID, standingSlug).Exec(ctx)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"record demo school file erasure: %w\", err)\n\t}\n\trows, err := result.RowsAffected()\n\treturn rows == 1, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolFileStore.RecordDemoSchoolFileErasure",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoSchoolFileStore) RetiredDemoSchools(ctx context.Context, standingSlug string, limit int) ([]int64, error) {\n\tids := []int64{}\n\tif err := s.db.NewRaw(listRetiredDemoSchools, standingSlug, limit).Scan(ctx, \u0026ids); err != nil {\n\t\treturn nil, fmt.Errorf(\"list retired demo schools: %w\", err)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolFileStore.RetiredDemoSchools",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (e DemoStateEngine) LoadDemoSchool(ctx context.Context, name string) (*organizationtenancy.DemoSchoolState, error) {\n\tstate, err := e.Store.Load(ctx, name)\n\tif err != nil || state == nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026organizationtenancy.DemoSchoolState{SchoolID: state.TenantID, SeedJSON: []byte(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.LoadDemoSchool",

@@ -93,12 +93,12 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	return f
 }
 
-func (f *overviewFixture) newOverviewService(settings wtmIntSettings) timetracking.StaffOverviewService {
+func (f *overviewFixture) newOverviewService(settings wtmIntSettings, options ...timetracking.StaffOverviewOption) timetracking.StaffOverviewService {
 	return timetracking.NewStaffOverviewService(
 		owners.OverviewStaff(f.repos.Staff), f.workforce, f.workforce, f.reposAbsences.StaffAbsence,
 		f.workforce, f.workforce, timetracking.MonthSnapshotCapability(f.workforce),
 		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
-		settings, nil,
+		settings, nil, options...,
 	)
 }
 

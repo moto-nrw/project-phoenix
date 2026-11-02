@@ -181,14 +181,18 @@ services:
   # traffic arrives from the Docker gateway, never from loopback.
   demo-runtime:
     image: ghcr.io/moto-nrw/phoenix-server:demo
-    command: ["./devtools", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    command: ["./devtools", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat", "--uploads-root", "/app/public/uploads"]
     restart: unless-stopped
     depends_on:
       server:
         condition: service_healthy
-    # No published port, state file or upload volume belongs to the sidecar.
+    # No published port or state file belongs to the sidecar. Its only volume
+    # is the server's uploads: it removes the files of retired demo schools
+    # (#5544, ADR 0148), as the same appuser (UID 1001) that wrote them.
     network_mode: service:server
     read_only: true
+    volumes:
+      - demo-avatar-uploads:/app/public/uploads
     tmpfs:
       - /tmp
     environment:

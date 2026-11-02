@@ -116,6 +116,7 @@
   "substitute_self": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "substitute_single_only": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "template_care_offering_conflict": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "template_booking_gap_stale": "Rezervasyon değişti. Lütfen sayfayı yeniden yükleyin.",
   "template_category_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "template_education_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "template_end_before_start": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

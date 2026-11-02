@@ -116,6 +116,7 @@
   "substitute_self": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "substitute_single_only": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "template_care_offering_conflict": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "template_booking_gap_stale": "Rezervimi ka ndryshuar. Ju lutemi ngarkoni përsëri faqen.",
   "template_category_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "template_education_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "template_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

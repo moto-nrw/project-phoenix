@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -438,7 +437,7 @@ func provisioningIdentityError(err error) error {
 // projection.
 func operatorPersonStudentMembership(db transactionruntime.Database) operatorPersonStudents {
 	runtime := peopleCompose.NewLegacyRepositoryRuntime(db.Pool())
-	students := studentDirectoryView.NewReader()
+	students := StudentDirectoryReader()
 	return func(ctx context.Context, personIDs []int64) (map[int64]bool, error) {
 		return peopleCompose.OperatorPersonStudentMembership(ctx, runtime, students, personIDs)
 	}

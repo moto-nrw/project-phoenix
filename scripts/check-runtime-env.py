@@ -122,6 +122,29 @@ def main():
     return 0
 
 
+DEMO_UPLOADS_TARGET = "/app/public/uploads"
+
+
+def check_demo_runtime_volumes(raw, server, historical):
+    """The sidecar mounts exactly the server's uploads volume, nothing else.
+
+    Revisions before #5544 mounted nothing; they stay valid as history.
+    """
+    volumes = raw.get("volumes") or []
+    if not volumes and historical:
+        return
+    uploads = [volume for volume in server.get("volumes", [])
+               if volume.get("target") == DEMO_UPLOADS_TARGET and volume.get("type") == "volume"]
+    if len(uploads) != 1:
+        raise ValueError("demo-runtime: the server must mount one uploads volume at " + DEMO_UPLOADS_TARGET)
+    if len(volumes) != 1:
+        raise ValueError("demo-runtime: must mount exactly the server's uploads volume, nothing else")
+    volume = volumes[0]
+    if (volume.get("type") != "volume" or volume.get("source") != uploads[0].get("source") or
+            volume.get("target") != DEMO_UPLOADS_TARGET or volume.get("read_only")):
+        raise ValueError("demo-runtime: must mount exactly the server's uploads volume, nothing else")
+
+
 def check_demo_runtime(path, historical=False):
     """Sidecar rules beyond the allowlist that check() already enforced."""
     services = compose_config(path, False)["services"]
@@ -133,8 +156,9 @@ def check_demo_runtime(path, historical=False):
     dsn = urlsplit(resolved[key])
     if dsn.username != "phoenix_demo" or dsn.password is not None:
         raise ValueError("demo-runtime: DEMO_DB_DSN must contain only the phoenix_demo endpoint")
-    if raw.get("env_file") or raw.get("volumes") or raw.get("ports"):
-        raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
+    if raw.get("env_file") or raw.get("ports"):
+        raise ValueError("demo-runtime: must not receive env files or published ports")
+    check_demo_runtime_volumes(raw, services["server"], historical)
     if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
         raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
     # Loopback in the shared network namespace: only this peer is exempt from
@@ -145,7 +169,11 @@ def check_demo_runtime(path, historical=False):
     binaries = ["./devtools", "./main"] if historical else ["./devtools"]
     # Fallback of #3463: both processes must agree on the standing demo school.
     fallback = "--demo-standing-school"
-    commands = [[binary] + arguments for binary in binaries]
+    # The file erasure of retired demo schools (#5544) reads the mounted uploads.
+    uploads = arguments + ["--uploads-root", DEMO_UPLOADS_TARGET]
+    commands = [["./devtools"] + uploads]
+    if historical:
+        commands += [[binary] + arguments for binary in binaries]
     if raw.get("command") not in commands + [command + [fallback] for command in commands]:
         raise ValueError("demo-runtime: must use the guarded command and the server's loopback address")
     if (fallback in raw["command"]) != (fallback in services["server"].get("command", [])):

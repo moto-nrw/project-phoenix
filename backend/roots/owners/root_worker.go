@@ -357,7 +357,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, nil)
+			timetableRows, err = BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
 			return
 		},
 		func() (err error) { classArrivals, err = BuildClassArrivals(db, env.Logger); return },
@@ -392,7 +392,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			notifications, err = BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, DeliveryModuleOf(delivery), settings.Service,
+			notifications, err = BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, delivery, settings.Service,
 				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
@@ -408,7 +408,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			schedules, err = BuildCarePlanSchedules(db, env.Logger, carePlan, persons, carePlanRows, classArrivals,
-				enrollment.ApprovedOfferings, settings.Service, timetableRows.RecurrenceLock.LockRecurrenceWrites, presence.Presence)
+				enrollment.ApprovedOfferings, settings.Service, timetableRows.RecurrenceLock.LockRecurrenceWrites, presence.Presence, timetableRows.StudentTemplateDays)
 			return
 		},
 		func() error {

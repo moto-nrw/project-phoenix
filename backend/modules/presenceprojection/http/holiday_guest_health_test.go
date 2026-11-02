@@ -24,10 +24,7 @@ func TestHolidayGuestHealthFieldEndsWithItsWeek(t *testing.T) {
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	child := func(first, class string, until calendar.Date) int64 {
 		student := testpkg.CreateTestStudent(t, tc.db, first, "Sonne", class)
-		_, err := tc.db.NewRaw(`UPDATE users.student_care_profiles SET health_info = ?
-			WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`,
-			"Asthmaspray-"+first, student.ID).Exec(testpkg.Ctx(t))
-		require.NoError(t, err)
+		testpkg.SetTestStudentHealth(t, tc.db, student.ID, testpkg.StrPtr("Asthmaspray-"+first))
 		setEnrolledUntil(t, tc, student.ID, until)
 		return student.ID
 	}
