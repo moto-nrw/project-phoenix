@@ -7,6 +7,7 @@
  * werden. Die Oberflächen zeigen sie nur an.
  */
 import { apiErrorFromBody, transportFetch } from "~/lib/api-error";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 
 /** Wire-Form wie im Backend (`roster_impact`). Wochentage nach ISO, 1 = Montag. */
 export interface RosterImpactWire {
@@ -22,6 +23,7 @@ export interface RosterImpactWire {
     readonly name: string;
     readonly weekdays?: readonly number[];
     readonly via_target?: boolean;
+    readonly until?: string | null;
   }>;
 }
 
@@ -38,6 +40,12 @@ export interface ManualRosterTemplate {
   readonly weekdays: readonly number[];
   /** Klasse, Jahrgang oder Gruppe nimmt das Kind in neue Termine wieder auf. */
   readonly viaTarget: boolean;
+  /**
+   * Ab diesem Tag deckt eine spätere Buchung den Regeltermin wieder ab
+   * (YYYY-MM-DD, exklusives Ende, #5497); null, wenn keine das tut.
+   * „Entfernen“ endet dort.
+   */
+  readonly until: string | null;
 }
 
 export interface RosterImpact {
@@ -65,6 +73,7 @@ export function mapRosterImpact(
       name: template.name,
       weekdays: template.weekdays ?? [],
       viaTarget: template.via_target === true,
+      until: template.until ?? null,
     })),
   };
 }
@@ -111,6 +120,8 @@ export async function removeStudentTemplateDays(input: {
   studentId: string;
   weekdays: readonly number[];
   effectiveFrom: string;
+  /** Exklusives Ende (#5497): ab hier bleibt das Kind eingeplant. */
+  effectiveUntil?: string | null;
 }): Promise<void> {
   const response = await transportFetch(
     `/api/timetable/templates/${encodeURIComponent(input.templateId)}/students/${encodeURIComponent(input.studentId)}/remove-days`,
@@ -120,6 +131,9 @@ export async function removeStudentTemplateDays(input: {
       body: JSON.stringify({
         weekdays: input.weekdays,
         effective_from: input.effectiveFrom,
+        ...(input.effectiveUntil
+          ? { effective_until: input.effectiveUntil }
+          : {}),
       }),
     },
   );
@@ -130,4 +144,24 @@ export async function removeStudentTemplateDays(input: {
       await response.json().catch(() => undefined),
     );
   }
+}
+
+/**
+ * Letzter Tag einer Lücke mit exklusivem Ende (#5497): der Tag vor dem
+ * Beginn der späteren Buchung.
+ */
+export function lastGapDay(until: string): string {
+  const day = parseISODate(until);
+  day.setDate(day.getDate() - 1);
+  return toISODate(day);
+}
+
+/**
+ * Zeitraum, den „Entfernen“ abdeckt: „ab 05.11.2026“ oder, wenn eine spätere
+ * Buchung den Termin wieder abdeckt, „vom 05.11.2026 bis 15.11.2026“.
+ */
+export function formatRemovalSpan(from: string, until: string | null): string {
+  return until
+    ? `vom ${formatDate(from)} bis ${formatDate(lastGapDay(until))}`
+    : `ab ${formatDate(from)}`;
 }

@@ -116,6 +116,7 @@
   "substitute_self": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "substitute_single_only": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "template_care_offering_conflict": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "template_booking_gap_stale": "Бронирование изменилось. Обновите страницу.",
   "template_category_unavailable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "template_education_group_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "template_end_before_start": "Не удалось сохранить: {object}. Проверьте введённые данные.",

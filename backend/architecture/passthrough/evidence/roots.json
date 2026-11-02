@@ -3845,9 +3845,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
+      "evidence": "func (e bookingEnrollment) StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(from), enrollmentOwner.Date(to))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
       "form": "unclassified-evidence",
-      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsBetween",
       "owner": "roots"
     },
     {

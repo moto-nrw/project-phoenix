@@ -21,6 +21,11 @@ export interface BookingLeftover {
    * the row shows it and „Entfernen“ starts there.
    */
   from: string;
+  /**
+   * Day a later booking carries the Regeltermin again (exclusive end of the
+   * gap, YYYY-MM-DD, #5497); null when none does. „Entfernen“ ends there.
+   */
+  until: string | null;
   /** The school decided: the child stays planned. */
   kept: boolean;
 }
@@ -33,6 +38,7 @@ interface BackendBookingLeftover {
   weekdays?: number[] | null;
   booking_ended_on: string;
   from: string;
+  until?: string | null;
   kept: boolean;
 }
 
@@ -51,11 +57,12 @@ export function mapBookingLeftovers(
     weekdays: leftover.weekdays ?? [],
     bookingEndedOn: leftover.booking_ended_on,
     from: leftover.from,
+    until: leftover.until ?? null,
     kept: leftover.kept,
   }));
 }
 
-/** One row per child, Regeltermin and start; stable across reloads. */
+/** One row per child, Regeltermin, start and end; stable across reloads. */
 export function bookingLeftoverKey(leftover: BookingLeftover): string {
-  return `${leftover.templateId}-${leftover.studentId}-${leftover.from}`;
+  return `${leftover.templateId}-${leftover.studentId}-${leftover.from}-${leftover.until ?? "open"}`;
 }

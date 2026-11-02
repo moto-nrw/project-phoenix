@@ -116,6 +116,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 
 	from := calendar.NewDate(2026, 10, 26)
 	ended := calendar.NewDate(2026, 10, 26)
+	boundedUntil := calendar.NewDate(2026, 11, 19)
 	offerings := map[int64]*careplan.CareOffering{
 		5: {ID: 5, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, PickupTimes: map[string]string{"mon": "12:45", "fri": "12:45"}},
 		6: {ID: 6, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, IncludesLunch: true},
@@ -126,6 +127,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 		{CareOfferingID: 6, SelectedDays: []string{"fri"}},
 		{CareOfferingID: 9, SelectedDays: []string{"tue"}},
 		{CareOfferingID: 6, SelectedDays: []string{"wed"}, ValidUntil: &ended},
+		{CareOfferingID: 6, SelectedDays: []string{"thu"}, ValidUntil: &boundedUntil},
 		{CareOfferingID: 5},
 		{CareOfferingID: 42, SelectedDays: []string{"thu"}},
 	}
@@ -135,5 +137,48 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 		{Weekday: 5, CountsAsCare: true, PickupTime: "12:45"},
 		{Weekday: 5, CountsAsCare: true, IncludesLunch: true},
 		{Weekday: 2, PickupTime: "15:00"},
+		{Weekday: 4, CountsAsCare: true, IncludesLunch: true, Until: &boundedUntil},
 	}, remainingDayBookings(links, offerings, from))
+}
+
+// TestLinkStart_NamesTheDayALaterSelectionStarts (#5497): a selection of
+// another enrollment that starts after the change's date counts from its own
+// start, a phase that starts later from the phase's start; a selection that
+// ends before its phase serves, or a child that is not approved, plans
+// nothing.
+func TestLinkStart_NamesTheDayALaterSelectionStarts(t *testing.T) {
+	t.Parallel()
+	from := calendar.NewDate(2026, 11, 2)
+	service := &careplan.OfferingPhase{ServiceStart: calendar.NewDate(2026, 8, 17), ServiceEnd: calendar.NewDate(2027, 7, 1)}
+	date := func(d calendar.Date) *calendar.Date { return &d }
+
+	start, ok := linkStart(&careplan.BookedOffering{ValidFrom: date(calendar.NewDate(2026, 8, 17))}, service, from)
+	assert.True(t, ok)
+	assert.Equal(t, from, start, "in force on the date")
+
+	start, ok = linkStart(&careplan.BookedOffering{ValidFrom: date(calendar.NewDate(2026, 11, 16))}, service, from)
+	assert.True(t, ok)
+	assert.Equal(t, calendar.NewDate(2026, 11, 16), start, "the rebooking starts later")
+
+	later := &careplan.OfferingPhase{ServiceStart: calendar.NewDate(2027, 2, 1), ServiceEnd: calendar.NewDate(2027, 7, 1)}
+	start, ok = linkStart(&careplan.BookedOffering{}, later, from)
+	assert.True(t, ok)
+	assert.Equal(t, calendar.NewDate(2027, 2, 1), start, "the phase serves from its start")
+
+	_, ok = linkStart(&careplan.BookedOffering{ValidUntil: date(calendar.NewDate(2027, 1, 1))}, later, from)
+	assert.False(t, ok, "the selection ends before its phase serves")
+	_, ok = linkStart(&careplan.BookedOffering{}, nil, from)
+	assert.False(t, ok, "a request child that is not approved books nothing")
+}
+
+func TestLinkUntil_EndsWithTheEarlierSelectionOrServiceWindow(t *testing.T) {
+	t.Parallel()
+
+	service := &careplan.OfferingPhase{ServiceEnd: calendar.NewDate(2026, 11, 18)}
+	earlier := calendar.NewDate(2026, 11, 17)
+	later := calendar.NewDate(2026, 11, 20)
+
+	assert.Equal(t, calendar.NewDate(2026, 11, 19), *linkUntil(&careplan.BookedOffering{}, service))
+	assert.Equal(t, earlier, *linkUntil(&careplan.BookedOffering{ValidUntil: &earlier}, service))
+	assert.Equal(t, calendar.NewDate(2026, 11, 19), *linkUntil(&careplan.BookedOffering{ValidUntil: &later}, service))
 }
