@@ -272,16 +272,16 @@ func hasOpenWorkSession(rt *Runtime) (bool, error) {
 // usable for every demo and for `simulate full-day`, and the API refuses a
 // retroactive exit anyway. The archive view ("Beendete Betreuungen") fills up
 // by itself from the day after the first of them.
-type seedCareExitsStep struct{}
+type seedCareExitsStep struct{ now func() time.Time }
 
 func (seedCareExitsStep) Name() string { return "Seeding planned care exits" }
 
-func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
+func (s seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
 
-	today := todaySeedDate()
+	today := s.today()
 	// Two children from the tail of the demo cohort, so the exits never
 	// collide with the children the other steps mark sick or check in.
 	plans := []struct {

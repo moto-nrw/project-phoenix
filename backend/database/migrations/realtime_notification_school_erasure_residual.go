@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.726 (#5504): the 1.15.724 (#4808) residual check with platform.realtime_notifications.
+// 1.15.727 (#5504): the 1.15.724 (#4808) residual check with platform.realtime_notifications.
 func installRealtimeNotificationErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, realtimeNotificationErasureResidualSQL)
 	return err

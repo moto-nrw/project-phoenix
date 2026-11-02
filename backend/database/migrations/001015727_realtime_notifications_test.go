@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TestRealtimeNotificationGrants pins 1.15.726 (#5504): the copies are school
+// TestRealtimeNotificationGrants pins 1.15.727 (#5504): the copies are school
 // data under forced row-level security that are written once and deleted,
 // never changed.
 func TestRealtimeNotificationGrants(t *testing.T) {
@@ -52,7 +52,7 @@ func TestRealtimeNotificationsAreInvisibleToOtherSchools(t *testing.T) {
 	assert.Zero(t, count(other), "another school read the notification")
 }
 
-// TestRealtimeNotificationsMigrationRoundTrip rolls 1.15.726 back and
+// TestRealtimeNotificationsMigrationRoundTrip rolls 1.15.727 back and
 // forward: the down drops the table and restores the 1.15.724 erasure plan,
 // the up puts the table back into it.
 func TestRealtimeNotificationsMigrationRoundTrip(t *testing.T) {

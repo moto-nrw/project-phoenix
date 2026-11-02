@@ -152,11 +152,11 @@ func findOrCreateTimeframe(ctx context.Context, timeframes timetable.TimeframeCa
 
 	endCopy := end
 	tf := &scheduleModel.Timeframe{
-		StartTime:   start,
 		EndTime:     &endCopy,
 		IsActive:    true,
 		Description: fmt.Sprintf("auto: %s", descHint),
 	}
+	tf.SetStartClock(start)
 	if err := tf.Validate(); err != nil {
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
