@@ -834,10 +834,12 @@ class Inventory {
         }
         return;
       case "jar":
-        if (!READS.has(name)) this.report(KIND.jar, node);
+        if (isWriteTarget(node) || !READS.has(name))
+          this.report(KIND.jar, node);
         return;
       case "list":
-        if (!LIST_READS.has(name)) this.report(KIND.list, node);
+        if (isWriteTarget(node) || !LIST_READS.has(name))
+          this.report(KIND.list, node);
         return;
       case "global":
         if (name === "document") this.track(node as ts.Expression, "document");
@@ -928,7 +930,22 @@ function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
     const declared = declarationOf(node);
     if (declared && !seen.has(declared)) {
       seen.add(declared);
-      const declaration = declared.parent;
+      let declaration: ts.Node = declared.parent;
+      // A binding can take its value from a nested default or the whole
+      // source initializer. Follow both conservatively, including arrays.
+      while (
+        ts.isBindingElement(declaration) ||
+        ts.isObjectBindingPattern(declaration) ||
+        ts.isArrayBindingPattern(declaration)
+      ) {
+        if (
+          ts.isBindingElement(declaration) &&
+          declaration.initializer &&
+          carriesCookieName(declaration.initializer, seen)
+        )
+          return true;
+        declaration = declaration.parent;
+      }
       if (
         ts.isVariableDeclaration(declaration) &&
         declaration.initializer &&

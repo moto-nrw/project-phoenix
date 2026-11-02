@@ -767,6 +767,44 @@ describe("cookieWrites", () => {
   });
 });
 
+describe("writes to read-only members", () => {
+  it.each([
+    [
+      "a jar",
+      `${JAR}const store = await cookies();`,
+      "store",
+      "get",
+      "next-cookie-jar",
+    ],
+    [
+      "a response list",
+      `const list = response.cookies;`,
+      "list",
+      "getAll",
+      "cookie-list",
+    ],
+    ["cookieStore", "", "cookieStore", "has", "cookie-list"],
+    [
+      "cookie options",
+      `const list = config.cookies;`,
+      "list",
+      "sessionToken",
+      "cookie-list",
+    ],
+  ] as const)(
+    "tracks assignments and deletions on %s",
+    (_, setup, target, member, kind) => {
+      for (const operation of [
+        `${target}.${member} = writeCookie; ${target}.${member}(name, value);`,
+        `delete ${target}["${member}"];`,
+        `({ method: ${target}["${member}"] } = replacement);`,
+      ]) {
+        expect(kinds("writer.ts", `${setup}\n${operation}`)).toEqual([kind]);
+      }
+    },
+  );
+});
+
 describe("exported cookie names", () => {
   // A module exporting a Set-Cookie or session cookie name lets an unlisted
   // importer write the cookie without spelling its name.
@@ -796,6 +834,26 @@ describe("exported cookie names", () => {
     [
       "a helper the export calls",
       `function name() {\n  return "Set-" + "Cookie";\n}\nexport const header = () => name();`,
+    ],
+    [
+      "a destructured object binding",
+      `const { name } = { name: "Set-Cookie" }; export { name };`,
+    ],
+    [
+      "a renamed nested binding",
+      `const { nested: { name: header } } = { nested: { name: "Set-Cookie" } }; export { header };`,
+    ],
+    [
+      "an array binding through an alias",
+      `const names = ["parent.session-token"]; const [name] = names; export default name;`,
+    ],
+    [
+      "a default binding value",
+      `const { name = "Set-Cookie" } = {}; export { name };`,
+    ],
+    [
+      "a nested default binding value",
+      `const { nested: { name } = { name: "Set-Cookie" } } = {}; module.exports = name;`,
     ],
     ["CommonJS", `module.exports = { header: "Set-Cookie" };`],
     ["a session cookie pattern", `export const pattern = /session-token$/;`],
