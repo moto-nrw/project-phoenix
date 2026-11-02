@@ -9,12 +9,8 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import {
-  berlinTodayISO,
-  formatDate,
-  parseISODate,
-  toISODate,
-} from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   describeAdjustment,
@@ -53,7 +49,10 @@ export function CarePlanImpact({
   const { data: session } = useSession();
   const canManage = hasPermission(session, "schedules:manage");
   const canRemove = studentId !== undefined && canManage;
-  const firstRemovableDay = earliestRemovalDay(impact.effectiveFrom);
+  const firstRemovableDay = earliestRemovalDay(
+    impact.effectiveFrom,
+    useBerlinToday(),
+  );
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -304,8 +303,8 @@ function manualTemplateKey(template: ManualRosterTemplate): string {
 
 // The command rejects today and clamps an earlier effective date to tomorrow.
 // Do not offer a bounded removal that has already ended at that boundary.
-function earliestRemovalDay(effectiveFrom: string): string {
-  const tomorrow = parseISODate(berlinTodayISO());
+function earliestRemovalDay(effectiveFrom: string, today: string): string {
+  const tomorrow = parseISODate(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const earliest = toISODate(tomorrow);
   return effectiveFrom > earliest ? effectiveFrom : earliest;

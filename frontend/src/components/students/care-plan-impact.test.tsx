@@ -14,12 +14,16 @@ import { CarePlanImpact } from "./care-plan-impact";
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   removeStudentTemplateDays: vi.fn(),
+  berlinToday: { current: "2026-09-09" },
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
 vi.mock("~/lib/roster-impact", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/roster-impact")>()),
   removeStudentTemplateDays: mocks.removeStudentTemplateDays,
+}));
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => mocks.berlinToday.current,
 }));
 
 const impact: RosterImpact = {
@@ -120,6 +124,7 @@ function grantPlanEditing(granted: boolean) {
 describe("CarePlanImpact", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.berlinToday.current = "2026-09-09";
     grantPlanEditing(true);
   });
 
@@ -245,6 +250,42 @@ describe("CarePlanImpact", () => {
     expect(screen.getByText(/freitags bis 09\.09\.2026:/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("updates the removal boundary after Berlin midnight", () => {
+    const boundedImpact: RosterImpact = {
+      effectiveFrom: "2026-09-09",
+      adjusted: [],
+      notAdjusted: [
+        {
+          templateId: "9",
+          name: "RDST 1b",
+          weekdays: [5],
+          viaTarget: false,
+          until: "2026-09-11",
+        },
+      ],
+    };
+    const { rerender } = renderImpact(boundedImpact);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Dort auch entfernen: „RDST 1b“",
+      }),
+    ).toBeInTheDocument();
+
+    mocks.berlinToday.current = "2026-09-10";
+    rerender(
+      <ToastProvider>
+        <CarePlanImpact impact={boundedImpact} studentId="42" />
+      </ToastProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Dort auch entfernen: „RDST 1b“",
+      }),
     ).not.toBeInTheDocument();
   });
 

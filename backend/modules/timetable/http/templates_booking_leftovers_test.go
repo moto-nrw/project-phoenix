@@ -390,6 +390,17 @@ func TestBookingLeftoversRejectsInvalidWeekdayBeforeBoundedValidation(t *testing
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 }
 
+func TestBookingLeftoversBoundedRemovalKeepsUnknownTemplateNotFound(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	child := createClassStudents(t, s.db, "2p", 1)[0]
+
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", int64(999999), child), map[string]any{
+		"weekdays": []int{timetableModule.WeekdayThursday}, "effective_from": rosterReviewMonday.String(), "effective_until": rosterReviewMonday.AddDays(14).String(),
+	})
+	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+}
+
 // TestBookingLeftoversRemoveOnlyTheGapBehindRosterDeviation ensures that a
 // roster-deviation hint hides the duplicate leftover only in the display. A
 // bounded removal received with a booking-change impact remains valid.

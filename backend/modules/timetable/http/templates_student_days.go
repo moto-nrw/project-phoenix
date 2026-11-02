@@ -129,8 +129,14 @@ func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 		return "", err
 	}
 	segments, err := rs.TemplateSeries.ListGroups(ctx, timetableModule.ActiveTemplateSeries(templateID))
+	if errors.Is(err, timetableModule.ErrGroupNotFound) {
+		return from, nil
+	}
 	if err != nil {
 		return "", err
+	}
+	if len(segments) == 0 {
+		return from, nil
 	}
 	series := make(map[int64]struct{}, len(segments))
 	for _, segment := range segments {
