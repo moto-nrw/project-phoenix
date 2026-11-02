@@ -6,7 +6,7 @@ import { defineMotoConcept } from "./define";
 // eine Rechnung an Familien, nicht die Lohnabrechnung (`payroll`).
 export const contributionsConcept = defineMotoConcept(
   "contributions",
-  "Beiträge",
+  "Ermäßigungen",
   CoinsIcon,
   "gold",
   "function",

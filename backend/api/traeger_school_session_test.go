@@ -438,3 +438,38 @@ func TestTraegerSchoolHandoffKeepsTheLegacyDeadline(t *testing.T) {
 		})
 	}
 }
+
+// TestTraegerSchoolSessionSurvivesAFullSessionCap covers an Absprung of a
+// person who already holds the most school-portal sessions allowed. The
+// hand-off session expires sooner than any of them, so a cap that evicts the
+// sessions closest to expiry removed it in its own mint transaction, and the
+// school's host found no session to redeem.
+func TestTraegerSchoolSessionSurvivesAFullSessionCap(t *testing.T) {
+	t.Parallel()
+	db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Volle Sitzungen", true)
+	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Volles Haus")
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleSchoolAccess)
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
+	for range 5 {
+		_, err := db.ExecContext(context.Background(), `INSERT INTO auth.tokens
+			(account_id, token, expiry, family_id, switched_from_family_id, generation, tenant_id, organization_id, portal_scope, identifier, mfa_verified)
+			SELECT ?, encode(sha256(convert_to(f, 'UTF8')), 'hex'), now() + interval '7 days', f, f, 0, ?, ?, 'tenant', 'refresh', true
+			FROM (SELECT gen_random_uuid()::text AS f) AS family`, account.ID, school, organization)
+		require.NoError(t, err)
+	}
+
+	code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, school)
+	require.Equal(t, http.StatusCreated, code, answer.Code)
+	ctx := tenant.WithUnitOfWork(context.Background(), unit)
+	access, _, err := identity.RefreshTokenWithAudit(ctx, answer.Data.HandoffToken, "full-cap-school-host", "192.0.2.20", "test")
+	require.NoError(t, err, "the school's host redeems the hand-off although the cap was full")
+	assert.Equal(t, float64(school), traegerTokenClaims(t, access)["tenant_id"])
+
+	var live int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM auth.tokens WHERE account_id = ? AND portal_scope = 'tenant'
+		AND rotated_at IS NULL AND expiry > now()`, account.ID).Scan(context.Background(), &live))
+	assert.Equal(t, 5, live, "the Absprung evicted the oldest other session instead")
+}

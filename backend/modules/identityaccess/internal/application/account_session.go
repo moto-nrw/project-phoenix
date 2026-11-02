@@ -233,8 +233,12 @@ func (s *Service) RetireAccountSessionFamily(ctx context.Context, accountID int6
 // group of portalScope and returns the sessions it evicted, closest to
 // expiry first, so the caller can record its audit evidence in the same
 // transaction. Rotated hand-offs and expired rows have their own lifecycle
-// and are never counted or evicted here.
-func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]identityaccess.AccountSession, error) {
+// and are never counted or evicted here. The session with the ID minted
+// always stays (zero protects none): a fresh session can expire sooner than
+// the ones it joins, an Absprung's hand-off after two minutes, a switch out
+// of a legacy family at its deadline, and ordered by expiry alone the cap
+// would evict it in its own mint transaction.
+func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int, minted int64) ([]identityaccess.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "enforce_account_session_cap", func(txCtx context.Context, stats *domain.OperationStats) error {
 		live, listStats, listErr := s.sessions.ListLiveAccountSessionsForCap(txCtx, accountID, domain.CapPortalScopes(portalScope), time.Now())
@@ -242,6 +246,7 @@ func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64,
 		if listErr != nil {
 			return listErr
 		}
+		keepMintedFirst(live, minted)
 		if keep < 0 {
 			keep = 0
 		}
@@ -264,6 +269,21 @@ func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64,
 		return nil, fmt.Errorf("identity access: enforce account session cap: %w", MapError(err))
 	}
 	return accountSessions(result), nil
+}
+
+// keepMintedFirst moves the minted session to the front of the cap order and
+// keeps the order of the others.
+func keepMintedFirst(live []domain.AccountSession, minted int64) {
+	if minted <= 0 {
+		return
+	}
+	for i, session := range live {
+		if session.ID == minted {
+			copy(live[1:i+1], live[:i])
+			live[0] = session
+			return
+		}
+	}
 }
 
 func (s *Service) DeleteAccountSession(ctx context.Context, id int64) error {

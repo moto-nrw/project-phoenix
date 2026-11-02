@@ -133,7 +133,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
     expect(
       screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Beiträge“.",
+        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();

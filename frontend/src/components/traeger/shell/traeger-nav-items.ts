@@ -64,7 +64,7 @@ const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
   {
     key: "beitraege",
     href: "/traeger/beitraege",
-    label: "Beiträge",
+    label: "Ermäßigungen",
     concept: contributionsConcept,
     right: BILLING_RIGHT,
   },

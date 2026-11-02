@@ -13,7 +13,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
     audience: "traeger",
     icon: "Landmark",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Beiträge`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Ermäßigungen`.",
     ],
     steps: [],
     instructionGroups: [
@@ -26,7 +26,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       {
         title: "Geschwisterregel anlegen",
         steps: [
-          "Wählen Sie in der Navigation `Beiträge`.",
+          "Wählen Sie in der Navigation `Ermäßigungen`.",
           "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
@@ -53,7 +53,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Ermäßigungen`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
     ],
     troubleshootingDetails: [
       "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",

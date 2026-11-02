@@ -207,16 +207,16 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 	_, err = access.CreateAccountSession(ctx, expired)
 	require.NoError(t, err)
 
-	evicted, err := access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5)
+	evicted, err := access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5, 0)
 	require.NoError(t, err)
 	assert.Empty(t, evicted, "rotated, expired, parent, Träger and unknown rows do not count against the staff cap")
 
 	newest, err := access.CreateAccountSession(ctx, newAccountSession(account.ID, "tenant", newFamilyID(), 0))
 	require.NoError(t, err)
-	evicted, err = access.EnforceAccountSessionCap(adminCtx, account.ID, "org", 5)
+	evicted, err = access.EnforceAccountSessionCap(adminCtx, account.ID, "org", 5, 0)
 	require.NoError(t, err)
 	assert.Empty(t, evicted, "the Träger portal has its own allowance")
-	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5)
+	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5, 0)
 	require.NoError(t, err)
 	require.Len(t, evicted, 1, "the sixth staff session evicts one")
 	assert.Equal(t, staff[0].ID, evicted[0].ID, "the session closest to expiry is evicted first")
@@ -227,7 +227,7 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 		require.NoError(t, err, "the cap must leave other portals, hand-offs, expired rows and the newest session alone")
 	}
 
-	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "parent", 0)
+	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "parent", 0, 0)
 	require.NoError(t, err)
 	require.Len(t, evicted, 1)
 	assert.Equal(t, parent.ID, evicted[0].ID)
@@ -237,7 +237,7 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 	// A family retired by a tenant switch sorts last and is evicted before a
 	// session on another device (#2952).
 	require.NoError(t, access.RetireAccountSessionFamily(ctx, account.ID, staff[4].FamilyID, time.Now().Add(time.Second)))
-	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 4)
+	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 4, 0)
 	require.NoError(t, err)
 	require.Len(t, evicted, 1)
 	assert.Equal(t, staff[4].ID, evicted[0].ID)
@@ -266,14 +266,14 @@ func TestAccountSessionCapInAdminTransactionSpansSchools(t *testing.T) {
 	_, err := access.CreateAccountSession(testpkg.ContextForTenant(ctx, otherTenant), other)
 	require.NoError(t, err)
 
-	evicted, err := access.EnforceAccountSessionCap(testpkg.TenantContext(otherTenant), account.ID, "tenant", 5)
+	evicted, err := access.EnforceAccountSessionCap(testpkg.TenantContext(otherTenant), account.ID, "tenant", 5, 0)
 	require.NoError(t, err)
 	assert.Empty(t, evicted, "a tenant-scoped caller counts only its own school's sessions")
 
 	var adminEvicted []identityaccess.AccountSession
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		adminEvicted, err = access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5)
+		adminEvicted, err = access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5, 0)
 		return err
 	}))
 	require.Len(t, adminEvicted, 1, "the administrative login transaction caps across every school of the account")
@@ -491,7 +491,7 @@ func TestAccountLoginMintRollsBackAfterEachWrite(t *testing.T) {
 			return err
 		}},
 		{"cap eviction", func(txCtx context.Context, accountID int64, state *loginState) error {
-			evicted, err := access.EnforceAccountSessionCap(txCtx, accountID, "tenant", 5)
+			evicted, err := access.EnforceAccountSessionCap(txCtx, accountID, "tenant", 5, 0)
 			state.evicted = evicted
 			return err
 		}},
