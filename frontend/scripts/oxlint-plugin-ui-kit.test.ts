@@ -629,6 +629,26 @@ describe("ui-kit/no-hand-rolled-button", () => {
     expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(2);
   });
 
+  it("does not read border sides or widths as a colour", () => {
+    const result = lintSource(
+      `function Probe() {
+        return (
+          <>
+            <button type="button" className="border-b-2 rounded-t px-4">A</button>
+            <button type="button" className="border-l-4 rounded-md py-2">B</button>
+            <button type="button" className="bg-opacity-50 rounded-md p-2">C</button>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(`${result.stdout}${result.stderr}`).not.toContain(
+      "no-hand-rolled-button",
+    );
+  });
+
   it("follows a same-file class constant", () => {
     const result = lintSource(
       `const chip = "rounded-full bg-gray-100 px-3 py-1";

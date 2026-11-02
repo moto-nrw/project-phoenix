@@ -7,7 +7,8 @@ import {
 
 // UI-kit drift ratchet (issue #1629).
 //
-// Five hard-zero rules that stop drift away from the shared UI kit. The
+// Hard-zero rules that stop drift away from the shared UI kit (plus the
+// shrink-only button ratchet at the end of this file, #5531). The
 // hand-rolled surface rule started with a shrink-only baseline (#2934) that
 // was brought to zero and deleted in #2933; the first production match of
 // any rule now fails `pnpm run check`:
@@ -1121,10 +1122,15 @@ const NATIVE_ACTION_ELEMENTS = new Set([
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 
-const BG_COLOR_RE =
-  /^bg-(?!(?:transparent|none|fixed|local|scroll|cover|contain|auto|center|top|bottom|left|right|repeat|no-repeat|inherit)(?:$|-))(?!(?:clip|origin|blend|linear|radial|conic|gradient|size|position)-)[a-z[]/;
-const FRAME_COLOR_RE =
-  /^(?:ring|border(?:-[xytblrse])?)-(?!(?:\d+|\[\d[^\]]*\]|solid|dashed|dotted|double|none|hidden|inset|transparent|collapse|separate)$)(?!(?:offset|spacing)-)[a-z]/;
+// A colour value: a palette step (`gray-200`, `moto-red/20`), a named colour or
+// an arbitrary colour. Positive on purpose: `border-b-2`, `border-l-4` and
+// `bg-opacity-50` name a side, a width or an opacity, not a colour.
+const COLOUR_VALUE =
+  String.raw`(?:(?!opacity-)[a-z]+(?:-[a-z]+)*-\d{2,3}|moto-[\w-]+|white|black|current|\[(?:#|rgb|hsl|oklch|color)[^\]]*\])(?:\/[\w.[\]]+)?$`;
+const BG_COLOR_RE = new RegExp(String.raw`^bg-${COLOUR_VALUE}`);
+const FRAME_COLOR_RE = new RegExp(
+  String.raw`^(?:ring|border(?:-[xytblrse])?)-${COLOUR_VALUE}`,
+);
 const RADIUS_RE = /^rounded(?:-(?!none$)[\w[\]./-]+)?$/;
 const BOX_RE = /^(?:p|px|py|pt|pb|pl|pr|ps|pe|h|min-h|size)-/;
 

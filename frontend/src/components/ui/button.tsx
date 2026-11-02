@@ -176,10 +176,10 @@ export function ButtonLink({
       // Kennzeichen für die Bedienhöhe der Kopfkarte (`TenantPage`): sie
       // erfasst Knöpfe über `button`, Links in Button-Optik über dieses
       // Attribut (#5531).
-      data-button-link=""
-      data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className })}
       {...props}
+      data-button-link=""
+      data-icon-only={size === "icon" ? "" : undefined}
       {...intentProps}
       onNavigate={(event: ButtonLinkNavigationEvent) => {
         let cancelled: boolean | undefined;

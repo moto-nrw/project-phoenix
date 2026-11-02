@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { CloseIcon } from "~/components/ui/close-icon";
 import type { MouseEventHandler } from "react";
 import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -103,7 +103,7 @@ export function Toast({
         touchFriendly ? "top-1 right-1" : "top-2.5 right-2.5",
       )}
     >
-      <X className="h-4 w-4" aria-hidden="true" />
+      <CloseIcon />
     </Button>
   );
 

@@ -47,20 +47,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    count: 2,
-    reason: "Auslöser des Datumsfelds und Leeren-X im Eingabefeld",
+    count: 1,
+    reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-range-picker.tsx",
     count: 1,
     reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/database/database-form.tsx",
-    count: 1,
-    reason: "Entfernen-× in einem Auswahl-Chip im Eingabefeld",
   },
   {
     rule: "no-hand-rolled-button",
