@@ -12,13 +12,13 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "ArrowsLeftRight",
-    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    requirements: ["Sie haben die Rolle `Schulzugang`."],
     steps: [
       "Wählen Sie in der Navigation `Schulen`.",
       "Wählen Sie bei der Schule `Öffnen`.",
     ],
     result:
-      "moto öffnet die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung der Schule.",
+      "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule.",
     notes: [
       "Sie können mehrere Schulen in mehreren Tabs offen haben.",
       "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
@@ -26,7 +26,7 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
       "Jedes Öffnen steht im Protokoll der Schule.",
     ],
     differences: [
-      "Sie sehen kein `Öffnen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Sie sehen kein `Öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
     ],
     troubleshootingDetails: [
       "moto zeigt `Die Schule konnte nicht geöffnet werden.`? Der Link gilt nur kurz und nur einmal. Öffnen Sie die Schule noch einmal im Träger-Portal.",

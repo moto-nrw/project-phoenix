@@ -72,8 +72,8 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assign := requests["/operator/organizations/12/traeger-members"]
 	assert.Equal(t, "Bearer operator-token", assign.authorization)
 	assert.Equal(t, []map[string]any{
-		{"email": "admin@example.test", "roles": []any{"administration", "billing"}},
-	}, assignments, "the admin holds the Verwaltung and the Abrechnung, granted in one assignment")
+		{"email": "admin@example.test", "roles": []any{"administration", "leadership", "school_access", "billing"}},
+	}, assignments, "the admin holds Verwaltung, Leitung, Schulzugang and Abrechnung, granted in one assignment")
 	operatorInvite := requests["/operator/organizations/12/traeger-members/invitations"]
 	assert.Equal(t, "Bearer operator-token", operatorInvite.authorization, "the moto team invites with the operator session")
 	assert.Equal(t, []map[string]any{
@@ -87,7 +87,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assert.Equal(t, []map[string]any{
 		{"email": "jana.krause@ganztag-nord.example", "roles": []any{"billing"}},
 		{"email": "tobias.engel@ganztag-nord.example", "roles": []any{"personnel"}},
-	}, invitations, "one colleague per role besides the Verwaltung, with personal addresses")
+	}, invitations, "one colleague per role besides the Verwaltung and the Leitung, with personal addresses")
 	assert.Equal(t, tenantAuth, client.auth, "the step restores the client's own session")
 }
 
