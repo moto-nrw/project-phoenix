@@ -34,7 +34,7 @@ const BUERO = {
     {
       accountId: "1",
       email: "leitung@traeger.example",
-      roles: ["administration"],
+      roles: ["leadership", "administration"],
     },
     { accountId: "2", email: "kasse@traeger.example", roles: ["billing"] },
   ],
@@ -146,7 +146,67 @@ describe("TraegerAccountsPage", () => {
     );
   });
 
-  it("shows why the last person with Verwaltung cannot leave", async () => {
+  it("keeps Leitung for its only holder and says why", async () => {
+    api.changeTraegerRoles.mockResolvedValue(undefined);
+    renderPage();
+
+    await openMenu("leitung@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const leadership = within(dialog).getByRole("checkbox", {
+      name: /Leitung/,
+    });
+    expect(leadership).toBeChecked();
+    expect(leadership).toBeDisabled();
+    expect(
+      within(dialog).getByText(/Nur diese Person hat die Rolle Leitung/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: /Schulzugang/ }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.changeTraegerRoles).toHaveBeenCalledWith("1", [
+        "leadership",
+        "administration",
+        "school_access",
+      ]),
+    );
+  });
+
+  it("lets Leitung pass on once another person holds it", async () => {
+    api.fetchTraegerBuero.mockResolvedValue({
+      ...BUERO,
+      members: [
+        ...BUERO.members,
+        {
+          accountId: "3",
+          email: "zweite@traeger.example",
+          roles: ["leadership"],
+        },
+      ],
+    });
+    renderPage();
+
+    await openMenu("leitung@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("checkbox", { name: /Leitung/ }),
+    ).toBeEnabled();
+    expect(
+      within(dialog).getByText(
+        "Darf Personen einladen, ihre Rollen ändern und sie entfernen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows why the last person with Leitung cannot leave", async () => {
     api.removeTraegerMember.mockRejectedValue(
       new ApiError("conflict", 409, { code: "traeger.last_administrator" }),
     );

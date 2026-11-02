@@ -13,7 +13,7 @@ export function traegerAccountsTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "UsersThree",
-    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    requirements: ["Sie haben die Rolle `Leitung`."],
     instructionGroups: [
       {
         title: "Person einladen",
@@ -48,16 +48,17 @@ export function traegerAccountsTopic(): HelpTopic {
     result:
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
-      "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "Nur eine Person mit `Leitung` kann `Leitung` vergeben oder wegnehmen. Ihre eigene `Leitung` geben Sie erst ab, wenn eine andere Person sie hat.",
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
       "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Leitung`.",
       "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
     ],
     troubleshootingDetails: [
-      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Verwaltung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Bei `Leitung` steht, dass nur diese Person die Rolle hat? Oder moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Leitung? Geben Sie die Rolle zuerst einer anderen Person.",
       "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
       "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
     ],

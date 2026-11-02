@@ -256,28 +256,28 @@ func (s *Store) DeleteTraegerAccountSessions(ctx context.Context, organizationID
 	return stats, nil
 }
 
-const lockTraegerAdministratorsQuery = `SELECT "role".account_id FROM auth.organization_account_roles AS "role"
+const lockTraegerLeadersQuery = `SELECT "role".account_id FROM auth.organization_account_roles AS "role"
 	JOIN auth.accounts AS "account" ON "account".id = "role".account_id
-	WHERE "role".organization_id = ? AND "role".role = 'administration'
+	WHERE "role".organization_id = ? AND "role".role = 'leadership'
 		AND "account".active AND "account".personal_data_erased_at IS NULL
 	ORDER BY "role".account_id
 	FOR UPDATE OF "role"`
 
-// LockTraegerAdministrators locks the Verwaltung role rows of the Träger
+// LockTraegerLeaders locks the Leitung role rows of the Träger (#5471)
 // whose accounts can sign in and returns those accounts. A concurrent
 // removal of one of them is skipped once it commits, so the answer is the
 // set that remains.
-func (s *Store) LockTraegerAdministrators(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error) {
+func (s *Store) LockTraegerLeaders(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	ids := []int64{}
 	started := time.Now()
-	err = db.NewRaw(lockTraegerAdministratorsQuery, organizationID).Scan(ctx, &ids)
+	err = db.NewRaw(lockTraegerLeadersQuery, organizationID).Scan(ctx, &ids)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
 	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: lock Träger administrators: %w", err)
+		return nil, stats, fmt.Errorf("identity access postgres: lock Träger leaders: %w", err)
 	}
 	return ids, stats, nil
 }

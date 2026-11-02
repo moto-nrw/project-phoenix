@@ -143,19 +143,33 @@ export function InviteTraegerAccountModal({
   );
 }
 
+const NO_MEMBERS: readonly TraegerMember[] = [];
+
+const LAST_LEADER_REASON =
+  "Nur diese Person hat die Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.";
+
+const LAST_LEADER_LOCK = { leadership: LAST_LEADER_REASON } as const;
+
 /**
  * Changes the roles of a person of the Träger-Büro (#4650). The person's
- * open session picks the new rights up within a few minutes.
+ * open session picks the new rights up within a few minutes. Leitung stays
+ * checked for the only person holding it (#5471); the backend refuses the
+ * change as well.
  */
 export function ChangeTraegerRolesModal({
   member,
+  members = NO_MEMBERS,
   onClose,
   onChanged,
 }: Readonly<{
   member: TraegerMember | null;
+  members?: readonly TraegerMember[];
   onClose: () => void;
   onChanged: () => Promise<unknown>;
 }>) {
+  const isLastLeader =
+    member?.roles.includes("leadership") === true &&
+    members.filter((other) => other.roles.includes("leadership")).length <= 1;
   const [roles, setRoles] = useState<TraegerRole[]>([]);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -229,6 +243,7 @@ export function ChangeTraegerRolesModal({
           onChange={setRoles}
           disabled={saving}
           error={formErrors.fieldError("roles")}
+          locked={isLastLeader ? LAST_LEADER_LOCK : undefined}
         />
       </form>
     </FormModal>

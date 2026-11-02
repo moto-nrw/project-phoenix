@@ -26,7 +26,7 @@ func (s validationStore) FindAccountSessionByToken(ctx context.Context, token st
 }
 
 func (s validationStore) ListTraegerRoles(context.Context, int64, int64) ([]string, domain.OperationStats, error) {
-	return []string{identityaccess.TraegerRoleAdministration}, stats(), s.rolesErr
+	return []string{identityaccess.TraegerRoleSchoolAccess}, stats(), s.rolesErr
 }
 
 type validationMemberships struct {
