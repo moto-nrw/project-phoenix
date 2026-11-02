@@ -28,12 +28,18 @@ func demoVisitorAccountErasureUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, demoVisitorAccountErasureUpSQL); err != nil {
 		return fmt.Errorf("erase the push subscriptions, profiles and avatar files of demo visitors: %w", err)
 	}
+	if _, err := db.ExecContext(ctx, demoSchoolRetirementWithoutWaitSQL); err != nil {
+		return fmt.Errorf("retire demo schools without waiting for a lock: %w", err)
+	}
 	return nil
 }
 
 // demoVisitorAccountErasureDown reinstalls the function exactly as 1.15.732
 // left it and drops the deferral counter.
 func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, demoSchoolRetirementOf456SQL); err != nil {
+		return fmt.Errorf("restore the demo school retirement of 1.15.456: %w", err)
+	}
 	if err := demoVisitorErasureRealtimeNotificationsUp(ctx, db); err != nil {
 		return fmt.Errorf("restore the demo visitor erasure of 1.15.732: %w", err)
 	}
@@ -374,6 +380,106 @@ const demoVisitorAccountErasureUpSQL = `
 				END;
 			END LOOP;
 			RETURN erased;
+		END;
+		$$;
+`
+
+// demoSchoolRetirementWithoutWaitSQL is platform.retire_expired_demo_schools
+// of 1.15.456, the entry of the hourly demo run (RetireDemoSchools), with the
+// invariant of the erasure it calls (#5540): no step of the run waits for a
+// lock. Another run holding the run lock skips this one; each order is
+// hidden in a subtransaction under lock_timeout, and an order whose seed,
+// state or school lock is in use stays as it is until the next run.
+// CREATE OR REPLACE keeps the grants of 1.15.456 (phoenix_demo only).
+const demoSchoolRetirementWithoutWaitSQL = `
+		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
+		RETURNS TABLE(hidden INTEGER, erased INTEGER)
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		SET lock_timeout = '100ms'
+		AS $$
+		DECLARE
+			target_name TEXT;
+			hidden_count INTEGER := 0;
+			changed INTEGER;
+		BEGIN
+			IF NOT pg_try_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0)) THEN
+				RAISE LOG 'demo school retirement skipped: another run holds the run lock';
+				hidden := 0;
+				erased := 0;
+				RETURN NEXT;
+				RETURN;
+			END IF;
+			FOR target_name IN
+				SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS target(name) ORDER BY name
+			LOOP
+				BEGIN
+					PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
+					PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
+					IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
+						CONTINUE;
+					END IF;
+					UPDATE platform.schools AS school SET deleted_at = NOW()
+						FROM platform.demo_school_states AS state
+						WHERE state.name = target_name
+							AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+							AND school.id = state.tenant_id AND school.deleted_at IS NULL;
+					GET DIAGNOSTICS changed = ROW_COUNT;
+					UPDATE platform.demo_school_states AS state SET status = 'failed'
+						WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
+							AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
+					hidden_count := hidden_count + changed;
+				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+					RAISE LOG 'demo school % not retired this run (SQLSTATE %): a lock it needs is in use', target_name, SQLSTATE;
+				END;
+			END LOOP;
+			hidden := hidden_count;
+			erased := platform.erase_closed_demo_visitors();
+			RETURN NEXT;
+		END;
+		$$;
+`
+
+// demoSchoolRetirementOf456SQL is platform.retire_expired_demo_schools as
+// 1.15.456 created it, frozen here for Down.
+const demoSchoolRetirementOf456SQL = `
+		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
+		RETURNS TABLE(hidden INTEGER, erased INTEGER)
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		AS $$
+		DECLARE
+			target_name TEXT;
+			hidden_count INTEGER := 0;
+			changed INTEGER;
+		BEGIN
+			PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0));
+			FOR target_name IN
+				SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS target(name) ORDER BY name
+			LOOP
+				PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
+				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
+				IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
+					CONTINUE;
+				END IF;
+				UPDATE platform.schools AS school SET deleted_at = NOW()
+					FROM platform.demo_school_states AS state
+					WHERE state.name = target_name
+						AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+						AND school.id = state.tenant_id AND school.deleted_at IS NULL;
+				GET DIAGNOSTICS changed = ROW_COUNT;
+				hidden_count := hidden_count + changed;
+				UPDATE platform.demo_school_states AS state SET status = 'failed'
+					WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
+						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
+			END LOOP;
+			hidden := hidden_count;
+			erased := platform.erase_closed_demo_visitors();
+			RETURN NEXT;
 		END;
 		$$;
 `

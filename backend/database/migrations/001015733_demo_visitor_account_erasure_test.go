@@ -90,4 +90,16 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	assert.Regexp(t, `auth\.account_roles AS role\s+WHERE role\.account_id = account\.id\s+AND role\.tenant_id <> ALL \(visitor\.visitor_school_ids\)`, definition,
 		"a role outside the visitor schools keeps the account")
 	assert.Regexp(t, `deferrals >= 24 THEN\s+RAISE WARNING`, definition, "a long run of deferrals is reported")
+
+	// The run starts in retire_expired_demo_schools: the same holds there.
+	require.NoError(t, db.NewRaw(`SELECT COALESCE(proconfig, '{}') FROM pg_proc
+		WHERE oid = 'platform.retire_expired_demo_schools(text[])'::regprocedure`).Scan(ctx, pgdialect.Array(&config)))
+	assert.Contains(t, config, "lock_timeout=100ms", "the run gives up on a lock before a deadlock is detected")
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.retire_expired_demo_schools(text[])'::regprocedure)`).Scan(ctx, &definition))
+	assert.Regexp(t, `IF NOT pg_try_advisory_xact_lock\(hashtextextended\('platform\.demo_school_states:visitor-erasure', 0\)\) THEN`, definition,
+		"a run lock in use skips the run")
+	assert.NotRegexp(t, `PERFORM pg_advisory_xact_lock\(hashtextextended\('platform\.demo_school_states:visitor-erasure'`, definition,
+		"the run lock is never waited for")
+	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'[\s\S]*EXCEPTION WHEN lock_not_available OR deadlock_detected THEN`, definition,
+		"each order is retired in a subtransaction that a lock in use defers")
 }
