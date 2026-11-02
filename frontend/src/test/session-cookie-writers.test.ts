@@ -345,6 +345,35 @@ export function GET() {
     ["computed-member"],
   ],
   [
+    "a let key before set, on a response of unknown origin",
+    "route.ts",
+    `import { makeResponse } from "./make";
+export function GET() {
+  const r = makeResponse();
+  let key = "cookies";
+  r[key].set(${WRITE});
+  return r;
+}`,
+    ["computed-member"],
+  ],
+  [
+    "a helper parameter as key before delete",
+    "write.js",
+    `export function write(target, key) {
+  target[key].delete("parent.session-token");
+}`,
+    ["computed-member"],
+  ],
+  [
+    "a renamed type import and a key before append",
+    "write.ts",
+    `import type { NextResponse as Reply } from "next/server";
+export function write(reply: Reply, key: string, value: string) {
+  reply[key].append("x", value);
+}`,
+    ["computed-member"],
+  ],
+  [
     "a member of headers() under a variable key",
     "route.ts",
     `import { headers } from "next/headers";
@@ -803,6 +832,55 @@ describe("writes to read-only members", () => {
       }
     },
   );
+});
+
+describe("exported bindings filled after their declaration", () => {
+  // A cookie name that reaches an export only through a later write still
+  // leaves its module.
+  it.each([
+    [
+      "Object.assign",
+      `const names = {};\nObject.assign(names, { header: "Set-Cookie" });\nexport { names };`,
+      ["cookie-header", "module-export"],
+    ],
+    [
+      "a property assignment",
+      `export const names = {};\nnames.header = "Set-Cookie";`,
+      ["cookie-header", "module-export"],
+    ],
+    [
+      "a string key assignment of a session cookie name",
+      `export const names: Record<string, string> = {};\nnames["session"] = "parent.session-token";`,
+      ["module-export"],
+    ],
+    [
+      "a spread of a filled object",
+      `const base: Record<string, string> = {};\nbase.header = "Set-Cookie";\nexport const names = { ...base };`,
+      ["cookie-header", "module-export"],
+    ],
+    [
+      "a push into an exported list",
+      `export const names: string[] = [];\nnames.push("Set-Cookie");`,
+      ["cookie-header", "module-export"],
+    ],
+  ])("rejects %s", (_, source, expected) => {
+    expect(kinds("names.ts", source)).toEqual(expected);
+  });
+
+  it.each([
+    [
+      "another header",
+      `export const names = {};\nnames.header = "Content-Type";`,
+      [],
+    ],
+    [
+      "a binding that stays in its module",
+      `const local = {};\nObject.assign(local, { header: "Set-Cookie" });\nexport const other = 1;`,
+      ["cookie-header"],
+    ],
+  ])("accepts %s", (_, source, expected) => {
+    expect(kinds("names.ts", source)).toEqual(expected);
+  });
 });
 
 describe("exported cookie names", () => {
