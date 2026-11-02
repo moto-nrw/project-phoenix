@@ -133,7 +133,7 @@ func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account 
 	session.OrganizationID = organizationID
 	session.MFAVerified = proof != nil
 	guard := s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeOrg, s.traegerMintGuard(organizationID, &metadata))
-	session, err := s.persistNewSession(ctx, account, session, 0, guard, "")
+	session, err := s.persistNewSession(ctx, account, session, 0, guard, "", "")
 	if err != nil {
 		return nil, err
 	}

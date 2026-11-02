@@ -86,7 +86,10 @@ func DecodeRefreshToken(wire map[string]any) (RefreshClaims, error) {
 	if err != nil {
 		return RefreshClaims{}, err
 	}
-	return RefreshClaims{AccountID: id, Token: value, TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"), Scope: text(wire, "scope"), ExpiresAt: number(wire, "exp")}, nil
+	return RefreshClaims{
+		AccountID: id, Token: value, TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"), Scope: text(wire, "scope"),
+		FamilyID: text(wire, "family_id"), LineageID: text(wire, "lineage_id"), ExpiresAt: number(wire, "exp"),
+	}, nil
 }
 
 func rejectPending(wire map[string]any, kind string) error {
