@@ -8,6 +8,7 @@ package querybudgets
 import (
 	"embed"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -67,6 +68,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
 	}
+	emitQueryFeedback(tb, scenario, queries, budget, os.Getenv)
 	got := len(queries)
 	switch {
 	case got > budget.max:
