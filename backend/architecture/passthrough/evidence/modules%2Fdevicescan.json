@@ -16,9 +16,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (c activityCatalog) Find(ctx context.Context, id int64) (*devicescan.Activity, error) {\n\tgroup, err := c.activities.FindCatalogGroup(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn activityFromGroup(group), nil\n}",
+      "evidence": "func (c activityCatalog) FindByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.Activity, error) {\n\tgroups, err := c.activities.FindCatalogGroups(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]*devicescan.Activity, len(groups))\n\tfor _, group := range groups {\n\t\tresult[group.ID] = activityFromGroup(\u0026group)\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
-      "id": "api/activityCatalog.Find",
+      "id": "api/activityCatalog.FindByIDs",
       "owner": "modules/devicescan"
     },
     {

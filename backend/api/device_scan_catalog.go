@@ -19,7 +19,7 @@ func DeviceActivityCatalog(service activityContract.ActivityService) deviceActiv
 
 // deviceActivityCatalogPort is the scan consumer's catalog and directory seam.
 type deviceActivityCatalogPort interface {
-	Find(context.Context, int64) (*devicescan.Activity, error)
+	FindByIDs(context.Context, []int64) (map[int64]*devicescan.Activity, error)
 	ListByName(context.Context, string) ([]devicescan.Activity, error)
 	ListCategories(context.Context) ([]devicescan.Category, error)
 	CreateCategory(context.Context, devicescan.NewCategory) (devicescan.Category, error)
@@ -41,12 +41,16 @@ func activityFromGroup(group *timetable.Group) *devicescan.Activity {
 	}
 }
 
-func (c activityCatalog) Find(ctx context.Context, id int64) (*devicescan.Activity, error) {
-	group, err := c.activities.FindCatalogGroup(ctx, id)
+func (c activityCatalog) FindByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.Activity, error) {
+	groups, err := c.activities.FindCatalogGroups(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	return activityFromGroup(group), nil
+	result := make(map[int64]*devicescan.Activity, len(groups))
+	for _, group := range groups {
+		result[group.ID] = activityFromGroup(&group)
+	}
+	return result, nil
 }
 
 func (c activityCatalog) ListByName(ctx context.Context, name string) ([]devicescan.Activity, error) {

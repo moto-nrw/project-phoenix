@@ -6,6 +6,9 @@ import "context"
 // Provisioning preserves the activity service's validation and error contract.
 type Catalog interface {
 	FindCatalogGroup(context.Context, int64) (*Group, error)
+	// FindCatalogGroups returns existing groups for the IDs, including archived
+	// groups. Missing or tenant-hidden IDs are omitted; no IDs read nothing.
+	FindCatalogGroups(context.Context, []int64) ([]Group, error)
 	ListCatalogGroups(context.Context, string) ([]Group, error)
 	ListCatalogCategories(context.Context) ([]Category, error)
 	CreateCatalogCategory(context.Context, CreateCategory) (Category, error)

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.devicescan.yard_scan.distinct_activities",
+  "max": 41,
+  "exact": true,
+  "description": "Yard scan with eight distinct activities in the tenant transaction, including roster selection and visit writes."
+}

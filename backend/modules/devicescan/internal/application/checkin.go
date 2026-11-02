@@ -318,15 +318,15 @@ func (s *Service) checkActivityCapacity(ctx context.Context, session *devicescan
 		if s.activities == nil {
 			return devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
 		}
-		loaded, err := s.activities.Find(ctx, *session.TemplateID)
-		if err != nil || loaded == nil {
+		loaded, err := s.activities.FindByIDs(ctx, []int64{*session.TemplateID})
+		activity = loaded[*session.TemplateID]
+		if err != nil || activity == nil {
 			s.logger.ErrorContext(ctx, "failed to get activity group",
 				slog.Int64("activity_group_id", *session.TemplateID),
 				slog.String("error", errorText(err)),
 			)
 			return devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
 		}
-		activity = loaded
 	}
 	if !activity.HasParticipantLimit() {
 		return nil

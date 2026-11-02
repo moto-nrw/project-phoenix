@@ -85,22 +85,31 @@ func (s *Service) openFreeplayNextToBlocks(ctx context.Context, room facilities.
 // the capacity check.
 func (s *Service) splitYardSessions(ctx context.Context, sessions []devicescan.Session) (freeplay, blocks []devicescan.Session, err error) {
 	loaded := make(map[int64]*devicescan.Activity, len(sessions))
+	ids := make([]int64, 0, len(sessions))
 	for _, session := range sessions {
 		if session.TemplateID == nil {
 			continue
 		}
-		activity, ok := loaded[*session.TemplateID]
-		if !ok {
-			activity, err = s.activities.Find(ctx, *session.TemplateID)
-			if err != nil || activity == nil {
-				s.logger.ErrorContext(ctx, "failed to get activity of yard session",
-					slog.Int64("active_group_id", session.ID),
-					slog.Int64("activity_group_id", *session.TemplateID),
-					slog.String("error", errorText(err)),
-				)
-				return nil, nil, devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
-			}
-			loaded[*session.TemplateID] = activity
+		if _, exists := loaded[*session.TemplateID]; !exists {
+			ids = append(ids, *session.TemplateID)
+			loaded[*session.TemplateID] = nil
+		}
+	}
+	if len(ids) > 0 {
+		loaded, err = s.activities.FindByIDs(ctx, ids)
+	}
+	for _, session := range sessions {
+		if session.TemplateID == nil {
+			continue
+		}
+		activity := loaded[*session.TemplateID]
+		if err != nil || activity == nil {
+			s.logger.ErrorContext(ctx, "failed to get activity of yard session",
+				slog.Int64("active_group_id", session.ID),
+				slog.Int64("activity_group_id", *session.TemplateID),
+				slog.String("error", errorText(err)),
+			)
+			return nil, nil, devicescan.Internal(devicescan.MessageGetActivityFailed, nil)
 		}
 		session.Activity = activity
 		if activity.IsSystem {

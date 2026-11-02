@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.catalog_groups.by_ids",
+  "max": 1,
+  "exact": true,
+  "description": "Timetable catalog lookup by IDs uses one tenant-scoped query, including archived groups and omitting tenant-hidden IDs."
+}
