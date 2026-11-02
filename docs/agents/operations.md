@@ -444,6 +444,57 @@ migration-hash templates, and clone a database per package. Package exit drops
 its clone; generation GC cleans interrupted runs. The wrapper also sweeps at
 exit. Worktrees using the same port share a server; different ports are isolated.
 
+### Test DSN source and credential drift
+
+The authoritative local `TEST_DB_DSN` is in the **root `.env` of the checkout
+that first initialized that server/port**. Worktrees sharing that port must use
+the same credentials. Copy its value privately into each worktree's root `.env`;
+do not copy the placeholder from `backend/dev.env.example` or invent a password.
+The examples describe configuration shape, not the credentials of an existing
+server. `POSTGRES_PASSWORD` initializes a new container only; changing it later
+does not change the running server's password.
+
+Precedence is an explicitly exported `TEST_DB_DSN` (also used by CI), then the
+current checkout's root `.env`. The harness does not read `backend/dev.env` or
+`backend/dev.env.example`. Keep any `TEST_DB_DSN` used for native backend commands
+in sync with that authoritative root value; unset stale shell overrides before
+testing. Different credentials require a separately owned port/container.
+
+Authentication failure aborts without password repair or server restart, including
+while waiting for startup. Existing `phoenix_auth` credentials are checked, never
+reset; only migrations initialize an absent role with the harness fixture value.
+If that role has drifted, ask the server owner to coordinate recovery after all
+users finish, or initialize a separate server. Never repair or recreate a shared
+server while other sessions use it.
+
+### Rebuild a disposable test cluster
+
+A database reset alone cannot fix cluster-global role drift. Only the server
+owner may rebuild a broken disposable cluster, after coordinating with every
+session using that server and confirming they have finished:
+
+1. Stop and remove that server's `postgres-test` container. Remove only its
+   `postgres_test` volume, identified by the exact Compose project. Do not
+   remove application databases, other projects' volumes or an active shared
+   server. The test data and cached templates in that volume will be lost.
+2. In the owning checkout, use the authoritative root `.env` and remove any
+   stale exported DSN override. Start the normal test command, or explicitly
+   bootstrap from the repository root:
+
+   ```bash
+   cd backend
+   ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/bootstrap
+   ```
+
+   The harness starts the test container, builds the template and initializes
+   missing roles with its test fixture configuration. Other worktrees sharing
+   this port must use the same authoritative DSN.
+3. Do not run `APP_ENV=test go run . migrate reset`. It can inherit role
+   credentials from `backend/dev.env` instead of the harness configuration and
+   is rejected before opening a database. No manual migration reset is needed.
+
+### Managed server lifetime
+
 On macOS and Linux (including WSL), new managed test servers stop automatically
 after 15 minutes without a protected test process, checked every 30 seconds.
 The next test starts the server again. Containers and volumes are retained.

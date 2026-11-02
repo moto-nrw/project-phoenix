@@ -11,6 +11,7 @@
  */
 
 import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
 import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
@@ -136,7 +137,7 @@ export const operatorAuthConfig = {
     // the exact hostname (operator.moto-app.de). They are invisible to
     // tenant subdomains (school-a.moto-app.de), preventing session leaks.
     sessionToken: {
-      name: "operator.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.operator,
       options: {
         httpOnly: true,
         sameSite: "lax" as const,

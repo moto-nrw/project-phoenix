@@ -305,7 +305,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, owners.DeliveryModuleOf(delivery), settings.Service,
+			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, delivery, settings.Service,
 				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
@@ -452,7 +452,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			emergency, err = buildEmergencySnapshot(env, presence, active, people, persons, rooms, renderer)
+			emergency, err = buildEmergencySnapshot(env, presence, active, people, persons, rooms, renderer, audit.Persistence.DataAccessLog)
 			return
 		},
 		func() error {

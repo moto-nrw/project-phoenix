@@ -45,6 +45,9 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 
 	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
 	// 1.15.721; they go first.
+	// The realtime notifications (1.15.727, #5504) extend the erasure
+	// functions of 1.15.724; they go first.
+	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	var exists bool

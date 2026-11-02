@@ -75,3 +75,37 @@ func TestRetentionKeepsTheWelcomeKeyWithoutItsContent(t *testing.T) {
 	assert.Equal(t, "{}", recipient)
 	assert.Equal(t, "{}", payload)
 }
+
+// In-app notifications stored for other API processes outlive their short
+// lifetime only until the nightly retention (#5504).
+func TestRetentionDeletesExpiredRealtimeNotifications(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	save := func() int64 {
+		var id int64
+		require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			id, err = store.SaveRealtimeNotification(txCtx, domain.RealtimeNotification{
+				TenantID: school, Scope: domain.RealtimeScopeTenant, Content: json.RawMessage(`{"title":"Hinweis"}`),
+			})
+			return err
+		}))
+		return id
+	}
+	expired, fresh := save(), save()
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.realtime_notifications
+		SET created_at = NOW() - INTERVAL '10 minutes' WHERE id = ?`, expired)
+	require.NoError(t, err)
+
+	var deleted int
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		deleted, err = store.DeleteExpiredRealtimeNotifications(txCtx, school, time.Now().Add(-domain.RealtimeNotificationLifetime))
+		return err
+	}))
+	assert.Equal(t, 1, deleted)
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM platform.realtime_notifications WHERE tenant_id = ?`, school).Scan(context.Background(), &remaining))
+	assert.Equal(t, []int64{fresh}, remaining)
+}

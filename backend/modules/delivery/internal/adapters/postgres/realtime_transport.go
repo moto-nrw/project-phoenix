@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -15,10 +17,14 @@ import (
 const (
 	realtimeChannel      = "moto_realtime_v1"
 	realtimeReadyChannel = "moto_realtime_ready_v1"
+	// realtimeDropLogInterval throttles the overflow warning: a burst that
+	// fills the queue logs once with the running count, not once per signal.
+	realtimeDropLogInterval = 30 * time.Second
 )
 
 // RealtimePublisher owns a bounded, lossy queue. After-commit hooks never
-// acquire a pool connection; overflow is logged and polling reconciles loss.
+// acquire a pool connection; overflow is counted, logged at most once per
+// interval, and polling reconciles the loss.
 type RealtimePublisher struct {
 	db     *bun.DB
 	logger *slog.Logger
@@ -28,6 +34,10 @@ type RealtimePublisher struct {
 	closed bool
 	ctx    context.Context
 	cancel context.CancelFunc
+	// dropped counts signals the full queue discarded; lastDropLog is the
+	// UnixNano of the last overflow warning.
+	dropped     atomic.Int64
+	lastDropLog atomic.Int64
 }
 
 func NewRealtimePublisher(db *bun.DB, logger *slog.Logger) (*RealtimePublisher, error) {
@@ -48,10 +58,25 @@ func (p *RealtimePublisher) Publish(payload string) error {
 	}
 	select {
 	case p.queue <- payload:
-		return nil
 	default:
-		p.logger.Warn("realtime publish queue full; signal dropped")
-		return errors.New("realtime publish queue full")
+		// Local delivery already happened and the signal is lossy by
+		// contract, so the caller gets no error to log once per signal.
+		p.recordDrop()
+	}
+	return nil
+}
+
+func (p *RealtimePublisher) recordDrop() {
+	total := p.dropped.Add(1)
+	now := time.Now().UnixNano()
+	last := p.lastDropLog.Load()
+	if last != 0 && now-last < int64(realtimeDropLogInterval) {
+		return
+	}
+	if p.lastDropLog.CompareAndSwap(last, now) {
+		p.logger.Warn("realtime publish queue full; signals dropped",
+			"dropped_total", total,
+		)
 	}
 }
 
@@ -63,7 +88,10 @@ func (p *RealtimePublisher) run() {
 			return
 		case payload := <-p.queue:
 			if err := p.notify(payload); err != nil {
-				p.logger.Warn("realtime publish failed")
+				// The cause comes from the driver, never from the payload.
+				p.logger.Warn("realtime publish failed",
+					"error", err,
+				)
 			}
 		}
 	}
@@ -98,19 +126,22 @@ func (p *RealtimePublisher) Close() error {
 	return nil
 }
 
-// RealtimeSubscription owns only an API's dedicated listener and receive loop.
+// RealtimeSubscription owns the process's publisher and, in an API, its
+// dedicated listener and receive loop. Close stops the publisher before the
+// listener; the root closes the pool afterwards.
 type RealtimeSubscription struct {
-	listener *pgdriver.Listener
-	done     chan struct{}
-	once     sync.Once
-	closeErr error
+	publisher io.Closer
+	listener  *pgdriver.Listener
+	done      chan struct{}
+	once      sync.Once
+	closeErr  error
 }
 
 // NewRealtimeSubscription binds the receiver at construction. pgdriver reconnects
 // and re-subscribes; clients' poll reconcile recovers signals lost while offline.
-func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(string) error, listen bool) (*RealtimeSubscription, error) {
+func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(string) error, listen bool, publisher io.Closer) (*RealtimeSubscription, error) {
 	if !listen {
-		return &RealtimeSubscription{}, nil
+		return &RealtimeSubscription{publisher: publisher}, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -132,17 +163,24 @@ func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(strin
 				continue
 			}
 			if err := receive(notification.Payload); err != nil {
-				logger.Warn("discarding invalid realtime signal")
+				// Receive errors name the rejected field or the lookup that
+				// failed, never the payload.
+				logger.Warn("discarding realtime signal",
+					"error", err,
+				)
 			}
 		}
 	}()
-	return &RealtimeSubscription{listener: listener, done: done}, nil
+	return &RealtimeSubscription{publisher: publisher, listener: listener, done: done}, nil
 }
 
 func (s *RealtimeSubscription) Close() error {
 	s.once.Do(func() {
+		if s.publisher != nil {
+			s.closeErr = s.publisher.Close()
+		}
 		if s.listener != nil {
-			s.closeErr = s.listener.Close()
+			s.closeErr = errors.Join(s.closeErr, s.listener.Close())
 			<-s.done
 		}
 	})

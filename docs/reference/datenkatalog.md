@@ -49,6 +49,19 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
+Migration 1.15.727 ergänzt `platform.realtime_notifications` (#5504): eine
+Kopie eines In-App-Hinweises mit Empfängern, die andere API-Prozesse zwei
+Minuten lang lesen. Bei Eltern-Hinweisen enthält das JSON zusätzlich die
+Schüler-IDs (`relay_student_ids`), damit die empfangende API die aktuellen
+Beziehungsrechte vor der Zustellung erneut prüft. Die Sicht
+`platform.delivery_realtime_recipients` speichert nichts; sie beantwortet je
+Konto und Schule Zuordnung, Rolle und Kind-Freigabe für diese Prüfung. Die Kopie ist `tenant`, wird
+nicht zurückgegeben (kein Schuldatensatz, nur ein Zustellhilfsmittel) und mit
+der Schule gelöscht; die
+nächtliche Delivery-Aufbewahrung löscht sie vorher. Beim Löschen eines
+Demo-Besuchs entfernt `platform.erase_closed_demo_visitors` seit Migration
+1.15.732 alle Kopien der ausgemusterten Demo-Schule mit (#5540).
+
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.

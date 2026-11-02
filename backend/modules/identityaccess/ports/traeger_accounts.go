@@ -34,16 +34,29 @@ type TraegerBueroMemberships interface {
 	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) error
 }
 
-// TraegerInvitationDelivery queues the invitation mail in the caller's
-// transaction: the invitation and its mail commit together.
+// TraegerInvitationDelivery queues the mails of the Träger-Büro in the
+// caller's transaction: the invitation and its mail, a role change or removal
+// and the notice to the person concerned (#5474) commit together.
 type TraegerInvitationDelivery interface {
 	DispatchTraegerInvitation(ctx context.Context, invitation identityaccess.TraegerInvitation, traegerName string, expiry time.Duration) error
+	DispatchTraegerAccountChange(ctx context.Context, notice identityaccess.TraegerAccountChangeNotice) error
+}
+
+// TraegerAccountLedgerEntry is one change the Audit Platform's Träger account
+// ledger holds.
+type TraegerAccountLedgerEntry struct {
+	identityaccess.TraegerAccountChange
+	ID         int64
+	OccurredAt time.Time
 }
 
 // TraegerAccountAudit appends to the Audit Platform's Träger account ledger
-// in the caller's transaction; a failed append aborts the change.
+// in the caller's transaction; a failed append aborts the change. It reads
+// the changes of one Träger, without the reads of the member list, in the
+// caller's transaction (#5474).
 type TraegerAccountAudit interface {
 	RecordTraegerAccountChange(ctx context.Context, change identityaccess.TraegerAccountChange) error
+	ListTraegerAccountChanges(ctx context.Context, organizationID, beforeID int64, limit int) ([]TraegerAccountLedgerEntry, error)
 }
 
 // TraegerAccountDependencies compose the Träger-Büro account management

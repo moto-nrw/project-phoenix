@@ -17,6 +17,7 @@
  */
 
 import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
 import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
@@ -172,7 +173,7 @@ export const schoolAuthConfig = {
     // callbackUrl stays Lax because NextAuth uses it during initial
     // sign-in navigations.
     sessionToken: {
-      name: "school.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.school,
       options: {
         httpOnly: true,
         sameSite: "strict" as const,

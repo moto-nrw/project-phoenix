@@ -8,6 +8,11 @@ import {
 } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 import { env } from "~/env";
 import {
+  approveSessionCookieWrites,
+  isSessionCookieName,
+  isWrittenSessionCookieName,
+} from "~/lib/session-cookie-exit.server";
+import {
   portalOfScope,
   sessionFamilyState,
   type SessionFamilyState,
@@ -17,12 +22,16 @@ import {
  * The one exit of every session cookie of every portal (#5399). Auth.js
  * re-encodes the session cookie on every session read, and a response that
  * arrives after a logout or a school switch deleted or replaced the cookie
- * wrote the old session back. See gateSessionCookieWrites; the inventory in
- * session-cookie-inventory.test.ts keeps every writer on this path.
+ * wrote the old session back. See gateSessionCookieWrites; the lock in
+ * lib/session-cookie-exit.server.ts drops every session cookie write it did not approve
+ * (#5520), and the inventory in session-cookie-inventory.test.ts keeps the
+ * known writers on this path.
  */
 
-/** Auth.js' session cookie of any portal, chunks included. */
-export function isSessionCookieName(name: string): boolean {
+export { isSessionCookieName };
+
+/** A session cookie or chunk the gate decides on, as before #5520. */
+function isGatedSessionCookie(name: string): boolean {
   return /session-token(?:\.\d+)?$/.test(name);
 }
 
@@ -233,6 +242,16 @@ export async function gateSessionCookieWrites(
   );
   const setCookies = [...fromJar, ...own];
   const allowed = await allowedSetCookies(request, setCookies, states);
+  // The lock at the server's exit lets only these session cookie writes go
+  // (#5520); a write that bypasses this gate is dropped there.
+  approveSessionCookieWrites(
+    allowed.filter((cookie) => {
+      const write = parseSetCookie(cookie);
+      // Only names Auth.js writes: another name a reader takes for the
+      // session (`parent.session-token.evil`) never gets past the exit.
+      return write && isWrittenSessionCookieName(write.name) && !write.deletes;
+    }),
+  );
   if (!fromJar.length && allowed.length === own.length) return response;
 
   const headers = new Headers(response.headers);
@@ -254,7 +273,7 @@ async function allowedSetCookies(
   const bases = new Set(
     writes
       .filter((write): write is CookieWrite => write !== null)
-      .filter((write) => isSessionCookieName(write.name))
+      .filter((write) => isGatedSessionCookie(write.name))
       .map((write) => baseName(write.name)),
   );
   if (!bases.size) return setCookies;

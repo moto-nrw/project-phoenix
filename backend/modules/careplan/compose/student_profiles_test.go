@@ -31,17 +31,22 @@ func TestStudentCareProfileJoinsCallerRollbackAndTenant(t *testing.T) {
 		return failure
 	})
 	require.ErrorIs(t, err, failure)
-	var health string
+	var sealed []byte
 	var sick bool
-	require.NoError(t, db.NewRaw("SELECT health_info, sick FROM users.student_care_profiles WHERE tenant_id = ? AND membership_id = ?", testpkg.Tenant(t), membershipID).Scan(ctx, &health, &sick))
-	require.Equal(t, "original", health)
+	require.NoError(t, db.NewRaw("SELECT health_data, sick FROM users.student_care_profiles WHERE tenant_id = ? AND membership_id = ?", testpkg.Tenant(t), membershipID).Scan(ctx, &sealed, &sick))
+	require.NotContains(t, string(sealed), "original", "the table holds the health field sealed (#5472)")
+	health, err := testpkg.OpenStudentHealth(testpkg.Tenant(t), membershipID, sealed)
+	require.NoError(t, err)
+	require.Equal(t, "original", *health)
 	require.False(t, sick)
 	foreign := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreign)
 	foreignCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), foreign)
 	require.Error(t, commands.SaveStudentCareProfile(foreignCtx, input, nil), "membership ID alone must not grant another school access")
-	require.NoError(t, db.NewRaw("SELECT health_info FROM users.student_care_profiles WHERE tenant_id = ? AND membership_id = ?", testpkg.Tenant(t), membershipID).Scan(ctx, &health))
-	require.Equal(t, "original", health)
+	require.NoError(t, db.NewRaw("SELECT health_data FROM users.student_care_profiles WHERE tenant_id = ? AND membership_id = ?", testpkg.Tenant(t), membershipID).Scan(ctx, &sealed))
+	health, err = testpkg.OpenStudentHealth(testpkg.Tenant(t), membershipID, sealed)
+	require.NoError(t, err)
+	require.Equal(t, "original", *health)
 }
 
 type healthSchool struct {
@@ -75,8 +80,13 @@ func TestSetStudentHealthInfoWritesOnlyTheTenantsCareRow(t *testing.T) {
 	require.NoError(t, err)
 	healthOf := func(t *testing.T, ctx context.Context, membershipID int64) *string {
 		t.Helper()
-		var health *string
-		require.NoError(t, db.NewRaw("SELECT health_info FROM users.student_care_profiles WHERE membership_id = ?", membershipID).Scan(ctx, &health))
+		var row struct {
+			TenantID   int64  `bun:"tenant_id"`
+			HealthData []byte `bun:"health_data"`
+		}
+		require.NoError(t, db.NewRaw("SELECT tenant_id, health_data FROM users.student_care_profiles WHERE membership_id = ?", membershipID).Scan(ctx, &row))
+		health, err := testpkg.OpenStudentHealth(row.TenantID, membershipID, row.HealthData)
+		require.NoError(t, err)
 		return health
 	}
 	var own, foreign healthSchool

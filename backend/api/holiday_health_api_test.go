@@ -196,6 +196,10 @@ func TestHolidayGuestCarriesItsHealthInformationUntilItsContactsGo(t *testing.T)
 	require.NotNil(t, health, "the guest's health field carries the health information")
 	assert.Contains(t, *health, "Asthmaspray-FINN")
 	assert.Contains(t, *health, "Trägt eine Brille")
+	stored, storedSealed := testpkg.ReadTestStudentHealth(t, f.db, finn)
+	require.NotNil(t, stored)
+	assert.Equal(t, *health, *stored, "the guest's health field is stored sealed (#5472)")
+	assert.NotContains(t, string(storedSealed), "Asthmaspray", "the guest's health field holds no plaintext")
 	_, _, _, _, benHealth := f.child(t, ben)
 	assert.Nil(t, benHealth, "a guest of a registration under the consent of before gets none")
 
@@ -281,10 +285,7 @@ func TestOwnChildKeepsItsHealthFieldAndSeesTheRegistrationBesideIt(t *testing.T)
 // as the school's own edit leaves it.
 func setHealthInfo(t *testing.T, f holidayGuestFixture, student int64, value *string) {
 	t.Helper()
-	_, err := f.db.ExecContext(context.Background(), `UPDATE users.student_care_profiles SET health_info = ?
-		WHERE tenant_id = ? AND membership_id = (SELECT id FROM users.student_school_memberships
-			WHERE student_profile_id = ? AND deleted_at IS NULL)`, value, f.nord, student)
-	require.NoError(t, err)
+	testpkg.SetTestStudentHealth(t, f.db, student, value)
 }
 
 func TestHolidayStudentHealthQueryBudgetIsFlat(t *testing.T) {

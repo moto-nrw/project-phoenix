@@ -106,6 +106,19 @@ const (
 	// many children at once. StudentID stays NULL; metadata carries the
 	// group filter and the export day.
 	ResourceTypeStudentHealthListExport = "student_health_list_export"
+	// ResourceTypeStudentHealthView records a staff member opening ONE
+	// child's record whose answer carries the child's health field (#5472):
+	// the stored health information (Art. 9 data). StudentID is SET;
+	// RangeStart and RangeEnd span the day. Every read writes its own row.
+	ResourceTypeStudentHealthView = "student_health_view"
+	// ResourceTypeEmergencyListExport records an export of the Notfallliste
+	// that prints the health field of at least one child (#5472). StudentID
+	// stays NULL; RangeStart and RangeEnd span the day.
+	ResourceTypeEmergencyListExport = "emergency_list_export"
+	// ResourceTypeStudentHealthListView records a child list answer that
+	// shows the health field of at least one child (#5472). StudentID stays
+	// NULL; RangeStart and RangeEnd span the day.
+	ResourceTypeStudentHealthListView = "student_health_list_view"
 
 	// ResourceTypeAttendanceStatistics is the Statistik report (#2606):
 	// attendance quotas per child over a window. Views are deduplicated per

@@ -295,6 +295,7 @@ var tableRetentions = map[string]tableRetention{
 	"platform.operators":                                    own("hourly token-cleanup, deactivated operator cleanup, DeleteDeactivatedOperators (deactivated before 1 January of last year)"),
 	"platform.organizations":                                notPersonal("organization (Träger) master data"),
 	"platform.push_outbox":                                  own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled)"),
+	"platform.realtime_notifications":                       own("nightly retention step delivery_retention, DeleteExpiredDeliveries (two minutes after the notice, #5504)"),
 	"platform.schools":                                      notPersonal("school institution master data"),
 	"platform.storage_backfill_checkpoints":                 notPersonal("progress of a data migration, counters only"),
 	"platform.traeger_bank_accounts":                        own("the Träger-Büro deletes a bank account in the Träger-Portal (ADR 0112); the rest go with platform.organizations when the Träger is erased (#4657)"),

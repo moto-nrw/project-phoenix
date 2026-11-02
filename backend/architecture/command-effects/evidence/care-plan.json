@@ -6281,6 +6281,14 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "binding_digest": "29b2be372097d3038b5c2988cb33b9d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.SealStudentHealth",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentDisplayRows",
       "binding_digest": "d09392f08ac5317022fc87c03b566ea5",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.StudentDisplayRows",
@@ -7674,10 +7682,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careRequestBroadcaster.ArrivalScheduleChanged",
-      "binding_digest": "9eba1482dd308e45d738f7f62558b7ec",
+      "binding_digest": "caa3e82bd088eee191b39b3ab8528aff",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareScheduleBroadcaster.ArrivalScheduleChanged",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
     },
     {

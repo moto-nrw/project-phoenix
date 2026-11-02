@@ -1,14 +1,17 @@
 package postgres_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -87,7 +90,7 @@ func TestWorkerPublishFailureStillDeliversLocally(t *testing.T) {
 
 func transportHub(t *testing.T, db *bun.DB, listen bool) *realtime.Hub {
 	t.Helper()
-	hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(db, slog.Default(), listen)
+	hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(db, testpkg.TenantRuntime(t, db), slog.Default(), listen)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 	return hub
@@ -110,12 +113,12 @@ func TestTransportKeepsGroupAndAccountAudiences(t *testing.T) {
 	bystander := testpkg.CreateTestAccount(t, db, "realtime-bystander@example.com")
 	target := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: addressed.ID, SubscribedGroups: make(map[string]bool)}
 	other := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: bystander.ID, SubscribedGroups: make(map[string]bool)}
-	api.Register(target, schoolID, []string{"worker-group"})
-	api.Register(other, schoolID, []string{"different-group"})
+	api.Register(target, schoolID, []string{"4711"})
+	api.Register(other, schoolID, []string{"4712"})
 	t.Cleanup(func() { api.Unregister(target); api.Unregister(other) })
 	for _, broadcast := range []func() error{
 		func() error {
-			return worker.BroadcastToGroup(schoolID, "worker-group", realtime.NewEvent(realtime.EventActivityEnd, "worker-group", realtime.EventData{}))
+			return worker.BroadcastToGroup(schoolID, "4711", realtime.NewEvent(realtime.EventActivityEnd, "4711", realtime.EventData{}))
 		},
 		func() error {
 			return worker.BroadcastToStaffAccounts(schoolID, []int64{addressed.ID}, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{}))
@@ -135,7 +138,7 @@ func TestRelayCarriesOnlyInvalidationFields(t *testing.T) {
 	t.Parallel()
 	schoolID := testpkg.Tenant(t)
 	var payload string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
 	content := "private content and /untrusted-link"
 	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
@@ -155,7 +158,7 @@ func TestRelayCarriesOnlyInvalidationFields(t *testing.T) {
 func TestForgedSignalCannotDisplayContent(t *testing.T) {
 	t.Parallel()
 	schoolID := testpkg.Tenant(t)
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, schoolID)
 	payload, err := json.Marshal(map[string]any{
@@ -172,7 +175,7 @@ func stringPointer(s string) *string { return &s }
 func TestOwnSignalIsNotDeliveredTwice(t *testing.T) {
 	t.Parallel()
 	var payload string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	require.NoError(t, hub.BroadcastToTenant(client.TenantID, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{})))
@@ -184,7 +187,7 @@ func TestOwnSignalIsNotDeliveredTwice(t *testing.T) {
 func TestNotificationsStayLocal(t *testing.T) {
 	t.Parallel()
 	var published bool
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { published = true; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { published = true; return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	event := realtime.NewEvent(realtime.EventNotification, "", realtime.EventData{Title: stringPointer("local title")})
@@ -195,7 +198,7 @@ func TestNotificationsStayLocal(t *testing.T) {
 
 func TestForgedInvalidationDropsDisplayFields(t *testing.T) {
 	t.Parallel()
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	payload, err := json.Marshal(map[string]any{
@@ -229,19 +232,31 @@ func TestPublishQueueDoesNotWaitForPoolAndHasBound(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("after-commit hook blocked on the database pool")
 	}
-	overflow := false
-	for range 130 {
-		err := hub.BroadcastToTenant(schoolID, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{}))
-		if err != nil {
-			overflow = true
+
+	// The full queue drops, counts and warns once per interval; the callers
+	// get no error they would log once per signal (#5504).
+	var logs bytes.Buffer
+	publisher, err := postgres.NewRealtimePublisher(db, slog.New(slog.NewJSONHandler(&logs, nil)))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, publisher.Close()) })
+	for range 260 {
+		require.NoError(t, publisher.Publish(`{}`))
+	}
+	var warnings []map[string]any
+	for line := range strings.Lines(logs.String()) {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["msg"] == "realtime publish queue full; signals dropped" {
+			warnings = append(warnings, record)
 		}
 	}
-	require.True(t, overflow, "publisher must bound queued signals")
+	require.Len(t, warnings, 1, "publisher must bound queued signals and warn once per burst")
+	require.InDelta(t, 1, warnings[0]["dropped_total"], 0, "the first drop warns at once")
 }
 
 func TestLocalDeliverySurvivesPublisherError(t *testing.T) {
 	t.Parallel()
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return errors.New("NOTIFY unavailable") })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return errors.New("NOTIFY unavailable") }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	other := subscribeTransport(t, hub, testpkg.NewTenantScope(t, testpkg.SetupTestDB(t)).TenantID)
@@ -267,9 +282,9 @@ func TestStaffMessageRelayPreservesOnlyNumericSenderSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	sender := testpkg.CreateTestAccount(t, db, "relay-source@example.com")
 	var payload string
-	worker, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	worker, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
-	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: sender.ID}
 	api.Register(client, testpkg.Tenant(t), nil)
@@ -283,4 +298,65 @@ func TestStaffMessageRelayPreservesOnlyNumericSenderSource(t *testing.T) {
 	require.NotContains(t, payload, "untrusted source text")
 	require.NoError(t, api.ReceiveSignal(payload))
 	require.Nil(t, receiveTransportEvent(t, client).Data.Source)
+}
+
+func TestArrivalScheduleReachesEveryAPIOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	worker := transportHub(t, db, false)
+	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
+	schoolID := testpkg.Tenant(t)
+	a, b := subscribeTransport(t, apiA, schoolID), subscribeTransport(t, apiB, schoolID)
+	foreignSchool := testpkg.NewTenantScope(t, db).TenantID
+	foreignA := subscribeTransport(t, apiA, foreignSchool)
+	foreignB := subscribeTransport(t, apiB, foreignSchool)
+	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+		deliveryCompose.QueueArrivalScheduleChanged(ctx, worker, slog.Default())
+		// Publishing a marker through the SAME FIFO publisher is a receive barrier:
+		// an incorrectly immediate hook would arrive before it, before commit.
+		require.NoError(t, worker.BroadcastToTenant(schoolID, realtime.NewEvent(realtime.EventInstanceStarted, "", realtime.EventData{})))
+		for _, client := range []*realtime.Client{a, b} {
+			select {
+			case event := <-client.Channel:
+				require.Equal(t, realtime.EventInstanceStarted, event.Type, "uncommitted signal escaped before barrier")
+			case <-time.After(3 * time.Second):
+				t.Fatal("pre-commit delivery barrier did not arrive")
+			}
+		}
+		return nil
+	}))
+	for _, client := range []*realtime.Client{a, b} {
+		select {
+		case event := <-client.Channel:
+			require.Equal(t, realtime.EventArrivalScheduleChanged, event.Type)
+		case <-time.After(3 * time.Second):
+			t.Fatal("committed Worker signal did not reach API subscriber")
+		}
+	}
+	require.Empty(t, foreignA.Channel, "foreign school received the committed signal in API 1")
+	require.Empty(t, foreignB.Channel, "foreign school received the committed signal in API 2")
+}
+
+func TestArrivalScheduleRollbackNeverPublishes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	worker, api := transportHub(t, db, false), transportHub(t, db, true)
+	schoolID := testpkg.Tenant(t)
+	client := subscribeTransport(t, api, schoolID)
+	rollback := errors.New("job rolled back")
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+		deliveryCompose.QueueArrivalScheduleChanged(ctx, worker, slog.Default())
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+	// A subsequent committed signal is a delivery barrier, not a sleep-based absence check.
+	marker := realtime.NewEvent(realtime.EventInstanceCompleted, "", realtime.EventData{})
+	require.NoError(t, worker.BroadcastToTenant(schoolID, marker))
+	select {
+	case got := <-client.Channel:
+		require.Equal(t, marker.Type, got.Type, "rolled-back job published a signal")
+	case <-time.After(3 * time.Second):
+		t.Fatal("delivery barrier did not arrive")
+	}
+	require.Empty(t, client.Channel)
 }
