@@ -82,14 +82,20 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 
 	var definition string
 	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &definition))
-	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+deferral_reason := SQLSTATE;`, definition,
+	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+PERFORM platform\.defer_demo_order\(target_name, 'erasure', SQLSTATE\);`, definition,
 		"an order whose lock is in use is deferred, not failed")
+	assert.Contains(t, definition, "WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)",
+		"every hidden or failed order is open, whatever its status")
+	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
+		"a run has a budget")
 	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'`, definition,
 		"the subtransaction covers the order's own locks too")
 	assert.Regexp(t, `PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE;`, definition, "the check holds the visitor accounts")
 	assert.Regexp(t, `auth\.account_roles AS role\s+WHERE role\.account_id = account\.id\s+AND role\.tenant_id <> ALL \(visitor\.visitor_school_ids\)`, definition,
 		"a role outside the visitor schools keeps the account")
-	assert.Regexp(t, `deferrals >= 24 THEN\s+RAISE WARNING`, definition, "a long run of deferrals is reported")
+	var note string
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.defer_demo_order(text, text, text)'::regprocedure)`).Scan(ctx, &note))
+	assert.Regexp(t, `deferrals >= 24 THEN\s+RAISE WARNING`, note, "a long run of deferrals is reported")
 
 	// The run starts in retire_expired_demo_schools: the same holds there.
 	require.NoError(t, db.NewRaw(`SELECT COALESCE(proconfig, '{}') FROM pg_proc
@@ -100,8 +106,12 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 		"a run lock in use skips the run")
 	assert.NotRegexp(t, `PERFORM pg_advisory_xact_lock\(hashtextextended\('platform\.demo_school_states:visitor-erasure'`, definition,
 		"the run lock is never waited for")
-	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'[\s\S]*EXCEPTION WHEN lock_not_available OR deadlock_detected THEN`, definition,
+	assert.Regexp(t, `BEGIN[\s\S]*?PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'[\s\S]*EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+PERFORM platform\.defer_demo_order\(target_name, 'retirement', SQLSTATE\);`, definition,
 		"each order is retired in a subtransaction that a lock in use defers")
+	assert.Regexp(t, `AND \(school\.id IS NULL OR school\.deleted_at IS NULL\);\s+IF NOT FOUND THEN\s+CONTINUE;`, definition,
+		"a hidden or failed order is left to the erasure: one deferral per order and run")
+	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
+		"the retirement has the run's budget too")
 	assert.Regexp(t, `state\.status = 'ready'\s+AND state\.first_name <> ''\s+AND school\.deleted_at IS NULL\s+AND NOT EXISTS \(SELECT 1 FROM auth\.demo_accesses`, definition,
 		"every run retires the open visitor orders no access names, so deferred work is found again")
 	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'demo school retirement skipped this run`, definition,

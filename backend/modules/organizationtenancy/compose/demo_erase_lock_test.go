@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -488,48 +489,95 @@ func stateRow(slug string) step {
 	return statement(`SELECT name FROM platform.demo_school_states WHERE name = ? FOR UPDATE`, slug)
 }
 
-func TestDemoRunSkipsWhileAnotherRunHoldsTheRunLock(t *testing.T) {
-	t.Parallel()
-	order := newDemoOrder(t)
-	order.writerFirst(t, runLock())
-	order.requireErasedNext(t)
+// tableLock holds a table the run reads exclusively.
+func tableLock(table string) step {
+	return statement(`LOCK TABLE ` + table + ` IN ACCESS EXCLUSIVE MODE`)
 }
 
-func TestDemoRunDefersTheRetirementWhileTheSeedLockIsHeld(t *testing.T) {
-	t.Parallel()
-	order := newDemoOrder(t)
-	order.writerFirst(t, seedLock(order.slug))
-	order.requireErasedNext(t)
+// openOrderStates put an order in a state in which it is open (#5540): its
+// school hidden in whatever state its seed left it, or failed. A ready
+// order no access names whose school is still open is open for the
+// retirement, which hides it.
+var openOrderStates = map[string][]string{
+	"waiting, hidden": {`UPDATE platform.demo_school_states SET status = 'preparing', claimed_at = NULL WHERE name = ?0`,
+		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?1`},
+	"seeding, hidden": {`UPDATE platform.demo_school_states SET status = 'preparing', claimed_at = NOW() WHERE name = ?0`,
+		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?1`},
+	"ready, hidden":  {`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?1`},
+	"failed, hidden": {`UPDATE platform.demo_school_states SET status = 'failed' WHERE name = ?0`, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?1`},
+	"ready, open":    nil,
 }
 
-func TestDemoRunDefersTheRetirementWhileTheStateLockIsHeld(t *testing.T) {
-	t.Parallel()
-	order := newDemoOrder(t)
-	order.writerFirst(t, stateLock(order.slug))
-	order.requireErasedNext(t)
+// runLocks are every lock on the path of the run.
+var runLocks = map[string]func(order demoOrder) step{
+	"run lock":                    func(demoOrder) step { return runLock() },
+	"seed lock":                   func(order demoOrder) step { return seedLock(order.slug) },
+	"state lock":                  func(order demoOrder) step { return stateLock(order.slug) },
+	"school row":                  func(order demoOrder) step { return schoolRow(order.schoolID) },
+	"state row":                   func(order demoOrder) step { return stateRow(order.slug) },
+	"platform.demo_school_states": func(demoOrder) step { return tableLock("platform.demo_school_states") },
+	"platform.schools":            func(demoOrder) step { return tableLock("platform.schools") },
+	"auth.demo_accesses":          func(demoOrder) step { return tableLock("auth.demo_accesses") },
 }
 
-func TestDemoRunDefersTheRetirementWhileTheSchoolRowIsLocked(t *testing.T) {
-	t.Parallel()
-	order := newDemoOrder(t)
-	order.writerFirst(t, schoolRow(order.schoolID))
-	order.requireErasedNext(t)
+// visitorData is the snapshot without the school row: hiding the school is
+// no visitor data, and its deleted_at may stay set while the erasure waits.
+func visitorData(snapshot visitorSnapshot) visitorSnapshot {
+	data := make(visitorSnapshot, len(snapshot))
+	for table, rows := range snapshot {
+		if table != "platform.schools" {
+			data[table] = rows
+		}
+	}
+	return data
 }
 
-// An order hidden an hour ago and not yet erased: the erasure takes the
-// same seed and state locks and the state row.
-func TestDemoRunDefersTheErasureWhileItsLocksAreHeld(t *testing.T) {
+// requireFullyErased checks that nothing of the visitor is left.
+func (o demoOrder) requireFullyErased(t *testing.T) {
+	t.Helper()
+	assert.NotContains(t, demoOrderNames(t, o.db), o.slug, "the order is erased")
+	assert.Equal(t, everyTrace(0), visitorTraces(t, o.db, o.schoolID))
+	for _, accountID := range []int64{o.accounts.caregiver, o.accounts.parent} {
+		assert.NotNil(t, stateOfAccount(t, o.db, accountID).Erased, "account %d is erased", accountID)
+	}
+	snapshot := o.snapshot(t)
+	for _, table := range []string{"users.profiles", "auth.tokens", "auth.account_roles", "auth.account_tenants",
+		"iot.push_subscriptions", "platform.email_outbox", "platform.realtime_notifications", "enrollment.request_reads"} {
+		assert.Equal(t, "[]", snapshot[table], "%s keeps nothing of the visitor", table)
+	}
+}
+
+// Every open order, in every state, meets every lock of the run: the run
+// returns quickly without an error and leaves the visitor's data as it is or
+// erases it completely. Once the lock is gone, runs that are told nothing and
+// seed nothing erase it completely (#5540).
+func TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone(t *testing.T) {
 	t.Parallel()
-	for name, lock := range map[string]func(order demoOrder) step{
-		"seed lock":  func(order demoOrder) step { return seedLock(order.slug) },
-		"state lock": func(order demoOrder) step { return stateLock(order.slug) },
-		"state row":  func(order demoOrder) step { return stateRow(order.slug) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			order := newHiddenDemoOrder(t)
-			order.writerFirst(t, lock(order))
-			order.requireErasedNext(t)
-		})
+	for state, setup := range openOrderStates {
+		for lock, hold := range runLocks {
+			t.Run(state+"/"+lock, func(t *testing.T) {
+				order := newDemoOrder(t)
+				ctx := t.Context()
+				for _, statement := range setup {
+					_, err := order.db.NewRaw(statement, order.slug, order.schoolID).Exec(ctx)
+					require.NoError(t, err, statement)
+				}
+				before := visitorData(order.snapshot(t))
+				holder, err := order.db.BeginTx(ctx, &sql.TxOptions{})
+				require.NoError(t, err)
+				defer func() { _ = holder.Rollback() }()
+				require.NoError(t, hold(order)(ctx, holder))
+				_, erased := retireNow(t, order.queue, []string{order.slug})
+				require.NoError(t, holder.Rollback())
+				if erased == 0 {
+					assert.Equal(t, before, visitorData(order.snapshot(t)), "a deferred order keeps the visitor's data as it was")
+				}
+				for run := 0; run < 3 && slices.Contains(demoOrderNames(t, order.db), order.slug); run++ {
+					retireNow(t, order.queue, nil)
+				}
+				order.requireFullyErased(t)
+			})
+		}
 	}
 }
 
@@ -568,27 +616,67 @@ func TestDemoRunFindsADeferredWaitingOrderOnceSeeded(t *testing.T) {
 	assert.Nil(t, demoSchoolProgress(t, db, slug))
 }
 
-// A table the run reads, held exclusively by another transaction: the run
-// returns quickly without an error, the order unchanged, and the next run,
-// told nothing, retires and erases it (#5540).
-func TestDemoRunSkipsWhileATableItReadsIsLocked(t *testing.T) {
+// Many orders wait for a lock at once: the run stops at its budget, well
+// below deadlock_timeout, and the next runs, told nothing, erase all of them
+// once the locks are gone (#5540).
+func TestDemoRunKeepsItsBudgetWhenManyOrdersWait(t *testing.T) {
 	t.Parallel()
-	for _, table := range []string{"platform.demo_school_states", "platform.schools", "auth.demo_accesses"} {
-		t.Run(table, func(t *testing.T) {
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slugs := make([]string, 0, 14)
+	for i := range 14 {
+		schoolID, _ := testpkg.CreateTestTenant(t, db)
+		slug := orderDemoSchool(t, db, fmt.Sprintf("OGS Nord %d", i))
+		_, err := queue.ClaimDemoSchoolOrder(ctx)
+		require.NoError(t, err)
+		require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+		_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+		require.NoError(t, err)
+		slugs = append(slugs, slug)
+	}
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	for _, slug := range slugs {
+		require.NoError(t, seedLock(slug)(ctx, holder))
+	}
+
+	_, erased := retireNow(t, queue, slugs)
+	assert.Zero(t, erased)
+	require.NoError(t, holder.Rollback())
+	for run := 0; run < 3 && len(demoOrderNames(t, db)) > 0; run++ {
+		retireNow(t, queue, nil)
+	}
+	assert.Empty(t, demoOrderNames(t, db), "the next runs erase every order")
+}
+
+// An order meets a lock once per run: it is deferred, counted and logged
+// once, by the retirement while its school is open, by the erasure once it
+// is hidden (#5540).
+func TestDemoRunDefersAnOrderOncePerRun(t *testing.T) {
+	t.Parallel()
+	for name, hidden := range map[string]bool{"school open": false, "school hidden": true} {
+		t.Run(name, func(t *testing.T) {
 			order := newDemoOrder(t)
+			if hidden {
+				order.hide(t)
+			}
 			ctx := t.Context()
-			before := order.snapshot(t)
 			holder, err := order.db.BeginTx(ctx, &sql.TxOptions{})
 			require.NoError(t, err)
 			defer func() { _ = holder.Rollback() }()
-			_, err = holder.ExecContext(ctx, `LOCK TABLE `+table+` IN ACCESS EXCLUSIVE MODE`)
-			require.NoError(t, err)
-			hidden, erased := retireNow(t, order.queue, []string{order.slug})
-			assert.Zero(t, hidden)
-			assert.Zero(t, erased)
-			require.NoError(t, holder.Rollback())
-			assert.Equal(t, before, order.snapshot(t), "a skipped run changes nothing")
-			order.requireErasedNext(t)
+			require.NoError(t, seedLock(order.slug)(ctx, holder))
+			for run := 1; run <= 2; run++ {
+				retireNow(t, order.queue, []string{order.slug})
+				var deferrals int
+				require.NoError(t, order.db.NewRaw(`SELECT erasure_deferrals FROM platform.demo_school_states WHERE name = ?`, order.slug).Scan(ctx, &deferrals))
+				assert.Equal(t, run, deferrals, "one deferral per run")
+			}
 		})
 	}
 }

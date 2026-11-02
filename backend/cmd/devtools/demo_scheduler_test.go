@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The register endpoint rejects usernames over 30 characters, so the account
@@ -106,4 +108,23 @@ func TestCheckDemoProvisioningRequiresAFourDigitPIN(t *testing.T) {
 	}
 	assert.Error(t, checkDemoProvisioning("", "secret", "4711"))
 	assert.Error(t, checkDemoProvisioning("operator@example.test", "", "4711"))
+}
+
+// While the operator login is refused, no order is seeded, but the expiry
+// runs all the same: the demo run retires and erases without any seed
+// (#5540).
+func TestDemoSchedulerErasesWhileTheOperatorLoginIsPaused(t *testing.T) {
+	t.Parallel()
+	runtime := &fakeDemoExpiryRuntime{erased: 2}
+	session := newSharedOperatorSession(nil)
+	session.failedAt, session.failure = time.Now(), errors.New("operator login refused")
+	require.True(t, session.paused())
+	scheduler := &demoScheduler{
+		adapter: session, expiry: newDemoExpiry(runtime, time.Now), tickers: newDemoTickers(),
+		seeds: make(chan struct{}, demoSeedWorkers), failedRequeues: newDemoDeferredRequeues(),
+	}
+
+	err := scheduler.drain(t.Context())
+	require.ErrorContains(t, err, "operator login is refused", "the queued orders keep waiting")
+	assert.Equal(t, []string{"expire", "retire"}, runtime.calls, "the expiry runs and erases although no order can be seeded")
 }

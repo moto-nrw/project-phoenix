@@ -36,13 +36,16 @@ func demoVisitorAccountErasureUp(ctx context.Context, db *bun.DB) error {
 }
 
 // demoVisitorAccountErasureDown reinstalls the retirement of 1.15.456 and the
-// erasure of 1.15.732 and drops the deferral counter.
+// erasure of 1.15.732 and drops the deferral note and counter.
 func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, demoSchoolRetirementOf456SQL); err != nil {
 		return fmt.Errorf("restore the demo school retirement of 1.15.456: %w", err)
 	}
 	if err := demoVisitorErasureRealtimeNotificationsUp(ctx, db); err != nil {
 		return fmt.Errorf("restore the demo visitor erasure of 1.15.732: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.defer_demo_order(TEXT, TEXT, TEXT)`); err != nil {
+		return fmt.Errorf("drop the deferral note of demo orders: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `ALTER TABLE platform.demo_school_states DROP COLUMN IF EXISTS erasure_deferrals`); err != nil {
 		return fmt.Errorf("drop the deferral counter of demo orders: %w", err)
@@ -63,8 +66,12 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //     lock_timeout 100ms, far below deadlock_timeout, and each order runs in
 //     a subtransaction: on lock_not_available or deadlock_detected it is
 //     rolled back, counted in platform.demo_school_states.erasure_deferrals
-//     and retried by the next hourly run; from 24 deferrals in a row the
-//     function logs a warning.
+//     (platform.defer_demo_order, one log line, a warning from 24 in a row)
+//     and retried by the next hourly run. A run handles at most 50 orders
+//     and starts none after 500 ms; the rest stays open.
+//   - Open is every order whose school is hidden or that failed, whatever
+//     state its seed left it in, until its erasure is done: before, a hidden
+//     school of an order still preparing was never erased.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -95,8 +102,7 @@ const demoVisitorAccountErasureUpSQL = `
 			visitor RECORD;
 			target_name TEXT;
 			erased INTEGER := 0;
-			deferrals INTEGER;
-			deferral_reason TEXT;
+			tried INTEGER := 0;
 		BEGIN
 			-- Another erasure is running; it handles the orders. The caller
 			-- retire_expired_demo_schools already holds this lock.
@@ -114,11 +120,21 @@ const demoVisitorAccountErasureUpSQL = `
 					array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL) AS visitor_school_ids
 				FROM platform.demo_school_states AS state
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
-				WHERE (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
+				-- Open is every order whose school is hidden or that failed, in
+				-- whatever state its seed left it, until its erasure is done
+				-- (#5540): a hidden school is never found again otherwise.
+				WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
 				ORDER BY state.name
 			LOOP
 				target_name := visitor.name;
+				-- A run has a budget, so it ends well below deadlock_timeout
+				-- however many orders wait for a lock; the rest stays open.
+				IF tried >= 50 OR clock_timestamp() - statement_timestamp() > INTERVAL '500 milliseconds' THEN
+					RAISE LOG 'demo visitor erasure ends this run at its budget: % orders erased, the rest stays open', erased;
+					EXIT;
+				END IF;
+				tried := tried + 1;
 				-- One subtransaction per order. When any lock it needs is in use
 				-- longer than lock_timeout, or a deadlock is detected anyway, the
 				-- order is rolled back untouched, state row included, and the next
@@ -135,7 +151,7 @@ const demoVisitorAccountErasureUpSQL = `
 				FROM platform.demo_school_states AS state
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
 				WHERE state.name = target_name
-					AND (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
+					AND (state.status = 'failed' OR school.deleted_at IS NOT NULL)
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
 				FOR UPDATE OF state;
 				IF NOT FOUND THEN
@@ -365,23 +381,7 @@ const demoVisitorAccountErasureUpSQL = `
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
 				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
-					deferral_reason := SQLSTATE;
-					-- Count the deferrals in a row; a successful erasure deletes the
-					-- state row. Failing to count must not fail the run.
-					BEGIN
-						UPDATE platform.demo_school_states SET erasure_deferrals = erasure_deferrals + 1
-						WHERE name = target_name
-						RETURNING erasure_deferrals INTO deferrals;
-					EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
-						deferrals := NULL;
-					END;
-					IF deferrals >= 24 THEN
-						RAISE WARNING 'demo visitor erasure of order % deferred % times in a row (SQLSTATE %): a lock it needs stays in use',
-							target_name, deferrals, deferral_reason;
-					ELSE
-						RAISE LOG 'demo visitor erasure of order % deferred (SQLSTATE %, % in a row): a lock it needs is in use',
-							target_name, deferral_reason, COALESCE(deferrals::TEXT, 'unknown');
-					END IF;
+					PERFORM platform.defer_demo_order(target_name, 'erasure', SQLSTATE);
 				END;
 			END LOOP;
 			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
@@ -413,6 +413,39 @@ const demoVisitorAccountErasureUpSQL = `
 //
 // CREATE OR REPLACE keeps the grants of 1.15.456 (phoenix_demo only).
 const demoSchoolRetirementWithoutWaitSQL = `
+		-- One deferral of one order in one run: counted in its state row and
+		-- written as one log line, a warning from 24 in a row (#5540). The
+		-- erasure deletes the state row, counter included. Counting never
+		-- fails the run.
+		CREATE FUNCTION platform.defer_demo_order(order_name TEXT, step TEXT, reason TEXT)
+		RETURNS VOID
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		SET lock_timeout = '100ms'
+		AS $$
+		DECLARE
+			deferrals INTEGER;
+		BEGIN
+			BEGIN
+				UPDATE platform.demo_school_states SET erasure_deferrals = erasure_deferrals + 1
+				WHERE name = order_name
+				RETURNING erasure_deferrals INTO deferrals;
+			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+				deferrals := NULL;
+			END;
+			IF deferrals >= 24 THEN
+				RAISE WARNING 'demo % of order % deferred % times in a row (SQLSTATE %): a lock it needs stays in use',
+					step, order_name, deferrals, reason;
+			ELSE
+				RAISE LOG 'demo % of order % deferred (SQLSTATE %, % in a row): a lock it needs is in use',
+					step, order_name, reason, COALESCE(deferrals::TEXT, 'unknown');
+			END IF;
+		END;
+		$$;
+		REVOKE ALL ON FUNCTION platform.defer_demo_order(TEXT, TEXT, TEXT) FROM PUBLIC;
+
 		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
 		RETURNS TABLE(hidden INTEGER, erased INTEGER)
 		LANGUAGE plpgsql
@@ -426,6 +459,7 @@ const demoSchoolRetirementWithoutWaitSQL = `
 			targets TEXT[];
 			hidden_count INTEGER := 0;
 			changed INTEGER;
+			tried INTEGER := 0;
 		BEGIN
 			hidden := 0;
 			erased := 0;
@@ -454,7 +488,25 @@ const demoSchoolRetirementWithoutWaitSQL = `
 			END;
 			FOREACH target_name IN ARRAY targets
 			LOOP
+				-- The run has a budget, so it ends well below deadlock_timeout
+				-- however many orders wait for a lock; the rest is found again.
+				IF tried >= 50 OR clock_timestamp() - statement_timestamp() > INTERVAL '500 milliseconds' THEN
+					RAISE LOG 'demo school retirement ends this run at its budget: % schools hidden, the rest stays open', hidden_count;
+					EXIT;
+				END IF;
+				tried := tried + 1;
 				BEGIN
+					-- Only an order still open to visitors or still waiting is
+					-- retired here. A hidden or failed order is the erasure's, which
+					-- takes the same locks: one order, one deferral a run.
+					PERFORM 1 FROM platform.demo_school_states AS state
+					LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+					WHERE state.name = target_name
+						AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+						AND (school.id IS NULL OR school.deleted_at IS NULL);
+					IF NOT FOUND THEN
+						CONTINUE;
+					END IF;
 					PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
 					PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
 					IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
@@ -471,7 +523,7 @@ const demoSchoolRetirementWithoutWaitSQL = `
 							AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
 					hidden_count := hidden_count + changed;
 				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
-					RAISE LOG 'demo school % not retired this run (SQLSTATE %): a lock it needs is in use', target_name, SQLSTATE;
+					PERFORM platform.defer_demo_order(target_name, 'retirement', SQLSTATE);
 				END;
 			END LOOP;
 			hidden := hidden_count;
