@@ -25,9 +25,9 @@ import (
 // below deadlock_timeout (1 s).
 const quickly = 800 * time.Millisecond
 
-// retireNow runs the demo run for the order and fails the test when it does
-// not return quickly.
-func retireNow(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slug string) (hidden, erased int) {
+// retireNow runs the demo run with the named orders (nil: none) and fails
+// the test when it does not return quickly.
+func retireNow(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []string) (hidden, erased int) {
 	t.Helper()
 	type outcome struct {
 		hidden, erased int
@@ -36,7 +36,7 @@ func retireNow(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slug st
 	done := make(chan outcome, 1)
 	started := time.Now()
 	go func() {
-		hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+		hidden, erased, err := queue.RetireDemoSchools(t.Context(), slugs)
 		done <- outcome{hidden: hidden, erased: erased, err: err}
 	}()
 	select {
@@ -61,38 +61,52 @@ func lockWaits(t *testing.T, db *bun.DB, marker string) bool {
 	return err == nil && waiting > 0
 }
 
-// visitorSnapshot is everything of an order the run may change.
-type visitorSnapshot struct {
-	Traces                   map[string]int
-	Caregiver, Parent        accountState
-	Memberships, Roles       int
-	Profiles, Tokens, Pushes int
-	Mails, Notifications     int
-	SchoolHidden, Ordered    bool
+// visitorSnapshot holds, per table, every row of the order the run may
+// change, as JSON: names, mails, notifications, the accounts and their
+// sessions, memberships, roles, profiles with bio and settings, read
+// receipts, push subscriptions, the school and the order.
+type visitorSnapshot map[string]string
+
+// snapshotRows selects the rows of a table that belong to the order: ?0 are
+// the visitor accounts, ?1 the demo school, ?2 the order.
+var snapshotRows = map[string]string{
+	"auth.accounts":                    `FROM auth.accounts AS r WHERE r.id IN (?0)`,
+	"auth.account_tenants":             `FROM auth.account_tenants AS r WHERE r.account_id IN (?0)`,
+	"auth.account_roles":               `FROM auth.account_roles AS r WHERE r.account_id IN (?0)`,
+	"auth.tokens":                      `FROM auth.tokens AS r WHERE r.account_id IN (?0)`,
+	"auth.guardian_student_access":     `FROM auth.guardian_student_access AS r WHERE r.account_id IN (?0)`,
+	"auth.demo_accesses":               `FROM auth.demo_accesses AS r WHERE r.account_id IN (?0) OR r.parent_account_id IN (?0)`,
+	"users.profiles":                   `FROM users.profiles AS r WHERE r.account_id IN (?0)`,
+	"users.persons":                    `FROM users.persons AS r WHERE r.tenant_id = ?1`,
+	"users.guardian_profiles":          `FROM users.guardian_profiles AS r WHERE r.tenant_id = ?1`,
+	"users.parent_messages":            `FROM users.parent_messages AS r WHERE r.tenant_id = ?1`,
+	"users.parent_message_reads":       `FROM users.parent_message_reads AS r WHERE r.account_id IN (?0)`,
+	"enrollment.requests":              `FROM enrollment.requests AS r WHERE r.tenant_id = ?1`,
+	"enrollment.request_reads":         `FROM enrollment.request_reads AS r WHERE r.account_id IN (?0)`,
+	"audit.guardian_changes":           `FROM audit.guardian_changes AS r WHERE r.tenant_id = ?1`,
+	"platform.email_outbox":            `FROM platform.email_outbox AS r WHERE r.tenant_id = ?1`,
+	"platform.email_delivery":          `FROM platform.email_delivery AS r WHERE r.tenant_id = ?1`,
+	"platform.realtime_notifications":  `FROM platform.realtime_notifications AS r WHERE r.tenant_id = ?1`,
+	"iot.push_subscriptions":           `FROM iot.push_subscriptions AS r WHERE r.account_id IN (?0) OR r.tenant_id = ?1`,
+	"auth.account_avatar_file_cleanup": `FROM auth.account_avatar_file_cleanup AS r`,
+	"platform.schools":                 `FROM platform.schools AS r WHERE r.id = ?1`,
+	"platform.demo_school_states":      `FROM (SELECT to_jsonb(s) - 'erasure_deferrals' AS row FROM platform.demo_school_states AS s WHERE s.name = ?2) AS r`,
 }
 
 func snapshotVisitor(t *testing.T, db *bun.DB, schoolID int64, accounts visitorAccounts, slug string) visitorSnapshot {
 	t.Helper()
-	ctx := t.Context()
-	snapshot := visitorSnapshot{
-		Traces:    visitorTraces(t, db, schoolID),
-		Caregiver: stateOfAccount(t, db, accounts.caregiver),
-		Parent:    stateOfAccount(t, db, accounts.parent),
-	}
+	snapshot := make(visitorSnapshot, len(snapshotRows))
 	ids := bun.List([]int64{accounts.caregiver, accounts.parent})
-	for target, query := range map[*int]string{
-		&snapshot.Memberships:   `SELECT count(*) FROM auth.account_tenants WHERE account_id IN (?0)`,
-		&snapshot.Roles:         `SELECT count(*) FROM auth.account_roles WHERE account_id IN (?0)`,
-		&snapshot.Profiles:      `SELECT count(*) FROM users.profiles WHERE account_id IN (?0)`,
-		&snapshot.Tokens:        `SELECT count(*) FROM auth.tokens WHERE account_id IN (?0)`,
-		&snapshot.Pushes:        `SELECT count(*) FROM iot.push_subscriptions WHERE account_id IN (?0) OR tenant_id = ?1`,
-		&snapshot.Mails:         `SELECT count(*) FROM platform.email_outbox WHERE tenant_id = ?1`,
-		&snapshot.Notifications: `SELECT count(*) FROM platform.realtime_notifications WHERE tenant_id = ?1`,
-	} {
-		require.NoError(t, db.NewRaw(query, ids, schoolID).Scan(ctx, target), query)
+	for table, rows := range snapshotRows {
+		row := "to_jsonb(r)"
+		if table == "platform.demo_school_states" {
+			row = "r.row"
+		}
+		var content string
+		require.NoError(t, db.NewRaw(`SELECT COALESCE(jsonb_agg(`+row+` ORDER BY `+row+`::text), '[]'::jsonb)::text `+rows, ids, schoolID, slug).
+			Scan(t.Context(), &content), table)
+		snapshot[table] = content
 	}
-	require.NoError(t, db.NewRaw(`SELECT deleted_at IS NOT NULL FROM platform.schools WHERE id = ?`, schoolID).Scan(ctx, &snapshot.SchoolHidden))
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.demo_school_states WHERE name = ?)`, slug).Scan(ctx, &snapshot.Ordered))
 	return snapshot
 }
 
@@ -121,7 +135,12 @@ func newDemoOrder(t *testing.T) demoOrder {
 		onlyInSchools(t, db, accountID, schoolID)
 		for _, statement := range []string{
 			`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?0, ?2, ?1)`,
-			`INSERT INTO users.profiles (tenant_id, account_id, bio) VALUES (?1, ?0, 'Ich bin Anna Lena')`,
+			`INSERT INTO users.profiles (tenant_id, account_id, bio, avatar, settings)
+				VALUES (?1, ?0, 'Ich bin Anna Lena', '/uploads/avatars/lock-' || ?0 || '.png', '{"theme": "dunkel"}'::jsonb)`,
+			`INSERT INTO enrollment.request_reads (tenant_id, request_id, account_id)
+				SELECT ?1, id, ?0 FROM enrollment.requests WHERE tenant_id = ?1`,
+			`INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
+				SELECT ?1, id, ?0 FROM users.parent_message_threads WHERE tenant_id = ?1`,
 			`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope)
 				VALUES (?0, encode(sha256(convert_to('lock-' || ?0::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?1, 'tenant')`,
 		} {
@@ -159,11 +178,19 @@ func (o demoOrder) hide(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// requireErasedNext runs the next run once nothing holds a lock any more and
-// requires that it erases the order.
+// requireErasedNext runs the next run once nothing holds a lock any more,
+// without naming the order: the run finds deferred work in the database
+// (#5540). It requires that the run hides a school still open and erases the
+// order completely.
 func (o demoOrder) requireErasedNext(t *testing.T) {
 	t.Helper()
-	_, erased := retireNow(t, o.queue, o.slug)
+	open := o.snapshot(t)["platform.schools"]
+	var visible bool
+	require.NoError(t, o.db.NewRaw(`SELECT deleted_at IS NULL FROM platform.schools WHERE id = ?`, o.schoolID).Scan(t.Context(), &visible))
+	hidden, erased := retireNow(t, o.queue, nil)
+	if visible {
+		require.Equal(t, 1, hidden, "the next run hides the school the previous one deferred: %s", open)
+	}
 	require.Equal(t, 1, erased, "the next run erases the deferred order")
 	assert.Equal(t, everyTrace(0), visitorTraces(t, o.db, o.schoolID))
 	assert.NotNil(t, stateOfAccount(t, o.db, o.accounts.caregiver).Erased)
@@ -191,7 +218,7 @@ func (o demoOrder) writerFirst(t *testing.T, steps ...step) {
 	for _, run := range steps {
 		require.NoError(t, run(ctx, writer))
 	}
-	_, erased := retireNow(t, o.queue, o.slug)
+	_, erased := retireNow(t, o.queue, []string{o.slug})
 	assert.Zero(t, erased, "the order waits for the next run")
 	assert.Equal(t, before, o.snapshot(t), "a deferred order is completely unchanged")
 	require.NoError(t, writer.Commit(), "the writer does not fail beside the run")
@@ -386,7 +413,7 @@ func TestDemoVisitorErasureMeetsARealSchoolProfileChange(t *testing.T) {
 	order := newHiddenDemoOrder(t)
 	testpkg.MapAccountToTenant(t, order.db, order.accounts.parent, order.realID)
 	order.writerFirst(t, profileChange(order.accounts.parent, order.realID)...)
-	_, erased := retireNow(t, order.queue, order.slug)
+	_, erased := retireNow(t, order.queue, nil)
 	require.Equal(t, 1, erased)
 	assert.Nil(t, stateOfAccount(t, order.db, order.accounts.parent).Erased, "the shared account stays")
 	var bio string
@@ -403,7 +430,7 @@ func requireMembershipKeepsTheAccount(t *testing.T, membership func(order demoOr
 	order := newHiddenDemoOrder(t)
 	caregiver := stateOfAccount(t, order.db, order.accounts.caregiver)
 	order.writerFirst(t, membership(order))
-	_, erased := retireNow(t, order.queue, order.slug)
+	_, erased := retireNow(t, order.queue, nil)
 	require.Equal(t, 1, erased)
 	assert.Equal(t, caregiver, stateOfAccount(t, order.db, order.accounts.caregiver),
 		"an account that got a real membership while the run ran keeps its address and access")
@@ -502,6 +529,31 @@ func TestDemoRunDefersTheErasureWhileItsLocksAreHeld(t *testing.T) {
 	}
 }
 
+// A table the run reads, held exclusively by another transaction: the run
+// returns quickly without an error, the order unchanged, and the next run,
+// told nothing, retires and erases it (#5540).
+func TestDemoRunSkipsWhileATableItReadsIsLocked(t *testing.T) {
+	t.Parallel()
+	for _, table := range []string{"platform.demo_school_states", "platform.schools", "auth.demo_accesses"} {
+		t.Run(table, func(t *testing.T) {
+			order := newDemoOrder(t)
+			ctx := t.Context()
+			before := order.snapshot(t)
+			holder, err := order.db.BeginTx(ctx, &sql.TxOptions{})
+			require.NoError(t, err)
+			defer func() { _ = holder.Rollback() }()
+			_, err = holder.ExecContext(ctx, `LOCK TABLE `+table+` IN ACCESS EXCLUSIVE MODE`)
+			require.NoError(t, err)
+			hidden, erased := retireNow(t, order.queue, []string{order.slug})
+			assert.Zero(t, hidden)
+			assert.Zero(t, erased)
+			require.NoError(t, holder.Rollback())
+			assert.Equal(t, before, order.snapshot(t), "a skipped run changes nothing")
+			order.requireErasedNext(t)
+		})
+	}
+}
+
 // An order the run defers is counted in its state row; a long run of
 // deferrals becomes a warning (#5540).
 func TestDemoVisitorErasureCountsItsDeferrals(t *testing.T) {
@@ -513,7 +565,7 @@ func TestDemoVisitorErasureCountsItsDeferrals(t *testing.T) {
 	defer func() { _ = holder.Rollback() }()
 	require.NoError(t, keyShare(order.accounts.caregiver)(ctx, holder))
 	for range 2 {
-		_, erased := retireNow(t, order.queue, order.slug)
+		_, erased := retireNow(t, order.queue, nil)
 		assert.Zero(t, erased)
 	}
 	var deferrals int

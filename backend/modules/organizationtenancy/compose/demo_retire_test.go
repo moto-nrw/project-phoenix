@@ -28,6 +28,16 @@ func readyDemoSchool(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSc
 	return slug
 }
 
+// giveDemoAccess gives the order the demo access of its visitor. Every
+// order is born with its access in one transaction; an order no access
+// names is out of use, and every run retires it (#5540).
+func giveDemoAccess(t *testing.T, db *bun.DB, slug string) {
+	t.Helper()
+	_, err := db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name)
+		VALUES ('besuch-' || ?0 || '@example.org', 'OGS', 'hash-' || ?0, NOW() + INTERVAL '14 days', ?0, 'Anna Lena', 'von Berg')`, slug).Exec(t.Context())
+	require.NoError(t, err)
+}
+
 func schoolHidden(t *testing.T, db *bun.DB, schoolID int64) bool {
 	t.Helper()
 	var hidden bool
@@ -47,6 +57,7 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	ctx := t.Context()
 	first := readyDemoSchool(t, db, queue, schools, "OGS Nord", firstID)
 	second := readyDemoSchool(t, db, queue, schools, "OGS Süd", secondID)
+	giveDemoAccess(t, db, second) // its visitor still uses it
 	waiting := orderDemoSchool(t, db, "OGS West")
 	entered := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	for _, slug := range []string{first, second} {
@@ -134,7 +145,7 @@ func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
 
 	require.NoError(t, schools.WithDemoLease(t.Context(), "demo school seed:"+slug, func(context.Context) error {
-		hidden, erased := retireNow(t, queue, slug)
+		hidden, erased := retireNow(t, queue, []string{slug})
 		assert.Zero(t, hidden, "the run hides no school during its seed lease")
 		assert.Zero(t, erased, "the run erases no visitor during the seed lease")
 		assert.False(t, schoolHidden(t, db, schoolID))
@@ -142,7 +153,8 @@ func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 		return nil
 	}))
 
-	hidden, erased := retireNow(t, queue, slug)
+	// The next run is told nothing: it finds the order in the database.
+	hidden, erased := retireNow(t, queue, nil)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }
@@ -165,13 +177,13 @@ func TestRetiringDemoSchoolsSkipsDuringAnotherRunsLease(t *testing.T) {
 	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0))`).Exec(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
-	hidden, erased := retireNow(t, queue, slug)
+	hidden, erased := retireNow(t, queue, []string{slug})
 	assert.Zero(t, hidden, "the run hides no school during another run's lease")
 	assert.Zero(t, erased)
 	assert.False(t, schoolHidden(t, db, schoolID))
 	require.NoError(t, tx.Rollback())
 
-	hidden, erased = retireNow(t, queue, slug)
+	hidden, erased = retireNow(t, queue, nil)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }

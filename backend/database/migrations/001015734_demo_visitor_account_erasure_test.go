@@ -102,4 +102,11 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 		"the run lock is never waited for")
 	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'[\s\S]*EXCEPTION WHEN lock_not_available OR deadlock_detected THEN`, definition,
 		"each order is retired in a subtransaction that a lock in use defers")
+	assert.Regexp(t, `state\.status = 'ready'\s+AND state\.first_name <> ''\s+AND school\.deleted_at IS NULL\s+AND NOT EXISTS \(SELECT 1 FROM auth\.demo_accesses`, definition,
+		"every run retires the open visitor orders no access names, so deferred work is found again")
+	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'demo school retirement skipped this run`, definition,
+		"a locked table the scan reads skips the run")
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &definition))
+	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'demo visitor erasure skipped this run`, definition,
+		"a locked table the erasure scan reads skips the erasure")
 }

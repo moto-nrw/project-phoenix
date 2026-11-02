@@ -7,13 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoVisitorAccountErasureVersion = "1.15.733"
+const demoVisitorAccountErasureVersion = "1.15.734"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     demoVisitorAccountErasureVersion,
-		Description: "Demo-Besuch löschen: Push-Abos, Profil und Avatar-Dateien mit entfernen, Konten bis zur Prüfung sperren (#5540)",
+		Description: "Demo-Besuch löschen: Push-Abos, Profil und Avatar-Dateien mit entfernen, Lauf ohne Warten auf Sperren (#5540)",
 		DependsOn: []string{
+			payrollWageTypesVersion,                        // the last migration before this one
 			demoVisitorErasureRealtimeNotificationsVersion, // the function this one replaces
 		},
 	})
@@ -34,8 +35,8 @@ func demoVisitorAccountErasureUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// demoVisitorAccountErasureDown reinstalls the function exactly as 1.15.732
-// left it and drops the deferral counter.
+// demoVisitorAccountErasureDown reinstalls the retirement of 1.15.456 and the
+// erasure of 1.15.732 and drops the deferral counter.
 func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, demoSchoolRetirementOf456SQL); err != nil {
 		return fmt.Errorf("restore the demo school retirement of 1.15.456: %w", err)
@@ -102,6 +103,10 @@ const demoVisitorAccountErasureUpSQL = `
 			IF NOT pg_try_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0)) THEN
 				RETURN 0;
 			END IF;
+			-- The scan of the orders reads tables another transaction may hold
+			-- exclusively. Its lock error skips the erasure of this run with one
+			-- log line; every order stays for the next run (#5540).
+			BEGIN
 			FOR visitor IN
 				SELECT state.name, state.tenant_id, state.attempts,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
@@ -379,17 +384,31 @@ const demoVisitorAccountErasureUpSQL = `
 					END IF;
 				END;
 			END LOOP;
+			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+				RAISE LOG 'demo visitor erasure skipped this run (SQLSTATE %): a table it reads is locked', SQLSTATE;
+				RETURN 0;
+			END;
 			RETURN erased;
 		END;
 		$$;
 `
 
 // demoSchoolRetirementWithoutWaitSQL is platform.retire_expired_demo_schools
-// of 1.15.456, the entry of the hourly demo run (RetireDemoSchools), with the
-// invariant of the erasure it calls (#5540): no step of the run waits for a
-// lock. Another run holding the run lock skips this one; each order is
-// hidden in a subtransaction under lock_timeout, and an order whose seed,
-// state or school lock is in use stays as it is until the next run.
+// of 1.15.456, the entry of the hourly demo run (RetireDemoSchools), with two
+// invariants (#5540):
+//
+//   - Deferred work is never lost. The run hides the named orders and every
+//     ready visitor order whose school is still open although no demo access
+//     names it any more: an order is born with its access in one
+//     transaction, so such an order is out of use. What a run defers is
+//     therefore found again in the database by the next run, whatever the
+//     demo process remembers. The standing school has no order and carries
+//     no visitor name.
+//   - No lock error leaves the run. Another run holding the run lock skips
+//     this one; each order is hidden in a subtransaction under lock_timeout
+//     and deferred when a lock it needs is in use; a locked table the scan
+//     reads skips the run. Each case writes one log line.
+//
 // CREATE OR REPLACE keeps the grants of 1.15.456 (phoenix_demo only).
 const demoSchoolRetirementWithoutWaitSQL = `
 		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
@@ -402,18 +421,36 @@ const demoSchoolRetirementWithoutWaitSQL = `
 		AS $$
 		DECLARE
 			target_name TEXT;
+			targets TEXT[];
 			hidden_count INTEGER := 0;
 			changed INTEGER;
 		BEGIN
+			hidden := 0;
+			erased := 0;
 			IF NOT pg_try_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0)) THEN
 				RAISE LOG 'demo school retirement skipped: another run holds the run lock';
-				hidden := 0;
-				erased := 0;
 				RETURN NEXT;
 				RETURN;
 			END IF;
-			FOR target_name IN
-				SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS target(name) ORDER BY name
+			BEGIN
+				SELECT COALESCE(array_agg(DISTINCT target.name ORDER BY target.name), '{}'::TEXT[]) INTO targets
+				FROM (
+					SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS named(name)
+					UNION
+					SELECT state.name
+					FROM platform.demo_school_states AS state
+					JOIN platform.schools AS school ON school.id = state.tenant_id
+					WHERE state.status = 'ready'
+						AND state.first_name <> ''
+						AND school.deleted_at IS NULL
+						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
+				) AS target;
+			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+				RAISE LOG 'demo school retirement skipped this run (SQLSTATE %): a table it reads is locked', SQLSTATE;
+				RETURN NEXT;
+				RETURN;
+			END;
+			FOREACH target_name IN ARRAY targets
 			LOOP
 				BEGIN
 					PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
