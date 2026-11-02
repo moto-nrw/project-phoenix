@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -74,4 +75,50 @@ func TestRealtimeNotificationsMigrationRoundTrip(t *testing.T) {
 		names[entry.Name] = true
 	}
 	assert.True(t, names["platform.realtime_notifications"])
+}
+
+// TestRealtimeRecipientsApplyTheWebPushRoles pins that the recipient
+// projection of relayed notifications decides staff, school-portal and
+// guardian access with exactly the expressions of the push view (#5504),
+// including school roles marked school_portal (#4574). A change to one view
+// without the other fails here.
+func TestRealtimeRecipientsApplyTheWebPushRoles(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	definition := func(view string) string {
+		var text string
+		require.NoError(t, db.NewRaw(`SELECT pg_get_viewdef(?::regclass)`, view).Scan(ctx, &text))
+		return text
+	}
+	push, recipients := definition("platform.delivery_push_subscriptions"), definition("platform.delivery_realtime_recipients")
+	for _, column := range []struct{ name, pushBefore, recipientsBefore string }{
+		{"has_staff_role", "tenant_active", "active"},
+		{"has_school_role", "has_staff_role", "has_staff_role"},
+		{"has_guardian_role", "has_school_role", "has_school_role"},
+		{"guardian_student_ids", "effective_admin", "has_guardian_role"},
+	} {
+		pushExpression := viewColumnExpression(t, push, column.pushBefore, column.name, `"push_subscription"`, "push_subscription")
+		recipientExpression := viewColumnExpression(t, recipients, column.recipientsBefore, column.name, `"account_tenant"`, "account_tenant")
+		assert.Equal(t, pushExpression, recipientExpression, column.name)
+	}
+	assert.Contains(t, viewColumnExpression(t, recipients, "has_staff_role", "has_school_role", "", "account_tenant"), "school_portal")
+}
+
+// viewColumnExpression returns the select-list expression of column, which
+// follows the column before, with the view's row alias neutralized.
+func viewColumnExpression(t *testing.T, definition, before, column string, aliases ...string) string {
+	t.Helper()
+	start := strings.Index(definition, " AS "+before+",\n")
+	require.GreaterOrEqual(t, start, 0, "column %s precedes %s", before, column)
+	start += len(" AS " + before + ",\n")
+	end := strings.Index(definition[start:], " AS "+column)
+	require.GreaterOrEqual(t, end, 0, "column %s", column)
+	expression := definition[start : start+end]
+	for _, alias := range aliases {
+		if alias != "" {
+			expression = strings.ReplaceAll(expression, alias+".", "row.")
+		}
+	}
+	return strings.Join(strings.Fields(expression), " ")
 }

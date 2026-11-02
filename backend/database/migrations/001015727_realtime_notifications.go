@@ -46,8 +46,10 @@ func init() {
 // platform.delivery_realtime_recipients is Delivery's projection for showing
 // a relayed copy: it answers, per account and school, the delivery-time rules
 // of platform.delivery_push_subscriptions (active account and membership,
-// staff, Lehrkraft or guardian role, children with parent_portal.access) for
-// accounts that have no push subscription.
+// staff, school-portal or guardian role, children with parent_portal.access)
+// for accounts that have no push subscription. Its role and child columns
+// copy the expressions of the push view (1.15.480) verbatim, including school
+// roles marked school_portal; a migration test compares them.
 const realtimeNotificationsUpSQL = `
 		CREATE TABLE platform.realtime_notifications (
 			id              BIGSERIAL PRIMARY KEY,
@@ -89,8 +91,9 @@ const realtimeNotificationsUpSQL = `
 				INNER JOIN auth.roles AS "school_role" ON "school_role".id = "school_account_role".role_id
 				WHERE "school_account_role".account_id = "account_tenant".account_id
 					AND "school_account_role".tenant_id = "account_tenant".tenant_id
-					AND "school_role".is_system
-					AND LOWER(BTRIM("school_role".name)) = 'lehrkraft'
+					AND (("school_role".is_system
+						AND LOWER(BTRIM("school_role".name)) = 'lehrkraft')
+						OR "school_role".school_portal)
 			) AS has_school_role,
 			EXISTS (
 				SELECT 1

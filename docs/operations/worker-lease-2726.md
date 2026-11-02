@@ -154,8 +154,10 @@ channel. Guardian copies also store the event's student IDs in the JSON
 (`relay_student_ids`), never in the signal or browser payload. Before remote
 delivery, the API rechecks the addressed accounts with the Web Push
 delivery-time rules through `platform.delivery_realtime_recipients`: active
-account and school membership, the staff or Lehrkraft role, and for guardians
-the guardian role and `parent_portal.access` for one of those students. Missing check metadata (legacy copies), ended membership, a revoked role or
+account and school membership, the staff role and for moto schule the
+Lehrkraft role or a school role marked `school_portal`, and for guardians
+the guardian role and `parent_portal.access` for one of those students. These
+expressions are the push view's, compared by a migration test. Missing check metadata (legacy copies), ended membership, a revoked role or
 access, or a failed lookup suppress delivery. An explicit empty student list
 keeps producer-authorized announcements unchanged.
 
