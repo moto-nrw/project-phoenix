@@ -61,10 +61,11 @@ func TestDemoRoleCannotWriteTheVisitorAccountTablesDirectly(t *testing.T) {
 // Writers of a row that references an account lock in two orders: an
 // UPDATE locks the row and then, in auth.lock_live_account_reference, the
 // account; an upsert or insert locks the account in that trigger first. The
-// demo erasure avoids both cycles (#5540): it writes the memberships and
-// roles of the visitor schools before it holds an account, locks only the
-// demo accesses (updated row first) before the accounts, and locks no row of
-// a table an upsert writes (memberships, roles, profiles) before them.
+// demo erasure never waits for an account (#5540): it locks them with
+// NOWAIT and defers the order in a subtransaction when one is in use. It
+// writes the memberships and roles of the visitor schools before, locks only
+// the demo accesses (updated row first) before the accounts, and locks no
+// row of a table an upsert writes (memberships, roles, profiles) before them.
 func TestDemoVisitorErasureLockOrder(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -73,6 +74,8 @@ func TestDemoVisitorErasureLockOrder(t *testing.T) {
 	accountLock := strings.Index(definition, "PERFORM 1 FROM auth.accounts")
 	require.Positive(t, accountLock, "the erasure locks the visitor accounts")
 	before, after := definition[:accountLock], definition[accountLock:]
+	assert.Regexp(t, `^PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE NOWAIT;`, after, "the erasure never waits for an account")
+	assert.Regexp(t, `EXCEPTION WHEN lock_not_available THEN`, after, "an account in use defers the order")
 
 	for _, table := range []string{"auth.account_tenants", "auth.account_roles"} {
 		visitorSchools := regexp.MustCompile(`DELETE FROM ` + regexp.QuoteMeta(table) + `\s[^;]*tenant_id = ANY \(visitor\.visitor_school_ids\);`)

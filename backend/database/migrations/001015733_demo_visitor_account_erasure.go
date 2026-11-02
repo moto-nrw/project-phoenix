@@ -41,13 +41,12 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //   - It locks the visitor accounts before it decides which of them hang only
 //     in demo schools. Without the lock, a school or Träger membership written
 //     while the erasure ran was not seen, and the account was anonymized anyway.
-//     It writes the visitor schools before it holds an account, locks only
-//     the demo accesses (updated row first) before the accounts, and after
-//     the check writes membership tables only for accounts without any
-//     membership or role outside the visitor schools; a role there now keeps
-//     the account too. Upserts lock the account before the row, UPDATEs the
-//     row before the account (auth.lock_live_account_reference); the order
-//     avoids both cycles.
+//     It never waits for an account: writers lock rows and accounts in both
+//     orders (an UPDATE the row first, an upsert the account first, in
+//     auth.lock_live_account_reference), so a wait could close a cycle. It
+//     locks the accounts with NOWAIT; when one is in use, a subtransaction
+//     rolls the order back and the next hourly run retries it. A role
+//     outside the visitor schools now keeps the account too.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -104,6 +103,10 @@ const demoVisitorAccountErasureUpSQL = `
 				IF NOT FOUND THEN
 					CONTINUE;
 				END IF;
+				-- One subtransaction per order: when an account of the visitor is
+				-- in use (lock_not_available below), the order is left untouched,
+				-- state row included, for the next hourly run (#5540).
+				BEGIN
 				-- Keep the runtime path in addition to the migration backfill. It
 				-- covers a row restored from a pre-migration backup before it is
 				-- erased, including a final failed school's original subdomain.
@@ -205,27 +208,17 @@ const demoVisitorAccountErasureUpSQL = `
 					DELETE FROM auth.mfa_overrides
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 						AND tenant_id = ANY (visitor.visitor_school_ids);
-					-- Hold the visitor accounts until the check below is done (#5540).
-					-- A school or Träger membership another transaction is writing
-					-- holds its account with a key share lock: the erasure waits for
-					-- it and then sees it, or the membership waits for the erasure
-					-- and then finds an erased account.
-					-- Lock order. The writers of a row that references an account
-					-- lock in two orders: an UPDATE locks the row, then its trigger
-					-- auth.lock_live_account_reference locks the account (a staff
-					-- calendar token on a membership, a demo login); an upsert or
-					-- insert locks the account first, in that trigger, then the row
-					-- (a profile change). The erasure never holds an account while it
-					-- waits for a row of the first kind and never holds a row of the
-					-- second kind while it waits for an account:
-					-- - It writes the memberships, roles and other rows of the
-					--   visitor schools above, before it holds any account.
-					-- - After the check it writes those tables only for an account
-					--   that hangs in demo schools alone, which has no membership
-					--   or role left; its profiles are written by upserts, which
-					--   wait for the account before they lock the profile.
-					-- - The visitor's demo accesses are updated row first, so they
-					--   are locked here, before the accounts.
+					-- Hold the visitor accounts until the check below is done, without
+					-- ever waiting for one (#5540). Writers of a row that references an
+					-- account lock in both orders: an UPDATE locks the row, then its
+					-- trigger auth.lock_live_account_reference the account; an upsert
+					-- or insert locks the account in that trigger, then waits for a
+					-- conflicting row, possibly one deleted above. Any writer that
+					-- holds an account would therefore close a cycle with an erasure
+					-- waiting for it. NOWAIT defers the order instead; a membership
+					-- written meanwhile is seen by the check in the next run. The
+					-- visitor's demo accesses are updated row first, so they are
+					-- locked before the accounts.
 					PERFORM 1 FROM auth.demo_accesses
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 						OR parent_account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
@@ -233,7 +226,11 @@ const demoVisitorAccountErasureUpSQL = `
 					PERFORM 1 FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 					ORDER BY account.id
-					FOR UPDATE;
+					FOR UPDATE NOWAIT;
+					-- After the check, membership tables are written only for an
+					-- account without any membership or role outside the visitor
+					-- schools; their rows there are gone, and its profiles are written
+					-- by upserts, which wait for the account before the profile.
 					SELECT COALESCE(array_agg(account.id), '{}') INTO erased_account_ids
 					FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
@@ -348,6 +345,9 @@ const demoVisitorAccountErasureUpSQL = `
 				END IF;
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
+				EXCEPTION WHEN lock_not_available THEN
+					RAISE LOG 'demo visitor erasure deferred: an account of order % is in use', target_name;
+				END;
 			END LOOP;
 			RETURN erased;
 		END;
