@@ -9,11 +9,14 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   describeAdjustment,
+  formatRemovalSpan,
   formatWeekdayAdverbs,
+  lastGapDay,
   type ManualRosterTemplate,
   removeStudentTemplateDays,
   type RosterImpact,
@@ -46,6 +49,10 @@ export function CarePlanImpact({
   const { data: session } = useSession();
   const canManage = hasPermission(session, "schedules:manage");
   const canRemove = studentId !== undefined && canManage;
+  const firstRemovableDay = earliestRemovalDay(
+    impact.effectiveFrom,
+    useBerlinToday(),
+  );
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -93,8 +100,9 @@ export function CarePlanImpact({
         studentId,
         weekdays: target.weekdays,
         effectiveFrom: impact.effectiveFrom,
+        effectiveUntil: target.until,
       });
-      setRemoved((current) => new Set(current).add(target.templateId));
+      setRemoved((current) => new Set(current).add(manualTemplateKey(target)));
       toast.success(`Das Kind ist aus „${target.name}“ entfernt.`);
       setTarget(null);
     } catch (err) {
@@ -163,10 +171,12 @@ export function CarePlanImpact({
           <ResponsiveActionList>
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
-                key={template.templateId}
+                key={manualTemplateKey(template)}
                 template={template}
-                removed={removed.has(template.templateId)}
-                canRemove={canRemove}
+                removed={removed.has(manualTemplateKey(template))}
+                canRemove={
+                  canRemove && gapEndsAfter(template.until, firstRemovableDay)
+                }
                 canConnect={canManage}
                 onRemove={setTarget}
                 planLink={planLink}
@@ -187,11 +197,15 @@ export function CarePlanImpact({
         description={
           target ? (
             <p>
-              Das Kind wird ab {stichtag}{" "}
+              Das Kind wird{" "}
+              {formatRemovalSpan(impact.effectiveFrom, target.until)}{" "}
               {formatWeekdayAdverbs(target.weekdays)} aus{" "}
               <span className="font-medium text-gray-900">„{target.name}“</span>{" "}
-              entfernt. Das gilt auch für schon geplante Termine. Andere Tage
-              und vergangene Termine bleiben.
+              entfernt. Das gilt auch für schon geplante Termine.
+              {target.until
+                ? ` Ab ${formatDate(target.until)} passt eine andere Buchung wieder. Dann bleibt das Kind eingeplant.`
+                : null}{" "}
+              Andere Tage und vergangene Termine bleiben.
             </p>
           ) : null
         }
@@ -235,8 +249,11 @@ function ManualTemplateEntry({
       <div className="min-w-0">
         <p>
           <span className="font-medium text-gray-900">{template.name}</span>,{" "}
-          {formatWeekdayAdverbs(template.weekdays)}:{" "}
-          {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
+          {formatWeekdayAdverbs(template.weekdays)}
+          {template.until
+            ? ` bis ${formatDate(lastGapDay(template.until))}`
+            : null}
+          : {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
         </p>
       </div>
       <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center sm:justify-end">
@@ -277,4 +294,25 @@ function ManualTemplateEntry({
       </div>
     </li>
   );
+}
+
+/** Eine Zeile je Regeltermin und Ende der Lücke (#5497). */
+function manualTemplateKey(template: ManualRosterTemplate): string {
+  return `${template.templateId}-${template.until ?? "open"}`;
+}
+
+// The command rejects today and clamps an earlier effective date to tomorrow.
+// Do not offer a bounded removal that has already ended at that boundary.
+function earliestRemovalDay(effectiveFrom: string, today: string): string {
+  const tomorrow = parseISODate(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const earliest = toISODate(tomorrow);
+  return effectiveFrom > earliest ? effectiveFrom : earliest;
+}
+
+function gapEndsAfter(
+  until: string | null,
+  firstRemovableDay: string,
+): boolean {
+  return until === null || until > firstRemovableDay;
 }

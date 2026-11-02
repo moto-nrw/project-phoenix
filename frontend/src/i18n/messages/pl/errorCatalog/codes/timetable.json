@@ -116,6 +116,7 @@
   "substitute_self": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "substitute_single_only": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "template_care_offering_conflict": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "template_booking_gap_stale": "Rezerwacja została zmieniona. Odśwież stronę.",
   "template_category_unavailable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "template_education_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "template_end_before_start": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

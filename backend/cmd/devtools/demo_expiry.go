@@ -16,11 +16,13 @@ const demoExpiryInterval = time.Hour
 type demoExpiryRuntime interface {
 	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSlugs []string, err error)
 	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
+	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
 }
 
 // demoExpiry deletes demo accesses 14 days after their last use and hides
 // the demo schools left without any access (#3470). Then it erases the
-// visitors of the schools out of use, those it just hid included (#4048).
+// visitors of the schools out of use, those it just hid included (#4048),
+// and last the uploads of the schools hidden for at least an hour (#5544).
 // It runs once per interval on the injected clock; the first run is due at
 // once. The standing school is shared by every visitor and is never hidden.
 type demoExpiry struct {
@@ -60,7 +62,6 @@ func (e *demoExpiry) run(ctx context.Context) error {
 		return err
 	}
 	e.pending = nil
-	e.next = at.Add(e.interval)
 	if deleted > 0 || hidden > 0 || erased > 0 {
 		slog.Info("demo accesses expired",
 			"accesses", deleted,
@@ -68,5 +69,18 @@ func (e *demoExpiry) run(ctx context.Context) error {
 			"visitors_erased", erased,
 		)
 	}
+	// A school that failed keeps no marker; the run stays due, so the next
+	// poll tries again, and the poll failure turns the sidecar unhealthy.
+	schools, files, err := e.runtime.EraseRetiredDemoSchoolFiles(ctx)
+	if schools > 0 {
+		slog.Info("demo school files erased",
+			"schools", schools,
+			"files", files,
+		)
+	}
+	if err != nil {
+		return err
+	}
+	e.next = at.Add(e.interval)
 	return nil
 }

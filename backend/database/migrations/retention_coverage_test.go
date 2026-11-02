@@ -282,6 +282,8 @@ var tableRetentions = map[string]tableRetention{
 	"platform.billing_key_date_counts":                      own("platform.delete_expired_billing_key_date_counts: 10 years after the end of the key_date calendar year, restricted billing evidence (ADR 0092)"),
 	"platform.billing_settings":                             notPersonal("billing configuration"),
 	"platform.cleanup_runs":                                 notPersonal("ledger of last successful cleanup per school and job"),
+	"platform.demo_school_file_erasures":                    notPersonal("demo process marker (#5544): school ID, time and object counts per upload namespace; no file name, no person"),
+	"platform.demo_school_origins":                          notPersonal("demo provenance (#5544): school ID and time a demo order named the school; no person"),
 	"platform.demo_school_states":                           own("demo process only: hourly demoExpiry -> RetireDemoSchools -> RetireMany -> SQL platform.erase_closed_demo_visitors (closed order without demo access; also replaces the visitor's name in the hidden demo schools)"),
 	"platform.email_delivery":                               own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after its mail ended, else after created_at)"),
 	"platform.email_outbox":                                 own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled; guardian welcome keeps only its key)"),

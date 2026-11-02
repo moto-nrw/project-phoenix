@@ -20,6 +20,7 @@ import (
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -82,6 +83,9 @@ type CareLifecycleTestConfig struct {
 	LockCareBookingWrites func(context.Context) error
 	// Today defaults to the Berlin calendar day.
 	Today func() owner0.Date
+	// PlanningStaffing hears about committed care ends (#5554); nil
+	// announces nothing.
+	PlanningStaffing timetable.StudentTemplateDays
 }
 
 // NewCareLifecycle composes the native Care Plan lifecycle over these
@@ -96,6 +100,9 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	deps.LockCareBookingWrites = lock
 	deps.BookingsAuthoritative = config.BookingsAuthoritative
 	deps.Today = config.Today
+	if config.PlanningStaffing != nil {
+		deps.Owners.PlanningStaffing = config.PlanningStaffing
+	}
 	return carePlanCompose.NewCareLifecycle(deps)
 }
 

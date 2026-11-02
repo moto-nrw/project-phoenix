@@ -45,6 +45,13 @@ func (s *StudentTemplateDays) KeepStudentTemplateDays(ctx context.Context, keep 
 	return len(ids), nil
 }
 
+// AnnounceBookingChange wakes the tabs that show the hint once the booking
+// change of the caller's transaction committed (#5498): the hint compares the
+// hand rows with the bookings, so a booking change moves it like a decision.
+func (s *StudentTemplateDays) AnnounceBookingChange(ctx context.Context) {
+	announceStaffingChanged(ctx, s.deps.Staffing, s.deps.Logger, "booking_change")
+}
+
 // keptRowIDs lists every hand row of the student in the series that plans
 // one of the weekdays, ended rows included: the hint judges each row on its
 // own planned days, so a decision must reach the row of every gap. A mark on

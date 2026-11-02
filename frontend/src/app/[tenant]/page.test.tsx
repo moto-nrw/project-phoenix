@@ -576,7 +576,9 @@ describe("HomePage (Login)", () => {
       Object.defineProperty(window.location, "href", {
         configurable: true,
         get: () => currentHref,
-        set: (value: string) => assign(value),
+        set: (value: string) => {
+          assign(value);
+        },
       });
 
       // shouldAdvanceTime keeps waitFor/findBy usable under fake timers.

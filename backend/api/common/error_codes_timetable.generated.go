@@ -117,6 +117,7 @@ const CodeTimetableSubstituteConflict = "timetable.substitute_conflict"
 const CodeTimetableSubstituteNotOnInstances = "timetable.substitute_not_on_instances"
 const CodeTimetableSubstituteSelf = "timetable.substitute_self"
 const CodeTimetableSubstituteSingleOnly = "timetable.substitute_single_only"
+const CodeTimetableTemplateBookingGapStale = "timetable.template_booking_gap_stale"
 const CodeTimetableTemplateCareOfferingConflict = "timetable.template_care_offering_conflict"
 const CodeTimetableTemplateCategoryUnavailable = "timetable.template_category_unavailable"
 const CodeTimetableTemplateEducationGroupInvalid = "timetable.template_education_group_invalid"
@@ -261,6 +262,7 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableSubstituteNotOnInstances, "input"},
 	{CodeTimetableSubstituteSelf, "input"},
 	{CodeTimetableSubstituteSingleOnly, "input"},
+	{CodeTimetableTemplateBookingGapStale, "business_rejection"},
 	{CodeTimetableTemplateCareOfferingConflict, "input"},
 	{CodeTimetableTemplateCategoryUnavailable, "business_rejection"},
 	{CodeTimetableTemplateEducationGroupInvalid, "input"},
