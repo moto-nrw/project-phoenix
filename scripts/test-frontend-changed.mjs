@@ -113,6 +113,7 @@ const guards = [
   "src/sentry.config.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
   "src/test/proxy-routes.table.test.ts",
+  "src/test/session-cookie-writers.test.ts",
   "src/lib/moto-concepts.test.ts",
   ...externalTests,
 ];

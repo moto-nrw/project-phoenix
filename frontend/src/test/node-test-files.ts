@@ -280,6 +280,7 @@ export const nodeLogicTestFiles = [
   "src/test/helpers/handle-api-error.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
   "src/test/proxy-routes.table.test.ts",
+  "src/test/session-cookie-writers.test.ts",
   "scripts/perf/access.test.ts",
   "scripts/perf/cleanup.test.ts",
   "scripts/product-screenshots/shot-list.test.ts",

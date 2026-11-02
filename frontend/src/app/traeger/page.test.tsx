@@ -149,6 +149,21 @@ describe("TraegerSchoolsPage", () => {
     expect(mockFetchSchools).toHaveBeenCalledTimes(2);
   });
 
+  it("says which role opens a school when the person lacks the right (#5473)", async () => {
+    mockFetchSchools.mockResolvedValue([AM_BACH]);
+    renderPage();
+
+    const table = await screen.findByRole("table");
+    expect(
+      screen.getByText(
+        "Eine Schule öffnen Sie nur mit der Rolle „Schulzugang“. Diese Rolle gibt Ihnen eine Person mit der Rolle „Leitung“.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(table).queryAllByRole("button", { name: /öffnen/ })).toEqual(
+      [],
+    );
+  });
+
   it("opens a school in a new tab for a person with the right to switch (#4654)", async () => {
     mockUseSession.mockReturnValue(
       sessionWith(["traeger_overview:read", "traeger_school:switch"]),
@@ -168,6 +183,7 @@ describe("TraegerSchoolsPage", () => {
     expect(
       screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
     ).toHaveTextContent(/„Öffnen“ zeigt die Schule in einem neuen Tab/);
+    expect(screen.queryByText(/nur mit der Rolle/)).not.toBeInTheDocument();
     fireEvent.click(
       within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
     );
