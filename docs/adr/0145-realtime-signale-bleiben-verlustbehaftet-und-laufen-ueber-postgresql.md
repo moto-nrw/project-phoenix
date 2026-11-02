@@ -117,7 +117,7 @@ wo Signal und Kopie dieselbe Zielgruppe, dieselbe Gruppe und dieselben
 Empfänger nennen; bei Konten gilt die Schnittmenge. Unbekannte, fremde,
 anders adressierte oder ältere als zwei Minuten alte IDs zeigen nichts an.
 Staff-, Lehrkraft- und Eltern-Adressen werden dabei mit den Versandregeln von
-Web Push erneut geprüft (ADR 0146, vorgeschlagen). Der Nachlader wird dem Hub
+Web Push erneut geprüft (ADR 0146). Der Nachlader wird dem Hub
 bei der Konstruktion übergeben, vor dem Start des Listeners.
 Inhalt aus dem Signal wird nie übernommen. Kann die Kopie nicht gespeichert
 werden, bleibt die Benachrichtigung im eigenen Prozess; die lokale Zustellung

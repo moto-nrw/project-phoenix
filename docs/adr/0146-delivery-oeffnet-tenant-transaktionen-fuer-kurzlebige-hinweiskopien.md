@@ -1,17 +1,17 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Delivery öffnet Tenant-Transaktionen für kurzlebige Hinweiskopien
 
-Vorschlag vom 2026-11-02 für #5504, ergänzend zu ADR 0145. Der
+Entscheidung vom 2026-11-02 für #5504, ergänzend zu ADR 0145. Der
 Hintergrund-Worker speichert Hinweise nach dem Commit des Erzeugers. Die
 empfangende API hat keinen Request mit einer bereits geöffneten
 Tenant-Transaktion. Beide brauchen deshalb eine eigene, ausdrücklich auf die
 adressierte Schule begrenzte Transaktion. Eine administrative Verbindung oder
 ein Inhalt im nicht authentifizierten Signal wären keine sicheren Alternativen.
 
-Genau zwei neue Command-Grenzen in Delivery sind vorgesehen:
+Genau zwei neue Command-Grenzen in Delivery sind zulässig:
 
 1. `sseChannel.relayable` speichert die unveränderliche Kopie in der
    Tenant-Transaktion der adressierten Schule unter RLS. Der Speicherversuch
@@ -40,5 +40,4 @@ Importregeln ändern sich nicht, Compose- und andere Budgets bleiben unveränder
 
 ## Freigabe
 
-Bis eine verantwortliche Person diesen Vorschlag annimmt, gelten die zwei
-Grenzen nur als beantragt.
+Freigegeben durch yungweng am 02.11.2026.
