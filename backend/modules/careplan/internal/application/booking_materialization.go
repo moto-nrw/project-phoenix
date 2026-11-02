@@ -52,6 +52,10 @@ type BookingMaterializationDependencies struct {
 	// and guardians after the tenant transaction commits. Tests may leave it
 	// nil.
 	AnnouncePickupChange func(ctx context.Context, studentIDs []int64)
+	// PlanningStaffing hears about every booking change in its transaction
+	// and wakes the hints that compare the planning with the bookings after
+	// commit (#5498). Tests may leave it nil.
+	PlanningStaffing ports.BookingPlanningStaffing
 
 	Today  func() calendar.Date
 	Logger *slog.Logger

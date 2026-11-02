@@ -122,4 +122,8 @@ type StudentTemplateDays interface {
 	// returns how many rows it marked. Plans stay as they are. It takes the
 	// tenant recurrence gate. ErrGroupNotFound for an unknown series.
 	KeepStudentTemplateDays(ctx context.Context, keep StudentTemplateDaysKeep) (int, error)
+	// AnnounceBookingChange tells the hints of ManualStudentPlan that a
+	// child's bookings changed in the caller's transaction (#5498): after
+	// commit the school's staffing views refetch them. It writes nothing.
+	AnnounceBookingChange(ctx context.Context)
 }

@@ -214,6 +214,15 @@ type PickupScheduleStaff interface {
 	PickupScheduleChanged(tenantID int64) error
 }
 
+// BookingPlanningStaffing hears about a booking change inside its
+// transaction and wakes, after commit, the staff views that compare the
+// planning with the bookings: the hints for children a Regeltermin keeps by
+// hand without a booking (#5498), on the Startseite and in the
+// Betreuungsplan.
+type BookingPlanningStaffing interface {
+	AnnounceBookingChange(ctx context.Context)
+}
+
 // PickupScheduleGuardians refreshes one child's card in the guardians' portal.
 type PickupScheduleGuardians interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)

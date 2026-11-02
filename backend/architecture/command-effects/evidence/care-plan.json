@@ -7009,6 +7009,14 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "binding_digest": "95e1a867b15a3cb4cd98f8081b5c57a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingPlanningStaffing.AnnounceBookingChange",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.BackfillRequestChildSource",
       "binding_digest": "6de539231cb3d6f9d32af5ab005540f4",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.BackfillRequestChildSource",
