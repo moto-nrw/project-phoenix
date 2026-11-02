@@ -82,6 +82,7 @@ var (
 	NewEmailRecipientResolver        = notifications.NewEmailRecipientResolver
 	NewStaffRecipientResolver        = notifications.NewStaffRecipientResolver
 	NewStaffParentMessageNotifier    = notifications.NewStaffParentMessageNotifier
+	NewTenantSSEChannel              = notifications.NewTenantSSEChannel
 	NewTenantDurableWebPushChannel   = notifications.NewTenantDurableWebPushChannel
 	NewTenantAbsenceNotifier         = notifications.NewTenantAbsenceNotifier
 	NewTenantPreferenceService       = notifications.NewTenantPreferenceService

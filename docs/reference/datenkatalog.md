@@ -53,7 +53,9 @@ Migration 1.15.727 ergänzt `platform.realtime_notifications` (#5504): eine
 Kopie eines In-App-Hinweises mit Empfängern, die andere API-Prozesse zwei
 Minuten lang lesen. Bei Eltern-Hinweisen enthält das JSON zusätzlich die
 Schüler-IDs (`relay_student_ids`), damit die empfangende API die aktuellen
-Beziehungsrechte vor der Zustellung erneut prüft. Die Kopie ist `tenant`, wird
+Beziehungsrechte vor der Zustellung erneut prüft. Die Sicht
+`platform.delivery_realtime_recipients` speichert nichts; sie beantwortet je
+Konto und Schule Zuordnung, Rolle und Kind-Freigabe für diese Prüfung. Die Kopie ist `tenant`, wird
 nicht zurückgegeben (kein Schuldatensatz, nur ein Zustellhilfsmittel) und mit
 der Schule gelöscht; die
 nächtliche Delivery-Aufbewahrung löscht sie vorher.

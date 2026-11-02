@@ -18,7 +18,7 @@ func TestRelayNormalizesTopicsAndActiveGroup(t *testing.T) {
 	}
 
 	var payload string
-	hub, err := NewRelayedHub(nil, func(s string) error { payload = s; return nil })
+	hub, err := NewRelayedHub(nil, func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
 	require.NoError(t, hub.BroadcastToGroups(7, []string{"0042", "edu:9", "free text", "42"}, NewEvent(EventStudentCheckIn, "free text", EventData{})))
 	var wire signal
@@ -31,7 +31,7 @@ func TestRelayNormalizesTopicsAndActiveGroup(t *testing.T) {
 
 func TestReceivedSignalUsesOnlyNormalizedTopics(t *testing.T) {
 	t.Parallel()
-	hub, err := NewRelayedHub(nil, func(string) error { return nil })
+	hub, err := NewRelayedHub(nil, func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := &Client{Channel: make(chan Event, 4), SubscribedGroups: make(map[string]bool)}
 	hub.Register(client, 7, []string{"42"})
@@ -56,7 +56,7 @@ func TestReceivedSignalUsesOnlyNormalizedTopics(t *testing.T) {
 func TestNotificationEventWithoutStoredCopyStaysLocal(t *testing.T) {
 	t.Parallel()
 	published, payload := false, ""
-	hub, err := NewRelayedHub(nil, func(s string) error { published, payload = true, s; return nil })
+	hub, err := NewRelayedHub(nil, func(s string) error { published, payload = true, s; return nil }, nil)
 	require.NoError(t, err)
 	title := "Titel"
 	event := NewEvent(EventNotification, "", EventData{Title: &title})

@@ -20,6 +20,15 @@ const (
 	RealtimeScopeGuardian = "guardian"
 )
 
+// The recipients a relayed notification is rechecked for when it is shown:
+// staff and school-portal accounts and guardians, with the delivery-time rules
+// of Web Push.
+const (
+	RealtimeRecipientStaff    = "staff"
+	RealtimeRecipientSchool   = "school"
+	RealtimeRecipientGuardian = "guardian"
+)
+
 // RealtimeNotification is the stored copy of one in-app notification: its
 // school, the recipients the producing process resolved, and the
 // display-safe SSE payload.

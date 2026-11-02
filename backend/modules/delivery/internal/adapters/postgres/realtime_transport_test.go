@@ -90,7 +90,7 @@ func TestWorkerPublishFailureStillDeliversLocally(t *testing.T) {
 
 func transportHub(t *testing.T, db *bun.DB, listen bool) *realtime.Hub {
 	t.Helper()
-	hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(db, slog.Default(), listen)
+	hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(db, testpkg.TenantRuntime(t, db), slog.Default(), listen)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 	return hub
@@ -138,7 +138,7 @@ func TestRelayCarriesOnlyInvalidationFields(t *testing.T) {
 	t.Parallel()
 	schoolID := testpkg.Tenant(t)
 	var payload string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
 	content := "private content and /untrusted-link"
 	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
@@ -158,7 +158,7 @@ func TestRelayCarriesOnlyInvalidationFields(t *testing.T) {
 func TestForgedSignalCannotDisplayContent(t *testing.T) {
 	t.Parallel()
 	schoolID := testpkg.Tenant(t)
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, schoolID)
 	payload, err := json.Marshal(map[string]any{
@@ -175,7 +175,7 @@ func stringPointer(s string) *string { return &s }
 func TestOwnSignalIsNotDeliveredTwice(t *testing.T) {
 	t.Parallel()
 	var payload string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	require.NoError(t, hub.BroadcastToTenant(client.TenantID, realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{})))
@@ -187,7 +187,7 @@ func TestOwnSignalIsNotDeliveredTwice(t *testing.T) {
 func TestNotificationsStayLocal(t *testing.T) {
 	t.Parallel()
 	var published bool
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { published = true; return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { published = true; return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	event := realtime.NewEvent(realtime.EventNotification, "", realtime.EventData{Title: stringPointer("local title")})
@@ -198,7 +198,7 @@ func TestNotificationsStayLocal(t *testing.T) {
 
 func TestForgedInvalidationDropsDisplayFields(t *testing.T) {
 	t.Parallel()
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	payload, err := json.Marshal(map[string]any{
@@ -256,7 +256,7 @@ func TestPublishQueueDoesNotWaitForPoolAndHasBound(t *testing.T) {
 
 func TestLocalDeliverySurvivesPublisherError(t *testing.T) {
 	t.Parallel()
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return errors.New("NOTIFY unavailable") })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return errors.New("NOTIFY unavailable") }, nil)
 	require.NoError(t, err)
 	client := subscribeTransport(t, hub, testpkg.Tenant(t))
 	other := subscribeTransport(t, hub, testpkg.NewTenantScope(t, testpkg.SetupTestDB(t)).TenantID)
@@ -282,9 +282,9 @@ func TestStaffMessageRelayPreservesOnlyNumericSenderSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	sender := testpkg.CreateTestAccount(t, db, "relay-source@example.com")
 	var payload string
-	worker, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil })
+	worker, err := realtime.NewRelayedHub(slog.Default(), func(s string) error { payload = s; return nil }, nil)
 	require.NoError(t, err)
-	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil }, nil)
 	require.NoError(t, err)
 	client := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: sender.ID}
 	api.Register(client, testpkg.Tenant(t), nil)

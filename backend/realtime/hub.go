@@ -71,8 +71,8 @@ func removeClient(clients []*Client, target *Client) []*Client {
 type Hub struct {
 	publish func(string) error
 	origin  string
-	// notificationContent loads relayed notifications (#5504); bound by
-	// their owner, nil until then. Guarded by mu.
+	// notificationContent loads relayed notifications (#5504); fixed by
+	// NewRelayedHub, nil for a hub that shows none.
 	notificationContent NotificationContent
 	clients             map[*Client]bool
 	groupClients        map[string][]*Client // composite tenant:group key -> subscribers

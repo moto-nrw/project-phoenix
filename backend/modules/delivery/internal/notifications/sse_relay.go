@@ -3,8 +3,6 @@ package notifications
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
@@ -33,24 +31,13 @@ type relayedNotificationContent struct {
 	StudentIDs *[]int64 `json:"relay_student_ids,omitempty"`
 }
 
-// relayingHub is the process hub that relays signals to other API processes
-// and shows the notifications they relay.
-type relayingHub interface {
-	RelayNotifications(realtime.NotificationContent) bool
-}
-
-// withRelayedContent makes the channel store notifications for other API
-// processes and lets the hub load theirs. A hub that does not relay keeps
-// every notification in its process, as before.
-func withRelayedContent(store deliveryPorts.RealtimeNotificationStore) SSEChannelOption {
+// withRelayStore makes the channel store notifications for other API
+// processes. A hub that does not relay keeps every notification in its
+// process, as before.
+func withRelayStore(store deliveryPorts.RealtimeNotificationStore) SSEChannelOption {
 	return func(c *sseChannel) {
-		hub, ok := c.broadcaster.(relayingHub)
-		if store == nil || !ok {
-			return
-		}
-		c.relayStore = store
-		if !hub.RelayNotifications(c.loadRelayed) {
-			c.relayStore = nil
+		if hub, ok := c.broadcaster.(interface{ Relays() bool }); ok && hub.Relays() {
+			c.relayStore = store
 		}
 	}
 }
@@ -91,82 +78,4 @@ func (c *sseChannel) relayable(ctx context.Context, event realtime.Event, stored
 		"error", err,
 	)
 	return event
-}
-
-// loadRelayed is the hub's NotificationContent: it reads the notification in
-// the school's transaction and narrows the signal's address to the
-// recipients stored with it.
-func (c *sseChannel) loadRelayed(ctx context.Context, schoolID, id int64, address realtime.NotificationAddress) (realtime.Event, realtime.NotificationAddress, bool, error) {
-	ctx = c.withTenantRuntime(ctx)
-	var stored domain.RealtimeNotification
-	found := false
-	err := tenant.WithTenantTx(ctx, c.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		var loadErr error
-		stored, found, loadErr = c.relayStore.LoadRealtimeNotification(txCtx, schoolID, id, time.Now().Add(-domain.RealtimeNotificationLifetime))
-		return loadErr
-	})
-	if err != nil {
-		return realtime.Event{}, realtime.NotificationAddress{}, false, fmt.Errorf("loading relayed notification for tenant %d: %w", schoolID, err)
-	}
-	if !found || stored.TenantID != schoolID {
-		return realtime.Event{}, realtime.NotificationAddress{}, false, nil
-	}
-	permitted, ok := storedRecipients(stored, address)
-	if !ok {
-		return realtime.Event{}, realtime.NotificationAddress{}, false, nil
-	}
-	var data relayedNotificationContent
-	if err := json.Unmarshal(stored.Content, &data); err != nil {
-		return realtime.Event{}, realtime.NotificationAddress{}, false, fmt.Errorf("decoding relayed notification for tenant %d: %w", schoolID, err)
-	}
-	if permitted.Audience == realtime.AudienceGuardian {
-		if data.StudentIDs == nil {
-			return realtime.Event{}, realtime.NotificationAddress{}, false, nil
-		}
-		recipients, err := c.permittedGuardians(ctx, Audience{
-			TenantID: schoolID, Scope: ScopeGuardian,
-			GuardianAccountIDs: []int64{permitted.GuardianID}, StudentIDs: *data.StudentIDs,
-		})
-		if err != nil || !slices.Contains(recipients, permitted.GuardianID) {
-			return realtime.Event{}, realtime.NotificationAddress{}, false, err
-		}
-	}
-	return realtime.NewEvent(realtime.EventNotification, stored.ActiveGroupID, data.EventData), permitted, true, nil
-}
-
-// storedRecipients keeps the part of the signal's address the stored
-// notification names: the same audience and group, and only the accounts
-// or the guardian it was resolved for.
-func storedRecipients(stored domain.RealtimeNotification, address realtime.NotificationAddress) (realtime.NotificationAddress, bool) {
-	permitted := realtime.NotificationAddress{Audience: address.Audience}
-	switch address.Audience {
-	case realtime.AudienceTenant:
-		return permitted, stored.Scope == domain.RealtimeScopeTenant
-	case realtime.AudienceAdmins:
-		return permitted, stored.Scope == domain.RealtimeScopeAdmin
-	case realtime.AudienceGroup:
-		permitted.Topic = address.Topic
-		return permitted, stored.Scope == domain.RealtimeScopeGroup && address.Topic != "" &&
-			address.Topic == realtime.NormalizeTopic(stored.ActiveGroupID)
-	case realtime.AudienceStaffAccounts, realtime.AudienceSchoolAccounts:
-		portal := stored.StaffPortal
-		if address.Audience == realtime.AudienceSchoolAccounts {
-			portal = stored.SchoolPortal
-		}
-		if stored.Scope != domain.RealtimeScopeStaff || !portal {
-			return permitted, false
-		}
-		for _, accountID := range address.AccountIDs {
-			if slices.Contains(stored.AccountIDs, accountID) {
-				permitted.AccountIDs = append(permitted.AccountIDs, accountID)
-			}
-		}
-		return permitted, len(permitted.AccountIDs) > 0
-	case realtime.AudienceGuardian:
-		permitted.GuardianID = address.GuardianID
-		return permitted, stored.Scope == domain.RealtimeScopeGuardian && address.GuardianID > 0 &&
-			slices.Contains(stored.AccountIDs, address.GuardianID)
-	default:
-		return permitted, false
-	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -125,19 +126,22 @@ func (p *RealtimePublisher) Close() error {
 	return nil
 }
 
-// RealtimeSubscription owns only an API's dedicated listener and receive loop.
+// RealtimeSubscription owns the process's publisher and, in an API, its
+// dedicated listener and receive loop. Close stops the publisher before the
+// listener; the root closes the pool afterwards.
 type RealtimeSubscription struct {
-	listener *pgdriver.Listener
-	done     chan struct{}
-	once     sync.Once
-	closeErr error
+	publisher io.Closer
+	listener  *pgdriver.Listener
+	done      chan struct{}
+	once      sync.Once
+	closeErr  error
 }
 
 // NewRealtimeSubscription binds the receiver at construction. pgdriver reconnects
 // and re-subscribes; clients' poll reconcile recovers signals lost while offline.
-func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(string) error, listen bool) (*RealtimeSubscription, error) {
+func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(string) error, listen bool, publisher io.Closer) (*RealtimeSubscription, error) {
 	if !listen {
-		return &RealtimeSubscription{}, nil
+		return &RealtimeSubscription{publisher: publisher}, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -167,13 +171,16 @@ func NewRealtimeSubscription(db *bun.DB, logger *slog.Logger, receive func(strin
 			}
 		}
 	}()
-	return &RealtimeSubscription{listener: listener, done: done}, nil
+	return &RealtimeSubscription{publisher: publisher, listener: listener, done: done}, nil
 }
 
 func (s *RealtimeSubscription) Close() error {
 	s.once.Do(func() {
+		if s.publisher != nil {
+			s.closeErr = s.publisher.Close()
+		}
 		if s.listener != nil {
-			s.closeErr = s.listener.Close()
+			s.closeErr = errors.Join(s.closeErr, s.listener.Close())
 			<-s.done
 		}
 	})

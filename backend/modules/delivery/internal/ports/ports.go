@@ -73,4 +73,9 @@ type RealtimeNotificationStore interface {
 	// LoadRealtimeNotification returns the school's notification stored at
 	// or after notBefore; found is false for every other ID.
 	LoadRealtimeNotification(ctx context.Context, tenantID, id int64, notBefore time.Time) (notification domain.RealtimeNotification, found bool, err error)
+	// CurrentRealtimeRecipients keeps the accounts that are still active
+	// members of the school with the role of recipient (a domain
+	// RealtimeRecipient value); guardians also keep parent_portal.access to
+	// one of studentIDs when it is not empty.
+	CurrentRealtimeRecipients(ctx context.Context, tenantID int64, recipient string, accountIDs, studentIDs []int64) ([]int64, error)
 }

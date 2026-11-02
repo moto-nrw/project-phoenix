@@ -3,7 +3,6 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"maps"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -39,10 +39,11 @@ type notificationDeliverer interface {
 }
 
 // notificationChannel builds the SSE channel every process composes over its
-// hub. In an API it also loads the notifications other processes relay.
+// hub; over a relaying hub it stores each notification for the other APIs.
 func notificationChannel(t *testing.T, db *bun.DB, hub *realtime.Hub) notificationDeliverer {
 	t.Helper()
-	channel, err := deliveryCompose.NewTenantSSEChannel(testpkg.TenantRuntime(t, db), hub, db, everyGuardianStillPermitted{}, slog.Default())
+	channel, err := deliveryCompose.NewTenantSSEChannel(testpkg.TenantRuntime(t, db), hub, db, everyGuardianStillPermitted{}, slog.Default(),
+		postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase))
 	require.NoError(t, err)
 	return channel
 }
@@ -97,15 +98,13 @@ func TestWorkerNotificationReachesEveryAPI(t *testing.T) {
 	worker := transportHub(t, db, false)
 	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
 	workerChannel := notificationChannel(t, db, worker)
-	notificationChannel(t, db, apiA)
-	notificationChannel(t, db, apiB)
 	schoolID := testpkg.Tenant(t)
-	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-addressed@example.com")
-	bystander := testpkg.CreateTestAccount(t, db, "relay-notification-bystander@example.com")
-	guardian := testpkg.CreateTestAccount(t, db, "relay-notification-guardian@example.com")
+	_, addressed := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Addressed")
+	_, bystander := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Bystander")
+	guardian := testpkg.CreateTestParentGuardianChain(t, db)
 	a, b := staffClient(t, apiA, schoolID, addressed.ID), staffClient(t, apiB, schoolID, addressed.ID)
 	other := staffClient(t, apiA, schoolID, bystander.ID)
-	parent := parentClient(t, apiB, guardian.ID)
+	parent := parentClient(t, apiB, guardian.AccountID)
 
 	require.NoError(t, workerChannel.Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
 	requireRelayedNotification(t, a)
@@ -113,7 +112,7 @@ func TestWorkerNotificationReachesEveryAPI(t *testing.T) {
 	require.Empty(t, other.Channel, "a colleague who was not addressed saw the notification")
 	require.Empty(t, parent.Channel, "a guardian saw a staff notification")
 
-	require.NoError(t, workerChannel.Deliver(context.Background(), guardianNotification(schoolID, guardian.ID)))
+	require.NoError(t, workerChannel.Deliver(context.Background(), guardianNotification(schoolID, guardian.AccountID)))
 	requireRelayedNotification(t, parent)
 	require.Empty(t, a.Channel, "staff saw a guardian notification")
 	require.Empty(t, other.Channel)
@@ -124,9 +123,8 @@ func TestAPINotificationIsDeliveredOnceLocallyAndRelayedToOtherAPIs(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	apiA, apiB := transportHub(t, db, true), transportHub(t, db, true)
 	channelA := notificationChannel(t, db, apiA)
-	notificationChannel(t, db, apiB)
 	schoolID := testpkg.Tenant(t)
-	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-once@example.com")
+	_, addressed := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Once")
 	a, b := staffClient(t, apiA, schoolID, addressed.ID), staffClient(t, apiB, schoolID, addressed.ID)
 
 	require.NoError(t, channelA.Deliver(context.Background(), staffNotification(schoolID, addressed.ID)))
@@ -144,7 +142,7 @@ func TestNotificationSignalCarriesNoContent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var payloads []string
-	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil }, nil)
 	require.NoError(t, err)
 	schoolID := testpkg.Tenant(t)
 	addressed := testpkg.CreateTestAccount(t, db, "relay-notification-wire@example.com")
@@ -169,14 +167,12 @@ func TestForgedNotificationSignalsShowNothing(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var payloads []string
-	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil }, nil)
 	require.NoError(t, err)
-	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
-	require.NoError(t, err)
-	notificationChannel(t, db, api)
+	api := transportHub(t, db, false)
 	schoolID := testpkg.Tenant(t)
 	foreignSchool := testpkg.NewTenantScope(t, db).TenantID
-	addressed := testpkg.CreateTestAccount(t, db, "relay-forged-addressed@example.com")
+	_, addressed := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Forged")
 	bystander := testpkg.CreateTestAccount(t, db, "relay-forged-bystander@example.com")
 	clients := []*realtime.Client{
 		staffClient(t, api, schoolID, addressed.ID),
@@ -235,7 +231,7 @@ func TestNotificationStaysLocalWhenItCannotBeStored(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
 	var published []string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { published = append(published, payload); return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { published = append(published, payload); return nil }, nil)
 	require.NoError(t, err)
 	channel := notificationChannel(t, db, hub)
 	schoolID := testpkg.Tenant(t)
@@ -276,62 +272,43 @@ func withSignal(signal, changes map[string]any) map[string]any {
 	return result
 }
 
-// changingGuardianAccess models revocation between storing and receiving a signal.
-type changingGuardianAccess struct {
-	allowed  bool
-	err      error
-	students []int64
-}
-
-func (a *changingGuardianAccess) FilterAccountsWithStudentAccess(_ context.Context, accounts, students []int64, _ int64, permission string) ([]int64, error) {
-	a.students = slices.Clone(students)
-	if permission != "parent_portal.access" {
-		return nil, errors.New("wrong permission")
-	}
-	if a.err != nil {
-		return nil, a.err
-	}
-	if a.allowed {
-		return accounts, nil
-	}
-	return nil, nil
-}
-
 func TestRelayedGuardianNotificationRechecksChildAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var payload string
-	producer, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { payload = p; return nil })
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { payload = p; return nil }, nil)
 	require.NoError(t, err)
-	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
-	require.NoError(t, err)
-	access := &changingGuardianAccess{allowed: true}
-	receiving, err := deliveryCompose.NewTenantSSEChannel(testpkg.TenantRuntime(t, db), api, db, access, slog.Default())
-	require.NoError(t, err)
-	require.NotNil(t, receiving)
+	api := transportHub(t, db, false)
 	schoolID := testpkg.Tenant(t)
-	guardian := testpkg.CreateTestAccount(t, db, "relay-revoked-guardian@example.com")
-	student := testpkg.CreateTestStudent(t, db, "Relay", "Child", "1a")
-	event := guardianNotification(schoolID, guardian.ID)
-	event.Audience.StudentIDs = []int64{student.ID}
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	event := guardianNotification(schoolID, chain.AccountID)
+	event.Audience.StudentIDs = []int64{chain.StudentID}
 	require.NoError(t, notificationChannel(t, db, producer).Deliver(context.Background(), event))
 	require.NotContains(t, payload, "relay_student_ids", "child scope must stay out of the unauthenticated signal")
-	parent := parentClient(t, api, guardian.ID)
+	parent := parentClient(t, api, chain.AccountID)
 
 	require.NoError(t, api.ReceiveSignal(payload))
 	requireRelayedNotification(t, parent)
-	access.allowed = false
+	_, err = db.ExecContext(context.Background(), `UPDATE auth.guardian_student_access SET permissions = permissions - 'parent_portal.access'
+		WHERE relationship_id IN (SELECT id FROM users.student_guardian_relationships WHERE guardian_profile_id = ?)`, chain.GuardianProfileID)
+	require.NoError(t, err)
 	require.NoError(t, api.ReceiveSignal(payload))
 	require.Empty(t, parent.Channel, "revoked access must suppress a replayed notification")
-	require.Equal(t, event.Audience.StudentIDs, access.students)
-	access.err = errors.New("permission lookup unavailable")
-	require.Error(t, api.ReceiveSignal(payload))
-	require.Empty(t, parent.Channel, "a failed permission lookup must fail closed")
+
+	// A receiving API whose lookup fails shows nothing.
+	closable := testpkg.SetupClosableTestDB(t)
+	offline := transportHub(t, closable, false)
+	offlineParent := parentClient(t, offline, chain.AccountID)
+	require.NoError(t, closable.Close())
+	require.Error(t, offline.ReceiveSignal(payload))
+	require.Empty(t, offlineParent.Channel, "a failed permission lookup must fail closed")
 
 	// Legacy rows lack the child scope needed to authorize parent delivery.
+	_, err = db.ExecContext(context.Background(), `UPDATE auth.guardian_student_access SET permissions = permissions || '{"parent_portal.access": true}'::jsonb
+		WHERE relationship_id IN (SELECT id FROM users.student_guardian_relationships WHERE guardian_profile_id = ?)`, chain.GuardianProfileID)
+	require.NoError(t, err)
 	_, err = db.ExecContext(context.Background(), `UPDATE platform.realtime_notifications SET content = content - 'relay_student_ids' WHERE tenant_id = ?`, schoolID)
 	require.NoError(t, err)
-	access.allowed, access.err = true, nil
 	require.NoError(t, api.ReceiveSignal(payload))
 	require.Empty(t, parent.Channel, "legacy guardian content cannot be authorized")
 }
@@ -340,7 +317,7 @@ func TestNotificationStaysLocalWhenRelayPoolIsBusy(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
 	var published []string
-	hub, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { published = append(published, p); return nil })
+	hub, err := realtime.NewRelayedHub(slog.Default(), func(p string) error { published = append(published, p); return nil }, nil)
 	require.NoError(t, err)
 	channel := notificationChannel(t, db, hub)
 	schoolID := testpkg.Tenant(t)
@@ -375,11 +352,9 @@ func TestRelayedStaffNotificationRechecksMembershipAndRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var payloads []string
-	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil }, nil)
 	require.NoError(t, err)
-	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
-	require.NoError(t, err)
-	notificationChannel(t, db, api)
+	api := transportHub(t, db, false)
 	school := testpkg.Tenant(t)
 	_, staff := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Staff")
 	_, teacher := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Lehrkraft")

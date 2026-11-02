@@ -13,40 +13,28 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewTenantSSEChannel builds the in-app notification channel over the
-// process hub and the tenant unit of work. Over the relaying hub of
-// NewPostgresRealtimeHub it stores each notification for the other API
-// processes and binds the hub to load theirs in the school's transaction
-// (#5504).
-func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians notifications.GuardianChildAccessRepository, logger *slog.Logger) (notifications.Channel, error) {
-	return notifications.NewTenantSSEChannel(runtime, broadcaster, db, guardians, logger,
-		postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase))
-}
-
 // NewPostgresRealtimeHub builds Delivery's process-scoped transport. API roots
 // listen and publish; standalone Workers publish without a listener connection.
-func NewPostgresRealtimeHub(db *bun.DB, logger *slog.Logger, listen bool) (*realtime.Hub, io.Closer, error) {
+// Relayed notifications load in the school transaction of runtime (#5504).
+func NewPostgresRealtimeHub(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, listen bool) (*realtime.Hub, io.Closer, error) {
+	content, err := notifications.NewRelayedContent(runtime, db, postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase))
+	if err != nil {
+		return nil, nil, err
+	}
 	publisher, err := postgres.NewRealtimePublisher(db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	hub, err := realtime.NewRelayedHub(logger, publisher.Publish, realtime.Observers{
+	hub, err := realtime.NewRelayedHub(logger, publisher.Publish, content, realtime.Observers{
 		Connection: observability.RecordSSEConnection,
 		Broadcast:  observability.RecordSSEBroadcast,
 	})
 	if err != nil {
 		return nil, nil, errors.Join(err, publisher.Close())
 	}
-	subscription, err := postgres.NewRealtimeSubscription(db, logger, hub.ReceiveSignal, listen)
+	subscription, err := postgres.NewRealtimeSubscription(db, logger, hub.ReceiveSignal, listen, publisher)
 	if err != nil {
 		return nil, nil, errors.Join(err, publisher.Close())
 	}
-	return hub, realtimeResources{publisher, subscription}, nil
-}
-
-// Stop the publisher before the listener, then the root closes the pool.
-type realtimeResources struct{ publisher, subscription io.Closer }
-
-func (r realtimeResources) Close() error {
-	return errors.Join(r.publisher.Close(), r.subscription.Close())
+	return hub, subscription, nil
 }

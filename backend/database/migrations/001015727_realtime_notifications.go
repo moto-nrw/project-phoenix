@@ -42,6 +42,12 @@ func init() {
 //
 // A row is readable for two minutes; the nightly Delivery retention deletes
 // it afterwards.
+//
+// platform.delivery_realtime_recipients is Delivery's projection for showing
+// a relayed copy: it answers, per account and school, the delivery-time rules
+// of platform.delivery_push_subscriptions (active account and membership,
+// staff, Lehrkraft or guardian role, children with parent_portal.access) for
+// accounts that have no push subscription.
 const realtimeNotificationsUpSQL = `
 		CREATE TABLE platform.realtime_notifications (
 			id              BIGSERIAL PRIMARY KEY,
@@ -62,6 +68,53 @@ const realtimeNotificationsUpSQL = `
 		REVOKE ALL ON platform.realtime_notifications FROM PUBLIC, phoenix_tenant;
 		GRANT SELECT, INSERT, DELETE ON platform.realtime_notifications TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE platform.realtime_notifications_id_seq TO phoenix_tenant;
+
+		CREATE VIEW platform.delivery_realtime_recipients
+		WITH (security_invoker = true, security_barrier = true) AS
+		SELECT
+			"account_tenant".tenant_id,
+			"account_tenant".account_id,
+			COALESCE("account".active, FALSE) AND "account_tenant".status = 'active' AS active,
+			EXISTS (
+				SELECT 1
+				FROM auth.account_roles AS "staff_account_role"
+				INNER JOIN auth.roles AS "staff_role" ON "staff_role".id = "staff_account_role".role_id
+				WHERE "staff_account_role".account_id = "account_tenant".account_id
+					AND "staff_account_role".tenant_id = "account_tenant".tenant_id
+					AND LOWER("staff_role".name) <> 'guardian'
+			) AS has_staff_role,
+			EXISTS (
+				SELECT 1
+				FROM auth.account_roles AS "school_account_role"
+				INNER JOIN auth.roles AS "school_role" ON "school_role".id = "school_account_role".role_id
+				WHERE "school_account_role".account_id = "account_tenant".account_id
+					AND "school_account_role".tenant_id = "account_tenant".tenant_id
+					AND "school_role".is_system
+					AND LOWER(BTRIM("school_role".name)) = 'lehrkraft'
+			) AS has_school_role,
+			EXISTS (
+				SELECT 1
+				FROM auth.account_roles AS "guardian_account_role"
+				INNER JOIN auth.roles AS "guardian_role" ON "guardian_role".id = "guardian_account_role".role_id
+				WHERE "guardian_account_role".account_id = "account_tenant".account_id
+					AND "guardian_account_role".tenant_id = "account_tenant".tenant_id
+					AND LOWER("guardian_role".name) = 'guardian'
+			) AS has_guardian_role,
+			COALESCE(ARRAY(
+				SELECT "child_link".student_id
+				FROM users.student_guardian_relationships AS "child_link"
+				INNER JOIN auth.guardian_student_access AS "child_access"
+					ON "child_access".tenant_id = "child_link".tenant_id
+					AND "child_access".relationship_id = "child_link".id
+				INNER JOIN users.guardian_profiles AS "child_guardian"
+					ON "child_guardian".id = "child_link".guardian_profile_id
+				WHERE "child_link".tenant_id = "account_tenant".tenant_id
+					AND "child_guardian".account_id = "account_tenant".account_id
+					AND "child_access".permissions @> '{"parent_portal.access": true}'::jsonb
+			), '{}'::BIGINT[]) AS guardian_student_ids
+		FROM auth.account_tenants AS "account_tenant"
+		LEFT JOIN auth.accounts AS "account" ON "account".id = "account_tenant".account_id;
+		GRANT SELECT ON platform.delivery_realtime_recipients TO phoenix_tenant;
 `
 
 func realtimeNotificationsUp(ctx context.Context, db *bun.DB) error {
@@ -96,7 +149,8 @@ func realtimeNotificationsDown(ctx context.Context, db *bun.DB) error {
 				return fmt.Errorf("restore the staff qualification type school erasure: %w", err)
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS platform.realtime_notifications`); err != nil {
+		if _, err := tx.ExecContext(ctx, `DROP VIEW IF EXISTS platform.delivery_realtime_recipients;
+			DROP TABLE IF EXISTS platform.realtime_notifications`); err != nil {
 			return fmt.Errorf("drop the realtime notifications: %w", err)
 		}
 		return nil

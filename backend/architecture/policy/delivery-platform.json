@@ -226,6 +226,10 @@
       "write_owner": "delivery-platform"
     },
     {
+      "name": "platform.delivery_realtime_recipients",
+      "write_owner": "delivery-platform"
+    },
+    {
       "name": "platform.realtime_notifications",
       "write_owner": "delivery-platform"
     }

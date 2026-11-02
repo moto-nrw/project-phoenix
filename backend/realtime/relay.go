@@ -48,9 +48,9 @@ type NotificationAddress struct {
 // addressed ID: then nothing is shown. Content never comes from the signal.
 type NotificationContent func(ctx context.Context, schoolID, notificationID int64, address NotificationAddress) (event Event, permitted NotificationAddress, ok bool, err error)
 
-// errNotificationContentUnbound reports a relayed notification in a process
-// whose owner has not bound the content lookup.
-var errNotificationContentUnbound = errors.New("realtime notification content is not bound")
+// errNotificationContentUnbound reports a relayed notification at a hub
+// built without the content lookup.
+var errNotificationContentUnbound = errors.New("realtime hub shows no relayed notifications")
 
 // signal retains the original audience alongside its school. It is an internal
 // process-to-process envelope, not the browser's SSE payload.
@@ -69,30 +69,23 @@ type signal struct {
 
 // NewRelayedHub delivers locally and also publishes invalidation signals.
 // ReceiveSignal performs local fan-out only, so received messages never loop.
-func NewRelayedHub(logger *slog.Logger, publish func(string) error, observers ...Observers) (*Hub, error) {
+// content loads the notifications other processes relay by ID (#5504); it is
+// fixed at construction. A hub without it discards relayed notifications.
+func NewRelayedHub(logger *slog.Logger, publish func(string) error, content NotificationContent, observers ...Observers) (*Hub, error) {
 	if publish == nil {
 		return nil, fmt.Errorf("realtime publisher is required")
 	}
 	hub := NewHub(logger, observers...)
 	hub.publish = publish
+	hub.notificationContent = content
 	// Origin is echo suppression, not authentication. The channel is untrusted.
 	hub.origin = fmt.Sprintf("%016x%016x", rand.Uint64(), rand.Uint64())
 	return hub, nil
 }
 
-// RelayNotifications binds the content lookup of relayed notifications and
-// reports whether this hub relays them at all. Only a hub that publishes to
-// other processes relays notifications; the owner binds it once per process,
-// and until then such signals are discarded.
-func (h *Hub) RelayNotifications(load NotificationContent) bool {
-	if h.publish == nil || load == nil {
-		return false
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.notificationContent = load
-	return true
-}
+// Relays reports whether this hub publishes to other processes, so a
+// notification stored for them can be loaded there.
+func (h *Hub) Relays() bool { return h.publish != nil }
 
 // normalize rejects unscoped or unknown audiences rather than broadening them
 // and reduces every ID and topic to its canonical form. Invalid optional IDs
@@ -173,9 +166,7 @@ func (h *Hub) ReceiveSignal(payload string) error {
 // receiveNotification shows a relayed notification only as its owner loads
 // it: from the school's own row, to the recipients that row names.
 func (h *Hub) receiveNotification(s signal) error {
-	h.mu.RLock()
 	load := h.notificationContent
-	h.mu.RUnlock()
 	if load == nil {
 		return errNotificationContentUnbound
 	}
