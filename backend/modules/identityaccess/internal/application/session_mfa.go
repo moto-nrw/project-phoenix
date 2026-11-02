@@ -80,7 +80,7 @@ func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, ac
 
 // prepareSessionMint orders policy -> account -> permission-source locks and
 // rejects the transaction before it persists an unverified privileged session.
-func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account domain.LoginAccount, session *domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (time.Time, error) {
+func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account domain.LoginAccount, session *domain.AccountSession, tenantID int64, guard mintGuard, sourceFamilyID string) (time.Time, error) {
 	if s.mfa.Configured() && scopeNeedsMFA(session.PortalScope) {
 		if err := s.lockMFAPolicyForMint(ctx, account.ID, tenantID); err != nil {
 			return time.Time{}, err
@@ -95,7 +95,7 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
 	}
-	if err := s.adoptSourceFamily(ctx, account.ID, retireFamilyID, session, loginTime); err != nil {
+	if err := s.adoptSourceFamily(ctx, account.ID, sourceFamilyID, session, loginTime); err != nil {
 		return time.Time{}, &mintGuardError{err: err}
 	}
 	if err := s.requireSessionMFA(ctx, account.ID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
@@ -174,10 +174,32 @@ func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.Verif
 // adoptSourceFamily checks the family a switch presents: it must still live,
 // and a tenant or school switch inherits its second-factor proof.
 func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID int64, familyID string, session *domain.AccountSession, now time.Time) error {
-	if err := s.requireLiveSourceFamily(ctx, accountID, familyID, now); err != nil {
+	source, err := s.liveSourceFamily(ctx, accountID, familyID, now)
+	if err != nil {
 		return err
 	}
-	if familyID == "" || (session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool) {
+	if familyID == "" {
+		return nil
+	}
+	// The link is written under the account lock logout takes: a logout
+	// that runs after this switch commits finds the new family through it
+	// (#5422); one that ran before left no source family to switch from.
+	session.SwitchedFromFamilyID = domain.SwitchLineage(source)
+	// A family issued before #5422 cannot escape its transition deadline
+	// by switching on: the new family keeps it (capLegacyLineage).
+	if deadline := legacyDeadline(source); deadline != nil {
+		session.FamilyExpiryCap = deadline
+		session.LineageDeadline = deadline
+		if deadline.Before(session.Expiry) {
+			session.Expiry = *deadline
+		}
+	}
+	// The Absprung guard already checked the Träger proof under this lock;
+	// it must not be replaced by a same-school-portal proof lookup.
+	if domain.IsTraegerSchoolSession(*session) && source.PortalScope == domain.PortalScopeOrg {
+		return nil
+	}
+	if session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool {
 		return nil
 	}
 	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)
@@ -188,23 +210,32 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	return nil
 }
 
-// requireLiveSourceFamily refuses a switch whose presented family is gone
-// (#5194). It runs under the account lock logout takes as well, so a switch
-// that started before a logout either commits first or finds the family
-// revoked; it cannot mint a new session out of a revoked one.
-func (s *AccountAuthentication) requireLiveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) error {
+func (s *AccountAuthentication) liveSourceLineage(ctx context.Context, accountID int64, familyID string, now time.Time) (string, error) {
+	source, err := s.liveSourceFamily(ctx, accountID, familyID, now)
+	if err != nil {
+		return "", err
+	}
+	return domain.SwitchLineage(source), nil
+}
+
+// liveSourceFamily returns the presented family's head, refusing a switch
+// whose presented family is gone (#5194). It runs
+// under the account lock logout takes as well, so a switch that started
+// before a logout either commits first or finds the family revoked; it
+// cannot mint a new session out of a revoked one.
+func (s *AccountAuthentication) liveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) (domain.AccountSession, error) {
 	if familyID == "" {
-		return nil
+		return domain.AccountSession{}, nil
 	}
 	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
 	if err != nil {
-		return fmt.Errorf("inspect source session family: %w", err)
+		return domain.AccountSession{}, fmt.Errorf("inspect source session family: %w", err)
 	}
 	if source.AccountID != accountID || !source.Expiry.After(now) {
-		return identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
-	return nil
+	return domain.AccountSession(source), nil
 }

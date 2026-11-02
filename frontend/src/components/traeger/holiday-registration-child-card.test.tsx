@@ -5,6 +5,7 @@ import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrati
 import {
   HOLIDAY_PERIOD,
   HOLIDAY_REGISTRATION,
+  HOLIDAY_REGISTRATION_HEALTH,
 } from "~/test/fixtures/holiday-registrations";
 import { schoolNames } from "./holiday-registration-format";
 
@@ -25,6 +26,7 @@ function renderCard(
   registration: HolidayRegistrationDetail,
   childIndex: number,
   onChanged = vi.fn(),
+  healthHidden = false,
 ) {
   const child = registration.children[childIndex]!;
   render(
@@ -33,7 +35,14 @@ function renderCard(
         period={HOLIDAY_PERIOD}
         registration={registration}
         child={child}
-        health={registration.health.find((entry) => entry.childId === child.id)}
+        health={
+          healthHidden
+            ? undefined
+            : HOLIDAY_REGISTRATION_HEALTH.children.find(
+                (entry) => entry.childId === child.id,
+              )
+        }
+        healthHidden={healthHidden}
         names={names}
         onChanged={onChanged}
       />
@@ -66,6 +75,16 @@ describe("HolidayRegistrationChildCard", () => {
     expect(
       screen.getByRole("link", { name: "Anmeldung Nr. 8 öffnen" }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
+  });
+
+  it("says who sees the health information instead of showing it (#4722)", () => {
+    renderCard(HOLIDAY_REGISTRATION, 0, vi.fn(), true);
+
+    // Anker: die Karte ist geladen und sagt, wer die Angaben sieht.
+    expect(
+      screen.getByText("Gesundheitsangaben sieht nur die Rolle Verwaltung."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
   });
 
   it("names a holiday guest with its school", () => {

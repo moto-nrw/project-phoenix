@@ -23,40 +23,9 @@ func init() {
 	Migrations.MustRegister(holidayHostSharedAnswersUp, holidayHostSharedAnswersDown)
 }
 
-// holidayHostSharedAnswersUpSQL gives the school that hosts a holiday week
-// the answers without health information the Träger shares with it, and the
-// second guardian (#5202, user decision of 28.10.2026 for option B, ADR 0116
-// and ADR 0120 addenda). It replaces the two narrow functions of ADR 0116 and
-// ADR 0120 and keeps every other rule of them:
-//
-//   - enrollment.holiday_host_participants adds per child the name and phone
-//     of the second guardian and the answers to the shared questions of the
-//     form version the child's registration was submitted with.
-//   - enrollment.holiday_host_guest_contacts adds the second guardian as an
-//     emergency contact "Eltern" after the registering parent.
-//   - enrollment.holiday_guests.answers carries the shared answers of the
-//     copy; they end with its contacts.
-//
-// A question leaves the Träger only when all of this holds, so a missing or
-// unclear marker keeps it with the Träger:
-//
-//  1. its version is the one the registration keeps, and that version marks
-//     it share_with_host = true;
-//  2. that version marks it health = false, as a JSON boolean;
-//  3. no version of the period marks a question with the same key anything
-//     but health = false: a key that was ever a health question, or whose
-//     marker is missing, never leaves;
-//  4. it is a question type with an answer (no information block).
-//
-// A boolean answer leaves as a boolean, every other answer as a string; a
-// selection leaves as the label of the chosen option. An answer of any other
-// JSON type leaves as null. The functions select no e-mail address, no
-// allergy, medication or health note, no consent and no other column; the
-// access ends after the last day of the week as before
-// (enrollment.holiday_host_week). Existing form versions carry no
-// share_with_host, so nothing they collected leaves.
-const holidayHostSharedAnswersUpSQL = `
-DROP FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT);
+// holidayHostParticipantsSharedAnswersSQL creates the participant function
+// of #5202. The health data migration of #4722 restores it on its down path.
+const holidayHostParticipantsSharedAnswersSQL = `
 CREATE FUNCTION enrollment.holiday_host_participants(p_organization_id BIGINT, p_week_id BIGINT)
 	RETURNS TABLE (
 		child_id BIGINT, first_name TEXT, last_name TEXT, birth_date DATE,
@@ -136,7 +105,43 @@ COMMENT ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) IS
 	'Minimum fields, second guardian (name, phone) and shared answers without health information of the confirmed children of a week the school of app.current_tenant_id hosts (#4665, #5202, ADR 0116); no e-mail address, no health information.';
 REVOKE ALL ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) TO phoenix_tenant;
+`
 
+// holidayHostSharedAnswersUpSQL gives the school that hosts a holiday week
+// the answers without health information the Träger shares with it, and the
+// second guardian (#5202, user decision of 28.10.2026 for option B, ADR 0116
+// and ADR 0120 addenda). It replaces the two narrow functions of ADR 0116 and
+// ADR 0120 and keeps every other rule of them:
+//
+//   - enrollment.holiday_host_participants adds per child the name and phone
+//     of the second guardian and the answers to the shared questions of the
+//     form version the child's registration was submitted with.
+//   - enrollment.holiday_host_guest_contacts adds the second guardian as an
+//     emergency contact "Eltern" after the registering parent.
+//   - enrollment.holiday_guests.answers carries the shared answers of the
+//     copy; they end with its contacts.
+//
+// A question leaves the Träger only when all of this holds, so a missing or
+// unclear marker keeps it with the Träger:
+//
+//  1. its version is the one the registration keeps, and that version marks
+//     it share_with_host = true;
+//  2. that version marks it health = false, as a JSON boolean;
+//  3. no version of the period marks a question with the same key anything
+//     but health = false: a key that was ever a health question, or whose
+//     marker is missing, never leaves;
+//  4. it is a question type with an answer (no information block).
+//
+// A boolean answer leaves as a boolean, every other answer as a string; a
+// selection leaves as the label of the chosen option. An answer of any other
+// JSON type leaves as null. The functions select no e-mail address, no
+// allergy, medication or health note, no consent and no other column; the
+// access ends after the last day of the week as before
+// (enrollment.holiday_host_week). Existing form versions carry no
+// share_with_host, so nothing they collected leaves.
+const holidayHostSharedAnswersUpSQL = `
+DROP FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT);
+` + holidayHostParticipantsSharedAnswersSQL + `
 DROP FUNCTION enrollment.holiday_host_guest_contacts(BIGINT, BIGINT);
 CREATE FUNCTION enrollment.holiday_host_guest_contacts(p_organization_id BIGINT, p_week_id BIGINT)
 	RETURNS TABLE (child_id BIGINT, kind TEXT, "position" SMALLINT, name TEXT, phone TEXT, relationship TEXT)
@@ -272,4 +277,13 @@ func holidayHostSharedAnswersDown(ctx context.Context, db *bun.DB) error {
 		}
 		return nil
 	})
+}
+
+// restoreHolidayHostParticipantsSharedAnswers creates the participant function
+// of #5202 again; the down path of #4722 calls it after dropping its own.
+func restoreHolidayHostParticipantsSharedAnswers(ctx context.Context, tx bun.Tx) error {
+	if _, err := tx.ExecContext(ctx, holidayHostParticipantsSharedAnswersSQL); err != nil {
+		return fmt.Errorf("restore holiday host participants of #5202: %w", err)
+	}
+	return nil
 }

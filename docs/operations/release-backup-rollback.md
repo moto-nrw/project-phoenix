@@ -114,7 +114,7 @@ prune prints a warning and leaves the deployment's result unchanged.
 
 ## Manual rollback
 
-1. Run **Manual Rollback** on the deployed branch. Production and demo require `main`.
+1. Run **Manual rollback** on the deployed branch. Production and demo require `main`.
 2. Choose the environment. Leave `backup_id` empty to use its recorded
    pre-deployment snapshot, or supply a complete backup directory's basename.
 3. The workflow validates the full snapshot and old images before any

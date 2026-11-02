@@ -365,6 +365,14 @@
       "class": "standard"
     },
     {
+      "path": "crypto/aes",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/cipher",
+      "class": "crypto"
+    },
+    {
       "path": "crypto/ecdh",
       "class": "crypto"
     },

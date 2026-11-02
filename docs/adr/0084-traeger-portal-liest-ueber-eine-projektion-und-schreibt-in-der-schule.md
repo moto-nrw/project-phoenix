@@ -247,3 +247,70 @@ zusammen mit dem Fachrecht.
   [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md).
 - Nicht entschieden ist hier Personal über Schulen (#1417, #2817). Dafür ist
   eine eigene ADR der Spec vorgesehen.
+
+## Nachtrag 2026-11-01: Recht „Gesundheitsangaben sehen“ (#4722)
+
+Abschnitt 4 bekommt ein Recht `traeger_health:read` („Gesundheitsangaben
+sehen“). Es öffnet die Gesundheitsangaben einer Ferienanmeldung: Allergien,
+Medikamente, weitere Hinweise zur Gesundheit und die Antworten auf Fragen
+mit Gesundheitskennzeichen.
+
+| Recht | Verwaltung | Abrechnung | Personal | nur lesen |
+|---|---|---|---|---|
+| Gesundheitsangaben sehen | ✓ | | | |
+
+- Die Einzelansicht einer Anmeldung trägt keine Gesundheitsangaben mehr. Sie
+  liest `GET /traeger/holiday-periods/{id}/registrations/{registrationId}/health`
+  hinter „Anmeldung verwalten“ und „Gesundheitsangaben sehen“. Ohne das Recht
+  antwortet die Route 403; die übrige Anmeldung bleibt lesbar.
+- Jedes Lesen steht als Aktion `health` im Protokoll der Anmeldung und im
+  Zugriffsprotokoll des Trägers (Abschnitt 7).
+- Liste und Export tragen weiter keine Gesundheitsangaben.
+- In der Datenbank stehen die Gesundheitsangaben nur verschlüsselt
+  (AES-256-GCM mit Security Runtimes Feldverschlüsselung, Schlüsselring
+  `HEALTH_DATA_KEYS` mit Schlüssel-ID im Chiffrat). Server und Migration
+  starten ohne gültigen Schlüsselring nicht.
+
+## Nachtrag 2026-11-02: Rollen Leitung und Schulzugang (#5471)
+
+Entscheidung des Nutzers vom 01.11.2026. „Konten verwalten“ und „In OGS
+wechseln“ waren an Verwaltung gebunden: Jede Person mit Verwaltung konnte
+jede andere einladen, herabstufen oder entfernen und war Admin in jeder
+Schule des Trägers. Beide Rechte bekommen eigene Rollen.
+
+| Recht | Leitung | Verwaltung | Schulzugang | Abrechnung | Personal | nur lesen |
+|---|---|---|---|---|---|---|
+| Übersicht lesen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Anmeldung verwalten | | ✓ | | | | |
+| Verträge verwalten | | ✓ | | | | |
+| Abrechnung | | | | ✓ | | |
+| Finanz-Export | | | | ✓ | | |
+| Personal | | | | | ✓ | |
+| Berichte | | ✓ | | ✓ | ✓ | ✓ |
+| Einstellungen | | ✓ | | | | |
+| Konten verwalten | ✓ | | | | | |
+| Zugriffsprotokoll lesen | | ✓ | | | | |
+| In OGS wechseln | | | ✓ | | | |
+| Gesundheitsangaben sehen | | ✓ | | | | |
+
+Die Rollennamen sind `leadership` und `school_access`. Regeln:
+
+- Nur eine Person mit Leitung vergibt Leitung, entzieht sie oder entfernt eine
+  Person mit Leitung. Die Prüfung steht für sich, auch wenn später eine andere
+  Rolle „Konten verwalten“ bekäme.
+- Die letzte nutzbare Leitung (aktives, nicht gelöschtes Konto mit aktiver
+  Mitgliedschaft) verliert die Rolle nicht und wird nicht entfernt, auch nicht
+  durch sich selbst. Diese Sperre ersetzt die Sperre auf Verwaltung; der
+  Fehlercode bleibt `traeger.last_administrator`.
+- Lädt das moto-Team eine Person ein, solange der Träger keine nutzbare
+  Leitung hat, bekommt die Einladung zusätzlich Leitung. Die direkte
+  Zuweisung eines bestehenden Kontos im Operator-Portal vergibt genau die
+  gewählten Rollen.
+- Die Migration 1.15.729 gibt jeder Person und jeder Einladung mit
+  Verwaltung zusätzlich Leitung und Schulzugang. Niemand verliert ein Recht;
+  das Träger-Büro entscheidet danach selbst, wer was behält. Der Rückweg gibt
+  jeder Person und Einladung mit einer der neuen Rollen Verwaltung und
+  entfernt die neuen Rollen.
+- Laufende Sitzungen bekommen die neuen Rechte beim nächsten Refresh: Die
+  Träger-Sitzung liest ihre Rollen neu, die Schulsitzung prüft „In OGS
+  wechseln“ neu (Abschnitt 5) und endet ohne Schulzugang.

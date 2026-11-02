@@ -39,8 +39,9 @@ export interface HolidayHomeSchoolCount {
 }
 
 /**
- * Antwort auf eine Frage, die der Träger für die OGS freigibt (#5202). Nur
- * Fragen ohne Gesundheitsangabe. `value` ist `true`/`false` bei Ja/Nein, die
+ * Antwort auf eine Frage, die der Träger für die OGS freigibt (#5202). In
+ * `answers` nur Fragen ohne Gesundheitsangabe; Antworten auf Gesundheitsfragen
+ * stehen in `health` (#4722). `value` ist `true`/`false` bei Ja/Nein, die
  * gewählte Antwort bei einer Auswahl, ein Kalendertag „YYYY-MM-DD“ bei einem
  * Datum, sonst der Text; `null` ohne Antwort.
  */
@@ -49,6 +50,36 @@ export interface HolidayHostAnswer {
   readonly label: string;
   readonly type: string;
   readonly value: boolean | string | null;
+}
+
+/**
+ * Die Gesundheitsangaben eines Kindes aus der Ferienanmeldung (#4722): nur,
+ * wenn die Eltern der Weitergabe an die OGS zugestimmt haben.
+ */
+export interface HolidayHostHealth {
+  readonly allergies: string;
+  readonly medication: string;
+  readonly healthNotes: string;
+  readonly answers: HolidayHostAnswer[];
+}
+
+interface BackendHostHealth {
+  allergies: string;
+  medication: string;
+  health_notes: string;
+  answers?: HolidayHostAnswer[] | null;
+}
+
+function mapHealth(
+  health: BackendHostHealth | null | undefined,
+): HolidayHostHealth | null {
+  if (!health) return null;
+  return {
+    allergies: health.allergies,
+    medication: health.medication,
+    healthNotes: health.health_notes,
+    answers: health.answers ?? [],
+  };
 }
 
 /** Eine freigegebene Frage der Liste: eine Spalte. */
@@ -76,6 +107,8 @@ export interface HolidayParticipant {
   /** `null` ohne zweite sorgeberechtigte Person. */
   readonly secondGuardian: HolidayHostGuardian | null;
   readonly answers: HolidayHostAnswer[];
+  /** `null` ohne Gesundheitsangaben oder ohne Zustimmung der Eltern. */
+  readonly health: HolidayHostHealth | null;
 }
 
 export interface HolidayParticipantList {
@@ -132,6 +165,7 @@ interface BackendParticipantList {
     time_model_id: number | string;
     second_guardian?: HolidayHostGuardian | null;
     answers?: HolidayHostAnswer[] | null;
+    health?: BackendHostHealth | null;
   }[];
 }
 
@@ -182,6 +216,7 @@ function mapHolidayParticipantList(
       timeModelId: String(participant.time_model_id),
       secondGuardian: participant.second_guardian ?? null,
       answers: participant.answers ?? [],
+      health: mapHealth(participant.health),
     })),
   };
 }
@@ -255,7 +290,7 @@ export interface HolidayGuestContact {
 /**
  * Was die ausrichtende OGS von einem Feriengast über den Namen hinaus sieht:
  * Betreuung, Notfall und Abholung, dazu die Antworten, die der Träger
- * freigibt (#5202).
+ * freigibt (#5202), und die Gesundheitsangaben (#4722).
  */
 export interface HolidayGuestSheet {
   readonly studentId: string;
@@ -271,6 +306,8 @@ export interface HolidayGuestSheet {
   readonly emergencyContacts: HolidayGuestContact[];
   readonly pickupContacts: HolidayGuestContact[];
   readonly answers: HolidayHostAnswer[];
+  /** `null` ohne Gesundheitsangaben oder ohne Zustimmung der Eltern. */
+  readonly health: HolidayHostHealth | null;
   /** Nach dem letzten Tag der Woche: nur noch sieben Tage zum Nachlesen. */
   readonly readOnly: boolean;
 }
@@ -287,6 +324,7 @@ interface BackendGuestSheet {
   emergency_contacts: HolidayGuestContact[] | null;
   pickup_contacts: HolidayGuestContact[] | null;
   answers?: HolidayHostAnswer[] | null;
+  health?: BackendHostHealth | null;
   read_only: boolean;
 }
 
@@ -340,6 +378,56 @@ export async function fetchHolidayGuestSheet(
     emergencyContacts: sheet.emergency_contacts ?? [],
     pickupContacts: sheet.pickup_contacts ?? [],
     answers: sheet.answers ?? [],
+    health: mapHealth(sheet.health),
     readOnly: sheet.read_only,
   };
+}
+
+// ─── Eigene Kinder der ausrichtenden OGS (#4722) ────────────────────────────
+
+/**
+ * Was eine bestätigte Ferienanmeldung zur Gesundheit eines eigenen Kindes
+ * angibt, für eine Woche, die die Schule ausrichtet. Es ändert das
+ * Gesundheitsfeld der Schule nicht.
+ */
+export interface HolidayStudentHealth {
+  readonly weekId: string;
+  readonly periodName: string;
+  /** Kalendertage der Ferienwoche als „YYYY-MM-DD“. */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly health: HolidayHostHealth;
+}
+
+interface BackendStudentHealth {
+  week_id: number | string;
+  period_name: string;
+  starts_on: string;
+  ends_on: string;
+  health: BackendHostHealth;
+}
+
+/**
+ * Die Gesundheitsangaben der Ferienanmeldungen eines eigenen Kindes bis zum
+ * letzten Tag der Woche. Jeder Abruf mit Angaben steht im Zugriffsprotokoll.
+ */
+export async function fetchHolidayStudentHealth(
+  studentId: string,
+): Promise<HolidayStudentHealth[]> {
+  const entries = await readData<BackendStudentHealth[] | null>(
+    `${BASE}/students/${encodeURIComponent(studentId)}/health`,
+    "Die Angaben aus der Ferienanmeldung konnten nicht geladen werden",
+  );
+  return (entries ?? []).map((entry) => ({
+    weekId: String(entry.week_id),
+    periodName: entry.period_name,
+    startsOn: entry.starts_on,
+    endsOn: entry.ends_on,
+    health: mapHealth(entry.health) ?? {
+      allergies: "",
+      medication: "",
+      healthNotes: "",
+      answers: [],
+    },
+  }));
 }

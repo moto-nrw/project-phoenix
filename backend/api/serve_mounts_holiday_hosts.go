@@ -27,9 +27,9 @@ type HolidayHostSchools interface {
 // school session and config:read like the other enrollment lists, the group
 // choice for the week's holiday guests behind users:create, and the sheet of
 // a holiday guest (#4666, ADR 0120) at /api/holiday-guests behind users:read.
-func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, care owners.HolidayGuestCarePlan, staff owners.HolidayGuestStaff, accessLog owners.DataAccessAppender) {
-	guests := owners.NewHolidayGuests(people, care, staff, accessLog, nil)
-	tenant.Mount("/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(schools, accessLog, nil), guests).Router(ProtectedTenantRoutes))
+func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, care owners.HolidayGuestCarePlan, staff owners.HolidayGuestStaff, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher) {
+	guests := owners.NewHolidayGuests(people, care, staff, accessLog, healthData, nil)
+	tenant.Mount("/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(schools, people, accessLog, healthData, nil), guests).Router(ProtectedTenantRoutes))
 	tenant.Mount("/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 }
 
@@ -40,12 +40,16 @@ func NewHolidayGuestHTTP(guests enrollmentOwner.HolidayGuests) *enrollmentAPI.Ho
 }
 
 // NewHolidayHostHTTP binds the participant lists to Enrollment, the school
-// names to Organisation & Tenancy and every read to the school's access log
-// at the Audit Platform. A nil today uses the Berlin calendar day.
-func NewHolidayHostHTTP(schools HolidayHostSchools, accessLog owners.DataAccessAppender, today func() calendar.Date) *enrollmentAPI.HolidayHostResource {
+// names to Organisation & Tenancy, the school's own children to the People
+// Directory and every read to the school's access log at the Audit Platform.
+// The health information of a child of the school needs users:read, like its
+// own health field (#4722). A nil today uses the Berlin calendar day.
+func NewHolidayHostHTTP(schools HolidayHostSchools, people owners.HolidayGuestDirectory, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) *enrollmentAPI.HolidayHostResource {
 	return enrollmentAPI.NewHolidayHostResource(
-		enrollmentCompose.NewHolidayHostParticipants(owners.NewHolidayParticipantAccessLog(accessLog), today),
-		holidayHostSchoolNames{schools: schools}, common.RequiresPermission(permissions.ConfigRead))
+		enrollmentCompose.NewHolidayHostParticipants(owners.NewHolidayParticipantAccessLog(accessLog), healthData,
+			owners.NewHolidayStudentIdentities(people), today),
+		holidayHostSchoolNames{schools: schools}, common.RequiresPermission(permissions.ConfigRead),
+		common.RequiresPermission(permissions.UsersRead))
 }
 
 // NewHolidayHostGuestHTTP adds to the participant lists the group choice for

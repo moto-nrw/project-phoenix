@@ -1,6 +1,10 @@
 package test
 
-import "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+import (
+	"encoding/base64"
+
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+)
 
 // NewTestPassword creates a throwaway credential satisfying the password policy.
 // Reuse it within a scenario (or a package fixture) so setup and login agree;
@@ -23,3 +27,18 @@ func randomTestCredential(length int) string {
 	}
 	return random
 }
+
+// NewTestHealthDataKeys returns a HEALTH_DATA_KEYS key ring with one random
+// key, so a test seals the health information of the holiday registrations
+// like the server does (#4722).
+func NewTestHealthDataKeys() string {
+	key := make([]byte, 32)
+	if err := securityruntime.FillRandom(key); err != nil {
+		panic("generate test health data key: " + err.Error())
+	}
+	return "test:" + base64.StdEncoding.EncodeToString(key)
+}
+
+// TestHealthDataKeys is the key ring of the test binary; the test
+// configuration serves it as HEALTH_DATA_KEYS.
+var TestHealthDataKeys = NewTestHealthDataKeys()

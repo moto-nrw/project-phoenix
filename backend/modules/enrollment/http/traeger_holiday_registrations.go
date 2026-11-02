@@ -35,6 +35,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Get("/{id}/registrations", rs.listRegistrations)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Get("/{id}/registrations/export", rs.exportRegistrations)
 	review.Get("/{id}/registrations/{registrationId}", rs.getRegistration)
+	r.With(rs.requireManage, rs.requireHealth, withTx).Get("/{id}/registrations/{registrationId}/health", rs.getRegistrationHealth)
 	review.Get("/{id}/registrations/{registrationId}/proofs/{proofId}", rs.openProof)
 	review.Post("/{id}/registrations/{registrationId}/cancel", rs.registrationAction(capability.HolidayAuditCancel))
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
@@ -104,6 +105,21 @@ func (rs *HolidayPeriodResource) getRegistration(w http.ResponseWriter, r *http.
 		return
 	}
 	common.Respond(w, r, http.StatusOK, detail, "Holiday registration retrieved successfully")
+}
+
+// getRegistrationHealth answers the health information of a registration
+// (#4722); the route admits only the right "Gesundheitsangaben sehen".
+func (rs *HolidayPeriodResource) getRegistrationHealth(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	health, err := rs.review.HolidayRegistrationHealth(r.Context(), reviewer, periodID, registrationID)
+	if err != nil {
+		renderHolidayReviewError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, health, "Holiday registration health information retrieved successfully")
 }
 
 // registrationAction answers cancel, freeze and reopen with the changed

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.728 (#4807): the 1.15.724 (#4808) preflight with the wage types and surcharge rules.
+// 1.15.732 (#4807): the 1.15.724 (#4808) preflight with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreflightSQL)
 	return err

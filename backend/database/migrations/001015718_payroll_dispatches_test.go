@@ -68,7 +68,7 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 	// Roll back the newer erasures before testing the payroll migration alone:
-	// the wage types (1.15.728, #4807) extend the Nachweisarten', the
+	// the wage types (1.15.732, #4807) extend the Nachweisarten', the
 	// Nachweisarten (1.15.724, #4808) the school vacations', the school
 	// vacations (1.15.721, #5345) the Elternsprechtag's, the Elternsprechtag
 	// (1.15.720, #4801) the weekly protocols'.

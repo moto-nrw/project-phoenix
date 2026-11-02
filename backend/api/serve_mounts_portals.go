@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -162,6 +164,7 @@ func newParentResource(
 	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
+	healthData enrollmentOwner.HolidayHealthCipher,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
@@ -176,7 +179,7 @@ func newParentResource(
 		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
-		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, logger),
+		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, logger),
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),
 		Preferences:           bindParentPreferences(notifications.Preferences),
 		PWAUsage:              devices.PWAUsage,

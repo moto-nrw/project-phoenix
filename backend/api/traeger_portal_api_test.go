@@ -74,7 +74,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	settings, err := owners.BuildTraegerSettings(database, unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
-		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings)
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher())
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -87,7 +87,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, delivery.Module, slog.Default())
+	mountParentBillingRoutes(router, organizations, settings, delivery.Module, testHealthCipher(), slog.Default())
 	return testpkg.SessionVerifier(router)
 }
 

@@ -144,6 +144,7 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
         timeModelId: "61",
         secondGuardian: null,
         answers: [],
+        health: null,
       },
       {
         childId: "2",
@@ -155,6 +156,7 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
         timeModelId: "62",
         secondGuardian: null,
         answers: [],
+        health: null,
       },
     ],
   };
@@ -275,6 +277,52 @@ describe("FerienwochenPage", () => {
     expect(
       screen.getByText(
         "Nur zur Information. Anmeldungen prüft und bestätigt der Träger. Dazu kommen Antworten der Eltern, die der Träger für Sie freigibt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the health information of the children whose parents agreed (#4722)", async () => {
+    weeksMock.mockResolvedValue([firstWeek]);
+    const list = listOf(firstWeek);
+    const [ben, lia] = list.participants;
+    if (!ben || !lia) throw new Error("fixture without children");
+    participantsMock.mockResolvedValue({
+      ...list,
+      participants: [
+        ben,
+        {
+          ...lia,
+          health: {
+            allergies: "Erdnüsse",
+            medication: "",
+            healthNotes: "",
+            answers: [
+              {
+                key: "tetanus_impfschutz",
+                label: "Tetanus-Impfschutz",
+                type: "select",
+                value: "Ja",
+              },
+            ],
+          },
+        },
+      ],
+    } satisfies HolidayParticipantList);
+
+    renderPage();
+
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+    const children = tableWith("Geburtsdatum");
+    expect(
+      within(children).getByText("Gesundheit", { selector: "th, th *" }),
+    ).toBeInTheDocument();
+    expect(within(children).getByText("Erdnüsse")).toBeInTheDocument();
+    expect(
+      within(children).getByText("Tetanus-Impfschutz:"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nur zur Information. Anmeldungen prüft und bestätigt der Träger. Gesundheitsangaben stehen bei den Kindern, deren Eltern zugestimmt haben.",
       ),
     ).toBeInTheDocument();
   });

@@ -77,14 +77,15 @@ const (
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
 type Runtime struct {
-	httpTasks      sync.WaitGroup
-	server         *http.Server
-	handler        http.Handler
-	db             transactionruntime.Database
-	worker         backgroundWorker
-	listen         func(network, address string) (net.Listener, error)
-	capacityLogger *capacityLogger
-	tracker        processResource
+	httpTasks         sync.WaitGroup
+	server            *http.Server
+	handler           http.Handler
+	db                transactionruntime.Database
+	worker            backgroundWorker
+	listen            func(network, address string) (net.Listener, error)
+	capacityLogger    *capacityLogger
+	tracker           processResource
+	realtimeTransport processResource
 	// workerStop stops the Worker once, whichever shutdown path comes first.
 	workerStop      sync.Once
 	logger          *slog.Logger
@@ -169,9 +170,13 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler, worker, capacity, err := composeProcess(config, db, tracker, metricsToken)
+	hub, transport, err := deliveryCompose.NewPostgresRealtimeHub(db.Pool(), config.Logger.With("component", "sse-hub"), config.Process != ServeWorkerOnly)
 	if err != nil {
 		return nil, errors.Join(err, closeRuntimeResources(db, tracker))
+	}
+	handler, worker, capacity, err := composeProcess(config, db, tracker, metricsToken, hub)
+	if err != nil {
+		return nil, errors.Join(err, transport.Close(), closeRuntimeResources(db, tracker))
 	}
 	if config.Process == ServeAPIOnly {
 		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
@@ -186,7 +191,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 			WriteTimeout: 0,
 			IdleTimeout:  0,
 		},
-		handler: handler, db: db, worker: runtimeWorker(worker), capacityLogger: capacity, tracker: tracker, logger: config.Logger,
+		handler: handler, db: db, realtimeTransport: transport, worker: runtimeWorker(worker), capacityLogger: capacity, tracker: tracker, logger: config.Logger,
 	}, nil
 }
 
@@ -237,12 +242,11 @@ func closeRuntimeResources(db transactionruntime.Database, tracker processResour
 // composeProcess builds the root the process runs: the server root with or
 // without its embedded Worker, or the standalone Worker root behind its
 // probes. All of them share one realtime hub.
-func composeProcess(config ServeConfig, db transactionruntime.Database, tracker analytics.Tracker, metricsToken string) (http.Handler, schedulerPorts.Worker, *capacityLogger, error) {
+func composeProcess(config ServeConfig, db transactionruntime.Database, tracker analytics.Tracker, metricsToken string, hub *realtime.Hub) (http.Handler, schedulerPorts.Worker, *capacityLogger, error) {
 	env, err := newProductionEnvironment(config.Logger, config.PublicAPIURL)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	hub := deliveryCompose.NewRealtimeHub(config.Logger.With("component", "sse-hub"))
 	metrics, tracer := newHTTPMetrics(), newRuntimeTracer(config.Logger)
 	capacity := newRuntimeCapacityLogger(db, hub, metrics, config.Logger)
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
@@ -473,5 +477,9 @@ func (runtime *Runtime) closeResources() error {
 		// resources. Closing the pool here would race those goroutines.
 		return nil
 	}
-	return closeRuntimeResources(runtime.db, runtime.tracker)
+	var err error
+	if runtime.realtimeTransport != nil {
+		err = runtime.realtimeTransport.Close()
+	}
+	return errors.Join(err, closeRuntimeResources(runtime.db, runtime.tracker))
 }

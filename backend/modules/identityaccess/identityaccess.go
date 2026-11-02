@@ -222,17 +222,24 @@ type AccountSession struct {
 	TenantID int64
 	// OrganizationID is the Träger of a Träger-Portal session (portal scope
 	// org); such a session has no school (ADR 0084).
-	OrganizationID       int64
-	AccountID            int64
-	Token                string
-	TokenHash            string
-	Expiry               time.Time
-	Mobile               bool
-	Identifier           *string
-	PortalScope          string
-	MFAVerified          bool
-	FamilyID             string
+	OrganizationID int64
+	AccountID      int64
+	Token          string
+	TokenHash      string
+	Expiry         time.Time
+	Mobile         bool
+	Identifier     *string
+	PortalScope    string
+	MFAVerified    bool
+	FamilyID       string
+	// SwitchedFromFamilyID names the origin of the session's switch lineage:
+	// the login family a school switch descends from, or the Träger family
+	// of an Absprung. It outlives the origin's rows (#5422).
+	SwitchedFromFamilyID string
 	FamilyExpiryCap      *time.Time
+	// LineageDeadline is the transition deadline of a lineage descending
+	// from a family issued before #5422; switches and rotations keep it.
+	LineageDeadline      *time.Time
 	Generation           int
 	RotatedAt            *time.Time
 	ReplacementTokenHash *string

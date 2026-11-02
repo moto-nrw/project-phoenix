@@ -28,6 +28,10 @@ type HolidayHost struct {
 	SchoolID  int64
 	AccountID int64
 	Role      string
+	// ReadsHealth is true when the account may read the children's health
+	// information (users:read, like the health field of a child); without
+	// it the participant list leaves the health information out (#4722).
+	ReadsHealth bool
 }
 
 // HostedHolidayWeek is a week the school hosts whose last day has not passed,
@@ -62,6 +66,13 @@ type HolidayParticipant struct {
 	TimeModelID     int64                `json:"time_model_id"`
 	SecondGuardian  *HolidayHostGuardian `json:"second_guardian"`
 	Answers         []HolidayHostAnswer  `json:"answers"`
+	// Health is the health information the hosting school sees (#4722):
+	// nil without any, or when the parents did not agree under consent
+	// texts of HolidayConsentVersionHostHealth.
+	Health *HolidayHostHealth `json:"health"`
+	// Sealed carries the sealed health information from the store to the
+	// service, which opens it into Health; it never leaves Enrollment.
+	Sealed *HolidaySealedHostHealth `json:"-"`
 }
 
 // HolidayHostGuardian is the second guardian of a registration as the
@@ -131,7 +142,10 @@ type HolidayParticipantAccess struct {
 	StartsOn       calendar.Date
 	EndsOn         calendar.Date
 	Participants   int
-	Format         string
+	// HealthParticipants counts the children whose health information the
+	// list showed (#4722).
+	HealthParticipants int
+	Format             string
 }
 
 // HolidayParticipantAccessLog writes a read of a participant list into the
@@ -139,6 +153,7 @@ type HolidayParticipantAccess struct {
 // root binds it to the Audit Platform.
 type HolidayParticipantAccessLog interface {
 	RecordHolidayParticipantAccess(ctx context.Context, access HolidayParticipantAccess) error
+	RecordHolidayStudentHealthAccess(ctx context.Context, access HolidayStudentHealthAccess) error
 }
 
 // HolidayHostParticipants serves the participant lists to the hosting
@@ -153,8 +168,59 @@ type HolidayHostParticipants interface {
 	// the read.
 	HolidayParticipants(ctx context.Context, host HolidayHost, weekID int64) (HolidayParticipantList, error)
 	// ExportHolidayParticipants returns the same list for an export file
-	// and records the export with its format.
+	// and records the export with its format. The export carries no health
+	// information (#4722).
 	ExportHolidayParticipants(ctx context.Context, host HolidayHost, weekID int64, format string) (HolidayParticipantList, error)
+	// HolidayStudentHealth returns the health information the registrations
+	// of the school's own child give for the weeks the school hosts, until
+	// the last day of each week, and records the read when there is any
+	// (#4722). It never changes the child's health field.
+	HolidayStudentHealth(ctx context.Context, host HolidayHost, studentID int64) ([]HolidayStudentHealth, error)
+}
+
+// HolidayStudentHealth is the health information a confirmed registration
+// gives for a child of the hosting school in one week it hosts (#4722): the
+// registration names the school as the child's home school and the child's
+// names and date of birth. The school keeps its own health field; this
+// stands beside it as "Angaben aus der Ferienanmeldung".
+type HolidayStudentHealth struct {
+	WeekID     int64             `json:"week_id"`
+	PeriodName string            `json:"period_name"`
+	StartsOn   calendar.Date     `json:"starts_on"`
+	EndsOn     calendar.Date     `json:"ends_on"`
+	Health     HolidayHostHealth `json:"health"`
+	// Sealed carries the sealed values from the store to the service.
+	Sealed *HolidaySealedHostHealth `json:"-"`
+}
+
+// HolidayStudentIdentity is what matches a child of the school to the
+// children of the registrations: names and date of birth.
+type HolidayStudentIdentity struct {
+	FirstName string
+	LastName  string
+	BirthDate calendar.Date
+}
+
+// HolidayStudentIdentities reads the names and the date of birth of a child
+// of the school in its tenant transaction; ErrHolidayStudentNotFound for a
+// child the school does not have. The root binds the People Directory.
+type HolidayStudentIdentities interface {
+	HolidayStudentIdentity(ctx context.Context, studentID int64) (HolidayStudentIdentity, error)
+}
+
+// ErrHolidayStudentNotFound reports a child that is not a child of the
+// school.
+var ErrHolidayStudentNotFound = errors.New("student of the hosting school not found")
+
+// HolidayStudentHealthAccess is one read of the health information of the
+// school's own child for its access log.
+type HolidayStudentHealthAccess struct {
+	ActorAccountID int64
+	ActorRole      string
+	StudentID      int64
+	WeekIDs        []int64
+	StartsOn       calendar.Date
+	EndsOn         calendar.Date
 }
 
 // HolidayHostSchoolNames names the schools of the hosting school's Träger,

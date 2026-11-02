@@ -98,12 +98,15 @@ const (
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			form_version, custom_data, legal_acceptances)
+			form_version, custom_data, legal_acceptances, consent_version)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
 			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
-			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)))
+			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)),
+			NULLIF(?, 0))
 		RETURNING id, submitted_at`
+	setHolidayFamilyHealthQuery = `UPDATE enrollment.holiday_registrations SET health_data = ?
+		WHERE organization_id = ? AND id = ?`
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
 		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id
@@ -116,7 +119,7 @@ const (
 )
 
 // holidayChildRow is one child of a registration; a nil HomeSchoolID makes a
-// holiday guest.
+// holiday guest. HealthData is its sealed health information (#4722).
 type holidayChildRow struct {
 	bun.BaseModel `bun:"table:enrollment.holiday_registration_children"`
 
@@ -130,9 +133,7 @@ type holidayChildRow struct {
 	BirthDate             calendar.Date             `bun:"birth_date,type:date"`
 	HomeSchoolID          *int64                    `bun:"home_school_id"`
 	GuestSchoolName       string                    `bun:"guest_school_name"`
-	Allergies             string                    `bun:"allergies"`
-	Medication            string                    `bun:"medication"`
-	HealthNotes           string                    `bun:"health_notes"`
+	HealthData            []byte                    `bun:"health_data"`
 	CustomData            enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
 }
 
@@ -154,9 +155,12 @@ func encodeAnswers(answers enrollment.HolidayAnswers) (string, error) {
 }
 
 // InsertHolidayRegistration stores the registration with its children,
-// bookings and contacts: one statement for the registration, one per child
-// and one each for all bookings and all contacts.
-func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
+// bookings and contacts: one statement for the registration, one for its
+// sealed health information when it has any, one per child and one each for
+// all bookings and all contacts. seal returns the sealed values for the new
+// registration's ID; the store writes no plaintext health information.
+func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput,
+	seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidayRegistrationReceipt, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
@@ -176,22 +180,59 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	}
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
-		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances))).Scan(ctx, &receipt); err != nil {
+		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances)),
+		input.ConsentVersion).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
+	sealed, err := storeHolidayFamilyHealth(ctx, db, organizationID, receipt.ID, len(input.Children), seal)
+	if err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if err := insertHolidayChildren(ctx, db, organizationID, periodID, receipt.ID, input.Children, sealed.Children); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if err := insertHolidayContacts(ctx, db, organizationID, receipt.ID, input); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	return enrollment.HolidayRegistrationReceipt{ID: receipt.ID, SubmittedAt: receipt.SubmittedAt}, nil
+}
+
+// storeHolidayFamilyHealth seals the health information for the new
+// registration and stores its family part; it returns the children's parts.
+func storeHolidayFamilyHealth(ctx context.Context, db bun.IDB, organizationID, registrationID int64, children int,
+	seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidaySealedHealth, error) {
+	sealed, err := seal(registrationID)
+	if err != nil {
+		return enrollment.HolidaySealedHealth{}, err
+	}
+	if len(sealed.Children) != children {
+		return enrollment.HolidaySealedHealth{}, errors.New("enrollment postgres: the sealed health information does not match the children")
+	}
+	if sealed.Family != nil {
+		if _, err := db.NewRaw(setHolidayFamilyHealthQuery, sealed.Family, organizationID, registrationID).Exec(ctx); err != nil {
+			return enrollment.HolidaySealedHealth{}, fmt.Errorf("enrollment postgres: store sealed holiday family health: %w", err)
+		}
+	}
+	return sealed, nil
+}
+
+// insertHolidayChildren stores one row per child with its sealed health
+// information, then all bookings in one statement.
+func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, periodID, registrationID int64,
+	children []enrollment.HolidayChildInput, sealed [][]byte) error {
 	var childIDs, weekIDs, modelIDs []int64
-	for i, child := range input.Children {
+	for i, child := range children {
 		row := holidayChildRow{
-			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: receipt.ID, Position: i + 1,
+			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: registrationID, Position: i + 1,
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
-			GuestSchoolName: child.GuestSchoolName, Allergies: child.Allergies, Medication: child.Medication, HealthNotes: child.HealthNotes,
+			GuestSchoolName: child.GuestSchoolName, HealthData: sealed[i],
 			CustomData: answersOrEmpty(child.CustomData),
 		}
 		if child.HomeSchoolID > 0 {
 			row.HomeSchoolID = &child.HomeSchoolID
 		}
 		if _, err := db.NewInsert().Model(&row).ExcludeColumn("id").Returning("id").Exec(ctx); err != nil {
-			return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration child: %w", err)
+			return fmt.Errorf("enrollment postgres: insert holiday registration child: %w", err)
 		}
 		for _, booking := range child.Bookings {
 			childIDs = append(childIDs, row.ID)
@@ -201,12 +242,9 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	}
 	if _, err := db.NewRaw(insertHolidayBookingsQuery, organizationID, periodID, pgdialect.Array(childIDs),
 		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs)).Exec(ctx); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
+		return fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
 	}
-	if err := insertHolidayContacts(ctx, db, organizationID, receipt.ID, input); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, err
-	}
-	return enrollment.HolidayRegistrationReceipt{ID: receipt.ID, SubmittedAt: receipt.SubmittedAt}, nil
+	return nil
 }
 
 func insertHolidayContacts(ctx context.Context, db bun.IDB, organizationID, registrationID int64, input enrollment.HolidayRegistrationInput) error {

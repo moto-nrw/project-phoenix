@@ -285,8 +285,13 @@
 @keyframes ns-nodD{0%,100%{transform:none}35%{transform:translateY(6px) rotate(-4deg)}70%{transform:translateY(-4px)}}
 .ns-play[data-nav-scene="UserCheckIcon"] .ns-draw{animation:ns-draw 300ms var(--ns-o) 120ms both}
 
-/* UserCircleGearIcon: das Zahnrad dreht sich am Profil */
-[data-nav-scene="UserCircleGearIcon"] .ns-cog{transform-origin:208px 208px} .ns-play[data-nav-scene="UserCircleGearIcon"] .ns-cog{animation:ns-gear 560ms var(--ns-o) both}
+/* UserCircleGearIcon: das Zahnrad dreht sich weg, ein Haken gibt frei. Das Zahnrad ist nur ~5 px groß; eine reine Drehung um seine Symmetrie sieht man nicht. */
+[data-nav-scene="UserCircleGearIcon"] .ns-cog,[data-nav-scene="UserCircleGearIcon"] .ns-check{transform-origin:208px 208px}
+[data-nav-scene="UserCircleGearIcon"] .ns-check{stroke-dasharray:1}
+.ns-play[data-nav-scene="UserCircleGearIcon"] .ns-cog{animation:ns-cogSwap 640ms var(--ns-o) both}
+@keyframes ns-cogSwap{0%{transform:none}22%,72%{transform:rotate(90deg) scale(0)}100%{transform:rotate(180deg)}}
+.ns-play[data-nav-scene="UserCircleGearIcon"] .ns-check{animation:ns-approve 640ms var(--ns-o) both}
+@keyframes ns-approve{0%,20%{opacity:0;stroke-dashoffset:1;transform:none}24%{opacity:1;stroke-dashoffset:1}48%{stroke-dashoffset:0;transform:none}62%{opacity:1;transform:scale(1.25)}74%,100%{opacity:0;transform:scale(0)}}
 
 /* UserPlusIcon: das Plus dreht sich herein */
 [data-nav-scene="UserPlusIcon"] .ns-spinIn2{transform-origin:208px 128px} .ns-play[data-nav-scene="UserPlusIcon"] .ns-spinIn2{animation:ns-spinIn 440ms var(--ns-o) both}

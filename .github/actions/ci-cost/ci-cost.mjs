@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 export const BLACKSMITH_X64_2VCPU = 0.004;
 export const BLACKSMITH_ARM_2VCPU = 0.0025;
 const MARKER = 'ci-cost-state';
-export const CHECK_NAME = 'CI-Kosten';
+export const CHECK_NAME = 'CI cost';
 // Only check runs that a workflow of this repo created may seed the cache.
 const OWN_APP = 'github-actions';
 // The cache is a shortcut; without it every run is fetched again.

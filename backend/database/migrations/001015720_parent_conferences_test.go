@@ -44,7 +44,7 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	insertParentConference(t, db)
 
-	// The wage types (1.15.728, #4807), the Nachweisarten (1.15.724, #4808)
+	// The wage types (1.15.732, #4807), the Nachweisarten (1.15.724, #4808)
 	// and the school vacations (1.15.721, #5345) extend this erasure; they go
 	// first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))

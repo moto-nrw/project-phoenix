@@ -165,7 +165,7 @@ image digests and configuration.
 
 ## Deploy and rollback
 
-Run **Build and Push Docker Images** with branch `main` or `development` and
+Run **Build and deploy** with branch `main` or `development` and
 environment `demo`. `development` ships a demo fix without a production
 release. A demo that runs a `development` build has its migrations; deploy it
 again from `development`, or from a `main` that contains that build: an older
@@ -180,7 +180,7 @@ Release scripts are copied to `~/scripts/demo/`, the same per-environment
 layout as staging and production, which share their host and rely on separate
 script directories.
 
-For recovery, run **Manual Rollback**, also from `main` or `development`, and choose `demo`.
+For recovery, run **Manual rollback**, also from `main` or `development`, and choose `demo`.
 It shares the deploy concurrency group and server-side lock. Three complete
 snapshot sets are retained in `~/backups/demo/`. Environment identity is
 checked before stopping services or restoring anything. A staging or production

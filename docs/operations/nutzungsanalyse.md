@@ -96,7 +96,7 @@ den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
 Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
 Danach folgt **Upload sanitized network evidence**, anschließend
 **Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
-gehört nicht zum Job `lint / frontend-build` des Hauptworkflows.
+gehört nicht zum Job `Lint / Frontend build` des Hauptworkflows.
 
 Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
 `development` bei Änderungen an E2E-Dateien, den Playwright-Konfigurationen,

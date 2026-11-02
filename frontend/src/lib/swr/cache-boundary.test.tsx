@@ -121,6 +121,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "dashboardKeys",
     "databaseKeys",
     "displayKeys",
+    "holidayKeys",
     "homeLayoutKeys",
     "messageKeys",
     "operatorAnnouncementKeys",

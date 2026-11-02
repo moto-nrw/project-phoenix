@@ -336,7 +336,7 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 	}
 	receiver := pkg.TypesInfo.TypeOf(selector.X)
 	method := selector.Sel.Name
-	violations := a.directDBCallViolations(pkg, classification, functionName, receiver, pkg.TypesInfo.Selections[selector], method, call.Args)
+	violations := a.directDBCallViolations(pkg, classification, functionName, receiver, pkg.TypesInfo.Selections[selector], method, call)
 	if !isRuntimeDataPackage(classification) {
 		return violations
 	}
@@ -354,7 +354,7 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 	return violations
 }
 
-func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, args []ast.Expr) []Violation {
+func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, call *ast.CallExpr) []Violation {
 	if !isBunDBCall(receiver, selection, method) {
 		return nil
 	}
@@ -366,7 +366,7 @@ func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classifi
 		})
 	}
 	if isRuntimeDataPackage(classification) && isRawSQLMethod(method) {
-		violations = append(violations, a.rawSQLViolations(pkg, classification, functionName, receiver, selection, method, args)...)
+		violations = append(violations, a.rawSQLViolations(pkg, classification, functionName, receiver, selection, method, call)...)
 	}
 	return violations
 }

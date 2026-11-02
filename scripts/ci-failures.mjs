@@ -13,21 +13,18 @@ import { pathToFileURL } from 'node:url';
 
 // Reproduction for the jobs that failed most often. Jobs not listed fall back
 // to the failed step's own CI command, printed with every failure.
-const localCommands = {
-  'backend-quality': 'scripts/run-go-toolchain.sh bash scripts/check-quality.sh backend  # deadcode alone: scripts/run-go-toolchain.sh bash scripts/check-deadcode.sh',
-  'backend-lint': 'scripts/run-go-toolchain.sh scripts/check-backend-quality.sh lint origin/development',
-  'frontend-quality': 'bash scripts/check-quality.sh frontend',
-  'frontend-react-doctor': 'cd frontend && bash ../scripts/check-quality.sh react-doctor origin/development',
+export const localCommands = {
+  // Keyed by the job's display name without workflow prefix and matrix suffix.
+  'Backend quality': 'scripts/run-go-toolchain.sh bash scripts/check-quality.sh backend  # deadcode alone: scripts/run-go-toolchain.sh bash scripts/check-deadcode.sh',
+  'Backend lint': 'scripts/run-go-toolchain.sh scripts/check-backend-quality.sh lint origin/development',
+  'Frontend quality': 'bash scripts/check-quality.sh frontend',
+  'Frontend React Doctor': 'cd frontend && bash ../scripts/check-quality.sh react-doctor origin/development',
   // Same cold two-tree comparison as CI (docs/agents/frontend-performance.md); commit first.
-  'frontend-build': 'cd frontend && node scripts/perf/bundle-measurement.mjs --prepare-ci "$(git merge-base HEAD origin/development)" && node scripts/perf/bundle-measurement.mjs --build-base && pnpm run perf:bundle-ratchet',
-  'test-frontend': 'node scripts/test-frontend-changed.mjs --check-guards && node scripts/test-frontend-changed.mjs origin/development',
-  'test-backend': 'scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development',
-  'seed-smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
-  'env-sync-check': 'bash scripts/env-check.sh',
-  // Jobs with a display name are keyed by it ("test / Backend tests (0)").
+  'Frontend build': 'cd frontend && node scripts/perf/bundle-measurement.mjs --prepare-ci "$(git merge-base HEAD origin/development)" && node scripts/perf/bundle-measurement.mjs --build-base && pnpm run perf:bundle-ratchet',
+  'Frontend tests': 'node scripts/test-frontend-changed.mjs --check-guards && node scripts/test-frontend-changed.mjs origin/development',
   'Backend tests': 'scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development',
-  'Backend tests with race detector': 'cd backend && ../scripts/run-go-toolchain.sh go test -race -tags=testhooks ./...',
-  'Seed & simulate smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
+  'Seed and simulate smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
+  'Env sync check': 'bash scripts/env-check.sh',
   'Backend architecture ratchet': 'scripts/run-go-toolchain.sh scripts/backend-architecture.sh check',
 };
 const ignoredJobs = new Set(['ci-gate']);
@@ -39,7 +36,7 @@ const passing = /^\s*(?:PASS|ok\s|✔|ℹ)/;
 const maxErrorLines = 30;
 const tailLines = 12;
 
-// "lint / frontend-quality" -> "frontend-quality"; "test / test-frontend (dom-2)" -> "test-frontend".
+// "Lint / Frontend quality" -> "Frontend quality"; "Test / Frontend tests (dom-2)" -> "Frontend tests".
 export function jobKey(name) {
   return name.split(' / ').at(-1).replace(/\s*\(.*\)$/, '').trim();
 }

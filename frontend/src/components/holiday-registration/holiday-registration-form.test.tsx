@@ -937,7 +937,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByLabelText(
-        /^Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht\./,
+        /^Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder\./,
       ),
     );
     fireEvent.click(
@@ -961,6 +961,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       "link-key",
       expect.objectContaining({
         form_version: 3,
+        consent_version: 2,
         custom_data: { newsletter: "Aus der Zeitung" },
         health_consent: true,
         children: [

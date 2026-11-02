@@ -1372,7 +1372,7 @@ export const ERROR_CATALOG = {
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "traeger.last_administrator":
-        "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+        "Das Träger-Büro braucht mindestens eine Person mit der Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.",
       "traeger.logo_invalid":
         "Das Logo muss ein PNG- oder JPG-Bild sein, höchstens 2000 Pixel breit und hoch. Bitte wählen Sie ein anderes Bild.",
       "traeger.logo_not_found":
@@ -2014,7 +2014,7 @@ export const ERROR_CATALOG = {
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
       "traeger.last_administrator":
-        "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+        "The Träger office needs at least one person with the role Leitung. Give this role to someone else first.",
       "traeger.logo_invalid":
         "The logo must be a PNG or JPG image of at most 2000 pixels in width and height. Please choose another image.",
       "traeger.logo_not_found": "There is no logo. Please reload the page.",
