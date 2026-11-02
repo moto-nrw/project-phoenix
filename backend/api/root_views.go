@@ -144,10 +144,10 @@ func (e SubstitutionEntries) End(ctx context.Context, caller education.Caller, r
 // buildEmergencySnapshot binds the Notfallliste (#2704): the owner facades
 // are its tenant-safe reads, the retained student and guardian repositories,
 // the presence-mode read and the renderer its compatibility bindings.
-func buildEmergencySnapshot(env owners.RootEnvironment, presence owners.PresenceOwner, active studentpresence.Presence, people owners.PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService) (emergencysnapshot.Query, error) {
+func buildEmergencySnapshot(env owners.RootEnvironment, presence owners.PresenceOwner, active studentpresence.Presence, people owners.PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService, accessLog owners.DataAccessAppender) (emergencysnapshot.Query, error) {
 	emergency, err := newEmergencySnapshot(emergencySnapshotSources{
 		Presence: presence.Presence, PresenceMode: active, Students: people.Students, Persons: persons,
-		Contacts: people.StudentGuardians, Rooms: rooms, Renderer: renderer, Now: env.Now,
+		Contacts: people.StudentGuardians, Rooms: rooms, Renderer: renderer, AccessLog: accessLog, Now: env.Now,
 		Logger: env.Logger.With("module", "emergency-snapshot"),
 	})
 	if err != nil {

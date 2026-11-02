@@ -96,29 +96,60 @@ func studentHealthDataUpWith(ctx context.Context, db *bun.DB, cipher holidayFiel
 		if _, err := tx.ExecContext(ctx, studentHealthDataAddSQL); err != nil {
 			return fmt.Errorf("add sealed student health column: %w", err)
 		}
-		var rows []studentHealthRow
-		if err := tx.NewRaw(`SELECT tenant_id, membership_id, health_info FROM users.student_care_profiles
-			WHERE health_info IS NOT NULL`).Scan(ctx, &rows); err != nil {
-			return fmt.Errorf("read student health information to seal: %w", err)
-		}
-		for _, row := range rows {
-			if cipher == nil {
-				return fmt.Errorf("student health information to seal without %s", healthDataKeysEnv)
-			}
-			sealed, err := cipher.Seal([]byte(*row.HealthInfo), studentHealthContext(row.TenantID, row.MembershipID))
-			if err != nil {
-				return fmt.Errorf("seal student health of membership %d: %w", row.MembershipID, err)
-			}
-			if _, err := tx.NewRaw(`UPDATE users.student_care_profiles SET health_data = ? WHERE membership_id = ?`,
-				sealed, row.MembershipID).Exec(ctx); err != nil {
-				return fmt.Errorf("store sealed student health of membership %d: %w", row.MembershipID, err)
-			}
+		if err := sealStudentHealthRows(ctx, tx, cipher); err != nil {
+			return err
 		}
 		if _, err := tx.ExecContext(ctx, studentHealthDataDropPlaintextSQL); err != nil {
 			return fmt.Errorf("drop plaintext student health column: %w", err)
 		}
 		return nil
 	})
+}
+
+// sealStudentHealthRows seals every plaintext health field into health_data.
+func sealStudentHealthRows(ctx context.Context, tx bun.Tx, cipher holidayFieldCipher) error {
+	var rows []studentHealthRow
+	if err := tx.NewRaw(`SELECT tenant_id, membership_id, health_info FROM users.student_care_profiles
+		WHERE health_info IS NOT NULL`).Scan(ctx, &rows); err != nil {
+		return fmt.Errorf("read student health information to seal: %w", err)
+	}
+	if len(rows) > 0 && cipher == nil {
+		return fmt.Errorf("student health information to seal without %s", healthDataKeysEnv)
+	}
+	for _, row := range rows {
+		sealed, err := cipher.Seal([]byte(*row.HealthInfo), studentHealthContext(row.TenantID, row.MembershipID))
+		if err != nil {
+			return fmt.Errorf("seal student health of membership %d: %w", row.MembershipID, err)
+		}
+		if _, err := tx.NewRaw(`UPDATE users.student_care_profiles SET health_data = ? WHERE membership_id = ?`,
+			sealed, row.MembershipID).Exec(ctx); err != nil {
+			return fmt.Errorf("store sealed student health of membership %d: %w", row.MembershipID, err)
+		}
+	}
+	return nil
+}
+
+// openStudentHealthRows opens every sealed health field into health_info.
+func openStudentHealthRows(ctx context.Context, tx bun.Tx, cipher holidayFieldCipher) error {
+	var rows []studentHealthRow
+	if err := tx.NewRaw(`SELECT tenant_id, membership_id, health_data FROM users.student_care_profiles
+		WHERE health_data IS NOT NULL`).Scan(ctx, &rows); err != nil {
+		return fmt.Errorf("read sealed student health information: %w", err)
+	}
+	if len(rows) > 0 && cipher == nil {
+		return fmt.Errorf("sealed student health information to open without %s", healthDataKeysEnv)
+	}
+	for _, row := range rows {
+		plaintext, err := cipher.Open(row.HealthData, studentHealthContext(row.TenantID, row.MembershipID))
+		if err != nil {
+			return fmt.Errorf("open student health of membership %d: %w", row.MembershipID, err)
+		}
+		if _, err := tx.NewRaw(`UPDATE users.student_care_profiles SET health_info = ? WHERE membership_id = ?`,
+			string(plaintext), row.MembershipID).Exec(ctx); err != nil {
+			return fmt.Errorf("restore student health of membership %d: %w", row.MembershipID, err)
+		}
+	}
+	return nil
 }
 
 type studentHealthRow struct {
@@ -143,23 +174,8 @@ func studentHealthDataDownWith(ctx context.Context, db *bun.DB, cipher holidayFi
 		if _, err := tx.ExecContext(ctx, studentHealthDataRestoreSQL); err != nil {
 			return fmt.Errorf("restore plaintext student health column: %w", err)
 		}
-		var rows []studentHealthRow
-		if err := tx.NewRaw(`SELECT tenant_id, membership_id, health_data FROM users.student_care_profiles
-			WHERE health_data IS NOT NULL`).Scan(ctx, &rows); err != nil {
-			return fmt.Errorf("read sealed student health information: %w", err)
-		}
-		for _, row := range rows {
-			if cipher == nil {
-				return fmt.Errorf("sealed student health information to open without %s", healthDataKeysEnv)
-			}
-			plaintext, err := cipher.Open(row.HealthData, studentHealthContext(row.TenantID, row.MembershipID))
-			if err != nil {
-				return fmt.Errorf("open student health of membership %d: %w", row.MembershipID, err)
-			}
-			if _, err := tx.NewRaw(`UPDATE users.student_care_profiles SET health_info = ? WHERE membership_id = ?`,
-				string(plaintext), row.MembershipID).Exec(ctx); err != nil {
-				return fmt.Errorf("restore student health of membership %d: %w", row.MembershipID, err)
-			}
+		if err := openStudentHealthRows(ctx, tx, cipher); err != nil {
+			return err
 		}
 		if _, err := tx.ExecContext(ctx, studentHealthDataDropSealedSQL); err != nil {
 			return fmt.Errorf("drop sealed student health column: %w", err)

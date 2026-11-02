@@ -18,24 +18,16 @@ import (
 // take only the database, so the reader reads the key ring where it is
 // built rather than through every helper's signature.
 //
-// The serving roots and migrate refuse to start without the key ring
-// (newRootEnvironment). A command composed without it refuses every
-// non-empty health field instead of reading or writing it in plaintext.
+// The key ring is required infrastructure: a composition without it, or with
+// a malformed one, stops at once, as the serving roots and migrate do.
 func StudentDirectoryReader() studentDirectoryView.Reader {
-	return studentDirectoryView.NewReader(configuredHealthData())
-}
-
-// configuredHealthData builds the field cipher over HEALTH_DATA_KEYS, or none
-// when the configuration names no key ring. A malformed key ring is a
-// configuration error that stops the composition.
-func configuredHealthData() studentDirectoryView.HealthCipher {
 	keys := strings.TrimSpace(viper.GetString("health_data_keys"))
 	if keys == "" {
-		return nil
+		panic("student directory reader: HEALTH_DATA_KEYS is required")
 	}
 	cipher, err := securityRuntimeCompose.NewFieldCipher(keys)
 	if err != nil {
 		panic(fmt.Sprintf("student directory reader: HEALTH_DATA_KEYS: %v", err))
 	}
-	return cipher
+	return studentDirectoryView.NewReader(cipher)
 }

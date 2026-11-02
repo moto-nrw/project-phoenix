@@ -452,7 +452,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			emergency, err = buildEmergencySnapshot(env, presence, active, people, persons, rooms, renderer)
+			emergency, err = buildEmergencySnapshot(env, presence, active, people, persons, rooms, renderer, audit.Persistence.DataAccessLog)
 			return
 		},
 		func() error {

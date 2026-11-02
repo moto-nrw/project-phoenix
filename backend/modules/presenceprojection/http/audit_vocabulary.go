@@ -9,4 +9,5 @@ const (
 	dataAccessStudentStatusDayOverview = "student_status_day_overview"
 	dataAccessStudentHealthListExport  = "student_health_list_export"
 	dataAccessStudentHealthView        = "student_health_view"
+	dataAccessStudentHealthListView    = "student_health_list_view"
 )

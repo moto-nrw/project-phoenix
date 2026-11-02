@@ -23,9 +23,9 @@ func TestStudentHealthOpensOnlyForItsCareRow(t *testing.T) {
 	require.Equal(t, value, *opened)
 
 	_, err = reader.OpenStudentHealth(7, 12, sealed)
-	require.ErrorIs(t, err, compose.ErrStudentHealthUnreadable, "another care row")
+	require.ErrorContains(t, err, "student health information does not open", "another care row")
 	_, err = reader.OpenStudentHealth(8, 11, sealed)
-	require.ErrorIs(t, err, compose.ErrStudentHealthUnreadable, "another school")
+	require.ErrorContains(t, err, "student health information does not open", "another school")
 
 	none, err := reader.SealStudentHealth(7, 11, nil)
 	require.NoError(t, err)

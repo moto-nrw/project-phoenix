@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -101,8 +103,13 @@ func emergencyFullSources() emergencySnapshotSources {
 		Contacts:     emergencyFakeContacts{},
 		Rooms:        &emergencyFakeRooms{},
 		Renderer:     lists.NewRendererService(),
+		AccessLog:    emergencyFakeAccessLog{},
 	}
 }
+
+type emergencyFakeAccessLog struct{}
+
+func (emergencyFakeAccessLog) Create(context.Context, *auditModels.DataAccessLog) error { return nil }
 
 func TestEmergencySnapshotNewRejectsMissingSources(t *testing.T) {
 	t.Parallel()
@@ -113,6 +120,11 @@ func TestEmergencySnapshotNewRejectsMissingSources(t *testing.T) {
 	sources.Renderer = nil
 	_, err = newEmergencySnapshot(sources)
 	require.ErrorIs(t, err, errEmergencySnapshotSources)
+
+	sources = emergencyFullSources()
+	sources.AccessLog = nil
+	_, err = newEmergencySnapshot(sources)
+	require.ErrorIs(t, err, errEmergencySnapshotSources, "the access log is required")
 
 	query, err := newEmergencySnapshot(emergencyFullSources())
 	require.NoError(t, err)
@@ -430,6 +442,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		Contacts:     peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{Students: testpkg.StudentDirectory{}, Links: testpkg.GuardianLinks{}}),
 		Rooms:        facilitiesModule,
 		Renderer:     lists.NewRendererService(),
+		AccessLog:    emergencyFakeAccessLog{},
 	})
 	require.NoError(t, err)
 	for _, fixture := range fixtures {

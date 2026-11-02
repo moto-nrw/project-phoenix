@@ -67,3 +67,47 @@ func TestStudentDetailRecordsEveryReadOfTheHealthField(t *testing.T) {
 	assert.Empty(t, read(withHealth.ID, []string{"students:read"}), "students:read alone stays redacted")
 	assert.Equal(t, 2, studentHealthViewCount(t, tc.db, actor.ID, withHealth.ID), "a redacted answer logs nothing")
 }
+
+func studentHealthListViewCount(t *testing.T, db *bun.DB, accountID int64) int {
+	t.Helper()
+	var count int
+	require.NoError(t, db.NewSelect().
+		TableExpr("audit.data_access_log").
+		ColumnExpr("count(*)").
+		Where("resource_type = ?", "student_health_list_view").
+		Where("actor_account_id = ?", accountID).
+		Where("student_id IS NULL").
+		Scan(context.Background(), &count))
+	return count
+}
+
+// TestStudentListRecordsEveryAnswerThatShowsHealth: a child list that shows
+// a health field writes one row per answer (#5472); a list without one, a
+// slim view and a redacted reader write none.
+func TestStudentListRecordsEveryAnswerThatShowsHealth(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	actor := testpkg.CreateTestAccount(t, tc.db, "student-health-list@example.test")
+	surname := fmt.Sprintf("Liste%d", actor.ID)
+	withHealth := testpkg.CreateTestStudent(t, tc.db, "Mila", surname, "3a")
+	testpkg.CreateTestStudent(t, tc.db, "Jonas", surname, "3a")
+	list := func(query string, perms []string) string {
+		t.Helper()
+		rr := authExec(t, tc, testutil.NewRequest(http.MethodGet, "/?search="+surname+query, nil),
+			testutil.AdminTestClaims(int(actor.ID)), perms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		return rr.Body.String()
+	}
+	full := []string{"users:read", "students:read"}
+
+	list("", full)
+	assert.Zero(t, studentHealthListViewCount(t, tc.db, actor.ID), "no health field on the page, no record")
+
+	testpkg.SetTestStudentHealth(t, tc.db, withHealth.ID, testpkg.StrPtr("Nussallergie"))
+	assert.Contains(t, list("", full), "Nussallergie")
+	assert.Equal(t, 1, studentHealthListViewCount(t, tc.db, actor.ID))
+
+	assert.NotContains(t, list("&view=slim", full), "Nussallergie")
+	assert.NotContains(t, list("", []string{"students:read"}), "Nussallergie")
+	assert.Equal(t, 1, studentHealthListViewCount(t, tc.db, actor.ID), "answers without the health field record nothing")
+}

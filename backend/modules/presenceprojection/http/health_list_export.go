@@ -4,6 +4,7 @@ import (
 	errors "errors"
 	slog "log/slog"
 	http "net/http"
+	slices "slices"
 	strings "strings"
 	time "time"
 
@@ -82,6 +83,21 @@ func (rs *Resource) writeStudentHealthViewAudit(r *http.Request, studentID int64
 	if strings.TrimSpace(health) == "" {
 		return nil
 	}
+	return rs.recordHealthAccess(r, dataAccessStudentHealthView, &studentID)
+}
+
+// writeStudentHealthListViewAudit records a child list answer that shows the
+// health field of at least one child (#5472), one row per answer.
+func (rs *Resource) writeStudentHealthListViewAudit(r *http.Request, responses []StudentResponse) error {
+	if !slices.ContainsFunc(responses, hasHealthInfo) {
+		return nil
+	}
+	return rs.recordHealthAccess(r, dataAccessStudentHealthListView, nil)
+}
+
+// recordHealthAccess appends the caller's read of health information to the
+// school's access log for today; it refuses when it cannot.
+func (rs *Resource) recordHealthAccess(r *http.Request, resourceType string, studentID *int64) error {
 	if rs.StudentHistoryService == nil {
 		rs.getLogger().Error("audit log repo not configured, refusing to show a student's health information")
 		return errors.New("audit log repository not configured")
@@ -95,15 +111,15 @@ func (rs *Resource) writeStudentHealthViewAudit(r *http.Request, studentID int64
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
-		ResourceType:   dataAccessStudentHealthView,
-		StudentID:      &studentID,
+		ResourceType:   resourceType,
+		StudentID:      studentID,
 		RangeStart:     today.BerlinMidnight(),
 		RangeEnd:       today.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		rs.getLogger().Error("audit log write failed, refusing to show a student's health information",
-			slog.String("resource_type", dataAccessStudentHealthView),
+			slog.String("resource_type", resourceType),
 			slog.String("error", err.Error()),
 		)
 		return err
