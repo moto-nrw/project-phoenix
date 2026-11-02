@@ -148,6 +148,40 @@ func TestSurchargeMinutes_DaylightSavingNightHasItsRealLength(t *testing.T) {
 	assert.Equal(t, map[int64]int{10: 540}, got)
 }
 
+func TestSurchargeMinutes_CustomWindowStopsAtTheSpringForwardGap(t *testing.T) {
+	t.Parallel()
+	day := calendar.NewDate(2026, time.March, 29)
+	localAt := func(hour int) time.Time {
+		return time.Date(day.Year(), day.Month(), day.Day(), hour, 0, 0, 0, calendar.Berlin)
+	}
+	rule := nightRule(10, 2500)
+	rule.WindowStartMinute, rule.WindowEndMinute = 90, 150 // 01:30–02:30
+	sessions := []*WorkSession{closedBlock(1, localAt(1), localAt(4))}
+
+	got := SurchargeMinutes(sessions, nil, nil, []PayrollSurchargeRule{rule}, day, day, localAt(5))
+
+	// At 02:00 the Berlin clock jumps to 03:00. The configured end at 02:30
+	// does not exist, so only 01:30–02:00 is inside the window.
+	assert.Equal(t, map[int64]int{10: 30}, got)
+}
+
+func TestSurchargeMinutes_CustomWindowHandlesBothAutumnOccurrences(t *testing.T) {
+	t.Parallel()
+	day := calendar.NewDate(2026, time.October, 25)
+	localAt := func(hour int) time.Time {
+		return time.Date(day.Year(), day.Month(), day.Day(), hour, 0, 0, 0, calendar.Berlin)
+	}
+	rule := nightRule(10, 2500)
+	rule.WindowStartMinute, rule.WindowEndMinute = 90, 150 // 01:30–02:30
+	sessions := []*WorkSession{closedBlock(1, localAt(1), localAt(4))}
+
+	got := SurchargeMinutes(sessions, nil, nil, []PayrollSurchargeRule{rule}, day, day, localAt(5))
+
+	// 02:00–02:30 occurs twice after the clock moves from 03:00 CEST back to
+	// 02:00 CET, so the window contains 90 real minutes.
+	assert.Equal(t, map[int64]int{10: 90}, got)
+}
+
 func TestSurchargeMinutes_NoRulesNoMinutes(t *testing.T) {
 	t.Parallel()
 	monday := calendar.NewDate(2026, time.October, 5)

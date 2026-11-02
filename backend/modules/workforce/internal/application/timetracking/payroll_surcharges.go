@@ -168,8 +168,9 @@ func newSurchargeClassifier(rules []PayrollSurchargeRule, holidays map[calendar.
 	return c
 }
 
-// add walks the span from boundary to boundary (midnight and the night
-// windows' edges) and books each piece's seconds onto the rules covering it.
+// add walks the span from boundary to boundary (midnight, daylight-saving
+// transitions, and the night windows' edges) and books each piece's seconds
+// onto the rules covering it.
 func (c *surchargeClassifier) add(span timeSpan, seconds map[int64]int64) {
 	cursor := span.start
 	for cursor.Before(span.end) {
@@ -187,17 +188,22 @@ func (c *surchargeClassifier) add(span timeSpan, seconds map[int64]int64) {
 }
 
 // nextBoundary is the first instant after t where the classification can
-// change: the next midnight or the next edge of a night window.
+// change: the next midnight, daylight-saving transition, or edge of a night
+// window.
 func (c *surchargeClassifier) nextBoundary(t time.Time) time.Time {
 	day := calendar.DateFromTime(t)
 	next := day.AddDays(1).BerlinMidnight()
 	for _, rule := range c.night {
 		for _, minute := range []int{rule.WindowStartMinute, rule.WindowEndMinute} {
-			edge := wallClockOn(day, minute)
-			if edge.After(t) && edge.Before(next) {
-				next = edge
+			for _, edge := range wallClockOccurrences(day, minute) {
+				if edge.After(t) && edge.Before(next) {
+					next = edge
+				}
 			}
 		}
+	}
+	if transition := nextBerlinOffsetTransition(t); transition.After(t) && transition.Before(next) {
+		next = transition
 	}
 	return next
 }
@@ -273,4 +279,37 @@ func wallMinute(t time.Time) int {
 func wallClockOn(day calendar.Date, minute int) time.Time {
 	minute = ((minute % minutesPerDay) + minutesPerDay) % minutesPerDay
 	return time.Date(day.Year(), day.Month(), day.Day(), minute/60, minute%60, 0, 0, calendar.Berlin)
+}
+
+// wallClockOccurrences returns every real instant at a wall-clock minute on a
+// Berlin day. During the autumn overlap a configured edge occurs twice; during
+// the spring gap it does not occur at all.
+func wallClockOccurrences(day calendar.Date, minute int) []time.Time {
+	minute = ((minute % minutesPerDay) + minutesPerDay) % minutesPerDay
+	edge := wallClockOn(day, minute)
+	candidates := []time.Time{edge}
+	_, startOffset := day.BerlinMidnight().Zone()
+	_, endOffset := day.AddDays(1).BerlinMidnight().Zone()
+	if offsetChange := time.Duration(endOffset-startOffset) * time.Second; offsetChange != 0 {
+		candidates = append(candidates, edge.Add(offsetChange), edge.Add(-offsetChange))
+	}
+
+	occurrences := make([]time.Time, 0, len(candidates))
+	for _, candidate := range candidates {
+		if calendar.DateFromTime(candidate) != day || wallMinute(candidate) != minute {
+			continue
+		}
+		if !slices.ContainsFunc(occurrences, candidate.Equal) {
+			occurrences = append(occurrences, candidate)
+		}
+	}
+	return occurrences
+}
+
+// nextBerlinOffsetTransition returns the end of t's current Berlin zone
+// interval. It is a classification boundary because the wall clock can jump
+// forward or back there.
+func nextBerlinOffsetTransition(t time.Time) time.Time {
+	_, end := t.In(calendar.Berlin).ZoneBounds()
+	return end
 }
