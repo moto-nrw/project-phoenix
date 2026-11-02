@@ -665,6 +665,74 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     await waitFor(() => expect(archiveWageTypeMock).toHaveBeenCalledWith("7"));
   });
 
+  it("lässt den Archivdialog bei einem Archivfehler geöffnet", async () => {
+    archiveWageTypeMock.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    render(<PayrollPage />);
+
+    const [menu] = screen.getAllByRole("button", {
+      name: "Aktionen für Nachtzuschlag",
+    });
+    fireEvent.click(menu!);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Archivieren" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Archivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Lohnart"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Archivieren",
+      }),
+    ).not.toBeDisabled();
+  });
+
+  it("schließt den Archivdialog nach erfolgreicher Archivierung trotz fehlendem Refresh", async () => {
+    mutateMock.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    render(<PayrollPage />);
+
+    const [menu] = screen.getAllByRole("button", {
+      name: "Aktionen für Nachtzuschlag",
+    });
+    fireEvent.click(menu!);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Archivieren" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Archivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Übersicht zu den Lohnarten und Zuschlägen",
+        ),
+      ),
+    ).toBeInTheDocument();
+    // Anker: Die Karten bleiben nach der erfolgreichen Archivierung sichtbar.
+    expect(
+      screen.getByRole("heading", { name: "Eigene Lohnarten" }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("verlangt für eine Zuschlagsregel zuerst eine eigene Lohnart", () => {
     swrData["payroll-rules"] = {
       data: payrollRules({ wageTypes: [], surchargeRules: [] }),

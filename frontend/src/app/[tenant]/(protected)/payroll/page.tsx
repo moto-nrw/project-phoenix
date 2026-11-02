@@ -108,7 +108,7 @@ type ChangeRules = (
   object: string,
   run: () => Promise<void>,
   queueKey?: string,
-) => Promise<void>;
+) => Promise<boolean>;
 
 const UNIT_OPTIONS = [
   { value: "", label: "Nicht festgelegt" },
@@ -237,14 +237,16 @@ export default function PayrollPage() {
   // Eine Änderung an den eigenen Lohnarten und Regeln: der Fehler steht wie
   // beim Speichern einer Einstellung über den Karten, danach gilt wieder der
   // Stand vom Server.
-  const changeRulesRef = useRef<ChangeRules>(() => Promise.resolve());
-  const ruleSaveQueues = useRef(new Map<string, Promise<void>>());
+  const changeRulesRef = useRef<ChangeRules>(() => Promise.resolve(false));
+  const ruleSaveQueues = useRef(new Map<string, Promise<boolean>>());
   const changeRules = useCallback<ChangeRules>(
     async (object, run, queueKey) => {
       const save = async () => {
         clearSaveError();
+        let saved = false;
         try {
           await run();
+          saved = true;
         } catch (err: unknown) {
           logger.error("payroll_rule_save_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -254,8 +256,20 @@ export default function PayrollPage() {
             retry: () => void changeRulesRef.current(object, run, queueKey),
           });
         } finally {
-          await mutateRules();
+          try {
+            await mutateRules();
+          } catch (err: unknown) {
+            logger.error("payroll_rules_refresh_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            if (saved) {
+              void showSaveError(err, {
+                object: "die Übersicht zu den Lohnarten und Zuschlägen",
+              });
+            }
+          }
         }
+        return saved;
       };
       if (!queueKey) {
         return save();
@@ -263,7 +277,7 @@ export default function PayrollPage() {
 
       const previous =
         ruleSaveQueues.current.get(queueKey) ?? Promise.resolve();
-      const next = previous.catch(() => undefined).then(save);
+      const next = previous.catch(() => false).then(save);
       ruleSaveQueues.current.set(queueKey, next);
       void next.finally(() => {
         if (ruleSaveQueues.current.get(queueKey) === next) {
@@ -927,15 +941,18 @@ function PayrollRuleCards({
     if (!archiving) return;
     setArchiveBusy(true);
     const target = archiving;
-    await onChange(
-      target.kind === "wage_type" ? "die Lohnart" : "die Zuschlagsregel",
-      () =>
-        target.kind === "wage_type"
-          ? archiveWageType(target.id)
-          : archiveSurchargeRule(target.id),
-    );
-    setArchiveBusy(false);
-    setArchiving(null);
+    try {
+      const archived = await onChange(
+        target.kind === "wage_type" ? "die Lohnart" : "die Zuschlagsregel",
+        () =>
+          target.kind === "wage_type"
+            ? archiveWageType(target.id)
+            : archiveSurchargeRule(target.id),
+      );
+      if (archived) setArchiving(null);
+    } finally {
+      setArchiveBusy(false);
+    }
   };
 
   return (
