@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   describeAdjustment,
+  formatRemovalSpan,
   formatWeekdayAdverbs,
+  lastGapDay,
   mapRosterImpact,
   removeStudentTemplateDays,
 } from "./roster-impact";
@@ -34,13 +36,48 @@ describe("mapRosterImpact", () => {
         },
       ],
       notAdjusted: [
-        { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: true },
+        {
+          templateId: "9",
+          name: "RDST 1b",
+          weekdays: [5],
+          viaTarget: true,
+          until: null,
+        },
       ],
     });
   });
 
+  it("maps the end of the gap a later booking closes (#5497)", () => {
+    const mapped = mapRosterImpact({
+      effective_from: "2026-11-05",
+      not_adjusted: [
+        {
+          template_id: "9",
+          name: "RDST 1b",
+          weekdays: [4],
+          until: "2026-11-16",
+        },
+      ],
+    });
+    expect(mapped?.notAdjusted[0]?.until).toBe("2026-11-16");
+  });
+
   it("returns null when the response carries no impact", () => {
     expect(mapRosterImpact(undefined)).toBeNull();
+  });
+});
+
+describe("removal span (#5497)", () => {
+  it("names the last day before the later booking", () => {
+    expect(lastGapDay("2026-11-16")).toBe("2026-11-15");
+    expect(lastGapDay("2027-03-01")).toBe("2027-02-28");
+  });
+
+  it("is open without a later booking and bounded with one", () => {
+    expect(formatRemovalSpan("2026-11-05", null)).toBe("ab 05.11.2026");
+    expect(formatRemovalSpan("2026-11-05", "2026-11-16")).toBe(
+      "vom 05.11.2026 bis 15.11.2026",
+    );
   });
 });
 
@@ -88,6 +125,32 @@ describe("removeStudentTemplateDays", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ weekdays: [5], effective_from: "2027-05-31" }),
+      }),
+    );
+  });
+
+  it("posts the end of the gap when a later booking closes it (#5497)", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ data: {} }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await removeStudentTemplateDays({
+      templateId: "9",
+      studentId: "42",
+      weekdays: [4],
+      effectiveFrom: "2026-11-05",
+      effectiveUntil: "2026-11-16",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/templates/9/students/42/remove-days",
+      expect.objectContaining({
+        body: JSON.stringify({
+          weekdays: [4],
+          effective_from: "2026-11-05",
+          effective_until: "2026-11-16",
+        }),
       }),
     );
   });

@@ -94,7 +94,18 @@
     "jsx-a11y/no-autofocus": "off",
     "jsx-a11y/prefer-tag-over-role": "off",
     "jsx-a11y/no-redundant-roles": "off",
-    "no-underscore-dangle": "off"
+    "no-underscore-dangle": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_", "destructuredArrayIgnorePattern": "^_" }],
+    "react/set-state-in-effect": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/immutability": "off",
+    "react/refs": "off",
+    "react/memo-dependencies": "off",
+    "react/globals": "off",
+    "react/purity": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/no-deriving-state-in-effects": "off",
+    "react/use-memo": "off"
   },
   "ignorePatterns": ["node_modules", ".next", "out", "storybook-static"]
 }

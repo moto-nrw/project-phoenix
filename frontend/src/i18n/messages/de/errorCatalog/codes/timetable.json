@@ -116,6 +116,7 @@
   "substitute_self": "Eine Person kann sich nicht selbst vertreten. Bitte wählen Sie eine andere Ersatzperson.",
   "substitute_single_only": "Bitte wählen Sie für jede abwesende Person nur eine Ersatzperson.",
   "template_care_offering_conflict": "Ein verknüpftes Betreuungsangebot passt dann nicht mehr. Bitte passen Sie zuerst das Angebot an.",
+  "template_booking_gap_stale": "Die Buchung wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
   "template_category_unavailable": "Diese Kategorie ist archiviert. Bitte wählen Sie eine andere Kategorie.",
   "template_education_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
   "template_end_before_start": "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie die Uhrzeiten.",

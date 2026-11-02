@@ -62,6 +62,7 @@ func buildRosterReviewModule(t *testing.T, sources timetableModule.OfferingSourc
 	}, rosterReviewClock)
 	s.res.Templates = composed
 	s.res.RosterReview = composed.RosterReview()
+	s.res.RecurrenceLock = composed.RecurrenceLock()
 	s.res.OfferingSourceOptions = sources
 	s.res.People = must(RootCompositions.People(s.db))
 	setup.router = rosterReviewRouter(s.ctx, s.res, s.db)

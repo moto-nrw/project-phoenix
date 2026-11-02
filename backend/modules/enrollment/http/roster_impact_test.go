@@ -130,6 +130,20 @@ func TestUpdateChildOfferings_ReportsHandMaintainedRegelterminAndRemovesFridays(
 	assert.True(t, impact.NotAdjusted[0].ViaTarget, "Klasse 1b adds the child to occurrences created later")
 
 	days := api.NewStudentTemplateDaysTestModule(testpkg.NewDatabase(t, env.db), func() calendar.Date { return decisionTestToday })
+	// #5497: another enrollment that books Friday again from a later day
+	// ends the gap there; „Entfernen“ then stops at that day.
+	rebooked := calendar.NewDate(2027, 6, 14)
+	bounded, err := testpkg.TenantQuery1(t, ctx, env.db, days.ManualStudentPlan, timetable.ManualStudentPlanQuery{
+		StudentID: studentID, From: stichtag, Weekdays: []int{timetable.WeekdayFriday},
+		NetLossWeekdays: []int{timetable.WeekdayFriday},
+		Bookings:        []timetable.StudentDayBooking{{Weekday: weekdayMonday, CountsAsCare: true}},
+		OtherBookings:   []timetable.StudentDayBooking{{Weekday: timetable.WeekdayFriday, CountsAsCare: true, From: &rebooked}},
+	})
+	require.NoError(t, err)
+	require.Len(t, bounded, 1, "the later booking does not carry the Stichtag")
+	assert.Equal(t, []int{timetable.WeekdayFriday}, bounded[0].Weekdays)
+	require.NotNil(t, bounded[0].Until, "the later booking ends the gap")
+	assert.Equal(t, rebooked, *bounded[0].Until)
 	_, err = testpkg.TenantQuery1(t, ctx, env.db, days.RemoveStudentTemplateDays, timetable.StudentTemplateDaysRemoval{
 		TemplateID: handTemplate.ID, StudentID: studentID,
 		Weekdays: []int{timetable.WeekdayFriday}, From: decisionTestToday.AddDays(-1),
