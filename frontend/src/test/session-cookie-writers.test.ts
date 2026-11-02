@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  INVENTORY_ROOTS,
   cookieWrites,
-  legacyCookieWriter,
+  inventoryFiles,
   sessionCookieNameSources,
   type CookieWriteKind,
 } from "./session-cookie-writers";
@@ -10,6 +13,30 @@ import {
 // JavaScript files. Each probe is a session cookie writer that bypasses
 // gateSessionCookieWrites: the old inventory passed it, the syntax tree
 // inventory rejects it.
+
+/**
+ * The regex inventory before #5444, kept as the baseline: the syntax tree
+ * inventory flags at least every file this one flags.
+ */
+function legacyCookieWriter(file: string, source: string): boolean {
+  if (!/\.(ts|tsx)$/.test(file) || /\.(test|spec)\.tsx?$/.test(file))
+    return false;
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  if (
+    /set-cookie|\.cookies\.(set|delete)\(|\.(set|append)\(\s*["'`]set-cookie/i.test(
+      code,
+    )
+  )
+    return true;
+  return (
+    /\bcookies\(\)/.test(code) &&
+    /cookies\(\)\)?\.(set|delete)\(|cookieStore\.(set|delete)\(|jar\.(set|delete)\(/.test(
+      code,
+    )
+  );
+}
 
 const kinds = (file: string, source: string) =>
   [...new Set(cookieWrites(file, source).map((write) => write.kind))].sort();
@@ -229,6 +256,23 @@ export function GET() {
     ["document-cookie"],
   ],
   [
+    "document through window by string key",
+    "client.ts",
+    `export function write() {
+  window["document"].cookie = "parent.session-token=sealed; path=/";
+}`,
+    ["document-cookie"],
+  ],
+  [
+    "document destructured from window",
+    "client.ts",
+    `export function write() {
+  const { document: page } = window;
+  Object.assign(page, { cookie: "parent.session-token=sealed" });
+}`,
+    ["document-cookie"],
+  ],
+  [
     "document handed to Reflect",
     "client.ts",
     `export function write() {
@@ -256,7 +300,7 @@ export function GET() {
   response.headers.append("Set-" + "Cookie", "parent.session-token=sealed");
   return response;
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "a Set-Cookie header name in a template",
@@ -266,7 +310,7 @@ export function GET() {
   response.headers.append(\`set-\${"cookie"}\`, "parent.session-token=sealed");
   return response;
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "a writer between strings that look like a block comment",
@@ -328,7 +372,7 @@ const CAUGHT: Probe[] = [
   response.headers.append("Set-Cookie", "parent.session-token=sealed");
   return response;
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "a renamed destructured header method",
@@ -339,7 +383,7 @@ const CAUGHT: Probe[] = [
   add("set-cookie", "parent.session-token=sealed");
   return response;
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "a Set-Cookie header on headers() of next/headers",
@@ -348,7 +392,7 @@ const CAUGHT: Probe[] = [
 export async function POST() {
   (await headers()).set("set-cookie", "parent.session-token=sealed");
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "a Set-Cookie header in a response's init",
@@ -358,7 +402,7 @@ export async function POST() {
     headers: { "Set-Cookie": "parent.session-token=sealed" },
   });
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
   [
     "Next's middleware Set-Cookie header",
@@ -368,7 +412,7 @@ export async function POST() {
     headers: { "x-middleware-set-cookie": "parent.session-token=sealed" },
   });
 }`,
-    ["set-cookie-header"],
+    ["cookie-header"],
   ],
 ];
 
@@ -494,13 +538,13 @@ export function GET() {
     expect(legacyCookieWriter("route.ts", importer)).toBe(false);
     expect(
       kinds("route-handler.ts", `export const SET_COOKIE = "Set-Cookie";`),
-    ).toEqual(["module-export", "set-cookie-header"]);
+    ).toEqual(["cookie-header", "module-export"]);
     expect(
       kinds(
         "route-handler.ts",
         `const SET_COOKIE = "Set-Cookie";\nexport { SET_COOKIE };`,
       ),
-    ).toEqual(["module-export", "set-cookie-header"]);
+    ).toEqual(["cookie-header", "module-export"]);
   });
 });
 
@@ -519,6 +563,17 @@ describe("cookie readers", () => {
 });
 
 describe("cookieWrites", () => {
+  it("flags every file of the inventory the regex inventory flagged", () => {
+    const root = process.cwd();
+    const missed = inventoryFiles(root, INVENTORY_ROOTS).filter((file) => {
+      const source = readFileSync(path.join(root, file), "utf8");
+      return (
+        legacyCookieWriter(file, source) && !cookieWrites(file, source).length
+      );
+    });
+    expect(missed).toEqual([]);
+  });
+
   it("names the line and the code of each write", () => {
     expect(
       cookieWrites(
