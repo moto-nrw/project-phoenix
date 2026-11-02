@@ -698,6 +698,73 @@ func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
 	assert.Len(t, remaining, len(locked))
 }
 
+// openOrders orders and seeds one demo school per name that no access
+// names any more and that is still open: the run retires it.
+func openOrders(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoolQueue, schools *organizationtenancy.DemoSchools, names ...string) []string {
+	t.Helper()
+	slugs := hiddenOrders(t, db, queue, schools, names...)
+	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NULL
+		WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?))`, bun.List(slugs)).Exec(t.Context())
+	require.NoError(t, err)
+	return slugs
+}
+
+// Open orders that stay locked do not take the erasure's turn: the
+// retirement and the erasure each have a budget of their own, so the visitor
+// of a hidden order is erased while they stay locked (#5540).
+func TestDemoRunErasesWhileTheRetirementWaits(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	locked := openOrders(t, db, queue, schools, "OGS A 1", "OGS A 2", "OGS A 3", "OGS A 4", "OGS A 5", "OGS A 6", "OGS A 7")
+	hidden := hiddenOrders(t, db, queue, schools, "OGS Z 1")
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	for _, slug := range locked {
+		require.NoError(t, seedLock(slug)(ctx, holder))
+	}
+
+	for run := 0; run < 3; run++ {
+		retireNow(t, queue, nil)
+	}
+	assert.NotContains(t, demoOrderNames(t, db), hidden[0], "the hidden order is erased while the open ones stay locked")
+}
+
+// State rows that stay locked do not starve the orders behind them: the
+// erasure does not wait for a state row, so a locked one costs the run's
+// budget nothing (#5540).
+func TestDemoRunReachesTheOrdersBehindLockedStateRows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	locked := hiddenOrders(t, db, queue, schools, "OGS A 1", "OGS A 2", "OGS A 3", "OGS A 4")
+	free := hiddenOrders(t, db, queue, schools, "OGS Z 1", "OGS Z 2")
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	for _, slug := range locked {
+		require.NoError(t, stateRow(slug)(ctx, holder))
+	}
+
+	for run := 0; run < 3; run++ {
+		retireNow(t, queue, nil)
+	}
+	remaining := demoOrderNames(t, db)
+	for _, slug := range free {
+		assert.NotContains(t, remaining, slug, "an order behind locked state rows is erased while they stay locked")
+	}
+	assert.Len(t, remaining, len(locked))
+}
+
 // An order meets a lock once per run: it is deferred, counted and logged
 // once, by the retirement while its school is open, by the erasure once it
 // is hidden (#5540).

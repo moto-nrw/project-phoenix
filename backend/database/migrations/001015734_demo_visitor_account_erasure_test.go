@@ -87,8 +87,9 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	assert.Contains(t, definition, "WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)",
 		"every hidden or failed order is open, whatever its status")
 	assert.Contains(t, definition, "ORDER BY state.erasure_deferrals, state.name", "a deferred order goes behind the others")
-	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
-		"a run has a budget")
+	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - started > INTERVAL '250 milliseconds' THEN`, definition,
+		"the erasure has a budget of its own")
+	assert.Contains(t, definition, "FOR UPDATE OF state NOWAIT;", "a locked state row defers the order at once")
 	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'`, definition,
 		"the subtransaction covers the order's own locks too")
 	assert.Regexp(t, `PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE;`, definition, "the check holds the visitor accounts")
@@ -97,6 +98,7 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	var note string
 	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.defer_demo_order(text, text, text)'::regprocedure)`).Scan(ctx, &note))
 	assert.Regexp(t, `deferrals >= 24 THEN\s+RAISE WARNING`, note, "a long run of deferrals is reported")
+	assert.Contains(t, note, "FOR UPDATE SKIP LOCKED", "counting never waits for a locked state row")
 
 	// The run starts in retire_expired_demo_schools: the same holds there.
 	require.NoError(t, db.NewRaw(`SELECT COALESCE(proconfig, '{}') FROM pg_proc
@@ -111,8 +113,8 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 		"each order is retired in a subtransaction that a lock in use defers")
 	assert.Regexp(t, `AND \(school\.id IS NULL OR school\.deleted_at IS NULL\);\s+IF NOT FOUND THEN\s+CONTINUE;`, definition,
 		"a hidden or failed order is left to the erasure: one deferral per order and run")
-	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
-		"the retirement has the run's budget too")
+	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '200 milliseconds' THEN`, definition,
+		"the retirement has a budget of its own")
 	assert.Contains(t, definition, "array_agg(target.name ORDER BY COALESCE(ordered.erasure_deferrals, 0), target.name)",
 		"a deferred order goes behind the others in the retirement too")
 	assert.Regexp(t, `state\.status = 'ready'\s+AND state\.first_name <> ''\s+AND school\.deleted_at IS NULL\s+AND NOT EXISTS \(SELECT 1 FROM auth\.demo_accesses`, definition,
