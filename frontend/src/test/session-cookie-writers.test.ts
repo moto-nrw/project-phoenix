@@ -5,6 +5,7 @@ import {
   INVENTORY_ROOTS,
   cookieWrites,
   inventoryFiles,
+  inventoryOf,
   sessionCookieNameSources,
   type CookieWriteKind,
 } from "./session-cookie-writers";
@@ -293,6 +294,67 @@ export function GET() {
     ],
   ),
   [
+    "a cookie list under a constant key",
+    "route.ts",
+    `import { NextResponse, type NextRequest } from "next/server";
+export function GET(request: NextRequest) {
+  const key = "cookies";
+  const response = NextResponse.json({ n: request[key].getAll().length });
+  response[key].set(${WRITE});
+  return response;
+}`,
+    ["cookie-list"],
+  ],
+  [
+    "a cookie list under a template literal key",
+    "route.ts",
+    `${SERVER}const part = "cook";
+export function GET() {
+  const response = NextResponse.json({});
+  response[\`\${part}ies\`].set(${WRITE});
+  return response;
+}`,
+    ["cookie-list"],
+  ],
+  [
+    "a response member under a variable key",
+    "write.ts",
+    `import type { NextResponse } from "next/server";
+export function write(target: NextResponse, key: string) {
+  target[key].set(${WRITE});
+}`,
+    ["computed-member"],
+  ],
+  [
+    "a member of a route's response under a computed key",
+    "route.ts",
+    `${SERVER}import { pick } from "./pick";
+export function GET() {
+  const answer = NextResponse.json({});
+  answer[pick()].set(${WRITE});
+  return answer;
+}`,
+    ["computed-member"],
+  ],
+  [
+    "a member of an untyped request under a variable key",
+    "route.js",
+    `export function POST(request, key) {
+  return request[key];
+}`,
+    ["computed-member"],
+  ],
+  [
+    "a member of headers() under a variable key",
+    "route.ts",
+    `import { headers } from "next/headers";
+export async function POST(key: string) {
+  const list = await headers();
+  list[key]("x", "y");
+}`,
+    ["computed-member"],
+  ],
+  [
     "a Set-Cookie header name spelled in parts",
     "route.ts",
     `export function GET() {
@@ -513,6 +575,23 @@ export {};`,
 }`,
   ],
   [
+    "a request's cookie list read under a constant key",
+    "route.ts",
+    `import type { NextRequest } from "next/server";
+const key = "cookies";
+export function GET(request: NextRequest) {
+  return request[key].getAll().length;
+}`,
+  ],
+  [
+    "computed keys on plain data",
+    "route.ts",
+    `export function pick(params: Record<string, string>, key: string, index: number) {
+  const parts = key.split("/");
+  return [params[key], parts[index + 1]];
+}`,
+  ],
+  [
     "ResponseCookies as a type",
     "types.ts",
     `import type { ResponseCookies } from "next/server";
@@ -675,6 +754,62 @@ describe("cookieWrites", () => {
 }`,
       ),
     ).toEqual([{ kind: "next-cookie-jar", line: 4, code: "store.set" }]);
+  });
+});
+
+describe("exported cookie names", () => {
+  // A module exporting a Set-Cookie or session cookie name lets an unlisted
+  // importer write the cookie without spelling its name.
+  const exported = (source: string) =>
+    inventoryOf("names.ts", source).exportedCookieNames.map(({ line }) => line);
+
+  it.each([
+    ["an object", `export const names = { header: "Set-Cookie" };`],
+    ["an array", `export const names = ["Set-Cookie"];`],
+    [
+      "a function's return",
+      `export function header() {\n  return "Set-Cookie";\n}`,
+    ],
+    [
+      "an arrow function's return",
+      `export const name = () => "parent.session-token";`,
+    ],
+    [
+      "a re-export of a local binding",
+      `const names = { header: "Set-Cookie" };\nexport { names as cookieNames };`,
+    ],
+    ["a default export", `export default { cookie: "parent.session-token" };`],
+    [
+      "a constant the export references",
+      `const NAME = "parent.session-token";\nexport const config = { cookie: NAME };`,
+    ],
+    [
+      "a helper the export calls",
+      `function name() {\n  return "Set-" + "Cookie";\n}\nexport const header = () => name();`,
+    ],
+    ["CommonJS", `module.exports = { header: "Set-Cookie" };`],
+    ["a session cookie pattern", `export const pattern = /session-token$/;`],
+  ])("rejects %s", (_, source) => {
+    expect(exported(source)).not.toEqual([]);
+  });
+
+  it("names the line of the export", () => {
+    expect(
+      exported(`const NAME = "parent.session-token";
+export const other = 1;
+export const config = { cookie: NAME };`),
+    ).toEqual([3]);
+  });
+
+  it.each([
+    ["another header", `export const names = { header: "Content-Type" };`],
+    [
+      "a name the exports never reach",
+      `const NAME = "parent.session-token";\nexport const other = () => 1;`,
+    ],
+    ["a type", `export type Header = "Set-Cookie";`],
+  ])("accepts %s", (_, source) => {
+    expect(exported(source)).toEqual([]);
   });
 });
 
