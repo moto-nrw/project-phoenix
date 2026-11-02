@@ -180,7 +180,10 @@ func TestErasureCLISeparatesSchoolsAndResumesBothPhases(t *testing.T) {
 	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
 	// A DB/upload snapshot is not atomic. Restored files must be removable even
 	// when the restored DB already contains the completed receipt, not a school.
+	// The erasure removed the emptied school directory too (#5544); the
+	// restore brings it back with the file.
 	restoredFile := filepath.Join(root, fmt.Sprintf("files/%d/restored.bin", a))
+	require.NoError(t, os.MkdirAll(filepath.Dir(restoredFile), 0700))
 	require.NoError(t, os.WriteFile(restoredFile, []byte("synthetic"), 0600))
 	repeated, err := service.Run(t.Context(), request)
 	require.NoError(t, err)

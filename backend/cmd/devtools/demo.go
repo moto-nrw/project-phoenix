@@ -34,7 +34,11 @@ var demoCmd = &cobra.Command{
 		baseURL, _ := cmd.Flags().GetString("url")
 		once, _ := cmd.Flags().GetBool("once")
 		heartbeat, _ := cmd.Flags().GetString("heartbeat")
+		uploadsRoot, _ := cmd.Flags().GetString("uploads-root")
 		if err := validateDemoTarget(baseURL, os.Getenv("APP_ENV")); err != nil {
+			return err
+		}
+		if err := validateDemoUploadsRoot(uploadsRoot); err != nil {
 			return err
 		}
 		flushSentry, err := initDemoSentry(os.Getenv("SENTRY_DSN"), os.Getenv("APP_ENV"))
@@ -58,7 +62,7 @@ var demoCmd = &cobra.Command{
 			defer func() { _ = inbox.Close() }()
 			adapterFactory = demoSeedAdapterFactory(inbox.FetchCode)
 		}
-		schools, err := NewDemoRuntime(db, time.Now, adapterFactory)
+		schools, err := NewDemoRuntime(db, time.Now, adapterFactory, uploadsRoot)
 		if err != nil {
 			return err
 		}
@@ -81,6 +85,21 @@ func init() {
 	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://127.0.0.1:8080)")
 	demoCmd.Flags().Bool("once", false, "Provision or reload the school, execute one tick and exit (smoke verification)")
 	demoCmd.Flags().String("heartbeat", "", "File rewritten after every successful tick; the container healthcheck reads its age")
+	demoCmd.Flags().String("uploads-root", "", "Uploads directory of the demo server; the files of retired demo schools are removed from it (required)")
+	_ = demoCmd.MarkFlagRequired("uploads-root")
+}
+
+// validateDemoUploadsRoot fails at start when the uploads directory is not
+// mounted, instead of failing the hourly file erasure (#5544).
+func validateDemoUploadsRoot(root string) error {
+	if strings.TrimSpace(root) == "" {
+		return fmt.Errorf("demo: --uploads-root is required")
+	}
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("demo: --uploads-root must name the server's uploads directory")
+	}
+	return nil
 }
 
 // isPublicDemo reports whether the process runs as the public demo's sidecar

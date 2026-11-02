@@ -82,6 +82,25 @@ an address or a name, and may set `deleted_at` on `platform.schools`
 (migration 1.15.412). Hidden schools accumulate; the ADR allows rebuilding
 the demo database when that matters.
 
+The same run then removes the uploads of every school hidden for at least an
+hour (#5544, ADR 0148): all namespaces of the file catalog, orphaned files
+and the emptied school directories included, from the directory
+`--uploads-root` names. The work list is the database: a hidden school with
+a demo origin in `platform.demo_school_origins` (recorded by trigger when an
+order names the school), without a marker in
+`platform.demo_school_file_erasures`, that is not the school of an order
+still being seeded; the standing school never, even hidden. A hidden school
+without a demo origin is left alone; that includes demo schools whose order
+was already erased before 1.15.735, which keep their files until the demo
+database and uploads volume are rebuilt. At most
+50 schools per run. Per school the process removes, counts again and writes
+the marker with the removed counts only when nothing is left. A school that
+fails (for example a symlinked namespace, which is never followed) keeps no
+marker and logs its school ID; the run stays due, the next poll retries it
+and the sidecar turns `unhealthy` until it succeeds. The log line
+`demo school files erased` carries the number of schools and files. The
+database rows of a hidden school stay until the demo database is rebuilt.
+
 ### Capacity
 
 The server queues at most `--demo-max-active-schools` demo schools at once
@@ -120,8 +139,9 @@ module.
 2. Start the application with `phx-dev up`. On macOS with the Nix toolchain,
    use `CGO_ENABLED=0 phx-dev up` if the native linker cannot find `libresolv`.
 3. In another terminal, run `CGO_ENABLED=0 phx-dev backend go run ./cmd/devtools demo
-   --url http://localhost:<SERVER_HOST_PORT>`, replacing the port with the
-   worktree's `.env` value. Keep the command on one line.
+   --url http://localhost:<SERVER_HOST_PORT> --uploads-root public/uploads`,
+   replacing the port with the worktree's `.env` value. Keep the command on
+   one line. `--uploads-root` names the native server's uploads directory.
 4. Open `http://messe-demo.localhost:<FRONTEND_HOST_PORT>`. Retrieve a school
    admin's credentials from `seed_state.profiles.vollbetrieb.credentials` in
    the private local database. Do not paste the JSON into logs or tickets.
@@ -147,7 +167,7 @@ switch), run a separate worktree in demo mode:
 3. Run the demo process against the loopback address, because under `demo`
    it accepts only the Compose host `server` or a loopback IP, and point
    `DEMO_DB_DSN` at the published Postgres port (one line):
-   `CGO_ENABLED=0 devbox run dev backend env 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run ./cmd/devtools demo --url http://127.0.0.1:<SERVER_HOST_PORT>`
+   `CGO_ENABLED=0 devbox run dev backend env 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run ./cmd/devtools demo --url http://127.0.0.1:<SERVER_HOST_PORT> --uploads-root public/uploads`
    The native server sees this process as a loopback peer, so with
    `RATE_LIMIT_ENABLED=true` the seed runs unthrottled as on the deployed demo.
 4. Request a demo as the website would:
@@ -193,6 +213,13 @@ sidecar shares the server's network namespace, calls only
 `http://127.0.0.1:8080`, and publishes no ports. No additional SOPS keys are
 introduced.
 
+- **Uploads:** the sidecar mounts the server's volume `phoenix-demo-uploads`
+  at `/app/public/uploads` and starts with `--uploads-root
+  /app/public/uploads`; without that directory it refuses to start. Server
+  and sidecar run the same image as `appuser` (UID 1001), which owns every
+  upload. `scripts/check-runtime-env.py` allows exactly this one volume on the
+  sidecar.
+
 - **Rate limits:** one seeded school costs more than a thousand API calls under
   one account, and its first tick sends a few hundred device calls. Under
   `APP_ENV=demo` the general and the auth rate limiters therefore let loopback
@@ -211,7 +238,8 @@ introduced.
 The sidecar receives only its explicit environment allowlist: environment and
 timezone, maintenance DB DSN and pool settings, operator bootstrap credentials,
 and the device PIN. It receives no JWT signing key, application-role password,
-SMTP credentials, frontend secrets or mounted dotenv file. Unlike the serving
+SMTP credentials, frontend secrets or mounted dotenv file; its only volume is
+the uploads volume. Unlike the serving
 backend, it requires a privileged connection for its private state table.
 HTTP database roles cannot read that table.
 
@@ -262,6 +290,9 @@ HTTP database roles cannot read that table.
 `scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./internal/devtools/simulate ./modules/organizationtenancy/compose ./cmd/devtools ./internal/devtools/seedapi` covers grace-period
 boundaries, weekend rebuilds, stored-state restart, competing runners, HTTP-role
 credential isolation and environment/host guards. Keep this command on one line.
+`scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./cmd -run 'TestDemo'` covers the file erasure of
+retired demo schools on a temporary uploads directory; the queue scenario of
+the seed smoke proves it against seeded schools.
 
 Local acceptance also checks live SSE updates, web check-in/check-out, restart
 without a second school, recovery after daily close, and the admin's hidden

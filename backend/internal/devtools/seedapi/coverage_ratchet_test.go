@@ -30,6 +30,7 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	"platform.demo_school_file_erasures":        "verified upload removals of retired demo schools only (#5544); the profiles seed keeps its schools active and must not fabricate file erasure markers",
 	"platform.school_erasures":                  "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
 	"platform.organization_erasure_orders":      "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
 	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period 92 days after its last week; the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",

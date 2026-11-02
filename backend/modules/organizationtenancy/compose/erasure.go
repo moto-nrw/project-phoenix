@@ -1,6 +1,8 @@
 package compose
 
 import (
+	"errors"
+
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
@@ -13,4 +15,12 @@ func NewErasure(db *bun.DB, files organizationtenancy.ErasureFiles, ledger organ
 		return nil, err
 	}
 	return application.NewErasure(store, files, ledger)
+}
+
+// NewDemoSchoolFiles composes the file erasure of retired demo schools (#5544).
+func NewDemoSchoolFiles(db *bun.DB, files organizationtenancy.ErasureFiles) (organizationtenancy.DemoSchoolFiles, error) {
+	if db == nil {
+		return nil, errors.New("demo school files require a database")
+	}
+	return application.NewDemoSchoolFiles(postgres.NewDemoSchoolFileStore(db), files)
 }
