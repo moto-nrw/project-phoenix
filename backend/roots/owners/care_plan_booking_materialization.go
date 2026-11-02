@@ -41,7 +41,7 @@ func BookingMaterializationOwners(
 		Students:    bookingStudents{people: students},
 		Audit:       bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
 		Pickup:      bookingPickup{baselines: pickup, rows: pickupRows},
-		ManualPlans: bookingManualPlans{days: studentDays},
+		ManualPlans: bookingManualPlans{days: studentDays}, PlanningStaffing: studentDays,
 	}, nil
 }
 

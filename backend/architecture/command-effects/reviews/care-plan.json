@@ -9711,6 +9711,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "classification": "leaf",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingPlanningStaffing.AnnounceBookingChange",
+      "reason": "Non-durable staffing SSE invalidation only (#5498): Timetable queues its existing staffing_deviation_changed announcement (modules/timetable/internal/application/template_writes.go announceStaffingChanged) after the caller's commit; it carries no child and writes nothing. Target modules/timetable/student_template_days.go StudentTemplateDays.AnnounceBookingChange.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.AnnounceBookingChange",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
       "approval_adr": "0083",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.BackfillRequestChildSource",
       "classification": "E4",

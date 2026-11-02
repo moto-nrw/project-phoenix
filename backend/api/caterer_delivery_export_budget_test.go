@@ -23,7 +23,7 @@ import (
 // grows by a fixed number of statements per school, never with the children
 // or the days beyond the week the window is bounded to, and it writes
 // nothing and takes no order lock. A longer window is refused before any
-// school is read. It runs serially: the counter sees the router's pool.
+// school is read. Only statements descended from the export request count.
 func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -62,11 +62,21 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	// A week far ahead: every day is open and lies after the supply started.
 	monday := calendar.NewDate(2030, 3, 4)
 	week := fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(4))
-	counter := testpkg.CaptureQueries(t, api.db.Pool())
+	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
+	countedHandler := api.queryBudgetHandler(counter)
 	export := func(path string) (int, []string) {
 		t.Helper()
 		counter.Reset()
-		response := checkpointRequest(api, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
+		// A detached job on the router's pool must not consume the request's
+		// budget (#5550). Join it inside the capture window, without sleeps.
+		foreignQuery := make(chan error, 1)
+		go func() {
+			_, err := api.db.Pool().ExecContext(context.Background(), "SELECT 1")
+			foreignQuery <- err
+		}()
+		response := checkpointRequest(countedHandler, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
+		require.NoError(t, <-foreignQuery)
+		assert.NotContains(t, counter.Queries(), "SELECT 1", "detached pool traffic is outside the request budget")
 		return response.Code, withoutSessionCheck(t, counter.Queries())
 	}
 

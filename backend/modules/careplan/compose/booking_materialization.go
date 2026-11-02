@@ -40,13 +40,12 @@ func bookingDependencies(deps BookingMaterializationDependencies, catalog *appli
 		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
 		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
 		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup, ManualPlans: deps.ManualPlans,
-		RunInTx:                     tenant.NewTransactionRunner().RunInTx,
-		LockTemplateRecurrence:      deps.LockTemplateRecurrence,
+		RunInTx: tenant.NewTransactionRunner().RunInTx, LockTemplateRecurrence: deps.LockTemplateRecurrence,
 		ResyncPickupAutoExcusals:    deps.ResyncPickupAutoExcusals,
 		ClearPickupWeekdayExtension: deps.ClearPickupWeekdayExtension,
 		AnnouncePickupChange:        application.AnnounceOfferingPickupChange(deps.PickupStaff, deps.PickupGuardians, TenantHooks{}, deps.Logger),
-		Today:                       deps.Today,
-		Logger:                      deps.Logger,
+		PlanningStaffing:            deps.PlanningStaffing,
+		Today:                       deps.Today, Logger: deps.Logger,
 	}
 }
 
@@ -70,10 +69,11 @@ type BookingMaterializationDependencies struct {
 	LockTemplateRecurrence      func(context.Context) error
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	// PickupStaff and PickupGuardians hear about a changed offering pickup
-	// projection after commit; either may be nil.
-	PickupStaff     ports.PickupScheduleStaff
-	PickupGuardians ports.PickupScheduleGuardians
+	// PickupStaff, PickupGuardians and PlanningStaffing (#5498) hear about a
+	// committed booking or pickup projection change; each may be nil.
+	PickupStaff      ports.PickupScheduleStaff
+	PickupGuardians  ports.PickupScheduleGuardians
+	PlanningStaffing ports.BookingPlanningStaffing
 
 	Today  func() calendar.Date
 	Logger *slog.Logger

@@ -1,3 +1,5 @@
+DELETE /api/staff/time-tracking/payroll-rules/surcharge-rules/{ruleId} -> zeiterfassung
+DELETE /api/staff/time-tracking/payroll-rules/wage-types/{wageTypeId} -> zeiterfassung
 DELETE /api/staff/{id} -> basis
 DELETE /api/staff/{id}/absences/{absenceId} -> zeiterfassung
 DELETE /api/staff/{id}/documents/{documentId} -> personalakte
@@ -24,6 +26,7 @@ GET /api/staff/time-tracking/export/sftp-status -> zeiterfassung
 GET /api/staff/time-tracking/month-close -> zeiterfassung
 GET /api/staff/time-tracking/overview -> zeiterfassung
 GET /api/staff/time-tracking/payroll-dispatch -> zeiterfassung
+GET /api/staff/time-tracking/payroll-rules -> zeiterfassung
 GET /api/staff/{id} -> basis
 GET /api/staff/{id}/absences -> zeiterfassung
 GET /api/staff/{id}/avatar -> basis
@@ -54,6 +57,8 @@ POST /api/staff/externals/{id}/invitation -> basis
 POST /api/staff/qualification-types -> basis
 POST /api/staff/time-tracking/export/sftp -> zeiterfassung
 POST /api/staff/time-tracking/month-close -> zeiterfassung
+POST /api/staff/time-tracking/payroll-rules/surcharge-rules -> zeiterfassung
+POST /api/staff/time-tracking/payroll-rules/wage-types -> zeiterfassung
 POST /api/staff/{id}/absences -> zeiterfassung
 POST /api/staff/{id}/absences/rebook -> zeiterfassung
 POST /api/staff/{id}/documents -> personalakte
@@ -66,6 +71,9 @@ POST /api/staff/{id}/time-tracking/reset -> zeiterfassung
 POST /api/staff/{id}/time-tracking/sessions -> zeiterfassung
 POST /api/staff/{id}/vacation/opening -> zeiterfassung
 PUT /api/staff/qualification-types/{typeId} -> basis
+PUT /api/staff/time-tracking/payroll-rules/absence-types/{absenceTypeId} -> zeiterfassung
+PUT /api/staff/time-tracking/payroll-rules/surcharge-rules/{ruleId} -> zeiterfassung
+PUT /api/staff/time-tracking/payroll-rules/wage-types/{wageTypeId} -> zeiterfassung
 PUT /api/staff/{id} -> basis
 PUT /api/staff/{id}/payroll-number -> zeiterfassung
 PUT /api/staff/{id}/planned-exit -> basis

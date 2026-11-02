@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
@@ -65,7 +65,7 @@ function Harness({
       <ResourcePrefetchProvider resourcesFor={resourcesFor}>
         <Link
           href="/rooms"
-          onClick={(event) => {
+          onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             event.preventDefault();
             setOpened(true);
           }}

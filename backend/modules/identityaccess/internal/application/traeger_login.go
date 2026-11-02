@@ -310,7 +310,7 @@ func (s *AccountAuthentication) ListTraegerAccounts(ctx context.Context, organiz
 	}
 	result := make([]identityaccess.TraegerAccount, 0, len(accounts))
 	for _, account := range accounts {
-		result = append(result, identityaccess.TraegerAccount(account))
+		result = append(result, identityaccess.TraegerAccount{AccountID: account.AccountID, Email: account.Email, Roles: account.Roles})
 	}
 	return result, nil
 }

@@ -20,8 +20,10 @@ import ts from "typescript";
  * Known limits, among others: a key or header name computed at run time
  * (other than from literals and constants) on an unrecognised receiver, a
  * write through a helper in another module whose own file passes, and a
- * backend response's headers forwarded as a whole (#5517). Runtime
- * enforcement at the exit is #5520.
+ * backend response's headers forwarded as a whole (#5517). At run time the
+ * lock at the server's exit (src/lib/session-cookie-exit.server.ts, #5520)
+ * drops every session cookie write gateSessionCookieWrites did not approve,
+ * whichever of these paths wrote it.
  */
 
 export type CookieWriteKind =
