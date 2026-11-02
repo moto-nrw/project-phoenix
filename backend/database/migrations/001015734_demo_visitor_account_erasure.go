@@ -67,10 +67,14 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //     a subtransaction: on lock_not_available or deadlock_detected it is
 //     rolled back, counted in platform.demo_school_states.erasure_deferrals
 //     (platform.defer_demo_order, one log line, a warning from 24 in a row)
-//     and retried by the next hourly run. It handles at most 50 orders and
-//     starts none after 250 ms of its own; the retirement before it has 200
-//     ms. A locked state row defers an order at once (NOWAIT). The rest
-//     stays open.
+//     and retried by the next hourly run. What is guaranteed: each single
+//     lock wait ends after 100 ms; new orders start only within the budget
+//     (at most 50, and none after 250 ms of the erasure's own time; the
+//     retirement before it has 200 ms); an order already started is
+//     finished. The run time is therefore bounded, but not hard below 1 s.
+//     The erasure picks its batch with FOR UPDATE SKIP LOCKED: an order
+//     whose state row another transaction holds takes no place and stays
+//     open. The rest stays open too.
 //   - Open is every order whose school is hidden or that failed, whatever
 //     state its seed left it in, until its erasure is done: before, a hidden
 //     school of an order still preparing was never erased.
@@ -128,14 +132,18 @@ const demoVisitorAccountErasureUpSQL = `
 				-- (#5540): a hidden school is never found again otherwise.
 				WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
-				-- A deferral puts an order behind the orders deferred less often:
-				-- orders that stay locked never starve the others of the budget.
+				-- A deferral puts an order behind the orders deferred less often.
+				-- A locked state row takes no place in the batch: the order stays
+				-- open and the free orders behind it come first.
 				ORDER BY state.erasure_deferrals, state.name
+				LIMIT 50
+				FOR UPDATE OF state SKIP LOCKED
 			LOOP
 				target_name := visitor.name;
-				-- The erasure has a budget of its own, so the run ends well below
-				-- deadlock_timeout however many orders wait for a lock, and open
-				-- orders the retirement waits for never take its turn; the rest
+				-- The erasure has a budget of its own: it starts no order after
+				-- 250 ms, so open orders the retirement waits for never take its
+				-- turn. Each lock wait ends after 100 ms; an order already started
+				-- is finished, so the run time is bounded, not cut off. The rest
 				-- stays open.
 				IF tried >= 50 OR clock_timestamp() - started > INTERVAL '250 milliseconds' THEN
 					RAISE LOG 'demo visitor erasure ends this run at its budget: % orders erased, the rest stays open', erased;
@@ -394,6 +402,16 @@ const demoVisitorAccountErasureUpSQL = `
 					PERFORM platform.defer_demo_order(target_name, 'erasure', SQLSTATE);
 				END;
 			END LOOP;
+			-- One line for the orders this run leaves open: deferred, beyond the
+			-- budget, or skipped while another transaction holds their row.
+			SELECT count(*) INTO tried
+			FROM platform.demo_school_states AS state
+			LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+			WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)
+				AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
+			IF tried > 0 THEN
+				RAISE LOG 'demo visitor erasure leaves % orders open for the next run (% erased)', tried, erased;
+			END IF;
 			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 				RAISE LOG 'demo visitor erasure skipped this run (SQLSTATE %): a table it reads is locked', SQLSTATE;
 				RETURN 0;
@@ -503,9 +521,10 @@ const demoSchoolRetirementWithoutWaitSQL = `
 			END;
 			FOREACH target_name IN ARRAY targets
 			LOOP
-				-- The retirement has a budget of its own, so the run ends well
-				-- below deadlock_timeout and the erasure keeps its turn; the rest
-				-- is found again.
+				-- The retirement has a budget of its own: it starts no order after
+				-- 200 ms, so the erasure keeps its turn. Each lock wait ends after
+				-- 100 ms; an order already started is finished, so the run time is
+				-- bounded, not cut off. The rest is found again.
 				IF tried >= 50 OR clock_timestamp() - statement_timestamp() > INTERVAL '200 milliseconds' THEN
 					RAISE LOG 'demo school retirement ends this run at its budget: % schools hidden, the rest stays open', hidden_count;
 					EXIT;

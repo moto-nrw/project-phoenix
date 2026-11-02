@@ -90,6 +90,8 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - started > INTERVAL '250 milliseconds' THEN`, definition,
 		"the erasure has a budget of its own")
 	assert.Contains(t, definition, "FOR UPDATE OF state NOWAIT;", "a locked state row defers the order at once")
+	assert.Regexp(t, `ORDER BY state\.erasure_deferrals, state\.name\s+LIMIT 50\s+FOR UPDATE OF state SKIP LOCKED`, definition,
+		"a locked state row takes no place in the batch")
 	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'`, definition,
 		"the subtransaction covers the order's own locks too")
 	assert.Regexp(t, `PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE;`, definition, "the check holds the visitor accounts")

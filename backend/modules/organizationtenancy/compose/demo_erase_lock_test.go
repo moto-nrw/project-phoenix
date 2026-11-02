@@ -765,6 +765,43 @@ func TestDemoRunReachesTheOrdersBehindLockedStateRows(t *testing.T) {
 	assert.Len(t, remaining, len(locked))
 }
 
+// Locked state rows take no place in the erasure's batch: the erasure picks
+// its orders past them, so a free order behind fifty locked ones is erased in
+// the first run, and the locked ones, still open, once they are free, without
+// being named (#5540).
+func TestDemoRunErasesAFreeOrderBehindFiftyLockedStateRows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	names := make([]string, 0, 50)
+	for i := range 50 {
+		names = append(names, fmt.Sprintf("OGS A %02d", i))
+	}
+	locked := hiddenOrders(t, db, queue, schools, names...)
+	free := hiddenOrders(t, db, queue, schools, "OGS Z 1")
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	for _, slug := range locked {
+		require.NoError(t, stateRow(slug)(ctx, holder))
+	}
+
+	_, erased := retireNow(t, queue, nil)
+	assert.Equal(t, 1, erased, "the first run erases the free order")
+	assert.NotContains(t, demoOrderNames(t, db), free[0])
+	assert.Len(t, demoOrderNames(t, db), len(locked), "the locked orders stay open")
+	require.NoError(t, holder.Rollback())
+
+	for run := 0; run < 5 && len(demoOrderNames(t, db)) > 0; run++ {
+		retireNow(t, queue, nil)
+	}
+	assert.Empty(t, demoOrderNames(t, db), "the next runs, told nothing, erase the orders once they are free")
+}
+
 // An order meets a lock once per run: it is deferred, counted and logged
 // once, by the retirement while its school is open, by the erasure once it
 // is hidden (#5540).
