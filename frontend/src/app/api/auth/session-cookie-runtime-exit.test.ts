@@ -7,13 +7,7 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  createServer,
-  get,
-  ServerResponse,
-  type IncomingMessage,
-  type Server,
-} from "node:http";
+import { createServer, get, ServerResponse, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { encode } from "next-auth/jwt";
 import { NextResponse } from "next/server";
@@ -23,14 +17,20 @@ import {
 } from "next/dist/server/base-http/node";
 import { sendResponse } from "next/dist/server/send-response";
 import { env } from "~/env";
-import { installSessionCookieExit } from "~/lib/session-cookie-exit.server";
+import {
+  installSessionCookieExit,
+  isSessionCookieExitLocked,
+} from "~/lib/session-cookie-exit.server";
+import { setTestClock } from "~/test/clock";
 import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
 
 // #5520: invariant I1 of #5399 at run time. Whatever code builds a response,
 // a session cookie leaves the Node server only when gateSessionCookieWrites
-// approved it; a deletion always leaves. The routes below run on a real Node
-// server with the lock instrumentation.ts installs, and Next's own
-// sendResponse writes their responses, as it does for every route handler.
+// approved it while handling the same request; a deletion always leaves. The
+// routes below run on a real Node server with the lock instrumentation.ts
+// installs (setup-common.ts installs it for every test, as in production),
+// and Next's own sendResponse writes their responses, as it does for every
+// route handler.
 
 const NAME = "parent.session-token";
 const SESSION = {
@@ -59,31 +59,27 @@ const browserRequest = () =>
 /** One route per path, answered through Next's sendResponse. */
 let routes = new Map<string, () => Promise<Response>>();
 /** Responses whose head a route writes itself, past sendResponse. */
-let rawRoutes = new Map<string, (res: ServerResponse) => void>();
+let rawRoutes = new Map<string, (res: ServerResponse) => unknown>();
 
-/** ServerResponse of this server only: the lock stays out of other tests. */
-class LockedResponse<
-  Request extends IncomingMessage = IncomingMessage,
-> extends ServerResponse<Request> {}
-installSessionCookieExit(LockedResponse.prototype);
+installSessionCookieExit();
 
-const server: Server = createServer(
-  { ServerResponse: LockedResponse },
-  (req, res) => {
-    const path = req.url ?? "";
-    const raw = rawRoutes.get(path);
-    if (raw) return raw(res);
-    const route = routes.get(path);
-    if (!route) return res.writeHead(404).end();
-    void route().then((response) =>
-      sendResponse(
-        new NodeNextRequest(req),
-        new NodeNextResponse(res),
-        response,
-      ),
-    );
-  },
-);
+const server: Server = createServer((req, res) => {
+  const path = req.url ?? "";
+  const raw = rawRoutes.get(path);
+  if (raw) return void raw(res);
+  const route = routes.get(path);
+  if (!route) return res.writeHead(404).end();
+  void route().then((response) =>
+    sendResponse(new NodeNextRequest(req), new NodeNextResponse(res), response),
+  );
+});
+
+/** The gate's approval of `line`, in the request it runs in. */
+async function approve(line: string) {
+  const answer = new Response(null, { headers: { "Set-Cookie": line } });
+  const gated = await gateSessionCookieWrites(browserRequest(), answer);
+  expect(gated.headers.getSetCookie()).toEqual([line]);
+}
 
 /** The Set-Cookie lines the browser receives for a path. */
 function setCookiesAt(path: string): Promise<string[]> {
@@ -221,7 +217,7 @@ describe("the lock at the server's exit", () => {
     ]);
   });
 
-  it("reads a deletion as the browser does: Max-Age wins over Expires", async () => {
+  it("drops writes that carry a value or a future lifetime next to a deletion", async () => {
     const value = await sealed();
     routes.set("/disguised", async () => {
       const answer = new Response(null);
@@ -242,12 +238,11 @@ describe("the lock at the server's exit", () => {
   });
 
   it.each(["object", "pairs", "case-alias"])(
-    "filters only effective headers before consuming an approval (%s)",
+    "filters only effective headers of writeHead (%s)",
     async (form) => {
       const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
-      const answer = new Response(null, { headers: { "Set-Cookie": line } });
-      await gateSessionCookieWrites(browserRequest(), answer);
-      rawRoutes.set("/merged", (res) => {
+      rawRoutes.set("/merged", async (res) => {
+        await approve(line);
         res.setHeader("Set-Cookie", line);
         const headers =
           form === "pairs"
@@ -267,23 +262,131 @@ describe("the lock at the server's exit", () => {
     },
   );
 
-  it("does not consume an approval for a header overridden by writeHead", async () => {
+  it("drops a header writeHead overrides and keeps the approved one", async () => {
     const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
-    await gateSessionCookieWrites(
-      browserRequest(),
-      new Response(null, { headers: { "Set-Cookie": line } }),
-    );
-    rawRoutes.set("/overridden", (res) => {
+    rawRoutes.set("/overridden", async (res) => {
+      await approve(line);
       res.setHeader("Set-Cookie", line);
       res.writeHead(200, { "Set-Cookie": "other=1" }).end();
     });
-    rawRoutes.set("/approved", (res) => {
+    rawRoutes.set("/approved", async (res) => {
+      await approve(line);
       res.setHeader("Set-Cookie", line);
       res.end();
     });
 
     expect(await setCookiesAt("/overridden")).toEqual(["other=1"]);
     expect(await setCookiesAt("/approved")).toEqual([line]);
+  });
+
+  it("binds an approval to its request: parallel requests with the same line both get it", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+    let approvals = 0;
+    let bothApproved: () => void = () => {};
+    const barrier = new Promise<void>((resolve) => (bothApproved = resolve));
+    rawRoutes.set("/parallel", async (res) => {
+      await approve(line);
+      if (++approvals === 2) bothApproved();
+      await barrier;
+      res.setHeader("Set-Cookie", line);
+      res.end();
+    });
+
+    const [first, second] = await Promise.all([
+      setCookiesAt("/parallel"),
+      setCookiesAt("/parallel"),
+    ]);
+
+    expect(first).toEqual([line]);
+    expect(second).toEqual([line]);
+  });
+
+  it("keeps an approval until its response is written, however late", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+    rawRoutes.set("/late-flush", async (res) => {
+      await approve(line);
+      // A stream that flushes its head long after the gate ran.
+      setTestClock(new Date(Date.now() + 61 * 60_000));
+      res.setHeader("Set-Cookie", line);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/late-flush")).toEqual([line]);
+  });
+
+  it("approves nothing outside a request", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+    await approve(line);
+    rawRoutes.set("/elsewhere", (res) => {
+      res.setHeader("Set-Cookie", line);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/elsewhere")).toEqual([]);
+  });
+
+  it("fails the gate when the lock at the exit is missing", async () => {
+    const locked = ServerResponse.prototype.writeHead;
+    // What a server looks like when instrumentation.ts did not run.
+    ServerResponse.prototype.writeHead = function (...args) {
+      return Reflect.apply(locked, this, args) as ServerResponse;
+    } as typeof locked;
+    try {
+      expect(isSessionCookieExitLocked()).toBe(false);
+      await expect(
+        gateSessionCookieWrites(
+          browserRequest(),
+          new Response(null, {
+            headers: { "Set-Cookie": `${NAME}=${await sealed()}` },
+          }),
+        ),
+      ).rejects.toThrow(/session cookie exit lock is not installed/);
+    } finally {
+      ServerResponse.prototype.writeHead = locked;
+    }
+    expect(isSessionCookieExitLocked()).toBe(true);
+  });
+
+  it.each([
+    ["a repeated Max-Age", `${NAME}=VALUE; Max-Age=0; Max-Age=+3600`],
+    ["a repeated Max-Age, empty", `${NAME}=; Max-Age=0; Max-Age=+3600`],
+    ["names in other case", `${NAME}=; max-age=0; MAX-AGE=3600`],
+    ["a Max-Age with +", `${NAME}=; Max-Age=+0`],
+    [
+      "a repeated Expires",
+      `${NAME}=VALUE; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Expires=Thu, 01 Jan 2099 00:00:00 GMT`,
+    ],
+    [
+      "a repeated Expires, past last",
+      `${NAME}=VALUE; Expires=Thu, 01 Jan 2099 00:00:00 GMT; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+    ],
+    [
+      "a repeated Expires, empty",
+      `${NAME}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; expires=Thu, 01 Jan 2099 00:00:00 GMT`,
+    ],
+    [
+      "an empty value with a long life",
+      `${NAME}=; Expires=Thu, 01 Jan 2099 00:00:00 GMT`,
+    ],
+    ["an empty value with a positive Max-Age", `${NAME}=; Max-Age=3600`],
+    ["an empty value without a lifetime", `${NAME}=; Path=/`],
+    [
+      "a past Expires against a long Max-Age",
+      `${NAME}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=3600`,
+    ],
+    ["a value with Max-Age=0", `${NAME}=VALUE; Max-Age=0`],
+    [
+      "a value with a past Expires",
+      `${NAME}=VALUE; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+    ],
+  ])("needs an approval for a disguised deletion: %s", async (_, template) => {
+    const line = template.replace("VALUE", await sealed());
+    rawRoutes.set("/disguised", (res) => {
+      res.setHeader("Set-Cookie", [line, "other=1"]);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/disguised")).toEqual(["other=1"]);
   });
 
   it.each([
@@ -299,7 +402,7 @@ describe("the lock at the server's exit", () => {
     async (expires) => {
       rawRoutes.set("/invalid-expiry", (res) => {
         res.setHeader("Set-Cookie", [
-          `${NAME}=unapproved; Expires=${expires}`,
+          `${NAME}=; Expires=${expires}`,
           "other=1",
         ]);
         res.end();
@@ -309,11 +412,11 @@ describe("the lock at the server's exit", () => {
     },
   );
 
-  it("keeps valid cookie expiry bounds and ignores invalid repeated dates", async () => {
+  it("lets deletions at the valid date bounds arrive", async () => {
     const lines = [
-      `${NAME}=old; Expires=Mon, 01 Jan 1601 00:00:00 GMT`,
-      `${NAME}=old; Expires=Thu, 01 Jan 1970 23:59:59 GMT`,
-      `${NAME}=old; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Expires=Mon, 01 Jan 1500 00:00:00 GMT`,
+      `${NAME}=; Expires=Mon, 01 Jan 1601 00:00:00 GMT`,
+      `${NAME}=; Expires=Thu, 01 Jan 1970 23:59:59 GMT`,
+      `${NAME}=; Max-Age=-1`,
     ];
     rawRoutes.set("/valid-expiry", (res) => {
       res.setHeader("Set-Cookie", lines);

@@ -1,5 +1,7 @@
 import "server-only";
-import { ServerResponse } from "node:http";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { Server, ServerResponse } from "node:http";
+import { Server as HttpsServer } from "node:https";
 import { createLogger } from "~/lib/logger";
 
 /**
@@ -8,8 +10,14 @@ import { createLogger } from "~/lib/logger";
  * action, page, proxy, a backend response handed through), writes its status
  * line and headers through ServerResponse#writeHead, explicitly or on its
  * first write. There a Set-Cookie line with a session cookie name leaves only
- * if gateSessionCookieWrites approved it for this response, or if it deletes
- * the cookie. Any other is dropped and logged by cookie name, never value.
+ * if gateSessionCookieWrites approved it while handling this very request,
+ * or if it deletes the cookie. Any other is dropped and logged by cookie
+ * name, never value.
+ *
+ * An approval belongs to one request: the server opens a context per request
+ * (AsyncLocalStorage, entered where Node emits the request) and ties it to
+ * the request's ServerResponse. It holds as long as that response exists and
+ * no longer, with no time limit and nothing left behind.
  */
 
 const logger = createLogger({ component: "SessionCookieExit" });
@@ -19,49 +27,59 @@ export function isSessionCookieName(name: string): boolean {
   return /session-token(?:\.\d+)?$/.test(name);
 }
 
-/** How long an approval waits for its response to be written. */
-const APPROVAL_LIFETIME_MS = 60_000;
-
 const STATE = Symbol.for("moto.session-cookie-exit");
 const LOCKED = Symbol.for("moto.session-cookie-exit.locked");
 
+interface RequestApprovals {
+  /** Set-Cookie lines gateSessionCookieWrites let go for this request. */
+  lines: Set<string>;
+}
+
 interface ExitState {
-  /** Approved Set-Cookie lines and until when they may leave. */
-  approved: Map<string, number>;
+  /** The request being handled, entered when the server emits it. */
+  request: AsyncLocalStorage<RequestApprovals>;
+  /** The approvals of each response, released with the response. */
+  responses: WeakMap<ServerResponse, RequestApprovals>;
 }
 
 /**
- * The approvals live on globalThis: the route bundles and the
- * instrumentation bundle can each carry their own copy of this module.
+ * The state lives on globalThis: the route bundles and the instrumentation
+ * bundle can each carry their own copy of this module.
  */
 function exitState(): ExitState {
   const holder = globalThis as typeof globalThis & { [STATE]?: ExitState };
-  holder[STATE] ??= { approved: new Map() };
+  holder[STATE] ??= {
+    request: new AsyncLocalStorage(),
+    responses: new WeakMap(),
+  };
   return holder[STATE];
 }
 
-/**
- * Records the session cookie writes gateSessionCookieWrites lets go. Each
- * approval admits its line once. A session cookie value is a fresh JWE, so a
- * line approved for one response does not occur in another.
- */
-export function approveSessionCookieWrites(setCookies: readonly string[]) {
-  const { approved } = exitState();
-  const now = Date.now();
-  for (const [line, until] of approved) {
-    if (until > now) break;
-    approved.delete(line);
-  }
-  for (const setCookie of setCookies) {
-    const line = setCookie.trim();
-    approved.delete(line);
-    approved.set(line, now + APPROVAL_LIFETIME_MS);
-  }
+type Locked<F> = F & { [LOCKED]?: true };
+
+/** Whether this process's HTTP servers and responses carry the lock. */
+export function isSessionCookieExitLocked(): boolean {
+  return Boolean(
+    (ServerResponse.prototype.writeHead as Locked<unknown>)[LOCKED] &&
+    (Server.prototype.emit as Locked<unknown>)[LOCKED] &&
+    (HttpsServer.prototype.emit as Locked<unknown>)[LOCKED],
+  );
 }
 
-/** RFC 6265 5.2.2: a Max-Age the browser applies, else null. */
-function maxAge(raw: string): number | null {
-  return /^-?\d+$/.test(raw) ? Number(raw) : null;
+/**
+ * Records the session cookie writes gateSessionCookieWrites lets go, for the
+ * response of the request it runs in. Without the lock nothing could hold a
+ * bypass back, so the gate fails loudly instead (#5520). Outside a request
+ * (no response to write) there is nothing to approve.
+ */
+export function approveSessionCookieWrites(setCookies: readonly string[]) {
+  if (!isSessionCookieExitLocked())
+    throw new Error(
+      "The session cookie exit lock is not installed (#5520): instrumentation.ts did not run",
+    );
+  const approvals = exitState().request.getStore();
+  if (!approvals) return;
+  for (const setCookie of setCookies) approvals.lines.add(setCookie.trim());
 }
 
 /** The form Next and Auth.js write (Date#toUTCString); anything else is no deletion. */
@@ -83,25 +101,37 @@ function cookieExpiry(raw: string): number | null {
 }
 
 /**
- * Whether a browser removes the cookie on this line (or keeps it empty).
- * Read as the browser does, so a contradiction cannot pass as a deletion:
- * the last valid Max-Age wins over Expires; an Expires counts only in the
- * HTTP date form. When in doubt, it is a write.
+ * Whether the line can only delete the cookie: an empty value, and a
+ * lifetime that ends in the past by every reading. At most one Max-Age and
+ * one Expires (names in any case), at least one of them, a Max-Age of plain
+ * digits that is not positive, an Expires that is a valid date not later
+ * than now. A repeated, contradicting or unreadable lifetime, or any value,
+ * makes it a write that needs an approval.
  */
 function deletesCookie(value: string, attributes: string[]): boolean {
-  if (value === "") return true;
-  let age: number | null = null;
-  let expires: number | null = null;
+  if (value !== "") return false;
+  const ages: string[] = [];
+  const expiries: string[] = [];
   for (const attribute of attributes) {
     const separator = attribute.indexOf("=");
-    if (separator < 0) continue;
-    const key = attribute.slice(0, separator).trim().toLowerCase();
-    const raw = attribute.slice(separator + 1).trim();
-    if (key === "max-age") age = maxAge(raw) ?? age;
-    if (key === "expires") expires = cookieExpiry(raw) ?? expires;
+    const key = (separator < 0 ? attribute : attribute.slice(0, separator))
+      .trim()
+      .toLowerCase();
+    const raw = separator < 0 ? "" : attribute.slice(separator + 1).trim();
+    if (key === "max-age") ages.push(raw);
+    if (key === "expires") expiries.push(raw);
   }
-  if (age !== null) return age <= 0;
-  return expires !== null && expires <= Date.now();
+  if (ages.length > 1 || expiries.length > 1) return false;
+  const [age] = ages;
+  const [expires] = expiries;
+  if (age === undefined && expires === undefined) return false;
+  if (age !== undefined && !(/^-?\d+$/.test(age) && Number(age) <= 0))
+    return false;
+  if (expires !== undefined) {
+    const at = cookieExpiry(expires);
+    if (at === null || at > Date.now()) return false;
+  }
+  return true;
 }
 
 /** The session cookie a line writes, or null for a deletion or another cookie. */
@@ -116,20 +146,17 @@ function sessionCookieWrite(setCookie: string): string | null {
 }
 
 /**
- * The Set-Cookie lines that may leave: every other cookie, every deletion,
- * and session cookie writes approved by gateSessionCookieWrites. Each
- * approval is used up here.
+ * The Set-Cookie lines a response may send: every other cookie, every
+ * deletion, and session cookie writes approved while its request ran.
  */
-function admitSetCookies(setCookies: readonly string[]): string[] {
-  const { approved } = exitState();
-  const now = Date.now();
+function admitSetCookies(
+  response: ServerResponse,
+  setCookies: readonly string[],
+): string[] {
+  const approved = exitState().responses.get(response)?.lines;
   return setCookies.filter((setCookie) => {
     const name = sessionCookieWrite(setCookie);
-    if (name === null) return true;
-    const line = setCookie.trim();
-    const until = approved.get(line);
-    approved.delete(line);
-    if (until !== undefined && until > now) return true;
+    if (name === null || approved?.has(setCookie.trim())) return true;
     logger.error("session_cookie_write_refused_at_exit", { cookie: name });
     return false;
   });
@@ -187,18 +214,36 @@ function mergeCookieHeaders(
   return headers;
 }
 
-type WriteHead = ServerResponse["writeHead"] & { [LOCKED]?: true };
+type WriteHead = Locked<ServerResponse["writeHead"]>;
+type Emit = Locked<Server["emit"]>;
 
-/**
- * Installs the lock on the server's responses. instrumentation.ts calls it
- * once in the Node runtime, before Next handles a request. Node writes every
- * response head through writeHead, also implicitly on the first write or
- * end, so no response leaves past it.
- */
-export function installSessionCookieExit(
-  prototype: ServerResponse = ServerResponse.prototype,
-): void {
-  const writeHead = prototype.writeHead as WriteHead;
+/** Opens the approval context of every request a server emits. */
+function lockEmit(prototype: Server | HttpsServer) {
+  const emit = prototype.emit as Emit;
+  if (emit[LOCKED]) return;
+  const locked = function (
+    this: Server,
+    event: string | symbol,
+    ...args: unknown[]
+  ) {
+    const response = args[1];
+    const { request, responses } = exitState();
+    if (response instanceof ServerResponse && !responses.has(response)) {
+      const approvals: RequestApprovals = { lines: new Set() };
+      responses.set(response, approvals);
+      return request.run(approvals, () =>
+        Reflect.apply(emit, this, [event, ...args]),
+      ) as boolean;
+    }
+    return Reflect.apply(emit, this, [event, ...args]) as boolean;
+  } as Emit;
+  locked[LOCKED] = true;
+  prototype.emit = locked;
+}
+
+/** Filters every response head of the process at writeHead. */
+function lockWriteHead() {
+  const writeHead = ServerResponse.prototype.writeHead as WriteHead;
   if (writeHead[LOCKED]) return;
   const locked = function (this: ServerResponse, ...args: unknown[]) {
     if (!this.headersSent) {
@@ -208,7 +253,7 @@ export function installSessionCookieExit(
       const own = this.getHeader("set-cookie");
       if (own !== undefined && typeof own !== "number") {
         const lines = typeof own === "string" ? [own] : own;
-        const admitted = admitSetCookies(lines);
+        const admitted = admitSetCookies(this, lines);
         if (admitted.length !== lines.length) {
           if (admitted.length) this.setHeader("set-cookie", admitted);
           else this.removeHeader("set-cookie");
@@ -218,6 +263,19 @@ export function installSessionCookieExit(
     return Reflect.apply(writeHead, this, args) as ServerResponse;
   } as WriteHead;
   locked[LOCKED] = true;
-  prototype.writeHead = locked;
+  ServerResponse.prototype.writeHead = locked;
+}
+
+/**
+ * Installs the lock on every HTTP(S) server and response of this process.
+ * instrumentation.ts calls it once in the Node runtime, before Next handles
+ * a request. Node writes every response head through writeHead, also
+ * implicitly on the first write or end, so no response leaves past it.
+ */
+export function installSessionCookieExit(): void {
+  if (isSessionCookieExitLocked()) return;
+  lockEmit(Server.prototype);
+  lockEmit(HttpsServer.prototype);
+  lockWriteHead();
   logger.info("session_cookie_exit_locked");
 }

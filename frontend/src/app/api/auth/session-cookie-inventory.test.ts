@@ -268,10 +268,12 @@ describe("session cookie writers", () => {
         proof: null,
       },
       // The lock at the server's exit only drops unapproved session cookie
-      // writes (#5520); it writes none.
+      // writes (#5520); it writes none. Its exports read whether the lock is
+      // installed on ServerResponse#writeHead (module-export, checked below);
+      // none of them hands a writer out.
       "src/lib/session-cookie-exit.server.ts": {
-        kinds: ["cookie-header"],
-        proof: /const admitted = admitSetCookies\(lines\);/,
+        kinds: ["cookie-header", "module-export"],
+        proof: /const admitted = admitSetCookies\(this, lines\);/,
       },
       // finishResponse composes the route's cookies, then calls the exit.
       "src/server/auth/route-handler.ts": {
@@ -316,7 +318,22 @@ describe("session cookie writers", () => {
     }
     // A writer handing cookies() or a Set-Cookie name to another module
     // would let that module write unlisted.
-    expect(writersOf("module-export")).toEqual([]);
+    // Only the lock at the exit, whose exports read its own installation.
+    expect(writersOf("module-export")).toEqual([
+      "src/lib/session-cookie-exit.server.ts",
+    ]);
+    const lock = code("src/lib/session-cookie-exit.server.ts");
+    expect(
+      [...lock.matchAll(/^export (?:async )?function (\w+)/gm)].map(
+        ([, name]) => name,
+      ),
+    ).toEqual([
+      "isSessionCookieName",
+      "isSessionCookieExitLocked",
+      "approveSessionCookieWrites",
+      "installSessionCookieExit",
+    ]);
+    expect(lock).not.toMatch(/^export (?!function)/m);
     expect(isSessionCookieName(DEMO_TOKEN_COOKIE)).toBe(false);
     expect(
       isSessionCookieName(operatorInvitationCookieName(randomUUID())),
@@ -390,9 +407,12 @@ describe("session cookie writers", () => {
         /\bapproveSessionCookieWrites\(/g,
       ),
     ).toHaveLength(1);
+    // Production (instrumentation.ts) and the shared test setup, which runs
+    // every test against the locked server as production does.
     expect(matching(/\binstallSessionCookieExit\(/)).toEqual([
       "src/instrumentation.ts",
       "src/lib/session-cookie-exit.server.ts",
+      "src/test/setup-common.ts",
     ]);
   });
 
