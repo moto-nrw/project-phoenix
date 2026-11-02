@@ -258,21 +258,43 @@ func splitLaterBookings(bookings []timetable.StudentDayBooking, from calendar.Da
 	return current, later
 }
 
-// resumes is the latest start of a later booking in force from which the
-// weekday the change lost keeps the Regeltermin again, including after every
-// known later booking end. Nil means the hand row must not resume: a finite
-// booking does not keep it planned after it expires. Where the times do not
-// decide, a later booking of the weekday offsets the dropped one, as a switch
-// does on the change's date.
+// resumes is the first later start from which the weekday the change lost
+// keeps the Regeltermin again, including after every known later booking end.
+// Starts before the first resumed Regeltermin day share that day, so their
+// latest value is the boundary. A later start after that day begins another
+// period and must not extend this gap. Nil means the hand row must not resume:
+// a finite booking does not keep it planned after it expires. Where the times
+// do not decide, a later booking of the weekday offsets the dropped one, as a
+// switch does on the change's date.
 func (c bookingCarry) resumes(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) *calendar.Date {
-	var resume *calendar.Date
-	for _, start := range c.laterStarts(weekday) {
-		if then := c.at(start, weekday); then.keeps(weekday, kind, end, endKnown) && c.keepsAfterBookingEnds(weekday, kind, end, endKnown, start) {
-			candidate := start
-			resume = &candidate
+	starts := c.laterStarts(weekday)
+	for index, start := range starts {
+		if c.resumesAt(start, weekday, kind, end, endKnown) {
+			return c.latestStartBeforeFirstResumedDay(starts[index+1:], start, weekday, kind, end, endKnown)
 		}
 	}
-	return resume
+	return nil
+}
+
+func (c bookingCarry) resumesAt(start calendar.Date, weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) bool {
+	then := c.at(start, weekday)
+	return then.keeps(weekday, kind, end, endKnown) && c.keepsAfterBookingEnds(weekday, kind, end, endKnown, start)
+}
+
+func (c bookingCarry) latestStartBeforeFirstResumedDay(
+	starts []calendar.Date, start calendar.Date, weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool,
+) *calendar.Date {
+	resume := start
+	firstDay := timetable.NextWeekdayOnOrAfter(start, weekday)
+	for _, candidate := range starts {
+		if candidate.After(firstDay) {
+			break
+		}
+		if c.resumesAt(candidate, weekday, kind, end, endKnown) {
+			resume = candidate
+		}
+	}
+	return &resume
 }
 
 // at applies the validity window of every booking on a calendar day. A later

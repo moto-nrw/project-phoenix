@@ -342,6 +342,26 @@ func TestBookingCarry_LaterRebookingsEndTheGapAtTheLatestStart(t *testing.T) {
 	}
 }
 
+func TestBookingCarry_LaterRebookingDoesNotExtendTheFirstCoveredGap(t *testing.T) {
+	t.Parallel()
+	change := calendar.NewDate(2026, 11, 2)
+	firstRebooking, laterRebooking := calendar.NewDate(2026, 11, 16), calendar.NewDate(2027, 1, 1)
+	carry, err := newBookingCarry(timetable.ManualStudentPlanQuery{
+		StudentID: 1, From: change, Weekdays: []int{timetable.WeekdayThursday},
+		NetLossWeekdays: []int{timetable.WeekdayThursday},
+		OtherBookings: []timetable.StudentDayBooking{
+			laterCare(timetable.WeekdayThursday, "16:00", firstRebooking),
+			laterCare(timetable.WeekdayThursday, "16:00", laterRebooking),
+		},
+	})
+	assert.NoError(t, err)
+
+	until := carry.resumes(timetable.WeekdayThursday, careKind, endAt1600, true)
+	if assert.NotNil(t, until, "the first rebooking carries Thursday again") {
+		assert.Equal(t, firstRebooking, *until, "a later booking after the first carried Thursday does not extend the gap")
+	}
+}
+
 func TestBookingCarry_LaterBookingThatEndsTooEarlyLeavesTheGapOpen(t *testing.T) {
 	t.Parallel()
 	change, later := calendar.NewDate(2026, 11, 2), calendar.NewDate(2026, 11, 16)

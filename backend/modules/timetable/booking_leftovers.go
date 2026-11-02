@@ -208,18 +208,31 @@ func gapUntil(
 			lastLost = occurrence.Date
 			continue
 		}
-		until := max(latestBookingStart(bookings, weekday, occurrence.Date), lastLost.AddDays(1))
+		until := max(latestBookingStart(bookings, template.Kind, weekday, occurrence.End, occurrence.Date), lastLost.AddDays(1))
 		return &until
 	}
 	return nil
 }
 
-// latestBookingStart is the latest start of a link that plans the weekday on
-// the day the Regeltermin is carried again. The removal resumes the hand row
-// at that boundary, as ADR 0128 specifies.
-func latestBookingStart(bookings []OfferingWeekdayBooking, weekday int, on calendar.Date) calendar.Date {
+// latestBookingStart is the latest start of a link that carries the
+// Regeltermin on the day it is carried again. When pickup times decide, a
+// booking of another kind or with an early pickup cannot move that boundary.
+// Where the times do not decide, the carry rule is the weekday's net booking
+// count, so every booking in force belongs to that calculation.
+func latestBookingStart(
+	bookings []OfferingWeekdayBooking, kind RosterOfferingKind, weekday int, end string, on calendar.Date,
+) calendar.Date {
+	inForce := bookingsInForce(bookings, weekday, on)
+	endClock, endKnown := wallClock(end)
+	usesPickupRule := endKnown && everyBookingHasPickup(inForce, weekday)
 	var latest calendar.Date
-	for _, booking := range bookings {
+	for _, booking := range inForce {
+		if usesPickupRule {
+			pickup, _ := wallClock(booking.PickupTimes[weekday])
+			if !kind.admits(booking) || pickup.Before(endClock) {
+				continue
+			}
+		}
 		for _, window := range booking.Windows {
 			if slices.Contains(window.Weekdays, weekday) && window.ValidFrom != nil && !window.ValidFrom.After(on) &&
 				(window.ValidUntil == nil || window.ValidUntil.After(on)) {

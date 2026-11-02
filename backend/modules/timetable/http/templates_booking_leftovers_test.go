@@ -314,7 +314,9 @@ func TestBookingLeftoversRemoveOnlyTheGap(t *testing.T) {
 	assert.Equal(t, rebooked.String(), *got.Until)
 
 	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
-		"weekdays": got.Weekdays, "effective_from": got.From, "effective_until": *got.Until,
+		// The save response uses the booking change's date. The first affected
+		// Regeltermin is Thursday, so validation must resolve that same gap.
+		"weekdays": got.Weekdays, "effective_from": rosterReviewMonday.String(), "effective_until": *got.Until,
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.Empty(t, s.occurrenceStudents(t, inGap), "the Thursday in the gap loses the child")
