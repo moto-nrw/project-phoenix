@@ -357,11 +357,8 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 		if err != nil {
 			return err
 		}
-		if err := unit.requireLeadershipFor(before, roles); err != nil {
+		if err := unit.checkLeadershipChange(accountID, before, roles); err != nil {
 			return err
-		}
-		if leavesNoLeader(unit, accountID, before, roles) {
-			return identityaccess.ErrTraegerLastLeader
 		}
 		if _, err := t.store.ReplaceTraegerRoles(txCtx, actor.OrganizationID, accountID, roles); err != nil {
 			return err
@@ -394,11 +391,8 @@ func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identit
 			return identityaccess.ErrTraegerMemberNotFound
 		}
 		before := accounts[0].Roles
-		if err := unit.requireLeadershipFor(before, nil); err != nil {
+		if err := unit.checkLeadershipChange(accountID, before, nil); err != nil {
 			return err
-		}
-		if leavesNoLeader(unit, accountID, before, nil) {
-			return identityaccess.ErrTraegerLastLeader
 		}
 		if _, err := t.store.ReplaceTraegerRoles(txCtx, actor.OrganizationID, accountID, nil); err != nil {
 			return err
@@ -642,6 +636,18 @@ func leavesNoLeader(unit traegerUnit, accountID int64, before, after []string) b
 		!slices.Contains(after, identityaccess.TraegerRoleLeadership) &&
 		slices.Contains(unit.leaders, accountID)
 	return losesLeadership && unit.activeLeaders() <= 1
+}
+
+// checkLeadershipChange applies both Leitung rules of #5471 to a change of
+// the account's roles from before to after.
+func (u traegerUnit) checkLeadershipChange(accountID int64, before, after []string) error {
+	if err := u.requireLeadershipFor(before, after); err != nil {
+		return err
+	}
+	if leavesNoLeader(u, accountID, before, after) {
+		return identityaccess.ErrTraegerLastLeader
+	}
+	return nil
 }
 
 // requireLeadershipFor refuses a change from before to after that grants or
