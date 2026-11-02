@@ -52,7 +52,11 @@ type HolidayRegistrationStore interface {
 	// value for the Träger and returns the attempts of its running window.
 	// The bucket keeps only a SHA-256 digest of value.
 	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, keyType, value string, window time.Duration) (int, error)
-	InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error)
+	// InsertHolidayRegistration stores the registration without its health
+	// information and asks seal, once the registration has its ID, for the
+	// sealed values to store with it (#4722).
+	InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput,
+		seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidayRegistrationReceipt, error)
 }
 
 // HolidayRegistrationDependencies are the ports of the public registration.
@@ -63,6 +67,8 @@ type HolidayRegistrationDependencies struct {
 	Proofs        HolidayProofStore
 	Traeger       enrollment.HolidayTraegerDirectory
 	Mail          enrollment.TraegerMailOutbox
+	// Health seals the health information of a registration (#4722).
+	Health enrollment.HolidayHealthCipher
 	// Today is the calendar day the registration window is checked against.
 	Today func() calendar.Date
 	// Random fills the token of an uploaded proof and Fingerprint names it
@@ -83,6 +89,9 @@ var _ enrollment.HolidayRegistrations = (*HolidayRegistrations)(nil)
 func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegistrations {
 	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Proofs == nil || deps.Traeger == nil || deps.Mail == nil {
 		panic("enrollment: the holiday registration store, periods, forms, proofs, Träger directory and mail outbox are required")
+	}
+	if deps.Health == nil {
+		panic(errHolidayHealthCipherRequired)
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -232,7 +241,13 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if input, err = withHolidayAnswers(input, answers); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input)
+	// The health information leaves the input here: the store sees it only
+	// sealed for the rows it belongs to (#4722).
+	health, input := splitHolidayHealth(input, form)
+	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input,
+		func(registrationID int64) (enrollment.HolidaySealedHealth, error) {
+			return sealHolidayHealth(h.deps.Health, link.OrganizationID, registrationID, health)
+		})
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment: store holiday registration: %w", err)
 	}
@@ -426,6 +441,9 @@ func validateHolidayConsents(input enrollment.HolidayRegistrationInput, period e
 	}
 	if period.Binding && !input.BindingConfirmed {
 		errs["binding_confirmed"] = errors.New("the binding registration must be confirmed")
+	}
+	if input.ConsentVersion != 0 && input.ConsentVersion != enrollment.HolidayConsentVersionHostHealth {
+		errs["consent_version"] = errors.New("the consent texts of this version are unknown")
 	}
 }
 

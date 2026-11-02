@@ -105,8 +105,8 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 	today.Store(calendar.NewDate(2099, 7, 1))
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	resource := NewHolidayHostHTTP(organizations,
-		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog,
+	resource := NewHolidayHostHTTP(organizations, owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db)),
+		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog, testHealthCipher(),
 		func() calendar.Date { return today.Load().(calendar.Date) })
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()

@@ -4091,9 +4091,14 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0120",
+      "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "reason": "ADR 0120 addendum (#4722): Consumer-port adapter of Enrollment's holiday guest people; it translates the health information of a guest into the People Directory's enrollment profile patch for the health field of its child, in the hosting school's tenant transaction."
+    },
+    {
       "decision": "0116",
-      "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayParticipantAccess",
-      "reason": "ADR 0116 (#4665): Consumer-port adapter of Enrollment's participant access log; it translates one read or export of a participant list into an Audit Platform data access log entry with its resource type, actor, week range and metadata, in the caller's tenant transaction."
+      "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "reason": "ADR 0116 addendum (#4722): Consumer-port adapter of Enrollment's participant access log; it translates one read of the holiday health information of a child of the hosting school into an Audit Platform data access log entry with the child, actor, week range and week IDs, in the caller's tenant transaction."
     },
     {
       "decision": "0090",

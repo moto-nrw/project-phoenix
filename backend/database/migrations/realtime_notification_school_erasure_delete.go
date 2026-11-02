@@ -6,7 +6,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.725 (#5504): the 1.15.724 (#4808) delete with platform.realtime_notifications.
 func installRealtimeNotificationErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, realtimeNotificationErasureDeleteSQL)
 	return err
@@ -20,9 +19,7 @@ const realtimeNotificationErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platfor
   v_child_keys JSONB;
   v_count BIGINT;
  BEGIN
-   -- Freeze indirect keys before their parents disappear (school_erasure_freeze_child_keys).
    v_child_keys := platform.school_erasure_freeze_child_keys(p_school_id);
-   -- Generated FK/trigger-topological order. School root is last.
    SELECT count(*) INTO v_count FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.activity_session_attendance', v_count);

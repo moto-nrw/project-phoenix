@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	realtimeNotificationsVersion     = "1.15.725"
+	realtimeNotificationsVersion     = "1.15.726"
 	realtimeNotificationsDescription = "Benachrichtigungen für den Abruf durch andere API-Prozesse (#5504)"
 )
 
@@ -19,6 +19,7 @@ func init() {
 		Description: realtimeNotificationsDescription,
 		DependsOn: []string{
 			staffQualificationTypesVersion, // extends its erasure functions
+			holidayHealthDataVersion,       // follows the current migration head
 		},
 	})
 	Migrations.MustRegister(realtimeNotificationsUp, realtimeNotificationsDown)

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.725 (#5504): the 1.15.724 (#4808) preflight with platform.realtime_notifications.
+// 1.15.726 (#5504): the 1.15.724 (#4808) preflight with platform.realtime_notifications.
 func installRealtimeNotificationErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, realtimeNotificationErasurePreflightSQL)
 	return err

@@ -56,7 +56,7 @@ func TestStaffQualificationTypesMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 
-	// The realtime notifications (1.15.725, #5504) extend the erasure
+	// The realtime notifications (1.15.726, #5504) extend the erasure
 	// functions of 1.15.724; they go first.
 	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))

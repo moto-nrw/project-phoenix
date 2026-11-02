@@ -73,7 +73,7 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 	// 1.15.720; they go first.
 	// The Nachweisarten (1.15.724, #4808) extend the erasure functions of
 	// 1.15.721; they go first.
-	// The realtime notifications (1.15.725, #5504) extend the erasure
+	// The realtime notifications (1.15.726, #5504) extend the erasure
 	// functions of 1.15.724; they go first.
 	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))

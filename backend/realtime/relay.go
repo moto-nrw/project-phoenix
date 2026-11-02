@@ -105,13 +105,8 @@ func (s *signal) normalize() error {
 	s.Topic = NormalizeTopic(s.Topic)
 	s.Topics = normalizeTopics(s.Topics)
 	s.AccountIDs = positiveIDs(s.AccountIDs)
-	if s.Type == EventNotification {
-		if numericID(s.Data.NotificationID) == nil {
-			return fmt.Errorf("realtime notification ID is required")
-		}
-		if s.Audience == audienceGroups || s.Audience == audienceParentMessage || s.Audience == audienceLeadershipMessage {
-			return fmt.Errorf("realtime notification audience is not supported")
-		}
+	if err := s.validateNotification(); err != nil {
+		return err
 	}
 	switch s.Audience {
 	case AudienceTenant, AudienceAdmins:
@@ -133,6 +128,21 @@ func (s *signal) normalize() error {
 		}
 	default:
 		return fmt.Errorf("unknown realtime audience")
+	}
+	return nil
+}
+
+// validateNotification checks the narrower ID-only notification contract.
+func (s signal) validateNotification() error {
+	if s.Type != EventNotification {
+		return nil
+	}
+	if numericID(s.Data.NotificationID) == nil {
+		return fmt.Errorf("realtime notification ID is required")
+	}
+	switch s.Audience {
+	case audienceGroups, audienceParentMessage, audienceLeadershipMessage:
+		return fmt.Errorf("realtime notification audience is not supported")
 	}
 	return nil
 }

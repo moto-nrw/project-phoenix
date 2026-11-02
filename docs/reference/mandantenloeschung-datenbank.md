@@ -168,7 +168,7 @@ ADR 0120) samt neuem FK-Fingerabdruck.
 Migration `1.15.721` ergänzt ebenso
 `calendar.school_vacation_acknowledgements` (bestätigte Ferienbetreuung, #5345)
 samt neuem FK-Fingerabdruck; die Ferientabelle selbst hat keine Schule.
-Migration `1.15.725` ergänzt ebenso `platform.realtime_notifications`
+Migration `1.15.726` ergänzt ebenso `platform.realtime_notifications`
 (kurzlebige Kopien von In-App-Hinweisen, #5504) samt neuem FK-Fingerabdruck.
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach

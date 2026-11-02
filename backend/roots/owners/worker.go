@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
@@ -61,7 +63,7 @@ func NewWorker(
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
-	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder,
+	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, healthData enrollmentOwner.HolidayHealthCipher,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -146,7 +148,7 @@ func NewWorker(
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
-		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
 	})
 }
 

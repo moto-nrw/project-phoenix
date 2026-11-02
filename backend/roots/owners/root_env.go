@@ -23,6 +23,16 @@ type RootEnvironment struct {
 	Today   func() timezone.Date
 	Links   ServiceLinks
 	Observe RootObservers
+	// HealthData seals and opens the health information of the holiday
+	// registrations (#4722); the root builds it from HEALTH_DATA_KEYS.
+	HealthData HealthDataCipher
+}
+
+// HealthDataCipher seals and opens single database values bound to their
+// context. The roots bind Security Runtime's field cipher (#4722).
+type HealthDataCipher interface {
+	Seal(plaintext, context []byte) ([]byte, error)
+	Open(sealed, context []byte) ([]byte, error)
 }
 
 // ServiceLinks are the validated bases the mails and the CalDAV feed link to

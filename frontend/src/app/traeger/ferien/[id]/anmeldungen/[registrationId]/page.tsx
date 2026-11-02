@@ -1,9 +1,11 @@
 "use client";
 
 // Eine Ferienanmeldung prüfen (#4663): alles, was die Eltern angegeben
-// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Jedes
-// Öffnen steht im Protokoll.
+// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Die
+// Gesundheitsangaben lädt die Seite getrennt und nur mit dem Recht
+// „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
 
+import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
@@ -33,6 +35,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -42,8 +45,12 @@ import {
 } from "~/lib/traeger-contributions-api";
 import {
   fetchHolidayRegistration,
+  fetchHolidayRegistrationHealth,
   type HolidayRegistrationContact,
   type HolidayRegistrationDetail,
+  type HolidayRegistrationHealthDetail,
+  TRAEGER_HEALTH_RIGHT,
+  withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -90,6 +97,11 @@ export default function TraegerHolidayRegistrationPage() {
   const params = useParams<{ id: string; registrationId: string }>();
   const periodId = params?.id ?? "";
   const registrationId = params?.registrationId ?? "";
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
+    null,
+  );
   const {
     data: period,
     loadError: periodError,
@@ -117,12 +129,17 @@ export default function TraegerHolidayRegistrationPage() {
 
   const load = useCallback(async () => {
     try {
-      const [loadedRegistration, loadedContribution] = await Promise.all([
-        fetchHolidayRegistration(periodId, registrationId),
-        fetchHolidayContribution(periodId, registrationId),
-      ]);
+      const [loadedRegistration, loadedContribution, loadedHealth] =
+        await Promise.all([
+          fetchHolidayRegistration(periodId, registrationId),
+          fetchHolidayContribution(periodId, registrationId),
+          canSeeHealth
+            ? fetchHolidayRegistrationHealth(periodId, registrationId)
+            : Promise.resolve(null),
+        ]);
       latestContribution.current++;
       setRegistration(loadedRegistration);
+      setHealth(loadedHealth);
       setContribution(loadedContribution);
       setExemption(loadedRegistration.benefitsDeclared);
       clearLoadError();
@@ -135,7 +152,7 @@ export default function TraegerHolidayRegistrationPage() {
         retry: () => void load(),
       });
     }
-  }, [periodId, registrationId, clearLoadError, showLoadError]);
+  }, [periodId, registrationId, canSeeHealth, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -198,6 +215,10 @@ export default function TraegerHolidayRegistrationPage() {
       schoolsFailure,
     );
   const names = schoolNames(schools);
+  // The health answers stand beside the other answers, marked "(Gesundheit)".
+  const view = registration
+    ? withHolidayHealthAnswers(registration, health)
+    : null;
   const emergency = (registration?.contacts ?? []).filter(
     (contact) => contact.kind === "emergency",
   );
@@ -239,7 +260,7 @@ export default function TraegerHolidayRegistrationPage() {
       error={loadError}
       loading={!loadError && !(registration && period && schools)}
     >
-      {registration && period && schools ? (
+      {registration && view && period && schools ? (
         <>
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -300,15 +321,18 @@ export default function TraegerHolidayRegistrationPage() {
               </DataGrid>
             </SectionCard>
           ) : null}
-          {registration.children.map((child) => (
+          {view.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}
               period={period}
-              registration={registration}
+              registration={view}
               child={child}
-              health={registration.health.find(
+              health={health?.children.find(
                 (entry) => entry.childId === child.id,
               )}
+              healthHidden={
+                !canSeeHealth && registration.healthConsentAt !== null
+              }
               names={names}
               onChanged={changed}
             />
@@ -318,18 +342,15 @@ export default function TraegerHolidayRegistrationPage() {
               title="Weitere Angaben zur Familie"
               description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
             >
-              {answeredQuestions(
-                registration.form.fields,
-                false,
-                registration.answers,
-              ).length > 0 ? (
+              {answeredQuestions(registration.form.fields, false, view.answers)
+                .length > 0 ? (
                 <HolidayRegistrationAnswers
                   questions={answeredQuestions(
                     registration.form.fields,
                     false,
-                    registration.answers,
+                    view.answers,
                   )}
-                  answers={registration.answers}
+                  answers={view.answers}
                 />
               ) : (
                 <p className="text-sm text-gray-700">

@@ -49,7 +49,7 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
-Migration 1.15.725 ergänzt `platform.realtime_notifications` (#5504): eine
+Migration 1.15.726 ergänzt `platform.realtime_notifications` (#5504): eine
 Kopie eines In-App-Hinweises mit Empfängern, die andere API-Prozesse zwei
 Minuten lang lesen. Bei Eltern-Hinweisen enthält das JSON zusätzlich die
 Schüler-IDs (`relay_student_ids`), damit die empfangende API die aktuellen

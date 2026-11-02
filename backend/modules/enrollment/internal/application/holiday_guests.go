@@ -42,7 +42,13 @@ type HolidayGuestStore interface {
 	InsertGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error
 	UpdateGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error
 	EndGuest(ctx context.Context, schoolID, guestID int64, endedOn calendar.Date) error
-	PurgeContacts(ctx context.Context, schoolID int64, lastReadableEnd calendar.Date) error
+	// PurgeContacts deletes what the read-only days kept and returns the
+	// children whose health information went.
+	PurgeContacts(ctx context.Context, schoolID int64, lastReadableEnd calendar.Date) ([]int64, error)
+	// PurgeHealth deletes the health information of every guest whose week
+	// ended before today and returns their children (#4722): the hosting
+	// school sees it only until the last day of the week.
+	PurgeHealth(ctx context.Context, schoolID int64, today calendar.Date) ([]int64, error)
 	ReadGuest(ctx context.Context, schoolID, studentID int64, lastReadableEnd calendar.Date) (enrollment.HolidayGuest, bool, error)
 }
 
@@ -51,6 +57,7 @@ type HolidayGuests struct {
 	store  HolidayGuestStore
 	people enrollment.HolidayGuestPeople
 	care   enrollment.HolidayGuestCareDays
+	health enrollment.HolidayHealthCipher
 	log    enrollment.HolidayGuestAccessLog
 	today  func() calendar.Date
 	logger *slog.Logger
@@ -58,16 +65,21 @@ type HolidayGuests struct {
 
 var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
 
-// NewHolidayGuests builds the holiday guests; a nil today uses the Berlin
-// calendar day.
-func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, care enrollment.HolidayGuestCareDays, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+// NewHolidayGuests builds the holiday guests; health opens the health
+// information of the registrations and seals the guest copies (#4722). A
+// nil today uses the Berlin calendar day.
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
 	if store == nil || people == nil || care == nil || log == nil {
 		panic("enrollment: the holiday guest store, People Directory, Care Plan and the access log are required")
+	}
+	if health == nil {
+		panic(errHolidayHealthCipherRequired)
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, care: care, log: log, today: today, logger: slog.Default().With("service", "holiday-guests")}
+	return &HolidayGuests{store: store, people: people, care: care, health: health, log: log, today: today,
+		logger: slog.Default().With("service", "holiday-guests")}
 }
 
 // AssignHolidayGuestGroup stores the group of the week and copies the
@@ -135,8 +147,16 @@ func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int
 			return err
 		}
 	}
-	// A week without a group (its group was deleted) keeps its guests in
-	// care without a group until its access ends; ending them is still due.
+	if err := h.reconcileWeeksWithoutGroup(ctx, schoolID, reconciled, today); err != nil {
+		return err
+	}
+	return h.purgeEndedGuests(ctx, schoolID, today)
+}
+
+// reconcileWeeksWithoutGroup reconciles a week whose group was deleted: it
+// keeps its guests in care without a group until its access ends; ending
+// them is still due.
+func (h *HolidayGuests) reconcileWeeksWithoutGroup(ctx context.Context, schoolID int64, reconciled map[int64]bool, today calendar.Date) error {
 	open, err := h.store.ListOpenGuests(ctx, schoolID, 0, today)
 	if err != nil {
 		return err
@@ -150,7 +170,26 @@ func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int
 			return err
 		}
 	}
-	return h.store.PurgeContacts(ctx, schoolID, today.AddDays(-enrollment.HolidayGuestReadOnlyDays))
+	return nil
+}
+
+// purgeEndedGuests ends the health information of a guest with its week
+// (#4722), the contacts and shared answers after the read-only days.
+func (h *HolidayGuests) purgeEndedGuests(ctx context.Context, schoolID int64, today calendar.Date) error {
+	ended, err := h.store.PurgeHealth(ctx, schoolID, today)
+	if err != nil {
+		return err
+	}
+	purged, err := h.store.PurgeContacts(ctx, schoolID, today.AddDays(-enrollment.HolidayGuestReadOnlyDays))
+	if err != nil {
+		return err
+	}
+	for _, studentID := range append(ended, purged...) {
+		if err := h.people.SetHolidayGuestHealthInfo(ctx, studentID, nil); err != nil {
+			return fmt.Errorf("clear the health information of a holiday guest: %w", err)
+		}
+	}
+	return nil
 }
 
 func (h *HolidayGuests) reconcileAndRecord(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, today calendar.Date) error {
@@ -189,24 +228,39 @@ type guestChanges struct {
 	copied int
 }
 
+// readWeekGuests reads the guests of one week and, for an open week, its
+// confirmed bookings with their opened health information. An open week
+// reads its ended guests too: a booking that comes back reopens its guest
+// instead of copying the child a second time.
+func (h *HolidayGuests) readWeekGuests(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, week enrollment.HolidayGuestWeek, found bool, today calendar.Date) ([]enrollment.HolidayGuest, []enrollment.HolidayGuestSource, error) {
+	if !found {
+		existing, err := h.store.ListOpenGuests(ctx, schoolID, group.WeekID, today)
+		return existing, nil, err
+	}
+	existing, err := h.store.ListWeekGuests(ctx, schoolID, group.WeekID)
+	if err != nil {
+		return nil, nil, err
+	}
+	sources, err := h.store.ListGuestSources(ctx, schoolID, week)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range sources {
+		if sources[i].Health, err = openHolidayHostHealth(h.health, sources[i].Sealed); err != nil {
+			return nil, nil, err
+		}
+		sources[i].Sealed = nil
+	}
+	return existing, sources, nil
+}
+
 // reconcile brings the guests of one week in line with its confirmed
 // bookings. A week the school no longer hosts, or whose period is no
 // longer published, ends every guest still in care; a guest whose booking
 // went ends as well. Without a group no new guest is copied.
 func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, week enrollment.HolidayGuestWeek, found bool, today calendar.Date, replanAll bool) (guestChanges, error) {
-	// An open week reads its ended guests too: a booking that comes back
-	// reopens its guest instead of copying the child a second time.
-	var existing []enrollment.HolidayGuest
-	var sources []enrollment.HolidayGuestSource
-	var err error
-	if found {
-		if existing, err = h.store.ListWeekGuests(ctx, schoolID, group.WeekID); err != nil {
-			return guestChanges{}, err
-		}
-		if sources, err = h.store.ListGuestSources(ctx, schoolID, week); err != nil {
-			return guestChanges{}, err
-		}
-	} else if existing, err = h.store.ListOpenGuests(ctx, schoolID, group.WeekID, today); err != nil {
+	existing, sources, err := h.readWeekGuests(ctx, schoolID, group, week, found, today)
+	if err != nil {
 		return guestChanges{}, err
 	}
 	byChild := make(map[int64]enrollment.HolidayGuest, len(existing))
@@ -268,9 +322,13 @@ func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source en
 	if err != nil {
 		return fmt.Errorf("create the child of a holiday guest: %w", err)
 	}
-	if err := h.store.InsertGuest(ctx, schoolID, guestRecord(enrollment.HolidayGuest{
+	guest := guestRecord(enrollment.HolidayGuest{
 		OrganizationID: week.OrganizationID, WeekID: week.ID, ChildID: source.ChildID, StudentID: studentID,
-	}, source, week)); err != nil {
+	}, source, week)
+	if guest, err = h.copyHealth(ctx, schoolID, guest, nil, source.Health); err != nil {
+		return err
+	}
+	if err := h.store.InsertGuest(ctx, schoolID, guest); err != nil {
 		return err
 	}
 	return h.planDays(ctx, studentID, actor, source, week)
@@ -328,7 +386,44 @@ func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest 
 			return err
 		}
 	}
-	return h.store.UpdateGuest(ctx, schoolID, guestRecord(guest, source, week))
+	copied, err := h.guestHealth(schoolID, guest)
+	if err != nil {
+		return err
+	}
+	updated, err := h.copyHealth(ctx, schoolID, guestRecord(guest, source, week), copied, source.Health)
+	if err != nil {
+		return err
+	}
+	return h.store.UpdateGuest(ctx, schoolID, updated)
+}
+
+// copyHealth carries the health information of the registration into the
+// guest copy and the health field of its child (#4722): sealed for the
+// school and the registered child, and as text where the team sees every
+// child. A copy whose health information did not change keeps its sealed
+// value and leaves the field alone, so the hourly reconciliation does not
+// overwrite what the team wrote into it.
+func (h *HolidayGuests) copyHealth(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, copied, wanted *enrollment.HolidayHostHealth) (enrollment.HolidayGuest, error) {
+	if sameHolidayHostHealth(copied, wanted) {
+		return guest, nil
+	}
+	guest.HealthSealed = nil
+	if wanted != nil {
+		sealed, err := sealHealthJSON(h.health, *wanted, enrollment.HolidayGuestHealthContext(schoolID, guest.ChildID))
+		if err != nil {
+			return enrollment.HolidayGuest{}, err
+		}
+		guest.HealthSealed = sealed
+	}
+	if err := h.people.SetHolidayGuestHealthInfo(ctx, guest.StudentID, holidayGuestHealthText(wanted)); err != nil {
+		return enrollment.HolidayGuest{}, fmt.Errorf("write the health information of a holiday guest: %w", err)
+	}
+	return guest, nil
+}
+
+// guestHealth opens the health information a guest copy carries.
+func (h *HolidayGuests) guestHealth(schoolID int64, guest enrollment.HolidayGuest) (*enrollment.HolidayHostHealth, error) {
+	return openHostHealth(h.health, guest.HealthSealed, enrollment.HolidayGuestHealthContext(schoolID, guest.ChildID))
 }
 
 // reopenGuest brings back a guest whose booking returned after its access
@@ -360,6 +455,12 @@ func (h *HolidayGuests) endGuest(ctx context.Context, schoolID int64, guest enro
 	}
 	if err := h.care.ClearHolidayGuestDays(ctx, guest.StudentID); err != nil {
 		return fmt.Errorf("clear the care days of a holiday guest: %w", err)
+	}
+	// The health field goes with the guest's health information (#4722).
+	if guest.HealthSealed != nil {
+		if err := h.people.SetHolidayGuestHealthInfo(ctx, guest.StudentID, nil); err != nil {
+			return fmt.Errorf("clear the health information of a holiday guest: %w", err)
+		}
 	}
 	return h.store.EndGuest(ctx, schoolID, guest.ID, today)
 }
@@ -414,7 +515,15 @@ func (h *HolidayGuests) HolidayGuestSheet(ctx context.Context, host enrollment.H
 	}); err != nil {
 		return enrollment.HolidayGuestSheet{}, fmt.Errorf("record holiday guest sheet read: %w", err)
 	}
-	return holidayGuestSheet(guest, today), nil
+	sheet := holidayGuestSheet(guest, today)
+	// After the last day of the week the sheet keeps no health information,
+	// also before the hourly reconciliation deleted it (#4722).
+	if !sheet.ReadOnly {
+		if sheet.Health, err = h.guestHealth(host.SchoolID, guest); err != nil {
+			return enrollment.HolidayGuestSheet{}, err
+		}
+	}
+	return sheet, nil
 }
 
 func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrollment.HolidayGuestSheet {

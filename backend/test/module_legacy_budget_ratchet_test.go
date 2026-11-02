@@ -199,7 +199,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0144: the school vacation constructor of modules/schoolcalendar/compose
 // (+11) and the vacation hint constructor of modules/timetable/compose (+6).
 // ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
-const moduleComposeBudgetTotal = 12790
+// ADR 0146 adds exactly 11 Delivery composition lines for the SSE store binding.
+const moduleComposeBudgetTotal = 12801
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -222,7 +223,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose":         85,
 	"modules/dataimport/compose/imports": 29,
 	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
-	"modules/delivery/compose":                      393,
+	// ADR 0146: +11 LOC for the SSE relay store binding.
+	"modules/delivery/compose":                      404,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
@@ -233,7 +235,9 @@ var moduleComposeBudgets = map[string]int{
 	// holiday registration review constructor (+7); by ADR 0116: the
 	// participant list constructor (+7); by ADR 0120: the holiday guest
 	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
-	"modules/enrollment/compose":                   598,
+	// #4722 shortened its comments by 7 LOC for the field cipher of
+	// modules/securityruntime/compose.
+	"modules/enrollment/compose":                   591,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -266,7 +270,10 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose": 196,
 	"modules/schoolsetup/compose":      56,
-	"modules/schoolstructure/compose":  593,
+	// #4722: the field cipher of the health information, construction only;
+	// the 7 LOC come out of modules/enrollment/compose, the total stays.
+	"modules/securityruntime/compose": 7,
+	"modules/schoolstructure/compose": 593,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
 	"modules/settings/compose":             322,
 	"modules/studentdirectoryview/compose": 9,
