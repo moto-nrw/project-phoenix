@@ -75,7 +75,7 @@ type GroupReader interface {
 
 // RoomReader is the Facilities seam the lists read.
 type RoomReader interface {
-	FindRoom(ctx context.Context, id int64) (facilities.Room, error)
+	ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error)
 }
 
 // SlotListDependencies wires the narrow read seams the lists need.

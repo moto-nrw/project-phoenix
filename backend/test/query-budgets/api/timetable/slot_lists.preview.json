@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.slot_lists.preview",
+  "max": 15,
+  "exact": true,
+  "description": "POST /api/timetable/lists/preview: real adapter, school permission gate and composed tenant transaction; 1 then 8 distinct rooms, 3 children, one Facilities batch and no DML. Fixture settings/read access are fixed; global session-family verification is measured separately."
+}

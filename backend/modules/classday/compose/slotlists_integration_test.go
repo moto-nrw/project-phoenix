@@ -249,13 +249,13 @@ type failingRoomRepo struct {
 	err error
 }
 
-func (r failingRoomRepo) FindRoom(context.Context, int64) (facilities.Room, error) {
-	return facilities.Room{}, r.err
+func (r failingRoomRepo) ListRoomsByID(context.Context, []int64) ([]facilities.Room, error) {
+	return nil, r.err
 }
 
 // roomReader is the Facilities read seam the lists resolve room names from.
 type roomReader interface {
-	FindRoom(ctx context.Context, id int64) (facilities.Room, error)
+	ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error)
 }
 
 func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) classday.SlotLists {
@@ -1090,6 +1090,10 @@ func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 		Source: classday.SourceReconciliation,
 	})
 
+	require.Error(t, err)
+	assert.ErrorIs(t, err, roomErr)
+
+	_, err = svc.ListOptions(ctx, classday.Date(listDate.String()))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, roomErr)
 }
