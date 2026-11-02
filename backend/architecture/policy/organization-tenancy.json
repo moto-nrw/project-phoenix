@@ -89,6 +89,10 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.demo_school_origins",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.billing_settings",
       "write_owner": "organization-tenancy"
     },

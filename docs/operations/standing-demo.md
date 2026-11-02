@@ -85,9 +85,14 @@ the demo database when that matters.
 The same run then removes the uploads of every school hidden for at least an
 hour (#5544, ADR 0148): all namespaces of the file catalog, orphaned files
 and the emptied school directories included, from the directory
-`--uploads-root` names. The work list is the database: a hidden school
-without a marker in `platform.demo_school_file_erasures` that is not the
-school of an order still being seeded; the standing school never. At most
+`--uploads-root` names. The work list is the database: a hidden school with
+a demo origin in `platform.demo_school_origins` (recorded by trigger when an
+order names the school), without a marker in
+`platform.demo_school_file_erasures`, that is not the school of an order
+still being seeded; the standing school never, even hidden. A hidden school
+without a demo origin is left alone; that includes demo schools whose order
+was already erased before 1.15.735, which keep their files until the demo
+database and uploads volume are rebuilt. At most
 50 schools per run. Per school the process removes, counts again and writes
 the marker with the removed counts only when nothing is left. A school that
 fails (for example a symlinked namespace, which is never followed) keeps no

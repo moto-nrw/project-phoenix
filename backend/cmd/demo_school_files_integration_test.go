@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -144,6 +146,45 @@ func hideDemoSchool(t *testing.T, db *bun.DB, schoolID int64, ago string) {
 	require.NoError(t, err)
 }
 
+// orderDemoSchools records the demo origin of the schools as the demo control
+// plane does: an order names them, then the visitor erasure deletes the order
+// (#4048). Only the origin the trigger recorded remains.
+func orderDemoSchools(t *testing.T, db *bun.DB, schoolIDs ...int64) {
+	t.Helper()
+	for _, id := range schoolIDs {
+		name := "ogs-origin-" + strconv.FormatInt(id, 10)
+		_, err := db.NewRaw(`INSERT INTO platform.demo_school_states (name, tenant_id, seed_state, status) VALUES (?, ?, '{}'::jsonb, 'ready')`, name, id).Exec(t.Context())
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM platform.demo_school_states WHERE name = ?`, name).Exec(t.Context())
+		require.NoError(t, err)
+	}
+}
+
+// storageSeam lets a test break the uploads store at one point: removal of
+// one namespace fails, or an object appears there again right after its
+// removal, as a late write would.
+type storageSeam struct {
+	*objects.Local
+	failRemoval, writeLate string
+	lateWrites             int
+}
+
+func (s *storageSeam) TenantObjects(ctx context.Context, kind, layout string, id int64, remove bool) (int64, error) {
+	if remove && kind == s.failRemoval {
+		return 0, errors.New("synthetic removal failure")
+	}
+	n, err := s.Local.TenantObjects(ctx, kind, layout, id, remove)
+	if remove && err == nil && kind == s.writeLate {
+		s.lateWrites++
+		late := filepath.Join(s.Root, kind, strconv.FormatInt(id, 10), "late.pdf")
+		if err := os.MkdirAll(filepath.Dir(late), 0o700); err != nil {
+			return n, err
+		}
+		return n, os.WriteFile(late, []byte("late"), 0o600)
+	}
+	return n, err
+}
+
 func demoFileMarker(t *testing.T, db *bun.DB, schoolID int64) map[string]int64 {
 	t.Helper()
 	var raw []byte
@@ -169,16 +210,23 @@ func TestDemoProcessErasesTheUploadsOfRetiredDemoSchools(t *testing.T) {
 	standing, _ := testpkg.CreateTestTenant(t, db)
 	recent, _ := testpkg.CreateTestTenant(t, db)
 	seeding, _ := testpkg.CreateTestTenant(t, db)
+	restored, _ := testpkg.CreateTestTenant(t, db)
+	orderDemoSchools(t, db, retired, live, recent)
 	hideDemoSchool(t, db, retired, "2 hours")
 	hideDemoSchool(t, db, recent, "10 minutes")
+	// The standing school is never erased, even hidden for hours.
+	hideDemoSchool(t, db, standing, "2 hours")
 	// A hidden school whose order is still being seeded: the seeder may still
 	// write to it, so its files wait for the order.
 	hideDemoSchool(t, db, seeding, "2 hours")
+	// A soft-deleted school without a demo origin, such as a real school
+	// restored into the demo database, is not the demo process's to erase.
+	hideDemoSchool(t, db, restored, "2 hours")
 	_, err := db.NewRaw(`INSERT INTO platform.demo_school_states (name, tenant_id, seed_state, status) VALUES
 		(?, ?, '{}'::jsonb, 'ready'), ('ogs-seeding-k3m9xp', ?, NULL, 'preparing')`,
 		organizationtenancy.StandingDemoSchoolSlug, standing, seeding).Exec(ctx)
 	require.NoError(t, err)
-	for _, id := range []int64{retired, live, standing, recent, seeding} {
+	for _, id := range []int64{retired, live, standing, recent, seeding, restored} {
 		seedDemoUploads(t, uploads, kinds, id)
 	}
 	before := demoUploadTree(t, uploads)
@@ -199,7 +247,7 @@ func TestDemoProcessErasesTheUploadsOfRetiredDemoSchools(t *testing.T) {
 			assert.Equal(t, content, after[path], "%s is not the retired school's and stays", path)
 		}
 	}
-	for _, id := range []int64{live, standing, recent, seeding} {
+	for _, id := range []int64{live, standing, recent, seeding, restored} {
 		assert.Equal(t, schoolUploads(before, id), schoolUploads(after, id), "school %d keeps every file", id)
 		assert.Nil(t, demoFileMarker(t, db, id))
 	}
@@ -234,6 +282,7 @@ func TestDemoSchoolFileErasureRetriesASchoolAfterAStorageFailure(t *testing.T) {
 	outside := t.TempDir()
 
 	retired, _ := testpkg.CreateTestTenant(t, db)
+	orderDemoSchools(t, db, retired)
 	hideDemoSchool(t, db, retired, "2 hours")
 	seedDemoUploads(t, uploads, kinds, retired)
 	id := strconv.FormatInt(retired, 10)
@@ -253,6 +302,67 @@ func TestDemoSchoolFileErasureRetriesASchoolAfterAStorageFailure(t *testing.T) {
 
 	require.NoError(t, os.Remove(filepath.Join(uploads, "files", id)))
 	writeDemoUpload(t, uploads, "files", id, "after-repair.pdf")
+	schools, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, schools)
+	assert.Empty(t, schoolPaths(t, uploads, retired))
+	assert.NotNil(t, demoFileMarker(t, db, retired))
+}
+
+// The removal is checked by counting again: an object that is still there
+// after the removal fails the school without a marker, and the next run,
+// with nothing left behind, finishes it.
+func TestDemoSchoolFileErasureCountsAgainAfterTheRemoval(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	uploads := t.TempDir()
+	retired, _ := testpkg.CreateTestTenant(t, db)
+	orderDemoSchools(t, db, retired)
+	hideDemoSchool(t, db, retired, "2 hours")
+	seedDemoUploads(t, uploads, demoFileKinds(t), retired)
+
+	seam := &storageSeam{Local: objects.NewLocal(uploads), writeLate: "files"}
+	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), seam)
+	require.NoError(t, err)
+	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
+	require.Error(t, err, "an object left after the removal fails the school")
+	assert.Equal(t, 1, seam.lateWrites)
+	assert.Zero(t, schools)
+	assert.Nil(t, demoFileMarker(t, db, retired), "no marker while an object is left")
+	assert.NotEmpty(t, schoolPaths(t, uploads, retired))
+
+	seam.writeLate = ""
+	schools, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, schools, "the next run finishes the school")
+	assert.Empty(t, schoolPaths(t, uploads, retired))
+	assert.NotNil(t, demoFileMarker(t, db, retired))
+}
+
+// The marker follows the removal, never the count before it: a removal that
+// fails after every namespace was counted leaves no marker, and the next run
+// erases the school.
+func TestDemoSchoolFileErasureWritesNoMarkerWhenTheRemovalFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	uploads := t.TempDir()
+	retired, _ := testpkg.CreateTestTenant(t, db)
+	orderDemoSchools(t, db, retired)
+	hideDemoSchool(t, db, retired, "2 hours")
+	seedDemoUploads(t, uploads, demoFileKinds(t), retired)
+
+	seam := &storageSeam{Local: objects.NewLocal(uploads), failRemoval: "student-documents"}
+	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), seam)
+	require.NoError(t, err)
+	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
+	require.Error(t, err)
+	assert.Zero(t, schools)
+	assert.Nil(t, demoFileMarker(t, db, retired), "a failed removal leaves no marker")
+	assert.FileExists(t, filepath.Join(uploads, "student-documents", strconv.FormatInt(retired, 10), "orphan.pdf"))
+
+	seam.failRemoval = ""
 	schools, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, schools)

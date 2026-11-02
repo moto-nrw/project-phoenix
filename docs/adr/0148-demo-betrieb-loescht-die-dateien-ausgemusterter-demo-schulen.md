@@ -1,10 +1,11 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Demo-Betrieb löscht die Dateien ausgemusterter Demo-Schulen
 
-**Status: Vorgeschlagen.** Die Freigabe erteilt der Product Owner. Ergänzt
+**Status: Akzeptiert.** Der Product Owner hat die Entscheidung am
+2026-11-02 freigegeben. Ergänzt
 [ADR 0062](0062-demo-visitor-erasure-is-a-database-workflow.md) und
 [ADR 0092](0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md);
 Entscheidung für [#5544](https://github.com/moto-nrw/project-phoenix/issues/5544).
@@ -36,11 +37,12 @@ Ledger.
    Auftrag, den Nachweis und das Ledger der Schullöschung nutzt er nicht: Die
    Demo-Umgebung hat keine Kundenschule und keinen Auftraggeber.
 2. **Der Arbeitsvorrat kommt nur aus der Datenbank.** Fällig ist jede Schule,
-   die seit mindestens einer Stunde ausgeblendet ist, noch keinen Vermerk in
+   die seit mindestens einer Stunde ausgeblendet ist, nachweislich eine
+   Demo-Schule ist (Punkt 8), noch keinen Vermerk in
    `platform.demo_school_file_erasures` hat und nicht die Schule einer noch
-   wartenden oder laufenden Bestellung ist. Die Standschule ist nie fällig.
-   Die Bestellung selbst ist kein Vorrat, denn ADR 0062 löscht sie mit dem
-   Besuch. Pro Lauf höchstens 50 Schulen.
+   wartenden oder laufenden Bestellung ist. Die Standschule ist nie fällig,
+   auch nicht ausgeblendet. Die Bestellung selbst ist kein Vorrat, denn
+   ADR 0062 löscht sie mit dem Besuch. Pro Lauf höchstens 50 Schulen.
 3. **Ein Vermerk erst nach vollständiger Löschung.** Pro Schule werden alle
    Namensräume gelöscht und neu gezählt; erst bei 0 schreibt eine einzige
    Anweisung den Vermerk mit den gelöschten Anzahlen und prüft dabei erneut,
@@ -64,11 +66,26 @@ Ledger.
    Produktion. Der Akzeptor `reviewedDemoUploadsRule` lässt genau diese
    Regel in Epoche 96 zu. Die Bindung liegt wie in `cmd/tenant.go` beim
    Prozess, der das Volume kennt.
-7. **Die Vermerk-Tabelle** gehört Organization & Tenancy, hat keinen Bezug zu
-   Personen und keinen Fremdschlüssel auf `platform.schools`: Die
+7. **Die Vermerk-Tabelle** (und ebenso `platform.demo_school_origins`)
+   gehört Organization & Tenancy, hat keinen Bezug zu Personen und keinen
+   Fremdschlüssel auf `platform.schools`: Die
    Schullöschung prüft den Fingerabdruck aller eingehenden Fremdschlüssel und
    würde sonst nicht mehr laufen. `phoenix_demo` erhält nur `SELECT` und
    `INSERT`, die Server-Rollen nichts.
+
+8. **Nur nachweisliche Demo-Schulen.** Dass die Demo-Datenbank nur
+   Demo-Schulen enthält (ADR 0029), ist eine Betriebsannahme, keine
+   SQL-Garantie. Deshalb bindet der Vorrat zusätzlich an
+   `platform.demo_school_origins`. Ein Trigger auf
+   `platform.demo_school_states` schreibt dort jede Schule, die eine
+   Demo-Bestellung nennt (aktuelle und aufgegebene), sobald die
+   Demo-Steuerung sie einträgt. Kein Aufrufer kann eine Zeile anlegen;
+   `phoenix_demo` darf nur lesen. Der Nachweis bleibt, wenn ADR 0062 die
+   Bestellung löscht. Eine ausgeblendete Schule ohne diesen Nachweis, etwa
+   eine echte Schule aus einer Wiederherstellung, bleibt unberührt. Die
+   Migration trägt nur Schulen nach, die eine noch vorhandene Bestellung
+   nennt; Schulen bereits gelöschter Bestellungen haben keinen Nachweis und
+   werden nicht automatisch gelöscht.
 
 ## Betrachtete Optionen
 
@@ -88,6 +105,16 @@ Ledger.
 - `TenantObjects` entfernt beim Löschen auch den geleerten Schulordner
   (`<art>/<schule>/`), damit kein Pfad mehr die Schule nennt. Das gilt auch
   für die Schullöschung; ihr Nachzählen bleibt 0.
+- Verwaiste Vermerke und Herkunftsnachweise bleiben bewusst bestehen, wenn
+  die Schullöschung (#3837) eine Schule vollständig löscht: Beide Tabellen
+  haben keinen Fremdschlüssel und enthalten nur Schul-ID, Zeit und Anzahlen.
+  Das ist nur sicher, weil Schul-IDs aus einer Sequenz kommen und nie
+  wiederverwendet werden. Ein manuelles Zurücksetzen der Sequenz oder ein
+  Wiederverwenden von IDs wird nicht unterstützt; eine neue Schule mit alter
+  ID würde als erledigt oder als Demo-Schule gelten.
+- Ausgeblendete Demo-Schulen, deren Bestellung schon vor dem Deploy gelöscht
+  war, behalten ihre Dateien, bis die Demo-Datenbank und ihr Upload-Volume
+  neu aufgebaut werden.
 - Ein neuer Namensraum im Datenkatalog bleibt ohne geprüften Löschweg
   ungültig (`validateErasureFiles`); der Demo-Prozess startet dann nicht.
 - Der Sidecar kann jetzt Dateien des Demo-Servers löschen. Das ist seine

@@ -17,11 +17,13 @@ func NewDemoSchoolFileStore(db *bun.DB) *DemoSchoolFileStore { return &DemoSchoo
 // retiredDemoSchoolDue selects a school whose files are due: hidden for at
 // least an hour, so that no request of its last visit still writes, without
 // a marker, not the school of an order still being seeded and never the
-// standing school. The demo database holds demo schools only (ADR 0029); the
-// order of a retired school may already be erased (#4048), so the hidden
-// school row is the work list, not the order. The single bind parameter is
-// the standing school's slug.
+// standing school. Only a school with a recorded demo origin qualifies: the
+// demo database is meant to hold demo schools only (ADR 0029), but that is an
+// operating assumption, not a guarantee. The order of a retired school may
+// already be erased (#4048), so the origin row is the proof, not the order.
+// The single bind parameter is the standing school's slug.
 const retiredDemoSchoolDue = `school.deleted_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
+	AND EXISTS (SELECT 1 FROM platform.demo_school_origins AS origin WHERE origin.school_id = school.id)
 	AND NOT EXISTS (SELECT 1 FROM platform.demo_school_states AS state
 		WHERE (state.tenant_id = school.id AND state.status = 'preparing')
 			OR (state.name = ? AND (state.tenant_id = school.id OR school.id = ANY(state.visitor_school_ids))))
