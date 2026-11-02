@@ -41,12 +41,13 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //   - It locks the visitor accounts before it decides which of them hang only
 //     in demo schools. Without the lock, a school or Träger membership written
 //     while the erasure ran was not seen, and the account was anonymized anyway.
-//     It takes the locks in the order of auth.lock_live_account_reference:
-//     first the rows of the visitor schools it still writes, then the
-//     account. It writes the visitor schools before that and holds no
-//     account while it waits for one of their rows. It never locks a row of
-//     another school before the account, whose writers may hold the account
-//     first.
+//     It writes the visitor schools before it holds an account, locks only
+//     the demo accesses (updated row first) before the accounts, and after
+//     the check writes membership tables only for accounts without any
+//     membership or role outside the visitor schools; a role there now keeps
+//     the account too. Upserts lock the account before the row, UPDATEs the
+//     row before the account (auth.lock_live_account_reference); the order
+//     avoids both cycles.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -209,29 +210,22 @@ const demoVisitorAccountErasureUpSQL = `
 					-- holds its account with a key share lock: the erasure waits for
 					-- it and then sees it, or the membership waits for the erasure
 					-- and then finds an erased account.
-					-- Lock order of auth.lock_live_account_reference: a row that
-					-- references an account first, the account second. The writes
-					-- above hold no account. The rows of the visitor schools the
-					-- erasure may still write after the check (memberships, roles,
-					-- profiles) and the visitor's demo accesses are locked here,
-					-- before the accounts, each table in id order. Rows of other
-					-- schools are never locked first: their writers may hold the
-					-- account first (a profile change locks the user name, then the
-					-- profile). An account the check finds demo-only has no
-					-- membership outside the visitor schools, so no writer of
-					-- another school holds one of its rows.
-					PERFORM 1 FROM auth.account_tenants
-					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-						AND tenant_id = ANY (visitor.visitor_school_ids)
-					ORDER BY id FOR UPDATE;
-					PERFORM 1 FROM auth.account_roles
-					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-						AND tenant_id = ANY (visitor.visitor_school_ids)
-					ORDER BY id FOR UPDATE;
-					PERFORM 1 FROM users.profiles
-					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-						AND tenant_id = ANY (visitor.visitor_school_ids)
-					ORDER BY id FOR UPDATE;
+					-- Lock order. The writers of a row that references an account
+					-- lock in two orders: an UPDATE locks the row, then its trigger
+					-- auth.lock_live_account_reference locks the account (a staff
+					-- calendar token on a membership, a demo login); an upsert or
+					-- insert locks the account first, in that trigger, then the row
+					-- (a profile change). The erasure never holds an account while it
+					-- waits for a row of the first kind and never holds a row of the
+					-- second kind while it waits for an account:
+					-- - It writes the memberships, roles and other rows of the
+					--   visitor schools above, before it holds any account.
+					-- - After the check it writes those tables only for an account
+					--   that hangs in demo schools alone, which has no membership
+					--   or role left; its profiles are written by upserts, which
+					--   wait for the account before they lock the profile.
+					-- - The visitor's demo accesses are updated row first, so they
+					--   are locked here, before the accounts.
 					PERFORM 1 FROM auth.demo_accesses
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 						OR parent_account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
@@ -247,6 +241,12 @@ const demoVisitorAccountErasureUpSQL = `
 							SELECT 1 FROM auth.account_tenants AS membership
 							WHERE membership.account_id = account.id
 								AND membership.tenant_id <> ALL (visitor.visitor_school_ids)
+						)
+						-- A role in another school is an assignment there too.
+						AND NOT EXISTS (
+							SELECT 1 FROM auth.account_roles AS role
+							WHERE role.account_id = account.id
+								AND role.tenant_id <> ALL (visitor.visitor_school_ids)
 						)
 						AND NOT EXISTS (
 							SELECT 1 FROM users.persons AS person

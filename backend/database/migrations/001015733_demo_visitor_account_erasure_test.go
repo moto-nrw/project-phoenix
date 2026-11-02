@@ -58,38 +58,31 @@ func TestDemoRoleCannotWriteTheVisitorAccountTablesDirectly(t *testing.T) {
 	}
 }
 
-// auth.lock_live_account_reference locks a row that references an account
-// first and the account second. The demo erasure keeps that order (#5540):
-// every table with that trigger which it still writes after locking the
-// accounts has its rows locked before the accounts, so the erasure never
-// holds an account while it waits for such a row.
-func TestDemoVisitorErasureLocksReferencingRowsBeforeTheAccounts(t *testing.T) {
+// Writers of a row that references an account lock in two orders: an
+// UPDATE locks the row and then, in auth.lock_live_account_reference, the
+// account; an upsert or insert locks the account in that trigger first. The
+// demo erasure avoids both cycles (#5540): it writes the memberships and
+// roles of the visitor schools before it holds an account, locks only the
+// demo accesses (updated row first) before the accounts, and locks no row of
+// a table an upsert writes (memberships, roles, profiles) before them.
+func TestDemoVisitorErasureLockOrder(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	ctx := t.Context()
 	var definition string
-	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &definition))
-	var guarded []string
-	require.NoError(t, db.NewRaw(`SELECT DISTINCT trigger.tgrelid::regclass::text FROM pg_trigger AS trigger
-		WHERE trigger.tgfoid = 'auth.lock_live_account_reference'::regproc ORDER BY 1`).Scan(ctx, &guarded))
-	require.NotEmpty(t, guarded)
-
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(t.Context(), &definition))
 	accountLock := strings.Index(definition, "PERFORM 1 FROM auth.accounts")
 	require.Positive(t, accountLock, "the erasure locks the visitor accounts")
 	before, after := definition[:accountLock], definition[accountLock:]
-	for _, table := range guarded {
-		written := regexp.MustCompile(`(DELETE FROM|UPDATE) ` + regexp.QuoteMeta(table) + `\s`)
-		locked := regexp.MustCompile(`PERFORM 1 FROM ` + regexp.QuoteMeta(table) + `\s[^;]*FOR UPDATE;`)
-		if written.MatchString(after) {
-			assert.True(t, locked.MatchString(before), "%s is written after the account lock, so its rows are locked before it", table)
-		}
+
+	for _, table := range []string{"auth.account_tenants", "auth.account_roles"} {
+		visitorSchools := regexp.MustCompile(`DELETE FROM ` + regexp.QuoteMeta(table) + `\s[^;]*tenant_id = ANY \(visitor\.visitor_school_ids\);`)
+		assert.True(t, visitorSchools.MatchString(before), "%s of the visitor schools goes before any account is held", table)
 	}
-	assert.Contains(t, after, "DELETE FROM auth.account_tenants ", "the check guards at least the memberships")
-	// Writers of another school may hold the account first (a profile change
-	// locks the user name, then the profile), so a row locked before the
-	// account belongs to a visitor school.
 	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "users.profiles"} {
-		restricted := regexp.MustCompile(`PERFORM 1 FROM ` + regexp.QuoteMeta(table) + `\s[^;]*tenant_id = ANY \(visitor\.visitor_school_ids\)[^;]*FOR UPDATE;`)
-		assert.True(t, restricted.MatchString(before), "%s is locked before the account only in the visitor schools", table)
+		assert.NotRegexp(t, `PERFORM 1 FROM `+regexp.QuoteMeta(table)+`\s`, before, "no row of %s is locked before the account", table)
 	}
+	assert.Regexp(t, `PERFORM 1 FROM auth\.demo_accesses\s[^;]*FOR UPDATE;`, before, "the demo accesses are locked before the accounts")
+	assert.Regexp(t, `DELETE FROM auth\.demo_accesses\s`, after)
+	assert.Regexp(t, `auth\.account_roles AS role\s+WHERE role\.account_id = account\.id\s+AND role\.tenant_id <> ALL \(visitor\.visitor_school_ids\)`, after,
+		"a role outside the visitor schools keeps the account")
 }

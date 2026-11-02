@@ -370,3 +370,77 @@ func TestDemoVisitorErasureLeavesTheRealSchoolRowsOfASharedAccountUnlocked(t *te
 	assert.Nil(t, stateOfAccount(t, db, accounts.parent).Erased, "the shared account stays")
 	requireNothingLeftToErase(t, queue)
 }
+
+// A profile upsert locks the account first: the account-reference trigger
+// runs before the insert finds its conflict, then the upsert locks the
+// existing profile. The erasure therefore locks no profile before the
+// account (#5540): the visitor may still change the profile of the demo
+// school (UpdateProfile: user name, then bio) while the erasure runs.
+func TestDemoVisitorErasureLocksNoProfileBeforeTheAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID)
+	_, err := db.NewRaw(`INSERT INTO users.profiles (tenant_id, account_id, bio) VALUES (?, ?, 'vorher')`, schoolID, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
+
+	profileChange, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = profileChange.Rollback() }()
+	_, err = profileChange.ExecContext(ctx, `UPDATE auth.accounts SET username = 'betreuung-' || id WHERE id = ?`, accounts.caregiver)
+	require.NoError(t, err)
+
+	erasure := make(chan error, 1)
+	go func() {
+		_, _, retireErr := queue.RetireDemoSchools(ctx, []string{slug})
+		erasure <- retireErr
+	}()
+	waitForLockWait(t, db, "retire_expired_demo_schools")
+
+	_, err = profileChange.ExecContext(ctx, `INSERT INTO users.profiles (account_id, tenant_id, bio, settings)
+		VALUES (?, ?, 'nachher', '{}'::jsonb)
+		ON CONFLICT (tenant_id, account_id) DO UPDATE SET bio = EXCLUDED.bio`, accounts.caregiver, schoolID)
+	require.NoError(t, err, "the profile change must not deadlock with the erasure")
+	require.NoError(t, profileChange.Commit())
+	require.NoError(t, <-erasure)
+
+	var profiles int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.profiles WHERE account_id = ?`, accounts.caregiver).Scan(ctx, &profiles))
+	assert.Zero(t, profiles, "the erasure that waited for the change still removes the profile")
+	assert.NotNil(t, stateOfAccount(t, db, accounts.caregiver).Erased)
+	requireNothingLeftToErase(t, queue)
+}
+
+// A role in a real school is an assignment there, even without a membership
+// row: the account is no demo-only account and stays (#5540).
+func TestDemoVisitorErasureKeepsAnAccountWithARoleInARealSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	realID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID)
+	var roleID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
+	_, err := db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, accounts.caregiver, roleID, realID).Exec(ctx)
+	require.NoError(t, err)
+	before := stateOfAccount(t, db, accounts.caregiver)
+
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	require.Equal(t, 1, erased)
+
+	assert.Equal(t, before, stateOfAccount(t, db, accounts.caregiver), "the account with a role in a real school keeps its address and access")
+	var roles int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?`, accounts.caregiver, realID).Scan(ctx, &roles))
+	assert.Equal(t, 1, roles)
+	assert.NotNil(t, stateOfAccount(t, db, accounts.parent).Erased, "the demo-only account is erased")
+	requireNothingLeftToErase(t, queue)
+}
