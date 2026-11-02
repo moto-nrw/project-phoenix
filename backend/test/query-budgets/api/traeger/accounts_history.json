@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.accounts.history",
+  "max": 8,
+  "exact": true,
+  "description": "modules/identityaccess — GET /traeger/accounts/history (#5474): the re-check of the acting person, one page of the Träger account ledger and the addresses of the acting people, in one administrative transaction. Flat in the number of entries and people."
+}

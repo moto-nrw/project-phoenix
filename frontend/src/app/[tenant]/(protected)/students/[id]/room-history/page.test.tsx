@@ -1036,7 +1036,7 @@ describe("StudentRoomHistoryPage", () => {
       const row = (await screen.findByText(/Montag, 06/)).closest("tr")!;
       expect(row.className).toContain("bg-moto-blue-soft/60");
       await act(async () => {
-        vi.advanceTimersByTime(60_000);
+        await vi.advanceTimersByTimeAsync(60_000);
       });
       expect(row.className).not.toContain("bg-moto-blue-soft/60");
     },

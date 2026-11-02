@@ -140,6 +140,14 @@
       "write_owner": "workforce"
     },
     {
+      "name": "active.payroll_surcharge_rules",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.payroll_wage_types",
+      "write_owner": "workforce"
+    },
+    {
       "name": "active.staff_absence_audit",
       "write_owner": "workforce"
     },

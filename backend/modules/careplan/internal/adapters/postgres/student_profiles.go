@@ -38,12 +38,16 @@ func (s *DirectoryStore) ClearStudentStatusFlags(ctx context.Context, ids []int6
 	return stats.Rows, stats, err
 }
 
-func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.StudentCareProfile, plan *domain.StudentDeparturePlan) (domain.OperationStats, error) {
+func (s *DirectoryStore) SaveStudentCareProfile(ctx context.Context, profile domain.StudentCareProfile, plan *domain.StudentDeparturePlan) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	departure, err := encodeStudentDeparture(plan)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	health, err := s.directory.SealStudentHealth(tenantID, profile.MembershipID, profile.HealthInfo)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
@@ -53,11 +57,11 @@ func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.Stude
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewRaw(`INSERT INTO users.student_care_profiles AS care
-  (tenant_id, membership_id, health_info, pickup_status, sick, sick_since, excused, excused_since,
+  (tenant_id, membership_id, health_data, pickup_status, sick, sick_since, excused, excused_since,
    allowed_departure_modes, departure_days, bus_days, pickup_days, departure_companion_note)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?)
   ON CONFLICT (membership_id) DO UPDATE SET
-   health_info = EXCLUDED.health_info,
+   health_data = EXCLUDED.health_data,
    pickup_status = EXCLUDED.pickup_status, sick = EXCLUDED.sick, sick_since = EXCLUDED.sick_since,
    excused = EXCLUDED.excused, excused_since = EXCLUDED.excused_since, updated_at = NOW(),
    allowed_departure_modes = CASE WHEN ? THEN EXCLUDED.allowed_departure_modes ELSE care.allowed_departure_modes END,
@@ -66,7 +70,7 @@ func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.Stude
    pickup_days = CASE WHEN ? THEN EXCLUDED.pickup_days ELSE care.pickup_days END,
    departure_companion_note = CASE WHEN ? THEN EXCLUDED.departure_companion_note ELSE care.departure_companion_note END
   WHERE care.tenant_id = EXCLUDED.tenant_id`,
-		tenantID, profile.MembershipID, profile.HealthInfo, profile.PickupStatus,
+		tenantID, profile.MembershipID, health, profile.PickupStatus,
 		profile.Sick, profile.SickSince, profile.Excused, profile.ExcusedSince,
 		departure.modes, departure.days, departure.bus, departure.pickup, departure.note,
 		departure.touched, departure.touched, departure.touched, departure.touched, plan != nil).Exec(ctx)
@@ -103,25 +107,45 @@ func (s *DirectoryStore) SetStudentLiveStatus(ctx context.Context, input domain.
 }
 
 // SetStudentHealthInfo resolves the membership the same way
-// SetStudentLiveStatus does, so a foreign student ID matches no care row.
+// SetStudentLiveStatus does, so a foreign student ID matches no care row. The
+// value is sealed to that care row (#5472), so the membership is read first.
 func (s *DirectoryStore) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	members := s.directory.StudentRows(db, tenantID).
-		ColumnExpr("student.membership_id").Where("student.id = ?", studentID)
-	query := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
-		Set("health_info = ?", healthInfo).Set("updated_at = NOW()").
-		Where("care.tenant_id = ?", tenantID).Where("care.membership_id IN (?)", members)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	result, err := query.Exec(ctx)
+	var memberships []int64
+	err = s.directory.StudentRows(db, tenantID).
+		ColumnExpr("student.membership_id").Where("student.id = ?", studentID).
+		Scan(ctx, &memberships)
 	stats.StatementDuration = time.Since(started)
-	if err == nil {
-		stats.Rows, err = result.RowsAffected()
+	if err != nil || len(memberships) == 0 {
+		return 0, stats, err
 	}
-	return stats.Rows, stats, err
+	for _, membershipID := range memberships {
+		health, err := s.directory.SealStudentHealth(tenantID, membershipID, healthInfo)
+		if err != nil {
+			return stats.Rows, stats, err
+		}
+		stats.Queries++
+		started = time.Now()
+		result, err := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
+			Set("health_data = ?", health).Set("updated_at = NOW()").
+			Where("care.tenant_id = ?", tenantID).Where("care.membership_id = ?", membershipID).
+			Exec(ctx)
+		stats.StatementDuration += time.Since(started)
+		if err != nil {
+			return stats.Rows, stats, err
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return stats.Rows, stats, err
+		}
+		stats.Rows += changed
+	}
+	return stats.Rows, stats, nil
 }
 
 type encodedStudentDeparture struct {

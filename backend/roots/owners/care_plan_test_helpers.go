@@ -8,8 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
@@ -23,7 +21,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	if students == nil || slots.Presence == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), StudentDirectoryReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +31,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	}
 	studentLock, studentNotFound := peopleCompose.CareStudentLock(students)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
+		StudentDirectory: StudentDirectoryReader(),
 		DB:               db.Pool(), Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents,
 		StatusSlots:    CarePlanStatusSlots(slots),

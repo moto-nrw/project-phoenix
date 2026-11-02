@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest";
 
+import { installSessionCookieExit } from "~/lib/session-cookie-exit.server";
 import { freezeTestClock } from "./clock";
 
 process.env.API_URL = "http://server:8080";
@@ -74,6 +75,11 @@ vi.mock("~/lib/logger", () => {
 // The server auth modules import "server-only", whose default export throws
 // outside Next.js's react-server condition (#5005). Tests import them in Node.
 vi.mock("server-only", () => ({}));
+
+// As in production (instrumentation.ts), every Node server and response of
+// the test process carries the session cookie exit lock (#5520);
+// gateSessionCookieWrites refuses to run without it.
+installSessionCookieExit();
 
 // Avoid Zod validation while keeping required runtime values explicit.
 vi.mock("~/env", () => ({

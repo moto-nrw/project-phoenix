@@ -234,7 +234,7 @@ export function BookingLeftoverHints({
       {kept.length > 0 ? (
         <SectionCard
           title={`Bleibt ohne Buchung eingeplant (${kept.length})`}
-          description="Sie haben entschieden: Diese Kinder bleiben im Regeltermin."
+          description="Entschieden: Diese Kinder bleiben im Regeltermin."
           collapsible
           defaultCollapsed
           headingLevel={3}

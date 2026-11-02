@@ -85,6 +85,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
+	if err := rs.writeStudentHealthViewAudit(r, student.ID, response.HealthInfo); err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to record student health access", err))
+		return
+	}
 
 	// Add supervisor contacts for users without full access
 	if !response.HasFullAccess && group != nil && canReadSensitiveStudentData(r.Context()) {

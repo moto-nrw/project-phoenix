@@ -66,6 +66,11 @@ func traegerMember(t *testing.T, db *bun.DB, router *traegerPortalHandler, organ
 	password := testpkg.NewTestPassword()
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organizationID, account.ID, roles...)
+	// A role change or removal mails the person (#5474).
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE `+traegerChangeMailQueued, owners.TransactionalMailKind, account.ID)
+		require.NoError(t, err)
+	})
 	code, answer := traegerSignIn(t, router, account.Email, password, organizationID)
 	require.Equal(t, http.StatusOK, code)
 	return account, answer

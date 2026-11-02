@@ -569,6 +569,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ListTraegerAccountHistory",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerAccountHistory",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ListTraegerBuero",
       "binding_digest": "cf561391c095d764c720fd1cab767582",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerBuero",
@@ -916,6 +924,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.InviteTraegerAccount",
       "binding_digest": "cf561391c095d764c720fd1cab767582",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.InviteTraegerAccount",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.ListTraegerAccountHistory",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.ListTraegerAccountHistory",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
@@ -5033,6 +5049,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerAccountLedger.ListTraegerAccountChanges",
+      "binding_digest": "7ed0e8d06beba228c67d9e33b46a7206",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.ListTraegerAccountChanges",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerAccountChangeQuery.ListTraegerAccountChanges",
+      "target_owner": "audit-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
       "binding_digest": "7a9a747725dca311bc870dfea635ae4a",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
@@ -5095,6 +5119,22 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListTraegerMemberships",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerInvitationDelivery.DispatchTraegerAccountChange",
+      "binding_digest": "52d49acf93e276602627d0ba908dfc54",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerInvitationDelivery.DispatchTraegerAccountChange",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerInvitationDelivery.DispatchTraegerAccountChange",
+      "binding_digest": "939edb2b5c6d2312e80cf82e4a965b97",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerInvitationDelivery.DispatchTraegerAccountChange",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerInvitationDelivery.DispatchTraegerInvitation",

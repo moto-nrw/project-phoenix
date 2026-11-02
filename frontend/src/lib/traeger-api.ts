@@ -421,6 +421,69 @@ export async function fetchTraegerBuero(): Promise<TraegerBuero> {
   };
 }
 
+/** What a change of the Träger-Büro did (#5474). */
+export type TraegerAccountChangeAction =
+  | "invitation_created"
+  | "invitation_revoked"
+  | "invitation_accepted"
+  | "roles_changed"
+  | "member_removed";
+
+/** One change of the Träger-Büro: who did what, when, to whom. */
+export interface TraegerAccountHistoryEntry {
+  /** Stable across pages; the next page starts before it. */
+  readonly id: string;
+  /** Instant (RFC 3339). */
+  readonly occurredAt: string;
+  readonly action: TraegerAccountChangeAction;
+  /** Empty for an account erased since; the page says „Gelöschtes Konto“. */
+  readonly actorEmail: string;
+  readonly targetEmail: string;
+  readonly rolesBefore: readonly TraegerRole[];
+  readonly rolesAfter: readonly TraegerRole[];
+}
+
+export interface TraegerAccountHistoryPage {
+  readonly entries: readonly TraegerAccountHistoryEntry[];
+  readonly hasMore: boolean;
+}
+
+interface BackendHistoryEntry {
+  id: number;
+  occurred_at: string;
+  action: TraegerAccountChangeAction;
+  actor_email: string;
+  target_email: string;
+  roles_before?: string[] | null;
+  roles_after?: string[] | null;
+}
+
+/**
+ * One page of the changes of the Träger-Büro, newest first. A later page
+ * passes the ID of the last entry it has as `before`.
+ */
+export async function fetchTraegerAccountHistory(
+  before?: string,
+): Promise<TraegerAccountHistoryPage> {
+  const query = before ? `?${new URLSearchParams({ before }).toString()}` : "";
+  const data = await traegerRequest<{
+    entries?: BackendHistoryEntry[];
+    has_more?: boolean;
+  } | null>(`/api/traeger/accounts/history${query}`);
+  return {
+    entries: (data?.entries ?? []).map((entry) => ({
+      id: String(entry.id),
+      occurredAt: entry.occurred_at,
+      action: entry.action,
+      actorEmail: entry.actor_email,
+      targetEmail: entry.target_email,
+      rolesBefore: traegerRoles(entry.roles_before ?? []),
+      rolesAfter: traegerRoles(entry.roles_after ?? []),
+    })),
+    hasMore: data?.has_more ?? false,
+  };
+}
+
 /** Invites a person by e-mail; the backend sends the link. */
 export async function inviteTraegerAccount(input: {
   readonly email: string;

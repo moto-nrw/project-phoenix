@@ -16,10 +16,10 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/k3a/html2text v1.5.1
 	github.com/lestrrat-go/jwx/v3 v3.4.0
-	github.com/pkg/sftp v1.13.11
+	github.com/pkg/sftp v1.13.12
 	github.com/prometheus/client_golang v1.25.0
 	github.com/samber/slog-chi v1.19.1
-	github.com/signintech/gopdf v0.38.2
+	github.com/signintech/gopdf v0.38.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
