@@ -324,6 +324,7 @@ export default function PayrollPage() {
           <DatevCard status={status} onSave={save} />
           <LohnbueroCard
             status={status}
+            rules={rules}
             latest={latestDispatch}
             latestError={dispatchLoadError}
             sftpStatus={sftpStatus}
@@ -591,28 +592,34 @@ const SFTP_SETTINGS_HREF = "/settings?tab=system&highlight=sftp.enabled";
 
 /**
  * Fehlt etwas, das die DATEV-Prüfung beim Versand verlangt? Dieselben Zahlen
- * wie die Karte „Vollständigkeit“; LODAS braucht zusätzlich den Mandanten.
+ * wie die DATEV-Validierung im Backend; LODAS braucht zusätzlich den
+ * Mandanten. Eine nummerierte eigene Lohnart kann die einzige Lohnart im
+ * Export sein.
  */
 function datevIncomplete(
   status: PayrollStatus,
+  rules: PayrollRules | undefined,
   format: PayrollDispatchFormat,
 ): boolean {
   if (format !== "datev_lodas" && format !== "datev_lug") return false;
   return (
     status.staffWithoutPersonnelNumber > 0 ||
-    status.configuredCategories < status.totalCategories ||
+    (status.configuredCategories === 0 &&
+      !rules?.wageTypes.some((wageType) => wageType.number !== "")) ||
     (format === "datev_lodas" && !status.lodasHeaderComplete)
   );
 }
 
 function LohnbueroCard({
   status,
+  rules,
   latest,
   latestError,
   sftpStatus,
   onSave,
 }: {
   readonly status: PayrollStatus;
+  readonly rules: PayrollRules | undefined;
   /** `undefined` while loading, `null` before the first dispatch. */
   readonly latest: PayrollDispatchView | null | undefined;
   readonly latestError: ReturnType<typeof useSwrLoadError>;
@@ -762,7 +769,7 @@ function LohnbueroCard({
             }
           />
         )}
-        {datevIncomplete(status, current.format) && (
+        {datevIncomplete(status, rules, current.format) && (
           <Alert
             type="warning"
             message="Für DATEV fehlen noch Angaben. Was fehlt, steht oben unter Vollständigkeit. Fehlt beim Monatsabschluss etwas, sendet moto keine Datei."

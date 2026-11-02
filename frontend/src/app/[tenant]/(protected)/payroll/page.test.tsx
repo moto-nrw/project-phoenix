@@ -486,6 +486,34 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     ).toBeInTheDocument();
   });
 
+  it("warnt nicht für DATEV, wenn eine eigene Lohnart nummeriert ist", () => {
+    swrData["payroll-status"] = {
+      data: {
+        ...payrollStatus({ format: "datev_lug" }),
+        staffWithoutPersonnelNumber: 0,
+      },
+    };
+    swrData["payroll-rules"] = {
+      data: payrollRules({
+        wageTypes: [
+          { id: "7", name: "Nachtzuschlag", number: "310", unit: "stunden" },
+        ],
+      }),
+    };
+
+    render(<PayrollPage />);
+
+    // Anker: die Versandkarte ist für DATEV Lohn und Gehalt geladen.
+    expect(
+      screen.getByRole("heading", { name: "Versand an das Lohnbüro" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Für DATEV fehlen noch Angaben. Was fehlt, steht oben unter Vollständigkeit. Fehlt beim Monatsabschluss etwas, sendet moto keine Datei.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("speichert die Nummer einer eigenen Lohnart beim Verlassen des Felds", async () => {
     render(<PayrollPage />);
 
