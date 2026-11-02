@@ -381,6 +381,22 @@ func TestDetectBookingLeftoversEndsTheGapAtTheRebooking(t *testing.T) {
 	assert.Equal(t, rebooked, *leftovers[0].Until)
 }
 
+func TestDetectBookingLeftoversEndsAtTheCarryingBooking(t *testing.T) {
+	t.Parallel()
+	rebooked, unrelated := calendar.NewDate(2026, 11, 16), calendar.NewDate(2026, 11, 18)
+	bookings := []timetable.OfferingWeekdayBooking{
+		leftoverBooking(leftoverGanztag, leftoverChild, map[int]string{4: "16:00"}, leftoverWindow(phaseStart, leftoverChange, true, 4)),
+		leftoverBooking(leftoverMensa, leftoverChild, map[int]string{4: "16:00"}, leftoverWindow(rebooked, phaseEnd, false, 4)),
+		leftoverBooking(leftoverMensa+1, leftoverChild, map[int]string{4: "14:30"}, leftoverWindow(unrelated, phaseEnd, false, 4)),
+	}
+	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
+		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))}, bookings)
+
+	require.Len(t, leftovers, 1)
+	require.NotNil(t, leftovers[0].Until)
+	assert.Equal(t, rebooked, *leftovers[0].Until, "a non-carrying booking does not extend the gap")
+}
+
 func TestDetectBookingLeftoversKeepsTheGapOpenWithoutRebooking(t *testing.T) {
 	t.Parallel()
 	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
