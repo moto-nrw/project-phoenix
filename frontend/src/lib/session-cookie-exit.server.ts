@@ -68,6 +68,20 @@ function maxAge(raw: string): number | null {
 const HTTP_DATE =
   /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
 
+/** RFC 6265 5.1.1 bounds, restricted to the HTTP date form above. */
+function cookieExpiry(raw: string): number | null {
+  if (!HTTP_DATE.test(raw)) return null;
+  const date = new Date(raw);
+  // Date parsing accepts years before 1601 and normalizes invalid dates and
+  // times. Neither is evidence of a deletion. The weekday is not significant.
+  if (
+    date.getUTCFullYear() < 1601 ||
+    date.toUTCString().slice(5) !== raw.slice(5)
+  )
+    return null;
+  return date.getTime();
+}
+
 /**
  * Whether a browser removes the cookie on this line (or keeps it empty).
  * Read as the browser does, so a contradiction cannot pass as a deletion:
@@ -84,8 +98,7 @@ function deletesCookie(value: string, attributes: string[]): boolean {
     const key = attribute.slice(0, separator).trim().toLowerCase();
     const raw = attribute.slice(separator + 1).trim();
     if (key === "max-age") age = maxAge(raw) ?? age;
-    if (key === "expires")
-      expires = HTTP_DATE.test(raw) ? Date.parse(raw) : expires;
+    if (key === "expires") expires = cookieExpiry(raw) ?? expires;
   }
   if (age !== null) return age <= 0;
   return expires !== null && expires <= Date.now();
@@ -122,37 +135,54 @@ function admitSetCookies(setCookies: readonly string[]): string[] {
   });
 }
 
-type HeaderValue = number | string | readonly string[] | undefined;
+type HeaderValue = number | string | readonly string[];
 
 const isSetCookie = (name: unknown) =>
   typeof name === "string" && name.toLowerCase() === "set-cookie";
 
-function admitHeaderValue(value: HeaderValue): HeaderValue {
-  if (value === undefined || typeof value === "number") return value;
-  return admitSetCookies(typeof value === "string" ? [value] : value);
-}
-
-/** The headers argument of writeHead: an object, flat pairs or tuples. */
-function admitHeaderArgument(headers: unknown): unknown {
+/**
+ * Merge only Set-Cookie into the progressive headers before checking it once.
+ * Like Node's writeHead, object keys replace cached values (last key wins),
+ * while explicit array pairs replace cached values but retain duplicates.
+ * Leave all other headers to Node unchanged.
+ */
+function mergeCookieHeaders(
+  response: ServerResponse,
+  headers: unknown,
+): unknown {
   if (Array.isArray(headers)) {
+    let first = true;
+    const merge = (name: string, value: HeaderValue) => {
+      if (!isSetCookie(name)) return false;
+      if (first) response.setHeader(name, value);
+      else
+        response.appendHeader(
+          name,
+          typeof value === "number" ? String(value) : value,
+        );
+      first = false;
+      return true;
+    };
     if (headers.length && Array.isArray(headers[0]))
-      return (headers as [string, HeaderValue][]).map(([name, value]) =>
-        isSetCookie(name) ? [name, admitHeaderValue(value)] : [name, value],
-      );
-    return headers.map((entry: unknown, index) =>
-      index % 2 === 1 && isSetCookie(headers[index - 1])
-        ? admitHeaderValue(entry as HeaderValue)
-        : entry,
-    );
+      return (headers as [string, HeaderValue][])
+        .filter(([name, value]) => !merge(name, value))
+        .flat();
+    const remaining: unknown[] = [];
+    for (let i = 0; i < headers.length; i += 2) {
+      const name = headers[i] as string;
+      const value = headers[i + 1] as HeaderValue;
+      if (!merge(name, value)) remaining.push(name, value);
+    }
+    return remaining;
   }
   if (headers && typeof headers === "object") {
-    const admitted: Record<string, unknown> = {
-      ...(headers as Record<string, unknown>),
-    };
-    for (const name of Object.keys(admitted))
-      if (isSetCookie(name))
-        admitted[name] = admitHeaderValue(admitted[name] as HeaderValue);
-    return admitted;
+    const remaining = { ...(headers as Record<string, unknown>) };
+    for (const name of Object.keys(remaining)) {
+      if (!isSetCookie(name)) continue;
+      response.setHeader(name, remaining[name] as HeaderValue);
+      delete remaining[name];
+    }
+    return remaining;
   }
   return headers;
 }
@@ -172,6 +202,9 @@ export function installSessionCookieExit(
   if (writeHead[LOCKED]) return;
   const locked = function (this: ServerResponse, ...args: unknown[]) {
     if (!this.headersSent) {
+      const index = typeof args[1] === "string" ? 2 : 1;
+      if (args.length > index)
+        args[index] = mergeCookieHeaders(this, args[index]);
       const own = this.getHeader("set-cookie");
       if (own !== undefined && typeof own !== "number") {
         const lines = typeof own === "string" ? [own] : own;
@@ -181,8 +214,6 @@ export function installSessionCookieExit(
           else this.removeHeader("set-cookie");
         }
       }
-      const index = typeof args[1] === "string" ? 2 : 1;
-      if (args.length > index) args[index] = admitHeaderArgument(args[index]);
     }
     return Reflect.apply(writeHead, this, args) as ServerResponse;
   } as WriteHead;

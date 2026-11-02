@@ -241,6 +241,88 @@ describe("the lock at the server's exit", () => {
     expect(await setCookiesAt("/disguised")).toEqual([]);
   });
 
+  it.each(["object", "pairs", "case-alias"])(
+    "filters only effective headers before consuming an approval (%s)",
+    async (form) => {
+      const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+      const answer = new Response(null, { headers: { "Set-Cookie": line } });
+      await gateSessionCookieWrites(browserRequest(), answer);
+      rawRoutes.set("/merged", (res) => {
+        res.setHeader("Set-Cookie", line);
+        const headers =
+          form === "pairs"
+            ? ["Set-Cookie", line, "Set-Cookie", "other=1"]
+            : form === "case-alias"
+              ? { "Set-Cookie": line, "set-cookie": [line, "other=1"] }
+              : { "Set-Cookie": [line, "other=1"] };
+        res.writeHead(200, "OK", headers).end();
+      });
+      rawRoutes.set("/replay", (res) => {
+        res.setHeader("Set-Cookie", line);
+        res.end();
+      });
+
+      expect(await setCookiesAt("/merged")).toEqual([line, "other=1"]);
+      expect(await setCookiesAt("/replay")).toEqual([]);
+    },
+  );
+
+  it("does not consume an approval for a header overridden by writeHead", async () => {
+    const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+    await gateSessionCookieWrites(
+      browserRequest(),
+      new Response(null, { headers: { "Set-Cookie": line } }),
+    );
+    rawRoutes.set("/overridden", (res) => {
+      res.setHeader("Set-Cookie", line);
+      res.writeHead(200, { "Set-Cookie": "other=1" }).end();
+    });
+    rawRoutes.set("/approved", (res) => {
+      res.setHeader("Set-Cookie", line);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/overridden")).toEqual(["other=1"]);
+    expect(await setCookiesAt("/approved")).toEqual([line]);
+  });
+
+  it.each([
+    "Mon, 01 Jan 1500 00:00:00 GMT",
+    "Mon, 01 Jan 1600 00:00:00 GMT",
+    "Thu, 00 Jan 1970 00:00:00 GMT",
+    "Thu, 32 Jan 1970 00:00:00 GMT",
+    "Thu, 01 Jan 1970 24:00:00 GMT",
+    "Thu, 01 Jan 1970 00:60:00 GMT",
+    "Thu, 01 Jan 1970 00:00:60 GMT",
+  ])(
+    "does not treat an invalid cookie date as a deletion (%s)",
+    async (expires) => {
+      rawRoutes.set("/invalid-expiry", (res) => {
+        res.setHeader("Set-Cookie", [
+          `${NAME}=unapproved; Expires=${expires}`,
+          "other=1",
+        ]);
+        res.end();
+      });
+
+      expect(await setCookiesAt("/invalid-expiry")).toEqual(["other=1"]);
+    },
+  );
+
+  it("keeps valid cookie expiry bounds and ignores invalid repeated dates", async () => {
+    const lines = [
+      `${NAME}=old; Expires=Mon, 01 Jan 1601 00:00:00 GMT`,
+      `${NAME}=old; Expires=Thu, 01 Jan 1970 23:59:59 GMT`,
+      `${NAME}=old; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Expires=Mon, 01 Jan 1500 00:00:00 GMT`,
+    ];
+    rawRoutes.set("/valid-expiry", (res) => {
+      res.setHeader("Set-Cookie", lines);
+      res.end();
+    });
+
+    expect(await setCookiesAt("/valid-expiry")).toEqual(lines);
+  });
+
   it("covers heads a response writes itself, explicitly or on its first write", async () => {
     const value = await sealed();
     rawRoutes.set("/explicit-object", (res) =>
