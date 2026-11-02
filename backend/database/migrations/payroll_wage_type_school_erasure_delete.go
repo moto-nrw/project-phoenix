@@ -728,9 +728,7 @@ const payrollWageTypeErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sch
    DELETE FROM users.staff_qualifications AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.staff_qualifications', v_count);
    SELECT count(*) INTO v_count FROM users.staff_qualification_types AS r WHERE r.tenant_id = p_school_id; DELETE FROM users.staff_qualification_types AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('users.staff_qualification_types', v_count);
-   SELECT count(*) INTO v_count FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id;
-   DELETE FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id;
-   v_counts := v_counts || jsonb_build_object('users.student_care_exit_removals', v_count);
+   SELECT count(*) INTO v_count FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id; DELETE FROM users.student_care_exit_removals AS r WHERE r.tenant_id = p_school_id; v_counts := v_counts || jsonb_build_object('users.student_care_exit_removals', v_count);
    SELECT count(*) INTO v_count FROM schedule.activity_instances AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM schedule.activity_instances AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('schedule.activity_instances', v_count);
