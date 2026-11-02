@@ -1,6 +1,6 @@
 "use client";
 
-// Beiträge des Trägers (#4664): die Regeln, aus denen die Elternabrechnung
+// Ermäßigungen des Trägers (#4664): die Regeln, aus denen die Elternabrechnung
 // den Ferienbeitrag rechnet. Der Grundpreis ist der Preis des Zeitmodells im
 // Ferienzeitraum; hier stehen die Geschwisterregel und die Befreiung bei
 // Leistungsbezug. Nur die Rolle mit dem Recht „Abrechnung“ sieht die Seite.
@@ -31,7 +31,7 @@ export default function TraegerBeitraegePage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Beitragsregeln",
+        object: "die Ermäßigungen",
         retry: () => void load(),
       });
     }
@@ -43,7 +43,7 @@ export default function TraegerBeitraegePage() {
 
   return (
     <TenantPage
-      title="Beiträge"
+      title="Ermäßigungen"
       info="So entsteht der Ferienbeitrag: Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Den Preis legen Sie im Ferienzeitraum fest. Danach gelten die Regeln auf dieser Seite, in dieser Reihenfolge. Beim Bestätigen einer Anmeldung wird der Beitrag festgehalten. Spätere Änderungen gelten nur für neue Bestätigungen."
       error={pageLoad.error}
       loading={!pageLoad.error && !rules}

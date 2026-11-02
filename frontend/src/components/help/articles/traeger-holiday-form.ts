@@ -86,7 +86,7 @@ export function traegerHolidayFormTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
       "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
-      "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
+      "Gilt die andere Frage pro Kind? Eine allgemeine Frage kann nicht davon abhängen. Nutzen Sie eine andere allgemeine Ja/Nein- oder Auswahlfrage. Schreiben Sie auch den Fragetext dazu.",
       "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
     ],
     related: [

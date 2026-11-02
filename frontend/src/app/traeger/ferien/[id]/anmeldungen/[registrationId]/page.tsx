@@ -339,7 +339,7 @@ export default function TraegerHolidayRegistrationPage() {
           ))}
           {registration.form.fields.length > 0 ? (
             <SectionCard
-              title="Weitere Angaben zur Familie"
+              title="Allgemeine Angaben"
               description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
             >
               {answeredQuestions(registration.form.fields, false, view.answers)
@@ -354,7 +354,7 @@ export default function TraegerHolidayRegistrationPage() {
                 />
               ) : (
                 <p className="text-sm text-gray-700">
-                  Keine Antworten zur Familie.
+                  Keine allgemeinen Antworten.
                 </p>
               )}
             </SectionCard>
