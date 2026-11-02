@@ -58,15 +58,19 @@ const browserRequest = () =>
 
 /** One route per path, answered through Next's sendResponse. */
 let routes = new Map<string, () => Promise<Response>>();
+// Node exposes this legacy alias at runtime, but @types/node omits it.
+type RawResponse = ServerResponse & {
+  writeHeader: ServerResponse["writeHead"];
+};
 /** Responses whose head a route writes itself, past sendResponse. */
-let rawRoutes = new Map<string, (res: ServerResponse) => unknown>();
+let rawRoutes = new Map<string, (res: RawResponse) => unknown>();
 
 installSessionCookieExit();
 
 const server: Server = createServer((req, res) => {
   const path = req.url ?? "";
   const raw = rawRoutes.get(path);
-  if (raw) return void raw(res);
+  if (raw) return void raw(res as RawResponse);
   const route = routes.get(path);
   if (!route) return res.writeHead(404).end();
   void route().then((response) =>
@@ -262,6 +266,40 @@ describe("the lock at the server's exit", () => {
     },
   );
 
+  it.each(["writeHead", "writeHeader"] as const)(
+    "filters unapproved cookies through %s while preserving approved writes and deletions",
+    async (method) => {
+      const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
+      rawRoutes.set("/unapproved-cached", (res) => {
+        res.setHeader("Set-Cookie", [line, DELETION, "other=1"]);
+        res[method](200).end();
+      });
+      rawRoutes.set("/unapproved-explicit", (res) => {
+        res[method](200, "OK", {
+          "Set-Cookie": [line, DELETION, "other=1"],
+        }).end();
+      });
+      rawRoutes.set("/approved", async (res) => {
+        await approve(line);
+        res[method](200, { "Set-Cookie": [line, DELETION, "other=1"] }).end();
+      });
+
+      expect(await setCookiesAt("/unapproved-cached")).toEqual([
+        DELETION,
+        "other=1",
+      ]);
+      expect(await setCookiesAt("/unapproved-explicit")).toEqual([
+        DELETION,
+        "other=1",
+      ]);
+      expect(await setCookiesAt("/approved")).toEqual([
+        line,
+        DELETION,
+        "other=1",
+      ]);
+    },
+  );
+
   it("drops a header writeHead overrides and keeps the approved one", async () => {
     const line = `${NAME}=${await sealed()}; Path=/; HttpOnly`;
     rawRoutes.set("/overridden", async (res) => {
@@ -323,6 +361,30 @@ describe("the lock at the server's exit", () => {
     });
 
     expect(await setCookiesAt("/elsewhere")).toEqual([]);
+  });
+
+  it("repairs an unguarded writeHeader alias without wrapping writeHead again", () => {
+    const prototype = ServerResponse.prototype as RawResponse;
+    const locked = prototype.writeHead;
+    const alias = prototype.writeHeader;
+    prototype.writeHeader = function (
+      this: ServerResponse,
+      ...args: unknown[]
+    ) {
+      return Reflect.apply(locked, this, args) as ServerResponse;
+    } as typeof locked;
+    try {
+      expect(isSessionCookieExitLocked()).toBe(false);
+      installSessionCookieExit();
+      expect(isSessionCookieExitLocked()).toBe(true);
+      expect(prototype.writeHeader).toBe(locked);
+      expect(prototype.writeHead).toBe(locked);
+      installSessionCookieExit();
+      expect(prototype.writeHead).toBe(locked);
+      expect(prototype.writeHeader).toBe(locked);
+    } finally {
+      prototype.writeHeader = alias;
+    }
   });
 
   it("fails the gate when the lock at the exit is missing", async () => {

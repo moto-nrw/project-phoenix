@@ -8,11 +8,11 @@ import { createLogger } from "~/lib/logger";
  * The runtime lock at the exit of the Node server (#5520): every response of
  * this server, whatever produced it (route handler, Auth.js route, server
  * action, page, proxy, a backend response handed through), writes its status
- * line and headers through ServerResponse#writeHead, explicitly or on its
- * first write. There a Set-Cookie line with a session cookie name leaves only
- * if gateSessionCookieWrites approved it while handling this very request,
- * or if it deletes the cookie. Any other is dropped and logged by cookie
- * name, never value.
+ * line and headers through ServerResponse#writeHead (or its writeHeader
+ * alias), explicitly or on its first write. There a Set-Cookie line with a
+ * session cookie name leaves only if gateSessionCookieWrites approved it
+ * while handling this very request, or if it deletes the cookie. Any other
+ * is dropped and logged by cookie name, never value.
  *
  * An approval belongs to one request: the server opens a context per request
  * (AsyncLocalStorage, entered where Node emits the request) and ties it to
@@ -61,6 +61,8 @@ type Locked<F> = F & { [LOCKED]?: true };
 export function isSessionCookieExitLocked(): boolean {
   return Boolean(
     (ServerResponse.prototype.writeHead as Locked<unknown>)[LOCKED] &&
+    Reflect.get(ServerResponse.prototype, "writeHeader") ===
+      ServerResponse.prototype.writeHead &&
     (Server.prototype.emit as Locked<unknown>)[LOCKED] &&
     (HttpsServer.prototype.emit as Locked<unknown>)[LOCKED],
   );
@@ -241,10 +243,13 @@ function lockEmit(prototype: Server | HttpsServer) {
   prototype.emit = locked;
 }
 
-/** Filters every response head of the process at writeHead. */
+/** Filters every response head at writeHead and its legacy writeHeader alias. */
 function lockWriteHead() {
   const writeHead = ServerResponse.prototype.writeHead as WriteHead;
-  if (writeHead[LOCKED]) return;
+  if (writeHead[LOCKED]) {
+    Reflect.set(ServerResponse.prototype, "writeHeader", writeHead);
+    return;
+  }
   const locked = function (this: ServerResponse, ...args: unknown[]) {
     if (!this.headersSent) {
       const index = typeof args[1] === "string" ? 2 : 1;
@@ -264,13 +269,16 @@ function lockWriteHead() {
   } as WriteHead;
   locked[LOCKED] = true;
   ServerResponse.prototype.writeHead = locked;
+  // Node exposes this legacy alias at runtime, but @types/node omits it.
+  Reflect.set(ServerResponse.prototype, "writeHeader", locked);
 }
 
 /**
  * Installs the lock on every HTTP(S) server and response of this process.
  * instrumentation.ts calls it once in the Node runtime, before Next handles
- * a request. Node writes every response head through writeHead, also
- * implicitly on the first write or end, so no response leaves past it.
+ * a request. Node writes every response head through writeHead or its
+ * writeHeader alias, also implicitly on the first write or end, so no
+ * response leaves past it.
  */
 export function installSessionCookieExit(): void {
   if (isSessionCookieExitLocked()) return;

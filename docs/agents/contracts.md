@@ -559,10 +559,11 @@ old session back; the browser only saves requests.
    installs a lock (`frontend/src/lib/session-cookie-exit.server.ts`) before
    Next handles a request. It opens one approval context per request where
    Node's HTTP(S) server emits it (`AsyncLocalStorage`, tied to that
-   request's `ServerResponse`) and filters `ServerResponse#writeHead`, where
-   every response writes its head, explicitly or on its first write: route
-   handlers through Next's `sendResponse`, Auth.js routes, server actions,
-   pages, proxy answers and backend headers a route hands through (#5517).
+   request's `ServerResponse`) and filters `ServerResponse#writeHead` and its
+   legacy `writeHeader` alias, where every response writes its head, explicitly
+   or on its first write: route handlers through Next's `sendResponse`,
+   Auth.js routes, server actions, pages, proxy answers and backend headers
+   a route hands through (#5517).
    The gate records each session cookie line it lets go for the request it
    runs in (`approveSessionCookieWrites`); the approval holds as long as that
    response exists, with no time limit, and no other request can use it. A
