@@ -9,7 +9,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import { formatDate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   describeAdjustment,
@@ -48,6 +53,7 @@ export function CarePlanImpact({
   const { data: session } = useSession();
   const canManage = hasPermission(session, "schedules:manage");
   const canRemove = studentId !== undefined && canManage;
+  const firstRemovableDay = earliestRemovalDay(impact.effectiveFrom);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -169,7 +175,9 @@ export function CarePlanImpact({
                 key={manualTemplateKey(template)}
                 template={template}
                 removed={removed.has(manualTemplateKey(template))}
-                canRemove={canRemove}
+                canRemove={
+                  canRemove && gapEndsAfter(template.until, firstRemovableDay)
+                }
                 canConnect={canManage}
                 onRemove={setTarget}
                 planLink={planLink}
@@ -292,4 +300,20 @@ function ManualTemplateEntry({
 /** Eine Zeile je Regeltermin und Ende der Lücke (#5497). */
 function manualTemplateKey(template: ManualRosterTemplate): string {
   return `${template.templateId}-${template.until ?? "open"}`;
+}
+
+// The command rejects today and clamps an earlier effective date to tomorrow.
+// Do not offer a bounded removal that has already ended at that boundary.
+function earliestRemovalDay(effectiveFrom: string): string {
+  const tomorrow = parseISODate(berlinTodayISO());
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const earliest = toISODate(tomorrow);
+  return effectiveFrom > earliest ? effectiveFrom : earliest;
+}
+
+function gapEndsAfter(
+  until: string | null,
+  firstRemovableDay: string,
+): boolean {
+  return until === null || until > firstRemovableDay;
 }

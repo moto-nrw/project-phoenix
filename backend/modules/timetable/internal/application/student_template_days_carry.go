@@ -258,12 +258,13 @@ func splitLaterBookings(bookings []timetable.StudentDayBooking, from calendar.Da
 	return current, later
 }
 
-// resumes is the first start of a later booking from which the weekday the
-// change lost keeps the Regeltermin again, by the rule of keeps with the
-// later bookings started by then; nil when none does. Where the times do not
-// decide, a later booking of the weekday offsets the dropped one, as a
-// switch does on the change's date.
+// resumes is the latest start of a later booking in force from which the
+// weekday the change lost keeps the Regeltermin again, by the rule of keeps
+// with the later bookings started by then; nil when none does. Where the
+// times do not decide, a later booking of the weekday offsets the dropped
+// one, as a switch does on the change's date.
 func (c bookingCarry) resumes(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) *calendar.Date {
+	var resume *calendar.Date
 	for _, start := range c.laterStarts(weekday) {
 		then := bookingCarry{bookings: c.bookings, others: slices.Clone(c.others), netLoss: c.netLoss}
 		for _, booking := range c.later {
@@ -275,10 +276,11 @@ func (c bookingCarry) resumes(weekday int, kind timetable.RosterOfferingKind, en
 			}
 		}
 		if then.keeps(weekday, kind, end, endKnown) {
-			return &start
+			candidate := start
+			resume = &candidate
 		}
 	}
-	return nil
+	return resume
 }
 
 // laterStarts lists, ascending, the days later bookings of the weekday start.

@@ -225,6 +225,29 @@ describe("CarePlanImpact", () => {
     );
   });
 
+  it("does not offer removal when the reported gap ends tomorrow", () => {
+    renderImpact({
+      effectiveFrom: "2026-09-09",
+      adjusted: [],
+      notAdjusted: [
+        {
+          templateId: "9",
+          name: "RDST 1b",
+          weekdays: [5],
+          viaTarget: false,
+          until: "2026-09-10",
+        },
+      ],
+    });
+
+    // Anker: Die geladene Zeile bleibt sichtbar, nur ihre nicht ausführbare
+    // Aktion fehlt.
+    expect(screen.getByText(/freitags bis 09\.09\.2026:/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("says who may remove the child when the person cannot edit the plan", () => {
     grantPlanEditing(false);
     renderImpact();
