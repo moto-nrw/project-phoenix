@@ -1,0 +1,233 @@
+package cmd
+
+import (
+	"encoding/json"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// The demo process removes the uploads of retired demo schools (#5544). The
+// root binds the owner to the real uploads store here, as the dev tools
+// binary does on the demo host: every
+// namespace of the file catalog, orphaned files and subdirectories included,
+// as the phoenix_demo role, and records a marker only when nothing is left.
+// Live schools, the standing school, a school hidden less than an hour ago
+// and the school of an order still being seeded keep every file.
+
+func demoFileKinds(t *testing.T) []organizationtenancy.LifecycleFileKind {
+	t.Helper()
+	raw, err := organizationtenancy.DataLifecycleCatalogSource.ReadFile("data_lifecycle_catalog.json")
+	require.NoError(t, err)
+	var catalog organizationtenancy.DataLifecycleCatalog
+	require.NoError(t, json.Unmarshal(raw, &catalog))
+	require.NotEmpty(t, catalog.Files)
+	return catalog.Files
+}
+
+func writeDemoUpload(t *testing.T, root string, parts ...string) {
+	t.Helper()
+	path := filepath.Join(append([]string{root}, parts...)...)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(path), 0o600))
+}
+
+// seedDemoUploads writes objects of the school into every namespace of the
+// catalog, nested ones and ones no database row names, plus decoys of a
+// school whose ID only starts with the school's ID. Every file is an orphan:
+// the erasure goes by namespace, never by a stored file name.
+func seedDemoUploads(t *testing.T, root string, kinds []organizationtenancy.LifecycleFileKind, schoolID int64) {
+	t.Helper()
+	id := strconv.FormatInt(schoolID, 10)
+	for _, kind := range kinds {
+		switch kind.Layout {
+		case "tenantDir":
+			writeDemoUpload(t, root, kind.Kind, id, "orphan.pdf")
+			writeDemoUpload(t, root, kind.Kind, id, "nested", "deeper", "orphan.png")
+			writeDemoUpload(t, root, kind.Kind, id+"0", "decoy.pdf")
+		case "tenantPrefix":
+			writeDemoUpload(t, root, kind.Kind, id+"_orphan.png")
+			writeDemoUpload(t, root, kind.Kind, id+"_second.pdf")
+			writeDemoUpload(t, root, kind.Kind, id+"0_decoy.png")
+		case "account":
+			// Shared account objects stay; the legacy school directory goes.
+			writeDemoUpload(t, root, kind.Kind, "global", id+"_account.png")
+			writeDemoUpload(t, root, kind.Kind, id, "legacy.png")
+			writeDemoUpload(t, root, kind.Kind, id, "nested", "legacy.png")
+		default:
+			t.Fatalf("file kind %s has layout %s; seed it here", kind.Kind, kind.Layout)
+		}
+	}
+}
+
+// demoUploadTree lists every file below root with its content.
+func demoUploadTree(t *testing.T, root string) map[string]string {
+	t.Helper()
+	tree := map[string]string{}
+	require.NoError(t, filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		tree[rel] = string(content)
+		return err
+	}))
+	return tree
+}
+
+// schoolUploads is the part of the tree that names the school: a path
+// segment that is its ID or a file name with its ID as prefix. The global
+// account objects are shared and not the school's.
+func schoolUploads(tree map[string]string, schoolID int64) map[string]string {
+	id := strconv.FormatInt(schoolID, 10)
+	owned := map[string]string{}
+	for path, content := range tree {
+		segments := strings.Split(filepath.ToSlash(path), "/")
+		if len(segments) > 1 && segments[1] == "global" {
+			continue
+		}
+		for _, segment := range segments {
+			if segment == id || strings.HasPrefix(segment, id+"_") {
+				owned[path] = content
+				break
+			}
+		}
+	}
+	return owned
+}
+
+func hideDemoSchool(t *testing.T, db *bun.DB, schoolID int64, ago string) {
+	t.Helper()
+	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() - ?::interval WHERE id = ?`, ago, schoolID).Exec(t.Context())
+	require.NoError(t, err)
+}
+
+func demoFileMarker(t *testing.T, db *bun.DB, schoolID int64) map[string]int64 {
+	t.Helper()
+	var raw []byte
+	err := db.NewRaw(`SELECT file_counts FROM platform.demo_school_file_erasures WHERE school_id = ?`, schoolID).Scan(t.Context(), &raw)
+	if err != nil {
+		require.ErrorContains(t, err, "no rows")
+		return nil
+	}
+	counts := map[string]int64{}
+	require.NoError(t, json.Unmarshal(raw, &counts))
+	return counts
+}
+
+func TestDemoProcessErasesTheUploadsOfRetiredDemoSchools(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	kinds := demoFileKinds(t)
+	uploads := t.TempDir()
+
+	retired, _ := testpkg.CreateTestTenant(t, db)
+	live, _ := testpkg.CreateTestTenant(t, db)
+	standing, _ := testpkg.CreateTestTenant(t, db)
+	recent, _ := testpkg.CreateTestTenant(t, db)
+	seeding, _ := testpkg.CreateTestTenant(t, db)
+	hideDemoSchool(t, db, retired, "2 hours")
+	hideDemoSchool(t, db, recent, "10 minutes")
+	// A hidden school whose order is still being seeded: the seeder may still
+	// write to it, so its files wait for the order.
+	hideDemoSchool(t, db, seeding, "2 hours")
+	_, err := db.NewRaw(`INSERT INTO platform.demo_school_states (name, tenant_id, seed_state, status) VALUES
+		(?, ?, '{}'::jsonb, 'ready'), ('ogs-seeding-k3m9xp', ?, NULL, 'preparing')`,
+		organizationtenancy.StandingDemoSchoolSlug, standing, seeding).Exec(ctx)
+	require.NoError(t, err)
+	for _, id := range []int64{retired, live, standing, recent, seeding} {
+		seedDemoUploads(t, uploads, kinds, id)
+	}
+	before := demoUploadTree(t, uploads)
+	require.NotEmpty(t, schoolUploads(before, retired))
+
+	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
+	require.NoError(t, err)
+	schools, removed, err := files.EraseRetiredDemoSchoolFiles(ctx)
+	require.NoError(t, err)
+
+	after := demoUploadTree(t, uploads)
+	assert.Equal(t, 1, schools)
+	assert.Empty(t, schoolUploads(after, retired), "no object of the retired school is left in any namespace")
+	assert.Equal(t, int64(len(schoolUploads(before, retired))), removed, "every object of the retired school is counted")
+	for path, content := range before {
+		if _, gone := schoolUploads(before, retired)[path]; !gone {
+			assert.Equal(t, content, after[path], "%s is not the retired school's and stays", path)
+		}
+	}
+	for _, id := range []int64{live, standing, recent, seeding} {
+		assert.Equal(t, schoolUploads(before, id), schoolUploads(after, id), "school %d keeps every file", id)
+		assert.Nil(t, demoFileMarker(t, db, id))
+	}
+
+	marker := demoFileMarker(t, db, retired)
+	require.NotNil(t, marker, "the marker records the done school")
+	assert.Len(t, marker, len(kinds), "one count per namespace of the catalog")
+	var total int64
+	for _, n := range marker {
+		total += n
+	}
+	assert.Equal(t, removed, total)
+
+	// A second run finds nothing to do and changes nothing.
+	schools, removed, err = files.EraseRetiredDemoSchoolFiles(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, schools)
+	assert.Zero(t, removed)
+	assert.Equal(t, after, demoUploadTree(t, uploads))
+	assert.Equal(t, marker, demoFileMarker(t, db, retired))
+}
+
+// A namespace that is a symbolic link fails closed: nothing outside the
+// uploads is followed, the school keeps no marker, and once the storage is
+// repaired the next run finishes it.
+func TestDemoSchoolFileErasureRetriesASchoolAfterAStorageFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	kinds := demoFileKinds(t)
+	uploads := t.TempDir()
+	outside := t.TempDir()
+
+	retired, _ := testpkg.CreateTestTenant(t, db)
+	hideDemoSchool(t, db, retired, "2 hours")
+	seedDemoUploads(t, uploads, kinds, retired)
+	id := strconv.FormatInt(retired, 10)
+	writeDemoUpload(t, outside, "not-the-schools.pdf")
+	require.NoError(t, os.RemoveAll(filepath.Join(uploads, "files", id)))
+	require.NoError(t, os.Symlink(outside, filepath.Join(uploads, "files", id)))
+
+	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
+	require.NoError(t, err)
+	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "demo school "+id)
+	assert.NotContains(t, err.Error(), "not-the-schools", "no file name in the error")
+	assert.Zero(t, schools)
+	assert.Nil(t, demoFileMarker(t, db, retired), "a failed school keeps no marker")
+	assert.FileExists(t, filepath.Join(outside, "not-the-schools.pdf"), "the link is not followed")
+
+	require.NoError(t, os.Remove(filepath.Join(uploads, "files", id)))
+	writeDemoUpload(t, uploads, "files", id, "after-repair.pdf")
+	schools, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, schools)
+	assert.Empty(t, schoolUploads(demoUploadTree(t, uploads), retired))
+	assert.NotNil(t, demoFileMarker(t, db, retired))
+}

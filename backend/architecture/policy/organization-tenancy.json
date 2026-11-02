@@ -85,6 +85,10 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.demo_school_file_erasures",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.billing_settings",
       "write_owner": "organization-tenancy"
     },

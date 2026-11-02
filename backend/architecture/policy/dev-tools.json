@@ -118,6 +118,18 @@
       "target_role": "public"
     },
     {
+      "id": "dev-tools.compose.delivery-objects",
+      "description": "The demo process binds the uploads store of the demo server, from which it removes the files of retired demo schools (#5544, ADR 0148). Only the object store package, no other Delivery package. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_package": "modules/delivery/objects",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
       "id": "dev-tools.compose.security-runtime",
       "description": "The dev tools binary draws generated seed credentials from the cryptographic entropy Security Runtime owns (#3364). The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
       "scopes": [
