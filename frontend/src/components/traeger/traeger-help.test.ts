@@ -30,7 +30,7 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
-  it("opens the article of the contribution rules on the page Beiträge (#4664)", () => {
+  it("opens the article of the contribution rules on the page Ermäßigungen (#4664)", () => {
     for (const path of ["/beitraege", "/traeger/beitraege"]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(
         HELP_TOPICS.traegerHolidayContribution,

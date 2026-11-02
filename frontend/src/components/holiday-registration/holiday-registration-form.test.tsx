@@ -871,9 +871,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     renderForm(null, offerWithQuestions);
     fillRegistration();
     expect(screen.getByText("Fragen und Infos zum Kind")).toBeInTheDocument();
-    expect(
-      screen.getByText("Fragen und Infos zur Familie"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Allgemeine Fragen und Infos")).toBeInTheDocument();
     // The follow-up question waits for its condition.
     expect(
       screen.queryByText("Was müssen wir bei Ausflügen beachten?"),
@@ -893,7 +891,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it("names the family card for an information text, not only for questions (#5467)", () => {
+  it("names the general card for an information text, not only for questions (#5467)", () => {
     renderForm(null, {
       ...offer,
       form: {
@@ -911,7 +909,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     });
     expect(screen.getByText("Bitte Sonnencreme mitgeben")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Fragen und Infos zur Familie" }),
+      screen.getByRole("heading", { name: "Allgemeine Fragen und Infos" }),
     ).toBeInTheDocument();
   });
 
