@@ -41,6 +41,7 @@ func (r *Repositories) WithRoutedWrites(command auditModel.Command) *Repositorie
 		OperatorAuditLog:             r.OperatorAuditLog,
 		BookingConsistency:           r.BookingConsistency,
 		AccessTrail:                  r.AccessTrail,
+		TraegerAccountChanges:        r.TraegerAccountChanges,
 		RetentionSummaries:           r.RetentionSummaries,
 	}
 }
