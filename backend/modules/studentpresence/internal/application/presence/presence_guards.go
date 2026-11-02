@@ -27,28 +27,28 @@ func (s *service) validateStudentExists(ctx context.Context, studentID int64) er
 // interleaving into a stranded open attendance/visit the kiosk can no longer
 // close (#405). Nil-safe for the partial unit-test services that never wire a
 // StudentRepo; production always does.
-func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int64) error {
+func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int64) (*StudentRecord, error) {
 	if s.StudentRepo == nil {
-		return nil
+		return nil, nil
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		if IsNoRows(err) {
-			return ErrStudentNotFound
+			return nil, ErrStudentNotFound
 		}
-		return err
+		return nil, err
 	}
 	if student.IsAlumnus() {
-		return ErrStudentGraduated
+		return nil, ErrStudentGraduated
 	}
 	// A child whose care ended yesterday cannot start a new day here (#2487).
 	// Checked against the enrollment interval rather than the lifecycle
 	// status: the status only follows once the scheduler ticks, and the kiosk
 	// must not let a departed child in during that window.
 	if student.CareEndedOn(s.todayDate()) {
-		return ErrStudentCareEnded
+		return nil, ErrStudentCareEnded
 	}
-	return nil
+	return student, nil
 }
 
 // validateActiveGroupExists checks if an active group exists, returning appropriate errors

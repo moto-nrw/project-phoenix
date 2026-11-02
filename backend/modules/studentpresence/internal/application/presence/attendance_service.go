@@ -402,7 +402,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	// Reject (and lock against a concurrent graduation) a graduated alumnus
 	// before writing attendance — the binary-mode / attendance-toggle counterpart
 	// to the CreateVisit guard (#405).
-	if err := s.ensureStudentCheckinAllowed(ctx, studentID); err != nil {
+	if _, err := s.ensureStudentCheckinAllowed(ctx, studentID); err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 

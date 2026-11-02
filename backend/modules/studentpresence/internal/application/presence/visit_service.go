@@ -30,7 +30,8 @@ func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit)
 	// Runs BEFORE the binary-mode short-circuit: binary-mode check-ins reach
 	// CreateVisit via the timetable path and would otherwise mark a departed
 	// alumnus present without ever hitting this guard.
-	if err := s.ensureStudentCheckinAllowed(ctx, visit.StudentID); err != nil {
+	student, err := s.ensureStudentCheckinAllowed(ctx, visit.StudentID)
+	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -45,10 +46,17 @@ func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit)
 		return nil
 	}
 
+	// Only membership routing is stable under the guard's existing row lock.
+	// Copy it before status clears; do not reuse the record's live flags.
+	var educationGroupID *int64
+	if student != nil && student.GroupID != nil {
+		groupID := *student.GroupID
+		educationGroupID = &groupID
+	}
 	if err := s.prepareVisitCheckIn(ctx, visit); err != nil {
 		return err
 	}
-	return s.recordCheckedInVisit(ctx, visit)
+	return s.recordCheckedInVisit(ctx, visit, educationGroupID, student != nil)
 }
 
 // prepareVisitCheckIn runs the checks and attendance writes that precede a
@@ -99,7 +107,7 @@ func createVisitError(err error) error {
 
 // recordCheckedInVisit inserts the visit, mirrors it into its timetable slot
 // and queues the success event.
-func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresence.Visit) error {
+func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresence.Visit, educationGroupID *int64, groupKnown bool) error {
 	// Create the visit record
 	visit.TenantID = tenant.FromContext(ctx)
 	stored, err := s.SchoolPresence.RecordVisit(ctx, studentpresence.Visit{
@@ -131,7 +139,11 @@ func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresen
 	}
 
 	// Queue the success event for commit.
-	s.broadcastVisitCreated(ctx, visit, snapshot)
+	if groupKnown {
+		s.broadcastVisitCreated(ctx, visit, snapshot, educationGroupID)
+	} else {
+		s.broadcastVisitCreated(ctx, visit, snapshot)
+	}
 
 	return nil
 }

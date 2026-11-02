@@ -417,7 +417,7 @@ func (s *service) clearLiveFlagsOfPlannedStatus(ctx context.Context, studentID i
 // snapshot (WP-B10) may be nil — when present, it enriches the event with
 // attendance_status/substatus/note so subscribers see the flipped attendance
 // state alongside the check-in line.
-func (s *service) broadcastVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot) {
+func (s *service) broadcastVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot, knownEducationGroupID ...*int64) {
 	// Der Raum-Check-in der detaillierten Betriebsart schreibt seine eigene
 	// Anwesenheitszeile und laeuft NICHT ueber registerCheckinBroadcast, also
 	// weckt er die Sorgeberechtigten hier selbst.
@@ -426,7 +426,14 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *studentprese
 	if s.Broadcaster == nil {
 		return
 	}
-	educationGroupID := s.getEducationGroupForSSE(ctx, visit.StudentID)
+	// A successful guard also knows NULL. Only partial compositions without
+	// guard data need the previous optional routing lookup.
+	var educationGroupID *int64
+	if len(knownEducationGroupID) > 0 {
+		educationGroupID = knownEducationGroupID[0]
+	} else {
+		educationGroupID = s.getEducationGroupForSSE(ctx, visit.StudentID)
+	}
 	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitVisitCreated(broadcastCtx, visit, snapshot, educationGroupID)
