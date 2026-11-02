@@ -3047,7 +3047,8 @@ export const holidayGuestGroupTopic =
 /**
  * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
  * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
- * Abholung und die Antworten, die der Träger freigibt (#5202).
+ * Abholung, die Antworten, die der Träger freigibt (#5202), und die
+ * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
  */
 export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
   return {
@@ -3061,7 +3062,7 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     icon: "SunHorizon",
     image: "/help/screens/feriengast-angaben-aus-der-anmeldung.webp",
     imageAlt:
-      "Notfall, Abholung und Angaben aus der Ferienanmeldung bei einem Feriengast.",
+      "Notfall, Abholung, Gesundheit und Angaben aus der Ferienanmeldung bei einem Feriengast.",
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
@@ -3073,19 +3074,22 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
       "Öffnen Sie die Karte eines Feriengasts.",
       "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
       "Unter `Notfall` stehen die Eltern und weitere Kontakte. Unter `Abholung` steht, wer das Kind außer den Eltern abholen darf.",
+      "Unter `Gesundheit` stehen Allergien, Medikamente und weitere Hinweise der Eltern.",
       "Unter `Angaben aus der Ferienanmeldung` steht zum Beispiel, ob das Kind allein nach Hause gehen darf.",
     ],
     result:
       "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
     notes: [
-      "Mehr als Betreuung, Notfall, Abholung und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Gesundheitsangaben und die übrigen Angaben bleiben beim Träger.",
+      "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
+      "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
     ],
     differences: [
-      "Nach dem letzten Tag der Woche steht der Feriengast nicht mehr in der Gruppe und nicht mehr im Check-in. Seine Angaben bleiben noch 7 Tage zum Nachlesen.",
+      "Nach dem letzten Tag der Woche steht der Feriengast nicht mehr in der Gruppe und nicht mehr im Check-in. Seine Angaben bleiben noch 7 Tage zum Nachlesen. Die Gesundheitsangaben nicht: Sie sind nach dem letzten Tag der Woche gelöscht.",
     ],
     troubleshootingDetails: [
       "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
+      "Fehlt `Gesundheit`? Dann haben die Eltern nichts angegeben oder der Weitergabe nicht zugestimmt.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
     ],
@@ -3096,7 +3100,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
 /**
  * `/ferienwochen` (#4665): die bestätigten Kinder der Ferienwochen, die die
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
- * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202).
+ * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
+ * und die Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
  */
 export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
   return {
@@ -3110,7 +3115,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     icon: "SunHorizon",
     image: "/help/screens/ferienwochen-freigegebene-antworten.webp",
     imageAlt:
-      "Die Liste der Kinder mit der zweiten sorgeberechtigten Person und den Antworten, die der Träger freigibt.",
+      "Die Liste der Kinder mit der zweiten sorgeberechtigten Person, den freigegebenen Antworten und der Spalte Gesundheit.",
     requirements: [
       "Der Träger hat Ihre OGS für eine Ferienwoche eingetragen.",
       "Der Träger hat Anmeldungen für diese Woche bestätigt.",
@@ -3123,6 +3128,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
       "Gibt der Träger Fragen frei, steht jede in einer eigenen Spalte. Zum Beispiel `Darf allein nach Hause gehen`.",
       "Unter `Zweite sorgeberechtigte Person` stehen Name und Telefon, wenn die Eltern eine zweite Person angegeben haben.",
+      "Unter `Gesundheit` stehen Allergien, Medikamente und weitere Hinweise. Dort stehen auch Antworten auf Gesundheitsfragen, die der Träger freigibt.",
     ],
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
@@ -3130,15 +3136,18 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
-      "Gesundheitsangaben und E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
+      "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
+      "Kommt ein Kind Ihrer OGS in die Ferienwoche? Dann stehen seine Gesundheitsangaben auch in seiner Kinderakte. Sie stehen dort unter `Angaben aus der Ferienanmeldung`. Die `Gesundheitsinformationen` des Kindes ändern sich nicht.",
+      "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
-      "Nach dem letzten Tag der Woche ist die Woche nicht mehr zu sehen.",
+      "Nach dem letzten Tag der Woche ist die Woche nicht mehr zu sehen. Die Gesundheitsangaben auch nicht.",
       "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort.",
     ],
     troubleshootingDetails: [
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
+      "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
     related: [
@@ -6059,9 +6068,9 @@ export const parentHolidayRegistrationTopic =
         "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
       notes: [
         "Ein Elternkonto brauchen Sie nicht.",
-        "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
-        "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf. Gesundheitsangaben sieht sie nicht.",
-        "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht.",
+        "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
+        "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
+        "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
@@ -9887,9 +9896,9 @@ export const traegerHolidayFormTopic =
       question: "Wie lege ich eigene Fragen für die Ferienanmeldung fest?",
       summary:
         "Jeder Ferienzeitraum hat ein eigenes Formular. Sie wählen, welche Fragen Eltern zusätzlich beantworten.",
-      image: "/help/screens/ferienformular-hinweise.webp",
+      image: "/help/screens/ferienformular-gesundheitsfrage.webp",
       imageAlt:
-        "Eigene Hinweise mit PDF und Pflichtbestätigung im Ferienformular.",
+        "Eine Gesundheitsfrage mit den Häkchen Gesundheitsangabe und OGS sieht die Antwort. Rechts die Vorschau für Eltern.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "NotePencil",
@@ -9922,7 +9931,7 @@ export const traegerHolidayFormTopic =
             "Soll jede Familie antworten oder jedes Kind? Für Fragen zum Kind wählen Sie `Pro Kind abfragen`.",
             "Muss die Frage beantwortet werden? Wählen Sie `Pflichtfrage`.",
             "Geht es um die Gesundheit des Kindes? Wählen Sie `Gesundheitsangabe`.",
-            "Bei neuen Fragen ist `OGS sieht die Antwort` an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten. Bei `Gesundheitsangabe` bleibt es aus.",
+            "Bei neuen Fragen ist `OGS sieht die Antwort` an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten. Bei einer `Gesundheitsangabe` sieht sie die Antwort nur, wenn die Eltern zustimmen.",
             "Mit den Pfeilen ändern Sie die Reihenfolge.",
             "Wählen Sie `Als neue Version speichern`.",
           ],
@@ -9951,18 +9960,18 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
-        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen ohne Gesundheitsangabe sind für die ausrichtende OGS freigegeben.",
+        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
         "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
-        "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
+        "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nicht in Liste und Export. In der Anmeldung sieht sie nur die Rolle Verwaltung.",
         "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
-        "Die ausrichtende OGS sieht nur Antworten mit `OGS sieht die Antwort`. Sie stehen in ihrer Liste unter `Ferienwochen` und beim Feriengast. Gesundheitsangaben sieht sie nie.",
+        "Die ausrichtende OGS sieht nur Antworten mit `OGS sieht die Antwort`. Sie stehen in ihrer Liste unter `Ferienwochen` und beim Feriengast.",
+        "Haben die Eltern zugestimmt, sieht die ausrichtende OGS Allergien, Medikamente und weitere Hinweise. Gesundheitsfragen mit `OGS sieht die Antwort` sieht sie auch.",
         "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Bei älteren Anmeldungen bleibt die bisherige Freigabe unverändert.",
         "Die OGS sieht auch Name und Telefon der zweiten sorgeberechtigten Person, keine E-Mail-Adresse.",
       ],
       troubleshootingDetails: [
-        "`OGS sieht die Antwort` lässt sich nicht wählen? Die Frage ist eine `Gesundheitsangabe`. Gesundheitsangaben bleiben beim Träger.",
         "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
         "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
         "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
@@ -10116,6 +10125,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
+        "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",

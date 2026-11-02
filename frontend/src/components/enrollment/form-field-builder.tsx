@@ -230,8 +230,9 @@ interface FieldEditorRowProps {
   };
   /**
    * The switch „OGS sieht die Antwort“ of the holiday registration (#5202).
-   * A health question cannot carry it, so it stays off while
-   * „Gesundheitsangabe“ is on.
+   * A health question carries it too since #4722: its answer reaches the
+   * hosting OGS with the other health information, only with the parents'
+   * consent.
    */
   readonly hostShareToggle?: {
     readonly checked: boolean;
@@ -795,21 +796,21 @@ export function FieldEditorRow({
                     checked={healthToggle.checked}
                     onChange={healthToggle.onChange}
                     label="Gesundheitsangabe"
-                    hint="Für Angaben zur Gesundheit. Eltern stimmen dann der Verarbeitung zu. Die Antwort steht nur in der Anmeldung, nicht in Liste und Export."
+                    hint="Für Angaben zur Gesundheit. Eltern stimmen dann der Verarbeitung zu. Die Antwort steht nicht in Liste und Export."
                     disabled={disabled}
                   />
                 ) : null}
                 {hostShareToggle ? (
                   <CheckboxCard
-                    checked={hostShareToggle.checked && !healthToggle?.checked}
+                    checked={hostShareToggle.checked}
                     onChange={hostShareToggle.onChange}
                     label="OGS sieht die Antwort"
                     hint={
                       healthToggle?.checked
-                        ? "Nicht bei Gesundheitsangaben. Diese bleiben beim Träger."
+                        ? "Die OGS, die die Woche ausrichtet, sieht die Antwort bei den Gesundheitsangaben des Kindes. Nur wenn die Eltern zustimmen."
                         : "Bei neuen Fragen ist das an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten."
                     }
-                    disabled={disabled || Boolean(healthToggle?.checked)}
+                    disabled={disabled}
                   />
                 ) : null}
               </div>
@@ -1333,11 +1334,11 @@ function PreviewCustomField({
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-sm font-medium text-gray-900">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <span className="min-w-0 text-sm font-medium break-words text-gray-900">
           {field.label.trim() || "Neue Zusatzfrage"}
         </span>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {badge}
           <ConditionalBadge field={field} />
           {field.required ? (

@@ -247,3 +247,26 @@ zusammen mit dem Fachrecht.
   [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md).
 - Nicht entschieden ist hier Personal über Schulen (#1417, #2817). Dafür ist
   eine eigene ADR der Spec vorgesehen.
+
+## Nachtrag 2026-11-01: Recht „Gesundheitsangaben sehen“ (#4722)
+
+Abschnitt 4 bekommt ein Recht `traeger_health:read` („Gesundheitsangaben
+sehen“). Es öffnet die Gesundheitsangaben einer Ferienanmeldung: Allergien,
+Medikamente, weitere Hinweise zur Gesundheit und die Antworten auf Fragen
+mit Gesundheitskennzeichen.
+
+| Recht | Verwaltung | Abrechnung | Personal | nur lesen |
+|---|---|---|---|---|
+| Gesundheitsangaben sehen | ✓ | | | |
+
+- Die Einzelansicht einer Anmeldung trägt keine Gesundheitsangaben mehr. Sie
+  liest `GET /traeger/holiday-periods/{id}/registrations/{registrationId}/health`
+  hinter „Anmeldung verwalten“ und „Gesundheitsangaben sehen“. Ohne das Recht
+  antwortet die Route 403; die übrige Anmeldung bleibt lesbar.
+- Jedes Lesen steht als Aktion `health` im Protokoll der Anmeldung und im
+  Zugriffsprotokoll des Trägers (Abschnitt 7).
+- Liste und Export tragen weiter keine Gesundheitsangaben.
+- In der Datenbank stehen die Gesundheitsangaben nur verschlüsselt
+  (AES-256-GCM mit Security Runtimes Feldverschlüsselung, Schlüsselring
+  `HEALTH_DATA_KEYS` mit Schlüssel-ID im Chiffrat). Server und Migration
+  starten ohne gültigen Schlüsselring nicht.

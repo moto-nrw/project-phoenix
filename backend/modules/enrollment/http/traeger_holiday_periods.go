@@ -25,18 +25,21 @@ type HolidayPeriodResource struct {
 	review        capability.HolidayRegistrationReview
 	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
+	requireHealth common.Middleware
 }
 
 // NewHolidayPeriodResource builds the resource with the review of the
 // period's registrations (#4663). requireManage admits only a session with
 // the Träger right "Anmeldung verwalten"; the root binds it to the right
 // Identity & Access bundles into the Träger roles (ADR 0084 section 4).
-// schoolNames names the schools in the export.
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, schoolNames capability.HolidaySchoolNames, requireManage common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || schoolNames == nil || requireManage == nil {
-		panic("enrollment http: the holiday periods, the registration review, the school names and the right check are required")
+// schoolNames names the schools in the export. requireHealth admits only a
+// session with the Träger right "Gesundheitsangaben sehen" to the health
+// information of a registration (#4722).
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the school names and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, schoolNames: schoolNames, requireManage: requireManage}
+	return &HolidayPeriodResource{periods: periods, review: review, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
 }
 
 // TraegerRouter returns the routes mounted at /traeger/holiday-periods,

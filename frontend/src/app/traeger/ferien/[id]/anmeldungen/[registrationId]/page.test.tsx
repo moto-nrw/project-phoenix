@@ -8,6 +8,7 @@ import {
   HOLIDAY_CONTRIBUTION,
   HOLIDAY_PERIOD,
   HOLIDAY_REGISTRATION,
+  HOLIDAY_REGISTRATION_HEALTH,
   HOLIDAY_SCHOOLS,
 } from "~/test/fixtures/holiday-registrations";
 
@@ -19,12 +20,17 @@ vi.mock("~/lib/traeger-api", () => ({
   fetchHolidayPeriod: () => Promise.resolve(HOLIDAY_PERIOD),
   fetchTraegerSchools: () => Promise.resolve(HOLIDAY_SCHOOLS),
 }));
-const { mockRegistration } = vi.hoisted(() => ({ mockRegistration: vi.fn() }));
+const { mockRegistration, mockHealth, sessionPermissions } = vi.hoisted(() => ({
+  mockRegistration: vi.fn(),
+  mockHealth: vi.fn(),
+  sessionPermissions: { current: [] as string[] },
+}));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("~/lib/traeger-holiday-registrations-api")
   >()),
   fetchHolidayRegistration: () => mockRegistration(),
+  fetchHolidayRegistrationHealth: () => mockHealth(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
@@ -35,6 +41,9 @@ import TraegerHolidayRegistrationPage from "./page";
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
     mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockHealth.mockReset();
+    mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
+    sessionPermissions.current = [];
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
     // The Träger portal has no school: no TenantProvider above the page.
     vi.mocked(useTenantSlugSafe).mockReturnValue(null);
@@ -165,6 +174,42 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       screen.getByRole("heading", { name: "Anmeldung von Eva Muster" }),
     ).toBeInTheDocument();
+  });
+
+  it("reads the health information only with the right „Gesundheitsangaben sehen“ (#4722)", async () => {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    // Anker: die Anmeldung ist geladen und die Karten sagen, wer die Angaben sieht.
+    expect(
+      (
+        await screen.findAllByText(
+          "Gesundheitsangaben sieht nur die Rolle Verwaltung.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(mockHealth).not.toHaveBeenCalled();
+    expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
+  });
+
+  it("shows the health information to the right (#4722)", async () => {
+    sessionPermissions.current = [
+      "traeger_enrollment:manage",
+      "traeger_health:read",
+    ];
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    // Anker: die Gesundheitsangaben sind geladen.
+    expect(await screen.findByText("Erdnüsse")).toBeInTheDocument();
+    expect(mockHealth).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText("Gesundheitsangaben sieht nur die Rolle Verwaltung."),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the answers with the labels of the form version the parents answered (#5198)", async () => {
@@ -320,7 +365,14 @@ function render(ui: React.ReactElement) {
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    data: {
+      user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
+        permissions: sessionPermissions.current,
+      },
+    },
     status: "authenticated",
   }),
 }));
