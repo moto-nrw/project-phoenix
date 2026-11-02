@@ -749,7 +749,7 @@ export default function MealPlanPage() {
                     {rows.map((row, idx) => (
                       <div
                         key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
+                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200 pointer-coarse:pr-12"
                       >
                         <textarea
                           rows={1}

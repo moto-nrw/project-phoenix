@@ -505,7 +505,7 @@ export default function ClassListEntriesPage() {
           return (
             <div className="flex items-center justify-end">
               <ButtonLink
-                href={`/students/${row.student.id}`}
+                href={tenantPath(`/students/${row.student.id}`)}
                 variant="ghost"
                 size="compact"
               >
