@@ -28,10 +28,12 @@ import {
 } from "~/test/session-cookie-writers";
 
 // #5399, re-review of #5403: every session cookie of every portal leaves
-// through one exit, gateSessionCookieWrites. This inventory names every way
-// a session cookie can be written and fails when a new one passes the exit.
-// #5444: the writers come from the syntax tree (src/test/session-cookie-
-// writers.ts), with aliases, destructuring and JavaScript files.
+// through one exit, gateSessionCookieWrites. This inventory lists the known
+// ways to write a session cookie and fails when a new one it recognises
+// passes the exit. #5444: the writers come from the syntax tree
+// (src/test/session-cookie-writers.ts), with aliases, destructuring and
+// JavaScript files. It is a tripwire for known patterns, not a guarantee;
+// its limits are listed there, and runtime enforcement is #5520.
 
 const ROOT = process.cwd();
 /** Source without comments: a comment that names Set-Cookie writes nothing. */
@@ -315,8 +317,8 @@ describe("session cookie writers", () => {
   });
 
   it("knows every place that names a session cookie", () => {
-    // Fail-closed for patterns the writer inventory cannot see: new code
-    // that spells a session cookie name, matches it or reads Auth.js'
+    // A second tripwire for patterns the writer inventory cannot see: new
+    // code that spells a session cookie name, matches it or reads Auth.js'
     // sessionToken cookie options needs a review and an entry here.
     expect(inventories.size).toBe(ALL.length);
     const sources = ALL.filter(

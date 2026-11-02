@@ -7,16 +7,21 @@ import ts from "typescript";
  * session-cookie-inventory.test.ts lists every file that can write a cookie
  * and keeps the session cookies on gateSessionCookieWrites.
  *
- * The inventory reads the syntax tree, not the text, and fails closed: every
- * use of a cookie jar or cookie list that is not a known read counts as a
- * write, including aliases, destructuring, string keys and values handed to
+ * A tripwire for known patterns, not a guarantee: static analysis of
+ * JavaScript cannot be complete. It reads the syntax tree, not the text.
+ * Every use of a cookie jar or cookie list that is not a known read counts as
+ * a write, including aliases, destructuring, string keys and values handed to
  * other code. A computed key resolves through `const` names; one that does
- * not resolve counts on a request, a response or headers. Exports that carry
- * a Set-Cookie or session cookie name are listed. Known limits: a header name
- * computed at run time (other than from literals and constants) and a backend
- * response's headers forwarded as a whole (#5517) are not seen here; the
- * session cookie name sources below catch a new place that spells a session
- * cookie name.
+ * not resolve counts on a request, a response or headers, and right before
+ * `.set`, `.delete` or `.append` on anything. Exports that carry a Set-Cookie
+ * or session cookie name, also through a later Object.assign, property
+ * assignment or spread, are listed.
+ *
+ * Known limits, among others: a key or header name computed at run time
+ * (other than from literals and constants) on an unrecognised receiver, a
+ * write through a helper in another module whose own file passes, and a
+ * backend response's headers forwarded as a whole (#5517). Runtime
+ * enforcement at the exit is #5520.
  */
 
 export type CookieWriteKind =
@@ -246,6 +251,20 @@ function isDeleted(node: ts.Node): boolean {
   let current = node;
   while (ts.isParenthesizedExpression(current.parent)) current = current.parent;
   return ts.isDeleteExpression(current.parent);
+}
+
+/** Methods that write a cookie list or headers. */
+const WRITE_METHODS = new Set(["set", "delete", "append"]);
+
+/** `x[key].set(…)`: a computed member right before a write method. */
+function isBeforeWriteMethod(node: ts.ElementAccessExpression): boolean {
+  const parent = node.parent;
+  return (
+    (ts.isPropertyAccessExpression(parent) ||
+      ts.isElementAccessExpression(parent)) &&
+    parent.expression === node &&
+    WRITE_METHODS.has(memberName(parent) ?? "")
+  );
 }
 
 /** Whether the value only decides a condition. */
@@ -501,6 +520,10 @@ class Inventory {
     walk(this.file, (node) => this.seedValue(node));
   }
 
+  reportExport(node: ts.Node): void {
+    this.report("module-export", node);
+  }
+
   private report(kind: CookieWriteKind, node: ts.Node): void {
     const line =
       this.file.getLineAndCharacterOfPosition(node.getStart(this.file)).line +
@@ -595,7 +618,7 @@ class Inventory {
     if (
       ts.isElementAccessExpression(node) &&
       memberName(node) === undefined &&
-      this.isMessage(node.expression, 0)
+      (this.isMessage(node.expression, 0) || isBeforeWriteMethod(node))
     )
       this.report("computed-member", node);
     const member = memberName(node);
@@ -744,7 +767,7 @@ class Inventory {
     this.use(current, value);
   }
 
-  /** Fail-closed: every use that is not a known read or alias is a write. */
+  /** Every use that is not a known read or alias counts as a write. */
   private use(node: ts.Node, value: Value): void {
     const parent = node.parent;
     if (
@@ -903,7 +926,7 @@ class Inventory {
 }
 
 export interface CookieInventory {
-  /** Every way the file can write a cookie. */
+  /** The ways the file can write a cookie that the inventory recognises. */
   writes: CookieWrite[];
   /**
    * Exports that carry a Set-Cookie or session cookie name, also nested in
@@ -919,8 +942,89 @@ export interface CookieInventory {
   sessionCookieNames: { line: number; code: string }[];
 }
 
+/** Calls that fill their receiver. */
+const FILLING_METHODS = new Set([
+  "push",
+  "unshift",
+  "splice",
+  "set",
+  "add",
+  "append",
+]);
+
+function rootIdentifier(expression: ts.Expression): ts.Identifier | undefined {
+  let node: ts.Expression = expression;
+  for (;;) {
+    if (
+      ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      ts.isSatisfiesExpression(node) ||
+      ts.isPropertyAccessExpression(node) ||
+      ts.isElementAccessExpression(node)
+    )
+      node = node.expression;
+    else return ts.isIdentifier(node) ? node : undefined;
+  }
+}
+
+/**
+ * Bindings a later write fills with a cookie name: a property assignment,
+ * Object.assign, Object.defineProperty, Reflect.set or a filling call.
+ */
+function filledWithCookieName(sourceFile: ts.SourceFile): Set<ts.Node> {
+  const filled = new Set<ts.Node>();
+  const fill = (target: ts.Expression | undefined, values: ts.Node[]) => {
+    const root = target && rootIdentifier(target);
+    const declared = root && declarationOf(root);
+    // Only module bindings can leave the module; a local one stays inside
+    // the function whose own text the export check reads.
+    if (
+      declared &&
+      ts.isSourceFile(scopeOf(declared)) &&
+      values.some((value) => carriesCookieName(value, new Set()))
+    )
+      filled.add(declared);
+  };
+  walk(sourceFile, (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      isAssignment(node.operatorToken.kind) &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left))
+    )
+      fill(node.left, [node.right]);
+    if (!ts.isCallExpression(node)) return;
+    const callee = node.expression;
+    if (!ts.isPropertyAccessExpression(callee)) return;
+    const owner = callee.expression.getText();
+    const [first, ...rest] = node.arguments;
+    if (
+      (owner === "Object" &&
+        ["assign", "defineProperty", "defineProperties"].includes(
+          callee.name.text,
+        )) ||
+      (owner === "Reflect" && callee.name.text === "set")
+    )
+      fill(first, rest);
+    else if (FILLING_METHODS.has(callee.name.text))
+      fill(callee.expression, [...node.arguments]);
+  });
+  return filled;
+}
+
+/** Bindings filled later, and whether a check reached one. */
+interface Filled {
+  bindings: Set<ts.Node>;
+  reached: boolean;
+}
+
 /** Whether a node spells, matches or reaches a cookie name in this file. */
-function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
+function carriesCookieName(
+  node: ts.Node,
+  seen: Set<ts.Node>,
+  filled?: Filled,
+): boolean {
   const text = ts.isRegularExpressionLiteral(node)
     ? node.text
     : spelledText(node);
@@ -928,6 +1032,10 @@ function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
     return true;
   if (ts.isIdentifier(node) && isReference(node)) {
     const declared = declarationOf(node);
+    if (declared && filled?.bindings.has(declared)) {
+      filled.reached = true;
+      return true;
+    }
     if (declared && !seen.has(declared)) {
       seen.add(declared);
       let declaration: ts.Node = declared.parent;
@@ -941,7 +1049,7 @@ function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
         if (
           ts.isBindingElement(declaration) &&
           declaration.initializer &&
-          carriesCookieName(declaration.initializer, seen)
+          carriesCookieName(declaration.initializer, seen, filled)
         )
           return true;
         declaration = declaration.parent;
@@ -949,13 +1057,13 @@ function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
       if (
         ts.isVariableDeclaration(declaration) &&
         declaration.initializer &&
-        carriesCookieName(declaration.initializer, seen)
+        carriesCookieName(declaration.initializer, seen, filled)
       )
         return true;
       if (
         (ts.isFunctionDeclaration(declaration) ||
           ts.isClassDeclaration(declaration)) &&
-        carriesCookieName(declaration, seen)
+        carriesCookieName(declaration, seen, filled)
       )
         return true;
     }
@@ -963,7 +1071,7 @@ function carriesCookieName(node: ts.Node, seen: Set<ts.Node>): boolean {
   return (
     ts.forEachChild(
       node,
-      (child) => carriesCookieName(child, seen) || undefined,
+      (child) => carriesCookieName(child, seen, filled) || undefined,
     ) ?? false
   );
 }
@@ -992,12 +1100,28 @@ function hasExportModifier(node: ts.Node): boolean {
   );
 }
 
-function exportedCookieNames(
-  sourceFile: ts.SourceFile,
-): { line: number; code: string }[] {
+/**
+ * Exports that carry a cookie name; `filled` lists those that reach a binding
+ * a later write filled with one.
+ */
+function exportedCookieNames(sourceFile: ts.SourceFile): {
+  found: { line: number; code: string }[];
+  filled: ts.Node[];
+} {
   const found: { line: number; code: string }[] = [];
-  const check = (at: ts.Node, value: ts.Node | undefined) => {
-    if (!value || !carriesCookieName(value, new Set())) return;
+  const filledExports: ts.Node[] = [];
+  const bindings = filledWithCookieName(sourceFile);
+  const check = (at: ts.Node, ...values: (ts.Node | undefined)[]) => {
+    const filled: Filled = { bindings, reached: false };
+    if (values.some((value) => value && bindings.has(value)))
+      filled.reached = true;
+    else if (
+      !values.some(
+        (value) => value && carriesCookieName(value, new Set(), filled),
+      )
+    )
+      return;
+    if (filled.reached) filledExports.push(at);
     const line =
       sourceFile.getLineAndCharacterOfPosition(at.getStart(sourceFile)).line +
       1;
@@ -1010,7 +1134,8 @@ function exportedCookieNames(
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement) && hasExportModifier(statement))
       for (const declaration of statement.declarationList.declarations)
-        check(declaration, declaration.initializer);
+        // The name too: a write after the declaration fills the binding.
+        check(declaration, declaration.name, declaration.initializer);
     else if (
       (ts.isFunctionDeclaration(statement) ||
         ts.isClassDeclaration(statement)) &&
@@ -1038,7 +1163,10 @@ function exportedCookieNames(
     )
       check(node, node.right);
   });
-  return found.sort((a, b) => a.line - b.line);
+  return {
+    found: found.sort((a, b) => a.line - b.line),
+    filled: filledExports,
+  };
 }
 
 /** Both inventories of one file, from one parse of its syntax tree. */
@@ -1065,16 +1193,20 @@ export function inventoryOf(file: string, source: string): CookieInventory {
       code: node.getText(sourceFile).slice(0, 80),
     });
   });
+  const exported = exportedCookieNames(sourceFile);
+  // A cookie name an export receives only through a later write leaves the
+  // module unlisted, past the per-file writer check.
+  for (const at of exported.filled) inventory.reportExport(at);
   return {
     writes: inventory.writes.sort(
       (a, b) => a.line - b.line || a.kind.localeCompare(b.kind),
     ),
     sessionCookieNames,
-    exportedCookieNames: exportedCookieNames(sourceFile),
+    exportedCookieNames: exported.found,
   };
 }
 
-/** Every way the file can write a cookie, from its syntax tree. */
+/** The cookie writes the inventory recognises, from the syntax tree. */
 export function cookieWrites(file: string, source: string): CookieWrite[] {
   return inventoryOf(file, source).writes;
 }
