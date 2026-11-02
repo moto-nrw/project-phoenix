@@ -534,13 +534,17 @@ func TestDemoRunDefersTheErasureWhileItsLocksAreHeld(t *testing.T) {
 }
 
 // An order still waiting for its seed whose access expired: the run closes
-// it. Deferred while its seed lock is held, it is found again by the next
-// run, told nothing, which closes and erases it (#5540).
-func TestDemoRunClosesADeferredWaitingOrderLater(t *testing.T) {
+// it. Deferred while its seed lock is held, it is not lost: the demo process
+// seeds it, and the next run, told nothing, finds it ready without an access
+// and retires and erases it (#5540).
+func TestDemoRunFindsADeferredWaitingOrderOnceSeeded(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
 	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
 	require.NoError(t, err)
 	slug := orderDemoSchool(t, db, "OGS Nord")
 
@@ -554,8 +558,13 @@ func TestDemoRunClosesADeferredWaitingOrderLater(t *testing.T) {
 	assert.Equal(t, organizationtenancy.DemoSchoolPreparing, demoSchoolProgress(t, db, slug).Status, "the deferred order still waits")
 	require.NoError(t, holder.Rollback())
 
-	_, erased = retireNow(t, queue, nil)
-	assert.Equal(t, 1, erased, "the next run closes and erases the waiting order")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	hidden, erased = retireNow(t, queue, nil)
+	assert.Equal(t, 1, hidden, "the next run hides the seeded school no access names")
+	assert.Equal(t, 1, erased)
 	assert.Nil(t, demoSchoolProgress(t, db, slug))
 }
 

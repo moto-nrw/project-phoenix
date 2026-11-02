@@ -398,12 +398,14 @@ const demoVisitorAccountErasureUpSQL = `
 // invariants (#5540):
 //
 //   - Deferred work is never lost. The run hides the named orders and every
-//     visitor order no demo access names any more whose school is still open
-//     or that still waits for its seed: an order is born with its access in one
+//     ready visitor order whose school is still open although no demo access
+//     names it any more: an order is born with its access in one
 //     transaction, so such an order is out of use. What a run defers is
 //     therefore found again in the database by the next run, whatever the
 //     demo process remembers. The standing school has no order and carries
-//     no visitor name.
+//     no visitor name. A waiting order whose closing was deferred is not
+//     picked up while it waits (the seed smoke queues orders without an
+//     access); it is seeded and then found ready without an access.
 //   - No lock error leaves the run. Another run holding the run lock skips
 //     this one; each order is hidden in a subtransaction under lock_timeout
 //     and deferred when a lock it needs is in use; a locked table the scan
@@ -439,10 +441,10 @@ const demoSchoolRetirementWithoutWaitSQL = `
 					UNION
 					SELECT state.name
 					FROM platform.demo_school_states AS state
-					LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
-					WHERE ((state.status = 'ready' AND school.deleted_at IS NULL)
-							OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+					JOIN platform.schools AS school ON school.id = state.tenant_id
+					WHERE state.status = 'ready'
 						AND state.first_name <> ''
+						AND school.deleted_at IS NULL
 						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
 				) AS target;
 			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
