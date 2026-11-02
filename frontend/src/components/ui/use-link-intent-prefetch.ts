@@ -13,7 +13,6 @@ import {
   useDataPrefetchIntent,
   type PrefetchResource,
 } from "./data-prefetch-intent";
-import type NextLink from "next/link";
 
 /**
  * So lange muss die Maus auf dem Link bleiben, bevor er vorlädt. Wer mit der
@@ -22,10 +21,9 @@ import type NextLink from "next/link";
 export const HOVER_PREFETCH_DELAY_MS = 80;
 
 type IntentPrefetchProps = Pick<
-  ComponentProps<typeof NextLink>,
+  ComponentProps<"a">,
   | "onClick"
   | "target"
-  | "prefetch"
   | "onPointerEnter"
   | "onPointerLeave"
   | "onFocus"
@@ -34,7 +32,11 @@ type IntentPrefetchProps = Pick<
   | "onTouchEnd"
   | "onTouchCancel"
   | "onBlur"
-> & { readonly href: string; readonly resources?: readonly PrefetchResource[] };
+> & {
+  readonly href: string;
+  readonly prefetch?: boolean | "auto" | null;
+  readonly resources?: readonly PrefetchResource[];
+};
 
 /** Shared intent policy, without portal progress or router dependencies. */
 export function useLinkIntentPrefetch({
