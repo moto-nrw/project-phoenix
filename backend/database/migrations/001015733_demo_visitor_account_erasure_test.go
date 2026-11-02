@@ -85,4 +85,11 @@ func TestDemoVisitorErasureLocksReferencingRowsBeforeTheAccounts(t *testing.T) {
 		}
 	}
 	assert.Contains(t, after, "DELETE FROM auth.account_tenants ", "the check guards at least the memberships")
+	// Writers of another school may hold the account first (a profile change
+	// locks the user name, then the profile), so a row locked before the
+	// account belongs to a visitor school.
+	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "users.profiles"} {
+		restricted := regexp.MustCompile(`PERFORM 1 FROM ` + regexp.QuoteMeta(table) + `\s[^;]*tenant_id = ANY \(visitor\.visitor_school_ids\)[^;]*FOR UPDATE;`)
+		assert.True(t, restricted.MatchString(before), "%s is locked before the account only in the visitor schools", table)
+	}
 }

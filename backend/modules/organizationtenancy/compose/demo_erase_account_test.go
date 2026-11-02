@@ -321,3 +321,52 @@ func TestDemoVisitorErasureLocksTheMembershipBeforeTheAccount(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("demo-besuch-%d@example.invalid", accounts.caregiver), stateOfAccount(t, db, accounts.caregiver).Email)
 	requireNothingLeftToErase(t, queue)
 }
+
+// A profile change locks the account first (the user name) and the profile
+// second (UpdateProfile, then SetAccountBio). The erasure never locks a row
+// of a real school before the account (#5540): a visitor account that also
+// belongs to a real school can change its profile there while the erasure
+// runs, and neither ends in a deadlock.
+func TestDemoVisitorErasureLeavesTheRealSchoolRowsOfASharedAccountUnlocked(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	realID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID, realID)
+	for _, tenantID := range []int64{schoolID, realID} {
+		_, err := db.NewRaw(`INSERT INTO users.profiles (tenant_id, account_id, bio) VALUES (?, ?, 'vorher')`, tenantID, accounts.parent).Exec(ctx)
+		require.NoError(t, err)
+	}
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
+
+	// UpdateProfile in the real school, first statement: the user name.
+	profileChange, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = profileChange.Rollback() }()
+	_, err = profileChange.ExecContext(ctx, `UPDATE auth.accounts SET username = 'elternteil-' || id WHERE id = ?`, accounts.parent)
+	require.NoError(t, err)
+
+	erasure := make(chan error, 1)
+	go func() {
+		_, _, retireErr := queue.RetireDemoSchools(ctx, []string{slug})
+		erasure <- retireErr
+	}()
+	waitForLockWait(t, db, "retire_expired_demo_schools")
+
+	// Second statement: SetAccountBio in the real school.
+	_, err = profileChange.ExecContext(ctx, `INSERT INTO users.profiles (account_id, tenant_id, bio, settings)
+		VALUES (?, ?, 'nachher', '{}'::jsonb)
+		ON CONFLICT (tenant_id, account_id) DO UPDATE SET bio = EXCLUDED.bio`, accounts.parent, realID)
+	require.NoError(t, err, "the profile change must not deadlock with the erasure")
+	require.NoError(t, profileChange.Commit())
+	require.NoError(t, <-erasure)
+
+	var bio string
+	require.NoError(t, db.NewRaw(`SELECT bio FROM users.profiles WHERE account_id = ? AND tenant_id = ?`, accounts.parent, realID).Scan(ctx, &bio))
+	assert.Equal(t, "nachher", bio)
+	assert.Nil(t, stateOfAccount(t, db, accounts.parent).Erased, "the shared account stays")
+	requireNothingLeftToErase(t, queue)
+}

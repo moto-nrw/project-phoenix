@@ -42,9 +42,11 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //     in demo schools. Without the lock, a school or Träger membership written
 //     while the erasure ran was not seen, and the account was anonymized anyway.
 //     It takes the locks in the order of auth.lock_live_account_reference:
-//     first every row it still writes whose writers lock the account in that
-//     trigger, then the account. It writes the visitor schools before that
-//     and holds no account while it waits for one of their rows.
+//     first the rows of the visitor schools it still writes, then the
+//     account. It writes the visitor schools before that and holds no
+//     account while it waits for one of their rows. It never locks a row of
+//     another school before the account, whose writers may hold the account
+//     first.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -209,18 +211,26 @@ const demoVisitorAccountErasureUpSQL = `
 					-- and then finds an erased account.
 					-- Lock order of auth.lock_live_account_reference: a row that
 					-- references an account first, the account second. The writes
-					-- above hold no account. The rows the erasure still writes after
-					-- the check and whose writers lock their account in that trigger
-					-- (memberships, roles, profiles, demo accesses) are locked here,
-					-- before the accounts, each table in id order.
+					-- above hold no account. The rows of the visitor schools the
+					-- erasure may still write after the check (memberships, roles,
+					-- profiles) and the visitor's demo accesses are locked here,
+					-- before the accounts, each table in id order. Rows of other
+					-- schools are never locked first: their writers may hold the
+					-- account first (a profile change locks the user name, then the
+					-- profile). An account the check finds demo-only has no
+					-- membership outside the visitor schools, so no writer of
+					-- another school holds one of its rows.
 					PERFORM 1 FROM auth.account_tenants
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids)
 					ORDER BY id FOR UPDATE;
 					PERFORM 1 FROM auth.account_roles
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids)
 					ORDER BY id FOR UPDATE;
 					PERFORM 1 FROM users.profiles
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids)
 					ORDER BY id FOR UPDATE;
 					PERFORM 1 FROM auth.demo_accesses
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
