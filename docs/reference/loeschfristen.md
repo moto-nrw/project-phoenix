@@ -1,6 +1,6 @@
 # Löschfristen je Datenart
 
-**Stand:** 26.10.2026\
+**Stand:** 02.11.2026\
 **Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md), für Inhalte der Schule [ADR 0073](../adr/0073-inhalte-der-schule-folgen-der-frist-ihrer-datenart.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
@@ -133,6 +133,7 @@ offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten
 | Operator-Konten ausgeschiedener Teammitglieder | Ende des Folgejahres | Deaktivierung | Identity Access | Bis dahin bleibt nachweisbar, wer im Protokoll gehandelt hat; danach verweist kein Eintrag mehr auf das Konto | umgesetzt (#4047) |
 | Konten, die keine Schule mehr braucht (E-Mail-Adresse, Benutzername, Passwort, Profilbild, Kalender-Link, Anmeldedaten) | sofort, stündlich geprüft | letzter Verweis einer Schule | Identity Access | Die Fristen der Daten, die das Konto nannten (Personal, Kinder, Elternkontakte), sind schon abgelaufen; danach hat das Konto keinen Zweck | umgesetzt (#4043) |
 | Besucher der öffentlichen Demo: Demo-Zugang (E-Mail, Name), Bestellung der Demo-Schule (Name, Konto-IDs, Zugangsdaten) und der Name des Besuchers in der Demo-Schule | 14 Tage, fest für alle Demo-Schulen | letzte Nutzung | Identity Access (Zugang), Organization Tenancy (Bestellung und Name) | Die Frist der Demo aus Spec #3456: Danach ist der Zugang abgelaufen, die Schule stillgelegt und niemand kommt mehr hinein | umgesetzt (#4048) |
+| Anmeldeereignisse eines Demo-Besuchs (IP-Adresse, User-Agent) | 90 Tage wie alle Anmeldeereignisse; das Stilllegen der Demo-Schule löscht sie nicht | Ereignis | Audit Platform | Entscheidung des Product Owners vom 02.11.2026 (#5543): Es gilt die Sicherheitsfrist der Anmeldeereignisse (BSI-Mindeststandard „bspw. 90 Tage“), keine sofortige Löschung. Durchgesetzt nur durch den nächtlichen Lauf (`DeleteExpiredAuthEvents`): Seine Schulliste (`ListCleanupTenantIDs`) enthält auch die soft-gelöschten, stillgelegten Demo-Schulen (#4728). In der Demo-Umgebung steht `CLEANUP_SCHEDULER_ENABLED=true` (`environments/demo.sops.env`, geprüft am 02.11.2026); die Notbremse `gdpr.data_cleanup_enabled` ist ohne Eintrag an. Test: `TestNightlyCleanupDeletesSignInEventsOfARetiredDemoSchoolAfterNinetyDays` (`backend/modules/schedulerruntime/compose/cleanup_demo_auth_events_test.go`) | im Code umgesetzt und lokal geprüft; Lauf auf dem Demo-Host nicht nachgewiesen |
 
 ## Betriebsprotokolle
 
@@ -181,6 +182,11 @@ Anmelde- und Sicherheitsprotokolle sechs Monate, die Anwendung für
 Anmeldeereignisse 90 Tage. Das ist weder durch die obigen Vorschläge gelöst
 noch ein Grund, alle Diagnoseprotokolle sechs Monate zu behalten.
 Gesamtstand und notwendige Abhilfe: [Ergebnisbericht #3842](../operations/sicherheitshaertung-3842.md).
+
+Demo-Besuche betrifft dieser Widerspruch nicht: Für die öffentliche Demo gibt
+es keinen AVV, moto ist dort selbst Verantwortlicher. Für Anmeldeereignisse
+eines Demo-Besuchs gelten deshalb die 90 Tage der Anwendung (#5543). Der
+Vertragsabgleich für Vertragsschulen bleibt davon unberührt und offen.
 
 ## Inhalte, die die Schule selbst löscht
 
