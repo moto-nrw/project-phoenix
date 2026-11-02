@@ -78,7 +78,7 @@ if (process.argv.includes("--check")) {
   }
   if (drift.length > 0) {
     console.error(
-      `ui-kit-button-baseline.json weicht vom Ist-Stand ab. Nach einem Abbau: node scripts/ui-kit-button-baseline-update.mjs\n${drift.join("\n")}`,
+      `ui-kit-button-baseline.json weicht vom Ist-Stand ab. Nach einem Abbau: pnpm run ui-kit:button-baseline\n${drift.join("\n")}`,
     );
     process.exit(1);
   }

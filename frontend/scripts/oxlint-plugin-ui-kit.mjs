@@ -1110,7 +1110,7 @@ const noRawInput = {
 // nach einem Abbau gesenkt wird, prüft oxlint-plugin-ui-kit.test.ts über
 // `ui-kit-button-baseline-update.mjs --check`). Bewusste Ausnahmen stehen mit Begründung in der
 // Allowlist in ui-kit-button-baseline.mjs. Neu erzeugen:
-// `node scripts/ui-kit-button-baseline-update.mjs`.
+// `pnpm run ui-kit:button-baseline`.
 
 const BUTTON_KIT_FILE = "src/components/ui/button.tsx";
 const NATIVE_ACTION_ELEMENTS = new Set([
@@ -1125,8 +1125,7 @@ const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 // A colour value: a palette step (`gray-200`, `moto-red/20`), a named colour or
 // an arbitrary colour. Positive on purpose: `border-b-2`, `border-l-4` and
 // `bg-opacity-50` name a side, a width or an opacity, not a colour.
-const COLOUR_VALUE =
-  String.raw`(?:(?!opacity-)[a-z]+(?:-[a-z]+)*-\d{2,3}|moto-[\w-]+|white|black|current|\[(?:#|rgb|hsl|oklch|color)[^\]]*\])(?:\/[\w.[\]]+)?$`;
+const COLOUR_VALUE = String.raw`(?:(?!opacity-)[a-z]+(?:-[a-z]+)*-\d{2,3}|moto-[\w-]+|white|black|current|\[(?:#|rgb|hsl|oklch|color)[^\]]*\])(?:\/[\w.[\]]+)?$`;
 const BG_COLOR_RE = new RegExp(String.raw`^bg-${COLOUR_VALUE}`);
 const FRAME_COLOR_RE = new RegExp(
   String.raw`^(?:ring|border(?:-[xytblrse])?)-${COLOUR_VALUE}`,

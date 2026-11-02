@@ -3,7 +3,7 @@ import baseline from "./ui-kit-button-baseline.json" with { type: "json" };
 // Button-Ratchet (#5531, scripts/oxlint-plugin-ui-kit.mjs).
 //
 // Baseline: Funde je Datei und Regel zum Stand von #5531, erzeugt mit
-// `node scripts/ui-kit-button-baseline-update.mjs`. Shrink-only: eine Datei
+// `pnpm run ui-kit:button-baseline`. Shrink-only: eine Datei
 // mit mehr Funden schlägt im Lint fehl; eine mit weniger lässt den Test
 // „button ratchet baseline“ fehlschlagen, bis die Zahl gesenkt ist.
 /** @type {Record<string, Record<string, number>>} */

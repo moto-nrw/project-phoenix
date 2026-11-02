@@ -174,7 +174,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
 
-**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings are counted per file in `frontend/scripts/ui-kit-button-baseline.json`; more fails, fewer fails until lowered (`node scripts/ui-kit-button-baseline-update.mjs`). The exceptions above live with their reason in the allowlist in `ui-kit-button-baseline.mjs`, never in the baseline.
+**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings are counted per file in `frontend/scripts/ui-kit-button-baseline.json`; more fails, fewer fails until lowered (`pnpm run ui-kit:button-baseline`). The exceptions above live with their reason in the allowlist in `ui-kit-button-baseline.mjs`, never in the baseline.
 
 ## Several notices of the same kind
 
