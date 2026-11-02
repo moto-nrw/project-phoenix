@@ -92,3 +92,18 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		}, activities, activityService, persons, devices, facility,
 		&owners.RoomUsage{Sessions: owners.NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, nil
 }
+
+// NewIoTTeacherStudentsTestDirectory composes the positive teacher-filtered
+// roster with School Membership's real staff-to-group binding. The legacy
+// unbound RFID graph remains available for its failure-fallback contracts.
+func NewIoTTeacherStudentsTestDirectory(db transactionruntime.Database) (devicescanCompose.Directory, error) {
+	members, err := owners.NewMembershipTestRepositories(db)
+	if err != nil {
+		return nil, err
+	}
+	persons := NewTestPersonDirectory(db, TestPersonDirectorySources{
+		Persons: members.Person, Students: members.Student,
+		Teachers: members.Teacher, Staff: members.Staff,
+	})
+	return devicescanCompose.NewDirectory(NewDeviceScanPeople(persons), nil, nil, DeviceScanPrincipal), nil
+}

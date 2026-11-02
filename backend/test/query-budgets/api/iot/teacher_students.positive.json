@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.teacher_students.positive",
+  "max": 6,
+  "exact": true,
+  "description": "Positive teacher-filtered kiosk roster: 3 and 8 teachers return their assigned children with constant SQL, including tenant transaction."
+}
