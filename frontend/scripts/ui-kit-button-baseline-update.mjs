@@ -26,25 +26,41 @@ const result = spawnSync(
 );
 if (result.error) throw result.error;
 
-const counts = Object.fromEntries(rules.map((rule) => [rule, {}]));
+const findings = Object.fromEntries(rules.map((rule) => [rule, {}]));
 for (const diagnostic of JSON.parse(result.stdout).diagnostics) {
   const rule = /ui-kit\(([\w-]+)\)/.exec(diagnostic.code ?? "")?.[1];
-  if (!rule || !(rule in counts)) continue;
-  counts[rule][diagnostic.filename] =
-    (counts[rule][diagnostic.filename] ?? 0) + 1;
+  if (!rule || !(rule in findings)) continue;
+  const line = diagnostic.labels?.[0]?.span?.line;
+  if (!line) {
+    throw new Error(`Fund ohne Quellzeile: ${diagnostic.filename}`);
+  }
+  (findings[rule][diagnostic.filename] ??= []).push(line);
 }
-// Die Allowlist zieht ihre Ausnahmen ab; eine Ausnahme ohne Fund ist veraltet.
+const counts = Object.fromEntries(rules.map((rule) => [rule, {}]));
+for (const rule of rules) {
+  for (const [file, lines] of Object.entries(findings[rule])) {
+    counts[rule][file] = lines.length;
+  }
+}
+// Die Allowlist zieht nur ihre festen Fundstellen ab; eine Ausnahme ohne Fund
+// ist veraltet. Ein anderer Fund in derselben Datei verbraucht sie nicht.
 const allowlistErrors = [];
 for (const entry of buttonRatchetAllowlist) {
-  const found = counts[entry.rule]?.[entry.file] ?? 0;
-  if (found < entry.count) {
-    allowlistErrors.push(
-      `Allowlist ${entry.rule} ${entry.file}: ${entry.count} erlaubt, ${found} gefunden`,
-    );
+  const lines = findings[entry.rule]?.[entry.file] ?? [];
+  for (const line of entry.lines) {
+    const index = lines.indexOf(line);
+    if (index === -1) {
+      allowlistErrors.push(
+        `Allowlist ${entry.rule} ${entry.file}:${line}: kein Fund`,
+      );
+    } else {
+      lines.splice(index, 1);
+      counts[entry.rule][entry.file] -= 1;
+    }
   }
-  const rest = found - entry.count;
-  if (rest > 0) counts[entry.rule][entry.file] = rest;
-  else delete counts[entry.rule][entry.file];
+  if (counts[entry.rule][entry.file] === 0) {
+    delete counts[entry.rule][entry.file];
+  }
 }
 if (allowlistErrors.length > 0) {
   console.error(allowlistErrors.join("\n"));

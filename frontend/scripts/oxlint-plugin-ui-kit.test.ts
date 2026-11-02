@@ -629,6 +629,27 @@ describe("ui-kit/no-hand-rolled-button", () => {
     expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(2);
   });
 
+  it("follows aliased link imports", () => {
+    const result = lintSource(
+      `import AppLink from "next/link";
+      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import ProgressLink from "~/components/ui/navigation-link";
+      function Probe() {
+        return <>
+          <AppLink href="/a" className="rounded-lg bg-gray-900 px-4 py-2">A</AppLink>
+          <SidebarLink href="/b" className="rounded-lg bg-gray-900 px-4 py-2">B</SidebarLink>
+          <ProgressLink href="/c" className="rounded-lg bg-gray-900 px-4 py-2">C</ProgressLink>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(3);
+  });
+
   it("does not read border sides or widths as a colour", () => {
     const result = lintSource(
       `function Probe() {
@@ -709,20 +730,23 @@ describe("ui-kit/no-hand-rolled-button", () => {
     );
   });
 
-  it("lets an allowlisted exception through, but not one more", () => {
+  it("allows only the documented allowlist location", () => {
     const entry = buttonRatchetAllowlist.find(
       (candidate) => candidate.rule === "no-hand-rolled-button",
     )!;
     expect(entry.reason.length).toBeGreaterThan(10);
+    const line = entry.lines[0]!;
+    const sourceAtLine = (targetLine: number) =>
+      `${"\n".repeat(targetLine - 2)}function Probe() {\nreturn <button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>;\n}\nvoid Probe;`;
 
-    const allowed = lintSource(handRolled(entry.count), entry.file);
+    const allowed = lintSource(sourceAtLine(line), entry.file);
     expect(`${allowed.stdout}${allowed.stderr}`).not.toContain(
       "no-hand-rolled-button",
     );
 
-    const beyond = lintSource(handRolled(entry.count + 1), entry.file);
-    expect(beyond.status).toBe(1);
-    expect(`${beyond.stdout}${beyond.stderr}`).toContain(
+    const moved = lintSource(sourceAtLine(line + 1), entry.file);
+    expect(moved.status).toBe(1);
+    expect(`${moved.stdout}${moved.stderr}`).toContain(
       "ui-kit(no-hand-rolled-button)",
     );
   });
@@ -740,6 +764,25 @@ describe("ui-kit/no-button-override", () => {
             <Button className="hover:scale-105">C</Button>
           </>
         );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-button-override\)/g)).toHaveLength(3);
+  });
+
+  it("follows aliased kit button imports", () => {
+    const result = lintSource(
+      `import { Button as ActionButton, ButtonLink as ActionLink, buttonClassName as kitButtonClassName } from "~/components/ui/button";
+      const className = kitButtonClassName({ variant: "primary", size: "md", className: "h-10" });
+      function Probe() {
+        return <>
+          <ActionButton className="h-10">A</ActionButton>
+          <ActionLink href="/a" className="rounded-lg">B</ActionLink>
+        </>;
       }
       void Probe;`,
       "src/components/probe.tsx",

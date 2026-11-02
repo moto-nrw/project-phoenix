@@ -1121,6 +1121,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
+const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const DEFAULT_ACTION_COMPONENTS = new Map([
+  ["next/link", "Link"],
+  ["~/components/ui/nav-link", "NavLink"],
+  ["~/components/ui/navigation-link", "NavigationLink"],
+]);
 
 // A colour value: a palette step (`gray-200`, `moto-red/20`), a named colour or
 // an arbitrary colour. Positive on purpose: `border-b-2`, `border-l-4` and
@@ -1251,10 +1258,54 @@ function classNameProperty(objectExpression) {
   );
 }
 
-function allowedCount(rule, key) {
-  return buttonRatchetAllowlist
-    .filter((entry) => entry.rule === rule && entry.file === key)
-    .reduce((sum, entry) => sum + entry.count, 0);
+function buttonRatchetImports(node, bindings) {
+  const source =
+    node.source.type === "Literal" ? String(node.source.value) : "";
+  const defaultAction = DEFAULT_ACTION_COMPONENTS.get(source);
+  for (const specifier of node.specifiers) {
+    if (specifier.type === "ImportDefaultSpecifier" && defaultAction) {
+      bindings.actionComponents.add(specifier.local.name);
+      continue;
+    }
+    if (specifier.type !== "ImportSpecifier") continue;
+    const imported =
+      specifier.imported.type === "Identifier"
+        ? specifier.imported.name
+        : String(specifier.imported.value);
+    if (ACTION_COMPONENTS.has(imported)) {
+      bindings.actionComponents.add(specifier.local.name);
+    }
+    if (KIT_BUTTON_EXPORTS.has(imported)) {
+      if (imported === "buttonClassName") {
+        bindings.buttonClassNames.add(specifier.local.name);
+      } else {
+        bindings.kitButtons.add(specifier.local.name);
+      }
+    }
+  }
+}
+
+function splitAllowlistedFindings(rule, key, findings) {
+  const allowances = new Map();
+  for (const entry of buttonRatchetAllowlist) {
+    if (entry.rule !== rule || entry.file !== key) continue;
+    for (const line of entry.lines) {
+      allowances.set(line, (allowances.get(line) ?? 0) + 1);
+    }
+  }
+  const remaining = [];
+  let allowlisted = 0;
+  for (const node of findings) {
+    const line = node.loc?.start.line;
+    const count = allowances.get(line) ?? 0;
+    if (count > 0) {
+      allowances.set(line, count - 1);
+      allowlisted += 1;
+    } else {
+      remaining.push(node);
+    }
+  }
+  return { allowlisted, remaining };
 }
 
 /**
@@ -1283,9 +1334,21 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
         return {};
       }
       const constants = new Map();
+      const bindings = {
+        actionComponents: new Set(ACTION_COMPONENTS),
+        buttonClassNames: new Set(["buttonClassName"]),
+        kitButtons: new Set(KIT_BUTTONS),
+      };
       const findings = [];
       const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
       return {
+        Program(node) {
+          for (const statement of node.body) {
+            if (statement.type === "ImportDeclaration") {
+              buttonRatchetImports(statement, bindings);
+            }
+          }
+        },
         VariableDeclarator(node) {
           if (node.id?.type === "Identifier" && node.init) {
             constants.set(node.id.name, node.init);
@@ -1294,9 +1357,14 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
         ...detect({
           classText: (node) => classText(node, constants),
           found: (node) => findings.push(node),
+          bindings,
         }),
         "Program:exit"() {
-          const allowlisted = allowedCount(ruleName, key);
+          const { allowlisted, remaining } = splitAllowlistedFindings(
+            ruleName,
+            key,
+            findings,
+          );
           const baseline = buttonRatchetBaseline[ruleName]?.[key] ?? 0;
           const allowed = allowlisted + baseline;
           if (countMode) {
@@ -1305,13 +1373,13 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
             }
             return;
           }
-          if (findings.length > allowed) {
-            for (const node of findings) {
+          if (remaining.length > baseline) {
+            for (const node of remaining) {
               context.report({
                 node,
                 messageId: allowed === 0 ? "finding" : "overBaseline",
                 data: {
-                  found: String(findings.length),
+                  found: String(remaining.length + allowlisted),
                   allowed: String(allowed),
                   allowlisted: String(allowlisted),
                   baseline: String(baseline),
@@ -1331,11 +1399,12 @@ const noHandRolledButton = makeButtonRatchetRule({
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
   message:
     "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
-  detect: ({ classText: textOf, found }) => ({
+  detect: ({ classText: textOf, found, bindings }) => ({
     JSXOpeningElement(node) {
       const name = jsxName(node.name);
       const isAction =
         NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
+        bindings.actionComponents.has(name ?? "") ||
         staticAttributeValue(jsxAttribute(node, "role")) === "button";
       if (!isAction) return;
       const className = jsxAttribute(node, "className");
@@ -1351,9 +1420,9 @@ const noButtonOverride = makeButtonRatchetRule({
     "Keep size and look of kit buttons in the kit; className carries layout only.",
   message:
     "Kein Maß oder Aussehen am Kit-Knopf: Größe und Variante wählen, className nur für Layout (w-full, flex-1, gap-*, mt-*, shrink-0, self-*, hidden md:flex …) (#5531, .claude/rules/frontend-ui-kit.md).",
-  detect: ({ classText: textOf, found }) => ({
+  detect: ({ classText: textOf, found, bindings }) => ({
     JSXOpeningElement(node) {
-      if (!KIT_BUTTONS.has(jsxName(node.name) ?? "")) return;
+      if (!bindings.kitButtons.has(jsxName(node.name) ?? "")) return;
       const className = jsxAttribute(node, "className");
       if (!className?.value) return;
       if (overrideTokens(textOf(className.value)).length > 0) found(node);
@@ -1361,7 +1430,7 @@ const noButtonOverride = makeButtonRatchetRule({
     CallExpression(node) {
       if (
         node.callee?.type !== "Identifier" ||
-        node.callee.name !== "buttonClassName"
+        !bindings.buttonClassNames.has(node.callee.name)
       ) {
         return;
       }
