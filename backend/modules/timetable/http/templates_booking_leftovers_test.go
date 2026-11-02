@@ -545,18 +545,20 @@ func TestBookingLeftoversKeepCoversEveryRow(t *testing.T) {
 			Windows: []timetableModule.OfferingBookingWindow{window(start, end, false, 1)}},
 	}
 	leftovers := s.listLeftovers(t)
-	require.Len(t, leftovers, 1, "%+v", leftovers)
+	require.Len(t, leftovers, 2, "%+v", leftovers)
 	assert.Equal(t, rosterReviewMonday.AddDays(3).String(), leftovers[0].From, "the first gap is on the first row")
-	assert.Equal(t, mensaEnds.String(), leftovers[0].BookingEndedOn)
+	assert.Equal(t, mensaEnds.String(), leftovers[1].BookingEndedOn)
 
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d/students/%d/kept-days", template, child), map[string]any{
-		"weekdays": leftovers[0].Weekdays, "booking_ended_on": leftovers[0].BookingEndedOn, "kept": true,
+		"weekdays": leftovers[1].Weekdays, "booking_ended_on": leftovers[1].BookingEndedOn, "kept": true,
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.Equal(t, 2, decodeTemplateData[keptStudentTemplateDaysResponse](t, w).RosterRows, "both hand rows plan Thursday")
 	after := s.listLeftovers(t)
-	require.Len(t, after, 1)
-	assert.True(t, after[0].Kept)
+	require.Len(t, after, 2)
+	for _, leftover := range after {
+		assert.True(t, leftover.Kept)
+	}
 }
 
 // TestBookingLeftoversAnnounceTheirWrites (quorum review round 4 of #5452):

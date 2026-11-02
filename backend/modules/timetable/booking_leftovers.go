@@ -80,6 +80,12 @@ type leftoverDay struct {
 	kept                 bool
 }
 
+type leftoverGroupKey struct {
+	templateID, studentID int64
+	start, until          calendar.Date
+	kept                  bool
+}
+
 // DetectBookingLeftovers lists the leftovers per Regeltermin and child,
 // ordered by Regeltermin name, then child, then start. A child the
 // Regeltermin plans through a Klasse, Jahrgang or Gruppe target is left out:
@@ -328,25 +334,10 @@ func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey
 	for _, template := range templates {
 		names[template.ID] = template.Name
 	}
-	type groupKey struct {
-		templateID, studentID int64
-		start, until          calendar.Date
-		kept                  bool
-	}
-	groups := make(map[groupKey]*BookingLeftover)
+	groups := make(map[leftoverGroupKey]*BookingLeftover)
 	for key, entries := range days {
 		for _, day := range entries {
-			group := groupKey{templateID: key.templateID, studentID: key.studentID, start: day.start, kept: day.kept}
-			group.until = untilKey(day.until)
-			leftover := groups[group]
-			if leftover == nil {
-				leftover = &BookingLeftover{TemplateID: key.templateID, TemplateName: names[key.templateID],
-					StudentID: key.studentID, From: day.from, Until: day.until, Kept: day.kept}
-				groups[group] = leftover
-			}
-			leftover.Weekdays = append(leftover.Weekdays, key.weekday)
-			leftover.BookingEndedOn = max(leftover.BookingEndedOn, day.endedOn)
-			leftover.From = min(leftover.From, day.from)
+			addGroupedLeftover(groups, names, key, day)
 		}
 	}
 	result := make([]BookingLeftover, 0, len(groups))
@@ -370,6 +361,19 @@ func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey
 		return untilKey(a.Until).Compare(untilKey(b.Until))
 	})
 	return result
+}
+
+func addGroupedLeftover(groups map[leftoverGroupKey]*BookingLeftover, names map[int64]string, key leftoverKey, day leftoverDay) {
+	group := leftoverGroupKey{templateID: key.templateID, studentID: key.studentID, start: day.start, until: untilKey(day.until), kept: day.kept}
+	leftover := groups[group]
+	if leftover == nil {
+		leftover = &BookingLeftover{TemplateID: key.templateID, TemplateName: names[key.templateID],
+			StudentID: key.studentID, From: day.from, Until: day.until, Kept: day.kept}
+		groups[group] = leftover
+	}
+	leftover.Weekdays = append(leftover.Weekdays, key.weekday)
+	leftover.BookingEndedOn = max(leftover.BookingEndedOn, day.endedOn)
+	leftover.From = min(leftover.From, day.from)
 }
 
 // untilKey orders and groups gap ends; an open end sorts last.
