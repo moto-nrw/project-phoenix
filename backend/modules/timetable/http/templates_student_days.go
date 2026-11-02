@@ -128,19 +128,12 @@ func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 	if err := rs.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return "", err
 	}
-	segments, err := rs.TemplateSeries.ListGroups(ctx, timetableModule.ActiveTemplateSeries(templateID))
-	if errors.Is(err, timetableModule.ErrGroupNotFound) {
-		return from, nil
-	}
+	series, missing, err := rs.boundedStudentTemplateDaysRemovalSeries(ctx, templateID)
 	if err != nil {
 		return "", err
 	}
-	if len(segments) == 0 {
+	if missing {
 		return from, nil
-	}
-	series := make(map[int64]struct{}, len(segments))
-	for _, segment := range segments {
-		series[segment.ID] = struct{}{}
 	}
 	periods, err := rs.CalendarPeriods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
 		ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: until.String(),
@@ -165,6 +158,27 @@ func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 		return effectiveFrom, nil
 	}
 	return "", errBoundedStudentTemplateDaysRemovalStale
+}
+
+// boundedStudentTemplateDaysRemovalSeries resolves the active segments of a
+// template series. A missing series reaches the command so it keeps its
+// established not-found response.
+func (rs *Resource) boundedStudentTemplateDaysRemovalSeries(ctx context.Context, templateID int64) (map[int64]struct{}, bool, error) {
+	segments, err := rs.TemplateSeries.ListGroups(ctx, timetableModule.ActiveTemplateSeries(templateID))
+	if errors.Is(err, timetableModule.ErrGroupNotFound) {
+		return nil, true, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if len(segments) == 0 {
+		return nil, true, nil
+	}
+	series := make(map[int64]struct{}, len(segments))
+	for _, segment := range segments {
+		series[segment.ID] = struct{}{}
+	}
+	return series, false, nil
 }
 
 // boundedStudentTemplateDaysRemovalMatchesSeries confirms every requested
