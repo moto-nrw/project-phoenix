@@ -126,5 +126,5 @@ func TestDemoSchedulerErasesWhileTheOperatorLoginIsPaused(t *testing.T) {
 
 	err := scheduler.drain(t.Context())
 	require.ErrorContains(t, err, "operator login is refused", "the queued orders keep waiting")
-	assert.Equal(t, []string{"expire", "retire"}, runtime.calls, "the expiry runs and erases although no order can be seeded")
+	assert.Equal(t, []string{"expire", "retire", "files"}, runtime.calls, "the expiry runs and erases although no order can be seeded")
 }
