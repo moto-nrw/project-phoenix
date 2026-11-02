@@ -5,7 +5,7 @@ vi.mock("@sentry/nextjs", () => ({
   captureRequestError: mockCaptureRequestError,
 }));
 const mockInstallSessionCookieExit = vi.hoisted(() => vi.fn());
-vi.mock("./server/auth/session-cookie-exit", () => ({
+vi.mock("./lib/session-cookie-exit.server", () => ({
   installSessionCookieExit: mockInstallSessionCookieExit,
 }));
 

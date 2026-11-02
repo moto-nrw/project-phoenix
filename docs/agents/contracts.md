@@ -557,7 +557,7 @@ old session back; the browser only saves requests.
    limits are listed in that file.
    **Runtime lock at the server's exit (#5520).** The gate records every
    session cookie line it lets go (`approveSessionCookieWrites`,
-   `frontend/src/server/auth/session-cookie-exit.ts`). `instrumentation.ts`
+   `frontend/src/lib/session-cookie-exit.server.ts`). `instrumentation.ts`
    installs a lock on Node's `ServerResponse#writeHead` before Next handles a
    request; every response of the server writes its head there, explicitly
    or on its first write: route handlers through Next's `sendResponse`,

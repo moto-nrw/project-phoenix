@@ -21,7 +21,7 @@ import ts from "typescript";
  * (other than from literals and constants) on an unrecognised receiver, a
  * write through a helper in another module whose own file passes, and a
  * backend response's headers forwarded as a whole (#5517). At run time the
- * lock at the server's exit (src/server/auth/session-cookie-exit.ts, #5520)
+ * lock at the server's exit (src/lib/session-cookie-exit.server.ts, #5520)
  * drops every session cookie write gateSessionCookieWrites did not approve,
  * whichever of these paths wrote it.
  */

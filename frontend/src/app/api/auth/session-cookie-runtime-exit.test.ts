@@ -23,7 +23,7 @@ import {
 } from "next/dist/server/base-http/node";
 import { sendResponse } from "next/dist/server/send-response";
 import { env } from "~/env";
-import { installSessionCookieExit } from "~/server/auth/session-cookie-exit";
+import { installSessionCookieExit } from "~/lib/session-cookie-exit.server";
 import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
 
 // #5520: invariant I1 of #5399 at run time. Whatever code builds a response,

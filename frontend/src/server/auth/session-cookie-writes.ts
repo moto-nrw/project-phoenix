@@ -10,7 +10,7 @@ import { env } from "~/env";
 import {
   approveSessionCookieWrites,
   isSessionCookieName,
-} from "./session-cookie-exit";
+} from "~/lib/session-cookie-exit.server";
 import {
   portalOfScope,
   sessionFamilyState,
@@ -22,7 +22,7 @@ import {
  * re-encodes the session cookie on every session read, and a response that
  * arrives after a logout or a school switch deleted or replaced the cookie
  * wrote the old session back. See gateSessionCookieWrites; the lock in
- * session-cookie-exit.ts drops every session cookie write it did not approve
+ * lib/session-cookie-exit.server.ts drops every session cookie write it did not approve
  * (#5520), and the inventory in session-cookie-inventory.test.ts keeps the
  * known writers on this path.
  */

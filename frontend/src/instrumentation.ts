@@ -8,7 +8,7 @@ export async function register() {
     // No response leaves this server with a session cookie that
     // gateSessionCookieWrites did not approve (#5520).
     const { installSessionCookieExit } =
-      await import("./server/auth/session-cookie-exit");
+      await import("./lib/session-cookie-exit.server");
     installSessionCookieExit();
     await import("./sentry.server.config");
   }

@@ -188,4 +188,5 @@ export function installSessionCookieExit(
   } as WriteHead;
   locked[LOCKED] = true;
   prototype.writeHead = locked;
+  logger.info("session_cookie_exit_locked");
 }
