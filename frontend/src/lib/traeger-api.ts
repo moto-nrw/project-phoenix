@@ -436,7 +436,7 @@ export interface TraegerAccountHistoryEntry {
   /** Instant (RFC 3339). */
   readonly occurredAt: string;
   readonly action: TraegerAccountChangeAction;
-  /** Empty for an account erased since. */
+  /** Empty for an account erased since; the page says „Gelöschtes Konto“. */
   readonly actorEmail: string;
   readonly targetEmail: string;
   readonly rolesBefore: readonly TraegerRole[];

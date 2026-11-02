@@ -92,7 +92,9 @@ const COLUMNS: DataTableColumn<TraegerAccountHistoryEntry>[] = [
     key: "actor",
     header: "Von",
     render: (entry) => (
-      <span className="wrap-anywhere">{entry.actorEmail || "–"}</span>
+      <span className="wrap-anywhere">
+        {entry.actorEmail || "Gelöschtes Konto"}
+      </span>
     ),
     stacked: "field",
   },

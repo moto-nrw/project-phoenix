@@ -39,7 +39,8 @@ func (t *TraegerAccounts) ListTraegerAccountHistory(ctx context.Context, actor i
 }
 
 // actorEmails reads the address of every acting person of the changes in
-// one statement.
+// one statement. An erased account keeps no address: the placeholder of the
+// erasure names nobody.
 func (t *TraegerAccounts) actorEmails(ctx context.Context, organizationID int64, changes []identityPorts.TraegerAccountLedgerEntry) (map[int64]string, error) {
 	actorIDs := make([]int64, 0, len(changes))
 	for _, change := range changes {
@@ -53,7 +54,9 @@ func (t *TraegerAccounts) actorEmails(ctx context.Context, organizationID int64,
 	}
 	emails := make(map[int64]string, len(accounts))
 	for _, account := range accounts {
-		emails[account.AccountID] = account.Email
+		if !account.Erased {
+			emails[account.AccountID] = account.Email
+		}
 	}
 	return emails, nil
 }

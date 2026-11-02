@@ -111,6 +111,18 @@ func TestTraegerAccountHistoryShowsTheChangesOfTheOwnTraeger(t *testing.T) {
 	assert.Equal(t, address, created.TargetEmail)
 	assert.Equal(t, []string{identityaccess.TraegerRoleBilling}, created.RolesAfter)
 
+	// An acting account erased since keeps its entries but no address: the
+	// placeholder the erasure writes names nobody.
+	_, err := db.ExecContext(context.Background(), `INSERT INTO audit.traeger_account_changes (organization_id, actor_account_id, action, target_account_id, target_email, roles_before, roles_after)
+		VALUES (?, ?, 'invitation_accepted', ?, ?, '{}', '{read_only}')`, own, colleague.ID, colleague.ID, colleague.Email)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE auth.accounts SET email = 'geloescht-' || id || '@example.invalid', personal_data_erased_at = NOW() WHERE id = ?`, colleague.ID)
+	require.NoError(t, err)
+	accepted := traegerHistory(t, router, session.AccessToken, 0).Entries[0]
+	assert.Equal(t, "invitation_accepted", accepted.Action)
+	assert.Empty(t, accepted.ActorEmail, "an erased account is named by no address")
+	assert.Equal(t, colleague.Email, accepted.TargetEmail, "the ledger keeps the address it recorded")
+
 	foreignHistory := traegerHistory(t, router, foreignSession.AccessToken, 0)
 	require.Len(t, foreignHistory.Entries, 1, "no Träger sees the history of another")
 	assert.NotEqual(t, address, foreignHistory.Entries[0].TargetEmail)

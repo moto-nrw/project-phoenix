@@ -7,6 +7,9 @@ type TraegerAccount struct {
 	AccountID int64
 	Email     string
 	Roles     []string
+	// Erased marks an account whose personal data was erased: Email is
+	// then the placeholder the erasure wrote.
+	Erased bool
 }
 
 // TraegerInvitation is an invitation into a Träger-Büro (#4650). Token is the

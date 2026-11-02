@@ -64,7 +64,7 @@ const HISTORY = {
       id: "11",
       occurredAt: "2026-09-07T08:00:00Z",
       action: "member_removed",
-      actorEmail: "leitung@traeger.example",
+      actorEmail: "",
       targetEmail: "weg@traeger.example",
       rolesBefore: ["personnel"],
       rolesAfter: [],
@@ -292,6 +292,7 @@ describe("TraegerAccountsPage", () => {
     expect(screen.getAllByText("Entfernt")[0]).toBeInTheDocument();
     expect(screen.getAllByText("weg@traeger.example")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Bisher: Personal.")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Gelöschtes Konto")[0]).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Ältere Einträge laden" }),
