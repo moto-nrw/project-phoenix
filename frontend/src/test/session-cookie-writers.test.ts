@@ -667,6 +667,16 @@ describe("the regex inventory as a baseline", () => {
 
 describe("cookieWrites", () => {
   it.each([
+    "`Set-Cookie${string}`",
+    "`${string}Set-Cookie${string}`",
+    "`${string}Set-Cookie`",
+  ])("handles the template literal type %s safely", (literal) => {
+    expect(kinds("header.ts", `export type Header = ${literal};`)).toEqual([
+      "cookie-header",
+    ]);
+  });
+
+  it.each([
     "`Set-Cookie`",
     "`Set-Cookie${suffix}`",
     "`${prefix}Set-Cookie${suffix}`",

@@ -647,9 +647,16 @@ class Inventory {
       ts.isTemplateMiddle(node) ||
       ts.isTemplateTail(node)
     ) {
-      let template: ts.Node = node.parent;
-      while (!ts.isTemplateExpression(template)) template = template.parent;
-      this.track(template, "cookie-header-name");
+      let template: ts.Node | undefined = node.parent;
+      // Type-level templates share these tokens but carry no runtime value.
+      while (
+        template &&
+        !ts.isTemplateExpression(template) &&
+        !ts.isTemplateLiteralTypeNode(template)
+      )
+        template = template.parent;
+      if (template && ts.isTemplateExpression(template))
+        this.track(template, "cookie-header-name");
     } else if (ts.isExpression(node)) this.track(node, "cookie-header-name");
   }
 
