@@ -113,6 +113,7 @@ func (s *CareLifecycle) applyDueEffects(ctx context.Context, ids []int64, asOf c
 	if err := s.discardRemovals(ctx, current); err != nil {
 		return effects, err
 	}
+	s.announcePlanningChange(ctx)
 	effects.applied = len(current)
 	return effects, nil
 }
