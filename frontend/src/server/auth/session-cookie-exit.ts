@@ -107,7 +107,7 @@ function sessionCookieWrite(setCookie: string): string | null {
  * and session cookie writes approved by gateSessionCookieWrites. Each
  * approval is used up here.
  */
-export function admitSetCookies(setCookies: readonly string[]): string[] {
+function admitSetCookies(setCookies: readonly string[]): string[] {
   const { approved } = exitState();
   const now = Date.now();
   return setCookies.filter((setCookie) => {
