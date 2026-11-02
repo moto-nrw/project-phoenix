@@ -1,202 +1,38 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import type { Session } from "next-auth";
-import { signOut, useSession } from "next-auth/react";
-import { useState } from "react";
-import { MotoBrand } from "~/components/auth/moto-brand";
-import { Button } from "~/components/ui/button";
-import { NavLink } from "~/components/ui/nav-link";
-import { NavigationTabs } from "~/components/ui/page-header/NavigationTabs";
+import { Header } from "~/components/dashboard/header";
 import { PortalShell } from "~/components/ui/portal-shell";
-import { hasPermission } from "~/lib/auth-utils";
-import { createLogger } from "~/lib/logger";
-import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
-import { clearPersonalStorage } from "~/lib/personal-storage";
-import { traegerPath } from "~/lib/traeger-url";
-import { traegerHelpHref } from "./traeger-help";
+import { TraegerBottomNav } from "./shell/traeger-bottom-nav";
+import { TraegerSidebar } from "./shell/traeger-sidebar";
 import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
 
-const logger = createLogger({ component: "TraegerShell" });
-
-/** The Träger right that opens the page "Personen" (ADR 0084, #4650). */
-const ACCOUNTS_RIGHT = "traeger_accounts:manage";
-/** The Träger right that opens the holiday periods (#4659). */
-const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
-/** The Träger right that keeps the contribution rules (#4664) and the
- * billing runs (#4668). */
-const BILLING_RIGHT = "traeger_billing:manage";
-/** The Träger right that opens the access log (#4655). */
-const ACCESS_LOG_RIGHT = "traeger_access_log:read";
-/** The Träger right that reads the Träger settings (ADR 0086, #4652) and
- * the letterhead (#4653). */
-const OVERVIEW_RIGHT = "traeger_overview:read";
-
-const navLinkClassName =
-  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
-
-const NAV_ITEMS = [
-  { id: "schulen", label: "Schulen", path: "/traeger", right: null },
-  {
-    id: "ferien",
-    label: "Ferien",
-    path: "/traeger/ferien",
-    right: ENROLLMENT_RIGHT,
-  },
-  {
-    id: "beitraege",
-    label: "Beiträge",
-    path: "/traeger/beitraege",
-    right: BILLING_RIGHT,
-  },
-  {
-    id: "abrechnung",
-    label: "Abrechnung",
-    path: "/traeger/abrechnung",
-    right: BILLING_RIGHT,
-  },
-  {
-    id: "personen",
-    label: "Personen",
-    path: "/traeger/accounts",
-    right: ACCOUNTS_RIGHT,
-  },
-  {
-    id: "zugriffsprotokoll",
-    label: "Zugriffsprotokoll",
-    path: "/traeger/access-log",
-    right: ACCESS_LOG_RIGHT,
-  },
-  {
-    id: "briefkopf",
-    label: "Briefkopf",
-    path: "/traeger/briefkopf",
-    right: OVERVIEW_RIGHT,
-  },
-  {
-    id: "einstellungen",
-    label: "Einstellungen",
-    path: "/traeger/einstellungen",
-    right: OVERVIEW_RIGHT,
-  },
-] as const;
-
 /**
- * The pages of the portal as header tabs. The holiday periods need the right
- * "Anmeldung verwalten", the contribution rules (#4664) and the billing
- * runs (#4668) the right "Abrechnung", the page "Personen" the right to manage accounts,
- * the access log the right to read it, the letterhead (#4653) and the
- * settings (#4652) the right to read the overview; a person with none of
- * them has one page and no tabs.
- */
-function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
-  const router = useRouter();
-  const pathname = usePathname() ?? "";
-  const items = NAV_ITEMS.filter(
-    (item) => item.right === null || hasPermission(session, item.right),
-  );
-  if (items.length < 2) return null;
-  const active =
-    items.find(
-      (item) =>
-        item.right !== null &&
-        (pathname.startsWith(item.path) ||
-          pathname.startsWith(item.path.slice("/traeger".length))),
-    ) ?? items[0]!;
-  return (
-    <NavigationTabs
-      items={items.map(({ id, label }) => ({ id, label }))}
-      activeTab={active.id}
-      onTabChange={(id) => {
-        const item = items.find((candidate) => candidate.id === id);
-        if (item) router.push(traegerPath(item.path));
-      }}
-    />
-  );
-}
-
-/**
- * The shell of the Träger portal ("moto träger", #4649): the shared
- * PortalShell frame with a slim head bar. The portal has few pages, so there
- * is no sidebar; the head carries the pages, the help and the way out. The
- * pages "Ferien" (#4659), "Personen" (#4650), "Zugriffsprotokoll" (#4655),
- * "Briefkopf" (#4653) and "Einstellungen" (#4652) show only with their
- * rights. The help opens
- * the article of the page.
+ * Die Hülle des Träger-Portals ("moto träger", #4649).
+ *
+ * Gebaut wie die Hülle des Schul-Portals (#5145): den Rahmen liefert die
+ * geteilte `PortalShell`, die Kopfzeile mit Seitentitel, Hilfe und
+ * Profil-Menü („Abmelden") der geteilte `Header`, die Seiten stehen in der
+ * Seitenleiste und auf dem Telefon in der unteren Leiste. Welche Seiten eine
+ * Person sieht, entscheiden ihre Rechte (`traeger-nav-items.ts`).
+ *
+ * Die Kopfzeile bleibt auf jeder Breite sichtbar; sie trägt den einzigen
+ * Weg aus dem Portal heraus.
  */
 export function TraegerShell({
   children,
+  testSystem = false,
 }: {
   readonly children: React.ReactNode;
+  /** Ein Test-Träger (#4658) bekommt über der Kopfzeile einen Hinweis. */
+  readonly testSystem?: boolean;
 }) {
-  const { data: session } = useSession();
-  const pathname = usePathname() ?? "";
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const logout = async () => {
-    setLoggingOut(true);
-    try {
-      sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-    } catch {
-      // sessionStorage unavailable: the login page then shows its
-      // "session expired" note, which is harmless.
-    }
-    // Revoke the backend refresh session first. Best-effort: logout must
-    // never block on it, the local session ends either way.
-    try {
-      await fetch("/api/traeger/auth/logout", {
-        method: "POST",
-        signal: AbortSignal.timeout(5000),
-      });
-    } catch (err: unknown) {
-      logger.warn("traeger_backend_logout_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // Nothing personal of this account stays on the device (#5000).
-    clearPersonalStorage();
-    clearSessionCache();
-    // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
-    // origin, and would send the person to the school chooser there. End the
-    // session without its redirect and stay on the Träger host.
-    await signOut({ redirect: false });
-    window.location.assign(traegerPath("/traeger/login"));
-  };
-
-  const header = (
-    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200/70 bg-white/95 px-8 py-4 max-md:px-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <MotoBrand />
-        <span className="text-sm font-semibold text-gray-600">Träger</span>
-        <TraegerNav session={session ?? null} />
-      </div>
-      {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
-      <div className="ml-auto flex flex-wrap items-center gap-2">
-        {session?.user?.email ? (
-          <span className="text-sm text-gray-600 max-md:hidden">
-            {session.user.email}
-          </span>
-        ) : null}
-        <NavLink href={traegerHelpHref(pathname)} className={navLinkClassName}>
-          Hilfe
-        </NavLink>
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          isLoading={loggingOut}
-          loadingText="Abmelden …"
-          onClick={() => void logout()}
-        >
-          Abmelden
-        </Button>
-      </div>
-    </header>
-  );
-
   return (
-    <PortalShell header={header} sidebar={null} bottomNav={null}>
-      <TraegerTestSystemNotice />
+    <PortalShell
+      header={<Header />}
+      topLayer={testSystem ? <TraegerTestSystemNotice /> : null}
+      sidebar={<TraegerSidebar />}
+      bottomNav={<TraegerBottomNav />}
+    >
       {children}
     </PortalShell>
   );

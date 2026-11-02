@@ -27,25 +27,71 @@ function publicDocumentURL(url: string): string {
 
 const NO_ATTACHMENTS: FormAttachment[] = [];
 
+export interface AttachmentLabels {
+  open: string;
+  download: string;
+  openLabel: (label: string) => string;
+  downloadLabel: (label: string) => string;
+  popupBlocked: string;
+  errorObject: string;
+}
+interface AttachmentActionsProps {
+  attachments: FormAttachment[];
+  documentURL: (reference: string) => string;
+}
 export function AttachmentList({
   attachments = NO_ATTACHMENTS,
-}: Readonly<{ attachments?: FormAttachment[] }>) {
-  return attachments.length > 0 ? (
-    <AttachmentActions attachments={attachments} />
-  ) : null;
+  documentURL = publicDocumentURL,
+  labels,
+}: Readonly<{
+  attachments?: FormAttachment[];
+  documentURL?: (reference: string) => string;
+  labels?: AttachmentLabels;
+}>) {
+  if (attachments.length === 0) return null;
+  return labels ? (
+    <AttachmentActions
+      attachments={attachments}
+      documentURL={documentURL}
+      labels={labels}
+    />
+  ) : (
+    <LocalizedAttachmentActions
+      attachments={attachments}
+      documentURL={documentURL}
+    />
+  );
+}
+
+function LocalizedAttachmentActions(props: Readonly<AttachmentActionsProps>) {
+  const t = useTranslations("enrollmentForm.attachments");
+  return (
+    <AttachmentActions
+      {...props}
+      labels={{
+        open: t("open"),
+        download: t("download"),
+        openLabel: (label) => t("openLabel", { label }),
+        downloadLabel: (label) => t("downloadLabel", { label }),
+        popupBlocked: t("popupBlocked"),
+        errorObject: t("errorObject"),
+      }}
+    />
+  );
 }
 
 function AttachmentActions({
   attachments,
-}: Readonly<{ attachments: FormAttachment[] }>) {
-  const t = useTranslations("enrollmentForm.attachments");
+  documentURL,
+  labels,
+}: Readonly<AttachmentActionsProps & { labels: AttachmentLabels }>) {
   const { show, showMessage } = useApiErrorDisplay();
   const [busyURL, setBusyURL] = useState<string | null>(null);
 
   async function read(attachment: FormAttachment, open: boolean) {
     const tab = open ? window.open("about:blank", "_blank") : null;
     if (open && !tab) {
-      showMessage(t("popupBlocked"));
+      showMessage(labels.popupBlocked);
       return;
     }
     if (tab) {
@@ -55,7 +101,7 @@ function AttachmentActions({
     setBusyURL(attachment.document_url);
     try {
       const response = await transportFetch(
-        publicDocumentURL(attachment.document_url),
+        documentURL(attachment.document_url),
         { cache: "no-store" },
       );
       if (!response.ok)
@@ -80,7 +126,7 @@ function AttachmentActions({
       }
     } catch (error) {
       tab?.close();
-      void show(error, { object: t("errorObject") });
+      void show(error, { object: labels.errorObject });
     } finally {
       setBusyURL(null);
     }
@@ -110,11 +156,11 @@ function AttachmentActions({
               size="md"
               className="gap-2"
               disabled={busyURL !== null}
-              aria-label={t("openLabel", { label: attachment.label })}
+              aria-label={labels.openLabel(attachment.label)}
               onClick={() => void read(attachment, true)}
             >
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              {t("open")}
+              {labels.open}
             </Button>
             <Button
               type="button"
@@ -122,11 +168,11 @@ function AttachmentActions({
               size="md"
               className="gap-2"
               disabled={busyURL !== null}
-              aria-label={t("downloadLabel", { label: attachment.label })}
+              aria-label={labels.downloadLabel(attachment.label)}
               onClick={() => void read(attachment, false)}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
-              {t("download")}
+              {labels.download}
             </Button>
           </div>
         </li>

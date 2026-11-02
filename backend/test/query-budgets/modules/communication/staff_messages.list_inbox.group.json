@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.communication.staff_messages.list_inbox.group",
+  "max": 7,
+  "exact": true,
+  "description": "A group inbox must additionally verify the caller through the same full colleague relation as group access. The six-row scenario proves that this fixed verification does not add a statement for each group or direct chat."
+}

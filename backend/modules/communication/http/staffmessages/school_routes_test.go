@@ -97,10 +97,21 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	assert.Equal(t, "staff", opened.CounterpartRoleKind)
 
 	req = httptest.NewRequest(http.MethodPost, "/staff-messages/threads/"+opened.ThreadID,
-		strings.NewReader(`{"body":"Lena aus der 2a war heute sehr müde."}`))
+		strings.NewReader(`{"body":"Lena aus der 2a war heute sehr müde.","client_message_id":"5419-lost-response"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, teacherClaims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// The first response is lost. Retrying the identical attempt must return
+	// the persisted message rather than append another one.
+	first := decodeData[staffmessaging.MessageResponse](t, rec.Body.Bytes())
+	req = httptest.NewRequest(http.MethodPost, "/staff-messages/threads/"+opened.ThreadID,
+		strings.NewReader(`{"body":"Lena aus der 2a war heute sehr müde.","client_message_id":"5419-lost-response"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, teacherClaims)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	retried := decodeData[staffmessaging.MessageResponse](t, rec.Body.Bytes())
+	require.Equal(t, first.ID, retried.ID, "a lost response must not cause a second send")
 
 	// 3. The Betreuungskraft finds it in the tenant-portal inbox, unread, with
 	//    the counterpart marked as Lehrkraft.

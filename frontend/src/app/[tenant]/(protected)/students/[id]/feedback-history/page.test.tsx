@@ -1,3 +1,7 @@
+import { getStartDateForTimeRange } from "~/lib/date-helpers";
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentFeedbackHistoryPage from "./page";
@@ -355,4 +359,72 @@ describe("StudentFeedbackHistoryPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-04-01"))(
+    "filters feedback by Berlin days and midnight across DST in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-04-01");
+      const actual =
+        await vi.importActual<typeof import("~/lib/date-helpers")>(
+          "~/lib/date-helpers",
+        );
+      const rangeHelper = vi.mocked(getStartDateForTimeRange);
+      const previous = rangeHelper.getMockImplementation()!;
+      rangeHelper.mockImplementation(actual.getStartDateForTimeRange);
+      try {
+        expect(actual.getStartDateForTimeRange("today").toISOString()).toBe(
+          "2026-03-31T22:00:00.000Z",
+        );
+        expect(actual.getStartDateForTimeRange("week").toISOString()).toBe(
+          "2026-03-29T22:00:00.000Z",
+        );
+        expect(actual.getStartDateForTimeRange("month").toISOString()).toBe(
+          "2026-03-31T22:00:00.000Z",
+        );
+        expect(actual.getStartDateForTimeRange("7days").toISOString()).toBe(
+          "2026-03-25T23:00:00.000Z",
+        );
+        vi.mocked(fetchStudentFeedback).mockResolvedValueOnce([
+          {
+            id: "1",
+            timestamp: "2026-04-01T00:30:00",
+            feedback_type: "positive",
+            is_mensa_feedback: false,
+          },
+          {
+            id: "2",
+            timestamp: "2026-03-31T23:30:00",
+            feedback_type: "negative",
+            is_mensa_feedback: false,
+          },
+          {
+            id: "3",
+            timestamp: "2026-03-30T12:00:00",
+            feedback_type: "neutral",
+            is_mensa_feedback: false,
+          },
+          {
+            id: "4",
+            timestamp: "2026-03-29T23:30:00",
+            feedback_type: "neutral",
+            is_mensa_feedback: false,
+          },
+        ]);
+        render(<StudentFeedbackHistoryPage />);
+        await screen.findByText(/4 Einträge/);
+        for (const [label, count] of [
+          ["Heute", 1],
+          ["Diese Woche", 3],
+          ["Diesen Monat", 1],
+        ] as const) {
+          fireEvent.click(screen.getByText(label));
+          expect(
+            await screen.findByText(count === 1 ? /1 Eintrag/ : /3 Einträge/),
+          ).toBeInTheDocument();
+        }
+      } finally {
+        rangeHelper.mockImplementation(previous);
+      }
+    },
+  );
 });

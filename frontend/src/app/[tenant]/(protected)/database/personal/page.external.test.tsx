@@ -64,7 +64,7 @@ vi.mock("~/lib/swr", () => ({
     mutate: mocks.refresh,
   })),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => mocks.refresh),
 }));
 
 vi.mock("@/lib/database/service-factory", () => ({

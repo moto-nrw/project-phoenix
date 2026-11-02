@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
@@ -10,7 +10,7 @@ const scopes = {
   'backend-quality': ['backend', 'scripts', '.github', '.claude/hooks', 'lefthook.yml', 'devbox.json', 'devbox.lock', 'package.json', 'frontend/package.json'],
   'backend-lint': ['backend', 'scripts/check-backend-quality.sh', 'scripts/backend-affected-packages.sh', 'scripts/run-go-toolchain.sh'],
   architecture: ['backend', 'docs/adr', 'scripts/backend-architecture', 'scripts/backend-architecture.sh', 'scripts/run-go-toolchain.sh'],
-  'frontend-quality': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
+  'frontend-quality': ['frontend', 'scripts/check-frontend-quality.sh', 'scripts/test-frontend-changed.mjs', 'package.json'],
   'react-doctor': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
   'hook-tests': ['scripts/pre-push.test.mjs', 'scripts/pre-push.sh', 'scripts/pre-push-cache.mjs', 'scripts/check-secrets.sh', 'scripts/check-secrets.test.mjs', '.gitleaks.toml', 'scripts/run-go-toolchain.sh', 'scripts/dev-native.sh', 'scripts/dev-native.test.mjs', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh', 'scripts/check-quality.sh', 'scripts/check-backend-quality.sh', 'scripts/check-frontend-quality.sh', 'lefthook.yml', '.github/workflows'],
 };
@@ -85,6 +85,16 @@ function keyFor(root, stage, base, command, args) {
   return { key: hash.digest('hex'), cacheable };
 }
 
+// A share of cache hits runs anyway, so a key that misses an input shows up as
+// a failing verification instead of a silent pass. 0 disables, 1 verifies all.
+function verifyRate() {
+  const raw = process.env.PHX_CACHE_VERIFY_RATE;
+  if (raw === undefined || raw === '') return 0.05;
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1) throw new Error('PHX_CACHE_VERIFY_RATE must be a number from 0 to 1');
+  return rate;
+}
+
 const started = performance.now();
 const [stage, baseRef, command, ...args] = process.argv.slice(2);
 try {
@@ -96,16 +106,24 @@ try {
   const { key, cacheable } = keyFor(root, stage, base, command, args);
   const directory = resolve(root, run('git', ['rev-parse', '--git-path', 'pre-push-cache'], root).trim());
   const entry = join(directory, `${stage}-${key}.json`);
-  if (cacheable && existsSync(entry)) {
+  const hit = cacheable && existsSync(entry);
+  if (hit) {
     const record = JSON.parse(readFileSync(entry, 'utf8'));
     if (record.key !== key || record.success !== true) throw new Error(`Invalid cache record: ${stage}`);
+  }
+  const verifying = hit && Math.random() < verifyRate();
+  if (hit && !verifying) {
     clean(root, head);
     console.log(`[${stage}] cache hit (${((performance.now() - started) / 1000).toFixed(2)}s)`);
   } else {
-    console.log(`[${stage}] ${cacheable ? 'cache miss' : 'uncached external inputs'}; starting`);
+    console.log(`[${stage}] ${verifying ? 'cache hit; running anyway to verify it (PHX_CACHE_VERIFY_RATE)' : cacheable ? 'cache miss' : 'uncached external inputs'}; starting`);
     const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' });
     if (result.error || result.status !== 0) {
       console.error(`[${stage}] failed after ${((performance.now() - started) / 1000).toFixed(2)}s${result.error ? `: ${result.error.message}` : ''}`);
+      if (verifying) {
+        rmSync(entry, { force: true });
+        console.error(`[${stage}] the cached pass for these inputs was wrong; entry removed. The cache key misses an input of this check: report it.`);
+      }
       process.exit(result.status || 1);
     }
     clean(root, head);
@@ -117,7 +135,7 @@ try {
       writeFileSync(temporary, JSON.stringify({ key, success: true }), { mode: 0o600 });
       renameSync(temporary, entry);
     }
-    console.log(`[${stage}] passed in ${((performance.now() - started) / 1000).toFixed(2)}s`);
+    console.log(`[${stage}] ${verifying ? 'cache hit verified' : 'passed'} in ${((performance.now() - started) / 1000).toFixed(2)}s`);
   }
 } catch (error) {
   console.error(`[${stage ?? 'cache'}] ${error.message}`);

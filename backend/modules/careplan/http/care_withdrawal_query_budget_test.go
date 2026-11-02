@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,5 +83,5 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 		assert.Equal(t, pair.small.rows, pair.large.rows,
 			"%s: rows read must not grow with the queue; only the requested page may be loaded", pair.name)
 	}
-	testpkg.AssertQueryBudget(t, "api.students.care_withdrawals.list", largePage.statements)
+	querybudgets.AssertQueryBudget(t, "api.students.care_withdrawals.list", largePage.statements)
 }

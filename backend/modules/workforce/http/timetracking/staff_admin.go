@@ -44,12 +44,18 @@ type StaffAdminResource struct {
 	// ExportTransfer is nil when the school has no transfer capability wired;
 	// the SFTP routes then answer "not configured".
 	ExportTransfer ExportTransfer
-	schedules      scheduleReader
+	// PayrollDispatch queues the automatic send after a month close and
+	// reports the newest dispatch on /payroll (#4805).
+	PayrollDispatch workforce.PayrollDispatch
+	schedules       scheduleReader
 	// targetOverrides serves the Sonderarbeitszeiten (#3259); nil answers
 	// their routes with "not wired".
 	targetOverrides    workforce.StaffTargetOverrides
 	notifyTimeTracking func(context.Context)
 	identity           IdentityFunc
+	// qualificationTypes and qualifications serve the Nachweise (#4808).
+	qualificationTypes workforce.StaffQualificationTypes
+	qualifications     workforce.StaffQualificationOverview
 
 	logger *slog.Logger
 }
@@ -79,7 +85,14 @@ type StaffAdminDependencies struct {
 	TargetOverrides workforce.StaffTargetOverrides
 	NotifyChanged   func(context.Context)
 	ExportTransfer  ExportTransfer
+	// PayrollDispatch is required: a month close of a school that switched
+	// the automatic send on must queue it.
+	PayrollDispatch workforce.PayrollDispatch
 	Identity        IdentityFunc
+	// QualificationTypes and Qualifications serve the Nachweise (#4808);
+	// both are required.
+	QualificationTypes workforce.StaffQualificationTypes
+	Qualifications     workforce.StaffQualificationOverview
 
 	Logger *slog.Logger
 }
@@ -94,6 +107,12 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	}
 	if deps.DocumentFiles == nil {
 		panic("staff admin resource: document files are required")
+	}
+	if deps.PayrollDispatch == nil {
+		panic("staff admin resource: the payroll dispatch is required")
+	}
+	if deps.QualificationTypes == nil || deps.Qualifications == nil {
+		panic("staff admin resource: the qualification types and the Nachweise are required")
 	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
@@ -121,10 +140,13 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		AuditLogService:      deps.AuditLog,
 		TimeExportService:    deps.TimeExport,
 		ExportTransfer:       deps.ExportTransfer,
+		PayrollDispatch:      deps.PayrollDispatch,
 		schedules:            schedules,
 		targetOverrides:      deps.TargetOverrides,
 		notifyTimeTracking:   deps.NotifyChanged,
 		identity:             deps.Identity,
+		qualificationTypes:   deps.QualificationTypes,
+		qualifications:       deps.Qualifications,
 		logger:               logger,
 	}
 }
@@ -135,6 +157,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Middleware) {
 	rs.registerOverviewRoutes(r, withTx)
 	rs.registerPersonnelRoutes(r, withTx)
+	rs.registerQualificationRoutes(r, withTx)
 	rs.registerDocumentRoutes(r, withTx)
 	rs.registerTimeTrackingRoutes(r, withTx)
 	rs.registerTargetOverrideRoutes(r, withTx)
@@ -239,6 +262,11 @@ func (rs *StaffAdminResource) registerCrossStaffRoutes(r chi.Router, withTx comm
 	r.With(timeTracking, withTx).Get("/time-tracking/export/datev-report", rs.datevExportReport)
 	r.With(timeTracking, withTx).Get("/time-tracking/export/sftp-status", rs.exportSFTPStatus)
 	r.With(timeTracking, withTx).Post("/time-tracking/export/sftp", rs.transferExportViaSFTP)
+	// The Lohnbüro block of /payroll (#4805), which config:manage opens: the
+	// newest automatic dispatch names a month, a format and a recipient, no
+	// working time.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.ConfigManage), withTx).
+		Get("/time-tracking/payroll-dispatch", rs.getPayrollDispatch)
 
 	r.With(timeTracking, withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
 	r.With(timeTracking, withTx).Post("/time-tracking/month-close", rs.closeMonth)

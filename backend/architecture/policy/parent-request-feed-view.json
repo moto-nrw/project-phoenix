@@ -1,0 +1,52 @@
+{
+  "packages": [
+    {
+      "path": "modules/parentrequestfeedprojection/internal/adapters/postgres",
+      "owner": "parent-request-feed-view",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentrequestfeedprojection/compose",
+      "owner": "parent-request-feed-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "parent-request-feed-view.integration-test.support",
+      "description": "The request-feed projection integration test uses hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-request-feed-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "parent-request-feed-read-model",
+      "package": "modules/parentrequestfeedprojection/internal/adapters/postgres",
+      "data_objects": [
+        "active.excused_absence_requests",
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.permissions",
+        "auth.role_permissions",
+        "auth.roles",
+        "enrollment.change_requests",
+        "enrollment.offering_change_requests",
+        "platform.schools",
+        "schedule.care_schedule_change_requests",
+        "users.student_data_change_requests"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

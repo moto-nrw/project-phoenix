@@ -1,0 +1,105 @@
+{
+  "packages": [
+    {
+      "path": "modules/grouplive",
+      "owner": "group-live-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/internal/adapters/nameorder",
+      "owner": "group-live-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/compose",
+      "owner": "group-live-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/http",
+      "owner": "group-live-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "group-live-view.internal-test.care-plan-contract",
+      "description": "Projection tests fake the Care Plan pending-request reader the planning badge consumes (#2702).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.to.care-plan-contract",
+      "description": "The OGS group live projection reads pending excused requests through the Care Plan contract (#3093); the facade edge stays with #2702.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.http.group-live-view.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "group-live-view",
+      "target_role": "public",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "group-live-view.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "group-live-view.http.security-runtime.contract",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/grouplive/http"
+    },
+    {
+      "id": "group-live-view.adapter-test.people-directory.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/grouplive/http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    }
+  ]
+}

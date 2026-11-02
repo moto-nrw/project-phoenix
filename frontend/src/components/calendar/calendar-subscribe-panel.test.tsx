@@ -102,7 +102,7 @@ describe("CalendarSubscribePanel", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^Kopiert$/ })).toHaveClass(
-        "bg-moto-green",
+        "bg-moto-green-fill",
       ),
     );
     expect(writeText).toHaveBeenCalledWith(

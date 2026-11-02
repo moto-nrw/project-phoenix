@@ -1,11 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import NavigationLink from "~/components/ui/navigation-link";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
@@ -33,17 +33,19 @@ interface CarePlanImpactProps {
 /**
  * „Auswirkung auf den Betreuungsplan“ nach einer Buchungsänderung (#5102):
  * was moto automatisch angepasst hat und welche von Hand gepflegten
- * Regeltermine das Kind an weggefallenen Tagen weiter einplanen.
+ * Regeltermine das Kind an weggefallenen Tagen weiter einplanen. Plant ein
+ * Regeltermin über Klasse, Jahrgang oder Gruppe, hält ein Entfernen nicht;
+ * dort führt der Hinweis zu „Mit Angebot verbinden“ (#5137). Der Hinweis
+ * steht einmal über der Liste, nicht in jeder Zeile.
  */
 export function CarePlanImpact({
   impact,
   studentId,
   childName,
 }: CarePlanImpactProps) {
-  const headingId = useId();
   const { data: session } = useSession();
-  const canRemove =
-    studentId !== undefined && hasPermission(session, "schedules:manage");
+  const canManage = hasPermission(session, "schedules:manage");
+  const canRemove = studentId !== undefined && canManage;
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -63,6 +65,17 @@ export function CarePlanImpact({
   const planLink = tenantPath(
     `/betreuungsplan?view=serien&d=${encodeURIComponent(impact.effectiveFrom)}`,
   );
+  const connectLink = (templateId: string) =>
+    `${planLink}&verbinden=${encodeURIComponent(templateId)}`;
+  const anyViaTarget = impact.notAdjusted.some(
+    (template) => template.viaTarget,
+  );
+  // Ohne Recht fehlt an einem Eintrag eine Aktion, die andere sehen würden.
+  const actionMissing =
+    !canManage &&
+    impact.notAdjusted.some(
+      (template) => template.viaTarget || studentId !== undefined,
+    );
 
   const closeConfirm = () => {
     if (removing) return;
@@ -96,22 +109,27 @@ export function CarePlanImpact({
   };
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex flex-col gap-3 border-t border-gray-100 pt-3"
+    <SectionCard
+      title={`Auswirkung auf den Betreuungsplan${childName ? ` für ${childName}` : ""} ab ${stichtag}`}
+      headingLevel={4}
+      namedRegion
+      titleClassName="text-sm"
+      bodyClassName="mt-3 flex flex-col gap-5"
     >
-      <h4 id={headingId} className="text-sm font-semibold text-gray-900">
-        Auswirkung auf den Betreuungsplan{childName ? ` für ${childName}` : ""}{" "}
-        ab {stichtag}
-      </h4>
       {impact.adjusted.length > 0 ? (
-        <div>
-          <h5 className="text-xs font-medium text-gray-500">
-            Automatisch angepasst
-          </h5>
-          <ul className="mt-1 flex flex-col gap-1 text-sm text-gray-700">
+        <SectionCard
+          title="Automatisch angepasst"
+          headingLevel={5}
+          titleClassName="text-sm font-medium text-gray-600"
+          bare
+          className="space-y-2"
+        >
+          <ul className="divide-y divide-gray-100 text-sm text-gray-700">
             {impact.adjusted.map((template) => (
-              <li key={template.templateId}>
+              <li
+                key={template.templateId}
+                className="py-2 first:pt-0 last:pb-0"
+              >
                 <span className="font-medium text-gray-900">
                   {template.name}
                 </span>
@@ -119,35 +137,49 @@ export function CarePlanImpact({
               </li>
             ))}
           </ul>
-        </div>
+        </SectionCard>
       ) : null}
       {impact.notAdjusted.length > 0 ? (
-        <div>
-          <h5 className="text-xs font-medium text-gray-500">
-            Nicht angepasst, weil von Hand gepflegt
-          </h5>
-          <p className="mt-1 text-sm text-gray-600">
-            Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben
-            soll.
-          </p>
-          <ul className="mt-2 flex flex-col divide-y divide-gray-100">
+        <SectionCard
+          title="Nicht angepasst, weil von Hand gepflegt"
+          description="Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben soll."
+          headingLevel={5}
+          titleClassName="text-sm font-medium text-gray-600"
+          bare
+          className="space-y-3"
+        >
+          {anyViaTarget ? (
+            // Einmal über der Liste, auch bei nur einer solchen Zeile: eine
+            // Regel, eine Stelle.
+            <p className="mb-3 text-sm text-gray-600">
+              Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe
+              planen alle Kinder darin ein. Bei der nächsten Planung steht das
+              Kind wieder im Plan.
+              {canManage
+                ? " Verbinden Sie den Regeltermin mit dem Angebot."
+                : null}
+            </p>
+          ) : null}
+          <ResponsiveActionList>
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
                 key={template.templateId}
                 template={template}
                 removed={removed.has(template.templateId)}
                 canRemove={canRemove}
+                canConnect={canManage}
                 onRemove={setTarget}
                 planLink={planLink}
+                connectLink={connectLink(template.templateId)}
               />
             ))}
-          </ul>
-          {canRemove || studentId === undefined ? null : (
-            <p className="mt-2 text-xs text-gray-500">
-              Entfernen kann nur, wer den Betreuungsplan bearbeiten darf.
+          </ResponsiveActionList>
+          {actionMissing ? (
+            <p className="mt-3 text-xs text-gray-500">
+              Ändern kann nur, wer den Betreuungsplan bearbeiten darf.
             </p>
-          )}
-        </div>
+          ) : null}
+        </SectionCard>
       ) : null}
       <ConfirmDeleteModal
         isOpen={target !== null}
@@ -163,14 +195,6 @@ export function CarePlanImpact({
             </p>
           ) : null
         }
-        warningSlot={
-          target?.viaTarget ? (
-            <Alert
-              type="warning"
-              message="Bei einer neuen Planung kommt das Kind wieder dazu. Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der Gruppe. Soll es dauerhaft fehlen, ändern Sie die Kinder im Regeltermin."
-            />
-          ) : undefined
-        }
         gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
         confirmLabel="Jetzt entfernen"
         loadingLabel="Wird entfernt …"
@@ -179,50 +203,78 @@ export function CarePlanImpact({
         loading={removing}
         error={errors.error}
       />
-    </section>
+    </SectionCard>
   );
 }
 
+/**
+ * One Regeltermin and its actions. Every action is the same kit button,
+ * none the lesser one; its accessible name starts with the visible label
+ * and adds the Regeltermin, so a screen reader's list tells the rows apart.
+ */
 function ManualTemplateEntry({
   template,
   removed,
   canRemove,
+  canConnect,
   onRemove,
   planLink,
+  connectLink,
 }: Readonly<{
   template: ManualRosterTemplate;
   removed: boolean;
   canRemove: boolean;
+  canConnect: boolean;
   onRemove: (template: ManualRosterTemplate) => void;
   planLink: string;
+  connectLink: string;
 }>) {
+  const about = `„${template.name}“`;
   return (
-    <li className="flex flex-col gap-1.5 py-2 text-sm text-gray-700 first:pt-0 last:pb-0">
-      <span>
-        <span className="font-medium text-gray-900">{template.name}</span>,{" "}
-        {formatWeekdayAdverbs(template.weekdays)}:{" "}
-        {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
-      </span>
-      <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <li className="flex flex-col gap-2 py-3 text-sm text-gray-700 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+      <div className="min-w-0">
+        <p>
+          <span className="font-medium text-gray-900">{template.name}</span>,{" "}
+          {formatWeekdayAdverbs(template.weekdays)}:{" "}
+          {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
+        </p>
+      </div>
+      <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center sm:justify-end">
         {removed ? (
-          <StatusBadge tone="green" label="Entfernt" />
+          <span className="flex">
+            <StatusBadge tone="green" label="Entfernt" />
+          </span>
+        ) : template.viaTarget ? (
+          canConnect ? (
+            <ButtonLink
+              href={connectLink}
+              variant="surface"
+              size="compact"
+              aria-label={`Mit Angebot verbinden: ${about}`}
+            >
+              Mit Angebot verbinden
+            </ButtonLink>
+          ) : null
         ) : canRemove ? (
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="compact"
+            aria-label={`Dort auch entfernen: ${about}`}
             onClick={() => onRemove(template)}
           >
             Dort auch entfernen
           </Button>
         ) : null}
-        <NavigationLink
+        <ButtonLink
           href={planLink}
-          className="text-sm font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+          variant="surface"
+          size="compact"
+          aria-label={`Im Betreuungsplan ansehen: ${about}`}
         >
           Im Betreuungsplan ansehen
-        </NavigationLink>
-      </span>
+        </ButtonLink>
+      </div>
     </li>
   );
 }

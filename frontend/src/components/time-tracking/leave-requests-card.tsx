@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import {
   useCallback,
@@ -89,7 +90,8 @@ export function LeaveRequestsCard() {
   const cancelErrors = useApiFormError();
   const loadAllRef = useRef<() => Promise<void>>(async () => undefined);
 
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const today = useBerlinToday();
+  const year = Number(today.slice(0, 4));
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -137,11 +139,11 @@ export function LeaveRequestsCard() {
     const approved = vacations.filter(
       (v) =>
         (v.status === "approved" || v.status === "reported") &&
-        new Date(v.dateEnd) >= new Date(),
+        v.dateEnd >= today,
     ).length;
     const declined = vacations.filter((v) => v.status === "declined").length;
     return { reserved, question, approved, declined };
-  }, [questionedVacations.length, vacations]);
+  }, [questionedVacations.length, vacations, today]);
 
   const recentVacations = useMemo(
     () =>

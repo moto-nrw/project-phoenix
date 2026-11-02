@@ -8,6 +8,7 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   SlideOver,
@@ -1108,29 +1109,32 @@ export function ShiftEditModal({
                 )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Beginn">
-                    <input
+                    <Input
+                      controlSize="compact"
                       type="time"
                       {...fieldControl("start_time")}
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                      className="tabular-nums"
                     />
                     {fieldHint("start_time")}
                   </Field>
                   <Field label="Ende">
-                    <input
+                    <Input
+                      controlSize="compact"
                       type="time"
                       {...fieldControl("end_time")}
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
-                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                      className="tabular-nums"
                     />
                     {fieldHint("end_time")}
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Pause (Minuten)">
-                    <input
+                    <Input
+                      controlSize="compact"
                       type="number"
                       {...fieldControl("break_minutes")}
                       min={0}
@@ -1138,7 +1142,7 @@ export function ShiftEditModal({
                       inputMode="numeric"
                       value={breakMinutesStr}
                       onChange={(e) => setBreakMinutesStr(e.target.value)}
-                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                      className="tabular-nums"
                     />
                     {fieldHint("break_minutes")}
                   </Field>
@@ -1158,14 +1162,14 @@ export function ShiftEditModal({
                 )}
                 {mode === "edit" && !seriesEditOpen && (
                   <Field label="Grund der Änderung (optional)">
-                    <input
+                    <Input
+                      controlSize="compact"
                       type="text"
                       {...fieldControl("change_reason")}
                       value={changeReason}
                       maxLength={200}
                       onChange={(e) => setChangeReason(e.target.value)}
                       placeholder="z. B. Krankheit, Fortbildung, Tausch"
-                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
                     />
                     {fieldHint("change_reason")}
                     {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
@@ -1225,11 +1229,11 @@ export function ShiftEditModal({
                       occurrence, moved forward to tomorrow when it already
                       passed — the re-plan never touches today or earlier. */}
                       <Field label="Gilt ab">
-                        <input
+                        <Input
+                          controlSize="compact"
                           type="text"
                           value={formatShortDate(seriesAppliesFrom)}
                           disabled
-                          className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                         />
                       </Field>
                       {/* FieldGroup, not Field — see the create block: a label
@@ -1329,7 +1333,8 @@ export function ShiftEditModal({
                               />
                               <div className="grid grid-cols-2 gap-2">
                                 <Field label="Beginn">
-                                  <input
+                                  <Input
+                                    controlSize="compact"
                                     type="time"
                                     aria-label={`Vertretung ${index + 1} Beginn`}
                                     value={row.startTime}
@@ -1338,11 +1343,12 @@ export function ShiftEditModal({
                                         startTime: e.target.value,
                                       })
                                     }
-                                    className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                                    className="tabular-nums"
                                   />
                                 </Field>
                                 <Field label="Ende">
-                                  <input
+                                  <Input
+                                    controlSize="compact"
                                     type="time"
                                     aria-label={`Vertretung ${index + 1} Ende`}
                                     value={row.endTime}
@@ -1351,7 +1357,7 @@ export function ShiftEditModal({
                                         endTime: e.target.value,
                                       })
                                     }
-                                    className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                                    className="tabular-nums"
                                   />
                                 </Field>
                               </div>
@@ -1449,11 +1455,11 @@ export function ShiftEditModal({
                         </FieldGroup>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <Field label="Gültig ab">
-                            <input
+                            <Input
+                              controlSize="compact"
                               type="text"
                               value={formatShortDate(date)}
                               disabled
-                              className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                             />
                           </Field>
                           {/* FieldGroup, not Field: the DatePicker trigger and

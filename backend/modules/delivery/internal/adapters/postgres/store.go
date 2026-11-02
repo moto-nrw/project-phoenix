@@ -32,7 +32,10 @@ const emailEnqueueSQL = `
 			WHERE idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id
 	)
+	-- A new entry wakes the worker once this transaction commits
+	-- (EmailEnqueuedChannel); a duplicate wakes nobody.
 	SELECT id, FALSE AS duplicate, FALSE AS conflict FROM inserted
+		CROSS JOIN LATERAL (SELECT pg_notify('` + EmailEnqueuedChannel + `', '') WHERE inserted.id IS NOT NULL) AS wake
 	UNION ALL
 	SELECT id, TRUE AS duplicate,
 		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb

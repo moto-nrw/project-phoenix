@@ -5,8 +5,12 @@ import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { ChildToday } from "~/lib/parent-api";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { parentPath } from "~/lib/parent-url";
+import { childrenConcept } from "~/lib/concepts/children";
+import { homeConcept } from "~/lib/concepts/home";
+import { unknownConcept } from "~/lib/concepts/unknown";
+import { presentConcept } from "~/lib/concepts/present";
 
 /**
  * Die Auswahlseite fuer mehrere Kinder.
@@ -24,9 +28,9 @@ export interface ChildSwitcherItem {
   readonly today: ChildToday;
 }
 
-function statusConcept(today: ChildToday): MotoConceptKey {
-  if (today.at_ogs === null) return "unknown";
-  return today.at_ogs ? "present" : "home";
+function statusConcept(today: ChildToday): MotoConcept {
+  if (today.at_ogs === null) return unknownConcept;
+  return today.at_ogs ? presentConcept : homeConcept;
 }
 
 export function ChildSwitcher({
@@ -55,7 +59,7 @@ export function ChildSwitcher({
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50">
                     <MotoConceptIcon
-                      concept="children"
+                      concept={childrenConcept}
                       size={28}
                       aria-hidden="true"
                     />

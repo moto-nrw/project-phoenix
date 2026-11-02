@@ -1,0 +1,7 @@
+DELETE /school/notifications/preferences/ -> unterricht_vormittag
+DELETE /school/notifications/push/subscriptions -> unterricht_vormittag
+GET /school/notifications/preferences/ -> unterricht_vormittag
+GET /school/notifications/push/public-key -> unterricht_vormittag
+POST /school/notifications/push/subscriptions -> unterricht_vormittag
+POST /school/notifications/test -> unterricht_vormittag
+PUT /school/notifications/preferences/{type} -> unterricht_vormittag

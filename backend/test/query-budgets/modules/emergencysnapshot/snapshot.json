@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.emergencysnapshot.snapshot",
+  "max": 9,
+  "exact": true,
+  "description": "modules/emergencysnapshot — the Notfallliste projection (#2704) reads\neach owner once, flat in the number of children: open attendance,\nstudent rows, person identities, current visits, room names and\nguardian contacts, after the three tenant-scope statements of the\ntransaction runtime. The presence mode is a settings read that the\nscenario fakes.\n\nLowered from 10 in #3349: the owner reads a child's departure plan in\nthe same statement as the row, where the retained repository needed a\nsecond one to reach the scan-only columns."
+}

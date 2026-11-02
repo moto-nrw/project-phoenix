@@ -1,0 +1,5 @@
+{
+  "api/parent/holiday-registrations/[token]/family": [
+    "GET parent /parent/holiday-registrations/token%2F1/family"
+  ]
+}

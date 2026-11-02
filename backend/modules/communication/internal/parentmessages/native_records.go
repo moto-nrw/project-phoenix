@@ -14,17 +14,20 @@ type ParentMessageThread values.ParentMessageThread
 type ReadCursor values.ReadCursor
 type ReadCursorBound values.ReadCursorBound
 type ThreadHeader values.ThreadHeader
+
+// StaffReach is which conversations a staff reader lists and counts.
+type StaffReach = values.StaffReach
 type ParentMessageReadRepository interface {
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
 	ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error)
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
 	MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error
 	ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error)
-	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
-	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
-	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*InboxThread, error)
+	UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach StaffReach) (int, error)
+	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach StaffReach, groupIDs []int64) (int, error)
+	ListInboxForStaff(ctx context.Context, accountID int64, reach StaffReach, onlyUnread bool) ([]*InboxThread, error)
 
-	ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*InboxThread, error)
+	ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach StaffReach) ([]*InboxThread, error)
 
 	FindThreadHeader(ctx context.Context, threadID int64) (*ThreadHeader, error)
 	LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*ReadCursor, error)
@@ -41,8 +44,8 @@ type ParentMessageThreadRepository interface {
 	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
 
 	FindByID(ctx context.Context, id int64) (*ParentMessageThread, error)
-	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error)
-	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error)
+	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error)
+	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error)
 	ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*MessageableGuardian, error)
 	ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }

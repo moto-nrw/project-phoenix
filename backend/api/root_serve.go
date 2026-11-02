@@ -2,7 +2,9 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 
@@ -268,7 +270,7 @@ func composeServeRoot(
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups)
+			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
 			return
 		},
 		func() (err error) { classArrivals, err = owners.BuildClassArrivals(db, env.Logger); return },
@@ -379,7 +381,7 @@ func composeServeRoot(
 		},
 		func() error {
 			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {
@@ -411,12 +413,12 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			classDay, err = buildClassDayViews(db, env, hub, caller, flows.Reports, carePlanRows, schedules, carePlan, people, audit,
-				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, notifications)
+				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, staffGroups, notifications, calendar)
 			return
 		},
 		func() error {
 			chat = owners.BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, owners.StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{})
+				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{}, identity)
 			calendarApp = owners.BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil
@@ -434,7 +436,7 @@ func composeServeRoot(
 			planExport = owners.BuildPlanExport(env, shifts, workTime, timetableRows, rooms, people, timetableOwner, calendar, renderer)
 			workforce, err = owners.BuildWorkforcePlanning(db, env, hub, workTime, membership, persons, shifts, planExport, side,
 				lifecycle, timetableRows, audit, settings.Service)
-			return
+			return workforce.WithQualificationReminders(err, db, env, notifications, people.Staff, delivery.Enqueuer(), mailFrom, mailIdentity, organizations)
 		},
 		func() (err error) {
 			staffAdmin, err = owners.BuildWorkforceStaffAdmin(db, env, persons, membership, people, audit)
@@ -510,12 +512,11 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity)
 	if err != nil {
 		return nil, nil, err
 	}
-	logger, limiters, tenant := env.Logger, authRateLimitersFromEnv(), chi.NewRouter()
-	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service, env.Logger), owners.NewLoggedStudentPresence(db, env.Logger)
+	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {
@@ -537,7 +538,7 @@ func composeServeRoot(
 				feedback, organizations, identity)
 		},
 		func() error {
-			return mountStaffRoutes(tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,
+			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,
 				structureViews.Education, structureViews.Substitution, persons, settings.Service, hub, identity, caller, calendarAdmin)
 		},
 		func() error {
@@ -548,9 +549,10 @@ func composeServeRoot(
 		func() error {
 			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,
 				enrollmentCompose.PublicDecisions(decisions), notices.Deletions, identity, guardianProfiles, organizations, renderer, persons, carePlan)
+			weekProtocolSeed := developmentWeekProtocolEvenings(env.Config.AppEnv, db, logger, settings.Service, persons, services, reports, schedules, carePlan, timetableRepos)
 			mountSchoolRoutes(tenant, db, logger, facilities, facilitiesRooms, settings.Service, caller, active, services.Users,
 				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, carePlan, audit.Persistence.DataAccessLog,
-				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
+				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource, env.Config.AppEnv, weekProtocolSeed, env.HealthData)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency, settings.Service)
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
@@ -565,8 +567,8 @@ func composeServeRoot(
 				return err
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
-				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module))
-			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, logger)
+				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
+			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, env.HealthData, logger)
 		},
 	)
 	if err != nil {
@@ -582,9 +584,32 @@ func composeServeRoot(
 	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker))
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData)
 	if err != nil {
 		return nil, nil, err
 	}
 	return &serveHandler{router: router, settings: settings.Service}, worker, nil
+}
+
+// developmentWeekProtocolEvenings makes the local seed exercise the same
+// Worker lifecycle as production. Non-development roots never mount it.
+func developmentWeekProtocolEvenings(
+	appEnv string, db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService,
+	persons *peopleCompose.Directory, services owners.PeopleServices, reports owners.PresenceReports, schedules owners.CarePlanSchedules,
+	carePlan carePlanModule.Owner, timetableRepos owners.TimetableRepositories,
+) schedulerPorts.WeekProtocolEvenings {
+	if !strings.EqualFold(appEnv, "development") {
+		return nil
+	}
+	return owners.NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, seedWeekProtocolDayLog)
+}
+
+// newServeRouteRuntime constructs the server-root routing dependencies before
+// its route mounting steps begin.
+func newServeRouteRuntime(
+	db transactionruntime.Database, logger *slog.Logger, iot devicefleetCompose.IoTService,
+	organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
+) (*slog.Logger, authRateLimiters, chi.Router, *deviceauth.Authenticators, studentpresence.Owner) {
+	return logger, authRateLimitersFromEnv(), chi.NewRouter(),
+		newDeviceAuthentication(iot, organizations, settings, logger), owners.NewLoggedStudentPresence(db, logger)
 }

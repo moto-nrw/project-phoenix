@@ -1,0 +1,56 @@
+{
+  "packages": [
+    {
+      "path": "database/repositories/studentintegration",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "student-owner-integration.people-directory.compose",
+      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-owner-integration.people-directory.port",
+      "description": "The student unit-of-work integration test names the owner seam its People Directory composition takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "port"
+    },
+    {
+      "id": "student-owner-integration.care-plan.compose",
+      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.legacy-composition.compose",
+      "description": "ADR 0053 point 7.2: the external tests of the legacy composition build the typed roots; Go keeps its internal tests out.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    }
+  ]
+}

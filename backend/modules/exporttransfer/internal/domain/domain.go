@@ -20,6 +20,16 @@ const (
 	ReasonUpload        = "upload_failed"
 	ReasonTooLarge      = "file_too_large"
 	ReasonInternal      = "internal_error"
+	// ReasonMailFailed: the mail with the download link was not accepted
+	// after the delivery retries (#4805).
+	ReasonMailFailed = "mail_failed"
+)
+
+// Channels of a recorded send (#4805). SFTP attempts go through Transfer;
+// e-mail sends are recorded by the producing domain once the mail settled.
+const (
+	ChannelSFTP  = "sftp"
+	ChannelEmail = "email"
 )
 
 // Target is a complete, validated counterpart.
@@ -65,6 +75,11 @@ type JournalEntry struct {
 	TargetDirectory string
 	Success         bool
 	Reason          string
+	// Channel is sftp or email; Period names the exported month (YYYY-MM)
+	// when the export has one; TargetEmail is the recipient of an e-mail send.
+	Channel     string
+	Period      string
+	TargetEmail string
 }
 
 // ValidPort reports whether a port number can be dialed at all.

@@ -11,8 +11,8 @@ const { mockInbox } = vi.hoisted(() => ({
   mockInbox: { threads: [] as Array<Record<string, unknown>> },
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: mockInbox.threads,
     error: undefined,
     isLoading: false,

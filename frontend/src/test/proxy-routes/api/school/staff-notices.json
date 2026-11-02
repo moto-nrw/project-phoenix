@@ -1,0 +1,8 @@
+{
+  "api/school/staff-notices/[noticeId]/acknowledge": [
+    "POST school /school/staff-notices/noticeId%2F1/acknowledge"
+  ],
+  "api/school/staff-notices/today": [
+    "GET school /school/staff-notices/today"
+  ]
+}

@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const pickupExtensionDate = "2099-03-03"
@@ -229,5 +230,5 @@ func TestPickupExtensionsListQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 tasks → %d queries, 6 tasks → %d queries", smallCount, largeCount)
 	assert.Equal(t, smallCount, largeCount, "query count must not grow with the number of tasks")
-	testpkg.AssertQueryBudget(t, "api.timetable.pickup_extensions.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.pickup_extensions.list", counter.Queries())
 }

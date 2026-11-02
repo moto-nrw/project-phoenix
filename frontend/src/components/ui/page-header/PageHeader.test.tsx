@@ -5,6 +5,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { PageHeader } from "./PageHeader";
+import { staffConcept } from "~/lib/concepts/staff";
 
 describe("PageHeader", () => {
   const mockIcon = <svg data-testid="mock-icon" />;
@@ -138,7 +139,9 @@ describe("PageHeader", () => {
   });
 
   it("renders the grey concept icon tile when concept is set", () => {
-    const { container } = render(<PageHeader title="Test" concept="staff" />);
+    const { container } = render(
+      <PageHeader title="Test" concept={staffConcept} />,
+    );
 
     expect(
       container.querySelector('[data-moto-duotone-tone="orange"]'),

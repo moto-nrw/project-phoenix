@@ -77,7 +77,8 @@ func ValidateAppointmentFields(fields AppointmentFields) (AppointmentFields, err
 	default:
 		return fields, invalid("overview_visibility must be organizer, staff, or all")
 	}
-	if fields.SchoolEventType != nil && !ValidSchoolEventType(*fields.SchoolEventType) {
+	if fields.SchoolEventType != nil && !ValidSchoolEventType(*fields.SchoolEventType) &&
+		*fields.SchoolEventType != SchoolEventTypeParentConference {
 		return fields, invalid("invalid school_event_type")
 	}
 	return fields, nil

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { useLatest } from "~/lib/hooks/use-latest";
 
 // Resource definitions with German labels
@@ -158,13 +159,14 @@ export function PermissionSelector({
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
       {/* Resource Dropdown */}
       <div>
-        <label
+        <FieldLabel
           id="permission-resource-label"
           htmlFor="permission-resource"
-          className="mb-1.5 block text-xs font-medium text-gray-700"
+          required={required}
+          className="mb-1.5 text-xs"
         >
-          Ressource{required && "*"}
-        </label>
+          Ressource
+        </FieldLabel>
         <CustomSelect
           id="permission-resource"
           ariaLabelledBy="permission-resource-label"
@@ -181,13 +183,14 @@ export function PermissionSelector({
 
       {/* Action Dropdown */}
       <div>
-        <label
+        <FieldLabel
           id="permission-action-label"
           htmlFor="permission-action"
-          className="mb-1.5 block text-xs font-medium text-gray-700"
+          required={required}
+          className="mb-1.5 text-xs"
         >
-          Aktion{required && "*"}
-        </label>
+          Aktion
+        </FieldLabel>
         <CustomSelect
           id="permission-action"
           ariaLabelledBy="permission-action-label"

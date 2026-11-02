@@ -1,5 +1,6 @@
 "use client";
 
+import { HolidayHealthFields } from "~/components/holiday/holiday-health-lines";
 import {
   DataField,
   DataGrid,
@@ -12,6 +13,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { formatDate } from "~/lib/date-helpers";
 import {
   fetchHolidayGuestSheet,
+  formatHolidayHostAnswer,
   type HolidayGuestContact,
   type HolidayGuestSheet,
 } from "~/lib/holiday-host-api";
@@ -60,8 +62,11 @@ function ContactList({
 
 /**
  * Feriengast in der Kindakte (#4666): Für ein Kind, das als Feriengast in die
- * ausrichtende OGS kam, zeigt die Akte nur Betreuung, Notfall und Abholung.
- * Die Angaben kommen aus der bestätigten Ferienanmeldung beim Träger. Ohne
+ * ausrichtende OGS kam, zeigt die Akte nur Betreuung, Notfall und Abholung,
+ * dazu die Antworten, die der Träger freigibt (#5202), und die
+ * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Die Angaben
+ * stehen auch im Gesundheitsfeld des Kindes. Die Angaben kommen aus
+ * der bestätigten Ferienanmeldung beim Träger. Ohne
  * das Recht, Kinderdaten zu lesen, bleibt es beim Hinweis.
  */
 export function HolidayGuestSection({
@@ -82,13 +87,13 @@ export function HolidayGuestSection({
   );
 
   const description =
-    "Dieses Kind kommt als Feriengast. Hier stehen nur Betreuung, Notfall und Abholung aus der Anmeldung beim Träger.";
+    "Dieses Kind kommt als Feriengast. Hier stehen die Angaben, die der Träger aus der Anmeldung an Sie weitergibt.";
   if (!canRead) {
     return (
       <SectionCard title="Feriengast" description={description}>
         <InfoText>
-          Notfall und Abholung sieht, wer die Angaben der Kinder lesen darf.
-          Bitte fragen Sie Ihre Leitung.
+          Notfall, Abholung und Gesundheit sieht, wer die Angaben der Kinder
+          lesen darf. Bitte fragen Sie Ihre Leitung.
         </InfoText>
       </SectionCard>
     );
@@ -136,6 +141,22 @@ export function HolidayGuestSection({
               empty="Nur die Eltern dürfen das Kind abholen."
             />
           </InfoSection>
+          {data.health && (
+            <InfoSection title="Gesundheit">
+              <HolidayHealthFields health={data.health} />
+            </InfoSection>
+          )}
+          {data.answers.length > 0 && (
+            <InfoSection title="Angaben aus der Ferienanmeldung">
+              <DataGrid>
+                {data.answers.map((answer) => (
+                  <DataField key={answer.key} label={answer.label}>
+                    {formatHolidayHostAnswer(answer)}
+                  </DataField>
+                ))}
+              </DataGrid>
+            </InfoSection>
+          )}
         </div>
       )}
     </SectionCard>

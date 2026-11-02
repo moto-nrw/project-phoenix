@@ -86,7 +86,7 @@ describe("SchoolCheckinSelectionBar", () => {
     expect(screen.getByText("3 ausgewählt")).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: /Anmelden/ })).toHaveClass(
-      "bg-moto-green",
+      "bg-moto-green-fill",
       "text-white",
       "rounded-lg",
     );

@@ -13,8 +13,10 @@ import (
 // scopeNeedsMFA selects the sessions the school MFA policy governs. The
 // Träger-Portal is not bound to the MFA mode of any school (ADR 0084): every
 // Träger session needs its second factor (#4651), see requireSessionMFA.
+// Neither is the caterer portal (ADR 0077 point 7): its session row is kept
+// at a supplied school, but no school's mode reaches the caterer.
 func scopeNeedsMFA(scope string) bool {
-	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg
+	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg && scope != domain.PortalScopeCaterer
 }
 
 // requireSessionMFA runs under the policy/account lock at every persistence
@@ -22,7 +24,8 @@ func scopeNeedsMFA(scope string) bool {
 // Parent sessions carry no staff authority and retain their separate policy.
 // A Träger session needs its proof for every role, so a session minted before
 // the duty or one whose proof an MFA reset revoked is refused at mint and at
-// refresh.
+// refresh. A caterer session needs it once the caterer switched its second
+// factor on (#4497): a session minted before that ends at its next refresh.
 func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool) error {
 	if !s.mfa.Configured() {
 		return nil
@@ -32,6 +35,9 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 			return identityaccess.ErrInvalidToken
 		}
 		return nil
+	}
+	if scope == domain.PortalScopeCaterer {
+		return s.requireCatererSessionMFA(ctx, accountID, verified)
 	}
 	if !scopeNeedsMFA(scope) {
 		return nil
@@ -48,6 +54,25 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 		return identityaccess.ErrMFAStatusUnavailable
 	}
 	if policy.RequiredFor(permissions) && !verified {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
+}
+
+// requireCatererSessionMFA reads the caterer's own choice: the enrollment of
+// its account, never a school's mode, on the mint's or the refresh's
+// transaction. A password mint that races the switch-on commits a session
+// without proof; like every session from before the switch-on, it ends at
+// its next refresh, which reads the committed enrollment.
+func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, accountID int64, verified bool) error {
+	if verified {
+		return nil
+	}
+	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
+	if err != nil {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if enrolled {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
@@ -70,12 +95,8 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
 	}
-	if retireFamilyID != "" && (session.PortalScope == domain.PortalScopeTenant || session.PortalScope == domain.PortalScopeSchool) {
-		verified, err := s.switchMFAProof(ctx, account.ID, retireFamilyID, session.PortalScope)
-		if err != nil {
-			return time.Time{}, &mintGuardError{err: err}
-		}
-		session.MFAVerified = verified
+	if err := s.adoptSourceFamily(ctx, account.ID, retireFamilyID, session, loginTime); err != nil {
+		return time.Time{}, &mintGuardError{err: err}
 	}
 	if err := s.requireSessionMFA(ctx, account.ID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
 		return time.Time{}, &mintGuardError{err: err}
@@ -148,4 +169,42 @@ func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.Verif
 		}
 		return nil
 	}
+}
+
+// adoptSourceFamily checks the family a switch presents: it must still live,
+// and a tenant or school switch inherits its second-factor proof.
+func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID int64, familyID string, session *domain.AccountSession, now time.Time) error {
+	if err := s.requireLiveSourceFamily(ctx, accountID, familyID, now); err != nil {
+		return err
+	}
+	if familyID == "" || (session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool) {
+		return nil
+	}
+	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)
+	if err != nil {
+		return err
+	}
+	session.MFAVerified = verified
+	return nil
+}
+
+// requireLiveSourceFamily refuses a switch whose presented family is gone
+// (#5194). It runs under the account lock logout takes as well, so a switch
+// that started before a logout either commits first or finds the family
+// revoked; it cannot mint a new session out of a revoked one.
+func (s *AccountAuthentication) requireLiveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) error {
+	if familyID == "" {
+		return nil
+	}
+	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return fmt.Errorf("inspect source session family: %w", err)
+	}
+	if source.AccountID != accountID || !source.Expiry.After(now) {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }

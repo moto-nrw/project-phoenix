@@ -7,6 +7,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +40,6 @@ func TestSchedulerMinuteSnapshotReadsEverySchoolOnce(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, endTime)
 
-	testpkg.AssertQueryBudget(t, "services.scheduler.minute_snapshot.setting_values",
+	querybudgets.AssertQueryBudget(t, "services.scheduler.minute_snapshot.setting_values",
 		counter.Selects("config.setting_values"))
 }

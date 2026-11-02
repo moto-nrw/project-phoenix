@@ -2,18 +2,22 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { duplicateIds } from "~/test/helpers/duplicate-ids";
 import type { OfferingPreview, RosterDeviation } from "~/lib/roster-deviation";
 
-const { mockPreview, mockConnect, mockToastSuccess } = vi.hoisted(() => ({
-  mockPreview: vi.fn(),
-  mockConnect: vi.fn(),
-  mockToastSuccess: vi.fn(),
-}));
+const { mockPreview, mockConnect, mockToastSuccess, mockOfferingSources } =
+  vi.hoisted(() => ({
+    mockPreview: vi.fn(),
+    mockConnect: vi.fn(),
+    mockToastSuccess: vi.fn(),
+    mockOfferingSources: vi.fn(),
+  }));
 
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
     getOfferingPreview: mockPreview,
     connectTemplateToOffering: mockConnect,
+    getOfferingSources: mockOfferingSources,
   },
 }));
 
@@ -30,7 +34,7 @@ import { ConnectOfferingModal } from "./connect-offering-modal";
 
 const deviation: RosterDeviation = {
   templateId: "9",
-  offering: { id: "3", name: "Randstunde" },
+  offerings: [{ id: "3", name: "Randstunde" }],
   gradeLevels: [],
   schoolClasses: ["1b"],
   unbookedCount: 2,
@@ -39,6 +43,8 @@ const deviation: RosterDeviation = {
     { id: "3", name: "Randstunde" },
     { id: "4", name: "Ganztag" },
   ],
+  combinations: [],
+  ambiguous: false,
 };
 
 const preview: OfferingPreview = {
@@ -65,6 +71,7 @@ describe("ConnectOfferingModal (#5103)", () => {
     mockPreview.mockReset().mockResolvedValue(preview);
     mockConnect.mockReset().mockResolvedValue(undefined);
     mockToastSuccess.mockReset();
+    mockOfferingSources.mockReset().mockResolvedValue([]);
   });
 
   it("previews per weekday who joins and who leaves, then connects every period", async () => {
@@ -138,5 +145,169 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(onConnected).not.toHaveBeenCalled();
+  });
+
+  it("preselects no offering when several fit equally and previews the chosen one (#5138)", async () => {
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 3a"
+        deviation={{
+          ...deviation,
+          offerings: [{ id: "4", name: "Ganztag" }],
+          schoolClasses: ["3a"],
+          candidates: [
+            { id: "4", name: "Ganztag" },
+            { id: "3", name: "Randstunde" },
+          ],
+          ambiguous: true,
+        }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Mehrere Angebote passen zur Kinderliste. Wählen Sie die Angebote, deren angemeldete Kinder kommen sollen.",
+      ),
+    ).toBeInTheDocument();
+    const select = screen.getByRole("button", { name: "Angebote" });
+    expect(select).toHaveTextContent("Angebote wählen");
+    expect(screen.getByRole("button", { name: "Verbinden" })).toBeDisabled();
+    expect(screen.queryByText("Das ändert sich")).not.toBeInTheDocument();
+    expect(mockPreview).not.toHaveBeenCalled();
+
+    fireEvent.click(select);
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Randstunde" }),
+    );
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("9", {
+        offeringIds: ["3"],
+        gradeLevels: [],
+        schoolClasses: ["3a"],
+      }),
+    );
+    expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ab 28.10.2026 kommen nur noch die für „Randstunde“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Verbinden" }));
+    await waitFor(() =>
+      expect(mockConnect).toHaveBeenCalledWith(
+        "9",
+        { offeringIds: ["3"], gradeLevels: [], schoolClasses: ["3a"] },
+        "2026-10-28",
+      ),
+    );
+  });
+
+  it("keeps every HTML ID unique before, during and after choosing an offering (#5350)", async () => {
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 3a"
+        deviation={{ ...deviation, ambiguous: true }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    // Anker: the offering field is rendered, named by its label.
+    const select = screen.getByRole("button", { name: "Angebote" });
+    expect(select).toHaveTextContent("Angebote wählen");
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(select);
+    // Anker: the open menu carries the field name.
+    expect(screen.getByRole("dialog", { name: "Angebote" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
+    expect(duplicateIds()).toEqual([]);
+
+    expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
+      "Ganztag",
+    );
+    expect(duplicateIds()).toEqual([]);
+  });
+
+  it("connects Randstunde and Ganztag together and keeps the Ganztag children (#5139)", async () => {
+    mockOfferingSources.mockResolvedValue([
+      { id: "3", name: "Randstunde", phaseId: "1", phaseName: "2026/27" },
+      { id: "4", name: "Ganztag", phaseId: "1", phaseName: "2026/27" },
+      { id: "5", name: "Ferien", phaseId: "1", phaseName: "2026/27" },
+      { id: "6", name: "Nachmeldung", phaseId: "2", phaseName: "Nachmeldung" },
+    ]);
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1a"
+        periodId="12"
+        deviation={{
+          ...deviation,
+          offerings: [
+            { id: "3", name: "Randstunde" },
+            { id: "4", name: "Ganztag" },
+          ],
+          schoolClasses: ["1a"],
+          unbookedCount: 3,
+          missingCount: 0,
+          candidates: [
+            { id: "3", name: "Randstunde" },
+            { id: "4", name: "Ganztag" },
+          ],
+        }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(mockPreview).toHaveBeenCalledWith("9", {
+      offeringIds: ["3", "4"],
+      gradeLevels: [],
+      schoolClasses: ["1a"],
+    });
+    expect(mockOfferingSources).toHaveBeenCalledWith("12");
+    expect(
+      await screen.findByText(
+        "Ab 28.10.2026 kommen nur noch die für „Randstunde“ oder „Ganztag“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
+      "Randstunde, Ganztag",
+    );
+
+    // Every offering of the period can be added; another phase cannot.
+    fireEvent.click(screen.getByRole("button", { name: "Angebote" }));
+    expect(
+      await screen.findByRole("checkbox", { name: "Ferien" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Nachmeldung" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Angebote anderer Anmeldephasen sind ausgegraut, solange ein Angebot gewählt ist.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verbinden" }));
+
+    await waitFor(() =>
+      expect(mockConnect).toHaveBeenCalledWith(
+        "9",
+        { offeringIds: ["3", "4"], gradeLevels: [], schoolClasses: ["1a"] },
+        "2026-10-28",
+      ),
+    );
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Regeltermin ist mit „Randstunde“ und „Ganztag“ verbunden.",
+      ),
+    );
   });
 });

@@ -732,7 +732,10 @@ export function calculateNetMinutes(
  */
 // Poll interval for the current month's Monatskarte (admin tab and own
 // view). A running session keeps growing the Ist server-side, so a card
-// fetched once at mount would freeze at the check-in minute.
+// fetched once at mount would freeze at the check-in minute. Readers pass it
+// to useLiveRefreshInterval: with a connected SSE stream they reconcile every
+// five minutes instead, since staff_time_tracking_changed carries every
+// write (#5017).
 export const OPEN_MONTH_REFRESH_MS = 60_000;
 
 /**

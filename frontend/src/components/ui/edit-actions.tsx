@@ -16,6 +16,7 @@ export function EditActions({
   onSave,
   saving = false,
   disabled = false,
+  cancelDisabled = false,
   saveLabel = "Speichern",
   savingLabel = "Speichert…",
   cancelLabel = "Abbrechen",
@@ -28,6 +29,8 @@ export function EditActions({
   saving?: boolean;
   /** Der Entwurf ist unvollständig oder ungültig; Abbrechen bleibt möglich. */
   disabled?: boolean;
+  /** Eine laufende Operation muss vor dem Verwerfen abgeschlossen sein. */
+  cancelDisabled?: boolean;
   saveLabel?: string;
   savingLabel?: string;
   cancelLabel?: string;
@@ -41,7 +44,7 @@ export function EditActions({
         variant="outline"
         size="md"
         onClick={onCancel}
-        disabled={saving}
+        disabled={saving || cancelDisabled}
       >
         {cancelLabel}
       </Button>

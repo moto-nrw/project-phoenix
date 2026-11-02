@@ -1,0 +1,90 @@
+{
+  "sectionTitle": "Your answer",
+  "signersAny": "One guardian with custody per child is enough.",
+  "signersAll": "Every guardian with custody answers for themselves.",
+  "nothingPreselected": "Nothing is preselected.",
+  "version": "Version {version}",
+  "deadline": "Deadline {date}",
+  "closed": "Deadline passed",
+  "passwordNote": "moto asks for your password before you answer.",
+  "signatureNote": "To agree, you sign with your finger or the mouse.",
+  "state": {
+    "open": "Open",
+    "partial": "Partly answered",
+    "agreed": "Agreed",
+    "declined": "Declined",
+    "revoked": "Withdrawn",
+    "no_signer": "Nobody can answer",
+    "expired": "Deadline passed"
+  },
+  "action": {
+    "agreed": "Agree",
+    "declined": "Decline",
+    "revoked": "Withdraw consent"
+  },
+  "done": {
+    "agreed": "Agreed",
+    "declined": "Declined",
+    "revoked": "Consent withdrawn"
+  },
+  "explain": {
+    "agreed": "With “Agree” you declare for {name} that you consent.",
+    "declined": "With “Decline” you declare for {name} that you do not consent."
+  },
+  "settled": {
+    "agreed": "{name} has agreed.",
+    "declined": "{name} has declined.",
+    "revoked": "{name} has withdrawn the consent."
+  },
+  "settledOnDate": {
+    "agreed": "{name} agreed on {date}.",
+    "declined": "{name} declined on {date}.",
+    "revoked": "{name} withdrew the consent on {date}."
+  },
+  "settledUnknown": "There is already an answer for {name}.",
+  "oneIsEnough": "One answer is enough.",
+  "ownAnyway": "You can still answer yourself.",
+  "cannotSubmit": "You cannot answer here for {name}. The guardians with custody do this.",
+  "myAction": "Your answer: {action} on {date}",
+  "myActionNoDate": "Your answer: {action}",
+  "proof": "View proof",
+  "othersTitle": "Other guardians with custody",
+  "otherOpen": "no answer yet",
+  "revokeHint": "You can withdraw your consent. The school sees this right away.",
+  "closedNoAction": "The deadline has passed. You can no longer answer.",
+  "confirmTitle": "Check your answer",
+  "confirmBody": "Your answer for {name}: {action}.",
+  "confirmChild": "Child",
+  "confirmAction": "Your answer",
+  "confirmVersion": "Text",
+  "confirmRecorded": "moto saves your answer with date and time. The school can see it.",
+  "passwordLabel": "Password of your parent account",
+  "signature": {
+    "label": "Your signature",
+    "hint": "Sign in the box with your finger, a pen or the mouse.",
+    "canvas": "Box for your signature",
+    "clear": "Clear field",
+    "typeInstead": "Type your name",
+    "drawInstead": "Draw instead",
+    "typedName": "Your first and last name",
+    "confirm": "Confirm signature",
+    "confirmed": "Your signature is ready.",
+    "confirmedTyped": "Your typed name is ready.",
+    "change": "Sign again",
+    "preview": "Your signature",
+    "emptyDrawing": "Please sign in the box.",
+    "nameTooShort": "Please type your name."
+  },
+  "revokeTitle": "Withdraw consent",
+  "revokeBody": "You withdraw your consent for {name}.",
+  "revokeConfirm": "Withdraw",
+  "cancel": "Cancel",
+  "saving": "Saving …",
+  "saved": "Your answer for {name} has been saved.",
+  "errors": {
+    "passwordRequired": "Please enter your password.",
+    "uncertainReload": "The current status is being reloaded. Please check it before you reply again.",
+    "signatureRequired": "Please sign and tap “Confirm signature”."
+  },
+  "errorObjectAnswer": "the reply"
+}

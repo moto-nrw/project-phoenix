@@ -14,6 +14,7 @@ import {
 } from "~/lib/staff-overview-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "StaffTodayBlock" });
 
@@ -60,7 +61,7 @@ export function StaffTodayBlock({
   return (
     <SectionCard
       title="Personal heute"
-      leading={<HomeCardIcon concept="staff" />}
+      leading={<HomeCardIcon concept={staffConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -343,6 +345,9 @@ func (r *refreshRotation) validatePresented(ctx context.Context, presented domai
 
 func (r *refreshRotation) validateLineage(ctx context.Context, current domain.AccountSession) error {
 	if current.FamilyID == "" {
+		// A head from before refresh families that the backfill has not
+		// reached (it rotated while the migration ran) has no lineage to
+		// check; its rotation gives the chain a family (#5194).
 		return nil
 	}
 	latest, err := r.service.sessions.LatestAccountSessionInFamily(ctx, current.FamilyID)
@@ -474,6 +479,12 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 	if predecessor.FamilyExpiryCap != nil && predecessor.FamilyExpiryCap.Before(expiry) {
 		expiry = *predecessor.FamilyExpiryCap
 	}
+	// A chain from before refresh families gets one here; the predecessor
+	// takes it when it is marked rotated (#5194).
+	familyID := predecessor.FamilyID
+	if familyID == "" {
+		familyID = uuid.Must(uuid.NewV4()).String()
+	}
 	successor := domain.AccountSession{
 		Token:           domain.SuccessorRefreshToken(predecessor.Token),
 		AccountID:       accountID,
@@ -482,7 +493,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		Expiry:          expiry,
 		Mobile:          predecessor.Mobile,
 		Identifier:      predecessor.Identifier,
-		FamilyID:        predecessor.FamilyID,
+		FamilyID:        familyID,
 		FamilyExpiryCap: predecessor.FamilyExpiryCap,
 		Generation:      predecessor.Generation + 1,
 		PortalScope:     domain.PersistedPortalScope(scope),
@@ -573,22 +584,24 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 	)
 	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		presented, err := s.sessions.findAccountSessionByToken(txCtx, claims.Token)
-		if err != nil {
+		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 			// An unknown token is a successful logout.
 			return nil
 		}
-		var deleteErr error
-		if presented.FamilyID == "" {
-			deleteErr = s.sessions.DeleteAccountSession(txCtx, presented.ID)
-			sessions = []domain.AccountSession{presented}
-		} else {
-			var family []identityaccess.AccountSession
-			family, deleteErr = s.sessions.RevokeAccountSessionFamily(txCtx, presented.FamilyID)
-			sessions = domainAccountSessions(family)
+		if err != nil {
+			return failed("find refresh token", err)
 		}
+		// The account lock refresh takes first (#5194): a rotation that
+		// committed its successor before this lock is granted is deleted
+		// with the family below, one that waits for it finds no token.
+		if _, _, _, err := findLoginAccount(txCtx, s.runtime, s.store, presented.AccountID, true); err != nil {
+			return failed("lock account", err)
+		}
+		revokedChain, deleteErr := s.revokeSessionChain(txCtx, presented)
 		if deleteErr != nil {
 			return failed("delete token family", deleteErr)
 		}
+		sessions = revokedChain
 		revoked = &presented
 		return nil
 	})

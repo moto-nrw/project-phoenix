@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { getChildCareOfferings, getChildCareSchedule } from "~/lib/parent-api";
@@ -127,6 +127,20 @@ beforeEach(() => {
 });
 
 describe("BookedCareSection", () => {
+  it("exposes one status while offerings and the care schedule load", async () => {
+    renderSection();
+
+    expect(screen.getAllByTestId("parent-page-section-skeleton")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+
+    // Anker: die gebuchte Betreuung ist geladen.
+    expect(await screen.findByText("Ganztag bis 16 Uhr")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("zeigt die gebuchte Betreuung mit Wochentagen", async () => {
     renderSection();
     expect(await screen.findByText("Ganztag bis 16 Uhr")).toBeInTheDocument();

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // WithAfterCommitHooks queues realtime side effects until the returned commit
@@ -45,6 +46,21 @@ func MintTestJWT(t testing.TB, claims sessiontoken.AppClaims) string {
 	token, err := tokenAuth.CreateJWT(claims)
 	require.NoError(t, err, "MintTestJWT: CreateJWT")
 	return token
+}
+
+// MintLiveSessionJWT mints an access token backed by a live refresh-token
+// family of its account and school. The production router refuses an access
+// token whose family is gone (#5194); tests that drive it need this one.
+func MintLiveSessionJWT(t testing.TB, db *bun.DB, claims sessiontoken.AppClaims) string {
+	t.Helper()
+	claims.TenantID = RebaseTenantID(t, claims.TenantID)
+	// Parent and caterer tokens name no school; their session row has one.
+	school := claims.TenantID
+	if school == 0 {
+		school = fixtureTenantID(t)
+	}
+	claims.FamilyID = CreateTestSessionFamily(t, db, int64(claims.ID), school, claims.Scope)
+	return MintTestJWT(t, claims)
 }
 
 // CreateTestJWT creates a valid JWT access token for the given account ID.

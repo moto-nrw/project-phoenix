@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.own_absence_allowances.list",
+  "max": 10,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET\n/api/time-tracking/absence-allowances (#4971): the tenant-transaction\nstatements, the three staff lookups behind the session, and ONE read each\nof the school's absence types, the caller's claims and the caller's\nabsences. Flat in the number of types with an allowance."
+}

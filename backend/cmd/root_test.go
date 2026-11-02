@@ -96,3 +96,20 @@ func TestPropagateDatabaseConfigFrom_PropagatesDemoRuntimeConfig(t *testing.T) {
 	assert.Equal(t, "postgres://phoenix_demo@localhost:5432/postgres?sslmode=disable", effective["DEMO_DB_DSN"])
 	assert.Equal(t, "demo-password", effective["PHOENIX_DEMO_PASSWORD"])
 }
+
+// TestPropagateDatabaseConfigFrom_PropagatesTheHealthDataKeyRing: the holiday
+// health migration reads HEALTH_DATA_KEYS from the process environment, so a
+// key ring set only in dev.env or a --config file reaches it too (#4722).
+func TestPropagateDatabaseConfigFrom_PropagatesTheHealthDataKeyRing(t *testing.T) {
+	t.Parallel()
+	config := viper.New()
+	config.Set("health_data_keys", "ring-from-config-file")
+	effective := make(map[string]string)
+
+	propagateDatabaseConfigFrom(config, func(key, value string) error {
+		effective[key] = value
+		return nil
+	})
+
+	assert.Equal(t, "ring-from-config-file", effective["HEALTH_DATA_KEYS"])
+}

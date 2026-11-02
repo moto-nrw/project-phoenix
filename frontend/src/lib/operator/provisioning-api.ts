@@ -39,7 +39,10 @@ import type {
   BackendSchoolPWAUsage,
   SchoolPWAUsage,
   AssignTraegerMemberRequest,
+  BackendOperatorCaterer,
+  InviteTraegerMemberRequest,
   BackendTraegerMember,
+  OperatorCaterer,
   TraegerMember,
   RecordTraegerErasureOrderRequest,
   TraegerErasureOrder,
@@ -59,6 +62,7 @@ import {
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
   mapTraegerMember,
+  mapOperatorCaterer,
   isBackendTraegerErasureOrder,
   mapTraegerErasureOrder,
   mapTestTraeger,
@@ -161,6 +165,14 @@ class OperatorProvisioningService {
     return data.map(mapOrgAccount);
   }
 
+  /** The caterers with the state of their two-factor sign-in (#4497). */
+  async listCaterers(): Promise<OperatorCaterer[]> {
+    const data = await operatorFetch<BackendOperatorCaterer[]>(
+      "/api/operator/caterers",
+    );
+    return data.map(mapOperatorCaterer);
+  }
+
   async listTraegerMembers(orgId: string): Promise<TraegerMember[]> {
     const data = await operatorFetch<BackendTraegerMember[]>(
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members`,
@@ -177,6 +189,20 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return mapTraegerMember(result);
+  }
+
+  /**
+   * Sends the Träger-Büro's invitation mail (#5144). The Träger-Büro sees
+   * it among its open invitations.
+   */
+  async inviteTraegerMember(
+    orgId: string,
+    data: InviteTraegerMemberRequest,
+  ): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations`,
+      { method: "POST", body: data },
+    );
   }
 
   async getTraegerErasureOrder(

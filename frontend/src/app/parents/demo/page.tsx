@@ -59,7 +59,6 @@ export default function ParentDemoEntryPage() {
           visit: { ...session.visit, schoolName: waited.schoolName },
         },
         demoEntryEvent(link),
-        "parent-credentials",
       );
       if (!started) return "failed";
       globalThis.location.assign("/");

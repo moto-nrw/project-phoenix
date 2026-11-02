@@ -23,6 +23,7 @@ type ResourceConfig struct {
 	ArrivalScheduleService       careplan.ArrivalScheduleService
 	Broadcaster                  realtime.Broadcaster
 	CareResumption               CareResumption
+	CareExitRestoration          CareExitRestoration
 	CareLifecycleService         careplan.CareLifecycle
 	CareRequestReviews           careplan.CareScheduleReviewQuery
 	CareRequestService           carerequests.Decisions
@@ -46,8 +47,10 @@ type ResourceConfig struct {
 	PickupScheduleService        careplan.PickupScheduleService
 	PickupSignatureProofs        PickupSignatureProofs
 	Reports                      ReportRenderer
+	Schools                      SchoolIdentity
 	SettingsService              TenantSettings
 	StudentAuditService          StudentChangeHistory
+	StudentAccidentReports       careplan.StudentAccidentReports
 	StudentConsents              StudentConsentCapability
 	StudentDocumentService       careplan.StudentDocuments
 	StudentPhotos                StudentPhotoLifecycle
@@ -78,6 +81,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}", rs.getCareScheduleChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}/proof", rs.getCareScheduleChangeRequestProof)
+	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests/course-waitlists", rs.listCourseWaitlists)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
@@ -125,11 +129,12 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 }
 
 func (rs *Resource) registerDocumentRoutes(r chi.Router, withTx common.Middleware) {
-	studentDocumentsGate := common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal)
+	studentDocumentsGate := common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal, permissions.StudentAccidentsRead, permissions.StudentAccidentsManage)
 	r.With(studentDocumentsGate, withTx).Get("/{id}/documents", rs.listStudentDocuments)
 	r.With(studentDocumentsGate).Post("/{id}/documents", rs.uploadStudentDocument)
 	r.With(studentDocumentsGate).Get("/{id}/documents/{documentId}/download", rs.downloadStudentDocument)
 	r.With(studentDocumentsGate, withTx).Delete("/{id}/documents/{documentId}", rs.deleteStudentDocument)
+	rs.registerAccidentReportRoutes(r)
 }
 
 func (rs *Resource) registerArrivalRoutes(r chi.Router, withTx common.Middleware) {

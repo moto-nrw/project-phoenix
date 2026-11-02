@@ -28,7 +28,11 @@ import (
 // holds as previousToken; when that token proves the SAME preview instance,
 // the new token inherits its preview id and NO second started event is
 // written.
-func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (_ *identityaccess.StaffPreviewSession, err error) {
+//
+// adminFamilyID is the refresh-token family of the admin's session. The
+// preview token carries it, so the preview lives only as long as that
+// family: the admin's logout ends the preview on the next request (#5194).
+func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, adminFamilyID, previousToken, ipAddress, userAgent string) (_ *identityaccess.StaffPreviewSession, err error) {
 	if l == nil {
 		return nil, errAccountLifecycleUnavailable
 	}
@@ -64,7 +68,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 		if err != nil {
 			return err
 		}
-		accessToken, previewID, isRemint, err = l.mintStaffPreview(txCtx, account, claims, previousToken, adminAccountID, tenantID, targetAccountID)
+		accessToken, previewID, isRemint, err = l.mintStaffPreview(txCtx, account, claims, previousToken, adminFamilyID, adminAccountID, tenantID, targetAccountID)
 		return err
 	})
 	if err != nil {
@@ -372,7 +376,7 @@ func (l *AccountLifecycle) staffPreviewIdentity(txCtx context.Context, tenantID,
 	return account, claims, nil
 }
 
-func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domain.LoginAccount, claims *domain.AccountClaimsPayload, previousToken string, adminAccountID, tenantID, targetAccountID int64) (accessToken, previewID string, isRemint bool, err error) {
+func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domain.LoginAccount, claims *domain.AccountClaimsPayload, previousToken, adminFamilyID string, adminAccountID, tenantID, targetAccountID int64) (accessToken, previewID string, isRemint bool, err error) {
 	const op = "start staff preview"
 	previewID, isRemint, err = l.continuedPreviewID(txCtx, previousToken, adminAccountID, tenantID, targetAccountID)
 	if err != nil {
@@ -390,7 +394,7 @@ func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domai
 		AccountID: account.ID, Email: account.Email, Username: claims.Username,
 		FirstName: claims.FirstName, LastName: claims.LastName,
 		Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
-		Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID,
+		Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID, FamilyID: adminFamilyID,
 		ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
 	})
 	if err != nil {

@@ -32,6 +32,8 @@ import {
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -389,7 +391,7 @@ export function CarePlanEditorModal({
               {parentAuthored ? (
                 <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
                   <MotoConceptIcon
-                    concept="parents"
+                    concept={parentsConcept}
                     size={18}
                     className="mt-0.5"
                   />
@@ -422,7 +424,7 @@ export function CarePlanEditorModal({
                 />
                 <LegSection
                   label="Abholung"
-                  icon={<MotoConceptIcon concept="pickup" size={18} />}
+                  icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                   regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
                   mode={pickupMode}
                   onModeChange={(mode) => setPickupMode(mode as PickupMode)}
@@ -441,7 +443,7 @@ export function CarePlanEditorModal({
               </div>
               <LegSection
                 label="Abholart"
-                icon={<MotoConceptIcon concept="pickup" size={18} />}
+                icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                 regularLabel={`Regulär: ${formatRegularDeparture(pickupDay, weeklyDepartureModes)}`}
                 mode={departureMode}
                 onModeChange={setDepartureMode}
@@ -632,12 +634,12 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Uhrzeit
           </span>
-          <input
+          <Input
             id={timeId}
+            controlSize="compact"
             type="time"
             value={time}
             onChange={(event) => onTimeChange(event.target.value)}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
           />
         </label>
       ) : null}
@@ -650,13 +652,13 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Grund
           </span>
-          <input
+          <Input
             id={reasonId}
+            controlSize="compact"
             type="text"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             maxLength={255}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
             placeholder="Optional"
           />
         </label>

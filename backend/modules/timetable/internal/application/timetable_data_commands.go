@@ -158,9 +158,9 @@ func (d *timetableCommands) ListTemplateEntriesForTemplatePeriod(ctx context.Con
 	return
 }
 
-func (d *timetableCommands) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) (value0 []timetable.TemplateListEntry, err error) {
+func (d *timetableCommands) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *timetable.TemplateScheduleWindow) (value0 []timetable.TemplateListEntry, err error) {
 	err = d.commands.deps.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = d.commands.ListTemplateEntriesForPeriod(txCtx, periodID, childrenPerStaffRatio)
+		value0, err = d.commands.ListTemplateEntriesForPeriod(txCtx, periodID, childrenPerStaffRatio, window)
 		return err
 	})
 	return

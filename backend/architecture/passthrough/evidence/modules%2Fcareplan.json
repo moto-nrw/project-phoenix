@@ -1,0 +1,1362 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s *ArrivalSchedule) InheritsClassTime() bool {\n\treturn s.ExpectedArrival.IsZero()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/ArrivalSchedule.InheritsClassTime",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *InvalidInputError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/InvalidInputError.Error",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OfferingBookings) LockCareOfferingBookings(ctx context.Context, childIDs []int64) (err error) {\n\tstarted := time.Now()\n\tdefer func() {\n\t\tm.observe(\"lock\", \"command\", started, int64(len(childIDs)), -1, err)\n\t}()\n\treturn m.engine.LockCareOfferingBookings(ctx, childIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/OfferingBookings.LockCareOfferingBookings",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *PickupBaselineProjection) AllowsPickupForWeekday(studentID int64, planDate calendar.Date, weekday int) bool {\n\treturn p == nil || !p.BookingsAuthoritative || p.CareDays.Covers(studentID, planDate, weekday)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/PickupBaselineProjection.AllowsPickupForWeekday",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s ReviewStudent) CareEndedOn(day Date) bool {\n\treturn !s.EnrolledUntil.IsZero() \u0026\u0026 day.After(s.EnrolledUntil)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/ReviewStudent.CareEndedOn",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r ArrivalExceptionRecords) FindByStudentID(ctx context.Context, id int64) ([]*careplan.ArrivalException, error) {\n\tvalues, err := r.records.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}})\n\treturn fixtureRecordPointers(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/ArrivalExceptionRecords.FindByStudentID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r ArrivalRecords) FindByStudentID(ctx context.Context, id int64) ([]*careplan.ArrivalSchedule, error) {\n\tvalues, err := r.records.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}})\n\treturn fixtureRecordPointers(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/ArrivalRecords.FindByStudentID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r PickupExceptionRecords) Create(ctx context.Context, row *careplan.PickupException) error {\n\tif row == nil {\n\t\treturn fmt.Errorf(\"StudentPickupException cannot be nil or zero value\")\n\t}\n\tvalue, err := r.records.CreatePickupException(ctx, *row)\n\tif err == nil {\n\t\t*row = value\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/PickupExceptionRecords.Create",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r PickupExceptionRecords) FindByID(ctx context.Context, raw any) (*careplan.PickupException, error) {\n\tid, err := fixtureRecordID(raw)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalue, err := r.records.FindPickupException(ctx, id, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026value, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/PickupExceptionRecords.FindByID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r PickupRecords) FindByStudentID(ctx context.Context, id int64) ([]*careplan.PickupSchedule, error) {\n\tvalues, err := r.records.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}})\n\treturn fixtureRecordPointers(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/PickupRecords.FindByStudentID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r PickupRecords) UpsertSchedule(ctx context.Context, row *careplan.PickupSchedule) error {\n\tif row == nil {\n\t\treturn fmt.Errorf(\"schedule cannot be nil\")\n\t}\n\tvalue, err := r.records.UpsertPickupSchedule(ctx, *row)\n\tif err == nil {\n\t\t*row = value\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/PickupRecords.UpsertSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r RequestRecords) Create(ctx context.Context, row *careplan.CareScheduleChangeRequest) error {\n\tif row == nil {\n\t\treturn fmt.Errorf(\"CareScheduleChangeRequest cannot be nil or zero value\")\n\t}\n\tvalue, err := r.records.CreateCareScheduleRequest(ctx, *row)\n\tif err == nil {\n\t\t*row = value\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/RequestRecords.Create",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r RequestRecords) Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error {\n\treturn r.records.DecideCareScheduleRequest(ctx, careplan.CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: reviewedBy, Applied: applied})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/RequestRecords.Decide",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r RequestRecords) FindByID(ctx context.Context, raw any) (*careplan.CareScheduleChangeRequest, error) {\n\tid, err := fixtureRecordID(raw)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalue, err := r.records.FindCareScheduleRequest(ctx, id, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026value, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/RequestRecords.FindByID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (d statusStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {\n\treturn d.care.ClearStudentStatusFlags(ctx, ids, status)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ClearStudentStatusFlags",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (d statusStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]carePlanCompose.StatusStudent, error) {\n\tvalues, err := d.students.ListEnrolledStudents(ctx)\n\treturn statusStudents(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ListEnrolledStudents",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (d statusStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]carePlanCompose.StatusStudent, error) {\n\tvalues, err := d.flags.ListStudentsWithStatusFlag(ctx, status)\n\treturn statusStudents(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ListStudentsWithStatusFlag",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (d statusStudentDirectory) LockStudent(ctx context.Context, id int64) error {\n\treturn d.students.LockStudent(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.LockStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (n studentNames) ListStudentNamesByID(ctx context.Context, ids []int64) ([]carePlanPorts.StudentName, error) {\n\tvalues, err := n.students.ListStudentNamesByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]carePlanPorts.StudentName, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, carePlanPorts.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/careplantest/studentNames.ListStudentNamesByID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r ParentPortalRepositories) WithSchools(schools carePlanBindingPorts.ParentPortalSchools) ParentPortalRepositories {\n\treturn ParentPortalRepositories{ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(schools)}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/compose/ParentPortalRepositories.WithSchools",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {\n\treturn r.commands.BackfillGuardianAccountID(ctx, accountID, email)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/internal/adapters/parentpostgres/EnrollmentRequestRepository.BackfillGuardianAccountID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d ParentGuardianDirectory) ListGuardianLinksByAccount(ctx context.Context, accountID int64) ([]DirectoryGuardianLink, error) {\n\tlinks, err := d.Directory.ListParentPortalGuardianLinks(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]DirectoryGuardianLink, 0, len(links))\n\tfor _, link := range links {\n\t\tresult = append(result, DirectoryGuardianLink(link))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/parentpostgres/ParentGuardianDirectory.ListGuardianLinksByAccount",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d ParentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]DirectoryStudent, error) {\n\tstudents, err := d.Directory.ListParentPortalStudents(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]DirectoryStudent, 0, len(students))\n\tfor _, student := range students {\n\t\tresult = append(result, DirectoryStudent{ID: student.ID, TenantID: student.TenantID, PersonID: student.PersonID, SchoolClass: student.SchoolClass, Status: student.Status, EnrolledFrom: student.EnrolledFrom.String(), EnrolledUntil: student.EnrolledUntil.String()})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/parentpostgres/ParentStudentDirectory.ListStudentsByID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DirectoryStore) LockCareExitPeople(ctx context.Context, studentIDs []int64) error {\n\tdb, tenantID, err := s.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.directory.LockCareExitPeople(ctx, db, tenantID, studentIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/DirectoryStore.LockCareExitPeople",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GuardianPickupPermissions) ChangeGuardianPickupPermission(ctx context.Context, change careplan.GuardianPickupPermissionChange) (bool, error) {\n\tstarted := time.Now()\n\tfound, stats, err := p.Store.ChangeGuardianPickupPermission(ctx, change)\n\tp.Observe(ports.Observation{Operation: \"change_guardian_pickup_permission\", Duration: time.Since(started), Stats: stats, Err: err})\n\treturn found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.ChangeGuardianPickupPermission",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GuardianPickupPermissions) CreateGuardianPickupPermission(ctx context.Context, permission careplan.GuardianPickupPermission) error {\n\tstarted := time.Now()\n\tstats, err := p.Store.CreateGuardianPickupPermission(ctx, permission)\n\tp.Observe(ports.Observation{Operation: \"create_guardian_pickup_permission\", Duration: time.Since(started), Stats: stats, Err: err})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.CreateGuardianPickupPermission",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q parentChildQueries) FindForAccount(ctx context.Context, accountID, studentID int64) (*careplan.ParentPortalChild, error) {\n\trow, err := q.source.FindForAccount(ctx, accountID, studentID)\n\treturn q.child(row), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.FindForAccount",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q parentChildQueries) ListByAccount(ctx context.Context, accountID int64) ([]*careplan.ParentPortalChild, error) {\n\trows, err := q.source.ListByAccount(ctx, accountID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]*careplan.ParentPortalChild, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = q.child(row)\n\t}\n\treturn out, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.ListByAccount",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q parentPhaseQueries) GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*careplan.ParentPortalSubmitStatus, error) {\n\trow, err := q.source.GuardianSubmitStatus(ctx, accountID, tenantID)\n\tif row == nil {\n\t\treturn nil, err\n\t}\n\tout := careplan.ParentPortalSubmitStatus(*row)\n\treturn \u0026out, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/parentPhaseQueries.GuardianSubmitStatus",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, carePlanCompose.RequestStoreStats, error) {\n\tstudents, err := s.students.ListEnrolledStudents(ctx)\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, carePlanCompose.RequestStoreStats{}, err\n\t}\n\trows, stats, err := s.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{Date: date, ActiveOnly: true})\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, stats, err\n\t}\n\treturn countEffectiveStudentAbsences(students, statusDayFlagsByStudent(rows)), stats, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/statusDayStore.CountEffectiveStudentAbsences",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *ClassArrivalExceptions) ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to calendar.Date) ([]*careplan.ClassArrivalException, error) {\n\tif s.store == nil {\n\t\treturn nil, \u0026careplan.ScheduleError{Op: opListClassArrivalExceptions, Err: careplan.ErrClassArrivalExceptionNotConfigured}\n\t}\n\tclass := strings.TrimSpace(schoolClass)\n\tif class == \"\" {\n\t\treturn []*careplan.ClassArrivalException{}, nil\n\t}\n\trows, err := s.store.List(ctx, []string{class}, calendar.Date(from), calendar.Date(to))\n\tif err != nil {\n\t\treturn nil, \u0026careplan.ScheduleError{Op: opListClassArrivalExceptions, Err: err}\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ClassArrivalExceptions.ListClassArrivalExceptions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r CompanionEdges) CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error) {\n\tstarted := time.Now()\n\tcovered, stats, err := r.store.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)\n\tr.observeCompanions(\"companion_days_covered_excluding\", started, stats, err)\n\treturn covered, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/CompanionEdges.CompanionDaysCoveredExcluding",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r CompanionEdges) DeleteCompanionEdges(ctx context.Context, edgeIDs []int64) error {\n\tstarted := time.Now()\n\tstats, err := r.store.DeleteCompanionEdges(ctx, edgeIDs)\n\tr.observeCompanions(\"delete_companion_edges\", started, stats, err)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/CompanionEdges.DeleteCompanionEdges",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r CompanionEdges) ListCompanionEdges(ctx context.Context, studentID int64) ([]careplan.CompanionEdge, error) {\n\tstarted := time.Now()\n\tvalues, stats, err := r.store.ListCompanionEdges(ctx, studentID)\n\tr.observeCompanions(\"list_companion_edges\", started, stats, err)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.CompanionEdge, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, careplan.CompanionEdge(value))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/CompanionEdges.ListCompanionEdges",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *Companions) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {\n\tif _, ok := domain.CompanionWeekdayKey(weekday); !ok {\n\t\treturn nil, careplan.ErrCompanionInvalidWeekday\n\t}\n\tids, err := c.records.CompanionIDsForWeekday(ctx, studentIDs, weekday)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"care plan companions: list companions for weekday: %w\", err)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Companions.CompanionIDsForWeekday",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *Companions) ListCompanionsForStudents(ctx context.Context, studentIDs []int64) (map[int64][]careplan.CompanionLink, error) {\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64][]careplan.CompanionLink{}, nil\n\t}\n\tlinks, err := c.records.ListCompanionLinks(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"care plan companions: list student companions: %w\", err)\n\t}\n\treturn links, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Companions.ListCompanionsForStudents",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *Companions) LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error {\n\tfor _, id := range domain.DedupeSortedIDs(ids) {\n\t\tif err := c.students.LockCompanionStudent(ctx, id, id \u003c maxHeldID); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Companions.LockStudentsForUpdateBelow",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r DocumentFileRecords) ActivateQueuedCleanup(ctx context.Context, storedName string) error {\n\treturn r.Records.ActivateCareDocumentCleanup(ctx, storedName)\n}",
+      "form": "adr0075-named-exception",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.ActivateQueuedCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r DocumentFileRecords) MarkFileDeleted(ctx context.Context, documentID int64) error {\n\treturn r.Records.MarkCareDocumentFileDeleted(ctx, documentID)\n}",
+      "form": "adr0075-named-exception",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.MarkFileDeleted",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r DocumentFileRecords) MarkQueuedCleanupCompleteByFilename(ctx context.Context, storedName string) error {\n\treturn r.Records.CompleteCareDocumentCleanupByFilename(ctx, storedName)\n}",
+      "form": "adr0075-named-exception",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.MarkQueuedCleanupCompleteByFilename",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error {\n\treturn ExcusedParentRequestError(p.Requests.ApproveExcusedBulk(ctx, requestID, reason, reviewerID, expectedVersion))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.ApproveExcusedBulk",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) ConflictCandidate(ctx context.Context, requestID int64) (*ports.ConflictCandidate, error) {\n\tcandidate, err := p.Requests.ConflictCandidate(ctx, requestID)\n\tif err != nil {\n\t\treturn nil, ExcusedParentRequestError(err)\n\t}\n\treturn \u0026ports.ConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.ConflictCandidate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) DecideConflictRequest(ctx context.Context, decision ports.ConflictDecision) error {\n\treturn ExcusedParentRequestError(p.Requests.DecideConflictRequest(ctx, careplan.ExcusedConflictDecision{RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason, ReviewerID: decision.ReviewerID, ExpectedVersion: decision.ExpectedVersion}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.DecideConflictRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ports.ExcusedBulkCandidate, error) {\n\tcandidate, err := p.Requests.GetExcusedBulkCandidate(ctx, requestID)\n\tif err != nil || candidate == nil {\n\t\treturn nil, ExcusedParentRequestError(err)\n\t}\n\treturn \u0026ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.GetExcusedBulkCandidate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) LockConflictRequest(ctx context.Context, requestID int64) error {\n\treturn ExcusedParentRequestError(p.Requests.LockConflictRequest(ctx, requestID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.LockConflictRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {\n\treturn ExcusedParentRequestError(p.Requests.LockExcusedBulkRequest(ctx, requestID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.LockExcusedBulkRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ExcusedParentRequests) WriteStaffValue(ctx context.Context, write ports.StaffValueWrite) error {\n\tstatus, ok := write.Value[\"value\"].(string)\n\tif !ok {\n\t\treturn careplan.ErrAbsenceRequestInvalidStatus\n\t}\n\treturn ExcusedParentRequestError(p.Requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.WriteStaffValue",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *ExcusedRequests) ConflictCandidate(ctx context.Context, requestID int64) (*careplan.ExcusedConflictCandidate, error) {\n\treq, err := w.carePlan.FindExcusedAbsenceRequest(ctx, requestID, false)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif req.Status != careplan.ExcusedRequestStatusPending {\n\t\treturn nil, careplan.ErrExcusedRequestNotPending\n\t}\n\treturn \u0026careplan.ExcusedConflictCandidate{StudentID: req.StudentID, UpdatedAt: req.UpdatedAt}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedRequests.ConflictCandidate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *ExcusedRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {\n\tif _, err := w.lockRequestChild(ctx, requestID); err != nil {\n\t\treturn err\n\t}\n\t_, err := w.carePlan.FindPendingExcusedAbsenceRequest(ctx, requestID)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ExcusedRequests.LockExcusedBulkRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l ParentChildLinks) ListByAccount(ctx context.Context, accountID int64) ([]carePlanBindingPorts.ParentChildLink, error) {\n\tchildren, err := l.Children.ListByAccount(ctx, accountID)\n\tif children == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]carePlanBindingPorts.ParentChildLink, 0, len(children))\n\tfor _, child := range children {\n\t\tresult = append(result, carePlanBindingPorts.ParentChildLink{StudentID: child.StudentID, GuardianProfileID: child.GuardianProfileID, TenantID: child.TenantID, SchoolName: child.SchoolName})\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/ParentChildLinks.ListByAccount",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *PickupAutoExcusalSyncer) DetachForDate(ctx context.Context, studentID int64, date calendar.Date) error {\n\trow, err := s.pickups.FindByStudentIDAndDate(ctx, studentID, date)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"auto excusal: load pickup exception for detach: %w\", err)\n\t}\n\treturn s.DetachRow(ctx, row)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/PickupAutoExcusalSyncer.DetachForDate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *PickupAutoExcusalSyncer) ReleaseBeforeDelete(ctx context.Context, row *careplan.PickupException) error {\n\tif row == nil || !row.ExcusedAuto {\n\t\treturn nil\n\t}\n\tif _, err := s.slots.ReleasePartialAbsence(ctx, row.ID); err != nil {\n\t\treturn fmt.Errorf(\"auto excusal: release blocks for exception %d: %w\", row.ID, err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/PickupAutoExcusalSyncer.ReleaseBeforeDelete",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RequestConflicts) DecideConflictRequest(ctx context.Context, input carerequests.DecideInput) error {\n\tinput.RequireImpactToken = false\n\t_, err := s.Decisions.Decide(ctx, input)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/RequestConflicts.DecideConflictRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r SchoolChildRepository) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {\n\tchild, err := r.ChildRepository.FindForAccount(ctx, accountID, studentID)\n\tif err != nil || child == nil {\n\t\treturn child, err\n\t}\n\tif err := EnrichChildrenWithSchools(ctx, r.schools, []*parentModels.ChildSummary{child}); err != nil {\n\t\treturn nil, err\n\t}\n\treturn child, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/SchoolChildRepository.FindForAccount",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ActivateCareDocumentCleanup(ctx context.Context, filename string) error {\n\tif strings.TrimSpace(filename) == \"\" {\n\t\treturn invalid(careplan.ErrInvalidCareDocument, \"stored filename is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"activate_care_document_cleanup\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.ActivateCareDocumentCleanup(ctx, filename)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ActivateCareDocumentCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, error) {\n\treturn requestCommandValue(s, ctx, \"archive_student_status_flags\", func(txCtx context.Context) (int64, domain.OperationStats, error) {\n\t\treturn s.statusDays.ArchiveStudentStatusFlags(txCtx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ArchiveStudentStatusFlags",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_day_by_id\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDayByID(txCtx, id, clearedAt, source)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ClearStudentStatusDayByID",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_days\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDays(txCtx, studentID, status, dates, clearedAt, source)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ClearStudentStatusDays",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CloseOpenCareRequests(ctx context.Context, studentIDs []int64, reason string, reviewedBy *int64, at time.Time) (int64, error) {\n\tids := uniquePositive(studentIDs)\n\tif len(ids) == 0 {\n\t\treturn 0, nil\n\t}\n\treturn requestCommandValue(s, ctx, \"close_open_care_requests\", func(txCtx context.Context) (int64, domain.OperationStats, error) {\n\t\treturn s.requests.CloseOpenCareRequests(txCtx, ids, reason, reviewedBy, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CloseOpenCareRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error) {\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"count_companions_excluding\", func(ctx context.Context) (map[int64]int, domain.OperationStats, error) {\n\t\treturn s.store.CompanionCountsExcluding(ctx, studentIDs, excludeID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompanionCountsExcluding",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error) {\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"list_companion_days_excluding\", func(ctx context.Context) (map[int64]map[string]bool, domain.OperationStats, error) {\n\t\treturn s.store.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompanionDaysCoveredExcluding",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {\n\tif weekday \u003c 1 || weekday \u003e 5 {\n\t\treturn nil, invalid(careplan.ErrInvalidCompanion, \"companion weekday must be between 1 and 5\")\n\t}\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"list_companion_group\", func(ctx context.Context) (map[int64][]int64, domain.OperationStats, error) {\n\t\treturn s.store.CompanionIDsForWeekday(ctx, studentIDs, weekday)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompanionIDsForWeekday",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error) {\n\tif studentID \u003c= 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCompanion, \"student ID is required\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_companion_weekdays\", func(ctx context.Context) ([]int, domain.OperationStats, error) {\n\t\treturn s.store.CompanionWeekdays(ctx, studentID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompanionWeekdays",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompleteCareDocumentCleanup(ctx context.Context, cleanupID int64) error {\n\tif cleanupID \u003c= 0 {\n\t\treturn invalid(careplan.ErrInvalidCareDocument, \"cleanup ID is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"complete_care_document_cleanup\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.CompleteCareDocumentCleanup(ctx, cleanupID)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompleteCareDocumentCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompleteCareDocumentCleanupByFilename(ctx context.Context, filename string) error {\n\tif strings.TrimSpace(filename) == \"\" {\n\t\treturn invalid(careplan.ErrInvalidCareDocument, \"stored filename is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"complete_care_document_cleanup_by_filename\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.CompleteCareDocumentCleanupByFilename(ctx, filename)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CompleteCareDocumentCleanupByFilename",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountCareOfferingsByPhase(ctx context.Context, phaseID int64) (result int, err error) {\n\tif phaseID \u003c= 0 {\n\t\treturn 0, invalid(careplan.ErrInvalidCareOffering, \"phase ID is required\")\n\t}\n\terr = s.run(ctx, \"count_care_offerings_by_phase\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CountCareOfferingsByPhase(ctx, phaseID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountCareOfferingsByPhase",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (careplan.CarePlanDeletionCounts, error) {\n\treturn requestValue(ctx, s, \"count_care_plan_deletion_records\", func(ctx context.Context) (careplan.CarePlanDeletionCounts, domain.OperationStats, error) {\n\t\treturn s.statusDays.CountCarePlanDeletionRecords(ctx, studentID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountCarePlanDeletionRecords",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountCompanionLinks(ctx context.Context, studentID int64) (int, error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalid(careplan.ErrInvalidCompanion, \"student ID is required\")\n\t}\n\tvalue, err := runValue(ctx, s, \"count_companion_links\", func(ctx context.Context) (int, domain.OperationStats, error) {\n\t\treturn s.store.CountCompanionLinks(ctx, studentID)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountCompanionLinks",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, error) {\n\treturn requestValue(ctx, s, \"count_effective_student_absences\", func(ctx context.Context) (careplan.StudentStatusCounts, domain.OperationStats, error) {\n\t\treturn s.statusDays.CountEffectiveStudentAbsences(ctx, date)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountEffectiveStudentAbsences",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountOpenCareRequests(ctx context.Context, studentIDs []int64) (map[int64]int, error) {\n\tids := uniquePositive(studentIDs)\n\tif len(ids) == 0 {\n\t\treturn map[int64]int{}, nil\n\t}\n\treturn requestValue(ctx, s, \"count_open_care_requests\", func(ctx context.Context) (map[int64]int, domain.OperationStats, error) {\n\t\treturn s.requests.CountOpenCareRequests(ctx, ids)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountOpenCareRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalid(careplan.ErrInvalidStudentSchedule, \"student ID is required\")\n\t}\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) (int, domain.OperationStats, error) {\n\t\treturn s.statusQueries.CountStudentScheduleRows(txCtx, studentID)\n\t})\n\ts.observeRequest(\"count_student_schedule_rows\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountStudentScheduleRows",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentStatusDays(ctx context.Context, options *careplan.StudentScheduleQueryOptions) (int, error) {\n\treturn requestValue(ctx, s, \"count_student_status_days\", func(ctx context.Context) (int, domain.OperationStats, error) {\n\t\treturn s.statusDays.CountStudentStatusDays(ctx, options)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CountStudentStatusDays",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateCareDocument(ctx context.Context, value careplan.CareDocument) (result careplan.CareDocument, err error) {\n\tif err := careplan.ValidateCareDocument(value); err != nil {\n\t\treturn careplan.CareDocument{}, err\n\t}\n\terr = s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\tresult, err = runValue(txCtx, s, \"create_care_document\", func(ctx context.Context) (domain.CareDocument, domain.OperationStats, error) {\n\t\t\treturn s.store.CreateCareDocument(ctx, value)\n\t\t})\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CreateCareDocument",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateCareScheduleRequest(ctx context.Context, value careplan.CareScheduleChangeRequest) (careplan.CareScheduleChangeRequest, error) {\n\treturn requestCommandValue(s, ctx, \"create_care_schedule_request\", func(txCtx context.Context) (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.CreateCareScheduleRequest(txCtx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CreateCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateExcusedAbsenceRequest(ctx context.Context, value careplan.ExcusedAbsenceRequest) (careplan.ExcusedAbsenceRequest, error) {\n\treturn requestCommandValue(s, ctx, \"create_excused_absence_request\", func(txCtx context.Context) (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {\n\t\treturn s.requests.CreateExcusedAbsenceRequest(txCtx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CreateExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateStudentDataRequest(ctx context.Context, value careplan.StudentDataChangeRequest) (careplan.StudentDataChangeRequest, error) {\n\treturn requestCommandValue(s, ctx, \"create_student_data_request\", func(txCtx context.Context) (careplan.StudentDataChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.CreateStudentDataRequest(txCtx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.CreateStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DecideCareScheduleRequest(ctx context.Context, value careplan.CareScheduleRequestDecision) error {\n\treturn requestCommand(s, ctx, \"decide_care_schedule_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideCareScheduleRequest(txCtx, value, false)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DecideCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DecideExcusedAbsenceRequest(ctx context.Context, value careplan.ExcusedAbsenceDecision) error {\n\treturn requestCommand(s, ctx, \"decide_excused_absence_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideExcusedAbsenceRequest(txCtx, value, false)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DecideExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DecideOfferingChange(ctx context.Context, input careplan.DecideOfferingChange) error {\n\tif input.ID \u003c= 0 || !terminalOfferingChangeStatus(input.Status) {\n\t\treturn invalid(careplan.ErrInvalidOfferingChange, \"offering change request ID and terminal status are required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.run(txCtx, \"decide_offering_change\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tqueryStats, err := s.store.DecideOfferingChange(ctx, input)\n\t\t\tstats.Add(queryStats)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DecideOfferingChange",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DecideStudentDataRequest(ctx context.Context, value careplan.StudentDataRequestDecision) error {\n\treturn requestCommand(s, ctx, \"decide_student_data_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideStudentDataRequest(txCtx, value, false)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DecideStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalException(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_exception\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalException(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalException",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_exceptions_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalExceptionsByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalExceptionsByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalNote(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_note\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalNote(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalNote",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalNotesByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_notes_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalNotesByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalNotesByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalSchedule(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_schedule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalSchedule(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteArrivalSchedulesByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_arrival_schedules_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeleteArrivalSchedulesByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalSchedulesByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCareExits(ctx context.Context, studentIDs []int64) error {\n\tstudentIDs = uniquePositive(studentIDs)\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"delete_care_exits\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.DeleteCareExits(ctx, studentIDs)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteCareExits",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCareOffering(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(careplan.ErrInvalidCareOffering, \"care offering ID is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.run(txCtx, \"delete_care_offering\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tqueryStats, err := s.store.DeleteCareOffering(ctx, id)\n\t\t\tstats.Add(queryStats)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteCareOffering",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCompanionEdges(ctx context.Context, edgeIDs []int64) error {\n\tedgeIDs = uniquePositive(edgeIDs)\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"delete_companion_edges\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.DeleteCompanionEdges(ctx, edgeIDs)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteCompanionEdges",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExpiredStudentStatusDays(ctx context.Context, retentionDays int) (int, error) {\n\tif retentionDays \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"%w, got %d\", careplan.ErrStatusDayRetentionWindow, retentionDays)\n\t}\n\tcutoff := careplan.Date(calendar.TodayDate().AddDays(-retentionDays))\n\treturn requestCommandValue(s, ctx, \"delete_expired_student_status_days\", func(txCtx context.Context) (int, domain.OperationStats, error) {\n\t\tdeleted, stats, err := s.statusDays.DeleteStudentStatusDaysBefore(txCtx, cutoff)\n\t\treturn int(deleted), stats, err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeleteExpiredStudentStatusDays",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupException(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_exception\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupException(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupException",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupExceptionsByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_exceptions_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupExceptionsByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupExceptionsByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupNote(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_note\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupNote(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupNote",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupNotesByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_notes_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupNotesByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupNotesByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupSchedule(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_schedule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupSchedule(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePickupSchedulesByStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"delete_pickup_schedules_by_student\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.DeletePickupSchedulesByStudent(ctx, id)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DeletePickupSchedulesByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DiscardCareExitRemovals(ctx context.Context, studentIDs []int64) error {\n\tstudentIDs = uniquePositive(studentIDs)\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"discard_care_exit_removals\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.DiscardCareExitRemovals(ctx, studentIDs)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.DiscardCareExitRemovals",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ExistingStudentStatusDayIDs(ctx context.Context, ids []int64) ([]int64, error) {\n\tids = uniquePositive(ids)\n\treturn requestValue(ctx, s, \"existing_student_status_day_ids\", func(ctx context.Context) ([]int64, domain.OperationStats, error) {\n\t\treturn s.statusDays.ExistingStudentStatusDayIDs(ctx, ids)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ExistingStudentStatusDayIDs",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindCareExits(ctx context.Context, studentIDs []int64) (map[int64]careplan.CareExit, error) {\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"find_care_exits\", func(ctx context.Context) (map[int64]domain.CareExit, domain.OperationStats, error) {\n\t\treturn s.store.FindCareExits(ctx, studentIDs)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindCareExits",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {\n\treturn requestValue(ctx, s, \"find_care_schedule_request\", func(ctx context.Context) (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {\n\t\tvalue, found, stats, findErr := s.requests.FindCareScheduleRequest(ctx, id, lock)\n\t\tif findErr == nil \u0026\u0026 !found {\n\t\t\tfindErr = careplan.ErrCareScheduleRequestNotFound\n\t\t}\n\t\treturn value, stats, findErr\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindExcusedAbsenceRequest(ctx context.Context, id int64, lock bool) (careplan.ExcusedAbsenceRequest, error) {\n\tvalue, err := requestValue(ctx, s, \"find_excused_absence_request\", func(ctx context.Context) (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {\n\t\tvalue, found, stats, findErr := s.requests.FindExcusedAbsenceRequest(ctx, id, lock)\n\t\tif findErr == nil \u0026\u0026 !found {\n\t\t\tfindErr = careplan.ErrExcusedRequestNotFound\n\t\t}\n\t\treturn value, stats, findErr\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindPendingCareScheduleRequest(ctx context.Context, id int64) (careplan.CareScheduleChangeRequest, error) {\n\treturn requestValue(ctx, s, \"find_pending_care_schedule_request\", func(ctx context.Context) (careplan.CareScheduleChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.FindPendingCareScheduleRequest(ctx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindPendingCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindPendingExcusedAbsenceRequest(ctx context.Context, id int64) (careplan.ExcusedAbsenceRequest, error) {\n\treturn requestValue(ctx, s, \"find_pending_excused_absence_request\", func(ctx context.Context) (careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {\n\t\treturn s.requests.FindPendingExcusedAbsenceRequest(ctx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindPendingExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindPendingStudentDataRequest(ctx context.Context, id int64) (careplan.StudentDataChangeRequest, error) {\n\treturn requestValue(ctx, s, \"find_pending_student_data_request\", func(ctx context.Context) (careplan.StudentDataChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.FindPendingStudentDataRequest(ctx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindPendingStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindPendingWithdrawalStudent(ctx context.Context, completionID int64, lock bool) (int64, error) {\n\tif completionID \u003c= 0 {\n\t\treturn 0, careplan.ErrWithdrawalNotFound\n\t}\n\tvalue, err := runValue(ctx, s, \"find_pending_withdrawal_student\", func(ctx context.Context) (int64, domain.OperationStats, error) {\n\t\treturn s.store.FindPendingWithdrawalStudent(ctx, completionID, lock)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindPendingWithdrawalStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentDataRequest(ctx context.Context, id int64, lock bool) (careplan.StudentDataChangeRequest, error) {\n\treturn requestValue(ctx, s, \"find_student_data_request\", func(ctx context.Context) (careplan.StudentDataChangeRequest, domain.OperationStats, error) {\n\t\tvalue, found, stats, findErr := s.requests.FindStudentDataRequest(ctx, id, lock)\n\t\tif findErr == nil \u0026\u0026 !found {\n\t\t\tfindErr = careplan.ErrStudentDataRequestNotFound\n\t\t}\n\t\treturn value, stats, findErr\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, error) {\n\treturn requestValue(ctx, s, \"find_student_status_day\", func(ctx context.Context) (careplan.StudentStatusDay, domain.OperationStats, error) {\n\t\tvalue, found, stats, err := s.statusQueries.FindStudentStatusDay(ctx, id, activeOnly)\n\t\tif err == nil \u0026\u0026 !found {\n\t\t\terr = careplan.ErrStudentStatusDayNotFound\n\t\t}\n\t\treturn value, stats, err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindStudentStatusDay",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindWithdrawalCompletion(ctx context.Context, id int64, lock bool) (careplan.WithdrawalCompletion, error) {\n\tvalue, err := runValue(ctx, s, \"find_withdrawal_completion\", func(ctx context.Context) (domain.WithdrawalCompletion, domain.OperationStats, error) {\n\t\tvalue, found, stats, err := s.store.FindWithdrawalCompletion(ctx, id, lock)\n\t\tif err == nil \u0026\u0026 !found {\n\t\t\terr = careplan.ErrWithdrawalNotFound\n\t\t}\n\t\treturn value, stats, err\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.FindWithdrawalCompletion",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasPendingStudentDataRequest(ctx context.Context, studentID int64, target, field string) (bool, error) {\n\treturn requestValue(ctx, s, \"has_pending_student_data_request\", func(ctx context.Context) (bool, domain.OperationStats, error) {\n\t\treturn s.requests.HasPendingStudentDataRequest(ctx, studentID, target, field)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.HasPendingStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListArrivalExceptions(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalException, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListArrivalExceptions(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_arrival_exceptions\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListArrivalExceptions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListArrivalNotes(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.ArrivalNote, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalNote, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListArrivalNotes(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_arrival_notes\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListArrivalNotes",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListArrivalSchedules(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.ArrivalSchedule, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.ArrivalSchedule, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListArrivalSchedules(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_arrival_schedules\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListArrivalSchedules",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCareDocumentCleanups(ctx context.Context, studentID *int64) ([]careplan.CareDocumentCleanup, error) {\n\tif studentID != nil \u0026\u0026 *studentID \u003c= 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCareDocument, \"student ID is invalid\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_care_document_cleanups\", func(ctx context.Context) ([]domain.CareDocumentCleanup, domain.OperationStats, error) {\n\t\treturn s.store.ListCareDocumentCleanups(ctx, studentID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCareDocumentCleanups",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCareDocuments(ctx context.Context, studentID int64, categories []string) ([]careplan.CareDocument, error) {\n\tif studentID \u003c= 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCareDocument, \"student ID is required\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_care_documents\", func(ctx context.Context) ([]domain.CareDocument, domain.OperationStats, error) {\n\t\treturn s.store.ListCareDocuments(ctx, studentID, categories)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCareDocuments",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitRemoval, error) {\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"list_care_exit_removals\", func(ctx context.Context) ([]domain.CareExitRemoval, domain.OperationStats, error) {\n\t\treturn s.store.ListCareExitRemovals(ctx, studentIDs)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCareExitRemovals",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]careplan.CareExitSourceRemoval, error) {\n\tstudentIDs = uniquePositive(studentIDs)\n\tvalues, err := runValue(ctx, s, \"list_care_exit_source_removals\", func(ctx context.Context) ([]domain.CareExitSourceRemoval, domain.OperationStats, error) {\n\t\treturn s.store.ListCareExitSourceRemovals(ctx, studentIDs)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCareExitSourceRemovals",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {\n\tfilter.RequestKinds = uniqueStrings(filter.RequestKinds)\n\tfilter.Statuses = uniqueStrings(filter.Statuses)\n\treturn requestValue(ctx, s, \"list_care_schedule_requests\", func(ctx context.Context) ([]careplan.CareScheduleChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.ListCareScheduleRequests(ctx, filter)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCareScheduleRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCompanionEdges(ctx context.Context, studentID int64) ([]careplan.CompanionEdge, error) {\n\tif studentID \u003c= 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCompanion, \"student ID is required\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_companion_edges\", func(ctx context.Context) ([]domain.CompanionEdge, domain.OperationStats, error) {\n\t\treturn s.store.ListCompanionEdges(ctx, studentID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListCompanionEdges",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListDeletedCareDocuments(ctx context.Context, studentID int64, categories []string) ([]careplan.CareDocument, error) {\n\tif studentID \u003c 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCareDocument, \"student ID is invalid\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_deleted_care_documents\", func(ctx context.Context) ([]domain.CareDocument, domain.OperationStats, error) {\n\t\treturn s.store.ListDeletedCareDocuments(ctx, studentID, categories)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListDeletedCareDocuments",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListDepartureExceptions(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.DepartureException, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.DepartureException, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListDepartureExceptions(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_departure_exceptions\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListDepartureExceptions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListExcusedAbsenceRequests(ctx context.Context, filter careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.Statuses = uniqueStrings(filter.Statuses)\n\treturn requestValue(ctx, s, \"list_excused_absence_requests\", func(ctx context.Context) ([]careplan.ExcusedAbsenceRequest, domain.OperationStats, error) {\n\t\treturn s.requests.ListExcusedAbsenceRequests(ctx, filter)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListExcusedAbsenceRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPendingCareDocumentCleanup(ctx context.Context, studentID int64) ([]careplan.CareDocument, error) {\n\tif studentID \u003c= 0 {\n\t\treturn nil, invalid(careplan.ErrInvalidCareDocument, \"student ID is required\")\n\t}\n\tvalues, err := runValue(ctx, s, \"list_pending_care_document_cleanup\", func(ctx context.Context) ([]domain.CareDocument, domain.OperationStats, error) {\n\t\treturn s.store.ListPendingCareDocumentCleanup(ctx, studentID)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPendingCareDocumentCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs []int64, includeBookingExpired bool) (map[int64]careplan.Date, error) {\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64]careplan.Date{}, nil\n\t}\n\tvalues, err := runValue(ctx, s, \"list_pending_withdrawal_boundaries\", func(ctx context.Context) (map[int64]domain.Date, domain.OperationStats, error) {\n\t\treturn s.store.ListPendingWithdrawalBoundaries(ctx, studentIDs, includeBookingExpired)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalBoundaries",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPendingWithdrawalStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64]bool{}, nil\n\t}\n\tvalues, err := runValue(ctx, s, \"list_pending_withdrawal_student_ids\", func(ctx context.Context) (map[int64]bool, domain.OperationStats, error) {\n\t\treturn s.store.ListPendingWithdrawalStudentIDs(ctx, studentIDs)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalStudentIDs",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]careplan.WithdrawalCompletion, error) {\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64]careplan.WithdrawalCompletion{}, nil\n\t}\n\tvalues, err := runValue(ctx, s, \"list_pending_withdrawals_by_student\", func(ctx context.Context) (map[int64]domain.WithdrawalCompletion, domain.OperationStats, error) {\n\t\treturn s.store.ListPendingWithdrawalsByStudent(ctx, studentIDs)\n\t})\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalsByStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPickupExceptions(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupException, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListPickupExceptions(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_pickup_exceptions\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPickupExceptions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPickupNotes(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.PickupNote, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupNote, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListPickupNotes(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_pickup_notes\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPickupNotes",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPickupSchedules(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.PickupSchedule, error) {\n\tfilter = normalizeStudentScheduleFilter(filter)\n\tstarted := time.Now()\n\tvalue, stats, err := scopedRecordRead(ctx, func(txCtx context.Context) ([]careplan.PickupSchedule, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListPickupSchedules(txCtx, filter)\n\t})\n\ts.observeRequest(\"list_pickup_schedules\", started, stats, err)\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListPickupSchedules",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStatusDaySummaries(ctx context.Context, from, to careplan.Date) ([]careplan.StatusDaySummary, error) {\n\treturn requestValue(ctx, s, \"list_status_day_summaries\", func(ctx context.Context) ([]careplan.StatusDaySummary, domain.OperationStats, error) {\n\t\treturn s.statusDays.ListStatusDaySummaries(ctx, from, to)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListStatusDaySummaries",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {\n\tfilter.Statuses = uniqueStrings(filter.Statuses)\n\treturn requestValue(ctx, s, \"list_student_data_requests\", func(ctx context.Context) ([]careplan.StudentDataChangeRequest, domain.OperationStats, error) {\n\t\treturn s.requests.ListStudentDataRequests(ctx, filter)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListStudentDataRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.StudentIDs = uniquePositive(filter.StudentIDs)\n\treturn requestValue(ctx, s, \"list_student_status_days\", func(ctx context.Context) ([]careplan.StudentStatusDay, domain.OperationStats, error) {\n\t\treturn s.statusQueries.ListStudentStatusDays(ctx, filter)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ListStudentStatusDays",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockExcusedAbsenceRequests(ctx context.Context, studentID int64) error {\n\treturn requestCommand(s, ctx, \"lock_excused_absence_requests\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.LockExcusedAbsenceRequests(txCtx, studentID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.LockExcusedAbsenceRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockOpenCareRequests(ctx context.Context, studentIDs []int64) error {\n\tids := uniquePositive(studentIDs)\n\tif len(ids) == 0 {\n\t\treturn nil\n\t}\n\treturn requestCommand(s, ctx, \"lock_open_care_requests\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.LockOpenCareRequests(txCtx, ids)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.LockOpenCareRequests",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkCareDocumentFileDeleted(ctx context.Context, documentID int64) error {\n\tif documentID \u003c= 0 {\n\t\treturn invalid(careplan.ErrInvalidCareDocument, \"document ID is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"mark_care_document_file_deleted\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.MarkCareDocumentFileDeleted(ctx, documentID)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.MarkCareDocumentFileDeleted",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {\n\tchanged, err := runValue(ctx, s, \"obsolete_pending_withdrawals_for_weekly_plans\", func(ctx context.Context) (int, domain.OperationStats, error) {\n\t\treturn s.store.MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx, at)\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.MarkPendingWithdrawalsObsoleteForWeeklyPlans",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkWithdrawalObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn careplan.Date, at time.Time) (bool, error) {\n\tchanged, err := runValue(ctx, s, \"obsolete_withdrawal_for_rebooking\", func(ctx context.Context) (bool, domain.OperationStats, error) {\n\t\treturn s.store.MarkWithdrawalObsoleteForRebooking(ctx, studentID, careStartsOn, at)\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.MarkWithdrawalObsoleteForRebooking",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) QueueCareDocumentCleanup(ctx context.Context, value careplan.CareDocumentCleanup) (result careplan.CareDocumentCleanup, err error) {\n\tif value.OwnerID \u003c= 0 || strings.TrimSpace(value.FilenameStored) == \"\" || value.RetryAfter.IsZero() {\n\t\treturn careplan.CareDocumentCleanup{}, invalid(careplan.ErrInvalidCareDocument, \"care document cleanup is invalid\")\n\t}\n\terr = s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\tresult, err = runValue(txCtx, s, \"queue_care_document_cleanup\", func(ctx context.Context) (domain.CareDocumentCleanup, domain.OperationStats, error) {\n\t\t\treturn s.store.QueueCareDocumentCleanup(ctx, value)\n\t\t})\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.QueueCareDocumentCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordCareExitRemovals(ctx context.Context, values []careplan.CareExitRemoval) error {\n\tfor _, value := range values {\n\t\tif !validCareExitRemoval(value) {\n\t\t\treturn invalid(careplan.ErrInvalidCareExit, \"care exit removal is invalid\")\n\t\t}\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"record_care_exit_removals\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.RecordCareExitRemovals(ctx, values)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RecordCareExitRemovals",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordCareExitSourceRemovals(ctx context.Context, values []careplan.CareExitSourceRemoval) error {\n\tfor _, value := range values {\n\t\tif value.StudentID \u003c= 0 || value.SourceRowID \u003c= 0 || !validCareExitSource(value.Kind) || len(value.Snapshot) == 0 || !json.Valid(value.Snapshot) {\n\t\t\treturn invalid(careplan.ErrInvalidCareExit, \"care exit source removal is invalid\")\n\t\t}\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"record_care_exit_source_removals\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.RecordCareExitSourceRemovals(ctx, values)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RecordCareExitSourceRemovals",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error) {\n\tif studentID \u003c= 0 || actorAccountID \u003c 0 || at.IsZero() {\n\t\treturn 0, careplan.ErrInvalidCareExit\n\t}\n\tvalue, err := runValue(ctx, s, \"redact_withdrawals_for_deleted_student\", func(ctx context.Context) (int, domain.OperationStats, error) {\n\t\treturn s.store.RedactWithdrawalsForDeletedStudent(ctx, studentID, actorAccountID, at)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RedactWithdrawalsForDeletedStudent",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RedecideCareScheduleRequest(ctx context.Context, value careplan.CareScheduleRequestDecision) error {\n\treturn requestCommand(s, ctx, \"redecide_care_schedule_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideCareScheduleRequest(txCtx, value, true)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RedecideCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RedecideExcusedAbsenceRequest(ctx context.Context, value careplan.ExcusedAbsenceDecision) error {\n\treturn requestCommand(s, ctx, \"redecide_excused_absence_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideExcusedAbsenceRequest(txCtx, value, true)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RedecideExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RedecideStudentDataRequest(ctx context.Context, value careplan.StudentDataRequestDecision) error {\n\treturn requestCommand(s, ctx, \"redecide_student_data_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.DecideStudentDataRequest(txCtx, value, true)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.RedecideStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReopenWithdrawalAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error) {\n\tchanged, err := runValue(ctx, s, \"reopen_withdrawal_after_cancelled_exit\", func(ctx context.Context) (bool, domain.OperationStats, error) {\n\t\treturn s.store.ReopenWithdrawalAfterCancelledExit(ctx, completionID, studentID, at)\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ReopenWithdrawalAfterCancelledExit",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReplaceAutoAddTriggers(ctx context.Context, targetID int64, triggerIDs []int64) error {\n\tif targetID \u003c= 0 {\n\t\treturn invalid(careplan.ErrInvalidCareOffering, \"target care offering ID is required\")\n\t}\n\ttriggers := normalizedTriggers(targetID, triggerIDs)\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.run(txCtx, \"replace_care_offering_auto_triggers\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tqueryStats, err := s.store.ReplaceAutoAddTriggers(ctx, targetID, triggers)\n\t\t\tstats.Add(queryStats)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ReplaceAutoAddTriggers",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ResolvePendingWithdrawalAsDeleted(ctx context.Context, completionID, actorAccountID int64, at time.Time) (bool, error) {\n\tif completionID \u003c= 0 || actorAccountID \u003c= 0 || at.IsZero() {\n\t\treturn false, careplan.ErrInvalidCareExit\n\t}\n\tvalue, err := runValue(ctx, s, \"resolve_pending_withdrawal_as_deleted\", func(ctx context.Context) (bool, domain.OperationStats, error) {\n\t\treturn s.store.ResolvePendingWithdrawalAsDeleted(ctx, completionID, actorAccountID, at)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ResolvePendingWithdrawalAsDeleted",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ResolveWithdrawal(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error) {\n\tchanged, err := runValue(ctx, s, \"resolve_withdrawal\", func(ctx context.Context) (bool, domain.OperationStats, error) {\n\t\treturn s.store.ResolveWithdrawal(ctx, id, actorAccountID, at)\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.ResolveWithdrawal",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SaveDepartureException(ctx context.Context, v careplan.DepartureException) (result careplan.DepartureException, err error) {\n\tif !validateDepartureException(v) {\n\t\treturn careplan.DepartureException{}, scheduleInvalid()\n\t}\n\tstarted := time.Now()\n\tvar stats domain.OperationStats\n\terr = s.withinTenant(ctx, func(tx context.Context) error {\n\t\tresult, stats, err = s.statusQueries.SaveDepartureException(tx, v)\n\t\treturn err\n\t})\n\ts.observeRequest(\"save_departure_exception\", started, stats, err)\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.SaveDepartureException",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SoftDeleteCareDocument(ctx context.Context, documentID, deletedBy int64) (result time.Time, err error) {\n\tif documentID \u003c= 0 || deletedBy \u003c= 0 {\n\t\treturn time.Time{}, invalid(careplan.ErrInvalidCareDocument, \"document and actor IDs are required\")\n\t}\n\terr = s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\tresult, err = runValue(txCtx, s, \"soft_delete_care_document\", func(ctx context.Context) (time.Time, domain.OperationStats, error) {\n\t\t\treturn s.store.SoftDeleteCareDocument(ctx, documentID, deletedBy)\n\t\t})\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.SoftDeleteCareDocument",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(careplan.ErrInvalidOfferingChange, \"offering change request ID is required\")\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.run(txCtx, \"update_offering_change_withdrawal\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tqueryStats, err := s.store.UpdateApprovedCompleteWithdrawal(ctx, id, complete)\n\t\t\tstats.Add(queryStats)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdateApprovedCompleteWithdrawal",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateArrivalException(ctx context.Context, v careplan.ArrivalException) error {\n\tif v.ID \u003c= 0 || !validateArrivalException(v) {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"update_arrival_exception\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.UpdateArrivalException(ctx, v)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalException",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateArrivalNote(ctx context.Context, v careplan.ArrivalNote) error {\n\tif v.ID \u003c= 0 || !validateNote(v.StudentID, v.NoteDate, v.Content, v.CreatedBy) {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"update_arrival_note\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.UpdateArrivalNote(ctx, v)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalNote",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateArrivalSchedule(ctx context.Context, v careplan.ArrivalSchedule) error {\n\tif v.ID \u003c= 0 || !validateArrivalSchedule(v) {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"update_arrival_schedule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, runErr := s.store.UpdateArrivalSchedule(ctx, v)\n\t\t\tstats.Add(q)\n\t\t\treturn runErr\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateCareScheduleRequestSnapshot(ctx context.Context, id int64, snapshot json.RawMessage) error {\n\treturn requestCommand(s, ctx, \"update_care_schedule_request_snapshot\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.UpdateCareScheduleRequestSnapshot(txCtx, id, snapshot)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdateCareScheduleRequestSnapshot",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdatePendingCareScheduleRequest(ctx context.Context, id int64, payload json.RawMessage) error {\n\treturn requestCommand(s, ctx, \"update_pending_care_schedule_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.UpdatePendingCareScheduleRequest(txCtx, id, payload)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingCareScheduleRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdatePendingExcusedAbsenceRequest(ctx context.Context, id int64, dates []careplan.Date, note, status string) error {\n\treturn requestCommand(s, ctx, \"update_pending_excused_absence_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.UpdatePendingExcusedAbsenceRequest(txCtx, id, dates, note, status)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingExcusedAbsenceRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdatePendingStudentDataRequest(ctx context.Context, id int64, value json.RawMessage) error {\n\treturn requestCommand(s, ctx, \"update_pending_student_data_request\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.requests.UpdatePendingStudentDataRequest(txCtx, id, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingStudentDataRequest",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdatePickupNote(ctx context.Context, v careplan.PickupNote) error {\n\tif v.ID \u003c= 0 || !validatePickupNote(v) {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"update_pickup_note\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.UpdatePickupNote(ctx, v)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdatePickupNote",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdatePickupSchedule(ctx context.Context, v careplan.PickupSchedule) error {\n\tif v.ID \u003c= 0 || !validatePickupSchedule(v) {\n\t\treturn scheduleInvalid()\n\t}\n\treturn s.withinTenant(ctx, func(tx context.Context) error {\n\t\treturn s.run(tx, \"update_pickup_schedule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t\tq, err := s.store.UpdatePickupSchedule(ctx, v)\n\t\t\tstats.Add(q)\n\t\t\treturn err\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpdatePickupSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpsertCareExit(ctx context.Context, value careplan.CareExit) error {\n\tif err := normalizeCareExit(\u0026value); err != nil {\n\t\treturn err\n\t}\n\treturn s.withinTenant(ctx, func(txCtx context.Context) error {\n\t\treturn runCommand(txCtx, s, \"upsert_care_exit\", func(ctx context.Context) (domain.OperationStats, error) {\n\t\t\treturn s.store.UpsertCareExit(ctx, value)\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpsertCareExit",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpsertPendingWithdrawal(ctx context.Context, value careplan.WithdrawalCompletion) (careplan.WithdrawalCompletion, error) {\n\tif value.StudentID == nil || *value.StudentID \u003c= 0 {\n\t\treturn careplan.WithdrawalCompletion{}, invalid(careplan.ErrInvalidWithdrawal, \"care withdrawal completion requires a student\")\n\t}\n\tstored, err := runValue(ctx, s, \"upsert_pending_withdrawal\", func(ctx context.Context) (domain.WithdrawalCompletion, domain.OperationStats, error) {\n\t\treturn s.store.UpsertPendingWithdrawal(ctx, value)\n\t})\n\treturn stored, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpsertPendingWithdrawal",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpsertStudentStatusDay(ctx context.Context, value careplan.StudentStatusDay) (careplan.StudentStatusDay, error) {\n\treturn requestCommandValue(s, ctx, \"upsert_student_status_day\", func(txCtx context.Context) (careplan.StudentStatusDay, domain.OperationStats, error) {\n\t\treturn s.statusDays.UpsertStudentStatusDay(txCtx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/Service.UpsertStudentStatusDay",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentDocuments) ListDeletedStudentDocumentsPendingFileCleanup(ctx context.Context, studentID int64, actor careplan.StudentDocumentActor) ([]careplan.CareDocument, error) {\n\tif err := s.requireStudentAccess(ctx, studentID, actor); err != nil {\n\t\treturn nil, err\n\t}\n\tdocuments, err := s.records.ListDeletedCareDocuments(ctx, studentID, s.visibleCategories(actor))\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"care plan documents: list deleted student documents: %w\", err)\n\t}\n\treturn documents, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/StudentDocuments.ListDeletedStudentDocumentsPendingFileCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentDocuments) QueueStudentDocumentFileCleanup(ctx context.Context, studentID int64, storedName string) error {\n\tif studentID \u003c= 0 || strings.TrimSpace(storedName) == \"\" {\n\t\treturn fmt.Errorf(\"%w: cleanup file details are required\", careplan.ErrStudentDocumentInvalid)\n\t}\n\tcleanup := careplan.CareDocumentCleanup{OwnerID: studentID, FilenameStored: storedName, RetryAfter: time.Now().Add(studentDocumentCleanupDelay)}\n\treturn s.transaction(ctx, func(txCtx context.Context) error {\n\t\t_, err := s.records.QueueCareDocumentCleanup(txCtx, cleanup)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/StudentDocuments.QueueStudentDocumentFileCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentDocuments) ResolveStudentDocumentCleanup(ctx context.Context, studentID, documentID int64, actor careplan.StudentDocumentActor) (careplan.CareDocument, error) {\n\tif err := s.requireStudentAccess(ctx, studentID, actor); err != nil {\n\t\treturn careplan.CareDocument{}, err\n\t}\n\tdocument, err := s.records.FindCareDocument(ctx, studentID, documentID, true)\n\tif err != nil {\n\t\treturn careplan.CareDocument{}, err\n\t}\n\tif err := s.requireCategoryPermission(document.Category, actor); err != nil {\n\t\treturn careplan.CareDocument{}, err\n\t}\n\treturn document, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/StudentDocuments.ResolveStudentDocumentCleanup",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s arrivalBaselineSource) BookingsAuthoritative(ctx context.Context) (bool, error) {\n\tvalue, err := s.deps.BookingMode(ctx)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"project arrival baselines: resolve booking mode: %w\", err)\n\t}\n\treturn value, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.BookingsAuthoritative",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s arrivalBaselineSource) ClassArrivalExceptions(ctx context.Context, classes map[int64]string, from, to calendar.Date) (map[string]careplan.ClassArrivalExceptionsByDate, error) {\n\tif len(classes) == 0 {\n\t\treturn nil, nil\n\t}\n\trows, err := s.deps.ClassExceptions(ctx, arrivalBaselineClasses(classes), from, to)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"project arrival baselines: load class arrival exceptions: %w\", err)\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.ClassArrivalExceptions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s arrivalBaselineSource) StoredArrivalRows(ctx context.Context, ids []int64) ([]*careplan.ArrivalSchedule, error) {\n\tif len(ids) == 0 {\n\t\treturn []*careplan.ArrivalSchedule{}, nil\n\t}\n\trows, err := s.deps.Records.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: ids})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"project arrival baselines: load stored schedules: %w\", err)\n\t}\n\tout := make([]*careplan.ArrivalSchedule, len(rows))\n\tfor i := range rows {\n\t\tout[i] = \u0026rows[i]\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.StoredArrivalRows",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s arrivalBaselineSource) StudentClasses(ctx context.Context, ids []int64) (map[int64]string, error) {\n\trows, err := s.deps.StudentClasses(ctx, ids)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"project arrival baselines: load students: %w\", err)\n\t}\n\tout := make(map[int64]string, len(rows))\n\tfor id, class := range rows {\n\t\tif key := strings.ToLower(strings.TrimSpace(class)); key != \"\" {\n\t\t\tout[id] = key\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.StudentClasses",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *arrivalScheduleService) DeleteAllStudentArrivalSchedules(ctx context.Context, studentID int64) error {\n\treturn s.tx.WithinTenant(ctx, func(txCtx context.Context) error {\n\t\tif err := s.lockArrivalStudent(txCtx, studentID); err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn s.deleteAllSchedules(txCtx, studentID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.DeleteAllStudentArrivalSchedules",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {\n\trows, err := s.scheduleRepo.FindByStudentIDs(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, \u0026careplan.ScheduleError{Op: \"list stored arrival schedules\", Err: err}\n\t}\n\thasSchedules := make(map[int64]bool, len(rows))\n\tfor _, row := range rows {\n\t\tif !row.ExpectedArrival.IsZero() {\n\t\t\thasSchedules[row.StudentID] = true\n\t\t}\n\t}\n\treturn hasSchedules, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.GetStudentsWithStoredArrivalSchedules",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *arrivalScheduleService) UpsertStudentArrivalSchedule(ctx context.Context, row *careplan.ArrivalSchedule) error {\n\treturn s.tx.WithinTenant(ctx, func(txCtx context.Context) error {\n\t\tif err := s.lockArrivalStudent(txCtx, row.StudentID); err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn s.upsertSchedule(txCtx, row)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.UpsertStudentArrivalSchedule",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *careDayService) ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {\n\tresult, err := s.deps.CareParticipation.ParticipatingStudentIDsByDate(ctx, studentIDs, from, to)\n\tif err != nil {\n\t\treturn nil, \u0026careplan.ScheduleError{Op: opResolveCareDay, Err: err}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/careDayService.ParticipatingStudentIDsByDate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *partialAbsenceService) ListPartialAbsences(ctx context.Context, studentID int64, from, to calendar.Date) ([]*careplan.PickupException, error) {\n\trows, err := s.pickups.FindByStudentIDAndDateRange(ctx, studentID, from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tpartial := make([]*careplan.PickupException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil \u0026\u0026 row.ExcusedFrom != nil {\n\t\t\tpartial = append(partial, row)\n\t\t}\n\t}\n\treturn partial, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/partialAbsenceService.ListPartialAbsences",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r personEnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*parentModels.GuardianSubmitStatus, error) {\n\tstatus, err := r.EnrollablePhaseRepository.GuardianSubmitStatus(ctx, accountID, tenantID)\n\tif err != nil || status == nil {\n\t\treturn status, err\n\t}\n\tpersons, err := parentPortalPersonsByID(ctx, r.persons, status.EnrolledSubmitPersonIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tstatus.HasEnrolledSubmitPermission = anyParentPortalPersonExists(persons, status.EnrolledSubmitPersonIDs)\n\treturn status, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/personEnrollablePhaseRepository.GuardianSubmitStatus",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) Create(ctx context.Context, value careplan.PickupException) (int64, error) {\n\tif err := value.Validate(); err != nil {\n\t\treturn 0, err\n\t}\n\trow, err := a.records.CreatePickupException(ctx, value)\n\treturn row.ID, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.Create",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) CreateNote(ctx context.Context, value careplan.PickupNote) (int64, error) {\n\tif value.StudentID \u003c= 0 || value.NoteDate == \"\" || strings.TrimSpace(value.Content) == \"\" {\n\t\treturn 0, carerequests.ErrInvalidPayload\n\t}\n\trow, err := a.records.CreatePickupNote(ctx, value)\n\treturn row.ID, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.CreateNote",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) FindDepartureForDate(ctx context.Context, id int64, date calendar.Date) (*careplan.DepartureException, error) {\n\trows, err := a.records.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: careplan.Date(date)})\n\tif err != nil || len(rows) == 0 {\n\t\treturn nil, err\n\t}\n\treturn \u0026rows[0], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.FindDepartureForDate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) FindForDate(ctx context.Context, id int64, date calendar.Date) (*careplan.PickupException, error) {\n\trows, err := a.records.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: careplan.Date(date)})\n\tif err != nil || len(rows) == 0 {\n\t\treturn nil, err\n\t}\n\treturn \u0026rows[0], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.FindForDate",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) SaveDeparture(ctx context.Context, value careplan.DepartureException) (int64, error) {\n\trow, err := a.records.SaveDepartureException(ctx, value)\n\treturn row.ID, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.SaveDeparture",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a pickupApprovalExceptions) Update(ctx context.Context, value careplan.PickupException) error {\n\tif err := value.Validate(); err != nil {\n\t\treturn err\n\t}\n\treturn a.records.UpdatePickupException(ctx, value)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.Update",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s pickupBaselineSource) StoredPickupRows(ctx context.Context, ids []int64) ([]*careplan.PickupSchedule, error) {\n\tif len(ids) == 0 {\n\t\treturn []*careplan.PickupSchedule{}, nil\n\t}\n\trows, err := s.records.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: ids})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"project pickup baselines: load stored schedules: %w\", err)\n\t}\n\tout := make([]*careplan.PickupSchedule, len(rows))\n\tfor i := range rows {\n\t\tout[i] = \u0026rows[i]\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/pickupBaselineSource.StoredPickupRows",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p studentProfiles) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (changed int64, err error) {\n\tif status != \"sick\" \u0026\u0026 status != \"excused\" {\n\t\treturn 0, errors.New(\"care plan: unsupported absence flag\")\n\t}\n\tif len(ids) == 0 {\n\t\treturn 0, nil\n\t}\n\terr = p.run(ctx, \"clear_student_status_flags\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tvar stats domain.OperationStats\n\t\tchanged, stats, err = p.store.ClearStudentStatusFlags(txCtx, ids, status)\n\t\treturn stats, err\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/studentProfiles.ClearStudentStatusFlags",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p studentProfiles) SaveStudentCareProfile(ctx context.Context, input careplan.StudentCareProfile, plan *careplan.StudentDeparturePlan) error {\n\tif input.MembershipID \u003c= 0 {\n\t\treturn errors.New(\"care plan: membership ID is required\")\n\t}\n\treturn p.run(ctx, \"save_student_care_profile\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tvar departure *domain.StudentDeparturePlan\n\t\tif plan != nil {\n\t\t\tvalue := domain.StudentDeparturePlan(*plan)\n\t\t\tdeparture = \u0026value\n\t\t}\n\t\treturn p.store.SaveStudentCareProfile(txCtx, domain.StudentCareProfile(input), departure)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/studentProfiles.SaveStudentCareProfile",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p studentProfiles) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (changed int64, err error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, errors.New(\"care plan: student ID is required\")\n\t}\n\terr = p.run(ctx, \"set_student_health_info\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tvar stats domain.OperationStats\n\t\tchanged, stats, err = p.store.SetStudentHealthInfo(txCtx, studentID, healthInfo)\n\t\treturn stats, err\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/studentProfiles.SetStudentHealthInfo",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p studentProfiles) SetStudentLiveStatus(ctx context.Context, input careplan.StudentLiveStatus) (changed int64, err error) {\n\tif input.StudentID \u003c= 0 {\n\t\treturn 0, errors.New(\"care plan: student ID is required\")\n\t}\n\terr = p.run(ctx, \"set_student_live_status\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tvar stats domain.OperationStats\n\t\tchanged, stats, err = p.store.SetStudentLiveStatus(txCtx, domain.StudentLiveStatus(input))\n\t\treturn stats, err\n\t})\n\treturn changed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/application/studentProfiles.SetStudentLiveStatus",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *MasterDataWriteError) Error() string {\n\treturn e.Step + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/ports/MasterDataWriteError.Error",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *bookingRowNotFound) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/internal/ports/bookingRowNotFound.Error",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *catalogRowNotFound) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/careplan/internal/ports/catalogRowNotFound.Error",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q offeringDayRoster) ActiveCareOfferings(ctx context.Context) ([]CareOfferingOption, error) {\n\trows, err := q.records.ListCareOfferings(ctx, CareOfferingFilter{ActiveOnly: true, Order: OfferingOrderCatalog})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"list active care offerings: %w\", err)\n\t}\n\tout := make([]CareOfferingOption, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row.IsActive \u0026\u0026 row.CountsAsCare {\n\t\t\tout = append(out, CareOfferingOption{ID: row.ID, Name: row.Name})\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/offeringDayRoster.ActiveCareOfferings",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) TenantRouter() chi.Router {\n\trouter := chi.NewRouter()\n\trs.runtime.Protected(router, func(protected chi.Router, withTx Middleware) {\n\t\tprotected.With(withTx).Get(\"/\", rs.status)\n\t\tprotected.With(withTx).Post(\"/\", rs.create)\n\t\tprotected.With(withTx).Post(\"/rotate\", rs.rotate)\n\t})\n\treturn router\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/requestfeed/http/Resource.TenantRouter",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a AccessResolver) Resolve(ctx context.Context, tenantID, accountID int64) (domain.Access, error) {\n\taccess, found, err := a.feed.ResolveAccess(ctx, tenantID, accountID)\n\tif err != nil || !found {\n\t\treturn domain.Access{}, err\n\t}\n\treturn domain.Access{Active: true, GeneralRequests: access.GeneralRequests, EnrollmentRequests: access.EnrollmentRequests, SchoolName: access.SchoolName, Subdomain: access.Subdomain}, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/requestfeed/internal/adapters/postgres/AccessResolver.Resolve",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Store) List(ctx context.Context, tenantID int64, since time.Time, access domain.Access) ([]domain.Item, error) {\n\tprojected, err := s.feed.ListNewParentRequests(ctx, tenantID, since, access.GeneralRequests, access.EnrollmentRequests)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"list request feed items: %w\", err)\n\t}\n\trows := make([]domain.Item, 0, len(projected))\n\tfor _, item := range projected {\n\t\trows = append(rows, domain.Item{Kind: item.Kind, ID: item.ID, CreatedAt: item.CreatedAt})\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/requestfeed/internal/adapters/postgres/Store.List",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Status(ctx context.Context, tenantID, accountID int64) (requestfeed.Status, error) {\n\tif tenantID \u003c= 0 || accountID \u003c= 0 {\n\t\treturn requestfeed.Status{}, requestfeed.ErrNotFound\n\t}\n\tif _, err := s.requireAccess(ctx, tenantID, accountID); err != nil {\n\t\treturn requestfeed.Status{}, err\n\t}\n\tactive, err := s.store.Active(ctx, tenantID, accountID)\n\treturn requestfeed.Status{Active: active}, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/requestfeed/internal/application/Service.Status",
+      "owner": "modules/careplan"
+    }
+  ]
+}

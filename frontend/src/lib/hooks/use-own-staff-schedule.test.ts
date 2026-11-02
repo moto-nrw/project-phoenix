@@ -28,7 +28,7 @@ vi.mock("~/lib/usercontext-api", () => ({
 
 import { useOwnStaffSchedule } from "./use-own-staff-schedule";
 
-const STAFF_KEY = "time-tracking-own-staff";
+const STAFF_KEY = "me-staff";
 const SCHEDULE_PREFIX = "time-tracking-own-schedule-";
 
 interface SWRCall {

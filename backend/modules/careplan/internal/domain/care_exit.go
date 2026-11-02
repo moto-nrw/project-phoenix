@@ -443,3 +443,15 @@ func ParticipatingOn(
 	}
 	return participating
 }
+
+// HistoricalParticipationOn retains alumni before a recorded departure.
+// An alumnus with no dated boundary cannot be placed in a historical period.
+func HistoricalParticipationOn(studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date, on calendar.Date) map[int64]bool {
+	participating := ParticipatingOn(studentIDs, students, boundaries, on, nil)
+	for _, id := range studentIDs {
+		if boundary, known := boundaries[id]; known && on.Before(boundary) {
+			participating[id] = true
+		}
+	}
+	return participating
+}

@@ -29,7 +29,9 @@ import {
 } from "~/lib/caregiver-capability-api";
 import { CaregiverBlockerResolutionPanel } from "~/components/teachers/caregiver-blocker-resolution-panel";
 import { createLogger } from "~/lib/logger";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { rolesConcept } from "~/lib/concepts/roles";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
 
@@ -398,8 +400,8 @@ export function CaregiverCapabilityModal({
             title="Aktuelle Rolle"
             icon={
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.roles.icon}
-                tone={MOTO_CONCEPTS.roles.tone}
+                icon={rolesConcept.icon}
+                tone={rolesConcept.tone}
                 size={18}
               />
             }
@@ -422,8 +424,8 @@ export function CaregiverCapabilityModal({
               title="Personaldaten anlegen"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.staff.icon}
-                  tone={MOTO_CONCEPTS.staff.tone}
+                  icon={staffConcept.icon}
+                  tone={staffConcept.tone}
                   size={18}
                 />
               }
@@ -469,8 +471,8 @@ export function CaregiverCapabilityModal({
               title="Offene Zuordnungen"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
+                  icon={groupsConcept.icon}
+                  tone={groupsConcept.tone}
                   size={18}
                 />
               }

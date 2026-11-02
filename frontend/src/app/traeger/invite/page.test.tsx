@@ -63,8 +63,6 @@ describe("TraegerInvitePage", () => {
     mocks.acceptTraegerInvitation.mockResolvedValue("neu@traeger.example");
     mocks.traegerLogin.mockResolvedValue({
       status: "authenticated",
-      accessToken: "a",
-      refreshToken: "r",
     });
     mocks.signIn.mockResolvedValue({ error: undefined });
     renderPage();
@@ -93,6 +91,7 @@ describe("TraegerInvitePage", () => {
       password: "Sicher1234%",
       confirmPassword: "Sicher1234%",
     });
+    expect(mocks.signIn).not.toHaveBeenCalled();
     expect(mocks.traegerLogin).toHaveBeenCalledWith({
       email: "neu@traeger.example",
       password: "Sicher1234%",

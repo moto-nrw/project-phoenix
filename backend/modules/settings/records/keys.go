@@ -203,28 +203,31 @@ const (
 	// KeyMealCatererNamesEnabled lets the caterer see the children's names
 	// (#3873). Off by default; a school switches it on only with a data
 	// processing agreement in place.
-	KeyMealCatererNamesEnabled               = "gdpr.meal_caterer_names_enabled"
-	KeySickClearMode                         = "operations.sick_clear_mode"
-	KeyExcusedClearMode                      = "operations.excused_clear_mode"
-	KeyPresenceMode                          = "operations.presence_mode"
-	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
-	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
-	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
-	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
-	KeyGroupMode                             = "operations.group_mode"
-	KeyBirthdayDisplayEnabled                = "operations.birthday_display_enabled"
-	KeyBirthdayDisplayIncludeStaff           = "operations.birthday_display_include_staff"
-	KeyRequirePickupOfferingReview           = "operations.require_pickup_offering_review"
-	KeyParentSickNoteEnabled                 = "operations.parent_sick_note_enabled"
-	KeyParentSickReportsEnabled              = "operations.parent_sick_reports_enabled"
-	KeyParentExcusedReportsEnabled           = "operations.parent_excused_reports_enabled"
-	KeyParentSickRequiresApproval            = "operations.parent_sick_requires_approval"
-	KeyParentExcusedRequiresApproval         = "operations.parent_excused_requires_approval"
-	KeyParentNotesEnabled                    = "operations.parent_notes_enabled"
-	KeyParentCareArrivalRequestEnabled       = "operations.parent_care_arrival_request_enabled"
-	KeyParentCarePickupRequestEnabled        = "operations.parent_care_pickup_request_enabled"
-	KeyParentCareModeRequestEnabled          = "operations.parent_care_mode_request_enabled"
-	KeyParentMessageStaffNameVisible         = "operations.parent_message_staff_name_visible"
+	KeyMealCatererNamesEnabled         = "gdpr.meal_caterer_names_enabled"
+	KeySickClearMode                   = "operations.sick_clear_mode"
+	KeyExcusedClearMode                = "operations.excused_clear_mode"
+	KeyPresenceMode                    = "operations.presence_mode"
+	KeyAttendanceWebEnabled            = "attendance.web_enabled"
+	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
+	KeyWebExceedParticipantLimit       = "attendance.web_exceed_participant_limit_enabled"
+	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
+	KeyGroupMode                       = "operations.group_mode"
+	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
+	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
+	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
+	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentSickReportsEnabled        = "operations.parent_sick_reports_enabled"
+	KeyParentExcusedReportsEnabled     = "operations.parent_excused_reports_enabled"
+	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
+	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
+	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
+	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
+	KeyParentCarePickupRequestEnabled  = "operations.parent_care_pickup_request_enabled"
+	KeyParentCareModeRequestEnabled    = "operations.parent_care_mode_request_enabled"
+	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
+	// KeyParentMessageLeadershipEnabled lets parents write to the leadership
+	// only, in a second conversation per child (#5200).
+	KeyParentMessageLeadershipEnabled        = "operations.parent_message_leadership_enabled"
 	KeyParentPickupChangeEnabled             = "operations.parent_pickup_change_enabled"
 	KeyParentPickupChangeCutoffTime          = "operations.parent_pickup_change_cutoff_time"
 	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"
@@ -656,6 +659,28 @@ const (
 const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
+)
+
+// Export ans Lohnbüro (#4805): the automatic send of the month file after the
+// Monatsabschluss. Definitions live in defaults/payroll.go next to the
+// payroll identity; the /payroll page edits them.
+const (
+	KeyPayrollDispatchAuto    = "payroll.dispatch_auto"
+	KeyPayrollDispatchChannel = "payroll.dispatch_channel"
+	KeyPayrollDispatchFormat  = "payroll.dispatch_format"
+	KeyPayrollDispatchEmail   = "payroll.dispatch_email"
+)
+
+// Payroll dispatch channel and format select values. The format values are
+// the export formats of the time-tracking export.
+const (
+	PayrollDispatchChannelSFTP  = "sftp"
+	PayrollDispatchChannelEmail = "email"
+
+	PayrollDispatchFormatCSV        = "csv"
+	PayrollDispatchFormatXLSX       = "xlsx"
+	PayrollDispatchFormatDatevLodas = "datev_lodas"
+	PayrollDispatchFormatDatevLug   = "datev_lug"
 )
 
 // SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports

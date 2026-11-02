@@ -1,0 +1,19 @@
+{
+  "title": "Do not miss an important message",
+  "intro": "Turn on notifications. moto will then tell you about new messages and important changes concerning your child.",
+  "enable": "Turn on notifications",
+  "later": "Remind me later",
+  "enableError": "Notifications could not be enabled. Please try again.",
+  "denied": "Notifications are blocked in your browser. Open the browser settings, allow notifications for moto, then try again in Settings.",
+  "installTitle": "Add moto to your Home Screen",
+  "installAndroidTitle": "Install moto as an app",
+  "installAndroidIntro": "Install moto on your Home Screen. Then open moto like an app and turn on notifications.",
+  "installAndroidManual": "Open the browser menu and choose “Install app” or “Add to Home Screen”.",
+  "installApp": "Install app",
+  "installing": "Installing …",
+  "installError": "moto could not be installed. Please try again.",
+  "understood": "Got it",
+  "closeGuide": "Close guide",
+  "close": "Close dialog",
+  "introStaff": "Turn on notifications. moto will then tell you about important events, even when the app is closed."
+}

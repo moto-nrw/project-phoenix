@@ -132,7 +132,8 @@ export function findUnrunTests(files, read) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
-  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
+  // Fragmented contracts push the tracked-path list beyond Node's 1 MiB default.
+  const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0')
     .filter(file => file && fs.existsSync(path.join(root, file)));
   const unrun = findUnrunTests(files, file => fs.readFileSync(path.join(root, file), 'utf8'));

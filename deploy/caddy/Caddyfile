@@ -12,9 +12,15 @@
 }
 
 # Upstreams see exactly one X-Forwarded-For value: the real client IP.
+# Requests from Cloudflare are trusted, so Caddy would otherwise pass a
+# client-sent X-Forwarded-Host through. The frontend derives tenant and
+# portal from it, so it always carries the host the request was sent to.
+# X-Moto-Original-* is set by the frontend proxy only, never by a client.
 (client_ip_upstream) {
 	header_up X-Forwarded-For {client_ip}
 	header_up X-Real-IP {client_ip}
+	header_up X-Forwarded-Host {host}
+	header_up -X-Moto-Original-*
 }
 
 # Shared snippet: security headers + gzip

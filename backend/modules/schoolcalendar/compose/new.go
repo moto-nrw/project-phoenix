@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/openholidays"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
@@ -100,4 +101,14 @@ func NewAdministration(records schoolcalendar.Days, dependencies AdministrationD
 // in context, so the recurrence gate always holds a transaction-scoped lock.
 func writeTransaction(ctx context.Context, fn func(context.Context) error) error {
 	return postgres.WriteTransactionBinding(ctx, fn, tenant.WithinCurrentTenant)
+}
+
+// NewSchoolVacations composes the school vacations (#5345) over the ambient
+// transaction and the OpenHolidays API at sourceURL ("" is the public API).
+// Without federalState it serves only the sync; nil today is the Berlin day.
+func NewSchoolVacations(federalState func(context.Context) (string, error), sourceURL string, today func() string) (schoolcalendar.SchoolVacationOwner, error) {
+	return application.NewSchoolVacations(application.SchoolVacationDependencies{
+		Store: postgres.NewSchoolVacationStore(), Source: openholidays.New(nil, sourceURL, application.SchoolVacationRegions()).SchoolVacations,
+		FederalState: federalState, Today: today, AdminTransaction: tenant.WithinAdmin,
+	})
 }

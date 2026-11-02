@@ -49,6 +49,7 @@ env:
 
 jobs:
   preview:
+    name: Preview
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     concurrency:
       group: posthog-dashboards-preview-${{ github.ref }}
@@ -88,6 +89,7 @@ jobs:
           exit "$status"
 
   sync:
+    name: Sync
     if: github.event_name != 'pull_request'
     environment:
       name: posthog

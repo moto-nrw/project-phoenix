@@ -18,7 +18,7 @@ import {
   STAFF_NOTICES_REFRESH_EVENT,
   type StaffNotice,
 } from "~/lib/staff-notices-api";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { StaffNoticesBlock } from "./staff-notices-block";
 
 // Badge der Seitenleiste und Startseiten-Baustein lesen einen Eintrag, den die

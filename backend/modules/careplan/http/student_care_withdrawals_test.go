@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -188,5 +189,5 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	assert.Equal(t, 1, large.items, "the page holds page_size tasks")
 	assert.Len(t, large.statements, len(small.statements), "statement count must not grow with the child's withdrawals")
 	assert.Equal(t, small.rows, large.rows, "rows read must not grow; only the requested page may be loaded")
-	testpkg.AssertQueryBudget(t, "api.students.care_withdrawals.student_list", large.statements)
+	querybudgets.AssertQueryBudget(t, "api.students.care_withdrawals.student_list", large.statements)
 }

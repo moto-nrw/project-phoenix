@@ -27,7 +27,6 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   formatRelativeLastSeen,
   getDeviceStatusColor,
@@ -36,6 +35,8 @@ import {
   type Device,
 } from "@/lib/iot-helpers";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 interface DevicesMasterDetailProps {
   groupDefinitions: GroupDefinition<Device>[];
@@ -182,8 +183,8 @@ function DeviceDetailContent({
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.devices.icon}
-              tone={MOTO_CONCEPTS.devices.tone}
+              icon={devicesConcept.icon}
+              tone={devicesConcept.tone}
               size={36}
             />
           }
@@ -233,8 +234,8 @@ function DeviceStammdatenTab({
         title="Gerätedetails"
         icon={
           <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.devices.icon}
-            tone={MOTO_CONCEPTS.devices.tone}
+            icon={devicesConcept.icon}
+            tone={devicesConcept.tone}
             size={18}
           />
         }
@@ -282,8 +283,8 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
       title="API-Schlüssel (nur einmal sichtbar)"
       icon={
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.permissions.icon}
-          tone={MOTO_CONCEPTS.permissions.tone}
+          icon={permissionsConcept.icon}
+          tone={permissionsConcept.tone}
           size={18}
         />
       }

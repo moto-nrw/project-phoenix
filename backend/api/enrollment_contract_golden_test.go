@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func checkEnrollmentSubmissionGolden(t *testing.T, api *goldenRuntime) {
@@ -25,8 +26,8 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *goldenRuntime) {
 	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Contract", "Staff")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
-	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
-	parentToken := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
+	staffToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	parentToken := testpkg.MintLiveSessionJWT(t, db, sessiontoken.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
 	enabled := checkpointRequest(api, checkpointScenario{
 		Method: http.MethodPut, Path: "/api/settings/values/enrollment.enabled", Authenticated: true, Body: `{"value":true}`,
 	}, staffToken)
@@ -99,7 +100,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		phase.ID, testpkg.Tenant(t),
 	).Exec(context.Background())
 	require.NoError(t, err)
-	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	staffToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
 
 	addStudents := func(start, count int) []int64 {
 		t.Helper()
@@ -184,7 +185,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
 		total := counter.Queries()
-		route := withoutModuleLock(t, total)
+		route := withoutModuleLock(t, withoutSessionCheck(t, total))
 		overview := make([]string, 0, len(route))
 		for _, query := range route {
 			if !strings.Contains(query, "setting_values") {
@@ -225,7 +226,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	}
 	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
 	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
-	testpkg.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
+	querybudgets.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
 }
 
 // withoutModuleLock removes the module lock (#4893) from a request's

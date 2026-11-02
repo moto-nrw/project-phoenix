@@ -90,6 +90,9 @@ export const MOTO_COLOR_PALETTE = {
     hover: "#74B825",
     active: "#6DB118",
     strong: "#3F6F12",
+    // Fläche unter weißer Schrift/Icon (#5141), 4,84:1 zu Weiß. base trägt
+    // kein Weiß (1,96:1).
+    fill: "#4A7F14",
   },
   blue: {
     soft: "#EDF3FC",
@@ -358,6 +361,7 @@ export const GROUP_ROOM_SHADES = {
   base: MOTO_COLOR_PALETTE.green.base,
   hover: MOTO_COLOR_PALETTE.green.hover,
   active: MOTO_COLOR_PALETTE.green.active,
+  fill: MOTO_COLOR_PALETTE.green.fill,
   text: MOTO_COLOR_PALETTE.green.strong,
   bgHover: MOTO_COLOR_PALETTE.green.soft,
   bgActive: MOTO_COLOR_PALETTE.green.muted,

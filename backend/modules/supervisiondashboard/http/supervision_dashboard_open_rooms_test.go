@@ -19,6 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type wireOpenRoomStudent struct {
@@ -596,5 +597,5 @@ func TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks(t *testing.T) {
 
 	t.Logf("open-room cost: 1 room/1 block → %d statements, 3 rooms/5 blocks → %d statements", small, large)
 	assert.Equal(t, small, large, "the shared view reads in bulk, not per room or per block")
-	testpkg.AssertQueryBudget(t, "api.active.supervision_dashboard.open_room_blocks", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.active.supervision_dashboard.open_room_blocks", counter.Queries())
 }

@@ -36,6 +36,8 @@ import {
 import { createLogger } from "~/lib/logger";
 import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
 
@@ -113,7 +115,7 @@ function ApprovalsEmptyState({
             className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100"
           >
             <MotoConceptIcon
-              concept={configuredAway ? "settings" : "accounts"}
+              concept={configuredAway ? settingsConcept : accountsConcept}
               size={28}
             />
           </span>

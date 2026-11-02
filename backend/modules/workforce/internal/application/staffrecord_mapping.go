@@ -34,7 +34,7 @@ func qualificationsToPublic(values []domain.StaffQualification) []workforce.Staf
 	result := make([]workforce.StaffQualification, 0, len(values))
 	for _, value := range values {
 		result = append(result, workforce.StaffQualification{
-			ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Name: value.Name,
+			ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, TypeID: value.TypeID, Name: value.Name,
 			AcquiredOn: value.AcquiredOn, ExpiresOn: value.ExpiresOn, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		})
 	}

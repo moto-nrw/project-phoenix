@@ -48,6 +48,10 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	"staff-document-file-cleanup":   jobScopeRetention,
 	"student-document-file-cleanup": jobScopeRetention,
 	"file-store-cleanup":            jobScopeRetention,
+	// The payroll dispatch (#4805) also purges expired payroll files, so it
+	// runs regardless of the booked modules; a close queues it only where
+	// the time tracking is booked.
+	"payroll-dispatch": jobScopeRetention,
 
 	// moto Basis: day sessions, statuses, the timetable, pickup and activity
 	// reminders for the team, the care plan audit and the platform jobs.
@@ -63,12 +67,24 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	"activate-students":         jobScopeBasis,
 	"billing-key-dates":         jobScopeBasis,
 	"analytics-school-names":    jobScopeBasis,
+	// The school vacations (#5345) hold for every school of a state and
+	// feed the vacation hint of the Betreuungsplan.
+	"school-vacation-sync": jobScopeBasis,
 	// The outbox delivers what a producer already enqueued; a producer of a
 	// module that is not booked enqueues nothing.
 	"email-outbox": jobScopeBasis,
 	// The holiday guests of a hosted week belong to moto Basis like its
 	// participant list (ADR 0116, ADR 0120).
 	"holiday-guest-reconciliation": jobScopeBasis,
+	// A planned staff exit is the staff administration of moto Basis
+	// (#4809).
+	"planned-staff-exits": jobScopeBasis,
+	// The Nachweise of the staff are the personnel record of moto Basis
+	// (#4808).
+	"staff-qualification-reminders": jobScopeBasis,
+	// The weekly protocol of a group (#4769) is the group's planning of
+	// moto Basis, like the timetable it records.
+	"week-protocols": jobScopeBasis,
 
 	// Zeiterfassung: breaks and work sessions of the time clock.
 	"break-auto-end": {moduleSettingKey: settingModuleZeiterfassung},

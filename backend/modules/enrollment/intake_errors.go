@@ -63,6 +63,7 @@ var (
 	ErrCareOfferingNotFound                         = errors.New("care offering not found")
 	ErrCareOfferingInvalid                          = errors.New("invalid care offering configuration")
 	ErrCareOfferingTemplatePeriodMismatch           = errors.New("care offering phase must be within the linked timetable template period")
+	ErrCareOfferingSourceConflict                   = errors.New("care offering edit conflicts with a sourced template")
 	ErrCareOfferingGroupRuleConflict                = errors.New("care offerings in the same selection group must share one selection rule")
 	ErrCareOfferingDaysRequired               error = offeringContract.CareOfferingDaysRequiredError{}
 	ErrCareOfferingPickupTimesRequired              = errors.New("active care offering requires pickup_times for every weekday")

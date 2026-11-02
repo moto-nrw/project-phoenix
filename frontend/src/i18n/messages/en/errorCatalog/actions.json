@@ -1,0 +1,7 @@
+{
+  "retry": "Try again",
+  "copyRequestId": "Copy request ID",
+  "requestId": "Request ID: {requestId}",
+  "crash": "{object} could not be processed. Please try again later.",
+  "fieldCheck": "Please check this field."
+}

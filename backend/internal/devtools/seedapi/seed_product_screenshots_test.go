@@ -19,6 +19,9 @@ func TestProductScreenshotsSwitchOffTheWeekendPlanOnly(t *testing.T) {
 	assert.Equal(t, "true", setting(SeedOptions{}), "the demo keeps the weekend care day")
 	assert.Equal(t, "true", setting(SeedOptions{StandingDemo: true}), "the standing demo keeps the weekend care day")
 	assert.Equal(t, "false", setting(SeedOptions{ProductScreenshots: true}))
+
+	standing := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, SeedOptions{StandingDemo: true})
+	assert.Equal(t, "true", string(standing.definition.Settings[profileSettingAttendanceNFC].Value), "the standing demo's simulator requires NFC device routes")
 }
 
 // The simulated screenshot day fills the Statistik; the seed-time session

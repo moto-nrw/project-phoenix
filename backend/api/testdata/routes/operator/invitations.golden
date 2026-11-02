@@ -1,0 +1,4 @@
+DELETE /operator/invitations/{id}
+GET /operator/invitations/
+POST /operator/invitations/
+POST /operator/invitations/{id}/resend

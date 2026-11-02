@@ -167,7 +167,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 	t.Run("returns error for non-existent role", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("assign-role-user-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -194,7 +194,7 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 	t.Run("activates already active account (idempotent)", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("already-active-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -224,7 +224,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 	t.Run("deactivates already inactive account (idempotent)", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("already-inactive-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -251,7 +251,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 	t.Run("preserves the credential", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("preserve-hash-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -300,7 +300,7 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 	t.Run("returns accounts with email filter", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("filter-email-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -334,7 +334,7 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 
 	t.Run("returns accounts with specific role", func(t *testing.T) {
 		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		uniqueID := fmt.Sprintf("%d", testpkg.UniqueSuffix())
 		roleName := fmt.Sprintf("specific-role-%s", uniqueID)
 		role, err := rbac.CreateRole(ctx, roleName, "Specific role for testing", testpkg.StrPtr("user"))
 		require.NoError(t, err)
@@ -386,7 +386,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 
 	t.Run("normalizes email case on login", func(t *testing.T) {
 		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		uniqueID := fmt.Sprintf("%d", testpkg.UniqueSuffix())
 		email := fmt.Sprintf("login-case-%s@test.local", uniqueID)
 		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
 		require.NoError(t, err)
@@ -412,7 +412,7 @@ func TestAuthService_Register_Extended(t *testing.T) {
 
 	t.Run("normalizes email case on registration", func(t *testing.T) {
 		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		uniqueID := fmt.Sprintf("%d", testpkg.UniqueSuffix())
 		email := fmt.Sprintf("REGISTER-CASE-%s@TEST.LOCAL", uniqueID)
 
 		// ACT
@@ -446,7 +446,7 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 	t.Run("fails for deactivated account", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("refresh-deactivated-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -476,7 +476,7 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 	t.Run("is idempotent - double logout succeeds", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("double-logout-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
@@ -514,7 +514,7 @@ func TestAuthService_ChangePassword_Extended(t *testing.T) {
 	t.Run("returns error for same old and new password", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("same-pwd-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
+		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", testpkg.UniqueSuffix()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 
 		// ACT - Change to same password

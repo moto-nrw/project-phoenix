@@ -1,0 +1,17 @@
+{
+  "title": "moto'yu uygulama olarak kullanın",
+  "samsungDescription": "moto'yu Samsung Internet üzerinden yüklemeyin. moto'yu Chrome'da açın ve orada giriş yapın.",
+  "samsungStep": "Sonra Chrome menüsünden şunu seçin:",
+  "samsungFallback": "Bu olmazsa Chrome'u açın ve {host} adresine gidin.",
+  "oneTapDescription": "moto'yu doğrudan bu ekrandan yükleyin. Böylece moto her zaman tarayıcı çubuğu olmadan, tam ekran açılır.",
+  "iosBefore": "Safari'de önce şuna dokunun:",
+  "iosBetween": "sonra şuna:",
+  "androidBefore": "Tarayıcı menüsünü açın ve şuna dokunun:",
+  "androidOr": "veya",
+  "share": "Paylaş",
+  "homeScreen": "Ana Ekrana Ekle",
+  "install": "Uygulamayı yükle",
+  "addToHome": "Ana ekrana ekle",
+  "openInChrome": "Chrome'da aç",
+  "close": "İpucunu kapat"
+}

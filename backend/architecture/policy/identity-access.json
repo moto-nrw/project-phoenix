@@ -1,0 +1,507 @@
+{
+  "packages": [
+    {
+      "path": "modules/identityaccess/inbound/account",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolportal",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/identityaccess/tokenprimitives",
+      "owner": "identity-access",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/sessiontoken",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/application/rotation",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/requestreview",
+      "owner": "identity-access",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess",
+      "owner": "identity-access",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/compose",
+      "owner": "identity-access",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/adapters/postgres",
+      "owner": "identity-access",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/application",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/domain",
+      "owner": "identity-access",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/ports",
+      "owner": "identity-access",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/ports",
+      "owner": "identity-access",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/integration",
+      "owner": "identity-access",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/behavior",
+      "owner": "identity-access",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/identityaccess/inbound/operator",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/identityaccess/inbound/me",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/traegerportal",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "auth.account_roles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.account_tenants",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.account_avatar_file_cleanup",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.demo_accesses",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_schools",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterers",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.guardian_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.invitation_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_email_challenges",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_overrides",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_recovery_codes",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.mfa_trusted_devices",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.passkey_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.passkey_sessions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.password_reset_rate_limits",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.password_reset_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.permissions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.role_permissions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.roles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_email_change_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_invitation_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_email_challenges",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_recovery_codes",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_mfa_trusted_devices",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_passkey_credentials",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_passkey_sessions",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operator_refresh_tokens",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "platform.operators",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "users.profiles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "users.rfid_cards",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.guardian_student_access",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.organization_account_roles",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.traeger_invitations",
+      "write_owner": "identity-access"
+    }
+  ],
+  "rules": [
+    {
+      "id": "identity-access.port-domain",
+      "description": "Identity & Access ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "identity-access.application.tenant-runtime",
+      "description": "Identity & Access application code scopes the operator's school-wide MFA writes to the school they name (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.application.transaction-runtime",
+      "description": "Identity & Access application code marks a store's missing row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.module-internal-test.tenant-runtime",
+      "description": "The internal tests of the Identity & Access application read the tenant the MFA writes ran under (ADR 0058 addendum point 4, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.compose.orm-sql",
+      "description": "Identity & Access composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "identity-access.compose.tenant-runtime",
+      "description": "Identity & Access composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.integration-test.support",
+      "description": "Identity & Access integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "identity-access.http.public",
+      "description": "The operator identity routes call the public Identity & Access capability (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.http.tenant-runtime.common",
+      "description": "The operator identity routes use the shared HTTP request and response helpers (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "identity-access.http.token-claims",
+      "description": "The operator identity routes read the verified operator claims and the refresh recovery proof (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "identity-access.http.refresh-rotation",
+      "description": "The operator refresh route passes the rotation recovery proof to the capability (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.http.settings-public",
+      "description": "The tenant shell of the account routes reads the tenant settings through the public Settings Platform contract (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.e2e-test.session-runtime",
+      "description": "Identity & Access e2e-test reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "identity-access.module-behavior-test.session-runtime",
+      "description": "Identity & Access module-behavior-test reaches its own session token runtime, which carries the http role (ADR 0057 point 3).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "external.crypto.identity-access.production.application",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.domain",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "domain",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.public",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "public",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.internal_test.module-internal-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.external_test.e2e-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "identity-access.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "postgres",
+      "source_package": "modules/identityaccess/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

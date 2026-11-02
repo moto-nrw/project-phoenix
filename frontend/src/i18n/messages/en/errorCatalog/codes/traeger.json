@@ -1,0 +1,15 @@
+{
+  "access_log_export_too_large": "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+  "already_member": "This person already belongs to the Träger office.",
+  "bank_account_label_taken": "Another bank account already has this label. Please choose a different label.",
+  "bank_account_not_found": "This bank account no longer exists. Please reload the page.",
+  "last_administrator": "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+  "logo_invalid": "The logo must be a PNG or JPG image of at most 2000 pixels in width and height. Please choose another image.",
+  "logo_not_found": "There is no logo. Please reload the page.",
+  "logo_too_large": "The logo is too large. Please choose an image up to 1 MB.",
+  "master_data_invalid": "Some details are not correct. Please check the marked fields.",
+  "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
+  "no_membership": "Your account has no access to the Träger portal. Please contact the moto team.",
+  "school_not_found": "This school does not belong to your Träger. Please reload the page.",
+  "second_factor_required": "To open a school you need a second sign-in factor. Please sign in to the Träger portal again."
+}

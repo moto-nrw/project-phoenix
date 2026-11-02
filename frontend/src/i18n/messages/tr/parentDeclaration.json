@@ -1,0 +1,90 @@
+{
+  "sectionTitle": "Cevabınız",
+  "signersAny": "Her çocuk için velayet sahibi bir kişi yeterlidir.",
+  "signersAll": "Velayet sahibi her kişi kendisi yanıtlar.",
+  "nothingPreselected": "Hiçbir şey önceden seçilmemiştir.",
+  "version": "Sürüm {version}",
+  "deadline": "Son tarih {date}",
+  "closed": "Süre doldu",
+  "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
+  "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
+  "state": {
+    "open": "Açık",
+    "partial": "Kısmen yanıtlandı",
+    "agreed": "Onaylandı",
+    "declined": "Reddedildi",
+    "revoked": "Geri alındı",
+    "no_signer": "Kimse yanıtlayamaz",
+    "expired": "Süre doldu"
+  },
+  "action": {
+    "agreed": "Onaylıyorum",
+    "declined": "Reddediyorum",
+    "revoked": "Onayı geri al"
+  },
+  "done": {
+    "agreed": "Onaylandı",
+    "declined": "Reddedildi",
+    "revoked": "Onay geri alındı"
+  },
+  "explain": {
+    "agreed": "„Onaylıyorum“ ile {name} için kabul ettiğinizi beyan edersiniz.",
+    "declined": "„Reddediyorum“ ile {name} için kabul etmediğinizi beyan edersiniz."
+  },
+  "settled": {
+    "agreed": "{name} onayladı.",
+    "declined": "{name} reddetti.",
+    "revoked": "{name} onayı geri aldı."
+  },
+  "settledOnDate": {
+    "agreed": "{name} {date} tarihinde onayladı.",
+    "declined": "{name} {date} tarihinde reddetti.",
+    "revoked": "{name} {date} tarihinde onayı geri aldı."
+  },
+  "settledUnknown": "{name} için zaten bir yanıt var.",
+  "oneIsEnough": "Bir yanıt yeterlidir.",
+  "ownAnyway": "Yine de kendiniz yanıtlayabilirsiniz.",
+  "cannotSubmit": "{name} için burada yanıt veremezsiniz. Bunu velayet sahibi kişiler yapar.",
+  "myAction": "Yanıtınız: {action}, {date}",
+  "myActionNoDate": "Yanıtınız: {action}",
+  "proof": "Belgeyi görüntüle",
+  "othersTitle": "Velayet sahibi diğer kişiler",
+  "otherOpen": "henüz yanıt yok",
+  "revokeHint": "Onayınızı geri alabilirsiniz. Okul bunu hemen görür.",
+  "closedNoAction": "Süre doldu. Artık yanıt veremezsiniz.",
+  "confirmTitle": "Yanıtınızı kontrol edin",
+  "confirmBody": "{name} için cevabınız: {action}.",
+  "confirmChild": "Çocuk",
+  "confirmAction": "Yanıtınız",
+  "confirmVersion": "Metin",
+  "confirmRecorded": "moto yanıtınızı tarih ve saatle kaydeder. Okul bunu görür.",
+  "passwordLabel": "Veli hesabınızın şifresi",
+  "signature": {
+    "label": "İmzanız",
+    "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+    "canvas": "İmza alanı",
+    "clear": "Alanı temizle",
+    "typeInstead": "Adınızı yazın",
+    "drawInstead": "Bunun yerine çiz",
+    "typedName": "Adınız ve soyadınız",
+    "confirm": "İmzayı onayla",
+    "confirmed": "İmzanız hazır.",
+    "confirmedTyped": "Yazdığınız ad hazır.",
+    "change": "Yeniden imzala",
+    "preview": "İmzanız",
+    "emptyDrawing": "Lütfen alana imza atın.",
+    "nameTooShort": "Lütfen adınızı yazın."
+  },
+  "revokeTitle": "Onayı geri al",
+  "revokeBody": "{name} için onayınızı geri alıyorsunuz.",
+  "revokeConfirm": "Geri al",
+  "cancel": "Vazgeç",
+  "saving": "Kaydediliyor …",
+  "saved": "{name} için yanıtınız kaydedildi.",
+  "errors": {
+    "passwordRequired": "Lütfen şifrenizi girin.",
+    "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
+    "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
+  },
+  "errorObjectAnswer": "yanıt"
+}

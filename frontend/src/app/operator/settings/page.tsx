@@ -31,6 +31,7 @@ import { createLogger } from "~/lib/logger";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 const logger = createLogger({ component: "OperatorSettingsPage" });
 
@@ -280,7 +281,7 @@ function OperatorSettingsContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" concept="settings" />
+      <PageHeaderWithSearch title="Profil" concept={settingsConcept} />
 
       <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
         <div className="flex flex-col items-center pt-4">

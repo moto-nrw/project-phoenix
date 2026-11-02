@@ -123,3 +123,129 @@ Trägers und Feriengäste ohne Schule. Ihr Token trägt nur ihre eigene
   Trägers; die Liste hält keine eigene Kopie.
 - Wer in der Schule `config:read` hat, sieht die Liste. Ein eigenes Recht
   dafür gibt es nicht.
+
+## Nachtrag 2026-10-28: Freigegebene Antworten und zweite sorgeberechtigte Person (#5202)
+
+Der Nutzer hat am 28.10.2026 Option B „Ohne Gesundheit“ gewählt
+([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Spec #4611
+B7). Punkt 3 gilt mit dieser Erweiterung:
+
+- **Mehr als die Mindestfelder.** Zu den Mindestfeldern kommen je Kind Name
+  und Telefon der zweiten sorgeberechtigten Person (#5197) und die Antworten
+  auf die Fragen, die der Träger im Formular-Baukasten (#5198) für die
+  ausrichtende OGS freigibt (`share_with_host`). Die Standardvorlage gibt
+  „Darf allein nach Hause gehen“ und „Darf an Ausflügen teilnehmen“ frei;
+  Formularversionen von vorher geben nichts frei. Eine Freigabe wirkt ab der
+  Version, die sie setzt: Es zählt die Version, mit der die Anmeldung kam.
+- **Keine Gesundheitsangaben.** Gesundheitsangaben bleiben beim Träger, bis
+  [#4722](https://github.com/moto-nrw/project-phoenix/issues/4722) umgesetzt
+  ist; das gilt für Allergien, Medikamente und Gesundheitshinweise und für
+  jede Frage mit Gesundheitskennzeichen. Der Baukasten lehnt eine Freigabe
+  an einer Gesundheitsfrage ab (`enrollment.holiday_form_field_not_allowed`,
+  Feld `fields.N.share_with_host`).
+- **Filter in der Datenbank.** `enrollment.holiday_host_participants` gibt
+  eine Antwort nur heraus, wenn die Version der Anmeldung die Frage freigibt
+  und als `health: false` (JSON-Boolean) markiert, keine Version des
+  Zeitraums dieselbe Frage anders markiert und die Frage eine Antwort hat
+  (kein Infotext). Ein fehlendes oder unklares Kennzeichen gilt als
+  Gesundheitsangabe. Keine E-Mail-Adresse verlässt die Funktion.
+- Liste und Export zeigen eine Spalte je freigegebener Frage und die zweite
+  Person, wenn ein Kind eine hat. Ohne beides bleiben sie wie bisher. Das
+  Zugriffsprotokoll (Punkt 6) und das Ende nach der Woche (Punkt 4) bleiben
+  unverändert.
+- **Register.** Migration `1.15.712` ersetzt die Funktion; der Down-Pfad
+  stellt die alte Signatur wieder her. Keine neue Tabelle, keine neue Regel
+  in `policy.json`.
+
+Option C (Gesundheitsangaben für die OGS) braucht #4722 und einen eigenen
+Nachtrag.
+
+## Nachtrag 2026-11-01: Informationsfluss statt Datensilos
+
+Der Nutzer ersetzt Option B „Ohne Gesundheit“ aus dem Nachtrag vom 28.10.2026
+als dauerhaftes Produktziel durch Option C: Die ausrichtende OGS erhält die
+für die Betreuung benötigten Gesundheitsangaben im normalen Ablauf. Dazu
+gehören Allergien, Medikamente, Gesundheitshinweise und Antworten auf
+Gesundheitsfragen. Dass die Anmeldung beim Träger liegt, begründet keine
+Informationssperre für die tatsächlich betreuende OGS. Es gilt die
+[Regel zum Informationsfluss](../../.claude/rules/information-flow.md).
+
+Die Umsetzung und ihre Nachweise gehören zu
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722), das die
+Weitergabe bereits umfasst. Der Zugriff muss den berechtigten Beteiligten
+für die bestätigte Betreuung und deren Zeitraum dienen, mit passender
+Rechtsgrundlage, erforderlichen Einwilligungen, Zugriffsschutz und
+Zugriffsprotokoll. Für bestehende Anmeldungen muss die Rechtsgrundlage die
+konkrete Weitergabe ebenfalls tragen; dieser Nachtrag erteilt keine
+rückwirkende Freigabe.
+
+**Produktentscheidung, noch kein Implementierungsnachweis:** Dieser Nachtrag
+ersetzt das dauerhafte Ziel „keine Gesundheitsangaben für die OGS“, entfernt
+aber keine bestehenden Filter oder Berechtigungen. Bis zur nachgewiesenen
+Umsetzung beschreibt der Nachtrag vom 28.10.2026 weiter den technischen
+Stand. Die neue Entscheidung erlaubt weder Zugriff durch andere Schulen
+noch pauschale Gesundheitsexporte oder eine Ausweitung bestehender Fristen.
+
+## Nachtrag 2026-11-01: Standard ist freigegeben (#5470)
+
+Neue Fragen im Ferien-Baukasten starten mit `share_with_host: true`
+([#5470](https://github.com/moto-nrw/project-phoenix/issues/5470)). Die
+ausrichtende OGS braucht die Antworten für die Betreuung; das Träger-Büro
+kann die Freigabe je Frage ausschalten. In der Standardvorlage sind alle
+Fragen ohne Gesundheitskennzeichen freigegeben. Die Online-Anmeldung der
+Schule behält ihren bisherigen Standard.
+
+Gespeicherte Formularversionen und abgegebene Anmeldungen bleiben unverändert.
+Eine Freigabe wirkt weiterhin erst ab der Version, die sie setzt. Bis zur
+Umsetzung von #4722 bleiben Gesundheitsfragen von der Freigabe ausgeschlossen.
+Die Empfänger, Berechtigungen, Zugriffsprotokolle und Fristen ändern sich nicht.
+
+## Nachtrag 2026-11-01: Gesundheitsangaben für die ausrichtende OGS (#4722)
+
+Der Nutzer hat am 01.11.2026 entschieden: keine Datensilos, Option C aus
+[#5202](https://github.com/moto-nrw/project-phoenix/issues/5202) sofort mit
+[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Eine
+Gesundheitsangabe für die Ferienbetreuung kommt dort an, wo das Kind betreut
+wird, geschützt und befristet. Punkt 3 und der Nachtrag vom 28.10.2026
+(„Keine Gesundheitsangaben“) gelten mit dieser Änderung:
+
+- **Was die OGS sieht.** Je bestätigtem Kind ihrer Woche Allergien,
+  Medikamente, weitere Hinweise zur Gesundheit und die Antworten auf die
+  Gesundheitsfragen, die die Version der Anmeldung mit `share_with_host`
+  freigibt (ein fehlendes oder unklares Gesundheitskennzeichen gilt als
+  Gesundheitsfrage). Liste und Feriengast zeigen sie unter „Gesundheit“.
+  Die Liste öffnet sie nur für ein Konto mit `users:read`, dem Recht, das
+  auch das Gesundheitsfeld eines Kindes öffnet; ohne es bleibt die Spalte
+  leer.
+- **Nur mit neuer Einwilligung.** Die Angaben gehen nur weiter, wenn die
+  Eltern der Gesundheitsangabe zugestimmt haben und die Anmeldung unter den
+  Einwilligungstexten der Version 2 kam (`consent_version`), die die OGS als
+  Leserin nennen. Ältere Anmeldungen geben nichts weiter.
+- **Verschlüsselt bis in die Schul-Transaktion.**
+  `enrollment.holiday_host_participants` liefert die verschlüsselten Werte
+  und die Definition der freigegebenen Gesundheitsfragen, nie Klartext.
+  Enrollment entschlüsselt sie erst in der Tenant-Transaktion der
+  ausrichtenden Schule.
+- **Dauer.** Wie die übrigen Angaben: von der Bestätigung bis zum letzten Tag
+  der Woche (Punkt 4).
+- **Kein Gesundheitsexport.** CSV und Excel bleiben ohne Gesundheitsspalten;
+  die Liste im Browser reicht.
+- **Eigene Kinder der Schule.** Für ein Kind der ausrichtenden Schule zeigt
+  die Kindakte die Angaben als „Angaben aus der Ferienanmeldung“
+  (`GET /api/holiday-weeks/students/{studentId}/health`, Recht `users:read`
+  wie das Gesundheitsfeld). Zugeordnet wird über Heimatschule, Vor- und
+  Nachname und Geburtsdatum. Das Gesundheitsfeld der Schule bleibt
+  unverändert; weichen die Angaben ab, steht beides untereinander.
+- **Zugriffsprotokoll.** Der Eintrag einer Liste nennt mit
+  `health_participants`, wie viele Kinder mit Gesundheitsangaben sie zeigte;
+  das Lesen am eigenen Kind schreibt `holiday_student_health` mit dem Kind.
+- **Baukasten.** Das Verbot `enrollment.holiday_form_field_not_allowed` für
+  `share_with_host` an einer Gesundheitsfrage entfällt; die Standardvorlage
+  gibt ihre Gesundheitsfragen frei. Damit endet auch der Ausschluss aus dem
+  Nachtrag zu #5470: Neue Fragen starten freigegeben, Gesundheitsfragen
+  eingeschlossen.
+- **Register.** Migration `1.15.725` verschlüsselt die bestehenden Zeilen,
+  entfernt die Klartextspalten und ersetzt die Funktion; der Down-Pfad stellt
+  Klartext und Funktion von #5202 wieder her. Neue Route im Schul-Router
+  (lesend, keine Nutzungsanalyse). Keine neue Tabelle, keine neue Regel in
+  `policy.json` außer der Regel für die Migration auf Security Runtime.

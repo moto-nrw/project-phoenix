@@ -83,7 +83,7 @@ func BuildIdentityAccess(
 	}
 	mfa, err := NewMFADependencies(tokens.SessionTokens, settings, mfaMail, operatorAuditLog, cfg.JWTSecret, &identityBindingPorts.PasskeyDependencies{
 		RPID: tenantDomain, RPName: identityaccess.PasskeyRPName,
-		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+		TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL, CatererFrontendURL: links.CatererURL,
 	}, authLogger)
 	if err != nil {
 		return nil, nil, err
@@ -120,7 +120,7 @@ func BuildIdentityAccess(
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo,
 		Resets: PasswordResetDependencies(&PasswordResetWiring{
 			Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable,
-			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL, CatererURL: links.CatererURL,
+			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL, CatererURL: links.CatererURL, TraegerURL: links.TraegerURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
 		Invitations: invitationDeps, Traeger: traegerAccountDependencies(mailDispatcher, mailFrom, deliveryRuntime, links, authLogger),

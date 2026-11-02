@@ -427,6 +427,14 @@ func (s *RetainedPersonDirectory) GetEligibleStudentsByGroupIDsOnDate(ctx contex
 	if err != nil {
 		return nil, err
 	}
+	return s.FilterEligibleStudentsOnDate(ctx, students, date, today)
+}
+
+// FilterEligibleStudentsOnDate keeps the candidates whose care covers the
+// date, by the rule GetEligibleStudentsByGroupIDsOnDate applies to a group's
+// candidates. Pass every candidate, graduates included: the participation
+// rule decides whether a graduate still counts.
+func (s *RetainedPersonDirectory) FilterEligibleStudentsOnDate(ctx context.Context, students []*peopleValues.StudentState, date, today calendar.Date) ([]*peopleValues.StudentState, error) {
 	if s.deps.CareParticipation == nil {
 		return nil, errors.New("person service: care participation resolver is not configured")
 	}

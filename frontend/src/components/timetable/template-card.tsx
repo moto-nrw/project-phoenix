@@ -16,11 +16,12 @@ import { Archive, Palette, Users } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
-import { RosterDeviationHint } from "./roster-deviation-hint";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
+import { SeriesRosterReview } from "./series-roster-review";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import {
   TIMETABLE_NEUTRAL_COLOR,
@@ -28,6 +29,9 @@ import {
   timetableSurface,
 } from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -39,7 +43,8 @@ interface TemplateCardProps {
   /** Erkannte Abweichung von den Anmeldungen (#5103). */
   deviation?: RosterDeviation;
   onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
-  onKeepManual?: (template: TimetableTemplate) => void;
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
+  onSetManualRoster?: (template: TimetableTemplate, confirmed: boolean) => void;
 }
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -76,11 +81,7 @@ function summarizeTargets(template: TimetableTemplate): string | null {
   const labels = targets.map((target) => {
     if (target.type === "jahrgang") return `Jahrgang ${target.gradeLevel}`;
     if (target.type === "klasse") {
-      const schoolClass = target.schoolClass?.trim();
-      if (!schoolClass) return "Klasse";
-      return /^klasse(?:\s|$)/i.test(schoolClass)
-        ? schoolClass
-        : `Klasse ${schoolClass}`;
+      return schoolClassLabel(target.schoolClass ?? "") || "Klasse";
     }
     return target.educationGroupName ?? "Gruppe";
   });
@@ -95,7 +96,7 @@ export function TemplateCard({
   canManage = true,
   deviation,
   onConnect,
-  onKeepManual,
+  onSetManualRoster,
 }: TemplateCardProps) {
   const color = template.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR;
   // Schichtfarbe kommt aus den Tenant-Daten; fehlt sie, steht dort das
@@ -176,18 +177,22 @@ export function TemplateCard({
           )}
         </div>
 
-        {/* #5103: die Abweichung ersetzt die graue Plakette „Manuell“. */}
-        {deviation && template.type !== "duty" ? (
-          <RosterDeviationHint
+        {/* #5103: die Abweichung ersetzt die graue Plakette „Manuell“. Bleibt
+            die Serie bewusst von Hand gepflegt, sagt die Karte das und
+            bietet den Rückweg, wie die Termindetails. */}
+        {template.type !== "duty" ? (
+          <SeriesRosterReview
             deviation={deviation}
+            manualRosterConfirmed={template.manualRosterConfirmed === true}
+            className=""
             onConnect={
               canManage && onConnect
-                ? () => onConnect(template, deviation)
+                ? (found) => onConnect(template, found)
                 : undefined
             }
-            onKeepManual={
-              canManage && onKeepManual
-                ? () => onKeepManual(template)
+            onSetManualRoster={
+              canManage && onSetManualRoster
+                ? (confirmed) => onSetManualRoster(template, confirmed)
                 : undefined
             }
           />
@@ -213,7 +218,7 @@ export function TemplateCard({
 
         <dl className="space-y-1.5 text-xs text-gray-600">
           <div className="flex items-center gap-2">
-            <MotoConceptIcon concept="careTimes" size={14} />
+            <MotoConceptIcon concept={careTimesConcept} size={14} />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
               {/* #3594: eine Serie kann vor dem Planungszeitraum enden. Danach
@@ -232,7 +237,7 @@ export function TemplateCard({
             </div>
           ) : null}
           <div className="flex items-center gap-2">
-            <MotoConceptIcon concept="rooms" size={16} />
+            <MotoConceptIcon concept={roomsConcept} size={16} />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -258,9 +263,11 @@ export function TemplateCard({
           </div>
           {template.requiredStaffCount > 0 && (
             <div className="flex items-center gap-2">
-              <MotoConceptIcon concept="supervision" size={16} />
+              <MotoConceptIcon concept={supervisionConcept} size={16} />
               <TimetableRatioPill
-                icon={<MotoConceptIcon concept="supervision" size={16} />}
+                icon={
+                  <MotoConceptIcon concept={supervisionConcept} size={16} />
+                }
                 label="Besetzung"
                 value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
                 tone={capacityTone(

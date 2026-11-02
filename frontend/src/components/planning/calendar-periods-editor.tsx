@@ -36,6 +36,7 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import type { CalendarPeriodsState } from "~/components/planning/use-calendar-periods";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 
 export { useCalendarPeriods } from "~/components/planning/use-calendar-periods";
 
@@ -57,7 +58,7 @@ export function CalendarPeriodsActions({
         className="shrink-0 gap-2"
       >
         <MotoConceptIcon
-          concept="calendarPeriods"
+          concept={calendarPeriodsConcept}
           colorMode="inherit"
           size={16}
         />
@@ -254,7 +255,7 @@ export function CalendarPeriodsEditor({
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="calendarPeriods" size={28} />
+            <MotoConceptIcon concept={calendarPeriodsConcept} size={28} />
           </span>
         }
         title="Noch keine Kalenderzeiträume"

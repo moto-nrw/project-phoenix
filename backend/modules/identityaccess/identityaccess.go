@@ -365,6 +365,7 @@ type Owner interface {
 	RolePermissionQuery
 	SchoolMembershipQuery
 	AccountAuthentication
+	AccessSessions
 	AccountSessionMaintenance
 	AccountClaimsQuery
 	OperatorAuthentication
@@ -377,6 +378,7 @@ type Owner interface {
 	OperatorStatus
 	TraegerRoles
 	TraegerAccountManagement
+	TraegerOperatorInvitation
 	// AccountHoldsRole reports whether the account holds the role of that
 	// exact name. A failed lookup counts as not holding it: the answer only
 	// ever withholds.

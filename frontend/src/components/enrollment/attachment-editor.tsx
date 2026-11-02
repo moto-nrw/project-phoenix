@@ -21,6 +21,18 @@ export const AttachmentUploadContext = createContext<{
 
 /** Removal is staged with the form. The editor cleans unreferenced drafts
  * on save/discard, while the backend protects every saved version's files. */
+export interface AttachmentUploadAdapter {
+  upload: (file: File) => Promise<string>;
+  remove: (
+    reference: string,
+    options?: { keepalive?: boolean },
+  ) => Promise<void>;
+}
+const SCHOOL_ATTACHMENT_UPLOAD: AttachmentUploadAdapter = {
+  upload: uploadEnrollmentLegalDocument,
+  remove: deleteEnrollmentLegalDocument,
+};
+
 const NO_ATTACHMENTS: FormAttachment[] = [];
 
 function selectionError(files: File[]): string | undefined {
@@ -39,7 +51,9 @@ export function AttachmentEditor({
   disabled,
   fieldPath,
   fieldError,
+  uploadAdapter = SCHOOL_ATTACHMENT_UPLOAD,
 }: Readonly<{
+  uploadAdapter?: AttachmentUploadAdapter;
   attachments?: FormAttachment[];
   onChange: (attachments: FormAttachment[]) => void;
   disabled: boolean;
@@ -101,10 +115,10 @@ export function AttachmentEditor({
       for (const file of files) {
         if (!mounted.current) break;
         try {
-          const documentURL = await uploadEnrollmentLegalDocument(file);
+          const documentURL = await uploadAdapter.upload(file);
           lifecycle.remember(documentURL);
           if (!mounted.current) {
-            await deleteEnrollmentLegalDocument(documentURL, {
+            await uploadAdapter.remove(documentURL, {
               keepalive: true,
             });
             break;

@@ -1,0 +1,5 @@
+{
+  "api/traeger/schools": [
+    "GET traeger /traeger/schools"
+  ]
+}

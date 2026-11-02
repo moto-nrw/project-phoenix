@@ -1,0 +1,54 @@
+{
+  "packages": [
+    {
+      "path": "modules/staffmessageinbox/internal/adapters/postgres",
+      "owner": "staff-message-inbox",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffmessageinbox",
+      "owner": "staff-message-inbox",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffmessageinbox/contract",
+      "owner": "staff-message-inbox",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "staff-message-inbox.postgres.staffmessageinbox.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-message-inbox",
+      "source_role": "postgres",
+      "source_package": "modules/staffmessageinbox/internal/adapters/postgres",
+      "target_owner": "staff-message-inbox",
+      "target_role": "public",
+      "target_package": "modules/staffmessageinbox/contract"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "staff-message-inbox",
+      "package": "modules/staffmessageinbox/internal/adapters/postgres",
+      "data_objects": [
+        "users.persons",
+        "users.staff_message_participants",
+        "users.staff_message_reads",
+        "users.staff_message_threads",
+        "users.staff_messages"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

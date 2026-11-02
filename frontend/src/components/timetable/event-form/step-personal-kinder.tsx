@@ -12,6 +12,7 @@ import { Field } from "./field";
 import {
   conflictWarningText,
   shiftCoverageWarningText,
+  targetCohortExtraText,
   type EventFormState,
   rosterForWeekday,
   type PersonOption,
@@ -45,6 +46,7 @@ import type {
   TargetGroupType,
 } from "~/lib/timetable-types";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import type {
   DraftRoster,
@@ -241,15 +243,19 @@ export function StepPersonalKinder({
           periodId: form.calendarPeriodId,
           type: form.type,
           ...(form.listKind ? { listKind: form.listKind } : {}),
+          ...(form.endTime ? { endTime: form.endTime } : {}),
           roster: draftRoster,
           ...draftTargetFilter(form),
         }
       : null,
   );
-  const applyOfferingSuggestion = (suggestion: OfferingSuggestion) => {
+  const applyOfferingSuggestion = (
+    suggestion: OfferingSuggestion,
+    offeringIds: string[],
+  ) => {
     setSuggestedRoster(draftRoster);
     changeTargetGroupType("angebot");
-    changeSourceOfferings([suggestion.offering.id]);
+    changeSourceOfferings(offeringIds);
     if (suggestion.schoolClasses.length > 0) {
       changeSourceFilterMode("klasse");
       update("sourceSchoolClasses", suggestion.schoolClasses);
@@ -348,18 +354,28 @@ export function StepPersonalKinder({
       </div>
     );
   } else {
+    const cohortExtra = targetCohortExtraText(
+      targetCohort,
+      form.studentIds,
+      students,
+    );
     studentRosterField = (
-      <MultiSelectField
-        label="Kinder"
-        options={students}
-        value={form.studentIds}
-        onChange={(ids) => update("studentIds", ids)}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-        protectedValues={form.protectedStudentAssignments.flatMap(
-          (assignment) => assignment.studentIds,
-        )}
-      />
+      <div className="flex flex-col gap-1">
+        <MultiSelectField
+          label="Kinder"
+          options={students}
+          value={form.studentIds}
+          onChange={(ids) => update("studentIds", ids)}
+          metadata="student"
+          bulkOptions={studentBulkOptions}
+          protectedValues={form.protectedStudentAssignments.flatMap(
+            (assignment) => assignment.studentIds,
+          )}
+        />
+        {cohortExtra ? (
+          <p className="text-xs text-gray-600">{cohortExtra}</p>
+        ) : null}
+      </div>
     );
   }
 
@@ -669,7 +685,7 @@ export function StepPersonalKinder({
                                 toggleSourceSchoolClass(schoolClass)
                               }
                             />
-                            Klasse {schoolClass} (
+                            {schoolClassLabel(schoolClass)} (
                             {sourceClassCounts[
                               normalizeSchoolClass(schoolClass)
                             ] ?? 0}
@@ -804,7 +820,9 @@ export function StepPersonalKinder({
           {offeringSuggestion ? (
             <OfferingSuggestionRow
               suggestion={offeringSuggestion}
-              onApply={applyOfferingSuggestion}
+              onApply={(offeringIds) =>
+                applyOfferingSuggestion(offeringSuggestion, offeringIds)
+              }
             />
           ) : null}
         </div>
@@ -823,6 +841,7 @@ export function StepPersonalKinder({
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
+          targetCohort={targetCohort}
         />
       )}
 

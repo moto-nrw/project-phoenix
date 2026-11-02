@@ -43,12 +43,13 @@ func NewCommand(deps Dependencies) openroommove.Command {
 //
 //  1. load the room (Facilities) without locking it and require its release,
 //     so an unreleased room is rejected before any session or visit is touched;
-//  2. resolve the room's system activity (Timetable & Activities),
+//  2. prepare the children, attendance and visits, before any activity/session FK;
+//  3. resolve the room's system activity (Timetable & Activities),
 //     provisioning it on first use under a tenant-wide lock;
-//  3. find or create the room's session for that activity (Student Presence);
-//  4. move the children into it (Student Presence), which locks the children
+//  4. find or create the room's session for that activity (Student Presence);
+//  5. move the children into it (Student Presence), which locks the children
 //     and the involved sessions, then the room capacity row, matching check-in;
-//  5. lock the room row and re-check the release so a concurrent un-release
+//  6. lock the room row and re-check the release so a concurrent un-release
 //     still rejects the move, without taking that lock before the sessions.
 //
 // A failure anywhere returns an error and the transaction owner rolls back.
@@ -242,6 +243,9 @@ func (c *command) moveInTx(txCtx context.Context, move openroommove.Move, result
 		return openroommove.ErrRoomNotReleased
 	}
 
+	if err := c.deps.Moves.PrepareOpenRoomMove(txCtx, studentIDs, room.ID); err != nil {
+		return err
+	}
 	activityID, err := c.roomActivity(txCtx, room)
 	if err != nil {
 		return err

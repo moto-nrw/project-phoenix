@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Portal dla rodziców",
+  "title": "Witamy w portalu dla rodziców",
+  "subtitle": "Proszę się zalogować, aby mieć pod ręką wszystko, co ważne w opiece nad Państwa dzieckiem.",
+  "emailLabel": "Adres e-mail",
+  "passwordLabel": "Hasło",
+  "showPassword": "Pokaż hasło",
+  "hidePassword": "Ukryj hasło",
+  "loading": "Ładowanie...",
+  "submitting": "Logowanie...",
+  "submit": "Zaloguj się",
+  "forgotPassword": "Nie pamiętają Państwo hasła?",
+  "fromStaffBanner": "Tutaj logują się konta rodziców. Proszę jeszcze raz wpisać hasło.",
+  "staffLoginLink": "Do logowania dla szkoły",
+  "errors": {
+    "rateLimited": "Zbyt wiele prób logowania. Proszę spróbować ponownie później.",
+    "notAGuardian": "To konto należy do pracownika szkoły. Proszę zalogować się przez logowanie dla szkoły."
+  },
+  "errorObject": "logowanie"
+}

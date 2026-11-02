@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { loadAccess, perfPort, tenantBaseUrl } from "./scripts/perf/access";
+import {
+  loadAccess,
+  PERF_ACTION_TIMEOUT,
+  perfPort,
+  tenantBaseUrl,
+} from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
 
 // Render-Zählung mit react-scan gegen den DEV-Server (pnpm run perf:render,
@@ -22,6 +27,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     baseURL: tenantBaseUrl(access),
     headless: true,
+    actionTimeout: PERF_ACTION_TIMEOUT,
   },
   webServer: {
     command: "pnpm run dev",

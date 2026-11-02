@@ -51,6 +51,7 @@ export interface ResolvedSetting {
     | "date"
     | "text"
     | "textarea"
+    | "color"
     | "password"
     | "select"
     | "multiselect";

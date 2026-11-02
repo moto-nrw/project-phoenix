@@ -37,6 +37,12 @@ type Store interface {
 	CreateStaff(ctx context.Context, personID int64) (schoolmembership.Staff, domain.OperationStats, error)
 	UpdateStaff(ctx context.Context, id, personID int64) (schoolmembership.Staff, domain.OperationStats, error)
 	SoftDeleteStaff(context.Context, int64) (domain.OperationStats, error)
+
+	// The planned exit of a live membership (#4809); the caller holds the
+	// member's row lock. keepProgress keeps the scheduler's progress.
+	SavePlannedExit(ctx context.Context, plan schoolmembership.PlanExit, keepProgress bool) (schoolmembership.Staff, domain.OperationStats, error)
+	ClearPlannedExit(context.Context, int64) (domain.OperationStats, error)
+	RecordPlannedExitProgress(context.Context, schoolmembership.PlannedExitProgress) (domain.OperationStats, error)
 	// ReinstateStaff lifts the soft delete of a retired, not erased
 	// membership; ErrStaffNotFound when there is none to reinstate.
 	ReinstateStaff(context.Context, int64) (schoolmembership.Staff, domain.OperationStats, error)

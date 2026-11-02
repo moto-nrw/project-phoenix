@@ -1,0 +1,14 @@
+{
+  "api/week-protocols": [
+    "GET tenant /api/week-protocols"
+  ],
+  "api/week-protocols/[protocolId]": [
+    "GET tenant /api/week-protocols/protocolId%2F1"
+  ],
+  "api/week-protocols/[protocolId]/close": [
+    "POST tenant /api/week-protocols/protocolId%2F1/close"
+  ],
+  "api/week-protocols/[protocolId]/notes": [
+    "PUT tenant /api/week-protocols/protocolId%2F1/notes"
+  ]
+}

@@ -1,9 +1,12 @@
 package owners
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 
@@ -24,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -59,18 +63,15 @@ func NewWorker(
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
+	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, healthData enrollmentOwner.HolidayHealthCipher,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
-	lease, err := newWorkerLease(db.UnitOfWork())
+	lease, runtime, err := newWorkerRuntime(db.UnitOfWork())
 	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+		return nil, err
 	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
@@ -145,7 +146,22 @@ func NewWorker(
 		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog),
+		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
+		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
 	})
+}
+
+// schoolVacationSync binds the Worker's school vacation job to the School
+// Calendar's platform-wide sync (#5345). The composition needs no
+// collaborator that can be missing; a failure still surfaces on every run.
+func schoolVacationSync() schedulerPorts.SchoolVacationSync {
+	sync, composeErr := schoolCalendarCompose.NewSchoolVacations(nil, "", nil)
+	return func(ctx context.Context) (int, int, error) {
+		if composeErr != nil {
+			return 0, 0, fmt.Errorf("compose school vacation sync: %w", composeErr)
+		}
+		result, err := sync.SyncSchoolVacations(ctx)
+		return result.Regions, result.Vacations, err
+	}
 }

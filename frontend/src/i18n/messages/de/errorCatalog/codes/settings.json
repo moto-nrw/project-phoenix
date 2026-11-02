@@ -1,0 +1,12 @@
+{
+  "not_found": "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
+  "admin_only": "Diese Einstellung ändert nur die Schule selbst.",
+  "managed_by_upload": "Dieser Wert entsteht beim Hochladen der Datei. Bitte laden Sie die Datei neu hoch.",
+  "invalid_value": "Der Wert für {object} ist nicht erlaubt. Bitte prüfen Sie die Eingabe.",
+  "presence_mode_switch_blocked": "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
+  "booking_authority_blocked": "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
+  "attendance_visible_exceeds_retention": "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
+  "attendance_retention_below_visible": "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+  "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+  "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
+}

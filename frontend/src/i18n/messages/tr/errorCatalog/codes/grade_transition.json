@@ -1,0 +1,7 @@
+{
+  "graduates_checked_in": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "not_applied": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "not_latest_transition": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "preview_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

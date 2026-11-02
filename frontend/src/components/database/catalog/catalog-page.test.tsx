@@ -1,3 +1,12 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "tenant" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +18,7 @@ import {
 import type { SectionConfig } from "~/lib/database/types";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
@@ -71,7 +81,7 @@ function buildConfig(overrides: Partial<CatalogConfig<Sorte>> = {}) {
   const reorder = vi.fn().mockResolvedValue(undefined);
 
   const config: CatalogConfig<Sorte> = {
-    concept: "activities",
+    concept: activitiesConcept,
     title: "Kategorien",
     singular: "Kategorie",
     purpose: "Kategorien ordnen Termine ein.",

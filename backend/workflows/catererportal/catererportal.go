@@ -82,13 +82,13 @@ type SchoolSide interface {
 	SchoolDeliveryExport(ctx context.Context, from, to mealplan.Date) (mealplan.ListExport, error)
 }
 
-// Public is the caterer's way in: the invitation the link names and the
-// sign-in. Each opens the transaction it needs.
+// Public is the caterer's way in: the invitation the link names. Each opens
+// the transaction it needs. The sign-in and its second factor are Identity
+// & Access's own (#4497); the HTTP surface reaches them through its
+// runtime.
 type Public interface {
 	PreviewInvitation(ctx context.Context, schoolID int64, token string) (identityaccess.CatererInvitationPreview, error)
 	AcceptInvitation(ctx context.Context, schoolID int64, token string, registration identityaccess.CatererRegistration) error
-	// LoginCatererWithAudit signs a caterer in to the caterer portal.
-	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
 
 // CatererSide is what a signed-in caterer reads and does.
@@ -100,6 +100,10 @@ type CatererSide interface {
 	// caterer supplies, each read in its own transaction, over at most
 	// MaxDeliveryDays days.
 	DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error)
+	// ChangeCatererPassword replaces the caterer's own password after
+	// checking the current one like a login, and ends every session of the
+	// account (#4496).
+	ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error
 }
 
 // Portal is the whole workflow.

@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MODULE_KEYS } from "~/lib/modules";
 import { useBookedModules } from "~/lib/tenant-context";
@@ -6,10 +9,13 @@ import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
-import { staffService } from "~/lib/staff-api";
+import { staffService, staffAbsenceService } from "~/lib/staff-api";
 import { catalogText } from "~/test/error-catalog-text";
 import StaffDetailContent from "./page";
 
+const pending = vi.hoisted(() => ({
+  fetcher: undefined as (() => Promise<unknown>) | undefined,
+}));
 const replaceMock = vi.fn();
 const searchParams = vi.hoisted(() => new URLSearchParams());
 const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
@@ -23,6 +29,7 @@ const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
   endedOn: null as string | null,
   avatarUrl: undefined as string | undefined,
+  plannedExitDate: null as string | null,
   mutate: vi.fn(),
 }));
 const roleAssignment = vi.hoisted(() => ({ currentIsLehrkraft: false }));
@@ -62,13 +69,14 @@ vi.mock("~/lib/teacher-api", () => ({
 // die Daten aus dem SWR-Cache.
 const staffRecords = new Map<string, Record<string, unknown>>();
 function staffRecord(): Record<string, unknown> {
-  const cacheKey = `${detailRequest.endedOn}|${detailRequest.avatarUrl}`;
+  const cacheKey = `${detailRequest.endedOn}|${detailRequest.avatarUrl}|${detailRequest.plannedExitDate}`;
   const cached = staffRecords.get(cacheKey);
   if (cached) return cached;
   const record = {
     id: "42",
     started_on: "2024-09-02",
     ended_on: detailRequest.endedOn,
+    planned_exit_date: detailRequest.plannedExitDate,
     avatar: detailRequest.avatarUrl ?? null,
     name: "Mila Muster",
     firstName: "Mila",
@@ -99,8 +107,12 @@ vi.mock("~/lib/database/service-factory", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  useSWRSeedFrom: () => () => undefined,
   useTenantMutate: () => vi.fn(),
+  useTenantMutateMatching: () => vi.fn(),
+  useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-pending-absences-")) pending.fetcher = fetcher;
     if (key?.startsWith("staff-history-"))
       return { data: [], isLoading: false, error: null };
     if (key?.startsWith("staff-record-")) {
@@ -299,6 +311,7 @@ describe("StaffDetailContent permissions", () => {
     detailRequest.error = null;
     detailRequest.endedOn = null;
     detailRequest.avatarUrl = undefined;
+    detailRequest.plannedExitDate = null;
     roleAssignment.currentIsLehrkraft = false;
     searchParams.delete("from");
     searchParams.delete("tab");
@@ -307,6 +320,30 @@ describe("StaffDetailContent permissions", () => {
   });
 
   // #4432: the redesign in #1310 dropped the picture and left the initials.
+  it.each(schoolDateCases("2027-01-01"))(
+    "loads the Berlin absence year in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2027-01-01");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "7", roles: ["admin"], permissions: ["admin:*"] },
+          expires: "2099-01-01T00:00:00Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      vi.mocked(staffAbsenceService.getAbsences).mockResolvedValue([]);
+      render(<StaffDetailContent />);
+      expect(pending.fetcher).toBeTypeOf("function");
+      await pending.fetcher!();
+      expect(staffAbsenceService.getAbsences).toHaveBeenCalledWith(
+        "42",
+        "2027-01-01",
+        "2027-12-31",
+      );
+    },
+  );
+
   it("shows the uploaded profile picture in the header", () => {
     detailRequest.avatarUrl = "/api/staff/42/avatar";
     vi.mocked(useSession).mockReturnValue({
@@ -731,6 +768,71 @@ describe("StaffDetailContent permissions", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Geplanter Austritt (#4809): mit dem Löschrecht planen, ändern und
+  // zurücknehmen; der Kopf zeigt den Tag.
+  it("plans, changes and withdraws an exit with the delete permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:delete"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { unmount } = render(<StaffDetailContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Austritt planen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Austritt zurücknehmen" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    detailRequest.plannedExitDate = "2026-12-31";
+    render(<StaffDetailContent />);
+    expect(screen.getByText("Austritt am 31.12.2026")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Austritt ändern" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Austritt zurücknehmen?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no exit planning without the delete permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Betreuung verwalten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Austritt planen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers the edit state of the account tab without account actions to staff:manage alone", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -781,6 +883,11 @@ describe("StaffDetailContent permissions", () => {
         "42",
         expect.objectContaining({
           first_name: "Milena",
+          last_name: "Muster",
+        }),
+        expect.objectContaining({
+          id: "42",
+          first_name: "Mila",
           last_name: "Muster",
         }),
       );

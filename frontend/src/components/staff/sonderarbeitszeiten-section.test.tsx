@@ -18,11 +18,8 @@ const mocks = vi.hoisted(() => ({
   endDefaultMonth: undefined as string | undefined,
 }));
 
-vi.mock("swr", () => ({
-  useSWRConfig: () => ({ mutate: mocks.mutate }),
-}));
-
 vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => mocks.mutate,
   useSWRAuth: () => ({
     data: mocks.loadError ? undefined : mocks.rows,
     error: mocks.loadError,

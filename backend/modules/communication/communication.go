@@ -203,6 +203,10 @@ func ErrorCode(err error) string {
 		return "self_conversation"
 	case errors.Is(err, ErrStaffMessageRetentionUnresolved):
 		return "retention_unresolved"
+	case errors.Is(err, ErrStaffMessageGroupCreateForbidden), errors.Is(err, ErrStaffMessageGroupManageForbidden):
+		return "forbidden"
+	case errors.Is(err, ErrStaffMessageGroupNameInvalid), errors.Is(err, ErrStaffMessageGroupMembersRequired), errors.Is(err, ErrStaffMessageGroupTooLarge):
+		return "invalid_group"
 	default:
 		return "internal_error"
 	}

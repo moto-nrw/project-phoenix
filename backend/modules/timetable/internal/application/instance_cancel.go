@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -100,6 +101,9 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 			// A running block without a session is data corruption; abort
 			// rather than "cancel" a session that never ran.
 			return &ports.ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+		}
+		if err := s.deps.Presence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{*instance.ActiveGroupID}}); err != nil {
+			return &ports.ScheduleError{Op: "cancel instance: prepare visits", Err: err}
 		}
 		group, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
 		if err != nil {

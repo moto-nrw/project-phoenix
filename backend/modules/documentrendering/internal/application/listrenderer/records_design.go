@@ -416,7 +416,7 @@ func (l *recordLayout) writeImageField(x float64, f listrecords.Field, paged boo
 	l.y += recFieldLineH
 	l.trace = append(l.trace, "[Bild]")
 	if l.draw && w > 0 {
-		holder, err := gopdf.ImageHolderByBytes(f.PNG)
+		holder, err := pdfImage(f.PNG)
 		if err != nil {
 			return fmt.Errorf("record image: %w", err)
 		}

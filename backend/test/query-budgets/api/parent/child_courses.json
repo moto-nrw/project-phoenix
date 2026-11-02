@@ -1,0 +1,6 @@
+{
+  "scenario": "api.parent.child_courses",
+  "max": 14,
+  "exact": false,
+  "description": "workflows/parentportal/http — GET /me/children/{studentId}/courses resolves the catalog,\ncapacity and pending-request queue through this bounded service scenario."
+}

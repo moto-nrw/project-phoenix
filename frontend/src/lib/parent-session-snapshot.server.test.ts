@@ -8,6 +8,15 @@ const { requestHeaders } = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders.current),
 }));
+const { familyState } = vi.hoisted(() => ({
+  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+}));
+
+// #5399: a snapshot needs a family Identity & Access confirms live.
+vi.mock("~/server/auth/token-validation", () => ({
+  portalOfScope: (scope: unknown) => scope,
+  sessionFamilyState: familyState,
+}));
 
 import { readParentSessionSnapshot } from "./parent-session-snapshot.server";
 
@@ -52,9 +61,24 @@ function sendCookies(cookies: Record<string, string>, extra?: HeadersInit) {
 
 beforeEach(() => {
   requestHeaders.current = new Headers();
+  familyState.mockReset();
+  familyState.mockResolvedValue("live");
 });
 
 describe("readParentSessionSnapshot", () => {
+  it.each(["ended", "unknown"] as const)(
+    "leaves a session of a %s family to the session route (#5399)",
+    async (state) => {
+      sendCookies({
+        [PARENT_COOKIE]: await cookieValue(parentClaims(), PARENT_COOKIE),
+      });
+      familyState.mockResolvedValue(state);
+
+      await expect(readParentSessionSnapshot()).resolves.toBeNull();
+      expect(familyState).toHaveBeenCalledOnce();
+    },
+  );
+
   it("returns the parent session from a valid cookie", async () => {
     sendCookies({
       [PARENT_COOKIE]: await cookieValue(parentClaims(), PARENT_COOKIE),

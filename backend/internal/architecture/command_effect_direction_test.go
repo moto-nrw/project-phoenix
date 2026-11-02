@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 func TestCommandEffectsDomainWorkflowDirectionCannotUseOrdinaryLabels(t *testing.T) {
@@ -50,7 +52,9 @@ func TestCommandEffectsDomainWorkflowExceptionsNeedFreshApproval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			writeFile(t, filepath.Join(project, commandEffectInventory), string(blob))
+			if err := artifacts.WriteInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, blob); err != nil {
+				t.Fatal(err)
+			}
 			writeFile(t, filepath.Join(project, "docs", "adr", "0094-fixture.md"), "# Reviewed runtime-direction debt\n")
 			if err := RunCLI([]string{"check", "--project", project, "--baseline", "architecture/legacy.jsonl", "--base-ref", base}, CLIDependencies{}); err != nil {
 				t.Fatal(err)

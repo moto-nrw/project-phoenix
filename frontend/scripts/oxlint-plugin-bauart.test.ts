@@ -275,7 +275,14 @@ describe.concurrent("bauart rules", () => {
       expect(output).not.toContain(ROW_ACTION);
     });
 
-    it("leaves the other portals alone", async () => {
+    it.each([
+      "src/app/operator/persons/page.tsx",
+      "src/app/parents/(protected)/page.tsx",
+      "src/app/school/page.tsx",
+      "src/components/operator/persons-table.tsx",
+      "src/components/parent/guardians-panel.tsx",
+      "src/components/school/list.tsx",
+    ])("leaves %s alone", async (path) => {
       const source = `import { Button } from "~/components/ui/button";
       export function Probe({ rows }: { rows: string[] }) {
         return rows.map((row) => (
@@ -283,18 +290,16 @@ describe.concurrent("bauart rules", () => {
         ));
       }`;
 
-      for (const path of [
-        "src/app/operator/persons/page.tsx",
-        "src/app/parents/(protected)/page.tsx",
-        "src/app/school/page.tsx",
-        "src/components/operator/persons-table.tsx",
-        "src/components/parent/guardians-panel.tsx",
-        "src/components/school/list.tsx",
-      ]) {
-        expect((await lintSource(source, path)).output).not.toContain(
-          ROW_ACTION,
-        );
-      }
+      expect((await lintSource(source, path)).output).not.toContain(ROW_ACTION);
+    });
+
+    it("reports row actions in the tenant portal", async () => {
+      const source = `import { Button } from "~/components/ui/button";
+      export function Probe({ rows }: { rows: string[] }) {
+        return rows.map((row) => (
+          <Button key={row} type="button">Löschen</Button>
+        ));
+      }`;
       expect(
         (
           await lintSource(

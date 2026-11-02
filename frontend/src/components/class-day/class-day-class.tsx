@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 // Eine Klasse an einem Tag ("moto schule", #1772/#2294).
 //
@@ -41,12 +42,12 @@ import type {
   MorningAttendanceStatus,
 } from "~/lib/class-day-api";
 import { dayHintAuthorSuffix } from "~/lib/class-day-api";
-import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import { formatDate, parseISODate } from "~/lib/date-helpers";
 import {
   HOMEWORK_DESCRIPTION_MAX_LENGTH,
   HOMEWORK_SUBJECT_MAX_LENGTH,
 } from "~/lib/homework-feedback";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassDayClasses,
@@ -60,12 +61,14 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { handoverLine, handoverRows, initialAbsentIds } from "./class-handover";
 import { countDayChanges } from "./day-changes";
 import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolReportRefusal } from "./use-school-report-refusal";
 import {
   draftMarks,
   markOpenPresent,
@@ -74,7 +77,7 @@ import {
   morningSummaryLine,
   type MorningAttendanceDraft,
 } from "./morning-attendance";
-import { classDayDateParam, isWeekendISO } from "./routes";
+import { classDayChildPath, classDayDateParam, isWeekendISO } from "./routes";
 import { schoolDayListParam, schoolDayListPath } from "./school-day";
 import { Section, type StudentRowMorning } from "./student-row";
 import { type ClassHomeworkApi, useClassHomework } from "./use-class-homework";
@@ -200,6 +203,7 @@ export function ClassDayClass({
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
   // referenzielle Gleichheit bei jedem Render.
+  const today = useBerlinToday();
   const at = now ?? new Date();
   const searchParams = useSearchParams();
   const dateISO = classDayDateParam(searchParams.get("tag"));
@@ -225,7 +229,7 @@ export function ClassDayClass({
   // still bei einem Ladefehler: dann fehlt nur dieser Knopf, die Klasse
   // selbst lädt und meldet sich unten.
   const { data: classes } = useSWRAuth(
-    fetchClasses ? "class-day-classes" : null,
+    fetchClasses ? schoolPortalKeys.classDayClasses() : null,
     async () => {
       if (!fetchClasses) {
         return {
@@ -243,7 +247,10 @@ export function ClassDayClass({
         throw err;
       }
     },
-    { revalidateOnFocus: false },
+    {
+      revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+    },
   );
   // Das Flag allein sagt nur, dass die Schule schreiben darf. Der Knopf und
   // der Dialog erscheinen nur für eine Klasse, die der Lehrkraft zugewiesen
@@ -265,13 +272,14 @@ export function ClassDayClass({
   const weekendOpen = classes?.weekend_follows_friday === true;
   const weekend = weekendDay && !weekendOpen;
 
+  const classReportKey = schoolPortalKeys.classDayReport(schoolClass, dateISO);
   const {
     data: report,
     error,
     isLoading,
     mutate: refetchReport,
   } = useSWRAuth(
-    schoolClass && !weekend ? `class-day-${schoolClass}-${dateISO}` : null,
+    schoolClass && !weekend ? classReportKey : null,
     async () => {
       try {
         return await fetchClassDay(schoolClass, dateISO);
@@ -290,6 +298,8 @@ export function ClassDayClass({
     },
   );
 
+  useSchoolReportRefusal(error, classReportKey);
+
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).
   const refreshReport = useCallback(
@@ -300,9 +310,9 @@ export function ClassDayClass({
 
   // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).
-  const loadError = useSwrLoadError(
-    error,
-    `die Klasse ${schoolClassLabel(schoolClass)}`,
+  const { error: loadError } = useSwrResourceLoadError(
+    [{ data: report, error }],
+    `die ${schoolClassLabel(schoolClass)}`,
     () => refetchReport(),
   );
 
@@ -327,9 +337,20 @@ export function ClassDayClass({
   const changes = countDayChanges(report ?? null);
   const exceptionLine =
     report && !weekend
-      ? classArrivalExceptionLine(report, dateISO, todayISO())
+      ? classArrivalExceptionLine(report, dateISO, today)
       : null;
-  const isToday = dateISO === todayISO();
+  const isToday = dateISO === today;
+  // Beobachtungen der OGS (#4797): nur die Lehrkraft der Klasse bekommt den
+  // Link, und nur bei Kindern mit OGS-Datensatz.
+  const sharedNotesHref =
+    report?.can_read_shared_notes === true
+      ? (row: ClassDayRow) => {
+          if (row.list_entry || row.student_id <= 0) return undefined;
+          return schoolPath(
+            classDayChildPath(schoolClass, String(row.student_id), dateISO),
+          );
+        }
+      : undefined;
   const classHints = report && !weekend ? (report.class_day_hints ?? []) : [];
   const canWriteDayHints =
     report?.can_write_day_hints === true && isAssignedClass && !weekend;
@@ -891,7 +912,7 @@ export function ClassDayClass({
           <EmptyState
             className="mt-4"
             title="Keine Kinder gefunden"
-            description={`Für die Klasse ${report.school_class} sind keine Kinder hinterlegt.`}
+            description={`Für die ${schoolClassLabel(report.school_class)} sind keine Kinder hinterlegt.`}
           />
         )}
 
@@ -914,6 +935,7 @@ export function ClassDayClass({
                 enrollmentKnown={false}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               <Section
                 title="Abgemeldet"
@@ -923,6 +945,7 @@ export function ClassDayClass({
                 enrollmentKnown={false}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
             </div>
           )}
@@ -940,6 +963,7 @@ export function ClassDayClass({
                 rows={staying}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               <Section
                 title="Gehen nach Hause"
@@ -947,6 +971,7 @@ export function ClassDayClass({
                 rows={leaving}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               {noCare.length > 0 && (
                 <Section
@@ -955,6 +980,7 @@ export function ClassDayClass({
                   rows={noCare}
                   now={at}
                   morning={morning}
+                  sharedNotesHref={sharedNotesHref}
                 />
               )}
               <Section
@@ -964,6 +990,7 @@ export function ClassDayClass({
                 rows={absent}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
             </div>
           )}

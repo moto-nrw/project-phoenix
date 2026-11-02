@@ -1,0 +1,8 @@
+{
+  "api/platform/announcements/[id]/dismiss": [
+    "POST tenant /api/platform/announcements/id%2F1/dismiss"
+  ],
+  "api/platform/announcements/unread": [
+    "GET tenant /api/platform/announcements/unread"
+  ]
+}

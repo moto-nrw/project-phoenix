@@ -50,6 +50,16 @@ func CourseGroupsForOfferings(ctx context.Context, query CourseGroupQuery, offer
 	return result, nil
 }
 
+// CourseGroupsByID reads course groups by their own id, without a lock, for
+// views that start from the AG rather than from an offering (#4767). An id
+// that names no course group of the tenant is absent from the result.
+func CourseGroupsByID(ctx context.Context, query CourseGroupQuery, groupIDs []int64, effectiveOn calendar.Date) ([]CourseGroup, error) {
+	if len(groupIDs) == 0 {
+		return []CourseGroup{}, nil
+	}
+	return query.ListCourseGroups(ctx, CourseGroupFilter{LegacyGroupIDs: groupIDs, EffectiveOn: effectiveOn.String()})
+}
+
 // ParticipantLimit is the group's participant cap; MaxParticipants 0 means
 // the group has none.
 func (g CourseGroup) ParticipantLimit() *int {

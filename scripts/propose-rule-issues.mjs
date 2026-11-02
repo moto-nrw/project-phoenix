@@ -6,6 +6,9 @@ if (process.argv.length !== 3) {
   throw new Error("Usage: node scripts/propose-rule-issues.mjs <policy.json>");
 }
 const policy = JSON.parse(readFileSync(process.argv[2], "utf8"));
+if (policy.storage || !Array.isArray(policy.rules)) {
+  throw new Error("Expected a materialized policy document, not a fragment descriptor. Export the complete policy first with scripts/backend-architecture.sh policy-export.");
+}
 for (const rule of policy.rules) {
   if (!rule.description.includes("Compatibility permission") &&
       !rule.description.includes("convert it to exact debt")) continue;

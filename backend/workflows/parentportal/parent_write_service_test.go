@@ -150,8 +150,12 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	return cfg, bc, db
 }
 
-func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*parentService.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool, notifiers ...parentService.StaffParentMessageNotifier) (*parentService.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
+	var notifier parentService.StaffParentMessageNotifier
+	if len(notifiers) > 0 {
+		notifier = notifiers[0]
+	}
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -167,28 +171,29 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:   owners.ParentGuardianChanges(),
-		DeparturePolicy:   owners.ParentDeparturePolicy(),
-		GuardianPolicy:    owners.NewParentGuardianPolicy(),
-		Fingerprints:      owners.SecurityFingerprints{},
-		Declarations:      owners.ParentDeclarationPolicy(),
-		Locales:           owners.ParentPortalLocales(),
-		Runtime:           owners.ParentPortalRuntime{},
-		MessagingEnabled:  owners.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:            owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:      careProfiles(t, db),
-		ChildRepo:         repos.ParentChildReads(),
-		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       owners.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:    owners.NewParentCareExceptions(repos.CarePlan()),
-		Settings:          settings,
-		StudentUpdates:    owners.BindParentStudentUpdates(bc),
-		MessageThreadRepo: owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
-		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
-		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, bc, slog.Default()),
-		Logger:            slog.Default(),
+		GuardianChanges:       owners.ParentGuardianChanges(),
+		DeparturePolicy:       owners.ParentDeparturePolicy(),
+		GuardianPolicy:        owners.NewParentGuardianPolicy(),
+		Fingerprints:          owners.SecurityFingerprints{},
+		Declarations:          owners.ParentDeclarationPolicy(),
+		Locales:               owners.ParentPortalLocales(),
+		Runtime:               owners.ParentPortalRuntime{},
+		MessagingEnabled:      owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:              owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:                owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:          careProfiles(t, db),
+		ChildRepo:             repos.ParentChildReads(),
+		StatusDayRepo:         repos.StudentStatusDay,
+		StudentRepo:           owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:        owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:              settings,
+		StudentUpdates:        owners.BindParentStudentUpdates(bc),
+		MessageThreadRepo:     owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:           owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:       owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:         api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, bc, slog.Default()),
+		Logger:                slog.Default(),
+		ParentMessageNotifier: notifier,
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
@@ -989,9 +994,12 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.ConferenceBookAllowed)
 
 	portalAndSick := `{"` + "parent_portal.access" + `": true, "` + "parent_portal.sick_note.submit" + `": true}`
-	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
+	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
 		FROM users.student_guardian_relationships AS r
@@ -1000,10 +1008,11 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	`, portalAndSick, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	flags, err = svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
+	assert.False(t, flags.ConferenceBookAllowed)
 
 	portalOnly := `{"` + "parent_portal.access" + `": true}`
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
@@ -1019,6 +1028,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
+	assert.False(t, flags.ConferenceBookAllowed)
 }
 
 func TestChildFeatures_NotOwned(t *testing.T) {

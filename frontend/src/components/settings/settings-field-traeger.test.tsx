@@ -50,6 +50,39 @@ function renderField(
 }
 
 describe("SettingsField at the school, with a Träger value", () => {
+  it.each([false, true])(
+    "preserves dirty text while a refreshed schema updates pristine fields (dirty=%s)",
+    (dirty) => {
+      const setting = makeSetting({
+        key: "branding.letterhead_text",
+        label: "Absender",
+        type: "textarea",
+        value: "Gespeichert",
+        default: "",
+      });
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      const field = (value: string) => (
+        <ToastProvider>
+          <SettingsField
+            setting={{ ...setting, value }}
+            audience="traeger"
+            onSave={onSave}
+            onReset={vi.fn()}
+          />
+        </ToastProvider>
+      );
+      const view = render(field("Gespeichert"));
+      if (dirty)
+        fireEvent.change(screen.getByLabelText("Absender"), {
+          target: { value: "Mein Entwurf" },
+        });
+      view.rerender(field("Neuer Serverwert"));
+      expect(screen.getByLabelText("Absender")).toHaveValue(
+        dirty ? "Mein Entwurf" : "Neuer Serverwert",
+      );
+    },
+  );
+
   it("says the Träger decided the value and when", () => {
     renderField(makeSetting());
 
@@ -198,5 +231,104 @@ describe("SettingsField in the Träger portal", () => {
 
     expect(screen.getByLabelText("AGB-Text")).toHaveValue("Unsere AGB");
     expect(screen.queryByText("PDF-Datei hochladen")).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsField with a colour", () => {
+  it("shows the colour picker and the code field with the same value", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe für Briefe und Rechnungen",
+        type: "color",
+        default: "#111827",
+        value: "#217A78",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    const picker = screen.getByLabelText("Farbe für Briefe und Rechnungen");
+    expect(picker).toHaveAttribute("type", "color");
+    expect(picker).toHaveValue("#217a78");
+    expect(
+      screen.getByLabelText("Farbe für Briefe und Rechnungen als Farbcode"),
+    ).toHaveValue("#217A78");
+  });
+
+  it("puts the picked colour into the code field", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe",
+        type: "color",
+        default: "#111827",
+        value: "#111827",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    fireEvent.change(screen.getByLabelText("Farbe"), {
+      target: { value: "#1f4e79" },
+    });
+    expect(screen.getByLabelText("Farbe als Farbcode")).toHaveValue("#1F4E79");
+  });
+
+  it("keeps the default in the picker while the typed code is incomplete", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe",
+        type: "color",
+        default: "#111827",
+        value: "#12",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    expect(screen.getByLabelText("Farbe")).toHaveValue("#111827");
+    expect(screen.getByLabelText("Farbe als Farbcode")).toHaveValue("#12");
+  });
+});
+
+describe("SettingsField with colour presets", () => {
+  it("offers the presets of the setting and saves the picked one", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <SettingsField
+          setting={makeSetting({
+            key: "branding.primary_color",
+            label: "Farbe für Briefe und Rechnungen",
+            type: "color",
+            default: "#111827",
+            value: "#111827",
+            levels: "traeger",
+            options: {
+              static: [
+                { label: "Schwarz", value: "#111827" },
+                { label: "Dunkelblau", value: "#1F4E79" },
+              ],
+            },
+          })}
+          audience="traeger"
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(undefined)}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("radio", { name: "Schwarz" })).toBeChecked();
+    expect(screen.queryByLabelText(/als Farbcode/)).not.toBeInTheDocument();
+
+    const darkBlue = screen.getByRole("radio", { name: "Dunkelblau" });
+    fireEvent.click(darkBlue);
+    fireEvent.blur(darkBlue);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith("branding.primary_color", "#1F4E79"),
+    );
   });
 });

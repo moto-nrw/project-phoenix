@@ -10,6 +10,7 @@ import (
 )
 
 type Store interface {
+	WeekProtocolStore
 	ListReplannableActivityInstanceIDs(context.Context, string, *string, *int64, bool) ([]int64, domain.OperationStats, error)
 	DeleteActivityInstancesByID(context.Context, []int64) (int64, domain.OperationStats, error)
 	ListRemovedWeekendActivityInstanceIDs(context.Context, int64, []int, string) ([]int64, domain.OperationStats, error)
@@ -51,7 +52,7 @@ type Store interface {
 	ListCourseGroups(context.Context, timetable.CourseGroupFilter) ([]timetable.CourseGroup, domain.OperationStats, error)
 	ListTemplateRows(context.Context, *int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
-	ListTemplateRowsForPeriod(context.Context, *int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
+	ListTemplateRowsForPeriod(context.Context, *int64, string, *timetable.TemplateScheduleWindow) ([]timetable.TemplateListRow, domain.OperationStats, error)
 	ListTemplateWeekdayRoster(context.Context, *int64, *int64, string) ([]timetable.TemplateWeekdayRosterRow, domain.OperationStats, error)
 	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []timetable.TemplateCapacityPeriod, map[int64][]int64) ([]timetable.TemplateCapacityOccurrence, domain.OperationStats, error)
 	CreateGroup(context.Context, timetable.GroupInput) (timetable.Group, domain.OperationStats, error)
@@ -91,6 +92,7 @@ type Store interface {
 	DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, domain.OperationStats, error)
 	CapActiveStudentEnrollments(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetStudentEnrollmentValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
+	SetStudentEnrollmentsKeptWithoutBooking(ctx context.Context, studentID int64, ids []int64, weekdays []int, through *string) (int64, domain.OperationStats, error)
 	CloseOpenStudentEnrollments(context.Context, int64, *int64, string) (domain.OperationStats, error)
 	FindTimeframe(context.Context, int64) (timetable.Timeframe, bool, domain.OperationStats, error)
 	ListTimeframes(context.Context, timetable.TimeframeFilter) ([]timetable.Timeframe, domain.OperationStats, error)

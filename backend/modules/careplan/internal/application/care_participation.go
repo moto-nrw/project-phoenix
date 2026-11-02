@@ -145,3 +145,15 @@ func (s *CareLifecycle) inUnitApplyBookingAuthoritySetting(ctx context.Context, 
 	}
 	return impact, nil
 }
+
+func (s *CareLifecycle) inUnitHistoricalParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+	students, boundaries, err := s.participationFacts(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[calendar.Date]map[int64]bool)
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		result[day] = domain.HistoricalParticipationOn(studentIDs, students, boundaries, day)
+	}
+	return result, nil
+}

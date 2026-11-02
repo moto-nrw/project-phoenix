@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Post-enrollment offering change requests (#1665). The service is exercised
@@ -203,7 +204,7 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	require.NotNil(t, courseItem)
 	assert.True(t, courseItem.Waitlisted)
 	t.Logf("course catalog issued %d queries", counter.Total())
-	testpkg.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {

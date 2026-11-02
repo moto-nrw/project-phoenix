@@ -9,6 +9,8 @@
  */
 import {
   render as rtlRender,
+  renderHook,
+  act,
   screen,
   waitFor,
   cleanup,
@@ -77,9 +79,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -293,6 +295,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,
@@ -304,9 +308,12 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
+import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { TEST_CLOCK_TODAY } from "~/test/clock";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -327,7 +334,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderWithSearch)
+  .mocked(PageHeaderSearchLayout)
   .getMockImplementation()!;
 
 beforeEach(() => {
@@ -338,7 +345,7 @@ beforeEach(() => {
   localStorage.clear();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
-  vi.mocked(PageHeaderWithSearch)
+  vi.mocked(PageHeaderSearchLayout)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -1264,11 +1271,11 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override PageHeaderWithSearch to render action buttons and interactive controls
+    // Override PageHeaderSearchLayout to render action buttons and interactive controls
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const actionButton = p.actionButton as React.ReactNode;
@@ -1860,11 +1867,11 @@ describe("EmptyRoomsView without children lists", () => {
       status: "authenticated",
     } as never);
 
-    // Override PageHeaderWithSearch to render onClearAllFilters button
+    // Override PageHeaderSearchLayout to render onClearAllFilters button
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2228,11 +2235,11 @@ describe("matchesStudentFilters edge cases", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderWithSearch to expose search and filter
+    // Override PageHeaderSearchLayout to expose search and filter
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2931,11 +2938,11 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderWithSearch to expose year filter
+    // Override PageHeaderSearchLayout to expose year filter
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -4602,11 +4609,11 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       value: 500,
     });
 
-    // Override PageHeaderWithSearch to render tabs with onTabChange
+    // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -5185,11 +5192,11 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
-    // Override PageHeaderWithSearch to render tabs
+    // Override PageHeaderSearchLayout to render tabs
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const badge = p.badge as { count: number } | undefined;
@@ -5726,11 +5733,11 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
       value: 500,
     });
 
-    // Override PageHeaderWithSearch to render tabs
+    // Override PageHeaderSearchLayout to render tabs
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -5916,6 +5923,59 @@ describe("overview caller and foreign sessions (#5035)", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("refetches the limited planned list when a block ends", async () => {
+    vi.useFakeTimers();
+    // Five blocks fill the backend limit. The sixth can only appear after
+    // a refetch frees the slot of the first block, which ends at 12:01.
+    const plannedNow: PlannedTimetableInstance[] = Array.from(
+      { length: 5 },
+      (_, index) => ({
+        id: String(index + 1),
+        title: `Block ${index + 1}`,
+        date: TEST_CLOCK_TODAY,
+        startTime: "11:50:00",
+        endTime: index === 0 ? "12:01:00" : "13:00:00",
+        roomId: "r1",
+        roomName: "Atelier",
+        status: "planned",
+        isOverdue: false,
+        minutesUntilStart: -10,
+        expectedStudentsCount: 0,
+        presentStudentsCount: 0,
+        notScheduledStudentsCount: 0,
+        assignedStaffIds: [],
+        isAssigned: false,
+        isPrimary: false,
+        isSubstitute: false,
+        isAbsent: false,
+        rosterPreview: [],
+      }),
+    );
+    mockDashboard({ plannedNow });
+    const { result } = renderHook(
+      () =>
+        useSupervisionDashboard({
+          sessionKey: "account-7",
+          sessionParam: null,
+          roomParam: null,
+        }),
+      { wrapper: ToastProvider },
+    );
+    expect(result.current.plannedNow).toEqual(plannedNow);
+    mockMutate.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+    // The shared timer leaves two seconds for the server clock to pass
+    // the boundary, instead of waiting for the five-minute SSE reconcile.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 
   it("selects and saves the own session instead of the first foreign one", async () => {

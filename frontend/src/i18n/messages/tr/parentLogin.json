@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Veli portalı",
+  "title": "Veli portalına hoş geldiniz",
+  "subtitle": "Çocuğunuzun bakımıyla ilgili her şeyi takip etmek için giriş yapın.",
+  "emailLabel": "E-posta adresi",
+  "passwordLabel": "Şifre",
+  "showPassword": "Şifreyi göster",
+  "hidePassword": "Şifreyi gizle",
+  "loading": "Yükleniyor...",
+  "submitting": "Giriş yapılıyor...",
+  "submit": "Giriş yap",
+  "forgotPassword": "Şifrenizi mi unuttunuz?",
+  "fromStaffBanner": "Veli hesapları buradan giriş yapar. Lütfen şifrenizi bir kez daha girin.",
+  "staffLoginLink": "Okul girişine git",
+  "errors": {
+    "rateLimited": "Çok fazla giriş denemesi. Lütfen daha sonra tekrar deneyin.",
+    "notAGuardian": "Bu hesap bir okulun personeline ait. Lütfen okul girişinden giriş yapın."
+  },
+  "errorObject": "giriş"
+}

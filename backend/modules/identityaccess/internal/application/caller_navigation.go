@@ -69,24 +69,33 @@ func (c *CallerContext) Navigation(ctx context.Context) (domain.CallerNavigation
 // Everyone else without a staff record is rejected with an SSESetupError.
 func (c *CallerContext) SSESubscription(ctx context.Context) (domain.SSESubscription, error) {
 	caller := c.principal(ctx)
-	staffID, message, status := c.subscriptionStaff(ctx)
-	if staffID == 0 && !caller.EffectiveAdmin() {
-		return domain.SSESubscription{}, &domain.SSESetupError{Message: message, Status: status}
+	staffID, err := c.subscriptionStaff(ctx)
+	if err != nil {
+		var rejection *domain.SSESetupError
+		if !caller.EffectiveAdmin() || !errors.As(err, &rejection) {
+			return domain.SSESubscription{}, err
+		}
 	}
 	return c.buildSubscription(ctx, caller, staffID)
 }
 
 // subscriptionStaff resolves the caller's staff member through the memoized
 // chain, so the educational-group read below does not walk it again.
-func (c *CallerContext) subscriptionStaff(ctx context.Context) (int64, string, int) {
+func (c *CallerContext) subscriptionStaff(ctx context.Context) (int64, error) {
 	if _, err := c.Person(ctx); err != nil {
-		return 0, "Account not found", statusUnauthorized
+		if errors.Is(err, domain.ErrCallerNotLinkedToPerson) || errors.Is(err, domain.ErrCallerNotAuthenticated) {
+			return 0, &domain.SSESetupError{Message: "Account not found", Status: statusUnauthorized}
+		}
+		return 0, err
 	}
 	staffID, err := c.StaffID(ctx)
 	if err != nil {
-		return 0, "User is not a staff member", statusForbidden
+		if errors.Is(err, domain.ErrCallerNotLinkedToStaff) {
+			return 0, &domain.SSESetupError{Message: "User is not a staff member", Status: statusForbidden}
+		}
+		return 0, err
 	}
-	return staffID, "", 0
+	return staffID, nil
 }
 
 func (c *CallerContext) buildSubscription(ctx context.Context, caller domain.Caller, staffID int64) (domain.SSESubscription, error) {

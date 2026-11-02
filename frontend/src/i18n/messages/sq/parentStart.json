@@ -1,0 +1,39 @@
+{
+  "kicker": "Portali i prindërve",
+  "greeting": {
+    "morning": "Mirëmëngjes, {name}",
+    "morningPlain": "Mirëmëngjes",
+    "day": "Mirëdita, {name}",
+    "dayPlain": "Mirëdita",
+    "evening": "Mirëmbrëma, {name}",
+    "eveningPlain": "Mirëmbrëma"
+  },
+  "subtitle": "Informacionet më të rëndësishme për sot me një shikim.",
+  "todo": {
+    "title": "Për t'u bërë",
+    "description": "Mesazhet, takimet dhe përgjigjet e hapura me një shikim.",
+    "openCount": "{count} të hapura",
+    "unread": "E palexuar",
+    "today": "Sot",
+    "allDay": "Gjithë ditën",
+    "emptyTitle": "Gjithçka e kryer",
+    "emptyDescription": "Për momentin nuk ka asgjë për të bërë.",
+    "messageTitleOne": "Mesazh i ri",
+    "messageTitleMany": "{count} mesazhe të reja",
+    "messageContext": "OGS · Për {name}",
+    "pollContext": "Sondazh · {school}",
+    "declarationContext": "Pëlqim · {school}",
+    "newsContext": "Letër për prindërit · {school}",
+    "ackContext": "Kërkohet konfirmim · {school}",
+    "appointmentContext": "Takim për {name}",
+    "appointmentContextPlain": "Takim",
+    "showMoreOne": "Shfaq edhe një pikë",
+    "showMoreMany": "Shfaq edhe {count} pika",
+    "showLess": "Shfaq më pak",
+    "loading": "Po ngarkohen detyrat",
+    "errorObject": "lista e plotë e detyrave"
+  },
+  "childrenLoading": "Po ngarkohen të dhënat e fëmijëve",
+  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+  "errorObject": "përmbledhja e fëmijëve tuaj"
+}

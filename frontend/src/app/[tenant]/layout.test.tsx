@@ -76,6 +76,7 @@ vi.mock("~/env", () => ({
 
 const { bareTenantHost, default: TenantLayout } = await import("./layout");
 const { setTestClock, TEST_CLOCK_INSTANT } = await import("~/test/clock");
+const navigation = await import("next/navigation");
 
 beforeEach(() => {
   authMock.mockClear();
@@ -155,6 +156,90 @@ describe("TenantLayout", () => {
 
     expect(notFoundMock).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // #5130: path mode on the bare domain shares the session cookie with
+  // every school but names none in its host. The page moves to the
+  // school's subdomain with its path and query.
+  describe("path mode on the bare domain", () => {
+    const redirect = vi.mocked(navigation.redirect);
+
+    function requestTo(host: string, originalPath?: string) {
+      headersMock.mockImplementation(
+        async () =>
+          new Headers({
+            host: "frontend:3000",
+            "x-moto-original-host": host,
+            "x-moto-original-proto": "https",
+            ...(originalPath && { "x-moto-original-path": originalPath }),
+          }),
+      );
+      vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+        tenantResponse(),
+      );
+    }
+
+    beforeEach(() => redirect.mockClear());
+
+    it.each([
+      [
+        "an enrollment link",
+        "/school-a/anmeldung/phase-1?late_invite=x",
+        "/anmeldung/phase-1?late_invite=x",
+      ],
+      ["a display link", "/school-a/display", "/display"],
+      ["the start page with a query", "/school-a?from=letter", "/?from=letter"],
+      ["the start page", "/school-a", "/"],
+      ["a request without the proxy's path", undefined, "/"],
+    ])(
+      "sends %s to the school's subdomain",
+      async (_case, originalPath, target) => {
+        requestTo("localhost:3000", originalPath);
+
+        const result = await TenantLayout({
+          children: null,
+          params: Promise.resolve({ tenant: "school-a" }),
+        });
+
+        expect(result).toMatchObject({
+          props: { href: `https://school-a.localhost:3000${target}` },
+        });
+        // Nothing of the school loads on the bare domain.
+        expect(readTenantSessionSnapshotMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it("sends a mixed-case bare host with a trailing dot as well", async () => {
+      requestTo("LOCALHOST.:3000", "/school-a/display");
+
+      const result = await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      });
+
+      expect(result).toMatchObject({
+        props: { href: "https://school-a.localhost:3000/display" },
+      });
+    });
+
+    it.each(["school-a.localhost:3000", "frontend-preview.example.org"])(
+      "keeps %s, which is no bare tenant domain",
+      async (host) => {
+        requestTo(host, "/students");
+
+        const result = await TenantLayout({
+          children: null,
+          params: Promise.resolve({ tenant: "school-a" }),
+        });
+
+        // Anker: die Schule lädt ihre Sitzung und ihr Gerüst.
+        expect(readTenantSessionSnapshotMock).toHaveBeenCalledOnce();
+        expect(result).not.toMatchObject({
+          props: { href: expect.anything() },
+        });
+        expect(redirect).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("still resolves a syntactically valid tenant path", async () => {
@@ -424,6 +509,50 @@ describe("TenantLayout", () => {
       })) as ReactElement<{ tenant: { timetableEnabled?: boolean } }>;
 
       expect(element.props.tenant.timetableEnabled).toBe(expected);
+    },
+  );
+
+  // #5024: the first render of „Anfragen“ reads the reason policy from the
+  // server tenant context. Without it the strictest fallback asked for a
+  // reason on every approval, whatever the school had chosen.
+  it.each([
+    { parent_request_reason_policy: "guardians", expected: "guardians" },
+    { parent_request_reason_policy: "nobody", expected: "nobody" },
+    { parent_request_reason_policy: "staff", expected: "staff" },
+    { parent_request_reason_policy: "both", expected: "both" },
+    { parent_request_reason_policy: "irgendwas", expected: "both" },
+    { parent_request_reason_policy: undefined, expected: "both" },
+  ])(
+    "maps parent_request_reason_policy=$parent_request_reason_policy into the server tenant context",
+    async ({ parent_request_reason_policy, expected }) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 1,
+              slug: "school-a",
+              name: "School A",
+              subdomain: "school-a",
+              organization_id: 2,
+              organization_name: "Organization",
+              settings: {},
+              grade_level_max: 4,
+              parent_request_reason_policy,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const element = (await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      })) as ReactElement<{
+        tenant: { parentRequestReasonPolicy?: string };
+      }>;
+
+      expect(element.props.tenant.parentRequestReasonPolicy).toBe(expected);
     },
   );
 

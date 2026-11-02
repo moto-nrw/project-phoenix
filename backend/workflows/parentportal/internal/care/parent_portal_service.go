@@ -56,6 +56,7 @@ type MealParticipationPlan struct {
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
+	ConferenceBookAllowed bool
 	// CareEnded says the child has left the OGS (#2487). It is STATE, not a
 	// capability: when it is true every write flag below is false, and the
 	// portal shows a read-only profile with one sentence explaining why

@@ -1,0 +1,39 @@
+{
+  "kicker": "Elternportal",
+  "greeting": {
+    "morning": "Guten Morgen, {name}",
+    "morningPlain": "Guten Morgen",
+    "day": "Guten Tag, {name}",
+    "dayPlain": "Guten Tag",
+    "evening": "Guten Abend, {name}",
+    "eveningPlain": "Guten Abend"
+  },
+  "subtitle": "Das Wichtigste für heute auf einen Blick.",
+  "todo": {
+    "title": "Zu erledigen",
+    "description": "Offene Nachrichten, Termine und Rückmeldungen auf einen Blick.",
+    "openCount": "{count} offen",
+    "unread": "Ungelesen",
+    "today": "Heute",
+    "allDay": "Ganztägig",
+    "emptyTitle": "Alles erledigt",
+    "emptyDescription": "Es gibt gerade nichts zu tun.",
+    "messageTitleOne": "Neue Nachricht",
+    "messageTitleMany": "{count} neue Nachrichten",
+    "messageContext": "OGS · Zu {name}",
+    "pollContext": "Umfrage · {school}",
+    "declarationContext": "Einverständnis · {school}",
+    "newsContext": "Elternbrief · {school}",
+    "ackContext": "Bestätigung erforderlich · {school}",
+    "appointmentContext": "Termin für {name}",
+    "appointmentContextPlain": "Termin",
+    "showMoreOne": "Einen weiteren Punkt anzeigen",
+    "showMoreMany": "{count} weitere Punkte anzeigen",
+    "showLess": "Weniger anzeigen",
+    "loading": "Aufgaben werden geladen",
+    "errorObject": "die vollständige Liste „Zu erledigen“"
+  },
+  "childrenLoading": "Kinder werden geladen",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "errorObject": "die Übersicht Ihrer Kinder"
+}

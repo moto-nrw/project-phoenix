@@ -43,6 +43,8 @@ import {
 } from "~/lib/pwa-install-prompt";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { setupStorageKey } from "./notification-setup-decision";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 export { setupStorageKey } from "./notification-setup-decision";
 
@@ -388,7 +390,9 @@ export function NotificationSetupDialog({
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
               <MotoConceptIcon
                 concept={
-                  mode.startsWith("install-") ? "devices" : "notifications"
+                  mode.startsWith("install-")
+                    ? devicesConcept
+                    : notificationsConcept
                 }
                 size={22}
               />

@@ -224,44 +224,72 @@ func seedDeclarationAnswer(rt *Runtime) error {
 // seedDeclarationAnswers answers an Erklärung as the responding families.
 // Children of the first family stay unanswered, and so does every child
 // someone already answered for.
+//
+// The families sign in and answer in parallel. Which family answers for a
+// child is planned in between, in family order, so it stays the same as
+// when the families answered one by one.
 func seedDeclarationAnswers(rt *Runtime, declaration seedDeclaration) (int, error) {
 	defer rt.Client.BindAuth(rt.TenantAuth)
-	firstFamily := firstFamilyChildren(rt)
-	answered := 0
+	type answering struct {
+		parent ParentCredentials
+		action string
+	}
+	var families []answering
 	for i, parent := range respondingFamilies(rt) {
-		action := declaration.action(i)
-		if action == "" {
-			continue
+		if action := declaration.action(i); action != "" {
+			families = append(families, answering{parent: parent, action: action})
 		}
-		count, err := seedDeclarationAnswerAs(rt, parent, declaration.title, action, firstFamily)
+	}
+	items := make([]*seedDeclarationItem, len(families))
+	auths := make([]AuthRef, len(families))
+	if err := forEachParallel(rt, families, func(worker *Runtime, index int, family answering) error {
+		auth, err := worker.Adapter.LoginParent(context.Background(), family.parent.Email, family.parent.Password)
 		if err != nil {
-			return answered, err
+			return fmt.Errorf("login parent to declare: %w", err)
 		}
-		answered += count
+		auths[index] = auth
+		items[index], err = seedDeclarationFor(worker, auth, declaration.title)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	children := planSeedDeclarationAnswers(items, firstFamilyChildren(rt))
+	if err := forEachParallel(rt, families, func(worker *Runtime, index int, family answering) error {
+		for _, studentID := range children[index] {
+			if err := answerSeedDeclarationChild(worker, auths[index], items[index], studentID, family.action, family.parent.Name); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	answered := 0
+	for _, family := range children {
+		answered += len(family)
 	}
 	return answered, nil
 }
 
-func seedDeclarationAnswerAs(rt *Runtime, parent ParentCredentials, title, action string, firstFamily map[string]bool) (int, error) {
-	auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
-	if err != nil {
-		return 0, fmt.Errorf("login parent to declare: %w", err)
-	}
-	item, err := seedDeclarationFor(rt, auth, title)
-	if err != nil || item == nil {
-		return 0, err
-	}
-	count := 0
-	for _, child := range item.Declaration.Children {
-		if firstFamily[child.StudentID] || !child.CanSubmit || child.MyAction != nil {
+// planSeedDeclarationAnswers names, per family, the children it answers
+// for: those outside the first family it may answer for and nobody answered
+// yet, an earlier family first.
+func planSeedDeclarationAnswers(items []*seedDeclarationItem, firstFamily map[string]bool) [][]string {
+	children := make([][]string, len(items))
+	answered := map[string]bool{}
+	for index, item := range items {
+		if item == nil {
 			continue
 		}
-		if err := answerSeedDeclarationChild(rt, auth, item, child.StudentID, action, parent.Name); err != nil {
-			return count, err
+		for _, child := range item.Declaration.Children {
+			if firstFamily[child.StudentID] || answered[child.StudentID] || !child.CanSubmit || child.MyAction != nil {
+				continue
+			}
+			answered[child.StudentID] = true
+			children[index] = append(children[index], child.StudentID)
 		}
-		count++
 	}
-	return count, nil
+	return children
 }
 
 // answerSeedDeclarationChild answers for one child; "revoked" first agrees

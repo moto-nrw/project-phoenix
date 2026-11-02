@@ -125,6 +125,16 @@ import {
   type RosterDeviation,
 } from "./roster-deviation";
 import {
+  mapBookingLeftovers,
+  type BackendBookingLeftoversResponse,
+  type BookingLeftover,
+} from "./booking-leftover";
+import {
+  mapOfferingGaps,
+  type BackendOfferingGapsResponse,
+  type OfferingGap,
+} from "./offering-gap";
+import {
   draftPreviewQuery,
   mapOfferingSuggestion,
   suggestionQuery,
@@ -379,8 +389,16 @@ class TimetableService {
    * GET /api/timetable/templates/roster-deviations — Regeltermine whose
    * children list differs from an offering's bookings (#5103).
    */
-  async getRosterDeviations(periodId: string): Promise<RosterDeviation[]> {
+  /**
+   * `templateId` also reviews that Regeltermin when it is kept by hand:
+   * „Mit Angebot verbinden“ names it, and connecting ends that state.
+   */
+  async getRosterDeviations(
+    periodId: string,
+    templateId?: string,
+  ): Promise<RosterDeviation[]> {
     const params = new URLSearchParams({ period_id: periodId });
+    if (templateId) params.set("template_id", templateId);
     const response = await transportFetch(
       `/api/timetable/templates/roster-deviations?${params}`,
       {
@@ -392,6 +410,98 @@ class TimetableService {
     return mapRosterDeviations(
       await unwrap<BackendRosterDeviationsResponse>(response),
     );
+  }
+
+  /**
+   * GET /api/timetable/templates/booking-leftovers — children a
+   * hand-maintained Regeltermin keeps after their booking of those weekdays
+   * ended (#5102).
+   */
+  async getBookingLeftovers(periodId: string): Promise<BookingLeftover[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/templates/booking-leftovers?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapBookingLeftovers(
+      await unwrap<BackendBookingLeftoversResponse>(response),
+    );
+  }
+
+  /**
+   * PUT /api/timetable/templates/{id}/students/{studentId}/kept-days —
+   * „Bleibt so“ (#5102) for the leftover, or its undo.
+   */
+  async setBookingLeftoverKept(
+    leftover: BookingLeftover,
+    kept: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${encodeURIComponent(leftover.templateId)}/students/${encodeURIComponent(leftover.studentId)}/kept-days`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          weekdays: leftover.weekdays,
+          booking_ended_on: leftover.bookingEndedOn,
+          kept,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
+   * GET /api/timetable/offering-gaps — offerings whose booked children no
+   * Regeltermin of the period takes over (#5140).
+   */
+  async getOfferingGaps(periodId: string): Promise<OfferingGap[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingGaps(await unwrap<BackendOfferingGapsResponse>(response));
+  }
+
+  /**
+   * PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement —
+   * „Kein eigener Regeltermin nötig“ (#5140) for the classes the hint names,
+   * or its undo.
+   */
+  async setOfferingGapAcknowledged(
+    offeringId: string,
+    periodId: string,
+    acknowledged: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps/${offeringId}/acknowledgement`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          period_id: Number(periodId),
+          acknowledged,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
   }
 
   /** GET /api/timetable/templates/{id}/offering-preview (#5103). */

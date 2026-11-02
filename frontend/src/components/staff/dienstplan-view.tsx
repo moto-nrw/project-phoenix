@@ -1,5 +1,6 @@
 "use client";
 
+import { me as meKeys } from "~/lib/swr/me";
 import {
   useCallback,
   useEffect,
@@ -51,7 +52,6 @@ import {
   firstSchoolDayInPeriod,
   formatWeekLabel,
 } from "~/lib/timetable-helpers";
-import { userContextService } from "~/lib/usercontext-api";
 
 const logger = createLogger({ component: "DienstplanView" });
 
@@ -271,11 +271,9 @@ function DienstplanContent() {
   // person → /time-tracking, others → the staff detail page). Reuses the
   // time-tracking page's SWR key so the request is deduped; null when the
   // account is not linked to a staff person.
-  const { data: ownStaff } = useSWRAuth(
-    "time-tracking-own-staff",
-    () => userContextService.getCurrentStaff(),
-    { revalidateOnFocus: false },
-  );
+  const { data: ownStaff } = useSWRAuth(meKeys.key(), meKeys.fetcher, {
+    revalidateOnFocus: false,
+  });
   const currentStaffId = ownStaff?.id ?? null;
 
   // Person der Ansicht "person": aus `staff`, sonst die eigene Person, sonst

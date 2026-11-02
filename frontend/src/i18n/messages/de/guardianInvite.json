@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Eltern-Portal",
+  "title": "Willkommen",
+  "fallbackSchool": "Ihrer Schule",
+  "subtitle": "Bestätigen Sie Ihre Einladung für {school} und legen Sie Ihr persönliches Passwort fest.",
+  "errorHelpBefore": "Sie können eine neue Einladung bei der Schule anfordern oder sich über",
+  "startPage": "die Startseite",
+  "errorHelpAfter": "anmelden.",
+  "formErrors": {
+    "passwordRules": "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein."
+  },
+  "acceptedTitle": "Konto erstellt",
+  "acceptedText": "Bitte melden Sie sich mit Ihren neuen Zugangsdaten an.",
+  "invitationFor": "Einladung für",
+  "passwordLabel": "Passwort",
+  "confirmPasswordLabel": "Passwort bestätigen",
+  "showPassword": "Passwort anzeigen",
+  "hidePassword": "Passwort verbergen",
+  "requirementsTitle": "Passwortanforderungen",
+  "submitting": "Wird übernommen...",
+  "submit": "Einladung akzeptieren",
+  "passwordRules": {
+    "0": "Mindestens 8 Zeichen",
+    "1": "Ein Großbuchstabe",
+    "2": "Ein Kleinbuchstabe",
+    "3": "Eine Zahl",
+    "4": "Ein Sonderzeichen"
+  },
+  "errorObject": "die Einladung"
+}

@@ -9,6 +9,12 @@ on:
       run-frontend:
         type: boolean
         default: true
+      frontend-guards-only:
+        type: boolean
+        default: false
+      run-frontend-runner-tests:
+        type: boolean
+        default: false
       run-seed-smoke:
         type: boolean
         required: true
@@ -24,6 +30,10 @@ on:
       full-backend-suite:
         type: boolean
         required: true
+      backend-race:
+        description: Instrument backend tests for the nightly full race run
+        type: boolean
+        default: false
       full-frontend-suite:
         type: boolean
         required: true
@@ -34,7 +44,7 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
-  GOFLAGS: -tags=testhooks
+  GOFLAGS: -tags=testhooks -trimpath
 
 jobs:
   plan-backend:
@@ -104,6 +114,9 @@ jobs:
       # budgets, without mixing architecture/migrations into application work.
       matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
     runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # Instrumented builds and tests need more headroom than ordinary runs.
+    # Keep the default Actions limit unchanged for non-race callers.
+    timeout-minutes: ${{ inputs.backend-race && 60 || 360 }}
     env:
       # Keep sibling package clones in one run, as the local test wrappers do.
       # Generation GC must not collect them while this shard is still running.
@@ -172,7 +185,7 @@ jobs:
       - name: Compute backend build cache key
         id: build-cache-key
         env:
-          BACKEND_CACHE_PREFIX: backend-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          BACKEND_CACHE_PREFIX: backend-build${{ inputs.backend-race && '-race' || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
           BACKEND_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go', 'scripts/backend-test-matrix.sh') }}
         run: |
           echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
@@ -300,6 +313,7 @@ jobs:
           PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
+          BACKEND_RACE: ${{ inputs.backend-race }}
         run: |
           if [ "$FULL_SUITE" = true ]; then
             # Known full runs start immediately, without a planning runner.
@@ -317,21 +331,50 @@ jobs:
           fi
           echo "Running ${#packages[@]} selected Go packages"
 
+          race_flags=()
+          measure=()
+          if [ "$BACKEND_RACE" = true ]; then
+            export CGO_ENABLED=1
+            "$(go env CC)" --version
+            race_flags=(-race -timeout=20m)
+            # Race instrumentation increases memory per package. Retain the
+            # existing four shards and parallel tests, but limit each runner
+            # to two package builds/binaries and their package-owned DB clones.
+            PACKAGE_WORKERS=2
+            measure=(/usr/bin/time -v -o "$RUNNER_TEMP/backend-race-resources.txt")
+            nproc
+            free -m
+          fi
+
           # Single pass produces junit.xml. No retries: flaky tests should fail
-          # loudly, not be hidden.
-          go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+          # loudly, not be hidden. gotestsum propagates race/test failures.
+          "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
+            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+
+      - name: Summarize race test resources
+        if: ${{ always() && inputs.backend-race }}
+        run: |
+          if [ -f "$RUNNER_TEMP/backend-race-resources.txt" ]; then
+            {
+              echo '### Backend race run (shard ${{ matrix.shard }})'
+              echo 'GNU time maximum RSS is the largest process, not aggregate runner memory.'
+              echo '```text'
+              cat "$RUNNER_TEMP/backend-race-resources.txt"
+              echo '```'
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
-          check_name: Backend Test Results (${{ matrix.shard }})
+          check_name: Backend Test Results${{ inputs.backend-race && ' with race detector' || '' }} (${{ matrix.shard }})
           include_passed: false
           detailed_summary: true
 
   test-frontend:
+    name: Frontend tests (${{ matrix.project }})
     if: ${{ inputs.run-frontend }}
     # The existing Vitest projects are independent, but groupOrder runs Node
     # before DOM in one process. Split them without raising worker counts or
@@ -341,8 +384,8 @@ jobs:
       matrix:
         # Changed-only PRs keep one DOM job. Full suites split its files with
         # Vitest's built-in sharding, retaining four workers per DOM runner.
-        project: ${{ fromJSON((!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+        project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
+    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
@@ -367,13 +410,13 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Check frontend route invariants
-        if: ${{ inputs.changed-scope && matrix.project == 'node' }}
-        working-directory: frontend
-        run: >-
-          pnpm vitest run --disableConsoleIntercept
-          src/lib/app-route-invariants.test.ts
-          src/lib/analytics-routes.test.ts
+      - name: Check filesystem guard inventory
+        if: ${{ matrix.project == 'node' }}
+        run: node scripts/test-frontend-changed.mjs --check-guards
+
+      - name: Test frontend selection runner
+        if: ${{ matrix.project == 'node' && inputs.run-frontend-runner-tests }}
+        run: node --test scripts/test-frontend-changed.test.mjs
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
@@ -408,19 +451,22 @@ jobs:
           FULL_SUITE: ${{ inputs.full-frontend-suite }}
           BASE_REF: ${{ inputs.base_ref }}
         run: |
-          test_args=(--project app-dom)
+          test_args=(--project app-dom --project school-date-dom)
           if [ "$PROJECT" = node ]; then
             test_args=(--project api-node --project logic-node)
+          elif [ "$PROJECT" = guards ]; then
+            # Guard paths span Vitest projects. Do not filter DOM guards out.
+            test_args=()
           fi
           case "$PROJECT" in
             dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;
           esac
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            test_args+=(--changed "origin/$BASE_REF")
+            node ../scripts/test-frontend-changed.mjs "origin/$BASE_REF" --disableConsoleIntercept "${test_args[@]}"
+          else
+            # Full suites already include every guard, with normal sharding.
+            pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
           fi
-          # Native stdout/stderr avoids Vitest's console-RPC teardown race.
-          # Unhandled application errors still fail the run.
-          pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and
@@ -429,7 +475,7 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke (${{ matrix.scenario }})
+    name: Seed and simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
     strategy:
       fail-fast: false
@@ -502,6 +548,8 @@ jobs:
       # that, which a green CI missed until the demo failed on 2026-10-27.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
+      # The development key ring of .env.example for the holiday health data (#4722).
+      HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000
@@ -557,17 +605,55 @@ jobs:
           } >> "${GITHUB_ENV}"
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
 
+      # setup-go's go.sum-only key is immutable. All scenarios build the same
+      # binaries, so they share one source-keyed layer with the last source
+      # build as a warm fallback. Only nightly.yml saves it, on development:
+      # a ~330 MB save per pull request push filled the 10 GB repository
+      # cache and evicted the development entry that pull requests restore.
+      - name: Compute seed smoke build cache key
+        id: build-cache-key
+        env:
+          SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+          SEED_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
+        run: |
+          echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore seed smoke build cache
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
       - name: Build backend and dev tools binaries
         working-directory: backend
         run: |
           go build -o "${RUNNER_TEMP}/phoenix" .
           go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
+
+      # Downloading the test modules and compiling the coverage ratchet took
+      # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
+      # the seeder waits on the server; the ratchet step waits for it.
+      - name: Compile the seed coverage ratchet in the background
+        if: ${{ matrix.scenario == 'profiles' }}
+        working-directory: backend
+        run: |
+          (
+            if go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/ \
+              > "${RUNNER_TEMP}/seed-coverage-build.log" 2>&1; then
+              echo ok > "${RUNNER_TEMP}/seed-coverage-build.status"
+            else
+              echo failed > "${RUNNER_TEMP}/seed-coverage-build.status"
+            fi
+          ) > /dev/null 2>&1 &
 
       - name: Run migrations
         working-directory: backend
@@ -580,9 +666,15 @@ jobs:
       # these settings the log printed at job end names a lock wait and its
       # blocker, or a slow statement with its duration; a hang that leaves
       # neither points at the runner rather than at the query.
+      #
+      # The seed commits thousands of small transactions into this throwaway
+      # database. synchronous_commit = off answers a commit before its WAL
+      # reaches the disk; a crash could lose the last commits, but not
+      # corrupt the database, and a crash fails the job anyway.
       - name: Log Postgres lock waits and slow statements
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
             -c "ALTER SYSTEM SET log_lock_waits = on" \
             -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
             -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
@@ -705,7 +797,8 @@ jobs:
       # One demo school per demo access (#3463): queue what the serving backend
       # queues for three prospects, let the demo process seed them with its
       # three workers and tick them once. A school that did not become ready
-      # fails the job. The durations are what a visitor waits for.
+      # fails the job. The durations are what a visitor waits for. A failed
+      # deferred seed rebuilds its school; its line names why (#5151).
       - name: Seed queued demo schools with the demo process
         if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
@@ -715,7 +808,7 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
              SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Zyxwolda', 'Quorbelt' FROM generate_series(1, 3) AS i"
-          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
+          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed|deferred seed failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
           visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Zyxwolda' AND p.last_name = 'Quorbelt'")
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
@@ -788,8 +881,28 @@ jobs:
 
       - name: Check seed coverage ratchet
         if: ${{ matrix.scenario == 'profiles' }}
-        working-directory: backend
-        run: go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v
+        working-directory: backend/internal/devtools/seedapi
+        run: |
+          status_file="${RUNNER_TEMP}/seed-coverage-build.status"
+          for _ in $(seq 1 300); do
+            test -s "${status_file}" && break
+            sleep 1
+          done
+          if [ "$(cat "${status_file}" 2>/dev/null)" != ok ]; then
+            echo "compiling the seed coverage ratchet failed or did not finish in 300 s"
+            cat "${RUNNER_TEMP}/seed-coverage-build.log" || true
+            exit 1
+          fi
+          "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
+
+      # profiles also compiled the coverage ratchet, so its build cache is the
+      # fullest of the three scenarios.
+      - name: Save seed smoke build cache
+        if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Postgres activity and socket queues
         if: failure()

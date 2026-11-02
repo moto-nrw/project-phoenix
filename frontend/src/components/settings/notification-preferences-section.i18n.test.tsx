@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import en from "~/i18n/messages/en.json";
+import en from "~/i18n/messages/en.generated";
 import { NotificationPreferencesSection } from "./notification-preferences-section";
 import { ToastProvider } from "~/contexts/ToastContext";
 

@@ -12,7 +12,7 @@ import { createLogger } from "~/lib/logger";
 import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { pdfDownloadResponse } from "~/lib/pdf-download-response.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({
   component: "EnrollmentStatusSignatureProofRoute",
@@ -43,4 +43,4 @@ async function GETHandler(
   return pdfDownloadResponse(upstream);
 }
 
-export const GET = withPrivateNoStore(GETHandler);
+export const GET = withPrivateDownloadNoStore(GETHandler);

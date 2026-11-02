@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 
 /**
@@ -15,7 +15,7 @@ type SectionHeadingLevel = 2 | 3 | 4;
 
 interface ConceptSectionHeaderProps {
   readonly title: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
   readonly actionsClassName?: string;
@@ -25,7 +25,7 @@ interface ConceptSectionHeaderProps {
 
 interface ConceptPageHeaderProps {
   readonly title: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly eyebrow?: ReactNode;
   readonly subtitle?: ReactNode;
   readonly className?: string;

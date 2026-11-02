@@ -18,7 +18,7 @@ Platform selection and scan handling live in PyrePortal's
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
-`errorCodes.generated.ts` comes from `error-registry.json` via
+`errorCodes.generated.ts` comes from `error-registry/` via
 `pnpm run sync:error-codes`) to German UI text. Since #2508 the kiosk matches
 no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
@@ -107,6 +107,21 @@ Other kiosk programming errors and 5xx faults keep their class code. `device is 
 no code: no backend path returns it, and a second start answers the session
 conflict instead.
 
+### Booked modules (#4896)
+
+Every kiosk route belongs to the module NFC-Anwesenheit; the staff clock
+(`/api/iot/staff-clock`, `.../state`) also needs Zeiterfassung. A device of a
+school without the module gets `403 / module.not_booked` after
+authentication, with `details.module` (`nfc_anwesenheit` or
+`zeiterfassung`) and `details.module_label`. The lock runs in
+`gateDeviceAuthentication` (`backend/api/module_booking_gate.go`) behind each
+device authenticator. It covers `/api/iot/*` and the armband assignment
+`/api/students/{id}/rfid`. The device administration of the team portal
+under `/api/iot` passes `TenantScopeMiddleware` with the same code.
+PyrePortal shows the module's text from `details.module`. The tests are
+`TestDeviceLock*` (`backend/api/module_booking_gate_internal_test.go`) and
+`TestFullProductionRouterGolden/contracts/module_booking_gate`.
+
 ### Error reports relay
 
 `POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option
@@ -179,6 +194,61 @@ carries `Server-Timing` with millisecond durations only: `auth` (device key, sch
 request transaction up to its commit or rollback) and `after-commit` (the
 hooks after a commit). Sections that did not run are left out. Code:
 `backend/api/iot_http_metrics.go`.
+
+### Student count revision (#5128, #5205)
+
+The kiosk orders its student counter by a server revision, not by the start
+order of its requests. All fields are additive; an older kiosk ignores them.
+
+- **Wire.** `GET /api/iot/session/current` returns `active_students_revision`
+  exactly when it returns `active_students`; its scope is the
+  `active_group_id` of the same answer. `POST /api/iot/checkin` (detailed
+  mode) returns `active_students_session_id` and `active_students_revision`
+  together, only with an `active_students` of the scanning device's own
+  session in the scanned room. A room-wide count (the device runs no session
+  there) returns `active_students_room_id` and `active_students_room_revision`
+  together instead, never the session fields. A failed count and a
+  binary-mode or supervisor scan carry neither pair.
+- **Scope and monotonicity.** Both revisions are sums over the append-only
+  rows of `active.visit_revision_events` (Student Presence) that a read sees.
+  A session's revision sums its session events: every statement on
+  `active.visits` that opens, closes, moves or deletes an open visit inserts
+  one for each session whose count it changed (migration 1.15.705). A room's
+  revision sums its entry rows (a session started, moved or reopened there)
+  and room rows (a session left or ended there) plus the session revision of
+  every session the room held since the last nightly close (migration
+  1.15.710, #5273). The read, not the
+  writer, decides which sessions a room held, so a visit write racing a room
+  change raises both rooms. Every committed change of a count raises the
+  revision of its scope; events are never updated, so neither revision
+  falls, also for deletes, moves and removed sessions. Revisions compare
+  only within one session or one room of one school, never across scopes; a
+  new session or an empty room starts at 0.
+- **Snapshot.** Count and revision come from one statement. A read that
+  started before a write committed does not see the write's events and
+  carries a lower revision than the writer's answer, which sees them.
+- **Concurrent writers.** Two writers of one session or room that overlap
+  can each answer the same revision with a different count; the kiosk keeps
+  the one it has, and the next read after both commits carries both changes
+  with a higher revision. The blur is at most one poll interval (ADR 0131);
+  a room has no further blur (ADR 0133).
+- **No session lock.** The triggers only insert and the event table has no
+  key to a session or room row; visit and session writers take the same locks
+  as before #5128. The nightly close collapses the rows of each scope without
+  changing a revision and folds a deleted session's events, and the entries
+  of every settled session, into room rows of the rooms it entered. Settling
+  locks ended sessions and their visits with `SKIP LOCKED`, so a writer of an
+  ended session may wait for the nightly close; writers of running sessions
+  do not (ADR 0133, addendum #5273).
+- **Restarts and processes.** The events live in the database. Neither a
+  backend restart nor several backend processes reset or fork a revision.
+- **Kiosk rule.** Within one scope (activity, room, session), accept a count
+  whose revision is greater than the shown one, ignore a smaller or equal one,
+  and never take a revision from another session or room, or a room revision
+  for a session one. A count without a revision (older backend) keeps the
+  kiosk's previous rule.
+
+Deploy the backend first; the kiosk change in PyrePortal follows.
 
 ### Destination choice into released rooms (#3067)
 
@@ -272,6 +342,114 @@ Operator, parents, school, and Träger cookies are host-only. The tenant cookie 
 domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
+A switch on one school's subdomain replaces that shared cookie for every tab;
+tabs on other subdomains hear nothing of it. So `withTenantAuth` refuses a
+session whose `tenantId` differs from the school of the request's subdomain
+with 409 `identity.session_tenant_mismatch` before the route runs
+(`frontend/src/server/auth/tenant-host-check.ts`, #5130). The host's school
+comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
+failed lookup refuses the request. Exempt are the routes that end the mismatch:
+`/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
+`/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
+`/api/invitations/accept`, which acts for the invitation's school. In the
+browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
+installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
+for clients that read only `response.ok`. The session cache drops its session
+and wakes the `SessionProvider`; `TenantGuard` hides the page at once and
+shows it again only after a session lookup started after the refusal names
+this tab's school. An answer naming another school hands over to the switch,
+and while the provider names another school, refusals start no lookup. Without
+a valid answer within 10 s the guard offers only `Erneut versuchen`. Only
+because of this check may the session cache keep the provider's session until
+its next poll. Path mode
+(`{TENANT_DOMAIN}/{school}/...`) names no school in its host: the tenant
+layout redirects it to the school's subdomain (path and query from the
+proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
+refuses a school's session on the bare domain, and `TenantGuard` moves a tab
+still on path mode to the subdomain.
+
+All tabs of a portal also share one account: another account that signs in
+in tab B replaces tab A's session before tab A hears of it (#5183). Every
+browser request to the tab's own `/api/` therefore names the account its
+`SessionProvider` shows in `X-Moto-Session-Account`, set centrally by
+`SessionAccountBinding` (mounted first in every portal's providers), the
+fetch observer and the Axios interceptor of `api-transport.ts`; another
+origin never gets it. Every portal's route wrapper
+(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+names another account than the cookie with 409
+`identity.session_account_mismatch` before the route runs
+(`frontend/src/server/auth/session-account-check.ts`). Account exemptions
+are independent of the school exemptions: only
+portal logout, `/api/auth/token` (cookie-only renewal, no token in the
+answer) and `/api/logs` pass. Tenant switching and preview-end must match
+the account; invitation acceptance does not use this wrapper. The refusal takes
+the path of the school refusal: the session cache wakes the provider,
+`TenantGuard` hides the page, and the provider's new account resets the SWR
+scope and leaves the page (`PersonalStorageGuard`). A request without the
+header passes (logged at debug): RSC navigation, server actions and image
+or download links cannot send it. For those requests the window until the
+provider learns the new account remains. SSE uses fetch streaming and names
+the account on the actual stream request, including every reconnect (#5374);
+a refusal is read directly, not through a preflight or probe. Every portal
+re-arms mismatch reporting when its provider confirms a session, including
+another lookup of the same account.
+
+### Session revocation per request (#5194)
+
+Every account access token names the refresh-token family that minted it
+(`family_id`). After the verifier, `sessiontoken.RequireLiveSession`
+(`backend/api/serve_host.go`) asks Identity & Access
+(`AccessSessions.VerifyAccessSession`) on every request whether the family
+still backs the token: latest generation present, same account (for a
+staff-view preview the acting admin), same portal scope (legacy `unknown`
+rows match every scope), not expired. Otherwise the token counts as
+unverified, so every Authenticator answers 401 and public routes treat the
+request as anonymous; a failed read answers 503 `general.unavailable` and
+never lets the token through. Operator tokens keep their own family check
+(`RequiresActiveOperator`); device keys, refresh, MFA and enrollment tokens
+are not access tokens and pass unchanged. The check reads the database each
+time (one indexed statement in its own administrative transaction, budget
+`identity.access_session.verify`) and caches nothing, so a confirmed
+revocation holds on every instance at once.
+
+Logout, the session cap, revocations and a tenant switch's retirement (after
+its grace) therefore end the access tokens of that family immediately; a
+cookie a late response writes back opens nothing. Logout takes the account
+lock refresh takes first, so a rotation committing during logout is revoked
+with its family, and a switch mints nothing out of a family that is gone.
+`/auth/logout` (tenant, parent, school, caterer, Träger) and
+`/operator/auth/logout` answer 204 only after the revocation committed and
+503 when it failed. Operator logout also answers 503 if its bounded deletion
+passes cannot confirm that the family is empty; deleting rows on the last
+pass alone is not confirmation. Every portal shell revokes through its BFF logout route
+(`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
+Auth.js clears the cookie; a failed revocation keeps the session and shows
+the error with a retry, as does the tenant relogin action. Portal cookies
+are host-only; a late response of the same portal may write one back only
+in the narrow cases [below](#late-responses-after-logout-5399), and the
+revoked family makes it worthless. Migration 1.15.707 gives every
+live chain from before families (head plus rotated predecessors linked by
+`replacement_token`, same account, generation + 1) one family, so it keeps
+signing in through one forced renewal. It works one account per
+transaction and reads the chain only after taking the account lock refresh
+and logout take first, so a rotation during the migration commits either
+before the read (the migration then hands the rotation's family down to the
+remaining predecessors) or after the write. An access token without
+family gets 401, a rotated row without family is refused at refresh, and a
+logout revokes the whole chain it links into, all reached families
+included, before it reports success. The walk follows only unique links
+(one match, same account, generation ± 1); an ambiguous continuation of the
+own chain fails the logout instead. A staff-view preview token carries the admin's
+family and ends with the admin's session.
+
+In the frontend a backend 401 for an unexpired token renews the session at
+once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
+used by `uncachedAuth` and by `withAuthResponse` for routes without their own
+retry). A revoked family fails that refresh; the response ends the session
+in its body but writes no cookie (#5399, below), and `/api/auth/token`
+answers 401 for a revoked family, so the browser signs out. A live family
+continues with fresh tokens.
+
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
 | Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` | `POST /auth/login` |
@@ -297,9 +475,105 @@ type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
 the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
 pins the types and walks the syntax tree of those browser modules for
 credential reads on session values (casts, renames, type aliases,
-intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
-and staff-preview start still hand freshly minted tokens through browser
-JavaScript into Auth.js (`signIn`/`update`).
+intermediate variables included). It also rejects browser `signIn` calls with
+session-token fields or opaque/spread options (#5118).
+
+Completed login, MFA/passkey, tenant-switch, preview and demo session tokens
+stay in the BFF. Each portal's session writer installs them through Auth.js
+inside `withServerSessionMutation` (`src/server/auth/session-mutation.ts`).
+Every Credentials provider rejects `internalRefresh` outside that in-process
+context, even with valid CSRF and valid backend tokens; request fields or
+headers cannot establish it. Server-side seeding still validates portal scope
+and the live access/refresh family with the backend. HTTP request wrappers must
+not enter this context around arbitrary handlers.
+
+The browser may submit passwords, the Träger handoff's one-time proof, MFA
+challenge proofs and limited enrollment tokens. These are not completed session
+pairs. Public login routes that install cookies enforce Same-Origin before
+calling the backend; failed installation revokes the freshly minted family.
+The regular parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. The internal Next.js cookie adapter remains
+pinned and protected by the cookie-order/chunk-deletion integration tests.
+
+### Late responses after logout (#5399)
+
+A response sets its cookies when its headers arrive, whatever the JavaScript
+that sent it does with the result. The server is the source of truth that a
+response started before a logout or a "Zur Schulanmeldung" cannot bring the
+old session back; the browser only saves requests.
+
+1. **Write gate, the one exit.** Every session cookie of every portal
+   leaves through `gateSessionCookieWrites`
+   (`frontend/src/server/auth/session-cookie-writes.ts`). It has two callers:
+   `withBrowserSession`, which wraps every action of the six Auth.js routes
+   (signin, callbacks, session, `update()`, signout, …), and `finishResponse`
+   in `frontend/src/server/auth/route-handler.ts`, where every BFF route ends
+   (refresh, forced renewal, `mutateSession` for login, MFA, school switch
+   and preview). Auth.js' server helpers (`signIn`, `unstable_update`) write
+   Next's mutable cookie jar, which Next appends after the route returned;
+   the gate takes the session cookies out of the jar and decides on them
+   with the response's own. Mirrored backend cookies drop session cookie
+   names (`withoutSessionCookies`). Proxy, server components and server
+   actions write no session cookie.
+   `frontend/src/app/api/auth/session-cookie-inventory.test.ts` lists every
+   Auth.js action, route and instance and every cookie writer and fails on a
+   new one that bypasses the exit. A cookie leaves
+   only for a changed session (sign-in, rotation, `update()` with a change,
+   school switch, preview) whose refresh-token family Identity & Access
+   confirms live while the response is built. An unchanged re-encoding
+   (claims `iat`, `exp`, `jti` ignored), an ended session and a session of a
+   revoked family write nothing; deletions pass. When the family cannot be
+   read (503, timeout), only a refresh token this request was just issued
+   (sign-in, rotation) lands: Identity & Access issues one only for a live
+   family, and dropping it would strand the browser on the consumed token
+   after the recovery grace. A refused group also drops its chunk cleanup, so
+   the browser keeps its previous cookie. The cookie's lifetime equals the
+   refresh lifetime and moves with each rotation.
+2. **Read gate.** The session route asks the family on every call and reads
+   a revoked family as ended (`RefreshTokenError`); the layout snapshots of
+   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
+   only a live family. A family that cannot be read (503) and an expired
+   access token, which the backend refuses before it reads the family, leave
+   the shown session as it is; its own refresh decides.
+3. **Family check.** `POST /auth/session/validate` without a refresh token
+   reads the access token's family (`ValidateSessionTokens`,
+   `verifyAccessFamily` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`):
+   `VerifyAccessSession` for account portals, the latest operator session of
+   the family for the operator. 401 means revoked, foreign or an expired
+   token, 503 means the family could not be read. The BFF calls it through
+   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
+
+Invariants: no response sets a session cookie of a family Identity & Access
+answers as revoked while the response is built, whichever tab, subdomain or frozen
+document sent the request and however late it arrives. A cookie built in the
+moment before the revocation and delivered after the deletion still lands;
+it names a revoked family, opens nothing (#5194) and reads as ended on the
+next session read or page load; delivered only after a new login, it replaces
+that login's cookie and asks for the login again. The same holds for a
+just-issued refresh token that lands while the family check had no answer. A
+session cookie the gate cannot decode counts as no session and passes; the
+gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
+environment sets `AUTH_SECRET`. A school switch that committed before the
+logout mints a family of its own, which the logout of the old family does not
+revoke (#5422).
+
+**Session-end barrier** (`frontend/src/lib/session-end-barrier.ts`): an
+optimization of the document that logs out, not a guarantee. Every portal's
+logout and the tenant relogin close it before revocation: requests to the
+tab's own `/api/` whose response headers have not arrived are aborted; new
+ones wait (or end at once when their caller aborts); the SessionProvider's
+poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
+when the barrier opens, any other method fails; answered requests (an SSE
+stream, a body still being read) keep running. The exit's own requests (BFF
+logout, CSRF, Auth.js signout, staff-preview end, `DELETE
+…/push/subscriptions`) pass only for the running attempt. The barrier opens
+when the logout fails or, outside the tenant shell, once the signout answer
+deleted the cookie; the tenant exit keeps it closed while it navigates.
+`<SessionEndBarrier />` installs it in the tenant shell's protected layout
+and the other portals' providers; the fetch observer applies it once
+installed. Other tabs, a tab started during a logout and the public tenant
+pages need no barrier: their answers pass the same server gates.
 
 ### Login, refresh, and MFA
 
@@ -323,6 +597,18 @@ Backend paths in this section are relative to `backend/`:
   caterer portal (`workflows/catererportal`) opens each supplied school's
   tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
+- The caterer's second factor (ADR 0077 addendum, #4497) is voluntary and
+  bound to the caterer's account, never to a school's `mfa_mode`. Once it is
+  on, `/caterer/auth/login` answers `mfa_required` with a `caterer`-scope
+  challenge that names no school (unless the browser's `mfa_trust_device`
+  cookie names a remembered device of the account); `/caterer/auth/mfa/verify`
+  and `/caterer/auth/passkeys/login/verify` mint the session with
+  `mfa_verified`, and mint and refresh refuse a caterer session without it.
+  A caterer challenge is refused by every other portal's verify. Switching
+  the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
+  session; older sessions end at their next refresh. Recovery is the
+  operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
+  audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
@@ -410,10 +696,8 @@ the domain cookie would reach the target guard unchanged. The guard handles the
 same MFA refusal without SessionExpired redirects or automatic retries and
 offers this same explicit logout-and-login action. An HTTP error returned by
 the logout BFF stays visible and prevents navigation; 401 is treated as already
-unauthenticated. This does not confirm database revocation: the existing backend
-`/auth/logout` logs `LogoutWithAudit` failures, including database revocation
-failures, and still responds 204. The browser cannot distinguish that failure
-from success.
+unauthenticated. The backend `/auth/logout` answers 503 when the database
+revocation failed, so a 204 confirms it (#5194).
 If Auth.js fails to clear the cookie, the target guard still blocks access and
 offers explicit reauthentication instead of redirecting in a loop.
 School-portal cookies remain host-only and are neither used nor cleared by the tenant action; the school portal currently has no

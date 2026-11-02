@@ -15,6 +15,7 @@ import (
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // dashboardPerms is the permission set the aggregated endpoint serves fully —
@@ -284,7 +285,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 	// arrival bulk loads, settings snapshot, tenant tx overhead. Raise only
 	// with a written justification.
 	// Measured at 29 flat; the cap leaves headroom for benign changes only.
-	testpkg.AssertQueryBudget(t, "api.active.supervision_dashboard", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.active.supervision_dashboard", counter.Queries())
 }
 
 // TestSupervisionDashboard_PayloadBudget bounds the wire size for a

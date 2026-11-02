@@ -1,0 +1,9 @@
+{
+  "deadline_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "duplicate_name": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "invalid_request": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "review_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "review_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "source_already_rolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "source_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

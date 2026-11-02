@@ -7,6 +7,8 @@ import {
 import { localMFACode, loginToLocalTenant } from "../../e2e/local-tenant-login";
 
 import { accessForShot, type Credentials, type StackAccess } from "./access";
+import { captureInOrder } from "./capture-order";
+import { assertConcurrency } from "./concurrency";
 import {
   DEVICES,
   nativeSize,
@@ -22,13 +24,12 @@ import {
 } from "./network-activity";
 import {
   BrokenShotError,
-  brokenShotsError,
   findBrokenReasons,
   isIgnoredResponse,
   type FailedResponse,
 } from "./quality";
 import { referenceInstant } from "./reference-time";
-import { devicesFor, type Shot, type Step } from "./shot-list";
+import type { Shot, Step } from "./shot-list";
 
 // Capture der Rohbilder (#3759): pro Shot und Gerät ein Browser-Kontext mit
 // dem nativen Viewport, fester Uhr, Deutsch und hellem Modus.
@@ -43,6 +44,8 @@ export interface CaptureOptions {
   readonly access: StackAccess;
   readonly shots: readonly Shot[];
   readonly now?: Date;
+  /** Maximum simultaneous shots; devices within one shot stay sequential. */
+  readonly concurrency?: number;
   /**
    * Wie lange Ladeanzeigen stehen dürfen, während die Seite nichts mehr lädt,
    * bevor der Shot als kaputt gilt (network-activity.ts).
@@ -224,9 +227,12 @@ async function login(
 }
 
 /** Meldet einmal je Portal und Rolle an; die Geräte teilen die Sitzung. */
-async function sessionFor(
-  browser: Browser,
-  cache: Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>,
+export async function sessionFor(
+  browser: Pick<Browser, "newContext">,
+  cache: Map<
+    string,
+    Promise<Awaited<ReturnType<BrowserContext["storageState"]>>>
+  >,
   access: StackAccess,
   shot: Shot,
 ) {
@@ -234,15 +240,19 @@ async function sessionFor(
   const cached = cache.get(key);
   if (cached) return cached;
   const { origin, credentials } = accessForShot(access, shot);
-  const context = await browser.newContext({ locale: "de-DE" });
-  try {
-    await login(context, shot.portal, origin, credentials);
-    const state = await context.storageState();
-    cache.set(key, state);
-    return state;
-  } finally {
-    await context.close();
-  }
+  const pending = (async () => {
+    const context = await browser.newContext({ locale: "de-DE" });
+    try {
+      await login(context, shot.portal, origin, credentials);
+      return await context.storageState();
+    } finally {
+      await context.close();
+    }
+  })();
+  // Publish before awaiting: overlapping shots must not issue parallel MFA
+  // challenges or replace one another's login session.
+  cache.set(key, pending);
+  return pending;
 }
 
 /**
@@ -814,45 +824,43 @@ export async function captureShots(
   const log = options.log ?? (() => undefined);
   const now = options.now ?? new Date();
   const loadTimeoutMs = options.loadTimeoutMs ?? LOAD_TIMEOUT_MS;
+  const concurrency = options.concurrency ?? 4;
+  assertConcurrency(concurrency);
   const browser = await chromium.launch();
   try {
     const sessions = new Map<
       string,
-      Awaited<ReturnType<BrowserContext["storageState"]>>
+      Promise<Awaited<ReturnType<BrowserContext["storageState"]>>>
     >();
-    const raws: RawShot[] = [];
-    const broken: BrokenShotError[] = [];
-    for (const shot of options.shots) {
-      const { origin } = accessForShot(options.access, shot);
-      const storageState = await sessionFor(
-        browser,
-        sessions,
-        options.access,
-        shot,
-      );
-      for (const deviceId of devicesFor(shot)) {
+    return await captureInOrder(
+      options.shots,
+      concurrency,
+      async (shot, deviceId) => {
+        const { origin } = accessForShot(options.access, shot);
+        const storageState = await sessionFor(
+          browser,
+          sessions,
+          options.access,
+          shot,
+        );
         log(`Fotografiere ${shot.id} auf ${deviceId}`);
-        try {
-          const png = await captureOne(
-            browser,
-            storageState,
-            DEVICES[deviceId],
-            shot,
-            origin,
-            now,
-            loadTimeoutMs,
-          );
-          raws.push({ shotId: shot.id, device: deviceId, png });
-        } catch (error) {
-          if (!(error instanceof BrokenShotError)) throw error;
-          log(error.message);
-          broken.push(error);
-          break;
-        }
-      }
-    }
-    if (broken.length > 0) throw brokenShotsError(broken);
-    return raws;
+        const started = performance.now();
+        const png = await captureOne(
+          browser,
+          storageState,
+          DEVICES[deviceId],
+          shot,
+          origin,
+          now,
+          loadTimeoutMs,
+        );
+        log(
+          `Aufnahme ${shot.id}/${deviceId}: ${Math.round(performance.now() - started)} ms`,
+        );
+        return { shotId: shot.id, device: deviceId, png };
+      },
+      (error) => log(error.message),
+    );
   } finally {
     await browser.close();
   }

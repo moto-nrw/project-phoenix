@@ -3,6 +3,7 @@ package timetable
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -24,6 +25,11 @@ type TemplateRosterReview interface {
 	// enrollment rows plus the current members of the Klasse, Jahrgang or
 	// Gruppe targets. A zero from means today. Unknown ids are absent.
 	FutureRosters(ctx context.Context, templateIDs []int64, from calendar.Date) (map[int64]TemplateFutureRoster, error)
+	// PlannedRosters returns, per template, who it plans on which dates:
+	// its enrollment rows with their validity and the current members of
+	// its Klasse, Jahrgang or Gruppe targets (#5343). Children who left the
+	// school are left out; unknown ids are absent.
+	PlannedRosters(ctx context.Context, templateIDs []int64) (map[int64]TemplatePlannedRoster, error)
 	// SeriesSegments lists the segments of the template's series that still
 	// have days on or after from, ordered by their start.
 	SeriesSegments(ctx context.Context, templateID int64, from calendar.Date) ([]TemplateSeriesSegment, error)
@@ -34,7 +40,7 @@ type TemplateRosterReview interface {
 	// every series segment with days on or after the effective date, in
 	// place and in one unit of work.
 	ConnectOfferingSource(ctx context.Context, cmd ConnectOfferingSourceCommand) (ConnectOfferingSourceResult, error)
-	// SetManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the
+	// SetManualRosterConfirmed stores "Liste so lassen" on the
 	// series; ErrTemplateSegmentNotEditable when the template is unknown.
 	SetManualRosterConfirmed(ctx context.Context, templateID int64, confirmed bool) error
 }
@@ -52,6 +58,58 @@ type TemplateFutureRoster struct {
 	// OfferingKind restricts which offerings may explain the roster; the
 	// zero value admits every offering.
 	OfferingKind RosterOfferingKind
+	// Ends are the Regeltermin's latest end ("HH:MM") per ISO weekday; a
+	// weekday without one has no known end. With the offerings' pickup
+	// times they tell which offerings carry the Regeltermin (#5342).
+	Ends map[int]string
+}
+
+// TemplatePlannedRoster is who a Regeltermin plans, as materialization
+// fills its occurrences: the enrollment rows on the dates they apply, and
+// the members of its Klasse, Jahrgang or Gruppe targets on every date.
+type TemplatePlannedRoster struct {
+	Entries          []TemplateRosterEntry
+	TargetStudentIDs []int64
+}
+
+// TemplateRosterEntry is one enrollment row of a Regeltermin.
+type TemplateRosterEntry struct {
+	StudentID int64
+	// ValidFrom is inclusive, ValidUntil exclusive; nil is open.
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
+	// CalendarPeriodID pins the row to one planning period; nil holds in
+	// every period.
+	CalendarPeriodID *int64
+	// Weekday scopes the row to one ISO weekday; nil holds on every day.
+	Weekday *int
+	// SelectedWeekdays restricts the row to these ISO weekdays; empty holds
+	// on every day.
+	SelectedWeekdays []int
+	// FromBooking marks a row a booking created; the other rows are kept by
+	// hand.
+	FromBooking bool
+	// KeptWithoutBooking is the school's decision on a hand row, per ISO
+	// weekday, to keep the child although bookings ending up to that day no
+	// longer carry the Regeltermin (#5102).
+	KeptWithoutBooking map[int]calendar.Date
+}
+
+// appliesOn reports whether the row puts the child on the template's
+// occurrence on date, with materialization's rule for enrollment rows
+// (isEnrollmentValidOn). periodID is the period materialization selects for
+// that occurrence; a row pinned to another period, or to any period when
+// periodID is unknown (0), does not apply.
+func (e TemplateRosterEntry) appliesOn(date calendar.Date, periodID int64) bool {
+	weekday := calendar.ISOWeekday(date)
+	switch {
+	case e.ValidFrom != nil && e.ValidFrom.After(date),
+		e.ValidUntil != nil && !e.ValidUntil.After(date),
+		e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID,
+		e.Weekday != nil && *e.Weekday != weekday:
+		return false
+	}
+	return len(e.SelectedWeekdays) == 0 || slices.Contains(e.SelectedWeekdays, weekday)
 }
 
 // TemplateSeriesSegment is one segment of a split series.

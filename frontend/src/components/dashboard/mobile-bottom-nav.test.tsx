@@ -601,6 +601,24 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
+    it("marks Suchen on Unterwegs opened from Alle Kinder", () => {
+      // #5026: die Karte „Unterwegs“ auf „Alle Kinder“ führt hierher.
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/students/search?status=unterwegs" : null,
+        ),
+      );
+
+      render(<MobileBottomNav />);
+
+      // Anker: „Suchen“ ist aktiv, nur dort erscheint die Bezeichnung.
+      expect(screen.getByText("Suchen")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Mehr" })).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
     it("highlights the Eltern group when a child page was reached via one of its activePaths", () => {
       // A grouped item (Eltern) owns several routes through activePaths. A
       // child page opened with ?from=/messages must still light up the "Mehr"
@@ -856,9 +874,7 @@ describe("MobileBottomNav", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und gehört nicht mehr zur Mitarbeiter-Sektion.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
 
       render(<MobileBottomNav />);
 

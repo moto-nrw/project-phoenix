@@ -7,7 +7,7 @@ import {
   Thermometer,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useSWRConfig } from "swr";
+import { useInvalidateMatching } from "~/lib/swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
@@ -620,14 +620,14 @@ export function StaffSessionTable({
     session: StaffHistorySession | null;
   } | null>(null);
 
-  // SWR mutate — used after a successful save to refresh the visible window
+  // Scoped invalidation — used after a successful save to refresh the visible window
   // (week/month table), its daily projection, the cumulative range (KpiCards)
   // and the Monatskarte, whose Ist, Gutschriften, Saldo and Übertrag are all
   // derived from the very rows this modal just changed. Which keys those are:
   // isStaleAfterSessionSave above.
-  const { mutate } = useSWRConfig();
+  const invalidate = useInvalidateMatching();
   const handleSaved = () => {
-    void mutate((key) => isStaleAfterSessionSave(key, staffId));
+    void invalidate((key) => isStaleAfterSessionSave(key, staffId));
   };
 
   return (

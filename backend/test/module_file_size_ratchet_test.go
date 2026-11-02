@@ -62,7 +62,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/semantic.go": 1480,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go": 1335,
+	"internal/devtools/seedapi/parent_enrollment.go": 1333,
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go": 1465,
 	// ADR 0087.
@@ -78,7 +78,7 @@ func TestModuleFileSizeRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 

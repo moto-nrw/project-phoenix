@@ -16,6 +16,7 @@ import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 
 vi.unmock("swr");
 
@@ -24,6 +25,7 @@ const {
   mockToastSuccess,
   mockToastError,
   mockToastWarning,
+  mockToastInfo,
   mockTenantMutate,
   mockUseSWRAuth,
   mockMaterialize,
@@ -42,12 +44,14 @@ const {
   mockLoggerError,
   mockListPhases,
   mockShowActionError,
+  mockShowMessage,
   mockAcknowledgeConflict,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   mockToastWarning: vi.fn(),
+  mockToastInfo: vi.fn(),
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockMaterialize: vi.fn(),
@@ -66,6 +70,7 @@ const {
   mockLoggerError: vi.fn(),
   mockListPhases: vi.fn(),
   mockShowActionError: vi.fn(),
+  mockShowMessage: vi.fn(),
   mockAcknowledgeConflict: vi.fn(),
 }));
 
@@ -134,8 +139,12 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
     success: mockToastSuccess,
     error: mockToastError,
     warning: mockToastWarning,
+    info: mockToastInfo,
   }),
-  useApiErrorDisplay: () => ({ show: mockShowActionError }),
+  useApiErrorDisplay: () => ({
+    show: mockShowActionError,
+    showMessage: mockShowMessage,
+  }),
 }));
 
 async function showActionErrorAsToast(
@@ -167,6 +176,22 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
   useTimetableDayHours: () => ({ dayStartHour: 9, dayEndHour: 17 }),
+}));
+
+// Die Sammelabsage (#3594) hat eigene Tests; hier zählt nur, womit sie öffnet.
+vi.mock("~/components/timetable/bulk-cancel-appointments-modal", () => ({
+  BulkCancelAppointmentsModal: (props: {
+    initialFrom: string;
+    initialTo: string;
+    onClose: () => void;
+  }) => (
+    <div role="dialog" aria-label="Termine im Zeitraum absagen">
+      {props.initialFrom} bis {props.initialTo}
+      <button type="button" onClick={props.onClose}>
+        Termine behalten
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -279,22 +304,41 @@ vi.mock("~/components/timetable/timetable-add-menu", () => ({
 vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
   PeriodSwitcherDropdown: ({
     periods,
+    selectedPeriodId,
     onCreate,
     onSelect,
   }: {
-    periods: Array<{ id: string; name: string }>;
+    periods: Array<{
+      id: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+      isActive: boolean;
+    }>;
+    selectedPeriodId: string | null;
     onCreate: () => void;
     onSelect: (period: {
       id: string;
       name: string;
       startDate: string;
       endDate: string;
+      isActive?: boolean;
     }) => void;
   }) => (
     <div data-testid="period-switcher">
+      <span data-testid="selected-period">
+        {periods.find((entry) => entry.id === selectedPeriodId)?.name ?? ""}
+      </span>
       <button type="button" onClick={onCreate}>
         create-period
       </button>
+      {periods.map((entry) => (
+        <button
+          key={entry.id}
+          type="button"
+          onClick={() => onSelect(entry)}
+        >{`choose-period-${entry.id}`}</button>
+      ))}
       {periods[0] && (
         <>
           <button
@@ -439,6 +483,9 @@ vi.mock("~/components/timetable/template-list", () => ({
       <button type="button" onClick={onCreate}>
         create-template
       </button>
+      {templates.map((entry) => (
+        <span key={entry.id}>{`template-row-${entry.name}`}</span>
+      ))}
       {templates[0] && (
         <>
           <button type="button" onClick={() => onEdit(templates[0]!)}>
@@ -584,6 +631,21 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("~/components/timetable/connect-offering-modal", () => ({
+  ConnectOfferingModal: ({
+    templateName,
+    deviation,
+  }: {
+    templateName: string;
+    deviation: RosterDeviation;
+  }) => (
+    <div role="dialog" aria-label="Mit Angebot verbinden">
+      {templateName} ·{" "}
+      {deviation.offerings.map((offering) => offering.name).join(", ")}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/timetable/timetable-event-modal", () => ({
@@ -822,6 +884,11 @@ function setupSWR({
   instances = [instance],
   filterGroups = [] as Array<{ id: string; name: string }>,
   filterRooms = [] as Array<{ id: string; name: string }>,
+  rosterDeviations,
+  rosterDeviationsValidating = false,
+  rosterDeviationsError,
+  allTemplates = templates,
+  templatesByPeriod,
 }: {
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
@@ -837,6 +904,12 @@ function setupSWR({
   instances?: (typeof instance)[];
   filterGroups?: Array<{ id: string; name: string }>;
   filterRooms?: Array<{ id: string; name: string }>;
+  /** undefined = the deviation read has not answered yet. */
+  rosterDeviations?: RosterDeviation[];
+  rosterDeviationsValidating?: boolean;
+  rosterDeviationsError?: Error;
+  allTemplates?: TimetableTemplate[];
+  templatesByPeriod?: Record<string, TimetableTemplate[]>;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -867,7 +940,7 @@ function setupSWR({
       }
       return { data: phases, isLoading: false };
     }
-    if (key === "timetable-staff-list") {
+    if (key === 'staff-directory-list-{"strict":false}') {
       return {
         data: [
           {
@@ -905,8 +978,22 @@ function setupSWR({
       }
       return { data: { gaps, acknowledged: [] }, isLoading: false };
     }
+    if (key === "timetable-connect-templates") {
+      return { data: { templates: allTemplates }, isValidating: false };
+    }
     if (key.startsWith("timetable-templates")) {
-      return { data: { templates }, isLoading: false };
+      return {
+        data: { templates: templatesByPeriod?.[key] ?? templates },
+        isLoading: false,
+      };
+    }
+    if (key.startsWith("roster-deviations-")) {
+      return {
+        data: rosterDeviations,
+        isValidating: rosterDeviationsValidating,
+        error: rosterDeviationsError,
+        mutate: () => mockTenantMutate(key),
+      };
     }
     if (key.startsWith("timetable-")) {
       return {
@@ -950,6 +1037,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: [
             "schedules:read",
             "schedules:manage",
@@ -1039,7 +1127,7 @@ describe("BetreuungsplanView", () => {
   it("passes schedules:manage to the staff-pool controls", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:manage"] } },
+      data: { user: { id: "1", permissions: ["schedules:manage"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1052,7 +1140,7 @@ describe("BetreuungsplanView", () => {
   it("keeps staff-pool controls read-only without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1065,7 +1153,9 @@ describe("BetreuungsplanView", () => {
   it("hides export without the permission to read staff names", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1082,6 +1172,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: ["schedules:read", "schedules:manage", "users:read"],
         },
       },
@@ -1097,7 +1188,7 @@ describe("BetreuungsplanView", () => {
   it("hides the add menu and shows the read-only badge without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1108,7 +1199,7 @@ describe("BetreuungsplanView", () => {
   it("removes conflict warnings from read-only calendar instances", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1118,7 +1209,7 @@ describe("BetreuungsplanView", () => {
   it("does not bootstrap periods for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setupSWR({ periods: [] });
     render(<BetreuungsplanView />);
@@ -1151,7 +1242,7 @@ describe("BetreuungsplanView", () => {
   it("skips the tenant student roster without users:read", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1164,7 +1255,7 @@ describe("BetreuungsplanView", () => {
   it("forces the week view and offers only Tag/Woche for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=monat");
     render(<BetreuungsplanView />);
@@ -1182,7 +1273,7 @@ describe("BetreuungsplanView", () => {
   it("öffnet die Tagesansicht für Teammitglieder ohne Planungsrecht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=tag&d=2026-05-06");
     render(<BetreuungsplanView />);
@@ -1201,7 +1292,9 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       // users:read allein schaltet den Druck-Export nicht mehr frei (#2283
       // Feedback: die Leseansicht zeigt nur die Woche, sonst nichts).
-      data: { user: { permissions: ["schedules:read", "users:read"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "users:read"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1223,7 +1316,7 @@ describe("BetreuungsplanView", () => {
   it("passes read-only props to the detail modal", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1250,6 +1343,425 @@ describe("BetreuungsplanView", () => {
     setUrl("view=serien");
     render(<BetreuungsplanView />);
     expect(screen.getByText("create-template")).toBeVisible();
+  });
+
+  // --- „Mit Angebot verbinden“ aus der Rückmeldung (#5137) ---
+
+  const deviation: RosterDeviation = {
+    templateId: "7",
+    offerings: [{ id: "3", name: "OGS Ganztag" }],
+    gradeLevels: [],
+    schoolClasses: ["2a"],
+    unbookedCount: 1,
+    missingCount: 0,
+    candidates: [],
+    combinations: [],
+    ambiguous: false,
+  };
+
+  it("opens „Mit Angebot verbinden“ once for the linked Regeltermin", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toHaveTextContent("Yoga · OGS Ganztag");
+    expect(urlParams().has("verbinden")).toBe(false);
+    expect(urlParams().get("view")).toBe("serien");
+  });
+
+  it("waits for the deviation read before it decides", () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR();
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+  });
+
+  it("waits for fresh deviations instead of using an empty cached list", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [], rosterDeviationsValidating: true });
+    const { rerender } = render(<BetreuungsplanView />);
+
+    // Anker: die Serienansicht ist geladen, der Link bleibt offen.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+
+    setupSWR({ rosterDeviations: [deviation] });
+    rerender(<BetreuungsplanView />);
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+  });
+
+  it("keeps the link on a failed read and connects after retry", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({
+      rosterDeviationsError: new ApiError("failed", 503, {
+        code: "general.unavailable",
+      }),
+    });
+    const { rerender } = render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("button", { name: /erneut|wiederholen/i }),
+    ).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /erneut|wiederholen/i }),
+    );
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      "roster-deviations-5-connect-7",
+    );
+
+    setupSWR({ rosterDeviations: [deviation] });
+    rerender(<BetreuungsplanView />);
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+  });
+
+  it.each(["", "&d=2027-06-07"])(
+    "resolves a linked template in a later planning period from the initial week %s",
+    async (initialDate) => {
+      setUrl(`view=serien&verbinden=7${initialDate}`);
+      const laterTemplate = {
+        ...template,
+        schedules: template.schedules.map((schedule) => ({
+          ...schedule,
+          calendarPeriodId: laterPeriod.id,
+        })),
+      };
+      setupSWR({
+        periods: [period, laterPeriod],
+        templates: [],
+        templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
+        allTemplates: [laterTemplate],
+        rosterDeviations: [deviation],
+      });
+      render(<BetreuungsplanView />);
+
+      expect(
+        await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+      ).toBeVisible();
+      expect(urlParams().get("d")).toBe(laterPeriod.startDate);
+      expect(urlParams().get("zeitraum")).toBe(laterPeriod.id);
+      expect(urlParams().has("verbinden")).toBe(false);
+      expect(mockUseSWRAuth).toHaveBeenCalledWith(
+        "timetable-templates-6",
+        expect.any(Function),
+        expect.objectContaining({ keepPreviousData: false }),
+      );
+    },
+  );
+
+  // Invariante (#5137): Nach dem Link ist der Zeitraum des Regeltermins
+  // aktiv, auch wenn ein Zeitraum mit kleinerer ID dieselben Tage abdeckt.
+  // Herbstferien liegen ganz im Schuljahr; per Datum gewänne das Schuljahr.
+  it("activates the linked template's period inside an overlapping one", async () => {
+    setUrl("view=serien&verbinden=7");
+    const holidays = {
+      ...laterPeriod,
+      id: "7",
+      name: "Herbstferien",
+      startDate: "2026-10-12",
+      endDate: "2026-10-23",
+    };
+    const holidayTemplate = {
+      ...template,
+      name: "Ferien-Randstunde",
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        calendarPeriodId: holidays.id,
+      })),
+    };
+    setupSWR({
+      periods: [period, holidays],
+      templates: [],
+      templatesByPeriod: { "timetable-templates-7": [holidayTemplate] },
+      allTemplates: [holidayTemplate],
+      rosterDeviations: [deviation],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toHaveTextContent("Ferien-Randstunde · OGS Ganztag");
+    expect(urlParams().get("zeitraum")).toBe("7");
+    expect(urlParams().get("d")).toBe("2026-10-12");
+    expect(urlParams().has("verbinden")).toBe(false);
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      "timetable-templates-7",
+      expect.any(Function),
+      expect.anything(),
+    );
+    expect(mockShowMessage).not.toHaveBeenCalled();
+  });
+
+  it("activates a partly overlapping period from its first day", async () => {
+    setUrl("view=serien&verbinden=7");
+    const overlapping = { ...laterPeriod, startDate: "2026-12-30" };
+    const laterTemplate = {
+      ...template,
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        calendarPeriodId: overlapping.id,
+      })),
+    };
+    setupSWR({
+      periods: [period, overlapping],
+      templates: [],
+      templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
+      allTemplates: [laterTemplate],
+      rosterDeviations: [deviation],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+    // Der 30.12. gehört auch zum Schuljahr (ID 5); aktiv ist trotzdem 6.
+    expect(urlParams().get("d")).toBe("2026-12-30");
+    expect(urlParams().get("zeitraum")).toBe("6");
+  });
+
+  it("reports a linked template that no longer exists", async () => {
+    setUrl("view=serien&verbinden=99");
+    setupSWR({ allTemplates: [template], rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "Den Regeltermin gibt es nicht mehr.",
+    );
+    // Anker: die Serienansicht bleibt stehen, ohne Dialog.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("switching periods with the period chip replaces a linked period", () => {
+    setUrl("view=serien&d=2026-10-12&zeitraum=7");
+    setupSWR({
+      periods: [
+        period,
+        {
+          ...laterPeriod,
+          id: "7",
+          startDate: "2026-10-12",
+          endDate: "2026-10-23",
+        },
+      ],
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("select-period"));
+    expect(urlParams().get("zeitraum")).toBe(period.id);
+  });
+
+  // #5190: Der Zeitraum-Chip wählt per ID. Per Datum gewänne das Schuljahr
+  // (kleinere ID), und die eingeschlossenen Herbstferien wären unerreichbar.
+  describe("Zeitraum-Chip bei überlappenden Zeiträumen (#5190)", () => {
+    const holidays = {
+      ...laterPeriod,
+      id: "7",
+      name: "Herbstferien",
+      startDate: "2026-10-12",
+      endDate: "2026-10-23",
+    };
+    const schoolYearTemplate = { ...template, id: "8", name: "Hausaufgaben" };
+    const holidayTemplate = { ...template, id: "9", name: "Ferien-Randstunde" };
+    const laterTemplate = { ...template, id: "10", name: "Theater" };
+    const templatesByPeriod = {
+      "timetable-templates-5": [schoolYearTemplate],
+      "timetable-templates-6": [laterTemplate],
+      "timetable-templates-7": [holidayTemplate],
+    };
+
+    it("selects holidays inside the school year and keeps them on reload", () => {
+      setUrl("view=serien");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      const { unmount } = render(<BetreuungsplanView />);
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+
+      fireEvent.click(screen.getByText("choose-period-7"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        "Herbstferien",
+      );
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("template-row-Hausaufgaben")).toBeNull();
+      expect(urlParams().get("d")).toBe("2026-10-12");
+      expect(urlParams().get("zeitraum")).toBe("7");
+
+      unmount();
+      render(<BetreuungsplanView />);
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        "Herbstferien",
+      );
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+    });
+
+    it("switches back from the holidays to the school year", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("choose-period-5"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+      expect(screen.getByText("template-row-Hausaufgaben")).toBeInTheDocument();
+      expect(screen.queryByText("template-row-Ferien-Randstunde")).toBeNull();
+      // Heute (06.05.2026, Uhr der Suite) liegt im Schuljahr.
+      expect(urlParams().get("d")).toBe("2026-05-06");
+      expect(urlParams().get("zeitraum")).toBe(period.id);
+    });
+
+    it("replaces a linked period with a non-overlapping one", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(screen.getByText("choose-period-6"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        laterPeriod.name,
+      );
+      expect(screen.getByText("template-row-Theater")).toBeInTheDocument();
+      // Der 01.08.2027 ist ein Sonntag: der Sprung geht auf den Montag.
+      expect(urlParams().get("d")).toBe("2027-08-02");
+      expect(urlParams().get("zeitraum")).toBe(laterPeriod.id);
+    });
+
+    it("does not pin an inactive period", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      const inactiveHolidays = { ...holidays, id: "11", isActive: false };
+      setupSWR({
+        periods: [period, holidays, inactiveHolidays],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(screen.getByText("choose-period-11"));
+
+      // Anker: die Auswahl fällt per Datum auf den aktiven Zeitraum.
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+      expect(urlParams().get("d")).toBe("2026-10-12");
+      expect(urlParams().has("zeitraum")).toBe(false);
+    });
+  });
+
+  it("explains instead of opening the editor when no offering matches", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "moto findet für „Yoga“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.",
+    );
+    // Anker: die Serienansicht bleibt stehen, ohne Dialog und ohne Editor.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens nothing for readers without planning rights", async () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read", "users:read"] } },
+    });
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    // Leseansicht: die Woche statt der Serienansicht, kein Dialog.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the bulk cancellation with the vacation linked from the home hint (#5345)", async () => {
+    setUrl("d=2026-10-20&absagen=2026-10-20&absagenBis=2026-10-31");
+    render(<BetreuungsplanView />);
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Termine im Zeitraum absagen",
+    });
+    expect(dialog).toHaveTextContent("2026-10-20 bis 2026-10-31");
+    expect(urlParams().get("absagen")).toBe("2026-10-20");
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Termine behalten" }),
+    );
+    await waitFor(() => expect(urlParams().has("absagen")).toBe(false));
+    expect(urlParams().has("absagenBis")).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an invalid linked cancellation range and readers without planning rights (#5345)", () => {
+    setUrl("absagen=2026-10-31&absagenBis=2026-10-20");
+    const { unmount } = render(<BetreuungsplanView />);
+    // Anker: der Plan ist geladen.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read", "users:read"] } },
+    });
+    setUrl("absagen=2026-10-20&absagenBis=2026-10-31");
+    render(<BetreuungsplanView />);
+    // Anker: die Leseansicht ist geladen.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("writes d on week navigation and view on the segment switch", () => {
@@ -1419,7 +1931,44 @@ describe("BetreuungsplanView", () => {
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     });
 
-    it("navigiert in der Tagesansicht auch über Samstag und Sonntag", () => {
+    it("navigiert an einem Werktag in der Tagesansicht über das Wochenende hinweg (#5028)", () => {
+      // Testuhr: Mittwoch 2026-09-09, also kein heutiges Wochenende.
+      setUrl("view=tag&d=2026-05-08");
+      const { unmount } = render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      expect(urlParams().get("d")).toBe("2026-05-11");
+      unmount();
+
+      setUrl("view=tag&d=2026-05-11");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+      expect(urlParams().get("d")).toBe("2026-05-08");
+    });
+
+    it("zeigt an einem Werktag fünf Spalten (#5028)", () => {
+      setUrl("d=2026-09-09");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
+    });
+
+    it("erweitert eine offene Wochenansicht nach Berliner Mitternacht", () => {
+      setTestClock(new Date("2026-09-11T23:59:00+02:00")); // Freitag
+      vi.useFakeTimers();
+      setUrl("d=2026-09-11");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("7");
+    });
+
+    it("navigiert am Wochenende in der Tagesansicht auch über Samstag und Sonntag", () => {
+      setTestClock(new Date("2026-05-09T12:00:00+02:00")); // Samstag
       setUrl("view=tag&d=2026-05-08");
       const { unmount } = render(<BetreuungsplanView />);
       fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
@@ -1595,8 +2144,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("refreshes the open block's notes even when the slim week is unchanged", async () => {
-    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+    const { useSWRAuth: useRealSWRAuth } =
       await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { SWRConfig } = await import("~/lib/swr/testing");
     const { timetableService } = await import("~/lib/timetable-api");
     const base = mockUseSWRAuth.getMockImplementation()!;
     const revalidators = new Map<string, () => Promise<unknown>>();
@@ -1673,8 +2223,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("does not reuse the previous day's children while the selected day loads", async () => {
-    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+    const { useSWRAuth: useRealSWRAuth } =
       await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { SWRConfig } = await import("~/lib/swr/testing");
     const { timetableService } = await import("~/lib/timetable-api");
     const nextInstance = { ...instance, id: "43", date: "2026-05-05" };
     setupSWR({ instances: [instance, nextInstance] });
@@ -2593,7 +3144,7 @@ describe("BetreuungsplanView", () => {
   it("erklärt eine teilweise abgedeckte Woche auch in der Leseansicht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=woche&d=2026-05-04");
     setupSWR({
@@ -2613,7 +3164,9 @@ describe("BetreuungsplanView", () => {
     // Schließtage lädt der Hook weiterhin über schedules:read.
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     setupSWR({ closingDaysLoading: true });
     render(<BetreuungsplanView />);
@@ -2719,6 +3272,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",
@@ -2826,7 +3380,9 @@ describe("BetreuungsplanView", () => {
     it("bietet dieselben Filter in Tag und Woche der Leseansicht", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "groups:read"] } },
+        data: {
+          user: { id: "1", permissions: ["schedules:read", "groups:read"] },
+        },
       });
       setupSWR({ filterGroups: [{ id: "5", name: "Sonnen" }] });
 
@@ -2851,7 +3407,12 @@ describe("BetreuungsplanView", () => {
     it("bietet im Monat auch ohne users:read Personen aus der Übersicht an", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+        data: {
+          user: {
+            id: "1",
+            permissions: ["schedules:read", "schedules:manage"],
+          },
+        },
       });
       const defaultSWR = mockUseSWRAuth.getMockImplementation()!;
       mockUseSWRAuth.mockImplementation((key: string | null) => {
@@ -2891,6 +3452,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",

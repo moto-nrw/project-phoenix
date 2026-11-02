@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r JournalRetention) DeleteExpiredTransfers(ctx context.Context) (int, int, error) {\n\tnow := r.Now()\n\tcutoff := domain.JournalRetentionCutoff(now)\n\tdeleted, err := r.Journal.DeleteExpired(ctx, cutoff)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, int(now.Sub(cutoff).Hours() / 24), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/exporttransfer/internal/adapters/postgres/JournalRetention.DeleteExpiredTransfers",
+      "owner": "modules/exporttransfer"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Status(ctx context.Context) (exporttransfer.Status, error) {\n\tstate, err := s.targets.State(ctx)\n\tif err != nil {\n\t\treturn exporttransfer.Status{}, fmt.Errorf(\"%w: %w\", ErrUnavailable, err)\n\t}\n\treturn exporttransfer.Status{Enabled: state.Enabled, Ready: state.Ready(), Host: state.Host, Port: state.Port, RemoteDirectory: state.RemoteDirectory, MissingSettings: state.MissingSettings}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/exporttransfer/internal/application/Service.Status",
+      "owner": "modules/exporttransfer"
+    }
+  ]
+}

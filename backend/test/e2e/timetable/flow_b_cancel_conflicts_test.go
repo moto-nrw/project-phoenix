@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestFlowB_CancelAndExceptionConflicts covers the admin "aktivitaet faellt
@@ -151,7 +152,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// Query-budget — PR #1304 guarantees ≤ 22 queries regardless of fan-out.
 	// We include the TenantTxMiddleware SET LOCAL overhead in this count;
 	// the production repo budget is ≤ 22 for the handler body.
-	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.cancelled", cancelledQueries)
+	querybudgets.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.cancelled", cancelledQueries)
 
 	// --- Step 5: swap in a modified exception ------------------------------
 	_, err = s.db.NewDelete().
@@ -208,7 +209,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	assert.True(t, studentsSeen[bob.ID])
 	assert.False(t, studentsSeen[cleo.ID], "cleo is absent → modified mismatch suppressed too")
 
-	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.modified", modifiedQueries)
+	querybudgets.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.modified", modifiedQueries)
 
 	// --- Step 6: tenant isolation -----------------------------------------
 	rr = s.do("GET", path, nil, s.secondaryAdminClaims())

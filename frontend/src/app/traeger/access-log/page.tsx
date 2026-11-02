@@ -8,42 +8,49 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
-  SegmentedControl,
-  type SegmentedControlItem,
-} from "~/components/ui/segmented-control";
+  ExportMenu,
+  type ExportMenuOption,
+  exportFormatOptions,
+} from "~/components/ui/export-menu";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import {
   formatBerlinDate,
   parseISODate,
-  todayISO,
+  berlinTodayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { createLogger } from "~/lib/logger";
 import {
   downloadTraegerAccessLog,
   fetchTraegerAccessLog,
   fetchTraegerAccessLogPeople,
-  fetchTraegerSchools,
   type TraegerAccessKind,
   type TraegerAccessLogEntry,
   type TraegerAccessLogFilter,
   type TraegerAccessLogPerson,
-  type TraegerSchool,
 } from "~/lib/traeger-api";
 
 const logger = createLogger({ component: "TraegerAccessLogPage" });
 
 type KindChoice = TraegerAccessKind | "all";
 
-const KIND_ITEMS: readonly SegmentedControlItem<KindChoice>[] = [
+const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+  "csv",
+]);
+
+const KIND_ITEMS: readonly { value: KindChoice; label: string }[] = [
   { value: "all", label: "Alles" },
   { value: "read", label: "Gelesen" },
   { value: "change", label: "Geändert" },
@@ -111,7 +118,7 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
 
 /** The last 30 days up to today, as the page opens. */
 function lastThirtyDays(): DateRange {
-  const today = parseISODate(todayISO());
+  const today = parseISODate(berlinTodayISO());
   return {
     from: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29),
     to: today,
@@ -119,7 +126,7 @@ function lastThirtyDays(): DateRange {
 }
 
 function rangePresets() {
-  const today = parseISODate(todayISO());
+  const today = parseISODate(berlinTodayISO());
   const daysBack = (days: number) =>
     new Date(today.getFullYear(), today.getMonth(), today.getDate() - days);
   return [
@@ -138,7 +145,8 @@ export default function TraegerAccessLogPage() {
   const [schoolId, setSchoolId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [kind, setKind] = useState<KindChoice>("all");
-  const [schools, setSchools] = useState<TraegerSchool[]>([]);
+  const { schools: schoolData } = useTraegerSchools();
+  const schools = schoolData ?? [];
   const [people, setPeople] = useState<TraegerAccessLogPerson[]>([]);
   const [entries, setEntries] = useState<TraegerAccessLogEntry[]>([]);
   const [page, setPage] = useState(1);
@@ -164,18 +172,6 @@ export default function TraegerAccessLogPage() {
         : null,
     [from, to, schoolId, accountId, kind],
   );
-
-  useEffect(() => {
-    fetchTraegerSchools()
-      .then(setSchools)
-      .catch((err: unknown) => {
-        // The school filter then offers only "Alle Schulen"; the list
-        // itself still loads and shows its own error.
-        logger.warn("traeger_access_log_schools_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }, []);
 
   useEffect(() => {
     if (!from) return;
@@ -291,100 +287,131 @@ export default function TraegerAccessLogPage() {
   ];
   const filtered = Boolean(schoolId || accountId || kind !== "all");
 
+  const filters: FilterConfig[] = [
+    {
+      id: "school",
+      label: "Schule",
+      type: "dropdown",
+      value: schoolId,
+      onChange: (value) => setSchoolId(value as string),
+      options: schoolOptions,
+    },
+    {
+      id: "person",
+      label: "Person",
+      type: "dropdown",
+      value: accountId,
+      onChange: (value) => setAccountId(value as string),
+      options: personOptions,
+    },
+    {
+      id: "kind",
+      label: "Art des Zugriffs",
+      type: "buttons",
+      value: kind,
+      onChange: (value) => setKind(value as KindChoice),
+      options: [...KIND_ITEMS],
+    },
+  ];
+  const activeFilters: ActiveFilter[] = [
+    ...(schoolId
+      ? [
+          {
+            id: "school",
+            label:
+              schoolOptions.find((option) => option.value === schoolId)
+                ?.label ?? "Schule",
+            onRemove: () => setSchoolId(""),
+          },
+        ]
+      : []),
+    ...(accountId
+      ? [
+          {
+            id: "person",
+            label:
+              personOptions.find((option) => option.value === accountId)
+                ?.label ?? "Person",
+            onRemove: () => setAccountId(""),
+          },
+        ]
+      : []),
+    ...(kind !== "all"
+      ? [
+          {
+            id: "kind",
+            label: KIND_LABELS[kind],
+            onRemove: () => setKind("all"),
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <div className="w-full space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            Zugriffsprotokoll
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Wer hat an Ihren Schulen Daten gelesen oder geändert?
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          isLoading={exporting}
-          loadingText="Export läuft …"
-          disabled={!filter || loading}
-          onClick={() => void exportCsv()}
-        >
-          Als CSV herunterladen
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <DateRangePicker
-          value={range}
-          onChange={setRange}
-          presets={rangePresets()}
-          toMax={parseISODate(todayISO())}
-          className="w-full sm:w-auto"
-          triggerClassName="w-full sm:w-auto"
-        />
-        <CustomSelect
-          value={schoolId}
-          options={schoolOptions}
-          onChange={setSchoolId}
-          ariaLabel="Schule"
-          className="w-full sm:w-56"
-        />
-        <CustomSelect
-          value={accountId}
-          options={personOptions}
-          onChange={setAccountId}
-          ariaLabel="Person"
-          className="w-full sm:w-56"
-        />
-        <SegmentedControl
-          items={KIND_ITEMS}
-          value={kind}
-          onChange={setKind}
-          ariaLabel="Art des Zugriffs"
-        />
-      </div>
-
-      {logLoad.error ? (
-        <LoadErrorAlert error={logLoad.error} />
-      ) : (
+    <TenantPage
+      title="Zugriffsprotokoll"
+      info="Wer hat an Ihren Schulen Daten gelesen oder geändert? Hier steht jeder Zugriff mit Zeitpunkt, Person und Schule."
+      actions={
         <>
-          <DataTable
-            columns={COLUMNS}
-            rows={entries}
-            getRowKey={(entry) => entry.id}
-            isLoading={loading}
-            loadingRowCount={5}
-            stackedOnMobile
-            emptyState={
-              <EmptyState
-                icon={<ScrollText className="h-12 w-12" aria-hidden="true" />}
-                title={
-                  filtered
-                    ? "Zu diesen Filtern gibt es keinen Eintrag."
-                    : "In diesem Zeitraum gibt es keinen Eintrag."
-                }
-                description="Wählen Sie einen anderen Zeitraum oder andere Filter."
-              />
-            }
+          <DateRangePicker
+            value={range}
+            onChange={setRange}
+            presets={rangePresets()}
+            toMax={parseISODate(berlinTodayISO())}
+            className="w-full sm:w-auto"
+            triggerClassName="w-full sm:w-auto"
           />
-          {hasMore ? (
-            <div className="flex justify-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                isLoading={loadingMore}
-                loadingText="Lädt …"
-                onClick={() => void loadMore()}
-              >
-                Weitere Einträge laden
-              </Button>
-            </div>
-          ) : null}
+          <ExportMenu
+            ariaLabel="Zugriffsprotokoll herunterladen"
+            options={EXPORT_FORMATS}
+            busyKey={exporting ? "csv" : null}
+            unavailable={!filter || loading}
+            onSelect={() => void exportCsv()}
+          />
         </>
-      )}
-    </div>
+      }
+      filters={filters}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSchoolId("");
+        setAccountId("");
+        setKind("all");
+      }}
+      error={logLoad.error}
+    >
+      <DataTable
+        columns={COLUMNS}
+        rows={entries}
+        getRowKey={(entry) => entry.id}
+        isLoading={loading}
+        loadingRowCount={5}
+        stackedOnMobile
+        emptyState={
+          <EmptyState
+            icon={<ScrollText className="h-12 w-12" aria-hidden="true" />}
+            title={
+              filtered
+                ? "Zu diesen Filtern gibt es keinen Eintrag."
+                : "In diesem Zeitraum gibt es keinen Eintrag."
+            }
+            description="Wählen Sie einen anderen Zeitraum oder andere Filter."
+          />
+        }
+      />
+      {hasMore ? (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            isLoading={loadingMore}
+            loadingText="Lädt …"
+            onClick={() => void loadMore()}
+          >
+            Weitere Einträge laden
+          </Button>
+        </div>
+      ) : null}
+    </TenantPage>
   );
 }

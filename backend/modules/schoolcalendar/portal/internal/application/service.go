@@ -8,6 +8,7 @@ import (
 	"time"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 	"golang.org/x/sync/singleflight"
@@ -51,7 +52,9 @@ type Config struct {
 	PushSuppressed     func(error) bool
 	NoDelivery         func(error) bool
 
-	Appointments         appointmentcap.Capability
+	Appointments appointmentcap.Capability
+	// ParentConferences stores the Elternsprechtag days and bookings (#4801).
+	ParentConferences    schoolcalendar.ParentConferences
 	StaffRepo            ports.StaffDirectory
 	StudentRepo          ports.StudentDirectory
 	GuardianProfileRepo  ports.GuardianDirectory

@@ -10,7 +10,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Input } from "~/components/ui/input";
-import { SectionCard } from "~/components/ui/section-card";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
 import type { TraegerSchool } from "~/lib/traeger-api";
@@ -151,12 +150,11 @@ export function HolidayWeekEditor({
 
   const title = weekTitle(index, week);
   return (
-    <SectionCard
-      title={title}
-      headingLevel={3}
-      inlineActions
-      overflow="visible"
-      action={
+    // Eine Zeile der Karte „Wochen“, keine eigene Karte (#5146): die Wochen
+    // trennt eine Linie wie die Zeitmodelle darunter.
+    <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
         <Button
           type="button"
           variant="outline"
@@ -165,8 +163,7 @@ export function HolidayWeekEditor({
         >
           Woche entfernen
         </Button>
-      }
-    >
+      </div>
       <div role="group" aria-label={title} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
@@ -274,6 +271,6 @@ export function HolidayWeekEditor({
           )}
         </div>
       </div>
-    </SectionCard>
+    </section>
   );
 }

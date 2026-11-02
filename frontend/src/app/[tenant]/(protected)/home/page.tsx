@@ -17,7 +17,9 @@ import { HomeBlockContent } from "~/components/home/home-block-content";
 import { HomeBoard } from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
+import { BookingLeftoverTodos } from "~/components/home/booking-leftover-todos";
 import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
+import { SchoolVacationHintsCore } from "~/components/timetable/school-vacation-hints-core";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -58,6 +60,7 @@ import {
 } from "~/lib/redirect-utils";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import {
   useBookedModules,
   useOpenCareGroupMode,
@@ -186,7 +189,7 @@ function HomeContent() {
     ],
   );
 
-  const placements = draft ?? saved.placements;
+  const placements = saving ? saved.placements : (draft ?? saved.placements);
   const placedKeys = useMemo(
     () => new Set(placements.map((placement) => placement.key)),
     [placements],
@@ -243,7 +246,7 @@ function HomeContent() {
     error: swrError,
     mutate: mutateDashboard,
   } = useSWRAuth<DashboardAnalytics>(
-    needsAnalytics ? "dashboard-analytics" : null,
+    needsAnalytics ? dashboardKeys.analytics() : null,
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );
@@ -350,10 +353,12 @@ function HomeContent() {
       );
       // In Lesereihenfolge, damit dieselbe Anordnung immer gleich gespeichert
       // wird, egal in welcher Reihenfolge die Kacheln gezogen wurden.
-      await saveHomeLayout(
+      const outcome = await saveHomeLayout(
         overrides,
         sortedPlacements([...draft, ...preserved]),
       );
+      // Discarded: nothing was saved for this view; the draft stays open.
+      if (outcome === "discarded") return;
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {
@@ -379,7 +384,7 @@ function HomeContent() {
   const restoreDefault = useCallback(async () => {
     setSaving(true);
     try {
-      await resetHomeLayout();
+      if ((await resetHomeLayout()) === "discarded") return;
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {
@@ -519,6 +524,18 @@ function HomeContent() {
           Aufgabe für Planende, deshalb fest über dem Brett. */}
       {!editing && timetableEnabled && access.has("schedules:manage") ? (
         <RosterDeviationTodos enabled />
+      ) : null}
+
+      {/* Regeltermine in den nächsten Schulferien (#5345): eine Aufgabe für
+          Planende, deshalb fest über dem Brett. */}
+      {!editing && timetableEnabled && access.has("schedules:manage") ? (
+        <SchoolVacationHintsCore enabled />
+      ) : null}
+
+      {/* Kinder, die eine Buchungsänderung von Hand eingeplant zurückließ
+          (#5102): dieselbe Aufgabe für Planende. */}
+      {!editing && timetableEnabled && access.has("schedules:manage") ? (
+        <BookingLeftoverTodos enabled />
       ) : null}
 
       {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die

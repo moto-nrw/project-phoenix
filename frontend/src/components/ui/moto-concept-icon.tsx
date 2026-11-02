@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
@@ -7,7 +7,11 @@ interface MotoConceptIconProps extends Omit<
   ComponentProps<typeof MotoDuotoneIcon>,
   "icon" | "tone"
 > {
-  readonly concept: MotoConceptKey;
+  /**
+   * The concept to show. Import it from its own module
+   * (`~/lib/concepts/<key>`) so the page carries only this glyph.
+   */
+  readonly concept: MotoConcept;
   /** Optional context tone when one surface deliberately unifies icon color. */
   readonly tone?: MotoDuotoneTone;
 }
@@ -17,12 +21,11 @@ export function MotoConceptIcon({
   tone,
   ...props
 }: MotoConceptIconProps) {
-  const definition = MOTO_CONCEPTS[concept];
   return (
     <MotoDuotoneIcon
-      icon={definition.icon}
-      tone={tone ?? definition.tone}
-      weight={definition.weight}
+      icon={concept.icon}
+      tone={tone ?? concept.tone}
+      weight={concept.weight}
       {...props}
     />
   );

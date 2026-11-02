@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "~/lib/auth-utils";
-import { useSWRAuth } from "~/lib/swr/hooks";
+import { useScopedSWRKey, useSWRAuth } from "~/lib/swr/hooks";
 import {
   fetchReminders,
   REMINDERS_SWR_KEY,
@@ -194,11 +194,50 @@ function scheduleNextChangeRefresh(
   };
 }
 
+// Readers of one scoped key share one event listener and one next_change_at
+// timer (#5129). SWR dedupes the polls and focus refetches of its readers,
+// but every explicit mutate() starts a request of its own: with a listener
+// and a timer per reader, bell, home block and home page loaded three times
+// per event. Each reader registers its own refresh, so the shared effect
+// keeps running until the last reader unmounts.
+interface SharedRefresh {
+  refreshes: Set<() => unknown>;
+  stop: () => void;
+}
+
+const sharedRefreshes = new Map<string, SharedRefresh>();
+
+// shareRefresh starts `start` once per id and returns this reader's release.
+// The effect refreshes through the reader that registered last.
+function shareRefresh(
+  id: string,
+  refresh: () => unknown,
+  start: (refresh: () => void) => () => void,
+): () => void {
+  let shared = sharedRefreshes.get(id);
+  if (!shared) {
+    const refreshes = new Set<() => unknown>();
+    const stop = start(() => {
+      void [...refreshes].at(-1)?.();
+    });
+    shared = { refreshes, stop };
+    sharedRefreshes.set(id, shared);
+  }
+  const { refreshes, stop } = shared;
+  refreshes.add(refresh);
+  return () => {
+    refreshes.delete(refresh);
+    if (refreshes.size > 0) return;
+    stop();
+    sharedRefreshes.delete(id);
+  };
+}
+
 /**
  * useReminders fetches the current visual reminders for the authenticated user.
  * The /reminders page renders the full list; the header bell reads the count
- * for its badge and previews the most urgent few. Both share the same SWR key,
- * so SWR dedupes to a single request.
+ * for its badge and previews the most urgent few. All readers share the same
+ * SWR key and one refresh per event (see shareRefresh).
  */
 export function useReminders() {
   // GET /api/reminders verlangt users:read. Ohne das Recht (AG-Leitung,
@@ -229,6 +268,7 @@ export function useReminders() {
 
   const enabled = data?.enabled ?? false;
   const nextChangeAt = data?.next_change_at;
+  const resource = useScopedSWRKey(REMINDERS_SWR_KEY);
 
   // Event-driven refresh. useGlobalSSE() does not own the tenant-prefixed
   // reminders SWR key, so it dispatches
@@ -236,15 +276,15 @@ export function useReminders() {
   // change may alter what's due (or who may see it). Revalidate here, where the
   // SWR key is correctly tenant-scoped via useSWRAuth. Gate on `enabled`: a
   // disabled tenant has nothing to recompute, so keep its cheap 5-min idle poll
-  // rather than react to every attendance burst.
+  // rather than react to every attendance burst. One listener per scoped key.
   useEffect(() => {
-    if (!enabled) return;
-    const handler = () => {
-      void mutate();
-    };
-    window.addEventListener("phoenix:reminders-stale", handler);
-    return () => window.removeEventListener("phoenix:reminders-stale", handler);
-  }, [enabled, mutate]);
+    if (!enabled || resource === null) return;
+    return shareRefresh(`${resource}:stale`, mutate, (refresh) => {
+      window.addEventListener("phoenix:reminders-stale", refresh);
+      return () =>
+        window.removeEventListener("phoenix:reminders-stale", refresh);
+    });
+  }, [enabled, resource, mutate]);
 
   // Precise time-based refresh. Time-based reminders cross their threshold with
   // no backend event, so instead of only catching them on the 60s poll we
@@ -253,7 +293,7 @@ export function useReminders() {
   // window). Because it fires one buffer past the boundary, the server excludes
   // the just-passed minute and the fresh response carries a later next_change_at
   // in the normal within-day case — a new string that re-runs this effect for
-  // the following boundary.
+  // the following boundary. One timer per scoped key and boundary.
   //
   // The one-shot timer RE-ARMS ITSELF after firing rather than relying on that
   // re-run, because the re-run is not guaranteed: a day-agnostic boundary can
@@ -274,9 +314,13 @@ export function useReminders() {
   // refocused. Client clock skew larger than the buffer is caught by the next
   // 60s poll once the tab is visible again.
   useEffect(() => {
-    if (!enabled || !nextChangeAt) return;
-    return scheduleNextChangeRefresh(nextChangeAt, mutate);
-  }, [enabled, nextChangeAt, mutate]);
+    if (!enabled || resource === null || !nextChangeAt) return;
+    return shareRefresh(
+      `${resource}:next-change:${nextChangeAt}`,
+      mutate,
+      (refresh) => scheduleNextChangeRefresh(nextChangeAt, refresh),
+    );
+  }, [enabled, resource, nextChangeAt, mutate]);
 
   return {
     reminders: data?.reminders ?? [],

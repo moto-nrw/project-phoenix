@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   afterAll,
@@ -102,42 +105,47 @@ describe("ClassTripBulkStatusModal", () => {
     process.env.TZ = originalTZ;
   });
 
-  it("defaults the bulk range to the local Berlin date after midnight", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-26T22:30:00Z"));
-    vi.mocked(bulkCreateStudentStatusDays).mockResolvedValue({
-      student_count: 1,
-      date_count: 1,
-    });
+  it.each(schoolDateCases("2026-05-27"))(
+    "defaults the bulk range to the local Berlin date after midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
 
-    render(
-      <ClassTripBulkStatusModal
-        isOpen
-        onClose={vi.fn()}
-        targetLabel="Klasse 3a"
-        students={students}
-      />,
-    );
+      vi.useFakeTimers();
+      setSchoolDateClock(zone, instant, "2026-05-27");
+      vi.mocked(bulkCreateStudentStatusDays).mockResolvedValue({
+        student_count: 1,
+        date_count: 1,
+      });
 
-    expect(screen.getByLabelText("Von")).toHaveValue("2026-05-27");
-    expect(screen.getByLabelText("Bis")).toHaveValue("2026-05-27");
-
-    releaseFakeTimers();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
-    );
-
-    await waitFor(() => {
-      expect(bulkCreateStudentStatusDays).toHaveBeenCalledWith(
-        ["42"],
-        "class_trip",
-        "2026-05-27",
-        "2026-05-27",
-        undefined,
+      render(
+        <ClassTripBulkStatusModal
+          isOpen
+          onClose={vi.fn()}
+          targetLabel="Klasse 3a"
+          students={students}
+        />,
       );
-    });
-  });
+
+      expect(screen.getByLabelText("Von")).toHaveValue("2026-05-27");
+      expect(screen.getByLabelText("Bis")).toHaveValue("2026-05-27");
+
+      releaseFakeTimers();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
+      );
+
+      await waitFor(() => {
+        expect(bulkCreateStudentStatusDays).toHaveBeenCalledWith(
+          ["42"],
+          "class_trip",
+          "2026-05-27",
+          "2026-05-27",
+          undefined,
+        );
+      });
+    },
+  );
 
   it("lists each conflicting student, date, and status from a bulk 409", async () => {
     vi.mocked(bulkCreateStudentStatusDays).mockRejectedValueOnce(

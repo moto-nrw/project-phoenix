@@ -24,6 +24,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 export default function EnrollmentPreviewPage() {
   return (
@@ -226,7 +227,7 @@ function EnrollmentPreviewPageContent() {
             Live-Elternansicht oder in einer Phasenvorschau sichtbar.
           </PublicInfoCard>
           <PublicInfoCard
-            icon={<MotoConceptIcon concept="permissions" size={22} />}
+            icon={<MotoConceptIcon concept={permissionsConcept} size={22} />}
             title="Sichere Vorschau"
           >
             Der Absenden-Button ist in dieser Ansicht deaktiviert.

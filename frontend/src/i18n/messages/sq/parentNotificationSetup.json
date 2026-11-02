@@ -1,0 +1,19 @@
+{
+  "title": "Mos humbisni asnjë mesazh të rëndësishëm",
+  "intro": "Aktivizoni njoftimet. moto do t'ju njoftojë për mesazhe të reja dhe ndryshime të rëndësishme për fëmijën tuaj.",
+  "enable": "Aktivizo njoftimet",
+  "later": "Më kujto më vonë",
+  "enableError": "Njoftimet nuk mund të aktivizoheshin. Provoni përsëri.",
+  "denied": "Njoftimet janë bllokuar në shfletues. Hapni cilësimet e shfletuesit, lejoni njoftimet për moto dhe provoni përsëri te Cilësimet.",
+  "installTitle": "Shto moto në ekranin kryesor",
+  "installAndroidTitle": "Instalo moto si aplikacion",
+  "installAndroidIntro": "Instaloni moto në ekranin kryesor. Pastaj hapeni si aplikacion dhe aktivizoni njoftimet.",
+  "installAndroidManual": "Hapni menunë e shfletuesit dhe zgjidhni “Instalo aplikacionin” ose “Shto në ekranin kryesor”.",
+  "installApp": "Instalo aplikacionin",
+  "installing": "Po instalohet …",
+  "installError": "moto nuk mund të instalohej. Provoni përsëri.",
+  "understood": "E kuptova",
+  "closeGuide": "Mbyll udhëzuesin",
+  "close": "Mbyll dialogun",
+  "introStaff": "Aktivizoni njoftimet. Atëherë moto ju njofton për ngjarje të rëndësishme, edhe kur aplikacioni është i mbyllur."
+}

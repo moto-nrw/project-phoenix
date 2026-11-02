@@ -19,7 +19,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type emergencyFakePresence struct {
@@ -437,7 +439,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		require.NoError(t, testpkg.WithTenantTx(t, counter.Context(fixture.ctx), db, fixture.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			snapshot, err := query.Snapshot(txCtx, time.Now())
 			require.NoError(t, err)
-			testpkg.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Queries())
 			require.Len(t, snapshot.Rows, 1, "each school lists exactly its own child")
 			row := snapshot.Rows[0]
 			assert.Equal(t, fixture.studentID, row.StudentID)
@@ -495,4 +497,23 @@ func (s emergencyOwnerStudents) FindByIDs(
 		result[record.ID] = student
 	}
 	return result, nil
+}
+
+// TestEmergencySnapshotDropsTheHealthOfAnEndedHolidayGuest: the emergency
+// list prints a holiday guest's health field only up to the last day of its
+// week (#4722), also before the hourly reconciliation cleared it; the
+// school's own child keeps its health field after its care ended.
+func TestEmergencySnapshotDropsTheHealthOfAnEndedHolidayGuest(t *testing.T) {
+	t.Parallel()
+	weekOver, weekAhead := calendar.NewDate(2020, 7, 10), calendar.NewDate(2099, 7, 10)
+	port := emergencySnapshotStudentRecords{repo: emergencyFakeStudents{rows: map[int64]*peopledirectory.StudentState{
+		101: {PersonID: 301, SchoolClass: peopledirectory.HolidayGuestSchoolClass, EnrolledUntil: &weekOver, HealthInfo: new("Asthmaspray")},
+		102: {PersonID: 302, SchoolClass: peopledirectory.HolidayGuestSchoolClass, EnrolledUntil: &weekAhead, HealthInfo: new("Nussallergie")},
+		103: {PersonID: 303, SchoolClass: "Klasse 3b", EnrolledUntil: &weekOver, HealthInfo: new("Epipen")},
+	}}}
+	students, err := port.ByIDs(context.Background(), []int64{101, 102, 103})
+	require.NoError(t, err)
+	assert.Empty(t, students[101].HealthInfo, "after the last day of the week the guest's health field stays off the list")
+	assert.Equal(t, "Nussallergie", students[102].HealthInfo, "during the week the list prints it")
+	assert.Equal(t, "Epipen", students[103].HealthInfo, "the school's own child keeps its health field")
 }

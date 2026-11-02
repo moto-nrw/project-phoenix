@@ -7,6 +7,7 @@
 // einer Übergabe neu.
 
 import { berlinClockFromISO } from "~/lib/date-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 
 /** Die heutige Übergabe eines Kindes mit seiner Klasse. */
 export interface ClassHandover {
@@ -33,7 +34,9 @@ function handoverWording(handover: ClassHandover): string {
 /** Die Klammer der Zeile: „11:45 Uhr, Petra Lehrkraft“. */
 export function handoverDetail(handover: ClassHandover): string {
   const clock = berlinClockFromISO(handover.handed_over_at);
-  const parts = [clock ? `${clock} Uhr` : `Klasse ${handover.school_class}`];
+  const parts = [
+    clock ? `${clock} Uhr` : schoolClassLabel(handover.school_class),
+  ];
   if (handover.handed_over_by) parts.push(handover.handed_over_by);
   return parts.join(", ");
 }

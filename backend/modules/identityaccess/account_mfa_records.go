@@ -121,6 +121,16 @@ type TrustedDeviceMail struct {
 	RequestIP     string
 	AddedAt       string
 	TrustedDays   int
+	// Caterer marks a device of the caterer portal (#4497).
+	Caterer bool
+}
+
+// CatererMFAResetMail tells a caterer that a moto operator reset its second
+// factor (#4497).
+type CatererMFAResetMail struct {
+	Recipient   string
+	ReferenceID int64
+	ResetAt     string
 }
 
 // MFAEvidence carries the metadata of one mfa_* authentication event.

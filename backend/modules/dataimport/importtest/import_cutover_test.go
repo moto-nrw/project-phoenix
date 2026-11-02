@@ -233,7 +233,9 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
+	// This test owns its tenant. A fixed, six-digit suffix keeps both phone
+	// spellings valid even when the clock would yield a short suffix such as 0.
+	const suffix = "000000"
 	phone := "0151 " + suffix
 	ctx := testpkg.Ctx(t)
 

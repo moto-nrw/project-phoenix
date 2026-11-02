@@ -1,7 +1,11 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
-  render,
+  act,
+  render as rtlRender,
   screen,
   fireEvent,
   waitFor,
@@ -22,40 +26,21 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
-vi.mock("~/lib/swr", async () => {
-  const React = await import("react");
-  return {
-    useSWRAuth: <T,>(key: string | null, fetcher: () => Promise<T>) => {
-      const [data, setData] = React.useState<T | undefined>(undefined);
-      const [error, setError] = React.useState<unknown>(undefined);
-      const [loading, setLoading] = React.useState(true);
-      const fetcherRef = React.useRef(fetcher);
-      fetcherRef.current = fetcher;
-      const load = React.useCallback(() => {
-        if (key === null) {
-          setLoading(false);
-          return Promise.resolve(undefined);
-        }
-        return fetcherRef
-          .current()
-          .then((d) => {
-            setData(d);
-            setLoading(false);
-            return d;
-          })
-          .catch((e: unknown) => {
-            setError(e);
-            setLoading(false);
-            return undefined;
-          });
-      }, [key]);
-      React.useEffect(() => {
-        void load();
-      }, [load]);
-      return { data, error, isLoading: loading, mutate: load };
-    },
-  };
-});
+vi.unmock("swr");
+import { SWRConfig } from "~/lib/swr/testing";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { ReactElement } from "react";
+
+function render(ui: ReactElement) {
+  const cache = new Map();
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    ),
+  });
+}
 
 vi.mock("~/lib/school-url", () => ({
   schoolPath: (path: string) => path,
@@ -1160,4 +1145,59 @@ describe("ClassDayClass class trips (#4799)", () => {
       }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-09-09"))(
+    "updates the class arrival label at Berlin midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-09");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const load = vi.fn(() =>
+        Promise.resolve(
+          report({
+            class_arrival_exception: {
+              arrival_time: "12:45",
+              reason: "Unterricht fällt aus",
+              origin: "ogs",
+            },
+          }),
+        ),
+      );
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={load}
+          fetchClasses={() =>
+            Promise.resolve({
+              classes: ["4a"],
+              can_write_arrival_exception: false,
+            })
+          }
+        />,
+      );
+      expect(
+        await screen.findByText(
+          "Heute kommt die Klasse um 12:45 Uhr (Unterricht fällt aus)",
+        ),
+      ).toBeInTheDocument();
+      await act(async () => {
+        setTestClock("2026-09-09T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      await waitFor(() =>
+        expect(load).toHaveBeenLastCalledWith("4a", "2026-09-10"),
+      );
+    },
+  );
 });
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "teacher", scope: "school", tenantId: 1 },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
+
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));

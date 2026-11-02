@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { type NextRequest } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
@@ -18,21 +19,23 @@ export const runtime = "nodejs";
 // the outer wrapper or by streamIcsDownload's retry-on-401 — is persisted back
 // as a Set-Cookie. Without it the rotated cookie is dropped and a later download
 // after the refresh could fail with a stale token.
-export const GET = withParentAuth(
-  async (request: NextRequest, context: RouteContext): Promise<Response> => {
-    const session = await parentAuth();
-    if (!session?.user?.token) {
-      return createUnauthorizedResponse(request);
-    }
-    const params = await extractParams(request, context);
-    const appointmentId = params.appointmentId;
-    if (!isStringParam(appointmentId) || appointmentId.length === 0) {
-      return problemResponse(400, "Appointment ID is required", request);
-    }
-    return streamIcsDownload(
-      `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/ics`,
-      session.user.token,
-      uncachedParentAuth,
-    );
-  },
+export const GET = withPrivateDownloadNoStore(
+  withParentAuth(
+    async (request: NextRequest, context: RouteContext): Promise<Response> => {
+      const session = await parentAuth();
+      if (!session?.user?.token) {
+        return createUnauthorizedResponse(request);
+      }
+      const params = await extractParams(request, context);
+      const appointmentId = params.appointmentId;
+      if (!isStringParam(appointmentId) || appointmentId.length === 0) {
+        return problemResponse(400, "Appointment ID is required", request);
+      }
+      return streamIcsDownload(
+        `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/ics`,
+        session.user.token,
+        uncachedParentAuth,
+      );
+    },
+  ),
 );

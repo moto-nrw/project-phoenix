@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	"regexp"
 	"testing"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -145,6 +146,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
 		"operations.parent_message_staff_name_visible",
+		"operations.parent_message_leadership_enabled",
 		"operations.parent_pickup_change_enabled",
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
@@ -515,6 +517,25 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 	assert.Equal(t, "config:update", def.WritePermission)
 	assert.Equal(t, "operations", def.Tab)
 	// Hidden unless messaging itself is on — it only affects those messages.
+	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
+	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
+// TestParentMessageLeadershipEnabledSetting pins the leadership-only
+// conversations as opt-in (#5200): no school offers parents the choice until it
+// switches the feature on.
+func TestParentMessageLeadershipEnabledSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentMessageLeadershipEnabled)
+	require.NotNil(t, def, "operations.parent_message_leadership_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "leadership-only conversations must default off")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
 	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
@@ -2257,6 +2278,61 @@ func TestPayrollSettings(t *testing.T) {
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
 }
 
+// TestPayrollDispatchSettings pins the Lohnbüro of #4805. The switch must
+// default to off and the address to empty: a school sends payroll data only
+// after somebody chose where it goes. The channel and format values are a wire
+// contract with the dispatch worker and the /payroll page.
+func TestPayrollDispatchSettings(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{
+		config.KeyPayrollDispatchAuto, config.KeyPayrollDispatchChannel,
+		config.KeyPayrollDispatchFormat, config.KeyPayrollDispatchEmail,
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, "abrechnung", def.Tab, key)
+		assert.Equal(t, "lohnbuero", def.Category, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
+	}
+
+	auto := config.GetDefinition(config.KeyPayrollDispatchAuto)
+	assert.Equal(t, config.FieldBoolean, auto.Type)
+	assert.Equal(t, false, auto.Default)
+
+	channel := config.GetDefinition(config.KeyPayrollDispatchChannel)
+	assert.Equal(t, config.FieldSelect, channel.Type)
+	assert.Equal(t, config.PayrollDispatchChannelSFTP, channel.Default)
+	var channels []any
+	for _, option := range channel.Options.Static {
+		channels = append(channels, option.Value)
+	}
+	assert.Equal(t, []any{"sftp", "email"}, channels)
+
+	format := config.GetDefinition(config.KeyPayrollDispatchFormat)
+	assert.Equal(t, config.FieldSelect, format.Type)
+	assert.Equal(t, config.PayrollDispatchFormatCSV, format.Default)
+	var formats []any
+	for _, option := range format.Options.Static {
+		formats = append(formats, option.Value)
+	}
+	assert.Equal(t, []any{"csv", "xlsx", "datev_lodas", "datev_lug"}, formats)
+
+	address := config.GetDefinition(config.KeyPayrollDispatchEmail)
+	assert.Equal(t, config.FieldText, address.Type)
+	assert.Equal(t, "", address.Default)
+	require.NotNil(t, address.Validation)
+	require.NotNil(t, address.Validation.Pattern)
+	assert.True(t, address.Validation.AllowEmpty)
+	pattern := regexp.MustCompile(*address.Validation.Pattern)
+	assert.True(t, pattern.MatchString("lohn@steuerbuero-beispiel.de"))
+	assert.False(t, pattern.MatchString("lohn@localhost"))
+	assert.False(t, pattern.MatchString("kein adresse@beispiel.de"))
+	require.NotNil(t, address.DependsOn)
+	assert.Equal(t, config.KeyPayrollDispatchChannel, address.DependsOn.Key)
+}
+
 // TestParentRequestReasonPolicySetting pins the switch that decides who has to
 // write a reason for a parent request (#2267). The four option values are a
 // wire contract with the enforcement in the request services and with both
@@ -2267,7 +2343,10 @@ func TestParentRequestReasonPolicySetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyParentRequestReasonPolicy)
 	require.NotNil(t, def, "operations.parent_request_reason_policy should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.ReasonPolicyBoth, def.Default, "both sides explain themselves by default")
+	// #5024 replaced the #2267 default "both": a mandatory approval reason
+	// only produced placeholders such as ".", and a rejection needs a reason
+	// regardless of this setting. Parents keep explaining their request.
+	assert.Equal(t, config.ReasonPolicyGuardians, def.Default, "parents explain their request, staff approve without a mandatory reason by default")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "elternportal", def.Category)

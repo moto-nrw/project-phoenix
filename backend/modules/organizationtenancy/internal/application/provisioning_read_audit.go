@@ -17,7 +17,8 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	switch access.View {
 	case organizationtenancy.ReadSchoolBookingAuthorityImpact, organizationtenancy.ReadSchools,
 		organizationtenancy.ReadSchool, organizationtenancy.ReadSchoolSummaries, organizationtenancy.ReadOrganizationSchools,
-		organizationtenancy.ReadSchoolSettingsSchema, organizationtenancy.ReadSchoolSettingReveal:
+		organizationtenancy.ReadSchoolSettingsSchema, organizationtenancy.ReadSchoolSettingReveal,
+		organizationtenancy.ReadDemoPresenceHistory:
 		resource = domain.AuditResourceSchool
 	case organizationtenancy.ReadSchoolAdminInvitation:
 		resource = domain.AuditResourceInvitation
@@ -32,7 +33,7 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	case organizationtenancy.ReadAllAccounts, organizationtenancy.ReadSchoolAccounts,
 		organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadSchoolAccountCaregiver,
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants,
-		organizationtenancy.ReadSchoolAccountCreation:
+		organizationtenancy.ReadSchoolAccountCreation, organizationtenancy.ReadCaterers:
 	default:
 		return invalidData("unknown operator read view")
 	}

@@ -34,6 +34,9 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 /**
  * So viele Blöcke passen in eine Karte von drei Rasterzeilen ganz hinein
@@ -115,7 +118,7 @@ export function MyDayBlock() {
   return (
     <SectionCard
       title="Mein Tag"
-      leading={<HomeCardIcon concept="carePlan" />}
+      leading={<HomeCardIcon concept={carePlanConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions
@@ -263,7 +266,7 @@ function BlockRow({
     room ? (
       <Fragment key="room">
         <MotoConceptIcon
-          concept="rooms"
+          concept={roomsConcept}
           size={14}
           className="mr-1 inline-block align-[-2px]"
         />
@@ -275,7 +278,7 @@ function BlockRow({
     staff ? (
       <Fragment key="staff">
         <MotoConceptIcon
-          concept="staff"
+          concept={staffConcept}
           size={14}
           className="mr-1 inline-block align-[-2px]"
         />

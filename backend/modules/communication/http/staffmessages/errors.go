@@ -1,6 +1,7 @@
 package staffmessaging
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -19,6 +20,9 @@ import (
 // conversations by probing ids. "Not yours" and "not there" must be
 // indistinguishable from outside.
 var staffMessagingErrorRules = []common.ErrorRule{
+	{Target: communication.ErrMessageSendConflict, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict)
+	}},
 	// Beide rendern denselben deutschen Satz: "nicht deine Unterhaltung" und
 	// "gibt es nicht" muessen von aussen ununterscheidbar bleiben, sonst lassen
 	// sich Thread-IDs durchprobieren. Der Text geht wortwoertlich an den Browser,
@@ -60,6 +64,39 @@ var staffMessagingErrorRules = []common.ErrorRule{
 	}},
 	{Target: communication.ErrStaffMessageBodyTooLong, Render: func(_ error) render.Renderer {
 		return common.ErrorInvalidRequestMessage("Die Nachricht ist zu lang.")
+	}},
+	// Group chats (#4776): a role without the right gets 403 with its own
+	// code, so the screen can say who may instead.
+	{Target: communication.ErrStaffMessageGroupCreateForbidden, Render: func(_ error) render.Renderer {
+		return common.ErrorForbiddenMessageWithCode("Lehrkräfte können keinen Gruppenchat anlegen.", common.CodeCommunicationStaffGroupCreateForbidden)
+	}},
+	{Target: communication.ErrStaffMessageGroupManageForbidden, Render: func(_ error) render.Renderer {
+		return common.ErrorForbiddenMessageWithCode("Sie dürfen diesen Gruppenchat nicht ändern.", common.CodeCommunicationStaffGroupManageForbidden)
+	}},
+	{Target: communication.ErrStaffMessageGroupNameInvalid, Render: func(err error) render.Renderer {
+		maxCharacters, ok := communication.StaffGroupNameInvalidMaxCharacters(err)
+		if !ok {
+			return common.ErrorInternalServer(fmt.Errorf("staff group name limit is missing from mapped error"))
+		}
+		return common.ErrorInvalidRequestMessageWithCodeAndDetails(
+			fmt.Sprintf("Der Gruppenchat braucht einen Namen mit höchstens %d Zeichen.", maxCharacters),
+			common.CodeCommunicationStaffGroupNameInvalid,
+			map[string]any{"max_characters": maxCharacters},
+		)
+	}},
+	{Target: communication.ErrStaffMessageGroupMembersRequired, Render: func(_ error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode("Bitte wählen Sie mindestens eine neue Person aus.", common.CodeCommunicationStaffGroupMembersRequired)
+	}},
+	{Target: communication.ErrStaffMessageGroupTooLarge, Render: func(err error) render.Renderer {
+		maxMembers, ok := communication.StaffGroupTooLargeMaxMembers(err)
+		if !ok {
+			return common.ErrorInternalServer(fmt.Errorf("staff group member limit is missing from mapped error"))
+		}
+		return common.ErrorInvalidRequestMessageWithCodeAndDetails(
+			fmt.Sprintf("Ein Gruppenchat hat höchstens %d Mitglieder.", maxMembers),
+			common.CodeCommunicationStaffGroupTooLarge,
+			map[string]any{"max_members": maxMembers},
+		)
 	}},
 	{Target: communication.ErrStaffMessagingNoActor, Render: func(_ error) render.Renderer {
 		return common.ErrorForbiddenMessage("Bitte melden Sie sich erneut an.")

@@ -26,7 +26,20 @@ const (
 	MFAChallengeScopePlatform = "platform"
 	MFAChallengeScopeSchool   = "school"
 	MFAChallengeScopeOrg      = "org"
+	// MFAChallengeScopeCaterer is the caterer portal (#4497); its challenge
+	// names no school.
+	MFAChallengeScopeCaterer = "caterer"
 )
+
+// AccountMFAChallengeScope reports the portals an account's e-mail challenge
+// may be started for; the operator keeps its own challenges.
+func AccountMFAChallengeScope(scope string) bool {
+	switch scope {
+	case MFAChallengeScopeTenant, MFAChallengeScopeSchool, MFAChallengeScopeOrg, MFAChallengeScopeCaterer:
+		return true
+	}
+	return false
+}
 
 // Fixed MFA protocol and operator-policy constants. Account lockout and
 // trusted-device lifetime policy comes only from the school settings.

@@ -1,0 +1,1 @@
+DELETE /operator/persons/{id}

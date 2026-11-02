@@ -57,7 +57,6 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
 const stable = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   mutateMatching: vi.fn().mockResolvedValue(undefined),
-  swrMutate: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
@@ -66,13 +65,6 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   useApiErrorDisplay: () => ({ show: actionErrors.show }),
 }));
 const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
-
-// Without an SWRConfig provider `useSWRConfig()` hands back a fresh `mutate`
-// on every render, which would re-run the tab's load effect endlessly.
-vi.mock("swr", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useSWRConfig: () => ({ mutate: stable.swrMutate }),
-}));
 
 vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => stable.mutateMatching,

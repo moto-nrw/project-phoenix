@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import {
   assignBlockLanes,
@@ -240,6 +241,7 @@ describe("date and range helpers", () => {
   });
 
   it("keeps weekend days as care days only when the weekend follows Friday (#3921)", () => {
+    setTestClock("2026-07-18T12:00:00+02:00"); // Samstag
     expect(careDayISO("2026-07-18", false)).toBe("2026-07-20"); // Sa -> Mo
     expect(careDayISO("2026-07-18", true)).toBe("2026-07-18"); // Sa bleibt
     expect(careDayISO("2026-07-15", false)).toBe("2026-07-15"); // Mi bleibt
@@ -250,6 +252,20 @@ describe("date and range helpers", () => {
     expect(previousCareDayISO("2026-07-20", false)).toBe("2026-07-17"); // Mo -> Fr
     expect(previousCareDayISO("2026-07-20", true)).toBe("2026-07-19"); // Mo -> So
     expect(previousCareDayISO("2026-07-16", true)).toBe("2026-07-15"); // Do -> Mi
+  });
+
+  it("opens only the weekend of today's week (#5028)", () => {
+    // Testuhr: Mittwoch 2026-09-09, also kein Wochenende offen.
+    expect(careDayISO("2026-09-12", true)).toBe("2026-09-14"); // Sa -> Mo
+    expect(nextCareDayISO("2026-09-11", true)).toBe("2026-09-14"); // Fr -> Mo
+    expect(previousCareDayISO("2026-09-14", true)).toBe("2026-09-11"); // Mo -> Fr
+
+    setTestClock("2026-09-13T12:00:00+02:00"); // Sonntag
+    expect(careDayISO("2026-09-12", true)).toBe("2026-09-12"); // Sa bleibt
+    expect(previousCareDayISO("2026-09-14", true)).toBe("2026-09-13"); // Mo -> So
+    expect(careDayISO("2026-09-19", true)).toBe("2026-09-21"); // nächster Sa -> Mo
+    expect(nextCareDayISO("2026-09-18", true)).toBe("2026-09-21"); // Fr -> Mo
+    expect(previousCareDayISO("2026-09-07", true)).toBe("2026-09-04"); // Mo -> Fr
   });
 
   it("steps back to the previous school day", () => {
@@ -330,7 +346,8 @@ describe("activity/status helpers", () => {
     expect(getActivityTypeBadge("care")).toBeNull();
     expect(getActivityTypeBadge("activity")).toEqual({
       label: "AG",
-      bg: "#83CD2D",
+      // Weiße Schrift, darum der Füllton statt #83CD2D (#5141).
+      bg: "#4A7F14",
     });
     expect(getActivityTypeBadge("external")).toEqual({
       label: "EXTERN",

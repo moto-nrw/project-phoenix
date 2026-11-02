@@ -220,7 +220,7 @@ type ActivityGroupQuery interface {
 type TemplateRowQuery interface {
 	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
-	ListTemplateRowsForPeriod(context.Context, *int64) ([]TemplateListRow, error)
+	ListTemplateRowsForPeriod(context.Context, *int64, *TemplateScheduleWindow) ([]TemplateListRow, error)
 	ListTemplateWeekdayRoster(context.Context, *int64, *int64) ([]TemplateWeekdayRosterRow, error)
 	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []TemplateCapacityPeriod) ([]TemplateCapacityOccurrence, error)
 }
@@ -280,7 +280,7 @@ type ActivityGroupCommand interface {
 
 // TemplateRosterReviewUpdate is a roster review write (#5103). Source turns
 // the segment's Zielgruppe into the offering source in place;
-// ManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the series
+// ManualRosterConfirmed stores "Liste so lassen" on the series
 // root. A nil field stays untouched.
 type TemplateRosterReviewUpdate struct {
 	Source                *OfferingSourceInput
@@ -290,6 +290,7 @@ type TemplateRosterReviewUpdate struct {
 type Capability interface {
 	Query
 	Command
+	WeekProtocolCapability
 }
 
 // Owner is what the Timetable composition hands out: the capability, the

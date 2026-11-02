@@ -1,0 +1,3 @@
+DELETE /traeger/settings/values/{key}
+GET /traeger/settings/schema
+PUT /traeger/settings/values/{key}

@@ -1,0 +1,32 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s leaseStore[Term]) Acquire(ctx context.Context, name, holder string, ttl time.Duration) (ports.LeaseTerm, bool, error) {\n\tterm, acquired, err := s.store.Acquire(ctx, name, holder, ttl)\n\treturn ports.LeaseTerm(term), acquired, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Acquire",
+      "owner": "modules/schedulerruntime"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s leaseStore[Term]) Assert(ctx context.Context, term ports.LeaseTerm, margin time.Duration) error {\n\terr := s.store.Assert(ctx, Term(term), margin)\n\tif errors.Is(err, s.notHeld) {\n\t\treturn fmt.Errorf(\"%w: %w\", ports.ErrLeaseNotHeld, err)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Assert",
+      "owner": "modules/schedulerruntime"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s leaseStore[Term]) Release(ctx context.Context, term ports.LeaseTerm) error {\n\treturn s.store.Release(ctx, Term(term))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Release",
+      "owner": "modules/schedulerruntime"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s leaseStore[Term]) Renew(ctx context.Context, term ports.LeaseTerm, ttl time.Duration) (ports.LeaseTerm, bool, error) {\n\trenewed, ok, err := s.store.Renew(ctx, Term(term), ttl)\n\treturn ports.LeaseTerm(renewed), ok, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Renew",
+      "owner": "modules/schedulerruntime"
+    }
+  ]
+}

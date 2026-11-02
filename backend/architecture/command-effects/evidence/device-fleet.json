@@ -1,0 +1,1068 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "binding_digest": "a28fcbb082461e6dadd35d945bef4043",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "binding_digest": "10bbb0c5a825aa57fcbc937ee9d1bd81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "binding_digest": "10bbb0c5a825aa57fcbc937ee9d1bd81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "e4ad3faaacf3b494bf6203d863a29f6d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "a0cf7c158725479c78f9d11e6bb99fc4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "bf9451a77e41a6748df378c18bdea04a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "6f92ae333d9ced0d90d7d99419edf29f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "f9d949808b4a63a20409d11056b90e06",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "b7b8169dceef3d943464abb9c5004d5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "binding_digest": "8fd4d926b1ab29c5b4bbf403c44faaf5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "binding_digest": "1e53a97403ea97fca4809ff637fb45f1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "binding_digest": "5677c56e8f50a7768e6fb1342d0ed247",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "binding_digest": "f62a8c6f7fccda1a1ed86bc83ef08bd3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "binding_digest": "813e30ca0fd1423ac60a03417f461383",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "binding_digest": "9bc54e5cf6397d56798ddc249de06886",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.Settings.ResolveStringForTenant",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "binding_digest": "d051676882ca0da87d4ba0461e8ed7ee",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.Settings.ResolveStringForTenant",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListOrganizationsByID",
+      "binding_digest": "5741a914eed023e7dce730acb12be7b2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListOrganizationsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizationsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListOrganizationsByID",
+      "binding_digest": "98b40e9daadb26865b2655e7736da9a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListOrganizationsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListOrganizationsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByID",
+      "binding_digest": "1244bd24e7affd8ebd08997b4c51c5af",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByID",
+      "binding_digest": "fbdccc18a0290f45b07cacbe2486c7ab",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByOrganization",
+      "binding_digest": "7cb0452a739b5ec914dab4be8974f6ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByOrganization",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByOrganization",
+      "binding_digest": "aceca8ef441bc40786ef6189bddf337c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByOrganization",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "binding_digest": "7a79275e7f9b29e4892b725b3677147c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "binding_digest": "0c69655e959ac523aab9c0216b38446d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "binding_digest": "3238843e5622c14cc0041161a6d83f37",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PresenceQuery.ListAttendance",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PresenceQuery.ListVisits",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "binding_digest": "254b1092e6cc57ba35b7b9721de56e87",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "binding_digest": "2836e5b0fe20637318145f1b5195d238",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "binding_digest": "a3142b9ffae0dc20f88a30ab4e5d9b81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "binding_digest": "254b1092e6cc57ba35b7b9721de56e87",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "binding_digest": "2836e5b0fe20637318145f1b5195d238",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "binding_digest": "a3142b9ffae0dc20f88a30ab4e5d9b81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "binding_digest": "7a79275e7f9b29e4892b725b3677147c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "binding_digest": "0c69655e959ac523aab9c0216b38446d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "binding_digest": "3238843e5622c14cc0041161a6d83f37",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.DisplayEnabled",
+      "binding_digest": "dd99fbe526649d2f3688ceeed6a5907b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.DisplayEnabled",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "binding_digest": "944b2a0d88a9c0d1a96161bb618393eb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "binding_digest": "fba55ede41d55ec1907aff2f5b9d2c37",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "binding_digest": "4eeef9ce47c8937042b5e69fc296fb57",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "binding_digest": "fdea6ead04f31938b98b711ae7b0ef93",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "binding_digest": "d7d088dafedc0abf2245160d256680af",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "binding_digest": "d7d088dafedc0abf2245160d256680af",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "binding_digest": "b58cfee0d43cfd8d577a6c7208b06abe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "binding_digest": "d7d088dafedc0abf2245160d256680af",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "binding_digest": "b58cfee0d43cfd8d577a6c7208b06abe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "binding_digest": "65eb4564f346b40482fb9a8b39a85323",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "binding_digest": "45fc2bf8039003b202c214533ec2c849",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "binding_digest": "45fc2bf8039003b202c214533ec2c849",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "binding_digest": "f668261e30052e5ed140b96d9ce2ab76",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "binding_digest": "45fc2bf8039003b202c214533ec2c849",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "binding_digest": "f668261e30052e5ed140b96d9ce2ab76",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "binding_digest": "9d0ee596c1cc0eb2d567e9936332f4c5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "binding_digest": "baeaa04779bb0ae3181405b845fe008b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "binding_digest": "baeaa04779bb0ae3181405b845fe008b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "binding_digest": "377ad2b20bea92864725be0a627a2bbc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "binding_digest": "baeaa04779bb0ae3181405b845fe008b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "binding_digest": "377ad2b20bea92864725be0a627a2bbc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "binding_digest": "9946b62b31e8958be34d079053aa56a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "binding_digest": "c99f0f9609a6ddf50b95d4fbab7e2b3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "binding_digest": "c99f0f9609a6ddf50b95d4fbab7e2b3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "binding_digest": "1b676b68fef40079e23238f36ead5b63",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "binding_digest": "c99f0f9609a6ddf50b95d4fbab7e2b3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "binding_digest": "1b676b68fef40079e23238f36ead5b63",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "binding_digest": "99428981e50e68341539739055f43756",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "binding_digest": "b33937dad5bcda0736bc1f6d9e866717",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "binding_digest": "b33937dad5bcda0736bc1f6d9e866717",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "binding_digest": "ef764f244a45b4fd4a5aa6f0087ad010",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "binding_digest": "b33937dad5bcda0736bc1f6d9e866717",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "binding_digest": "ef764f244a45b4fd4a5aa6f0087ad010",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "binding_digest": "556565e4fd024f2bf30ddab6672b2f83",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "binding_digest": "bed7749505bb9742b5802c13b487f871",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "binding_digest": "bed7749505bb9742b5802c13b487f871",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "binding_digest": "deff6a89527721dc7a57551c50b7fcc6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "binding_digest": "bed7749505bb9742b5802c13b487f871",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "binding_digest": "deff6a89527721dc7a57551c50b7fcc6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "binding_digest": "ec2e742376edc43fd2587c1d3181b9dd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "binding_digest": "50be0ec193ac45ff503148d14d726a1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "binding_digest": "50be0ec193ac45ff503148d14d726a1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "binding_digest": "dbf0203cd33e86513a885315ccc0198a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "binding_digest": "50be0ec193ac45ff503148d14d726a1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "binding_digest": "dbf0203cd33e86513a885315ccc0198a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "binding_digest": "5486fccaf4dfbcfe5ad3d86b3e70fcf1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "binding_digest": "605b569941a2f82c68d5c87fb996510c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "binding_digest": "605b569941a2f82c68d5c87fb996510c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "binding_digest": "07408a56f64775a7400152af0d6489fb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "binding_digest": "605b569941a2f82c68d5c87fb996510c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "binding_digest": "07408a56f64775a7400152af0d6489fb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "binding_digest": "b99cb7c945ba03c984a6ca8525ca0ce8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "binding_digest": "4a140e37ccaecc9ad97dbdbc1d484a27",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "binding_digest": "6f798088f06a540ee618df4c1e9a6d6c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "binding_digest": "1282822a778a6aea3a7aaae395003e2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "binding_digest": "1282822a778a6aea3a7aaae395003e2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "binding_digest": "9114491fa4ad2456b9ba42345b37fd70",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "binding_digest": "1f0af036f5b9b1d1a67dab9af7225473",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "binding_digest": "e5590d028128afc259092b39b0f91f72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "binding_digest": "e5590d028128afc259092b39b0f91f72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "fda14230df5fbb5ab011bf131fde58e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "aad5b7a17db43780571e0ff63b584926",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "7cdada6d3b6391a578621fe51987a6e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "7cdada6d3b6391a578621fe51987a6e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "295b2a1321887aa0a4473435c0f93f3f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "8a0b1b378b2e91ea6b699b32f95f7f32",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "7d8671da4d193bc87390eab01bb54c35",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "7d8671da4d193bc87390eab01bb54c35",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "binding_digest": "31dbb23d7da48824f4d9502de5f96ccf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "binding_digest": "d2eed0c974d77b2ad9fa97b3f2119d22",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "binding_digest": "f1cd274a3fdfbd31a8f9c7977e9c5c01",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "binding_digest": "f1cd274a3fdfbd31a8f9c7977e9c5c01",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "927b328dc97244ef369efe72bd1e9f2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1e65887d184ae2a492dfe2d5651bcfaa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1cbfb3055e770dd803b05883d3191d4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1cbfb3055e770dd803b05883d3191d4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "binding_digest": "8ca889214374dc24fd74bbf4dac95a76",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "binding_digest": "8e78264b4e0a2d9784d5cf39517b005f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "binding_digest": "c4df231139b921abedda219b1a51d024",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "binding_digest": "c4df231139b921abedda219b1a51d024",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "binding_digest": "fca2613738ed1bdf6bee4c75e0485f6b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "binding_digest": "b00a871ddc1c30fbf791fc70768cdcd4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "binding_digest": "aa903fbfb38288cf28faca9049fa3df1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "binding_digest": "aa903fbfb38288cf28faca9049fa3df1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "ae5356d33aac6790a25213ba898be075",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "bc3c07d65671793aee43c841326e1a09",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "a43b70fa64bb81444db20d34f8d9e8c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "a43b70fa64bb81444db20d34f8d9e8c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "binding_digest": "763b4a8e24c91c0ff958985f38c5f40a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "binding_digest": "6cb789338f8a02929fa6755e69292379",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "binding_digest": "eaea039b330df3bddbe1dbf0a9f35fcc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "binding_digest": "eaea039b330df3bddbe1dbf0a9f35fcc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "binding_digest": "37537cbf19b99f7ad0f8249f97bacd92",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "binding_digest": "1d9239c1d98a1022faf4dbd19e50c50f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "binding_digest": "d1d79e40267083d305960dc1f5e9fa30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "binding_digest": "d1d79e40267083d305960dc1f5e9fa30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    }
+  ]
+}

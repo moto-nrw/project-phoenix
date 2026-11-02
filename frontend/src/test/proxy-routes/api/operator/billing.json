@@ -1,0 +1,9 @@
+{
+  "api/operator/billing/key-date-counts": [
+    "GET operator /operator/billing/key-date-counts"
+  ],
+  "api/operator/billing/key-day": [
+    "GET operator /operator/billing/key-day",
+    "PUT operator /operator/billing/key-day"
+  ]
+}

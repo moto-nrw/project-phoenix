@@ -1,0 +1,6 @@
+{
+  "scenario": "services.schedule.staff_overview.week_plus_dienstplan_week",
+  "max": 13,
+  "exact": true,
+  "description": "services/schedule — Dienstplan overview reads are fixed batches.\nThe second entry is cumulative on the same counter: 6 without shifts\nplus 7 for a Dienstplan-active week (#1837)."
+}

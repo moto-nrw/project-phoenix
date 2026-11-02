@@ -1,0 +1,20 @@
+{
+  "errorObject": "список периодов приёма",
+  "back": "Назад в родительский портал",
+  "kicker": "Запись в группу продлённого дня",
+  "title": "Новая заявка",
+  "description": "Выберите школу и период приёма, чтобы записать ребёнка.",
+  "loading": "Загрузка периодов приёма …",
+  "empty": "В настоящее время нет доступных периодов приёма.",
+  "yourSchools": "Ваши школы",
+  "otherSchools": "Другие школы",
+  "kindSchoolYear": "Учебный год",
+  "kindHoliday": "Каникулярный уход",
+  "kindCustom": "Прочее",
+  "closesAt": "Приём до {date}",
+  "audienceNewStudents": "Только новые дети",
+  "audienceExistingStudents": "Только уже зачисленные дети",
+  "audienceLinkedParents": "Только для связанных родителей",
+  "rangeConnector": "по",
+  "openPhase": "Открыть приём"
+}

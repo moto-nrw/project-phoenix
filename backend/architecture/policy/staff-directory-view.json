@@ -1,0 +1,35 @@
+{
+  "packages": [
+    {
+      "path": "modules/staffdirectoryview",
+      "owner": "staff-directory-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "staff-directory-view.to.school-membership",
+      "description": "The staff directory view joins School Membership's staff rows with its own person and account ports (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-directory-view",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-directory-view.internal-test.school-membership-public",
+      "description": "The staff directory view's join tests build School Membership staff rows (#4082).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "staff-directory-view",
+      "source_role": "module-internal-test",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    }
+  ]
+}

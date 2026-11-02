@@ -3,6 +3,7 @@ package api
 import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -40,6 +41,26 @@ func staffAbsenceDeletionRecord(absence workforce.StaffAbsence, actorID int64) (
 		return nil, err
 	}
 	return &auditModels.TimeTrackingDeletion{StaffID: deletion.StaffID, Source: auditModels.TimeTrackingDeletionSourceAbsence, SourceID: deletion.AbsenceID, DeletedBy: deletion.DeletedBy, Payload: deletion.Payload, Note: deletion.Note}, nil
+}
+
+// StaffExitPlanRecord is the Stammdaten change record of one planning step
+// of a planned exit (#4809): the Änderungshistorie of the staff member shows
+// who entered, moved or withdrew the last working day.
+func StaffExitPlanRecord(actor staffoffboarding.Actor, change staffoffboarding.ExitPlanChange) any {
+	event := &auditModels.StaffMasterDataChange{
+		StaffID: change.StaffID, ChangedBy: actor.StaffID,
+		Section: auditModels.StammdatenSectionAustritt, FieldName: auditModels.StammdatenFieldLastWorkingDay,
+		OldValue: optionalDateString(change.OldDay), NewValue: optionalDateString(change.NewDay), Note: change.Action,
+	}
+	event.SetTenantID(actor.TenantID)
+	return event
+}
+
+func optionalDateString(day *calendar.Date) string {
+	if day == nil {
+		return ""
+	}
+	return day.String()
 }
 
 // staffOffboardingRecord is the manual data deletion record of one

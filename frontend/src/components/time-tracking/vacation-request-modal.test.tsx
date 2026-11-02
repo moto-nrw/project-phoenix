@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -18,6 +21,7 @@ import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 import { VacationRequestModal } from "./vacation-request-modal";
 
 interface CapturedCalendarProps {
+  readonly fromMin?: Date;
   readonly onChange: (range: DateRange | undefined) => void;
   readonly modifiers?: Record<string, Matcher | Matcher[]>;
   readonly modifiersClassNames?: Record<string, string>;
@@ -115,28 +119,34 @@ describe("VacationRequestModal questioned absences", () => {
     mocks.toastSuccess.mockReset();
   });
 
-  it("marks questioned vacation dates with their own calendar modifier", () => {
-    render(
-      <VacationRequestModal
-        isOpen
-        onClose={vi.fn()}
-        onSubmitted={vi.fn()}
-        remainingDays={20}
-        existingVacations={[questionedVacation()]}
-      />,
-    );
+  it.each(schoolDateCases("2027-06-01"))(
+    "marks questioned vacation dates with their own calendar modifier in %s",
+    (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2027-06-01");
 
-    expect(mocks.calendarProps?.modifiers?.questionVacation).toEqual([
-      {
-        from: new Date(2027, 6, 10),
-        to: new Date(2027, 6, 12),
-      },
-    ]);
-    expect(
-      mocks.calendarProps?.modifiersClassNames?.questionVacation,
-    ).toContain("moto-purple");
-    expect(screen.getByText("Rückfrage")).toBeInTheDocument();
-  });
+      render(
+        <VacationRequestModal
+          isOpen
+          onClose={vi.fn()}
+          onSubmitted={vi.fn()}
+          remainingDays={20}
+          existingVacations={[questionedVacation()]}
+        />,
+      );
+
+      expect(mocks.calendarProps?.modifiers?.questionVacation).toEqual([
+        {
+          from: new Date(2027, 6, 10),
+          to: new Date(2027, 6, 12),
+        },
+      ]);
+      expect(
+        mocks.calendarProps?.modifiersClassNames?.questionVacation,
+      ).toContain("moto-purple");
+      expect(screen.getByText("Rückfrage")).toBeInTheDocument();
+      expect(mocks.calendarProps?.fromMin).toEqual(new Date(2027, 5, 1));
+    },
+  );
 
   it("blocks a range that overlaps a questioned vacation", () => {
     render(

@@ -332,12 +332,17 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
+    expect(caregiverTopics[17]).toMatchObject({
+      id: HELP_TOPICS.weekProtocol,
+    });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
     // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
     // 47 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
     // 48 seit #4666 („Feriengäste betreuen“, Betreuung und Leitung).
-    expect(caregiverTopics).toHaveLength(48);
+    // 49 seit #4774 („Soll und Ist vergleichen“, Betreuung und Leitung).
+    // 50 seit #4769 („Das Wochenprotokoll ergänzen“, Betreuung und Leitung).
+    expect(caregiverTopics).toHaveLength(50);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -347,6 +352,7 @@ describe("getParentHelpTopicForPath", () => {
       "arbeitszeit",
       "nfc",
       "probleme",
+      "auswertung",
     ]);
   });
 
@@ -439,6 +445,34 @@ describe("getParentHelpTopicForPath", () => {
     expect(binaryLocation).toBeUndefined();
   });
 
+  it("names the Unterwegs card on Alle Kinder only where rooms exist", () => {
+    // #5026: Kinder ohne Raum lassen sich auch aus „Alle Kinder“ zuweisen.
+    const detailedTopics = getHelpTopics("detailed");
+    const detailedLocation = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.changeLocation,
+    );
+    const detailedSearch = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+    const binarySearch = getHelpTopics("binary").find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+
+    expect(
+      detailedLocation?.differences?.some((line) =>
+        line.includes("`Alle Kinder` nach `Unterwegs`"),
+      ),
+    ).toBe(true);
+    expect(
+      detailedSearch?.notes?.some((line) => line.includes("`Zuweisen`")),
+    ).toBe(true);
+    // Anker: der Artikel ist auch im Binärmodus da, nur ohne Raumzuweisung.
+    expect(binarySearch?.title).toBe("Ein Kind finden und Angaben ansehen");
+    expect(
+      binarySearch?.notes?.some((line) => line.includes("`Zuweisen`")) ?? false,
+    ).toBe(false);
+  });
+
   it("adapts the login result to the attendance and group settings", () => {
     const detailedLogin = getHelpTopics("detailed", "fixed_groups", true).find(
       (topic) => topic.id === HELP_TOPICS.login,
@@ -516,7 +550,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            48 -
+            50 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -565,7 +599,11 @@ describe("getParentHelpTopicForPath", () => {
     // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
     // 96 seit #4666: Die Feriengruppe wählen und das geteilte Feriengäste
     // betreuen.
-    expect(leadTopics).toHaveLength(97);
+    // 98 seit der Unfallanzeige.
+    // 99 seit #4774: Soll und Ist vergleichen.
+    // 100 seit #4769: das geteilte Wochenprotokoll.
+    // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
+    expect(leadTopics).toHaveLength(101);
     expect(
       leadTopics.every(
         (topic) =>
@@ -594,7 +632,8 @@ describe("getParentHelpTopicForPath", () => {
     // 25 seit #4781 („An einer Umfrage teilnehmen“).
     // 26 seit #4661 („Für die Ferienbetreuung anmelden“).
     // 27 seit #4671 („Dokumente vom Träger finden“).
-    expect(parentTopics).toHaveLength(27);
+    // 28 seit #4801 („Einen Termin am Elternsprechtag buchen“).
+    expect(parentTopics).toHaveLength(28);
     expect(
       parentTopics.every(
         (topic) =>
@@ -628,10 +667,11 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 25 seit #4791: die nachgetragene Meldung der Schulverwaltung (24 seit
-    // #4800: der Elternbrief an die eigene Klasse, 23 seit #4795,
-    // 22 seit #4901).
-    expect(teacherTopics).toHaveLength(25);
+    // 28 seit #4801: der Elternsprechtag der eigenen Klasse (27 seit #4793:
+    // die Fehlzeiten einer Klasse, 26 seit #4797: die Beobachtungen der OGS,
+    // 25 seit #4791: die nachgetragene Meldung der Schulverwaltung, 24 seit #4800: der
+    // Elternbrief an die eigene Klasse, 23 seit #4795, 22 seit #4901).
+    expect(teacherTopics).toHaveLength(28);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
@@ -642,6 +682,8 @@ describe("getParentHelpTopicForPath", () => {
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(visible.has(HELP_TOPICS.teacherParentLetters)).toBe(true);
     expect(visible.has(HELP_TOPICS.teacherAbsenceReport)).toBe(true);
+    expect(visible.has(HELP_TOPICS.teacherParentConference)).toBe(true);
+    expect(visible.has(HELP_TOPICS.teacherAbsenceList)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>
@@ -681,6 +723,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerHolidayForm,
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerHolidayContribution,
@@ -873,6 +916,7 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school", HELP_TOPICS.teacherClassDay],
     ["/klasse", HELP_TOPICS.teacherClassList],
     ["/school/klasse", HELP_TOPICS.teacherClassList],
+    ["/klasse/kind", HELP_TOPICS.teacherSharedNotes],
     ["/aufsichten", HELP_TOPICS.teacherSupervision],
     ["/school/aufsichten", HELP_TOPICS.teacherSupervision],
     ["/nachrichten", HELP_TOPICS.teacherMessages],
@@ -882,6 +926,8 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
     ["/kalender", HELP_TOPICS.teacherCalendar],
     ["/school/kalender", HELP_TOPICS.teacherCalendar],
+    ["/fehlzeiten", HELP_TOPICS.teacherAbsenceList],
+    ["/school/fehlzeiten", HELP_TOPICS.teacherAbsenceList],
     ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
     ["/school/elternbriefe/7", HELP_TOPICS.teacherParentLetters],
     ["/einstellungen", HELP_TOPICS.teacherSettings],

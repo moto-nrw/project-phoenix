@@ -30,7 +30,7 @@ func validateValue(def *config.Definition, value any) error {
 			return fmt.Errorf("expected a date string")
 		}
 		return validateDateFormat(str)
-	case config.FieldText, config.FieldTextarea, config.FieldPassword:
+	case config.FieldText, config.FieldTextarea, config.FieldColor, config.FieldPassword:
 		return validateTextValue(def, value)
 	case config.FieldSelect:
 		if def.Options == nil || len(def.Options.Static) == 0 {

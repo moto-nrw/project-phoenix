@@ -85,6 +85,8 @@ func (c *command) EndSession(ctx context.Context, activeGroupID int64) (sessione
 
 func presenceError(err error) error {
 	switch {
+	case errors.Is(err, studentpresence.ErrVisitWriteConflict):
+		return sessionend.ErrSessionConflict
 	case errors.Is(err, studentpresence.ErrGroupNotFound):
 		return sessionend.ErrSessionNotFound
 	case errors.Is(err, studentpresence.ErrGroupEnded):
@@ -183,6 +185,9 @@ func (c *command) roomName(ctx context.Context, roomID int64) (string, error) {
 func (c *command) endSessionInTx(txCtx context.Context, activeGroupID int64) (result sessionend.Result, note ports.Notification, err error) {
 	if activeGroupID <= 0 {
 		return result, note, fmt.Errorf("session end: invalid active group ID %d", activeGroupID)
+	}
+	if err := c.deps.Presence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: []int64{activeGroupID}}); err != nil {
+		return result, note, presenceError(err)
 	}
 	group, err := c.deps.Presence.LockGroup(txCtx, activeGroupID)
 	if err != nil {

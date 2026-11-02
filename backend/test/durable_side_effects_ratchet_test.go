@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // Every exception names one losable notice, with its reason and exact operation
@@ -69,7 +71,7 @@ func TestDurableSideEffectsRatchet(t *testing.T) {
 type sideEffectPackage struct{ Path, Role string }
 
 func durableSideEffectScan(root string) (map[string]string, error) {
-	raw, err := os.ReadFile(filepath.Join(root, "architecture", "policy.json"))
+	raw, err := artifacts.ReadPolicy(filepath.Join(root, "architecture", "policy.json"))
 	if err != nil {
 		return nil, err
 	}

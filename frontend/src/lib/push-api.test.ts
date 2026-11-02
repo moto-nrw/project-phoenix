@@ -337,6 +337,40 @@ describe("push-api", () => {
     expect(unsubscribeBrowser).toHaveBeenCalledOnce();
   });
 
+  it("bounds a tenant logout's hanging DELETE and aborts its request", async () => {
+    vi.useFakeTimers();
+    getSubscription.mockResolvedValue(subscription);
+    let finishDelete!: (response: Response) => void;
+    fetchMock.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        finishDelete = resolve;
+      }),
+    );
+    let finished = false;
+    const cleanup = unsubscribePushSilently("tenant", {
+      signal: new AbortController().signal,
+      timeoutMs: 5000,
+    }).then(() => {
+      finished = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(finished).toBe(false);
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(finished).toBe(true);
+    expect(init.signal?.aborted).toBe(true);
+    await cleanup;
+
+    // A response after the deadline must not touch a newer subscription.
+    finishDelete(response(null, 204));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unsubscribeBrowser).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("reports server cleanup failures after removing the browser subscription", async () => {
     getSubscription.mockResolvedValue(subscription);
     fetchMock.mockRejectedValue(new Error("offline"));

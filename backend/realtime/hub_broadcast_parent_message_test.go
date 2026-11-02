@@ -117,3 +117,39 @@ func TestHubBroadcastParentMessage_EmptyHub(t *testing.T) {
 		t.Errorf("BroadcastParentMessage on empty hub should return nil, got: %v", err)
 	}
 }
+
+// TestBroadcastLeadershipParentMessage_ReachesOnlyLeadershipStaff pins the SSE
+// fan-out of a leadership conversation (#5200): the guardian's own tab gets
+// the full event, a staff tab marked ReadsLeadershipMessages the sanitized
+// copy, and every other staff tab nothing.
+func TestBroadcastLeadershipParentMessage_ReachesOnlyLeadershipStaff(t *testing.T) {
+	t.Parallel()
+	hub := NewHub(slog.Default())
+	const tenantID, guardianID = int64(31), int64(501)
+	leader := &Client{Channel: make(chan Event, 4), UserID: 1, AccountID: 11, SubscribedGroups: map[string]bool{}, ReadsLeadershipMessages: true}
+	staff := &Client{Channel: make(chan Event, 4), UserID: 2, AccountID: 12, SubscribedGroups: map[string]bool{}}
+	hub.Register(leader, tenantID, nil)
+	hub.Register(staff, tenantID, nil)
+	guardian := newParentClient(hub, guardianID)
+
+	if err := hub.BroadcastLeadershipParentMessage(tenantID, guardianID, NewParentMessageEvent(guardianID, 77, 88)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case own := <-guardian.Channel:
+		if own.Data.ThreadID == nil {
+			t.Error("the guardian keeps the thread identity")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("the guardian should have received the trigger")
+	}
+	select {
+	case copyEvent := <-leader.Channel:
+		if copyEvent.Data.ThreadID != nil || copyEvent.Data.StudentID != nil || copyEvent.Data.Source != nil {
+			t.Error("the leadership staff copy must stay sanitized")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("the leadership tab should have received the trigger")
+	}
+	expectNoEvent(t, staff, "a staff tab without the leadership permission")
+}

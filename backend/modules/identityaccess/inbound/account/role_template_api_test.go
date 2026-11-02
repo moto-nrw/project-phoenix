@@ -82,7 +82,9 @@ func TestCreateRoleFromTemplateCopiesTheTemplatePermissions(t *testing.T) {
 		}
 		want := []string{}
 		for _, name := range source {
-			if !identityaccess.IsReservedPermission(name) {
+			// Reserved permissions never land on a school role, explicit-grant
+			// ones (parent_messages:leadership, #5200) only on purpose.
+			if !identityaccess.IsReservedPermission(name) && !identityaccess.IsExplicitGrantPermission(name) {
 				want = append(want, name)
 			}
 		}

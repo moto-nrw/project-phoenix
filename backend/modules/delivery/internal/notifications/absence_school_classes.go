@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"regexp"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Copy for the school-portal notice (#4792).
@@ -164,7 +164,7 @@ func schoolClassAbsenceEvent(report AbsenceReport, studentID int64, schoolClass 
 		RelatedID:      studentID,
 		Priority:       PriorityNormal,
 		Title:          title,
-		Body:           fmt.Sprintf(body, schoolClassLabel(schoolClass)),
+		Body:           fmt.Sprintf(body, collation.SchoolClassLabel(schoolClass)),
 		SchoolDeepLink: schoolClassDeepLink(schoolClass),
 		Audience: Audience{
 			TenantID:        report.TenantID,
@@ -173,19 +173,6 @@ func schoolClassAbsenceEvent(report AbsenceReport, studentID int64, schoolClass 
 		},
 	}
 }
-
-// schoolClassLabel names a class the way moto schule writes it
-// (schoolClassLabel in the frontend): class names are free text, some
-// schools store "1a", others "Klasse 1a", and neither may read
-// "Klasse Klasse 1a".
-func schoolClassLabel(schoolClass string) string {
-	if classPrefix.MatchString(schoolClass) {
-		return schoolClass
-	}
-	return "Klasse " + schoolClass
-}
-
-var classPrefix = regexp.MustCompile(`(?i)^klasse\b`)
 
 // schoolClassDeepLink opens the class view of moto schule. Class names are
 // free text ("5 b/c"), so the name travels encoded in the query.

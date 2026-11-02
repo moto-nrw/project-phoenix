@@ -54,6 +54,36 @@ describe("seed-state profile reader", () => {
     );
   });
 
+  it("selects the school's own admin", () => {
+    const path = statePath();
+    const manuell = profile("manuell", "demo1@example.test");
+    writeState(path, {
+      version: SEED_STATE_VERSION,
+      default_profile: "manuell",
+      profiles: {
+        manuell: {
+          ...manuell,
+          credentials: {
+            ...manuell.credentials,
+            school_admin: {
+              email: "manuell-admin@example.test",
+              password: "Manuell1234%",
+            },
+          },
+        },
+      },
+    });
+
+    expect(readSeedAccess({ statePath: path, role: "school_admin" })).toEqual({
+      slug: "manuell",
+      email: "manuell-admin@example.test",
+      password: "Manuell1234%",
+    });
+    expect(readSeedAccess({ statePath: path })?.email).toBe(
+      "demo1@example.test",
+    );
+  });
+
   it("rejects unknown contract versions", () => {
     const path = statePath();
     writeState(path, { version: "2" });

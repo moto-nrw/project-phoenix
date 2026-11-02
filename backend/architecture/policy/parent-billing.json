@@ -1,0 +1,194 @@
+{
+  "packages": [
+    {
+      "path": "modules/parentbilling",
+      "owner": "parent-billing",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/compose",
+      "owner": "parent-billing",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/http",
+      "owner": "parent-billing",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/application",
+      "owner": "parent-billing",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/adapters/rendering",
+      "owner": "parent-billing",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/adapters/postgres",
+      "owner": "parent-billing",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "parent_billing.contribution_rules",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_contribution_lines",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_contributions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_range_counters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_ranges",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    }
+  ],
+  "rules": [
+    {
+      "id": "parent-billing.http.public",
+      "description": "The Elternabrechnung routes drive the owner through its public capability (ADR 0088, #4664).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "parent-billing",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-billing.http.tenant-runtime.common",
+      "description": "The Elternabrechnung routes reuse the shared HTTP runtime of api/common: the Träger route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#4664).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "parent-billing.http.tenant-runtime",
+      "description": "The public contribution of the holiday registration resolves its link in the administrative transaction and computes in the Träger transaction of the link's Träger; a confirmation that fails after Enrollment confirmed marks the request's Träger transaction for rollback (ADR 0110, ADR 0115).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "parent-billing.adapter.document-rendering-lists",
+      "description": "The rendering adapter of the Elternabrechnung lays out its confirmation letters through the letter of the Document Rendering contract and the overview of a run through its list renderer; the owner writes every text and decides who reads the file (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/lists"
+    },
+    {
+      "id": "parent-billing.adapter.application",
+      "description": "The rendering adapter implements the letter and table renderer ports of the Elternabrechnung's application over its native values (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-billing.adapter.public",
+      "description": "The rendering adapter answers in the Elternabrechnung's public letter and export files (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-billing.postgres.tenant-runtime",
+      "description": "The Elternabrechnung's persistence resolves the Träger transaction of the tenant runtime and refuses any other (ADR 0105, ADR 0115).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "parent-billing.behaviour-test.tenant-runtime",
+      "description": "The Elternabrechnung's public contract suite runs its commands inside the Träger transaction of the tenant runtime (ADR 0105, ADR 0115).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    }
+  ]
+}

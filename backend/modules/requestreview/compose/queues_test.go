@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const today careplan.Date = "2026-08-24"
@@ -490,7 +491,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			require.NoError(t, testpkg.WithTenantTx(t, counter.Context(side.Context), db, side.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS"})
 				require.NoError(t, err)
-				testpkg.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
 				require.Len(t, page.Items, 4, "each school lists exactly its own four requests")
 				types := make([]string, 0, 4)
 				for _, item := range page.Items {

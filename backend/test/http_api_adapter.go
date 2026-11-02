@@ -73,7 +73,7 @@ func HTTPNotFound(response HTTPResponseWriter, _ *HTTPRequest) {
 	writeTestProblem(response, http.StatusNotFound, codeGeneralInput)
 }
 
-// Registered class codes (error-registry.json) of the answers test servers
+// Registered class codes (error-registry/) of the answers test servers
 // write themselves; test support names them once here.
 const (
 	codeGeneralInput  = "general.input"

@@ -18,18 +18,37 @@ const logger = createLogger({ component: "TraegerAccountModals" });
 
 const ROLES_REQUIRED = "Bitte wählen Sie mindestens eine Rolle.";
 
+/** What the invitation sends: the address and at least one role. */
+export interface TraegerInvitationInput {
+  readonly email: string;
+  readonly roles: readonly TraegerRole[];
+}
+
+const TRAEGER_INVITATION_HINT =
+  "Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal. Bis wann der Link gilt, steht danach bei den offenen Einladungen.";
+
 /**
  * Invites a person into the Träger-Büro by e-mail (#4650). The person gets a
  * link and chooses a password, or confirms the one of their moto account.
+ * The operator portal sends the same invitation through its own route
+ * (#5144): it passes `invite` and its own texts.
  */
 export function InviteTraegerAccountModal({
   isOpen,
   onClose,
   onInvited,
+  invite = inviteTraegerAccount,
+  title = "Person einladen",
+  hint = TRAEGER_INVITATION_HINT,
+  successText = "Die Einladung ist verschickt.",
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
   onInvited: () => Promise<unknown>;
+  invite?: (input: TraegerInvitationInput) => Promise<unknown>;
+  title?: string;
+  hint?: string;
+  successText?: string;
 }>) {
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<TraegerRole[]>([]);
@@ -57,9 +76,9 @@ export function InviteTraegerAccountModal({
     }
     setSaving(true);
     try {
-      await inviteTraegerAccount({ email: email.trim(), roles });
+      await invite({ email: email.trim(), roles });
       onClose();
-      success("Die Einladung ist verschickt.");
+      success(successText);
       await onInvited();
     } catch (err) {
       logger.error("traeger_invitation_failed", {
@@ -77,7 +96,7 @@ export function InviteTraegerAccountModal({
       onClose={onClose}
       closeDisabled={saving}
       isBackdropDismissDisabled
-      title="Person einladen"
+      title={title}
       size="md"
       error={formErrors.error}
       footer={
@@ -100,10 +119,7 @@ export function InviteTraegerAccountModal({
           void submit();
         }}
       >
-        <p className="text-sm text-gray-600">
-          Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal. Bis
-          wann der Link gilt, steht danach bei den offenen Einladungen.
-        </p>
+        <p className="text-sm text-gray-600">{hint}</p>
         <Input
           id="invite-traeger-account-email"
           label="E-Mail-Adresse"

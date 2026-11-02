@@ -26,6 +26,7 @@ import { ButtonLink } from "~/components/ui/button";
 import { buildHelpHref, HELP_TOPICS } from "~/lib/help-topics";
 import { isStandaloneApp } from "~/lib/push-api";
 import { isSamsungInternet } from "~/lib/pwa-install-prompt";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 export default function ParentSettingsPage() {
   const t = useTranslations("parentSettings");
@@ -70,7 +71,7 @@ export default function ParentSettingsPage() {
         <ParentSection
           title={t("appInstallTitle")}
           description={t("appInstallGenericDescription")}
-          concept="devices"
+          concept={devicesConcept}
         >
           {pageUrl ? (
             <SamsungChromeInstructions pageUrl={pageUrl} />

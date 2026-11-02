@@ -1,0 +1,4 @@
+GET /operator/profile/
+POST /operator/profile/email-change
+POST /operator/profile/password
+PUT /operator/profile/

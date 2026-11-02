@@ -24,6 +24,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // newTraegerAccountsPortal mounts /traeger as the serving root does and hands
@@ -362,7 +363,7 @@ func TestTraegerAccountListQueryBudgetIsFlat(t *testing.T) {
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleBilling)
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRolePersonnel)
 	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of people")
-	testpkg.AssertQueryBudget(t, "api.traeger.accounts", three)
+	querybudgets.AssertQueryBudget(t, "api.traeger.accounts", three)
 }
 
 func TestTraegerInvitationExpiresWithTheSchoolInvitations(t *testing.T) {

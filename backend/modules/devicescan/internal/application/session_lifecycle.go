@@ -18,7 +18,7 @@ type LifecycleStore interface {
 	Conflict(context.Context, int64, int64) (devicescan.ConflictInfoResponse, error)
 	Supervisors(context.Context, int64) ([]ports.LifecycleSupervisor, error)
 	ReplaceSupervisors(context.Context, int64, []int64) (ports.LifecycleSession, error)
-	CountActiveVisitsByActiveGroupID(context.Context, int64) (int, error)
+	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error)
 	Touch(context.Context, int64) error
 	Timeout(context.Context, int64) (devicescan.SessionTimeoutResponse, error)
 	ValidateTimeout(context.Context, int64, int) error
@@ -149,8 +149,8 @@ func (s *sessionLifecycle) CurrentSession(ctx context.Context) (devicescan.Sessi
 	response.ActiveGroupID, response.ActivityID, response.RoomID = &group.ID, group.ActivityID, &group.RoomID
 	response.StartTime, response.Duration = &group.StartTime, &duration
 	response.ActivityName, response.RoomName = group.ActivityName, group.RoomName
-	if count, countErr := s.store.CountActiveVisitsByActiveGroupID(ctx, group.ID); countErr == nil {
-		response.ActiveStudents = &count
+	if count, revision, countErr := s.store.CountOpenVisitsInGroupWithRevision(ctx, group.ID); countErr == nil {
+		response.ActiveStudents, response.ActiveStudentsRevision = &count, &revision
 	} else {
 		s.logger.WarnContext(ctx, "failed to get active student count",
 			slog.Int64("session_id", group.ID),

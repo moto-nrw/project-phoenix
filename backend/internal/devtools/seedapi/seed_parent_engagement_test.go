@@ -141,6 +141,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/api/messages/threads/91/unread",
 		"/parent/me/messages/children/44",
+		// The same parent's conversation with the leadership only (#5200).
+		"/api/settings/values/operations.parent_message_leadership_enabled",
+		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/api/students/44",
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
 		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
@@ -148,10 +151,14 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/calendar/appointments", "/api/calendar/appointments",
 	}, paths)
 
-	require.Len(t, childMessages, 4)
+	require.Len(t, childMessages, 5)
 	assert.Equal(t, "61", childMessages[0]["group_thread_id"], "the parent answers the open group thread")
-	conversation := childMessages[1:]
-	require.Len(t, staffReplies, len(conversation), "the OGS answers every message of the conversation")
+	conversation := childMessages[1:4]
+	require.Len(t, staffReplies, len(conversation)+1, "the OGS answers every message of both conversations")
+	leadership := childMessages[4]
+	assert.Equal(t, "leadership", leadership["audience"], "the last message goes to the leadership only")
+	assert.Nil(t, leadership["group_thread_id"])
+	assert.NotEmpty(t, staffReplies[len(conversation)]["body"], "the leadership answers it")
 	for i, message := range conversation {
 		assert.Equal(t, seedParentConversationTurns[i].parent, message["body"])
 		assert.Nil(t, message["group_thread_id"])

@@ -54,6 +54,7 @@ export function renderThreadFrame(parts: TeamChatThreadParts) {
       {...back}
       stats={parts.stats}
       statsLoading={parts.statsLoading}
+      actions={parts.actions ?? undefined}
     >
       <div
         ref={parts.containerRef}

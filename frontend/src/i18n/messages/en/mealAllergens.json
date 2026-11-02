@@ -1,0 +1,24 @@
+{
+  "legendTitle": "Allergens",
+  "choose": "Choose allergens",
+  "marksShort": "Allergens: {letters}",
+  "marksLabel": "Contains: {names}",
+  "noneThisWeek": "No allergens are listed for this week.",
+  "source": "This information comes from the school or the caterer. A dish without a letter is not guaranteed to be free of allergens. If you have questions, please ask the OGS.",
+  "names": {
+    "gluten": "Cereals containing gluten",
+    "crustaceans": "Crustaceans",
+    "eggs": "Eggs",
+    "fish": "Fish",
+    "peanuts": "Peanuts",
+    "soybeans": "Soy",
+    "milk": "Milk (including lactose)",
+    "nuts": "Tree nuts",
+    "celery": "Celery",
+    "mustard": "Mustard",
+    "sesame": "Sesame",
+    "sulphites": "Sulphur dioxide and sulphites",
+    "lupin": "Lupin",
+    "molluscs": "Molluscs"
+  }
+}

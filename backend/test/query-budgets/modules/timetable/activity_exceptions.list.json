@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.activity_exceptions.list",
+  "max": 1,
+  "exact": true,
+  "description": "modules/timetable — group and target lookups stay one bulk query as IDs grow."
+}

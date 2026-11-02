@@ -26,6 +26,11 @@ vi.mock("~/lib/analytics", () => ({
 
 // Mock next-auth/react
 const mockSignIn = vi.fn();
+const browserSession = {
+  user: { id: "42", tenantId: 7 },
+  expires: "2099-01-01T00:00:00.000Z",
+};
+const mockUpdateSession = vi.fn().mockResolvedValue(browserSession);
 const mockSignOut = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (provider: string, options?: Record<string, unknown>) =>
@@ -167,19 +172,18 @@ function mockFetchResponse(status: number, body: unknown): typeof global.fetch {
 function mockTenantAuthenticatedResponse(): typeof global.fetch {
   return mockFetchResponse(200, {
     status: "authenticated",
-    access_token: "access-token",
-    refresh_token: "refresh-token",
   });
 }
 
 describe("HomePage (Login)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     mockSearchParamsGet.mockImplementation((_key: string) => null);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
@@ -195,6 +199,7 @@ describe("HomePage (Login)", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     global.fetch = originalFetch;
     window.history.pushState({}, "", "/");
   });
@@ -304,7 +309,7 @@ describe("HomePage (Login)", () => {
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "loading",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
 
     render(<HomePage />);
@@ -319,8 +324,8 @@ describe("HomePage (Login)", () => {
     expect(screen.getByText("Sitzung wird überprüft...")).toBeInTheDocument();
   });
 
-  it("posts to /api/auth/login then seeds session via internalRefresh (2-step MFA flow)", async () => {
-    mockSignIn.mockResolvedValue({ error: null });
+  it("posts login credentials then reads the token-free session", async () => {
+    mockUpdateSession.mockResolvedValue(browserSession);
 
     render(<HomePage />);
 
@@ -356,20 +361,16 @@ describe("HomePage (Login)", () => {
       );
     });
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access-token",
-        refreshToken: "refresh-token",
-      });
+      expect(mockUpdateSession).toHaveBeenCalledWith();
+      expect(mockSignIn).not.toHaveBeenCalled();
     });
     // login_success comes from the backend once it mints the session
     // (#3602); a browser copy would count every login twice.
     expect(mockTrackTenantEvent).not.toHaveBeenCalled();
   });
 
-  it("removes stale session-expired query params before seeding the new session", async () => {
-    mockSignIn.mockResolvedValue({ error: null });
+  it("removes stale session-expired query params before refreshing the provider", async () => {
+    mockUpdateSession.mockResolvedValue(browserSession);
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "error" ? "SessionExpired" : null,
     );
@@ -400,12 +401,8 @@ describe("HomePage (Login)", () => {
     });
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access-token",
-        refreshToken: "refresh-token",
-      });
+      expect(mockUpdateSession).toHaveBeenCalledWith();
+      expect(mockSignIn).not.toHaveBeenCalled();
     });
     expect(window.location.search).toBe("");
     expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/");
@@ -790,7 +787,7 @@ describe("HomePage (Login)", () => {
         expires: new Date(Date.now() + 3600000).toISOString(),
       },
       status: "authenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
 
     render(<HomePage />);
@@ -806,9 +803,77 @@ describe("HomePage (Login)", () => {
     expect(screen.queryByTestId("input-password")).not.toBeInTheDocument();
   });
 
+  it("keeps the enrollment success screen until Continue even if the provider notices the new cookie", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "mfa_enrollment_required",
+          access_token: "enrollment-proof",
+          mfa_enrollment_required: true,
+          masked_email: "l***@example.test",
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ status: "authenticated" }));
+    const view = render(<HomePage />);
+    await screen.findByTestId("input-email");
+    fireEvent.change(screen.getByTestId("input-email"), {
+      target: { value: "local@example.test" },
+    });
+    fireEvent.change(screen.getByTestId("input-password"), {
+      target: { value: "local-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Code an meine E-Mail senden",
+      }),
+    );
+    fireEvent.change(await screen.findByLabelText("Stelle 1"), {
+      target: { value: "123456" },
+    });
+    await screen.findByRole("heading", { name: "2FA erfolgreich aktiviert" });
+    vi.mocked(useSession).mockReturnValue({
+      data: browserSession,
+      status: "authenticated",
+      update: mockUpdateSession,
+    });
+    view.rerender(<HomePage />);
+    // Anker: der erfolgreiche Abschluss wartet auf die ausdrückliche Aktion.
+    expect(
+      screen.getByRole("button", { name: "Weiter zum Dashboard" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("smart-redirect")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zum Dashboard" }),
+    );
+    expect(await screen.findByTestId("smart-redirect")).toBeInTheDocument();
+    expect(mockUpdateSession).toHaveBeenCalledWith();
+    expect(mockSignIn).not.toHaveBeenCalled();
+  });
+
+  it("completes a passkey login by reading session metadata, never by seeding tokens", async () => {
+    mockIsPasskeySupported.mockReturnValueOnce(true);
+    mockLoginWithPasskey.mockResolvedValueOnce({ status: "authenticated" });
+    render(<HomePage />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mit Passkey anmelden" }),
+    );
+    await waitFor(() => expect(mockUpdateSession).toHaveBeenCalledWith());
+    expect(mockLoginWithPasskey).toHaveBeenCalledWith("tenant", {
+      tenantSlug: "test-tenant",
+    });
+    expect(mockSignIn).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockTenantRefresh).toHaveBeenCalled());
+  });
+
   it("disables submit button while loading", async () => {
-    mockSignIn.mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 1000)),
+    mockUpdateSession.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(browserSession), 1000),
+        ),
     );
 
     render(<HomePage />);
@@ -837,10 +902,11 @@ describe("HomePage (Login)", () => {
 describe("Tenant name display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
     Element.prototype.animate = mockAnimate;
   });
@@ -895,10 +961,11 @@ describe("Tenant name display", () => {
 describe("Enter key form submission", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
     Element.prototype.animate = mockAnimate;
     global.fetch = mockTenantAuthenticatedResponse();
@@ -909,7 +976,7 @@ describe("Enter key form submission", () => {
   });
 
   it("submits form when submit event is triggered", async () => {
-    mockSignIn.mockResolvedValue({ error: null });
+    mockUpdateSession.mockResolvedValue(browserSession);
 
     render(<HomePage />);
 
@@ -938,7 +1005,8 @@ describe("Enter key form submission", () => {
       );
     });
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalled();
+      expect(mockUpdateSession).toHaveBeenCalled();
+      expect(mockSignIn).not.toHaveBeenCalled();
     });
   });
 });
@@ -949,6 +1017,7 @@ describe("Enter key form submission", () => {
 describe("Stripped session", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     Element.prototype.animate = mockAnimate;
   });
 
@@ -961,7 +1030,7 @@ describe("Stripped session", () => {
         expires: new Date(Date.now() + 3600000).toISOString(),
       },
       status: "authenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
 
     render(<HomePage />);
@@ -984,10 +1053,11 @@ describe("Stripped session", () => {
 describe("Form error handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
     Element.prototype.animate = mockAnimate;
   });
@@ -1044,10 +1114,11 @@ describe("Deliberate logout suppression", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateSession.mockReset().mockResolvedValue(browserSession);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
-      update: vi.fn(),
+      update: mockUpdateSession,
     });
     Element.prototype.animate = mockAnimate;
     sessionStorage.clear();

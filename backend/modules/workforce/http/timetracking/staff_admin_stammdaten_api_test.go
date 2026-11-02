@@ -8,6 +8,7 @@ package timetracking
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -141,6 +142,57 @@ func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
 	rec = ctx.put(base+"/bank-steuer", `{"iban":"DE00123"}`, "staff:financial")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"workforce.stammdaten_invalid"`)
+}
+
+func TestStammdatenAPI_RejectsDuplicateQualificationIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupOverviewAPI(t)
+	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Duplicate-%d", time.Now().UnixNano()))
+	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
+
+	rec := ctx.put(base+"/qualifikationen", `{"qualifikationen":[{"name":"Erste Hilfe"}],"note":"Nachweis"}`, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var listed struct {
+		Data struct {
+			Qualifikationen []struct {
+				ID string `json:"id"`
+			} `json:"qualifikationen"`
+		} `json:"data"`
+	}
+	rec = ctx.get(base, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listed))
+	require.Len(t, listed.Data.Qualifikationen, 1)
+
+	rec = ctx.put(base+"/qualifikationen", fmt.Sprintf(`{"qualifikationen":[{"id":%q,"name":"Erste Hilfe"},{"id":%q,"name":"Erste Hilfe"}],"note":"Nachweis"}`, listed.Data.Qualifikationen[0].ID, listed.Data.Qualifikationen[0].ID), "staff:stammdaten")
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "workforce.stammdaten_invalid")
+}
+
+func TestStammdatenAPIUsesTheCurrentQualificationTypeName(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupOverviewAPI(t)
+	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Nachweis", fmt.Sprintf("Aktuell-%d", time.Now().UnixNano()))
+	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
+
+	rec := ctx.get("/staff/qualification-types", "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var listed qualificationTypesBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &listed))
+	require.NotEmpty(t, listed.Data)
+	typeID := listed.Data[0].ID
+
+	rec = ctx.put(base+"/qualifikationen", fmt.Sprintf(`{"qualifikationen":[{"type_id":%q,"name":"Alte Erste Hilfe"}],"note":"Nachweis"}`, typeID), "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = ctx.put("/staff/qualification-types/"+typeID, `{"name":"Erste Hilfe neu","validity_months":24,"reminder_lead_weeks":8,"mandatory":true,"archived":false}`, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = ctx.get(base, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"name":"Erste Hilfe neu"`)
 }
 
 // A retired membership remains readable through the same permission gates,

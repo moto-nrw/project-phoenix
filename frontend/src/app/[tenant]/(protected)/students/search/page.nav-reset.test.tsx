@@ -287,7 +287,7 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     expect(mockMutateStudents).not.toHaveBeenCalled();
   });
 
-  it("clears a name search, which lives outside the URL", async () => {
+  it("clears a name search", async () => {
     const { navLink } = renderOnSearchPage("");
     const unfilteredKey = studentKeys.at(-1);
 
@@ -296,6 +296,9 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     await waitFor(() => {
       expect(studentKeys.at(-1)).toContain("Mila");
     });
+    expect(new URLSearchParams(window.location.search).get("search")).toBe(
+      "Mila",
+    );
 
     fireEvent.click(navLink);
 
@@ -306,6 +309,41 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
       (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
         .value,
     ).toBe("");
+    expect(window.location.search).toBe("");
+  });
+
+  it("removes a restored name search from the URL", async () => {
+    const { navLink } = renderOnSearchPage("?search=Mila");
+
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("Mila");
+
+    fireEvent.click(navLink);
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("");
+    });
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("does not add stored filters to a shared name-search URL", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ bus: "yes" }));
+
+    renderOnSearchPage("?search=Mila");
+
+    await waitFor(() => {
+      expect(storedFilters()).toBeNull();
+    });
+    expect(new URLSearchParams(window.location.search).get("bus")).toBeNull();
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("Mila");
   });
 
   it("reloads the list when nothing was filtered", async () => {

@@ -145,7 +145,7 @@ func CompareRatchetBudgets(project, ref string) error {
 	}
 	candidate.finalize()
 	fmt.Printf("ratchet budgets passed: %d constants, %d budget registers, %d exception registers\n", len(candidate.constants), len(candidate.budgets), len(candidate.exceptions))
-	return nil
+	return CompareQueryBudgets(project, sha)
 }
 
 // addedADRs lists the ADR numbers the candidate tree has and the base commit

@@ -66,6 +66,10 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"staff-message-cleanup",
 		"booking-consistency-audit",
 		"holiday-guest-reconciliation",
+		"planned-staff-exits",
+		"staff-qualification-reminders",
+		"week-protocols",
+		"payroll-dispatch",
 		"meal-orders",
 		"session-end",
 		"token-cleanup",
@@ -88,6 +92,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"announcement-reminders",
 		"billing-key-dates",
 		"analytics-school-names",
+		"school-vacation-sync",
 	}
 }
 
@@ -106,6 +111,10 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.staffMessageCleanup), "staff-message-cleanup", s.scheduleStaffMessageCleanupTask)
 	add(!isNilDependency(s.bookingConsistency), "booking-consistency-audit", s.scheduleBookingConsistencyAuditTask)
 	add(!isNilDependency(s.holidayGuests), "holiday-guest-reconciliation", s.scheduleHolidayGuestReconciliationTask)
+	add(!isNilDependency(s.plannedStaffExits), "planned-staff-exits", s.schedulePlannedStaffExitsTask)
+	add(!isNilDependency(s.staffQualificationReminders), "staff-qualification-reminders", s.scheduleStaffQualificationRemindersTask)
+	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
+	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)
 	add(!isNilDependency(s.activeService), "session-end", s.scheduleSessionEndTask)
 	add(true, "token-cleanup", s.scheduleTokenCleanupTask)
@@ -128,6 +137,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
 	add(!isNilDependency(s.schoolRepo), "billing-key-dates", s.scheduleBillingKeyDatesTask)
 	add(!isNilDependency(s.schoolRepo), "analytics-school-names", s.scheduleSchoolNamesTask)
+	add(s.schoolVacations != nil, "school-vacation-sync", s.scheduleSchoolVacationsTask)
 	return jobs
 }
 

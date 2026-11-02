@@ -12,6 +12,7 @@ import (
 // LifecyclePresence is the Student Presence slice the transitions read and
 // move live state through.
 type LifecyclePresence interface {
+	studentpresence.VisitWriteLocks
 	ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error)
 	QueryGroupSupervisions(ctx context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 	TransferOpenVisits(ctx context.Context, fromGroupID, toGroupID int64) (int64, error)

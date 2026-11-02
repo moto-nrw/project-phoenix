@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // The roster review suites (#5103) run on a fixed Monday far ahead of any
@@ -148,8 +151,9 @@ func rosterReviewBookings(offeringID int64, name, class string, studentIDs []int
 
 // TestTemplateRosterDeviationsSchuleAmBerg: the whole class 1a sits in a
 // Klasse Regeltermin by hand; "Randstunde" books four of its six children on
-// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde with
-// the Klassenfilter and counts the two children without a booking. An
+// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde and,
+// for that child, Ganztag (#5139) with the Klassenfilter and counts the one
+// child without a booking. An
 // automatic Regeltermin, a roster with too few booked children and a series
 // confirmed as hand-kept show no hint.
 func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
@@ -178,17 +182,48 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.True(t, decodeTemplateData[manualRosterResponse](t, w).ManualRosterConfirmed)
 
-	deviations := s.listDeviations(t, period.ID)
+	// A caller without the right to read children gets the counts only.
+	for _, deviation := range s.listDeviations(t, period.ID) {
+		assert.Empty(t, deviation.Unbooked, "names need the right to read children")
+		assert.Empty(t, deviation.Missing)
+	}
+	deviations := s.listDeviationsAs(t, period.ID, "*:*")
 
 	require.Len(t, deviations, 1, "only the hand-kept Klasse Regeltermin deviates: %+v", deviations)
 	got := deviations[0]
 	assert.Equal(t, deviating, got.TemplateID)
-	assert.Equal(t, templateRosterMaintenanceOfferingResponse{ID: randstunde, Name: "Randstunde"}, got.Offering)
+	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{
+		{ID: randstunde, Name: "Randstunde"}, {ID: randstunde + 1, Name: "Ganztag"},
+	}, got.Offerings)
 	assert.Equal(t, []string{"1a"}, got.SchoolClasses)
 	assert.Empty(t, got.GradeLevels)
-	assert.Equal(t, 2, got.UnbookedCount)
+	assert.Equal(t, 1, got.UnbookedCount, "class[4] books Ganztag; only class[5] books nothing")
 	assert.Zero(t, got.MissingCount)
-	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{{ID: randstunde, Name: "Randstunde"}}, got.Candidates)
+	// The hint names that child and its weekdays.
+	require.Len(t, got.Unbooked, 1)
+	assert.Equal(t, class[5], got.Unbooked[0].StudentID)
+	assert.Contains(t, got.Unbooked[0].Name, "Review-1a-5-")
+	assert.Equal(t, []int{timetableModule.WeekdayMonday, timetableModule.WeekdayWednesday}, got.Unbooked[0].Weekdays)
+	assert.Empty(t, got.Missing)
+	assert.Equal(t, got.Offerings, got.Candidates, "no other offering passes the rule")
+
+	// „Mit Angebot verbinden“ from a booking change names one series: it is
+	// reviewed although it is kept by hand, so the link reaches the dialog.
+	// The rest of the period stays in the answer for the cards.
+	named := func(templateID int64) []int64 {
+		w := doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=%d", period.ID, templateID), nil)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		ids := []int64{}
+		for _, deviation := range decodeTemplateData[rosterDeviationsResponse](t, w).Deviations {
+			ids = append(ids, deviation.TemplateID)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	assert.Equal(t, []int64{deviating, confirmed}, named(confirmed), "the named hand-kept series is reviewed")
+	assert.Equal(t, []int64{deviating}, named(automatic), "naming an automatic series reviews nothing more")
+	w = doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=x", period.ID), nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 
 	// The list carries the decision; undoing it brings the hint back.
 	list := decodeTemplateData[listTemplatesResponse](t,
@@ -204,6 +239,17 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	}
 	slices.Sort(ids)
 	assert.Equal(t, []int64{deviating, confirmed}, ids)
+}
+
+// listDeviationsAs reads the hints as a caller with these permissions.
+func (s *rosterReviewSetup) listDeviationsAs(t *testing.T, periodID int64, granted ...string) []rosterDeviationResponse {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", periodID), nil)
+	req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	return decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
 }
 
 func (s *rosterReviewSetup) listDeviations(t *testing.T, periodID int64) []rosterDeviationResponse {
@@ -308,10 +354,15 @@ func TestTemplateOfferingConnectionCoversEveryFutureSegment(t *testing.T) {
 	assert.Equal(t, fixture.split.String(), *preview.Segments[0].ValidUntil)
 	assert.Nil(t, preview.Segments[1].ValidUntil)
 
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 	w = doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/offering-connection", fixture.segmentB), map[string]any{
 		"offering_ids": []int64{rosterReviewOfferingID}, "school_classes": []string{"2c"}, "effective_date": effective.String(),
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	// Open planners and supervision views learn about the rewritten rosters
+	// after the commit (#5017).
+	assert.Equal(t, []string{"template_offering_connection"}, announcer.sources)
 	result := decodeTemplateData[offeringConnectionResponse](t, w)
 	assert.Equal(t, []int64{fixture.segmentA, fixture.segmentB}, result.TemplateIDs)
 	assert.Equal(t, effective.String(), result.EffectiveDate)
@@ -360,6 +411,8 @@ func TestTemplateOfferingConnectionRefusals(t *testing.T) {
 	t.Parallel()
 	s := buildRosterReviewModule(t, &rosterMaintenanceSources{})
 	fixture := s.arrangeTwoSegmentSeries(t)
+	announcer := &recordingStaffingAnnouncer{}
+	s.res.Staffing = announcer
 	path := fmt.Sprintf("/templates/%d/offering-connection", fixture.segmentB)
 	for name, body := range map[string]map[string]any{
 		"past date":           {"offering_ids": []int64{rosterReviewOfferingID}, "effective_date": calendar.NewDate(2020, 1, 6).String()},
@@ -380,6 +433,21 @@ func TestTemplateOfferingConnectionRefusals(t *testing.T) {
 		})
 	}
 	assert.Empty(t, s.resyncs, "a refused connection writes nothing")
+	assert.Empty(t, announcer.sources, "a refused connection announces nothing")
+}
+
+// recordingStaffingAnnouncer records the staffing announcements a handler
+// queues; the test router's transaction runs them after its commit.
+type recordingStaffingAnnouncer struct {
+	mu      sync.Mutex
+	sources []string
+}
+
+func (a *recordingStaffingAnnouncer) AnnounceStaffingChanged(_ int64, source string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.sources = append(a.sources, source)
+	return nil
 }
 
 // TestTemplateRosterDeviationsQueryBudget keeps the deviation list batched:
@@ -412,20 +480,75 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 			created++
 		}
 	}
-	run := func() int {
+	// granted empty: a caller without the right to read children, who gets
+	// the counts only; "*:*": an administrator, who also gets the names.
+	run := func(granted ...string) int {
 		counter.Reset()
-		w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
+		req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
-		require.Len(t, decodeTemplateData[rosterDeviationsResponse](t, w).Deviations, created)
+		deviations := decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
+		require.Len(t, deviations, created)
+		named := 0
+		if len(granted) > 0 {
+			named = 1 // class[4] books nothing
+		}
+		for _, deviation := range deviations {
+			assert.Len(t, deviation.Unbooked, named)
+		}
 		return counter.Total()
 	}
 
 	addTemplates(3)
-	small := run()
+	small, smallNamed := run(), run("*:*")
 	addTemplates(5)
 	large := run()
+	unnamed := counter.Queries()
+	largeNamed := run("*:*")
 
-	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
+	t.Logf("query budget: 3 templates → %d (named %d) queries, 8 templates → %d (named %d) queries", small, smallNamed, large, largeNamed)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
-	testpkg.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", counter.Queries())
+	assert.Equal(t, smallNamed, largeNamed, "the names are read in one batch for every Regeltermin")
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", unnamed)
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations.named", counter.Queries())
+}
+
+// TestTemplateRosterDeviationsTiedCombinations (review of #5363): two
+// combinations explain the same children of a hand-kept Klasse
+// Regeltermin. The hint carries both and preselects neither.
+func TestTemplateRosterDeviationsTiedCombinations(t *testing.T) {
+	t.Parallel()
+	sources := &rosterMaintenanceSources{results: map[int64]timetableModule.TemplateRosterMaintenance{}}
+	s := buildRosterReviewModule(t, sources)
+	period := createTemplateTestPeriodRange(t, s.db, "Review-Period", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1c", 7)
+	first := rosterReviewOfferingID
+	offerings := []templateRosterMaintenanceOfferingResponse{
+		{ID: first, Name: "A"}, {ID: first + 1, Name: "B"}, {ID: first + 2, Name: "C"}, {ID: first + 3, Name: "D"},
+	}
+	pick := func(indexes ...int) []int64 {
+		ids := make([]int64, 0, len(indexes))
+		for _, index := range indexes {
+			ids = append(ids, class[index])
+		}
+		return ids
+	}
+	sources.bookings = append(rosterReviewBookings(first, "A", "1c", pick(0, 1, 2), 1, 3),
+		rosterReviewBookings(first+1, "B", "1c", pick(3, 4, 5), 1, 3)...)
+	sources.bookings = append(sources.bookings, rosterReviewBookings(first+2, "C", "1c", pick(0, 3, 4), 1, 3)...)
+	sources.bookings = append(sources.bookings, rosterReviewBookings(first+3, "D", "1c", pick(1, 2, 5), 1, 3)...)
+	template := s.createClassTemplate(t, "RDST 1c", "1c", period.ID, class)
+	sources.results[template] = timetableModule.TemplateRosterMaintenance{Mode: "manual", DynamicTargetsManual: true}
+
+	deviations := s.listDeviations(t, period.ID)
+
+	require.Len(t, deviations, 1)
+	got := deviations[0]
+	assert.True(t, got.Ambiguous)
+	assert.ElementsMatch(t, [][]templateRosterMaintenanceOfferingResponse{
+		{offerings[0], offerings[1]}, {offerings[2], offerings[3]},
+	}, got.Combinations)
+	assert.ElementsMatch(t, offerings, got.Candidates)
 }

@@ -137,6 +137,7 @@ Usage:
 			StatePath:          statePath,
 			ReadMailLink:       FetchLatestMailLink,
 			ProductScreenshots: productScreenshots,
+			SeedWeekProtocols:  true,
 		}
 
 		history, closeHistory, err := openPresenceHistory()

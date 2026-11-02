@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import * as parentApi from "~/lib/parent-api";
 import type { ChildCareSchedule, ChildFeatures } from "~/lib/parent-api";
 import { useChildCare } from "./child-care";

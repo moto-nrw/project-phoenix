@@ -147,3 +147,13 @@ func HashInvitationToken(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
 }
+
+// CatererAccountSecurity is one caterer account as the operator sees it for
+// the reset of its second factor (#4497).
+type CatererAccountSecurity struct {
+	CatererID  int64
+	AccountID  int64
+	Name       string
+	Email      string
+	MFAEnabled bool
+}

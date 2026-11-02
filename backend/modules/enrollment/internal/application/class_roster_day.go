@@ -306,3 +306,33 @@ func classDayStudents(students []*RosterStudent, weekday string) []enrollment.Cl
 	}
 	return out
 }
+
+// ClassReportChildren reads just the names and IDs of a class, including
+// children whose care has ended. Period reports apply dated participation
+// themselves; day plans, phases and guardian contacts are not needed here.
+func (s *Reports) ClassReportChildren(ctx context.Context, schoolClass string) ([]enrollment.ClassReportChild, error) {
+	if s.deps.Students == nil || s.deps.Persons == nil {
+		return nil, fmt.Errorf("class report: repos not configured")
+	}
+	students, err := s.deps.Students.ListClassRoster(ctx, strings.TrimSpace(schoolClass))
+	if err != nil {
+		return nil, fmt.Errorf("class report: children: %w", err)
+	}
+	students = studentsInClass(students, schoolClass)
+	if len(students) > maxReportRows {
+		return nil, enrollment.ErrReportExportTooLarge
+	}
+	persons, err := s.deps.Persons.PersonsByID(ctx, classRosterPersonIDs(students))
+	if err != nil {
+		return nil, fmt.Errorf("class report: names: %w", err)
+	}
+	children := make([]enrollment.ClassReportChild, 0, len(students))
+	for _, student := range students {
+		person := persons[student.PersonID]
+		if person == nil {
+			return nil, fmt.Errorf("class report: person missing for student %d", student.ID)
+		}
+		children = append(children, enrollment.ClassReportChild{StudentID: student.ID, FirstName: person.FirstName, LastName: person.LastName})
+	}
+	return children, nil
+}

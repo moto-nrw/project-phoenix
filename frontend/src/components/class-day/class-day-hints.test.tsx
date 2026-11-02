@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setTestClock } from "~/test/clock";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render as rtlRender,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ApiError } from "~/lib/api-error";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -18,32 +23,32 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
-vi.mock("~/lib/swr", async () => {
-  const React = await import("react");
-  return {
-    useSWRAuth: <T,>(key: string | null, fetcher: () => Promise<T>) => {
-      const [data, setData] = React.useState<T | undefined>(undefined);
-      const fetcherRef = React.useRef(fetcher);
-      fetcherRef.current = fetcher;
-      const load = React.useCallback(() => {
-        if (key === null) return Promise.resolve(undefined);
-        return fetcherRef.current().then((d) => {
-          setData(d);
-          return d;
-        });
-      }, [key]);
-      React.useEffect(() => {
-        void load();
-      }, [load]);
-      return {
-        data,
-        error: undefined,
-        isLoading: data === undefined && key !== null,
-        mutate: load,
-      };
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "teacher", scope: "school", tenantId: 1 },
+      expires: "2099-01-01",
     },
-  };
-});
+    status: "authenticated",
+  }),
+}));
+
+vi.unmock("swr");
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+import { SWRConfig } from "~/lib/swr/testing";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { ReactElement } from "react";
+
+function render(ui: ReactElement) {
+  const cache = new Map();
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    ),
+  });
+}
 
 vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
 

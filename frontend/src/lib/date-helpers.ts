@@ -124,6 +124,46 @@ export function formatWeekLabel(from: Date, to: Date): string {
   return `KW ${kw} · ${fromDay}.${fromMonth}.${fromYear}–${toDay}.${toMonth}.${year}`;
 }
 
+/**
+ * How many days a week grid shows for the week containing `dayISO`: 5 (Mo–Fr)
+ * or 7 (Mo–So). Saturday and Sunday appear only when the school runs the
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921) AND the
+ * week contains today's Saturday or Sunday (#5028). On a weekday every week
+ * stays Mo–Fr, so the demo looks like a normal school week; on a weekend only
+ * the current week opens up, which the demo weekend notice explains.
+ */
+export function careWeekDayCount(
+  dayISO: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): 5 | 7 {
+  if (!weekendOpen) return 5;
+  const todayWeekday = parseISODate(todayISO).getDay(); // 0 = So, 6 = Sa
+  if (todayWeekday !== 0 && todayWeekday !== 6) return 5;
+  return mondayOfWeekISO(dayISO) === mondayOfWeekISO(todayISO) ? 7 : 5;
+}
+
+function mondayOfWeekISO(iso: string): string {
+  const day = parseISODate(iso);
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return toISODate(day);
+}
+
+/**
+ * Whether `iso` is a Saturday or Sunday the school shows as a care day: only
+ * in the week of today's weekend, by the same rule as `careWeekDayCount`.
+ * Day navigation uses it so a selected day never falls outside its grid.
+ */
+export function isCareWeekendDay(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): boolean {
+  const weekday = parseISODate(iso).getDay();
+  if (weekday !== 0 && weekday !== 6) return false;
+  return careWeekDayCount(iso, weekendOpen, todayISO) === 7;
+}
+
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
 export function todayISO(): string {
   return toISODate(new Date());
@@ -131,8 +171,9 @@ export function todayISO(): string {
 
 /**
  * Today's calendar date in the school's timezone (Europe/Berlin) as
- * "YYYY-MM-DD". Use this — not todayISO() — whenever the value is compared
- * against a backend DATE the server derives from `timezone.TodayDate()`
+ * "YYYY-MM-DD". Use this for school-day defaults, validity and attendance,
+ * and whenever the value is compared against a backend DATE derived from
+ * `calendar.TodayDate()`
  * (always Berlin). A browser in another timezone can be a calendar day off
  * around midnight, which would otherwise send a week the backend rejects as
  * out of range. Built from Intl parts (not toISOString) so the date-safety
@@ -309,15 +350,16 @@ export function formatDate(
   const date = ISO_DATE_RE.test(dateString)
     ? parseISODate(dateString)
     : new Date(dateString);
+  const dateLocale = locale === "en" ? "en-GB" : locale;
   if (includeWeekday) {
-    return date.toLocaleDateString(locale, {
+    return date.toLocaleDateString(dateLocale, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
   }
-  return date.toLocaleDateString(locale, {
+  return date.toLocaleDateString(dateLocale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -434,43 +476,31 @@ export function formatDuration(minutes: number | null): string {
  * Get the start date for a given time range filter
  * @param timeRange The time range filter option
  * @param referenceDate Optional reference date (defaults to now)
- * @returns Start date at midnight for the filter range
+ * @returns Instant at Berlin midnight for the filter range
  */
 export function getStartDateForTimeRange(
   timeRange: string,
   referenceDate: Date = new Date(),
 ): Date {
-  const now = referenceDate;
-  let startDate: Date;
+  const startDate = parseISODate(berlinTodayISO(referenceDate));
 
   switch (timeRange) {
     case "today":
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       break;
     case "week": {
-      const dayOfWeek = now.getDay();
-      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - daysFromMonday,
-      );
+      const daysFromMonday = (startDate.getDay() + 6) % 7;
+      startDate.setDate(startDate.getDate() - daysFromMonday);
       break;
     }
     case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setDate(1);
       break;
     case "7days":
     default:
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 6,
-      );
+      startDate.setDate(startDate.getDate() - 6);
   }
 
-  startDate.setHours(0, 0, 0, 0);
-  return startDate;
+  return new Date(berlinDateTimeISO(startDate, "00:00"));
 }
 
 /**

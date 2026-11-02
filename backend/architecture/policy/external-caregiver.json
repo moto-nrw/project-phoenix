@@ -1,0 +1,46 @@
+{
+  "packages": [
+    {
+      "path": "workflows/externalcaregiver",
+      "owner": "external-caregiver",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "external-caregiver.public.people-directory.public",
+      "description": "External Caregiver creates the person of an external caregiver and reads it through the People Directory public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.school-membership.public",
+      "description": "External Caregiver records the staff member with its caregiver profile and external caregiver record through the School Membership public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.identity-access.public",
+      "description": "External Caregiver resolves the system role of the chosen access level and issues and revokes account invitations through the Identity & Access public contract (#4573, ADR 0091).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    }
+  ]
+}

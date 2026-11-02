@@ -1,0 +1,7 @@
+GET /parent/me/messages
+GET /parent/me/messages/children/{studentId}
+GET /parent/me/messages/children/{studentId}/threads
+GET /parent/me/messages/group-threads
+GET /parent/me/messages/group-threads/{groupThreadId}
+GET /parent/me/messages/unread-count
+POST /parent/me/messages/children/{studentId}

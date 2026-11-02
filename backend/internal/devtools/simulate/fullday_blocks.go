@@ -8,7 +8,7 @@ import (
 )
 
 // codeBlockRoomCapacityExceeded is the registered error code of a block
-// check-in into a full room (error-registry.json).
+// check-in into a full room (error-registry/).
 const codeBlockRoomCapacityExceeded = "presence.room_capacity_exceeded"
 
 // startedBlock is a planned block the run started.

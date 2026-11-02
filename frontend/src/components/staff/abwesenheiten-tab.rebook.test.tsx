@@ -34,7 +34,6 @@ vi.mock("~/lib/tenant-path", () => ({
 const stable = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   mutateMatching: vi.fn().mockResolvedValue(undefined),
-  swrMutate: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
@@ -43,10 +42,6 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   useApiErrorDisplay: () => ({ show: actionErrors.show }),
 }));
 const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
-vi.mock("swr", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useSWRConfig: () => ({ mutate: stable.swrMutate }),
-}));
 vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => stable.mutateMatching,
 }));

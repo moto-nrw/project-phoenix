@@ -128,6 +128,26 @@ type SessionClaims struct {
 	IssuedAt   int64
 }
 
+// AccessSession names the refresh-token family a verified access token rests
+// on (#5194). ActingAdminID is the admin of a staff-view preview token, whose
+// preview rests on the admin's family.
+type AccessSession struct {
+	AccountID     int64
+	ActingAdminID int64
+	Scope         string
+	FamilyID      string
+}
+
+// AccessSessions confirms on every authenticated request that the family an
+// access token names is still live, so logout and every revocation end the
+// token at once instead of at its expiry (#5194). It reads the database on
+// each call and caches nothing, so a revocation holds on every instance.
+// ErrInvalidToken means revoked, expired, foreign or without family; any
+// other error means the check could not run.
+type AccessSessions interface {
+	VerifyAccessSession(ctx context.Context, session AccessSession) error
+}
+
 // RefreshClaims is the content of a refresh token. A Träger session (scope
 // org) names its Träger in OrgID and no school.
 type RefreshClaims struct {

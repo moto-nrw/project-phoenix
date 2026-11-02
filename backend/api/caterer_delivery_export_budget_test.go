@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // checkCatererDeliveryExportQueryBudget pins the statements of the caterer's
@@ -38,7 +39,8 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.NoError(t, err)
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer})
+	family := testpkg.CreateTestSessionFamily(t, db, account.ID, testpkg.Tenant(t), tenant.ScopeCaterer)
+	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
 	addSchool := func(children int) {
@@ -65,7 +67,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		t.Helper()
 		counter.Reset()
 		response := checkpointRequest(api, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
-		return response.Code, counter.Queries()
+		return response.Code, withoutSessionCheck(t, counter.Queries())
 	}
 
 	addSchool(1)
@@ -82,7 +84,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		return strings.HasPrefix(strings.TrimSpace(sql), "insert") || strings.HasPrefix(strings.TrimSpace(sql), "update") || strings.HasPrefix(strings.TrimSpace(sql), "delete")
 	}), "the caterer's list writes nothing")
 	assert.Empty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "pg_advisory") }), "and takes no lock")
-	testpkg.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
 
 	status, refused := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(7)))
 	assert.Equal(t, http.StatusBadRequest, status)

@@ -22,13 +22,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "change to backend project: %v\n", err)
 		os.Exit(1)
 	}
-	if len(os.Args) > 1 && os.Args[1] == "passthrough-snapshot" {
-		if err := passthrough.WriteSnapshot(os.Stdout, project, "0090"); err != nil {
+	if len(os.Args) > 1 && os.Args[1] == "policy-export" {
+		if err := policyExport(os.Args[1:], project); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return
 	}
+	if handled, err := passthroughCommand(os.Args[1:], project); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	dependencies := architecture.CLIDependencies{
 		IssueClient: issueHTTPClient{inner: &http.Client{Timeout: 15 * time.Second}},
 		Getenv:      os.Getenv,

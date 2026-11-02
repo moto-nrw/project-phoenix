@@ -1,7 +1,9 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -20,8 +22,9 @@ import {
   familyReadLabel,
   fetchGroupThreads,
 } from "~/lib/parent-group-threads-api";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 const logger = createLogger({ component: "GroupMessagesPage" });
 
@@ -32,12 +35,11 @@ const logger = createLogger({ component: "GroupMessagesPage" });
 function GroupMessagesContent() {
   const router = useTenantRouter();
   const { tenant } = useTenant();
-  const tenantSlug = useTenantSlugSafe();
   const messagingEnabled = tenant?.messagingEnabled === true;
   const [composeOpen, setComposeOpen] = useState(false);
 
-  const { data, error, isLoading, mutate } = useSWR<GroupThreadSummary[]>(
-    `${tenantSlug ?? ""}:group-messages`,
+  const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadSummary[]>(
+    messageKeys.groupMessages(),
     fetchGroupThreads,
     {
       revalidateOnFocus: false,
@@ -95,7 +97,7 @@ function GroupMessagesContent() {
       empty={
         bodyReplaced && !loadFailed
           ? {
-              icon: <MotoConceptIcon concept="groups" size={48} />,
+              icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
               title: "Noch keine Gruppennachrichten",
               description: messagingEnabled
                 ? "Mit einer Gruppennachricht schreiben Sie allen Eltern einer Gruppe, Klasse oder AG. Eltern antworten nur Ihnen."
@@ -125,7 +127,7 @@ function GroupMessagesContent() {
                 onClick={() => router.push(`/messages/groups/${thread.id}`)}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <MotoConceptIcon concept="groups" size={20} />
+                  <MotoConceptIcon concept={groupsConcept} size={20} />
                   <h3 className="truncate text-base font-semibold text-gray-900">
                     {thread.title}
                   </h3>

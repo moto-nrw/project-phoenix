@@ -6,11 +6,12 @@
 import { useId } from "react";
 import { Bus } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Student } from "@/lib/api";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { RequiredMark } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { todayISO } from "~/lib/date-helpers";
 import {
@@ -32,6 +33,8 @@ import type {
   CompanionWeekday,
   StudentCompanion,
 } from "~/lib/student-companion-api";
+import { childrenConcept } from "~/lib/concepts/children";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 interface SelectOption {
   value: string;
@@ -73,8 +76,8 @@ export function PersonalInfoSection({
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.children.icon}
-          tone={MOTO_CONCEPTS.children.tone}
+          icon={childrenConcept.icon}
+          tone={childrenConcept.tone}
           size={18}
         />
         Persönliche Daten
@@ -179,25 +182,23 @@ function TextInput({
           htmlFor={inputId}
           className="block text-xs font-medium text-gray-700"
         >
-          {label} {required && <span className="text-moto-red">*</span>}
+          {label}
         </label>
+        {required && <RequiredMark />}
         {parentVisibleHint && (
           <ParentVisibleBadge compact hint={parentVisibleHint} />
         )}
       </div>
-      <input
+      <Input
         id={inputId}
         name={name}
         type="text"
+        controlSize="compact"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${inputId}-error` : undefined}
-        className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
-          error
-            ? "border-moto-red/30 bg-moto-red-soft"
-            : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
-        }`}
         placeholder={placeholder}
         maxLength={255}
       />
@@ -405,21 +406,23 @@ export function PrivacyConsentSection({
     <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.permissions.icon}
-          tone={MOTO_CONCEPTS.permissions.tone}
+          icon={permissionsConcept.icon}
+          tone={permissionsConcept.tone}
           size={18}
         />
         Datenschutz
       </h3>
       <div className="space-y-4">
-        <label className="group flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
+        <label
+          htmlFor="privacy-consent-accepted"
+          className="group flex cursor-pointer items-start gap-3"
+        >
+          <Checkbox
+            id="privacy-consent-accepted"
             checked={formData.privacy_consent_accepted ?? false}
             onChange={(e) =>
               onChange("privacy_consent_accepted", e.target.checked)
             }
-            className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
           />
           <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
             Einwilligung zur Datenverarbeitung erteilt
@@ -432,8 +435,9 @@ export function PrivacyConsentSection({
           >
             Aufbewahrungsdauer (Tage)
           </label>
-          <input
+          <Input
             id="data-retention-days"
+            controlSize="compact"
             name="data_retention_days"
             type="number"
             min="1"
@@ -452,11 +456,6 @@ export function PrivacyConsentSection({
                 onChange("data_retention_days", Number.isNaN(v) ? null : v);
               }
             }}
-            className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
-              retentionError
-                ? "border-moto-red/30 bg-moto-red-soft"
-                : "focus:border-moto-blue focus:ring-moto-blue border-gray-200 bg-white focus:ring-1"
-            }`}
             placeholder="30"
           />
           {retentionError && (
@@ -659,8 +658,9 @@ export function DepartureSection({
               ? "Oder mit welcher Person?"
               : "Mit welchem Kind?"}
           </label>
-          <input
+          <Input
             id={companionNoteId}
+            controlSize="compact"
             name="departure_companion_note"
             type="text"
             value={companionNote ?? ""}
@@ -671,11 +671,6 @@ export function DepartureSection({
             aria-describedby={
               companionNoteError ? `${companionNoteId}-error` : undefined
             }
-            className={`moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-1 ${
-              companionNoteError
-                ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
-                : "focus:border-moto-blue focus:ring-moto-blue"
-            }`}
           />
           {companionNoteError ? (
             <p

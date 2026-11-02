@@ -20,6 +20,9 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import GroupOverviewLoading from "./loading";
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 /**
  * Die Auswahlseite hinter dem Eintrag „Gruppen“ (#4351): alle Gruppen, die
@@ -109,7 +112,7 @@ function GroupOverviewContent() {
       empty={
         groups.length === 0
           ? {
-              icon: <MotoConceptIcon concept="groups" size={48} />,
+              icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
               title: "Keine Gruppe sichtbar",
               description:
                 "Ihre Leitung kann Sie einer Gruppe als Gruppenleitung zuordnen.",
@@ -169,12 +172,12 @@ function GroupTile({
       </div>
       <div className="space-y-1.5 text-sm text-gray-600">
         <p className="flex items-center gap-1.5">
-          <MotoConceptIcon concept="rooms" size={16} tone="neutral" />
+          <MotoConceptIcon concept={roomsConcept} size={16} tone="neutral" />
           <span className="truncate">{group.room_name ?? "Kein Raum"}</span>
         </p>
         {leaders.length > 0 && (
           <p className="flex items-center gap-1.5">
-            <MotoConceptIcon concept="staff" size={16} tone="neutral" />
+            <MotoConceptIcon concept={staffConcept} size={16} tone="neutral" />
             <span className="truncate">
               Gruppenleitung: {leaders.join(", ")}
             </span>

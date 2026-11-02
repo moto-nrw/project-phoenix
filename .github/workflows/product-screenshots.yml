@@ -1,4 +1,4 @@
-name: Produkt-Screenshots
+name: Product screenshots
 
 # Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
 # `vollbetrieb` seeden und den Tag simulieren, alle Shots aus frontend/scripts/product-screenshots/
@@ -38,6 +38,11 @@ on:
         description: "Release-Version, etwa 1.4.0 (leer: neuestes Release)"
         required: false
         type: string
+      capture_workers:
+        description: "Aufnahme-Parallelität (1 für seriellen Vergleich)"
+        type: choice
+        options: ["4", "2", "1"]
+        default: "4"
   workflow_call:
     inputs:
       version:
@@ -64,7 +69,7 @@ env:
 
 jobs:
   capture:
-    name: Fotografieren und rahmen
+    name: Capture and frame
     # Ältere Releases mit Tags wie pr-1768-… sind QA-Ablagen, keine Versionen.
     if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     # Standard-Runner sind für dieses öffentliche Repository kostenlos; auf die
@@ -133,6 +138,8 @@ jobs:
       # Cloudflare's documented always-passing Turnstile test keys.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      # The development key ring of .env.example for the holiday health data (#4722).
+      HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000
@@ -148,7 +155,7 @@ jobs:
       # The schedulers would mutate seeded rows before the capture.
       CLEANUP_SCHEDULER_ENABLED: "false"
       SESSION_END_SCHEDULER_ENABLED: "false"
-      # --- Frontend: `next dev`, wie lokal (scripts/dev-native.sh) ---
+      # --- Frontend: Production-Build/Server mit Wegwerf-Entwicklungsdaten ---
       API_URL: http://localhost:8080
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_TENANT_DOMAIN: localhost
@@ -341,12 +348,26 @@ jobs:
             --clock-command "${RUNNER_TEMP}/set-clock"
           echo "Uhr der VM nach der Simulation: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
+      # Erst nach der Simulation: Deren Uhrsprünge dürfen keinen laufenden
+      # Build treffen. Der Production-Server kompiliert beim Fotografieren
+      # keine Seiten oder API-Routen mehr nach; das Datenprofil bleibt dev.
+      - name: Build frontend for capture
+        working-directory: frontend
+        env:
+          NODE_ENV: production
+        run: |
+          build_started=$(node -p 'process.hrtime.bigint().toString()')
+          pnpm run build
+          build_finished=$(node -p 'process.hrtime.bigint().toString()')
+          echo "Frontend production build completed in $(( (build_finished - build_started) / 1000000 )) ms"
+
       - name: Start frontend
         working-directory: frontend
         env:
           PORT: "3000"
+          NODE_ENV: production
         run: |
-          pnpm run dev > "${RUNNER_TEMP}/frontend.log" 2>&1 &
+          pnpm run start > "${RUNNER_TEMP}/frontend.log" 2>&1 &
           echo $! > "${RUNNER_TEMP}/frontend.pid"
           for _ in $(seq 1 180); do
             if curl -fsS -o /dev/null http://localhost:3000/help; then
@@ -363,7 +384,8 @@ jobs:
         env:
           SHOT_OUT: ${{ runner.temp }}/product-screenshots
           SHOT_VERSION: ${{ steps.version.outputs.version }}
-        run: pnpm run generate:screenshots
+          CAPTURE_WORKERS: ${{ inputs.capture_workers || '4' }}
+        run: pnpm run generate:screenshots --workers="$CAPTURE_WORKERS"
 
       # Vor jedem Upload: Artefakt-Dienst und TLS erwarten die echte Zeit.
       - name: Restore the runner clock
@@ -407,7 +429,7 @@ jobs:
           kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
 
   release-asset:
-    name: Ans GitHub-Release hängen
+    name: Attach to GitHub release
     needs: capture
     # Nur main und Tags vX.Y.Z, wie zuvor die Drive-Environment.
     if: >-

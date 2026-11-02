@@ -40,7 +40,7 @@ func TestStaffParentMessageNotifierAddressesResponsibleStaff(t *testing.T) {
 		{AccountID: absenceAdmin, StudentIDs: []int64{absenceStudentA}},
 	}}
 	claims := &stubParentMessageThreadClaims{claimed: true}
-	producer := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, nil, nil)
+	producer := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, nil, nil, nil)
 
 	require.NoError(t, producer.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
 		TenantID:       absenceTenant,
@@ -78,7 +78,7 @@ func TestStaffParentMessageNotifierSuppressesUnclaimedThread(t *testing.T) {
 		{AccountID: absenceAccountA, StudentIDs: []int64{absenceStudentA}},
 	}}
 	claims := &stubParentMessageThreadClaims{claimed: false}
-	producer := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, nil, nil)
+	producer := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, nil, nil, nil)
 
 	require.NoError(t, producer.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
 		TenantID:  absenceTenant,
@@ -89,4 +89,43 @@ func TestStaffParentMessageNotifierSuppressesUnclaimedThread(t *testing.T) {
 
 	assert.Empty(t, notifier.events)
 	assert.Equal(t, int64(901), claims.threadID)
+}
+
+type stubLeadershipAccounts []int64
+
+func (s stubLeadershipAccounts) LeadershipAccountIDs(context.Context) ([]int64, error) { return s, nil }
+
+// TestStaffParentMessageNotifierAddressesOnlyLeadership pins the push of a
+// leadership conversation (#5200): the resolver is asked for exactly the
+// leadership accounts, without the group supervisors.
+func TestStaffParentMessageNotifierAddressesOnlyLeadership(t *testing.T) {
+	t.Parallel()
+
+	const leader = int64(9201)
+	notifier := &captureNotifier{}
+	recipients := &stubStaffRecipients{scopes: []notifications.StaffRecipientScope{{AccountID: leader, StudentIDs: []int64{absenceStudentA}}}}
+	claims := &stubParentMessageThreadClaims{claimed: true}
+	producer := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, stubLeadershipAccounts{leader}, nil, nil)
+
+	require.NoError(t, producer.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
+		TenantID: absenceTenant, ThreadID: 901, MessageID: 902, StudentID: absenceStudentA,
+		ActorAccountID: absenceActorAcct, Leadership: true,
+	}))
+	assert.Equal(t, notifications.StaffRecipientRequest{
+		StudentIDs:         []int64{absenceStudentA},
+		NotificationType:   notifications.TypeStaffParentMessage,
+		ExcludedAccountIDs: []int64{absenceActorAcct},
+		OnlyAccounts:       true,
+		AccountIDs:         []int64{leader},
+	}, recipients.request)
+	require.Len(t, notifier.events, 1)
+	assert.Equal(t, []int64{leader}, notifier.events[0].Audience.StaffAccountIDs)
+
+	// Without a leadership directory nobody is told, never the team.
+	unbound := notifications.NewStaffParentMessageNotifier(notifier, recipients, claims, nil, nil, nil)
+	require.NoError(t, unbound.NotifyStaffParentMessage(context.Background(), notifications.StaffParentMessageReport{
+		TenantID: absenceTenant, ThreadID: 903, MessageID: 904, StudentID: absenceStudentA, Leadership: true,
+	}))
+	assert.True(t, recipients.request.OnlyAccounts)
+	assert.Empty(t, recipients.request.AccountIDs)
 }

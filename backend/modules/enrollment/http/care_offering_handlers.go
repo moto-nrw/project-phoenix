@@ -68,6 +68,10 @@ var careOfferingWriteErrorRenderer = common.RulesRenderer(
 				return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingPickupTimesRequired)
 			},
 		},
+		// A Regeltermin sourcing the offering would lose its valid source
+		// (#5313): its code names the problem, its details the offering and
+		// the Regeltermin. Before ErrCareOfferingInvalid, which it also is.
+		{Target: capability.ErrCareOfferingSourceConflict, Render: common.ErrorBusinessRejection},
 		{Target: capability.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
 		{
 			Target: capability.ErrCareOfferingNotFound,

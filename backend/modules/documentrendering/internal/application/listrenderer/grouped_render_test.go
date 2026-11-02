@@ -35,10 +35,12 @@ func TestClassGroupTitle(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"1a":         "Klasse 1a",
-		" 2b ":       "Klasse 2b",
-		"Klasse 1a":  "Klasse 1a",
-		"klasse 10a": "klasse 10a",
+		"1a":        "Klasse 1a",
+		" 2b ":      "Klasse 2b",
+		"Klasse 1a": "Klasse 1a",
+		// #5101: one label rule for the whole product (collation.SchoolClassLabel)
+		// writes the stored prefix as "Klasse".
+		"klasse 10a": "Klasse 10a",
 		"1. Klasse":  "1. Klasse",
 		"":           "Ohne Klasse",
 	}

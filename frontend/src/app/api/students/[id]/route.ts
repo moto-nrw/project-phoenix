@@ -25,15 +25,6 @@ import {
   fetchPrivacyConsent,
   updatePrivacyConsent,
 } from "~/lib/student-privacy-helpers";
-import { hasPermission } from "~/lib/auth-utils";
-import { auth } from "~/server/auth";
-
-/**
- * The permission GET /api/students/{id}/privacy-consent demands. The backend
- * reads it from the same JWT claims the session carries, and stays the judge.
- */
-const PRIVACY_CONSENT_READ_PERMISSION = "users:read";
-
 /**
  * Detail key the student PUT sets when it failed AFTER the consent write of the
  * same request had already committed. The two writes are separate backend
@@ -128,35 +119,14 @@ export const GET = createGetHandler(
       throw new Error("Student ID is required");
     }
 
-    // Cancels the consent read once the student read has failed.
-    const consentAbort = new AbortController();
-
     try {
-      // Student and consent are independent reads, so both start at once
-      // (#4995). The consent read only starts for a session holding the
-      // permission its backend route demands: without it the backend answers
-      // 403, the helper turns that into the defaults, and the request would
-      // only spend the caller's read budget. Missing or forbidden consent still
-      // resolves to the defaults in the helper.
-      const session = await auth();
-      const consentRequest = hasPermission(
-        session,
-        PRIVACY_CONSENT_READ_PERMISSION,
-      )
-        ? fetchPrivacyConsent(
-            id,
-            apiGet,
-            token,
-            AbortSignal.any([request.signal, consentAbort.signal]),
-          )
-        : Promise.resolve(DEFAULT_PRIVACY_CONSENT);
-      // Read below once the student is in. A failed student read answers
-      // without waiting for it, so its rejection must not surface as unhandled.
-      consentRequest.catch(() => undefined);
-
-      const response = await apiGet<unknown>(`/api/students/${id}`, token, {
-        signal: request.signal,
-      });
+      // Aggregate at the tenant-scoped backend projection: one read-budget
+      // unit, including failed child lookups, and no BFF consent waterfall.
+      const response = await apiGet<unknown>(
+        `/api/students/${id}?include_privacy_consent=true`,
+        token,
+        { signal: request.signal },
+      );
 
       // Type guard to check response structure
       if (!response || typeof response !== "object" || !("data" in response)) {
@@ -185,6 +155,7 @@ export const GET = createGetHandler(
           email?: string;
           role: string;
         }>;
+        privacy_consent?: { accepted: boolean; data_retention_days: number };
         [key: string]: unknown;
       }
 
@@ -228,7 +199,13 @@ export const GET = createGetHandler(
         studentData as unknown as BackendStudent,
       );
 
-      const consentData = await consentRequest;
+      const consentData = studentData.privacy_consent
+        ? {
+            privacy_consent_accepted: studentData.privacy_consent.accepted,
+            data_retention_days:
+              studentData.privacy_consent.data_retention_days,
+          }
+        : DEFAULT_PRIVACY_CONSENT;
 
       return {
         ...mappedStudent,
@@ -242,8 +219,6 @@ export const GET = createGetHandler(
         feedback_enabled: feedbackEnabled,
       };
     } catch (error) {
-      // No-op once the consent read has settled.
-      consentAbort.abort();
       logger.error("student fetch failed", {
         student_id: id,
         error: error instanceof Error ? error.message : String(error),

@@ -6,6 +6,9 @@ import "context"
 type Settings interface {
 	ResolveBool(context.Context, string) (bool, error)
 	ParentMessageStaffNameVisible(context.Context) (bool, error)
+	// ParentMessageLeadershipEnabled resolves whether parents may start a
+	// leadership conversation (#5200).
+	ParentMessageLeadershipEnabled(context.Context) (bool, error)
 }
 
 // EventSettings resolves detached event gates without carrying setting keys.

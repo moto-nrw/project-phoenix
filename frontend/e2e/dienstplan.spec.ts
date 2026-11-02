@@ -35,7 +35,7 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 //
 // Login und Tenant-Herkunft: e2e/tenant-session.ts.
 //
-// Der lokale Stack bedient die Tenant-App nur unter {slug}.localhost:3000 (bare
+// Der lokale Stack bedient die Tenant-App nur unter {slug}.localhost:<PORT> (bare
 // localhost ist die Marketing-Seite); die geschützten Routen rendern ohne
 // Session eine leere Hülle statt auf eine Login-Maske umzuleiten. Die
 // Login-Maske liegt auf der Tenant-Wurzel `/`. SSE hält das Netzwerk dauerhaft
@@ -590,88 +590,95 @@ test.describe("Dienstplan UI-Flow", () => {
   });
 
   // ── Flow 6: Krank-Flow (Einstieg Vertretung + "Fällt aus") ───────────────
-  test("Krank-Flow: 'Für heute abwesend melden' navigiert nach /vertretung; 'Krank melden' storniert die Schicht", async ({
-    page,
-  }) => {
-    if (!access) return;
-    // Beide Teilflüsse hängen am echten Heute: 6a navigiert nach
-    // /vertretung?d=heute, 6b storniert die heutige Schicht per Krankmeldung
-    // und erwartet den "Fällt aus"-Block im Wochenraster. Das Raster rendert
-    // nur Mo-Fr — am Wochenende hat die heutige Schicht keine Spalte, der
-    // Block kann nie erscheinen. Deshalb Skip statt Datums-Verbiegung.
-    const todayWeekday = parseISODate(TODAY).getDay();
-    test.skip(
-      todayWeekday === 0 || todayWeekday === 6,
-      "Krank-Flow braucht ein Heute innerhalb Mo-Fr (Wochenraster ohne Sa/So)",
-    );
-    // Flow 6a wechselt auf /vertretung — der erste Kompiliervorgang dieser Route
-    // im Next-Dev-Server kann kalt spürbar dauern, daher großzügiges Budget.
-    test.setTimeout(180000);
-    // Hohes Viewport: das Personen-Menü (drei Einträge) klappt nach unten auf;
-    // bei einer weit unten liegenden Person läge der zweite Eintrag ("Für heute
-    // abwesend melden") sonst unter dem Fold und wäre nicht anklickbar.
-    await page.setViewportSize({ width: 1280, height: 1200 });
-    const staff = await fetchNonAdminStaff(page.request);
-    // Schicht heute (die Krankmeldung storniert reguläre Schichten im Zeitraum).
-    const from = mondayOf(TODAY);
-    const to = addDaysISO(from, 4);
-    const [person] = await findStaffWithEmptyRange(
-      page.request,
-      staff,
-      from,
-      to,
-      1,
-      { requireNoAbsence: true },
-    );
-    test.skip(
-      person === undefined,
-      "Keine Testperson ohne Schicht oder Abwesenheit in dieser Woche verfügbar",
-    );
-    if (!person) return;
+  test.describe("Berliner Schultag im UTC-Browser", () => {
+    test.use({ timezoneId: "UTC" });
 
-    try {
-      await createShift(page.request, {
-        staffId: person.id,
-        date: TODAY,
-        start: "12:00",
-        end: "16:00",
-      });
-      await openWeek(page, TODAY);
-
-      // (b) Krank melden -> SickReportModal -> speichern -> "Fällt aus".
-      await openPersonMenu(page, person);
-      await page.getByRole("menuitem", { name: "Krank melden" }).click();
-      const sick = page.getByRole("dialog");
-      await expect(
-        sick.getByRole("heading", {
-          name: `Krank melden: ${person.first_name} ${person.last_name}`,
-        }),
-      ).toBeVisible();
-      await captureCreatedAbsence(page, person.id, () =>
-        sick.getByRole("button", { name: "Krank melden" }).click(),
+    test("Krank-Flow: 'Für heute abwesend melden' navigiert nach /vertretung; 'Krank melden' storniert die Schicht", async ({
+      page,
+    }) => {
+      // 23:30 UTC on the previous date is 00:30 CET / 01:30 CEST today.
+      // Freeze Date only, not UI/network timers. Backend still sees real TODAY.
+      await page.clock.setFixedTime(new Date(`${TODAY}T00:30:00+01:00`));
+      if (!access) return;
+      // Beide Teilflüsse hängen am echten Heute: 6a navigiert nach
+      // /vertretung?d=heute, 6b storniert die heutige Schicht per Krankmeldung
+      // und erwartet den "Fällt aus"-Block im Wochenraster. Das Raster rendert
+      // nur Mo-Fr — am Wochenende hat die heutige Schicht keine Spalte, der
+      // Block kann nie erscheinen. Deshalb Skip statt Datums-Verbiegung.
+      const todayWeekday = parseISODate(TODAY).getDay();
+      test.skip(
+        todayWeekday === 0 || todayWeekday === 6,
+        "Krank-Flow braucht ein Heute innerhalb Mo-Fr (Wochenraster ohne Sa/So)",
       );
-      await expect(sick.getByText(/als krank gemeldet/)).toBeVisible(DATA);
-      await sick
-        .getByRole("button", { name: "Schließen", exact: true })
-        .click();
-      await expect(sick).toBeHidden(DATA);
-
-      // Die Schicht der Person rendert als "Fällt aus".
-      await expect(personRow(page, person).getByText(/Fällt aus/)).toBeVisible(
-        DATA,
+      // Flow 6a wechselt auf /vertretung — der erste Kompiliervorgang dieser Route
+      // im Next-Dev-Server kann kalt spürbar dauern, daher großzügiges Budget.
+      test.setTimeout(180000);
+      // Hohes Viewport: das Personen-Menü (drei Einträge) klappt nach unten auf;
+      // bei einer weit unten liegenden Person läge der zweite Eintrag ("Für heute
+      // abwesend melden") sonst unter dem Fold und wäre nicht anklickbar.
+      await page.setViewportSize({ width: 1280, height: 1200 });
+      const staff = await fetchNonAdminStaff(page.request);
+      // Schicht heute (die Krankmeldung storniert reguläre Schichten im Zeitraum).
+      const from = mondayOf(TODAY);
+      const to = addDaysISO(from, 4);
+      const [person] = await findStaffWithEmptyRange(
+        page.request,
+        staff,
+        from,
+        to,
+        1,
+        { requireNoAbsence: true },
       );
+      test.skip(
+        person === undefined,
+        "Keine Testperson ohne Schicht oder Abwesenheit in dieser Woche verfügbar",
+      );
+      if (!person) return;
 
-      // (a) "Für heute abwesend melden" -> /vertretung?d=heute.
-      await openPersonMenu(page, person);
-      await page
-        .getByRole("menuitem", { name: "Für heute abwesend melden" })
-        .click();
-      await page.waitForURL((url) => url.pathname.endsWith("/vertretung"), {
-        timeout: 60000,
-      });
-      expect(new URL(page.url()).searchParams.get("d")).toBe(TODAY);
-    } finally {
-      await cleanupOwnedRecords(page.request);
-    }
+      try {
+        await createShift(page.request, {
+          staffId: person.id,
+          date: TODAY,
+          start: "12:00",
+          end: "16:00",
+        });
+        await openWeek(page, TODAY);
+
+        // (b) Krank melden -> SickReportModal -> speichern -> "Fällt aus".
+        await openPersonMenu(page, person);
+        await page.getByRole("menuitem", { name: "Krank melden" }).click();
+        const sick = page.getByRole("dialog");
+        await expect(
+          sick.getByRole("heading", {
+            name: `Krank melden: ${person.first_name} ${person.last_name}`,
+          }),
+        ).toBeVisible();
+        await captureCreatedAbsence(page, person.id, () =>
+          sick.getByRole("button", { name: "Krank melden" }).click(),
+        );
+        await expect(sick.getByText(/als krank gemeldet/)).toBeVisible(DATA);
+        await sick
+          .getByRole("button", { name: "Schließen", exact: true })
+          .click();
+        await expect(sick).toBeHidden(DATA);
+
+        // Die Schicht der Person rendert als "Fällt aus".
+        await expect(
+          personRow(page, person).getByText(/Fällt aus/),
+        ).toBeVisible(DATA);
+
+        // (a) "Für heute abwesend melden" -> /vertretung?d=heute.
+        await openPersonMenu(page, person);
+        await page
+          .getByRole("menuitem", { name: "Für heute abwesend melden" })
+          .click();
+        await page.waitForURL((url) => url.pathname.endsWith("/vertretung"), {
+          timeout: 60000,
+        });
+        expect(new URL(page.url()).searchParams.get("d")).toBe(TODAY);
+      } finally {
+        await cleanupOwnedRecords(page.request);
+      }
+    });
   });
 });

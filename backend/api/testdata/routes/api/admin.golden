@@ -1,0 +1,11 @@
+DELETE /api/admin/grade-transitions/{id}/
+GET /api/admin/grade-transitions/
+GET /api/admin/grade-transitions/classes
+GET /api/admin/grade-transitions/suggest
+GET /api/admin/grade-transitions/{id}/
+GET /api/admin/grade-transitions/{id}/history
+GET /api/admin/grade-transitions/{id}/preview
+POST /api/admin/grade-transitions/
+POST /api/admin/grade-transitions/{id}/apply
+POST /api/admin/grade-transitions/{id}/revert
+PUT /api/admin/grade-transitions/{id}/

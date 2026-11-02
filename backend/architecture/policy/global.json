@@ -1,0 +1,1446 @@
+{
+  "rules": [
+    {
+      "id": "shared-kernel.contract",
+      "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "domain.adapter-test.domain.contract",
+      "description": "Adapter tests may fake domain contracts (domain sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "workflow.adapter-test.domain.contract",
+      "description": "Adapter tests may fake domain contracts (workflow sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "domain.adapter-test.domain.public",
+      "description": "Adapter tests may use public domain capabilities (domain sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "workflow.adapter-test.domain.public",
+      "description": "Adapter tests may use public domain capabilities (workflow sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "adapter-test.http-subject",
+      "description": "Adapter tests may import their own HTTP package under test.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "same_owner": true,
+      "target_role": "http"
+    },
+    {
+      "id": "adapter-test.platform.contract",
+      "description": "Adapter tests may fake platform contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "adapter-test.platform.public",
+      "description": "Adapter tests may use public platform capabilities.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "projection.adapter-test.projection.public",
+      "description": "Adapter tests may use public projections (projection sources; a platform reaches no projection owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "adapter-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "adapter-test.test-support",
+      "description": "Adapter tests may import neutral test support.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "domain.adapter-test.workflow.public",
+      "description": "Adapter tests may use public workflows (domain sources; a platform reaches no workflow owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "adapter-test",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "workflow.adapter-test.workflow.public",
+      "description": "Adapter tests may use public workflows (workflow sources; a platform reaches no workflow owner, ADR 0057).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "adapter-test",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "domain.application-domain",
+      "description": "domain application code may use its own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "domain.application-port",
+      "description": "domain application code may use its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "domain.postgres-domain",
+      "description": "domain Postgres adapters may use their own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "postgres",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "domain.application-public",
+      "description": "domain application code may use its own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "domain.port-public",
+      "description": "domain ports may use their own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "port",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "domain.postgres-public",
+      "description": "domain postgres adapters may use their own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "postgres",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "e2e-test.test-support",
+      "description": "E2E tests may import neutral test support.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "composition.external-test.domain.contract",
+      "description": "external-test code may import domain contract packages (composition sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "composition",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "domain.external-test.domain.contract",
+      "description": "external-test code may import domain contract packages (domain sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "projection.external-test.domain.contract",
+      "description": "external-test code may import domain contract packages (projection sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "workflow.external-test.domain.contract",
+      "description": "external-test code may import domain contract packages (workflow sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "composition.external-test.domain.public",
+      "description": "external-test code may import domain public packages (composition sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "composition",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "domain.external-test.domain.public",
+      "description": "external-test code may import domain public packages (domain sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "projection.external-test.domain.public",
+      "description": "external-test code may import domain public packages (projection sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "workflow.external-test.domain.public",
+      "description": "external-test code may import domain public packages (workflow sources; a platform reaches no domain owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.platform.contract",
+      "description": "external-test code may import platform contract packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "external-test.platform.public",
+      "description": "external-test code may import platform public packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "projection.external-test.projection.public",
+      "description": "external-test code may import projection public packages (projection sources; a platform reaches no projection owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.test-support",
+      "description": "external-test code may import neutral test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "workflow.external-test.workflow.public",
+      "description": "external-test code may import workflow public packages (workflow sources; a platform reaches no workflow owner, ADR 0057).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "external.cli-config.cli",
+      "description": "cli packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "cli",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.cli-config.compose",
+      "description": "compose packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "compose",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.cli-config.test-support",
+      "description": "test-support packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.concurrency",
+      "description": "All packages may use classified concurrency dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "concurrency"
+    },
+    {
+      "id": "external.http-router.adapter",
+      "description": "adapter packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.http-router.http",
+      "description": "http packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "http",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.http-router.test-support",
+      "description": "test-support packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.observability",
+      "description": "All packages may use classified observability dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "observability"
+    },
+    {
+      "id": "external.orm-sql.migration",
+      "description": "migration packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "migration",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.postgres",
+      "description": "postgres packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "postgres",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.test-support",
+      "description": "test-support packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.adapter-test",
+      "description": "Adapter tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.adapter-test",
+      "description": "Adapter tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.e2e-test",
+      "description": "End-to-end tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.e2e-test",
+      "description": "End-to-end tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.module-internal-test",
+      "description": "Module-internal tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.module-internal-test",
+      "description": "Module-internal tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.module-behavior-test",
+      "description": "Module behaviour tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.module-behavior-test",
+      "description": "Module behaviour tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.orm-sql.workflow-integration-test",
+      "description": "Workflow integration tests of any owner may use ORM and SQL dependencies (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.http-router.workflow-integration-test",
+      "description": "Workflow integration tests of any owner may use the HTTP router and request helpers (#3215).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.test.test-support",
+      "description": "test-support packages may use the test-framework dependencies they wrap in production scope; external.test covers the test scopes (#3215).",
+      "scopes": [
+        "production"
+      ],
+      "source_role": "test-support",
+      "target_class": "test"
+    },
+    {
+      "id": "external.process-exec.cli",
+      "description": "cli packages may execute developer tooling.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "cli",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "external.process-exec.test-support",
+      "description": "test-support packages may execute developer tooling.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "external.standard",
+      "description": "All packages may use classified standard dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "standard"
+    },
+    {
+      "id": "external.test",
+      "description": "Tests may use classified test dependencies without relaxing production.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "test"
+    },
+    {
+      "id": "external.utility",
+      "description": "All packages may use classified utility dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "utility"
+    },
+    {
+      "id": "internal-test.same-owner.application",
+      "description": "Internal tests may import their owner's application packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "internal-test.same-owner.domain",
+      "description": "Internal tests may import their owner's domain packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "domain"
+    },
+    {
+      "id": "internal-test.same-owner.postgres",
+      "description": "Internal tests may import their owner's postgres packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "postgres"
+    },
+    {
+      "id": "internal-test.test-support",
+      "description": "internal-test code may import neutral test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "module-behavior-test.test-support",
+      "description": "Module behavior tests may import neutral test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "platform.application-domain",
+      "description": "platform application code may use its own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "application",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "platform.application-port",
+      "description": "platform application code may use its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "application",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "platform.postgres-domain",
+      "description": "platform Postgres adapters may use their own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "postgres",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "platform.public-application",
+      "description": "Public platform facades may call their own application layer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "public",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "workflow-decision-test.test-support",
+      "description": "Workflow decision tests may import neutral test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "workflow-decision-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "owner-compose.domain.adapter",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.application",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.compose",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own compose role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.contract",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own contract role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.domain",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own domain role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.port",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.postgres",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.public",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.adapter",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.application",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.contract",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own contract role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.port",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.domain",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.postgres",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.public",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.application",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.adapter",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.port",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.postgres",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.public",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.application",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.adapter",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.port",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.public",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.compose",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.compose",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.compose",
+      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.compose",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.tool.contract",
+      "description": "ADR 0053 point 7.1: the tests of a tool owner import its own contract role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "tool",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.port",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.port",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.port",
+      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.port",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.test-support",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.test-support",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.e2e-test.contract",
+      "description": "ADR 0053 point 7.1: the end-to-end suites of a domain owner import its own contract role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "e2e-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-behavior-test.contract",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a domain owner import its own contract role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-behavior-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-internal-test.contract",
+      "description": "ADR 0053 point 7.1: the internal module tests of a domain owner import its own contract role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-internal-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.e2e-test.public",
+      "description": "ADR 0053 point 7.1: the end-to-end suites of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "e2e-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-behavior-test.public",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a domain owner import its own public role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-behavior-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-internal-test.public",
+      "description": "ADR 0053 point 7.1: the internal module tests of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-internal-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-behavior-test.contract",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a platform owner import its own contract role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-behavior-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-internal-test.contract",
+      "description": "ADR 0053 point 7.1: the internal module tests of a platform owner import its own contract role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-internal-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-behavior-test.public",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a platform owner import its own public role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-behavior-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a platform owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.module-internal-test.public",
+      "description": "ADR 0053 point 7.1: the internal module tests of a projection owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "module-internal-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a projection owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.workflow-decision-test.public",
+      "description": "ADR 0053 point 7.1: the decision suites of a workflow owner import its own public role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-decision-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a workflow owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.adapter",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.compose",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own compose role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.port",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.public",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.platform.adapter",
+      "description": "ADR 0053 point 7.1: the test support of a platform owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "test-support",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.platform.public",
+      "description": "ADR 0053 point 7.1: the test support of a platform owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "test-support",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "root-test.domain.compose",
+      "description": "ADR 0053 point 7.2: the tests of a domain owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.platform.compose",
+      "description": "ADR 0053 point 7.2: the tests of a platform owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.projection.compose",
+      "description": "ADR 0053 point 7.2: the tests of a projection owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.workflow.compose",
+      "description": "ADR 0053 point 7.2: the tests of a workflow owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.test-support.compose",
+      "description": "ADR 0053 point 7.2: the tests of the shared test support build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "test-support",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+  "file_missing": "Bitte wählen Sie eine Datei aus.",
+  "file_no_rows": "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
+  "file_row_invalid": "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",
+  "file_too_large": "Die Datei ist zu groß. Bitte laden Sie eine Datei bis 10 MB hoch.",
+  "file_type_invalid": "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+  "file_unreadable": "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
+  "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+  "mode_forbidden": "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
+  "not_test_traeger": "Das geht nur bei einem Test-Träger. Echte Träger bekommen keine Beispieldaten.",
+  "test_traeger_inactive": "Der Test-Träger ist deaktiviert. Bitte aktivieren Sie ihn zuerst."
+}

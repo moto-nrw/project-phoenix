@@ -1,15 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useParams,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "swr";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
+import { HolidayStudentHealthSection } from "~/components/students/holiday-student-health-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -42,7 +37,8 @@ import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollm
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate, useSWRSeedFrom } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   allowedDepartureModesFromDeparture,
@@ -90,6 +86,7 @@ import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { StudentCareTimesSection } from "~/components/students/care-times-section";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -107,9 +104,11 @@ import {
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import {
-  berlinTodayISO,
   formatDate as formatCalendarDate,
+  parseISODate,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import {
   fetchStudentCareWithdrawal,
@@ -215,6 +214,23 @@ const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "historie",
 ];
 
+function addDocumentsTab(tabs: StudentTabId[]): StudentTabId[] {
+  if (tabs.includes("dokumente")) {
+    return tabs;
+  }
+
+  const requestLogIndex = tabs.indexOf("aenderungsprotokoll");
+  if (requestLogIndex === -1) {
+    return [...tabs, "dokumente"];
+  }
+
+  return [
+    ...tabs.slice(0, requestLogIndex),
+    "dokumente",
+    ...tabs.slice(requestLogIndex),
+  ];
+}
+
 const DEFAULT_TAB: StudentTabId = "stammdaten";
 
 function resolveActiveTab(
@@ -264,13 +280,13 @@ function studentTabs(
     : base.filter((tab) => tab !== "betreuungsplan");
   // Dokumente (#777) mirrors the backend route gate exactly:
   // RequiresAnyPermission(users:update, student_documents:health,
-  // student_documents:legal). Gating on write access instead would disagree in
+  // student_documents:legal, student_accidents:read, student_accidents:manage). Gating on write access instead would disagree in
   // both directions — a group supervisor without users:update would see a tab
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
   const withDocuments = canViewDocuments
-    ? withCarePlan
+    ? addDocumentsTab(withCarePlan)
     : withCarePlan.filter((tab) => tab !== "dokumente");
   // Änderungsprotokoll (#2437) uses the gate of both its sources:
   // Both sources require users:update, or users:read plus users:absence. The
@@ -357,9 +373,9 @@ interface StatusDayRange {
 }
 
 function getStatusDayRange(): StatusDayRange {
-  const from = new Date();
+  const from = parseISODate(berlinTodayISO());
   from.setDate(from.getDate() - 14);
-  const to = new Date();
+  const to = parseISODate(berlinTodayISO());
   to.setDate(to.getDate() + 90);
   return {
     from: formatLocalDate(from),
@@ -409,11 +425,10 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
-  const { mutate } = useSWRConfig();
+  const tenantMutate = useTenantMutate();
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const navRouter = useRouter();
   const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
   const referrer = resolveStudentReferrer(searchParams.get("from"));
@@ -427,16 +442,14 @@ function StudentDetailPageContent() {
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
   const weekendFollowsFriday = useWeekendFollowsFriday();
+  const berlinToday = useBerlinToday();
 
-  // Switch tabs by updating the `?tab=` query param in place (preserves the
-  // `from` referrer). We echo the current `usePathname` back verbatim and only
-  // swap the query string, so no manual slug prefixing is needed: in subdomain
-  // mode `usePathname` is already slug-free (`/students/1`) and in path mode it
-  // already carries the slug (`/school-a/students/1`). This is the same
-  // browser-visible-path behaviour that `sidebar.tsx` relies on (it strips
-  // `/${tenantSlug}/` only when present) — verified against that precedent, so
-  // there is no double-slug risk in either mode. scroll:false keeps the
-  // viewport steady when switching sections.
+  // Tabs are already mounted; only their visibility and ?tab= change.
+  // Native history synchronizes Next's useSearchParams without a new RSC
+  // navigation. With prefetched data the page is usable before cold server
+  // routes finish compiling, so waiting for that navigation can strand a tour.
+  // Preserve the browser-visible tenant path and referrer, replace the history
+  // entry as before, and leave the scroll position untouched.
   const handleTabChange = useCallback(
     (next: string) => {
       const query = new URLSearchParams(searchParams.toString());
@@ -446,9 +459,13 @@ function StudentDetailPageContent() {
         query.set("tab", next);
       }
       const qs = query.toString();
-      navRouter.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      window.history.replaceState(
+        null,
+        "",
+        qs ? `${pathname}?${qs}` : pathname,
+      );
     },
-    [navRouter, pathname, searchParams],
+    [pathname, searchParams],
   );
 
   // Start at the top instead of inheriting the search list's scroll position
@@ -472,6 +489,18 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      loading
+        ? seedFrom(
+            studentKeys.previewSources,
+            studentKeys.detail(studentId),
+            (data: unknown) => studentKeys.preview(data, studentId),
+          )
+        : undefined,
+    [loading, seedFrom, studentId],
+  );
   // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
   // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
   // mit students:read (ADR 0091): Betreuungszeiten, Abholung, Ankunft und
@@ -485,6 +514,10 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "users:absence"));
   const hasFullAccess = childGrantsFullAccess && sessionReadsChildDetails;
+  // Fetch in parallel while child grants are unknown. This is not an access
+  // grant: the backend authorizes every request; display gates stay false.
+  const shouldFetchChildDetails =
+    sessionReadsChildDetails && (loading || childGrantsFullAccess);
   // Ein Feriengast der ausrichtenden OGS (#4666) zeigt nur Betreuung, Notfall
   // und Abholung aus der Ferienanmeldung, keine Reiter der Kindakte.
   const isHolidayGuest = student?.school_class === HOLIDAY_GUEST_SCHOOL_CLASS;
@@ -524,29 +557,34 @@ function StudentDetailPageContent() {
       .map((group) => ({ value: String(group.id), label: group.name }))
       .sort((a, b) => a.label.localeCompare(b.label, "de"));
   });
-  const refreshDataAndHistory = useCallback(() => {
+  const refreshDataAndHistory = useCallback(async () => {
     refreshData();
     // Best effort: the change history reloads with its own load error path
     // when it is opened; a failed background refresh only leaves it stale.
-    return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
+    await tenantMutate(studentKeys.changeHistory(studentId)).catch((err) => {
       logger.debug("change_history_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
     });
-  }, [mutate, refreshData, studentId]);
+  }, [tenantMutate, refreshData, studentId]);
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
   const canViewCarePlan =
     sessionStatus === "authenticated" &&
     hasPermission(session, "schedules:read");
-  // Same three permissions the backend route gate accepts (#777).
+  // Same permissions the backend route gate accepts (#777, #4771).
   const canViewDocuments =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
-      hasPermission(session, "student_documents:legal"));
+      hasPermission(session, "student_documents:legal") ||
+      hasPermission(session, "student_accidents:read") ||
+      hasPermission(session, "student_accidents:manage"));
+  const canRecordAccidents =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "student_accidents:manage");
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0091).
   const canReadParentData = sessionReadsChildDetails;
@@ -678,13 +716,17 @@ function StudentDetailPageContent() {
   // fetch-on-mount effect could not be woken that way and left the header
   // showing the previous pickup time until a manual reload.
   const { data: pickupData } = useSWRAuth(
-    hasFullAccess && studentId ? `pickup-data-${studentId}` : null,
+    shouldFetchChildDetails && studentId
+      ? studentKeys.pickupData(studentId)
+      : null,
     async () => fetchStudentPickupData(studentId),
     { revalidateOnFocus: false },
   );
 
   const { data: arrivalData } = useSWRAuth(
-    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    shouldFetchChildDetails && studentId
+      ? studentKeys.arrivalData(studentId)
+      : null,
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
@@ -715,7 +757,7 @@ function StudentDetailPageContent() {
     sessionStatus === "authenticated" &&
     hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
-    canReadStatusDays && studentId
+    (shouldFetchChildDetails || canReadStatusDays) && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
       : null,
     async () =>
@@ -724,7 +766,7 @@ function StudentDetailPageContent() {
   );
   const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
     useSWRAuth(
-      hasFullAccess && studentId
+      shouldFetchChildDetails && studentId
         ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
         : null,
       async () =>
@@ -762,20 +804,19 @@ function StudentDetailPageContent() {
       (s) =>
         s.status === "sick" &&
         !s.cleared_at &&
-        s.date === berlinTodayISO() &&
+        s.date === berlinToday &&
         s.note,
     );
     return row?.note ?? undefined;
-  }, [student?.sick, statusDays]);
+  }, [berlinToday, student?.sick, statusDays]);
   // Who entered today's status. A parent's Abmeldung looks the same as a
   // staff entry everywhere else, so the lift dialog names it (#3854).
   const todayStatusSource = useCallback(
     (status: StudentStatusKind) =>
       statusDays.find(
-        (s) =>
-          s.status === status && !s.cleared_at && s.date === berlinTodayISO(),
+        (s) => s.status === status && !s.cleared_at && s.date === berlinToday,
       )?.source,
-    [statusDays],
+    [berlinToday, statusDays],
   );
   const sickFromParents = todayStatusSource("sick") === "parent";
   const excusedFromParents = todayStatusSource("excused") === "parent";
@@ -797,7 +838,7 @@ function StudentDetailPageContent() {
     if (!hasFullAccess || !pickupData) return {};
 
     const dayData = getDayData(
-      new Date(),
+      parseISODate(berlinToday),
       pickupData.schedules,
       pickupData.exceptions,
       student?.sick ?? false,
@@ -806,6 +847,8 @@ function StudentDetailPageContent() {
       null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
+      [],
+      berlinToday,
     );
 
     if (dayData.effectiveTime) {
@@ -822,13 +865,14 @@ function StudentDetailPageContent() {
     student?.sick,
     student?.excused,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
 
     const dayData = getArrivalDayData(
-      new Date(),
+      parseISODate(berlinToday),
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
@@ -836,6 +880,7 @@ function StudentDetailPageContent() {
       student?.excused ?? false,
       null,
       weekendFollowsFriday,
+      berlinToday,
     );
 
     if (dayData.isAbsent) {
@@ -860,6 +905,7 @@ function StudentDetailPageContent() {
     student?.excused,
     student?.sick,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   // Clamp the URL tab to the set the current access level actually exposes, so a
@@ -937,7 +983,11 @@ function StudentDetailPageContent() {
   // isn't known until this fetch resolves.
   if (loading) {
     return (
-      <StudentDetailLoadingPage referrer={referrer} backLabel={backLabel} />
+      <StudentDetailLoadingPage
+        referrer={referrer}
+        backLabel={backLabel}
+        preview={preview}
+      />
     );
   }
 
@@ -1311,7 +1361,7 @@ function StudentDetailPageContent() {
       setStatusDayRange((current) => extendStatusDayRange(current, [date]));
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success(
@@ -1339,7 +1389,7 @@ function StudentDetailPageContent() {
       await deleteStudentPartialAbsence(studentId, partialAbsenceId);
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success("Die Teilentschuldigung ist entfernt.");
@@ -1731,6 +1781,12 @@ function StudentDetailPageContent() {
         />
       )}
       {!isHolidayGuest && hasFullAccess && (
+        <HolidayStudentHealthSection
+          studentId={studentId}
+          schoolHealthInfo={student?.health_info ?? null}
+        />
+      )}
+      {!isHolidayGuest && hasFullAccess && (
         <FullAccessView
           student={student}
           studentId={studentId}
@@ -1742,7 +1798,9 @@ function StudentDetailPageContent() {
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
           canViewCarePlan={canViewCarePlan}
+          canRecordAccidents={canRecordAccidents}
           canManageFamilyProtection={canViewEnrollments}
+          canViewCareTimes={canReadParentData}
           onTabChange={handleTabChange}
           statusDays={statusDays}
           onDeleteStatusDay={handleDeletePlannedStatus}
@@ -1766,6 +1824,7 @@ function StudentDetailPageContent() {
           activeTab={activeTab}
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
+          canRecordAccidents={canRecordAccidents}
           canReadChild={childGrantsFullAccess}
         />
       )}
@@ -1879,6 +1938,8 @@ interface LimitedAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  /** student_accidents:manage: enables „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   /**
    * Die Antwort zum Kind meldet Lesezugriff (CanReadStudent). Die Ansicht
    * ist trotzdem eingeschränkt, wenn der Sitzung users:read fehlt.
@@ -1895,6 +1956,7 @@ function LimitedAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canRecordAccidents,
   canReadChild,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
@@ -1918,6 +1980,14 @@ function LimitedAccessView({
   );
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
+  // Same lazy mount as the full view: document listing may trigger interrupted
+  // upload cleanup, so it waits until this permitted tab is actually opened.
+  const [documentsTabSeen, setDocumentsTabSeen] = useState(
+    activeTab === "dokumente",
+  );
+  useEffect(() => {
+    if (activeTab === "dokumente") setDocumentsTabSeen(true);
   }, [activeTab]);
   return (
     <>
@@ -1954,6 +2024,19 @@ function LimitedAccessView({
           <StudentEnrollmentsTab studentId={student.id} />
         </StudentTabPanel>
       ) : null}
+
+      <StudentTabPanel
+        value="dokumente"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
+      </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (
         <StudentTabPanel
@@ -2007,7 +2090,11 @@ interface FullAccessViewProps {
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   canViewCarePlan: boolean;
+  /** student_accidents:manage: „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   canManageFamilyProtection: boolean;
+  /** Soll und Ist (#4774) reads with users:read, as the backend route does. */
+  canViewCareTimes: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -2032,7 +2119,9 @@ function FullAccessView({
   tabs,
   canViewEnrollments,
   canViewCarePlan,
+  canRecordAccidents,
   canManageFamilyProtection,
+  canViewCareTimes,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -2219,6 +2308,12 @@ function FullAccessView({
           onVisibleDateRangeChange={onVisibleDateRangeChange}
           weeklyDepartureModes={student.allowed_departure_modes}
         />
+        {canViewCareTimes ? (
+          <StudentCareTimesSection
+            studentId={studentId}
+            active={activeTab === "betreuungszeiten"}
+          />
+        ) : null}
       </StudentTabPanel>
 
       {canViewEnrollments ? (
@@ -2236,7 +2331,12 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
       </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (

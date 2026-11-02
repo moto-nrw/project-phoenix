@@ -163,16 +163,17 @@ func TestRetentionSweep(t *testing.T) {
 	thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, ben)
 	require.NoError(t, err)
 
-	old, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Alte Nachricht")
-	require.NoError(t, err)
 	_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Neue Nachricht")
 	require.NoError(t, err)
+	expired, err := testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Alte Nachricht")
+	require.NoError(t, err)
 
-	// Age the first message past the 30-day window.
+	// Age the latest message past the 30-day window. Its thread preview must
+	// fall back to the surviving message instead of retaining expired content.
 	_, err = db.NewUpdate().
 		Table("users.staff_messages").
 		Set("created_at = ?", time.Now().AddDate(0, 0, -40)).
-		Where("id = ?", old.ID).
+		Where("id = ?", expired.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -186,6 +187,10 @@ func TestRetentionSweep(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, "Neue Nachricht", detail.Messages[0].Body)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.ListInbox, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, "Neue Nachricht", inbox[0].LastMessageBody)
 
 	// Age the survivor AND the thread itself. The thread needs ageing too: since
 	// the grace period (DeleteEmpty's cutoff) a freshly created conversation is

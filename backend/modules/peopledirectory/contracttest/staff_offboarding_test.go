@@ -327,7 +327,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.WithValue(sc.ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "runtime-actor"})
 	counter := testpkg.CaptureQueriesForContext(t, sc.db)
-	testpkg.AttachLockWaitEvidence(sc.db)
+	testpkg.AttachLockWaitEvidence(t, sc.db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(ctx))
 	var version string
 	require.NoError(t, sc.db.NewRaw("SHOW server_version").Scan(sc.ctx, &version))

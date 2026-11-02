@@ -42,7 +42,7 @@ func TestModuleWithoutLifecycleReportsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	var module identityaccess.Owner = engine{}
-	_, err := module.StartStaffPreview(t.Context(), 7, 8, 9, "", "", "")
+	_, err := module.StartStaffPreview(t.Context(), 7, 8, 9, "", "", "", "")
 	require.ErrorIs(t, err, identityaccess.ErrAccountLifecycleUnavailable)
 	require.ErrorIs(t, module.RevokeAccess(t.Context(), identityaccess.RevokeAccessRequest{}), identityaccess.ErrAccountLifecycleUnavailable)
 }

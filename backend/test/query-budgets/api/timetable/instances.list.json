@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.instances.list",
+  "max": 7,
+  "exact": false,
+  "description": "modules/timetable/http — GET /instances over a week, 8 instances on 3 days\nfrom one template with an education group: instances + one display-metadata\nprojection + staff batch + student batch + one cutoff read per day."
+}

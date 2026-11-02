@@ -65,6 +65,31 @@ function renderForm(error: unknown, retry?: () => void) {
 const toastAlert = () => screen.queryByRole("alert", { name: /^Fehler:/ });
 
 describe("useApiFormError", () => {
+  it("leaves the jump to FormErrorAlert: the focus does not scroll (#5217)", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      renderForm(
+        new ApiError("validation failed", 400, {
+          code: "general.input",
+          errors: [{ field: "email", reason: "is required" }],
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      const email = screen.getByRole("textbox", { name: "E-Mail" });
+      await waitFor(() => expect(email).toHaveFocus());
+      const focusCalls = focus.mock.contexts
+        .map((element, index) => ({ element, args: focus.mock.calls[index] }))
+        .filter(({ element }) => element === email);
+      expect(focusCalls.length).toBeGreaterThan(0);
+      for (const { args } of focusCalls) {
+        expect(args?.[0]).toEqual({ preventScroll: true });
+      }
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
   it("marks every blank field, focuses the first and reports in the form, not in a toast", async () => {
     renderForm(
       new ApiError("validation failed", 400, {
@@ -79,8 +104,10 @@ describe("useApiFormError", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    const email = screen.getByRole("textbox", { name: "E-Mail" });
-    await waitFor(() => expect(email).toHaveFocus());
+    // Focus lands on the first marked field on the page, the one
+    // FormErrorAlert scrolls to, not the first one the server lists (#5217).
+    const firstName = screen.getByRole("textbox", { name: "Vorname" });
+    await waitFor(() => expect(firstName).toHaveFocus());
     for (const name of ["Vorname", "Nachname", "E-Mail"]) {
       const field = screen.getByRole("textbox", { name });
       expect(field).toHaveAttribute("aria-invalid", "true");

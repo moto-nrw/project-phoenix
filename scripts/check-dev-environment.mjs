@@ -81,6 +81,33 @@ check("generated Next types", () => {
   requireFile("frontend/.next/types/routes.d.ts");
   return "present";
 });
+// Local env files are copied once and then fall behind their examples; the
+// backend and Next then refuse to start, one missing key per attempt. Compare
+// key names only, so no value reaches the output.
+function envKeys(path) {
+  const keys = new Set();
+  for (const line of readFileSync(join(root, path), "utf8").split("\n")) {
+    const key = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=/)?.[1];
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+for (const [file, example] of [
+  [".env", ".env.example"],
+  ["backend/dev.env", "backend/dev.env.example"],
+]) {
+  if (!existsSync(join(root, file)) || !existsSync(join(root, example)))
+    continue;
+  check(`${file} keys`, () => {
+    const present = envKeys(file);
+    const missing = [...envKeys(example)].filter((key) => !present.has(key));
+    if (missing.length)
+      throw new Error(
+        `${missing.length} keys from ${example} missing (${missing.slice(0, 8).join(", ")}${missing.length > 8 ? ", ..." : ""}); copy them with their example values`,
+      );
+    return `all keys from ${example}`;
+  });
+}
 // Agent clients use vendor-managed updates, unlike build tools.
 if (
   (process.env.PATH ?? "")

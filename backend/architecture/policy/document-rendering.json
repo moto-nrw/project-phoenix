@@ -1,0 +1,78 @@
+{
+  "packages": [
+    {
+      "path": "modules/documentrendering/lists",
+      "owner": "document-rendering",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/documentrendering/internal/application/listrenderer",
+      "owner": "document-rendering",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/planexport",
+      "owner": "document-rendering",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/documentrendering/records",
+      "owner": "document-rendering",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "external.rendering.document-rendering",
+      "description": "document-rendering may use classified rendering dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "document-rendering",
+      "target_class": "rendering"
+    },
+    {
+      "id": "document-rendering.contract.list-renderer",
+      "description": "The list contract names the list renderer's document types and hands out the renderer (#3356).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "contract",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "document-rendering.contract.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "contract",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    },
+    {
+      "id": "document-rendering.public.document-records-port",
+      "description": "Native list and record values replace direct renderer application vocabulary; same-or-narrower successor of the established renderer reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "public",
+      "target_owner": "document-rendering",
+      "target_role": "port"
+    }
+  ]
+}

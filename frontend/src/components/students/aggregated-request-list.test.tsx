@@ -23,7 +23,8 @@ import {
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { mutate, SWRConfig, type Cache } from "~/lib/swr";
+import { mutate } from "~/lib/swr";
+import { SWRConfig, type Cache } from "~/lib/swr/testing";
 
 import {
   useMergedRequestFeed,
@@ -329,6 +330,123 @@ describe("AggregatedRequestList", () => {
       ),
     ).toBeVisible();
     expect(screen.getByText("Später Kind")).toBeVisible();
+  });
+
+  it("öffnet aus der Warteliste die Anfrage des gewählten Kindes", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "20",
+          student_name: "Erstes Kind",
+          expected_version: "v1",
+          urgent_today: true,
+          bulk_eligible: true,
+          data: { id: "1" },
+        },
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T09:00:00Z",
+          student_id: "30",
+          student_name: "Wartendes Kind",
+          expected_version: "v2",
+          urgent_today: false,
+          bulk_eligible: false,
+          data: { id: "7" },
+        },
+      ] as never,
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-1");
+    expect(screen.queryByText("offering-item-7")).not.toBeInTheDocument();
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(await screen.findByText("offering-item-7")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+  });
+
+  it("lädt weitere Seiten, bis die Wartelisten-Anfrage gefunden ist", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) => ({
+      ...(openItem("master_data", String(index)) as object),
+      data: { id: String(index) },
+    })) as never[];
+    mockListOpen.mockImplementation(async (params) =>
+      params?.cursor
+        ? {
+            items: [
+              {
+                ...(openItem("offering", "warteliste") as object),
+                student_id: "30",
+                student_name: "Wartendes Kind",
+              } as never,
+            ],
+          }
+        : { items: firstPage, next_cursor: "nächste-seite" },
+    );
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-0");
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(
+      await screen.findByText("offering-item-warteliste"),
+    ).toBeInTheDocument();
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it("wiederholt einen fehlgeschlagenen Wartelisten-Sprung nicht selbst", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) => ({
+      ...(openItem("master_data", String(index)) as object),
+      data: { id: String(index) },
+    })) as never[];
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.cursor)
+        throw new ApiError("page unavailable", 503, {
+          code: "general.unavailable",
+        });
+      return { items: firstPage, next_cursor: "nächste-seite" };
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-0");
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Anfragen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    await act(async () => {});
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
   });
 
   it("kennzeichnet widersprüchliche Wünsche im Fall", async () => {

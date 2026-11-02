@@ -8,8 +8,12 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, args []ast.Expr) []Violation {
+func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, call *ast.CallExpr) []Violation {
+	args := call.Args
 	if isSQLStmtCall(receiver, selection) {
+		if query, ok := preparedStatementSQL(pkg, call); ok {
+			return a.sqlStringViolations(pkg.PkgPath, classification.Owner, functionName, method, query, true)
+		}
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
 	queryIndex := 0

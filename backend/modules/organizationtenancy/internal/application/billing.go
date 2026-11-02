@@ -140,12 +140,18 @@ func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (
 // local demo seeder. Its HTTP entry point is restricted to local seed
 // environments, so production records continue to be created only by the
 // monthly worker.
+//
+// The demo process seeds several schools at once, and each seed captures
+// every school still missing its row (#5151). The seed therefore reads at
+// read committed: a row another seed wrote after this one listed the schools
+// is skipped, where a repeatable-read snapshot fails the whole seed and the
+// demo school is rebuilt. The synthetic figures need no shared snapshot.
 func (b *Billing) SeedBillingKeyDateCounts(ctx context.Context, now time.Time) (int, error) {
 	localNow := now.In(b.location)
 	keyDate := localNow.Format("2006-01-02")
 	written := 0
 	err := b.tx.RunAdmin(ctx, func(adminCtx context.Context) error {
-		if err := b.store.UseRepeatableReadSnapshot(adminCtx); err != nil {
+		if err := b.store.UseReadCommitted(adminCtx); err != nil {
 			return err
 		}
 		var captureErr error

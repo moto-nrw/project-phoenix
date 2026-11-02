@@ -58,3 +58,68 @@ export async function validateSessionToken(
     return null;
   }
 }
+
+/** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
+export type SessionFamilyState = "live" | "ended" | "unknown";
+
+/** The validation portal of a session's scope claim. */
+export function portalOfScope(scope: unknown): Portal {
+  switch (scope) {
+    case "platform":
+    case "parent":
+    case "school":
+    case "caterer":
+    case "org":
+      return scope;
+    default:
+      return "tenant";
+  }
+}
+
+/** The `exp` claim of an access token in seconds; null when unreadable. */
+function accessTokenExpiry(accessToken: string): number | null {
+  try {
+    const { exp } = JSON.parse(
+      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
+    ) as { exp?: unknown };
+    return typeof exp === "number" ? exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Asks Identity & Access whether the refresh-token family an access token
+ * names still backs it (#5399). Without the refresh token the backend reads
+ * the family itself; with it, a rotated token of a live family would fail.
+ * The BFF writes or shows a session only for a live family, so the answer of
+ * a request that outlived its logout sets no cookie and reads as ended.
+ */
+export async function sessionFamilyState(
+  accessToken: string,
+  portal: Portal,
+): Promise<SessionFamilyState> {
+  if (!accessToken || accessToken.length > 16000) return "ended";
+  // Identity & Access rejects an expired token before it reads the family,
+  // so its refusal says nothing about the family. The session's refresh
+  // decides; a revoked family ends there.
+  const expiry = accessTokenExpiry(accessToken);
+  if (expiry !== null && expiry * 1000 <= Date.now()) return "unknown";
+  try {
+    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...(await incomingClientForwardHeaders()),
+      },
+      body: JSON.stringify({ access_token: accessToken, portal }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) return "live";
+    return response.status === 401 ? "ended" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}

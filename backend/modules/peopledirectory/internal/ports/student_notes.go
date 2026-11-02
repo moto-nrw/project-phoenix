@@ -24,6 +24,10 @@ type StudentNoteStore interface {
 	// child's carried-over permanent hint: it replaces the live one, or
 	// creates one unless a school deliberately deleted it.
 	ImportPermanentHint(ctx context.Context, studentID int64, body string) (domain.OperationStats, error)
+	// ListSchoolShared reads the live notes of one child the OGS released for
+	// the school (#4797), newest first. It applies no audience: the release
+	// is the audience, and the caller decided who reads it.
+	ListSchoolShared(ctx context.Context, studentID int64) ([]domain.StudentNote, domain.OperationStats, error)
 	// ListSchoolDayHints reads the live day hints from moto schule of one day
 	// for the named children, oldest first (#4795).
 	ListSchoolDayHints(context.Context, domain.SchoolDayHintFilter) ([]domain.StudentNote, domain.OperationStats, error)

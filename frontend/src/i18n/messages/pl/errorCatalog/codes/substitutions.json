@@ -1,0 +1,12 @@
+{
+  "already_assigned": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "internal": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
+  "invalid_period": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "invalid_target": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "last_supervisor": "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
+  "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "not_running": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "self_assignment": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+}

@@ -22,7 +22,7 @@ import type {
   StatusDay,
 } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import {

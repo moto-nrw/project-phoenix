@@ -1,4 +1,6 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { parseISODate } from "~/lib/date-helpers";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -297,7 +299,8 @@ export function RangeCalendarInline({
   modifiers: extraModifiers,
   modifiersClassNames: extraModifiersClassNames,
 }: RangeCalendarProps) {
-  const [month, setMonth] = useState(value?.from ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
@@ -419,6 +422,7 @@ export function RangeCalendarInline({
           }
         >
           <LazyDayPicker
+            today={parseISODate(today)}
             mode="single"
             selected={undefined}
             onDayClick={handleDayClick}
@@ -467,13 +471,13 @@ export function RangeCalendarInline({
               // inner half) + dark rounded pill on the button. This keeps the
               // band continuous from start to end without "tails" outside.
               rangeStart:
-                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
               rangeEnd:
-                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
               rangeMiddle:
                 "!bg-moto-green/15 [&>button]:!text-moto-green-strong",
               singlePick:
-                "[&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "[&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
             }}
             classNames={{
               root: "text-sm",

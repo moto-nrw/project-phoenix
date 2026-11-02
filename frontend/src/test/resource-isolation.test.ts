@@ -12,6 +12,11 @@ afterEach(() => {
   browser.settings.fetch.interceptor = originalInterceptor;
 });
 
+it("uses the shared desktop viewport", () => {
+  expect(window.innerWidth).toBe(1920);
+  expect(window.innerHeight).toBe(1080);
+});
+
 it("does not load iframe pages or stylesheets from rendered component markup", async () => {
   const attempts: string[] = [];
   // Even on the pre-fix configuration the countercheck never sends traffic.

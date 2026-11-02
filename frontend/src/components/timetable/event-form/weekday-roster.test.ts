@@ -7,6 +7,7 @@ import {
   formFromSeries,
   rosterForWeekday,
   seedWeekdayRosters,
+  targetCohortExtraText,
   weekdayDeviatesFromBaseline,
   type EventFormState,
 } from "./form-model";
@@ -284,5 +285,43 @@ describe("reopening a series with per-weekday rosters", () => {
 
     expect(form.perWeekdayRoster).toBe(false);
     expect(rosterForWeekday(form, 2).staffIds).toEqual(["10", "20"]);
+  });
+});
+
+describe("targetCohortExtraText (#5103 review)", () => {
+  const students = [
+    { id: "100", name: "Ben Winter", schoolClass: "3b" },
+    { id: "101", name: "Mia Sommer", schoolClass: "3b" },
+    { id: "102", name: "Ali Herbst", schoolClass: "3b" },
+  ];
+
+  it("names the children the Klasse adds beside the list", () => {
+    expect(
+      targetCohortExtraText(
+        { label: "Klasse 3b", memberIds: ["100", "101"] },
+        ["100"],
+        students,
+      ),
+    ).toBe("Über Klasse 3b kommt außerdem: Mia Sommer");
+    expect(
+      targetCohortExtraText(
+        { label: "Klasse 3b", memberIds: ["100", "101", "102"] },
+        ["100"],
+        students,
+      ),
+    ).toBe("Über Klasse 3b kommen außerdem 2 Kinder: Ali Herbst, Mia Sommer");
+  });
+
+  it("stays silent without a target or when the list holds every child", () => {
+    expect(
+      targetCohortExtraText({ label: null, memberIds: [] }, [], students),
+    ).toBeNull();
+    expect(
+      targetCohortExtraText(
+        { label: "Klasse 3b", memberIds: ["100"] },
+        ["100"],
+        students,
+      ),
+    ).toBeNull();
   });
 });

@@ -109,9 +109,9 @@ The standing school seeds the `vollbetrieb` profile once under the slug
 `platform.demo_school_states`, and runs the existing live simulation every
 5–8 seconds. It does not write `.seed-state.json`.
 
-The school has NFC off, web attendance on, detailed presence and a 23:59 daily
-close. Physical devices remain available to the simulator, while the existing
-NFC guards hide device and RFID screens from school admins.
+The school has NFC and web attendance on, detailed presence and a 23:59 daily
+close. The simulator uses the kiosk routes, which require the NFC attendance
+module.
 
 ## Local native dev loop
 

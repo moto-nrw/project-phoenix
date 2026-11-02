@@ -15,7 +15,7 @@ const msgReadOnlyPreview = "In der Vorschau können Sie nur lesen. Beenden Sie d
 // read-only preview token may call these; every other non-GET request is
 // blocked. Patterns use chi syntax: a "{...}" segment matches exactly one
 // path segment. TestReadOnlyPOSTAllowlistMatchesRouteTable pins this list
-// against api/testdata/route_table.golden so entries cannot rot and new
+// against api/testdata/routes/** so entries cannot rot and new
 // write routes cannot silently match.
 //
 // Deliberately NOT listed although they only read: the plaintext reveal
@@ -55,7 +55,7 @@ var readOnlyPOSTAllowlist = []string{
 // calendar feed: reading the URL creates and persists a subscription token on
 // the target's account when none exists yet — a write in the previewed
 // person's name. TestReadOnlyGETDenylistMatchesRouteTable pins every entry
-// against api/testdata/route_table.golden so a stale one cannot linger.
+// against api/testdata/routes/** so a stale one cannot linger.
 var readOnlyGETDenylist = []string{
 	"/api/calendar/feed",
 }

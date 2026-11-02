@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Einverständnis eines eigenen Elternbriefs in moto schule (#4800): den
 // Nachweisbericht als PDF oder den Verlauf als CSV herunterladen. Derselbe
@@ -70,4 +71,4 @@ async function GETHandler(
   return pdfDownloadResponse(upstream);
 }
 
-export const GET = withSchoolAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withSchoolAuth(GETHandler));

@@ -18,6 +18,7 @@ import {
   type CaseBuckets,
   type OpenCase,
 } from "./case-model";
+import { childrenConcept } from "~/lib/concepts/children";
 
 export function caseRowID(caseKey: string): string {
   return `request-case-${caseKey}`;
@@ -57,7 +58,7 @@ function CaseRow({
         }`}
       >
         <span className="flex w-full min-w-0 items-center gap-2">
-          <MotoConceptIcon concept="children" size={20} />
+          <MotoConceptIcon concept={childrenConcept} size={20} />
           <span className="truncate font-semibold text-gray-900">
             {childCase.studentName}
           </span>

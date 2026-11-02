@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { mutate } from "swr";
+import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Button } from "~/components/ui/button";
 import {
@@ -53,10 +53,13 @@ import {
   formatDateISO,
   formatShortDate,
   getDayData as getArrivalDayData,
-  getWeekDays,
+  getWeekDaysForStart,
+  getWeekStart,
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -96,6 +99,12 @@ import type {
   StudentStatusDay,
   StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
+import { excusedConcept } from "~/lib/concepts/excused";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -120,8 +129,8 @@ function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
 
 function weeklyPickupAdjustmentPayload(
   data: CarePlanWeeklySubmit,
-  adjustment?: CarePlanWeeklyAdjustment,
-  effectiveFrom = formatDateISO(new Date()),
+  adjustment: CarePlanWeeklyAdjustment | undefined,
+  effectiveFrom: string,
 ): PickupAdjustmentPayload {
   return {
     schedules: data.pickupSchedules.map((schedule) => ({
@@ -147,7 +156,7 @@ async function applyWeeklyPickupAdjustment(
     preview = await previewStudentPickupAdjustment(studentId, payload);
     if (
       preview.resolution_required ||
-      payload.effective_from > formatDateISO(new Date())
+      payload.effective_from > berlinTodayISO()
     ) {
       return preview;
     }
@@ -303,7 +312,6 @@ export function CareScheduleManager({
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
   const deleteErrors = useApiFormError();
-  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   // The day exception slide-over. null = closed; { date } = opened from a day
   // card for that date.
@@ -318,16 +326,32 @@ export function CareScheduleManager({
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
     null,
   );
+  const todayISO = useBerlinToday();
+  const currentWeekStartISO = useMemo(
+    () => formatDateISO(getWeekStart(0, todayISO)),
+    [todayISO],
+  );
+  const [weekStartISO, setWeekStartISO] = useState(currentWeekStartISO);
+  const previousCurrentWeekStartISO = useRef(currentWeekStartISO);
+
+  useLayoutEffect(() => {
+    const previous = previousCurrentWeekStartISO.current;
+    previousCurrentWeekStartISO.current = currentWeekStartISO;
+    if (previous === currentWeekStartISO) return;
+    setWeekStartISO((selected) =>
+      selected === previous ? currentWeekStartISO : selected,
+    );
+  }, [currentWeekStartISO]);
 
   const weekDays = useMemo(
-    () => getWeekDays(weekOffset, weekendFollowsFriday),
-    [weekOffset, weekendFollowsFriday],
+    () => getWeekDaysForStart(weekStartISO, weekendFollowsFriday, todayISO),
+    [todayISO, weekStartISO, weekendFollowsFriday],
   );
   const weekRange = useMemo(
     () =>
       formatWeekRange(
-        weekDays[0] ?? new Date(),
-        weekDays[weekDays.length - 1] ?? new Date(),
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+        weekDays[weekDays.length - 1] ?? parseISODate(berlinTodayISO()),
       ),
     [weekDays],
   );
@@ -336,13 +360,25 @@ export function CareScheduleManager({
   const isEditingWeeklyView =
     isEditingWeekly && careDaysSource !== null && !readOnly;
 
-  function showWeek(offset: number): void {
-    setWeekOffset(offset);
-    const visibleDays = getWeekDays(offset, weekendFollowsFriday);
-    const firstDay = visibleDays[0];
-    const lastDay = visibleDays[visibleDays.length - 1];
+  useEffect(() => {
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
+  }, [onVisibleDateRangeChange, weekDays]);
+
+  const isCurrentWeek = weekStartISO === currentWeekStartISO;
+
+  function showCurrentWeek(): void {
+    setWeekStartISO(currentWeekStartISO);
+  }
+
+  function moveWeek(direction: -1 | 1): void {
+    setWeekStartISO((selected) => {
+      const next = parseISODate(selected);
+      next.setDate(next.getDate() + direction * 7);
+      return formatDateISO(next);
+    });
   }
 
   const statusDayByDate = useMemo(() => {
@@ -377,6 +413,7 @@ export function CareScheduleManager({
           isExcused,
           statusForDate,
           weekendFollowsFriday,
+          todayISO,
         );
         const pickup = getPickupDayData(
           date,
@@ -389,6 +426,7 @@ export function CareScheduleManager({
           pickupData.effectiveSchedules,
           weekendFollowsFriday,
           pickupData.departureExceptions,
+          todayISO,
         );
         return {
           date,
@@ -415,6 +453,7 @@ export function CareScheduleManager({
       isSick,
       isExcused,
       weekendFollowsFriday,
+      todayISO,
     ],
   );
   const selectedMobileDay = useMemo(() => {
@@ -650,8 +689,10 @@ export function CareScheduleManager({
         }
         return;
       }
-      const today = formatDateISO(new Date());
-      const weekStart = formatDateISO(weekDays[0] ?? new Date());
+      const today = berlinTodayISO();
+      const weekStart = formatDateISO(
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+      );
       const basePayload = weeklyPickupAdjustmentPayload(
         data,
         adjustment,
@@ -702,6 +743,7 @@ export function CareScheduleManager({
       isExcused,
       statusByDate.get(dateKey) ?? null,
       weekendFollowsFriday,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -710,6 +752,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   const currentEditingPickupDay = useMemo(() => {
@@ -726,6 +769,7 @@ export function CareScheduleManager({
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
       pickupData.departureExceptions,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -734,6 +778,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   /**
@@ -953,7 +998,7 @@ export function CareScheduleManager({
       <div className="border-b border-gray-100 p-4 sm:p-5">
         <ConceptSectionHeader
           title="Betreuungszeiten"
-          concept="careTimes"
+          concept={careTimesConcept}
           subtitle={weekRange}
           actions={
             // While the section is in its edit state the week controls step
@@ -961,14 +1006,16 @@ export function CareScheduleManager({
             // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
             isEditingWeeklyView ? undefined : (
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
-                  onClick={() => showWeek(0)}
-                  disabled={weekOffset === 0}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
+                  variant="outline"
+                  size="md"
+                  onClick={showCurrentWeek}
+                  disabled={isCurrentWeek}
+                  className="disabled:hidden"
                 >
                   Heute
-                </button>
+                </Button>
                 {/* Labelled on purpose, on every layout: an unlabelled pencil
                   here was indistinguishable from the per-day pencils below,
                   which is the confusion issue #893 reports. The word
@@ -998,35 +1045,45 @@ export function CareScheduleManager({
         {isEditingWeeklyView ? null : (
           <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
             <div>
-              <WeekNavButton
-                ariaLabel="Vorherige Woche"
-                onClick={() => showWeek(weekOffset - 1)}
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                aria-label="Vorherige Woche"
+                onClick={() => moveWeek(-1)}
+                className="gap-1.5"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
-              </WeekNavButton>
+              </Button>
             </div>
-            {weekOffset === 0 ? (
+            {isCurrentWeek ? (
               <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
                 Aktuelle Woche
               </span>
             ) : (
-              <button
+              <Button
                 type="button"
-                onClick={() => showWeek(0)}
-                className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
+                variant="surface"
+                size="md"
+                onClick={showCurrentWeek}
+                className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
               >
                 Zurück zur aktuellen Woche
-              </button>
+              </Button>
             )}
             <div>
-              <WeekNavButton
-                ariaLabel="Nächste Woche"
-                onClick={() => showWeek(weekOffset + 1)}
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                aria-label="Nächste Woche"
+                onClick={() => moveWeek(1)}
+                className="gap-1.5"
               >
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </WeekNavButton>
+              </Button>
             </div>
           </div>
         )}
@@ -1069,8 +1126,8 @@ export function CareScheduleManager({
                 selectedDay={selectedMobileDay}
                 readOnly={readOnly}
                 deletingStatusDayId={deletingStatusDayId}
-                onPreviousWeek={() => showWeek(weekOffset - 1)}
-                onNextWeek={() => showWeek(weekOffset + 1)}
+                onPreviousWeek={() => moveWeek(-1)}
+                onNextWeek={() => moveWeek(1)}
                 onSelectDay={(day) =>
                   setSelectedDateKey(formatDateISO(day.date))
                 }
@@ -1151,27 +1208,6 @@ export function CareScheduleManager({
   );
 }
 
-function WeekNavButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
-  );
-}
-
 function MobileCareWeek({
   days,
   weekMonth,
@@ -1200,15 +1236,29 @@ function MobileCareWeek({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-        <WeekIconButton ariaLabel="Vorherige Woche" onClick={onPreviousWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Vorherige Woche"
+          onClick={onPreviousWeek}
+          className="h-10"
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
         <div className="min-w-0 text-center text-lg font-semibold text-gray-800">
           {weekMonth}
         </div>
-        <WeekIconButton ariaLabel="Nächste Woche" onClick={onNextWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Nächste Woche"
+          onClick={onNextWeek}
+          className="h-10"
+        >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
       </div>
 
       <div
@@ -1243,27 +1293,6 @@ function MobileCareWeek({
         />
       ) : null}
     </div>
-  );
-}
-
-function WeekIconButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
   );
 }
 
@@ -1368,7 +1397,7 @@ function CareDayCard({
             ) : null}
             {parentChanged ? (
               <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                <MotoConceptIcon concept="parents" size={14} />
+                <MotoConceptIcon concept={parentsConcept} size={14} />
                 Von Eltern
               </span>
             ) : null}
@@ -1450,12 +1479,12 @@ function AbsencePlaceholder({
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
   if (!status) return null;
-  const concept: MotoConceptKey =
+  const concept: MotoConcept =
     status === "class_trip"
-      ? "classTrip"
+      ? classTripConcept
       : status === "sick"
-        ? "sick"
-        : "excused";
+        ? sickConcept
+        : excusedConcept;
   const label =
     status === "class_trip"
       ? "Ganztägig Klassenfahrt"
@@ -1550,7 +1579,7 @@ function CareBoundaryRow({
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
-            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            MotoConceptIcon setzt seine Farbe selbst aus dem Konzept und
             ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
             deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
             Auto auf Orange. */}
@@ -1736,7 +1765,7 @@ function getCareBoundaries(
       value: getArrivalValue(day.arrival),
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
-      icon: <MotoConceptIcon concept="careTimes" size={18} />,
+      icon: <MotoConceptIcon concept={careTimesConcept} size={18} />,
       onEdit: actions.onEditArrival,
     },
     {
@@ -1745,7 +1774,7 @@ function getCareBoundaries(
       value: getPickupValue(day.pickup),
       description: getPickupDescription(day.pickup),
       marker: getPickupMarker(day.pickup),
-      icon: <MotoConceptIcon concept="pickup" size={18} />,
+      icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
       onEdit: actions.onEditPickup,
     },
     // Die Abholart erscheint nur an einem Tag, an dem sie vom Wochenplan
@@ -1763,7 +1792,7 @@ function getCareBoundaries(
               ? `Grund: ${day.pickup.departureException.reason}`
               : "Nur an diesem Tag",
             marker: "Ausnahme",
-            icon: <MotoConceptIcon concept="pickup" size={18} />,
+            icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
             onEdit: actions.onEditPickup,
           },
         ]

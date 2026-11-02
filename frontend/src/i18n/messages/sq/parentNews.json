@@ -1,0 +1,10 @@
+{
+  "kicker": "Postë nga OGS",
+  "title": "Letra për prindërit",
+  "description": "Njoftime, anketa dhe informacione të rëndësishme nga OGS-ja juaj.",
+  "empty": "Për momentin nuk ka letra të reja për prindërit.",
+  "open": "Të hapura",
+  "openLabel": "Të hapura, {count}",
+  "completed": "Të përfunduara",
+  "errorObjectList": "lista e letrave për prindërit"
+}

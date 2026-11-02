@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/http/absencetypes"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const ownAllowancesPath = "/time-tracking/absence-allowances"
@@ -234,5 +235,5 @@ func TestOwnAbsenceAllowances_QueryBudget(t *testing.T) {
 	large := measure(5)
 
 	assert.Equal(t, len(small), len(large), "the list must not issue a statement per type")
-	testpkg.AssertQueryBudget(t, "workforce.own_absence_allowances.list", large)
+	querybudgets.AssertQueryBudget(t, "workforce.own_absence_allowances.list", large)
 }

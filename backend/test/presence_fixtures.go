@@ -115,6 +115,7 @@ func ActiveGroupEnded(tb testing.TB, db *bun.DB, ended EndedActiveGroup) (groupE
 // index), so call it at most once per student.
 func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID int64, scheduledFor time.Time) int64 {
 	tb.Helper()
+	tenantID := Tenant(tb)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var id int64
@@ -122,7 +123,7 @@ func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID i
 		INSERT INTO active.scheduled_checkouts (tenant_id, student_id, scheduled_by, scheduled_for, status)
 		VALUES (?, ?, ?, ?, 'pending')
 		RETURNING id
-	`, Tenant(tb), studentID, staffID, scheduledFor).Scan(ctx, &id)
+	`, tenantID, studentID, staffID, scheduledFor).Scan(ctx, &id)
 	require.NoError(tb, err, "Failed to create test scheduled checkout")
 	return id
 }

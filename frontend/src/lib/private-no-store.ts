@@ -28,8 +28,11 @@ export function applyPrivateNoStore(headers: Headers): void {
  * Applies {@link applyPrivateNoStore} to a route response. A response with
  * immutable headers (a fetch result handed through as is) is copied first.
  */
-function withPrivateNoStoreResponse<R extends Response>(response: R): R {
-  if (!needsPrivateNoStore(response.headers)) return response;
+function withPrivateNoStoreResponse<R extends Response>(
+  response: R,
+  download = false,
+): R {
+  if (!download && !needsPrivateNoStore(response.headers)) return response;
   try {
     response.headers.set("Cache-Control", PRIVATE_NO_STORE);
     return response;
@@ -49,4 +52,20 @@ export function withPrivateNoStore<A extends unknown[], R extends Response>(
   handler: (...args: A) => R | Promise<R>,
 ): (...args: A) => Promise<R> {
   return async (...args) => withPrivateNoStoreResponse(await handler(...args));
+}
+
+/**
+ * Explicit policy for private downloads, including their error responses.
+ * Unlike the JSON policy, it covers every MIME type and overrides upstream
+ * caching. Wrap the portal handler, not just its success callback, so auth
+ * failures and refreshed session cookies leave through the same boundary.
+ * The body is never read or buffered; public assets, feeds and SSE do not
+ * use this wrapper.
+ */
+export function withPrivateDownloadNoStore<
+  A extends unknown[],
+  R extends Response,
+>(handler: (...args: A) => R | Promise<R>): (...args: A) => Promise<R> {
+  return async (...args) =>
+    withPrivateNoStoreResponse(await handler(...args), true);
 }

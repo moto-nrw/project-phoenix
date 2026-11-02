@@ -21,7 +21,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-const catererContractPassword = "Kuechenpass-2026!"
+const (
+	catererContractPassword = "Kuechenpass-2026!"
+	catererRenewedPassword  = "Kuechenpass-2027!"
+)
 
 type catererEnvelope struct {
 	Code string          `json:"code"`
@@ -76,8 +79,8 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	db := testpkg.SetupTestDB(t)
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("caterer-staff-%d@test.local", time.Now().UnixNano()))
-	staffToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
-	adminToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "admin:*"))
+	staffToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
+	adminToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "admin:*"))
 	email := fmt.Sprintf("kueche-%d@example.com", time.Now().UnixNano())
 	forgetContractCaterer(t, db, email)
 	request := func(method, path, body, token string) (int, []byte) {
@@ -138,6 +141,24 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	require.Len(t, schools.Schools, 1)
 	assert.Equal(t, schoolID, schools.Schools[0].ID)
 
+	// #4496: the caterer changes its own password in its portal.
+	status, body = request(http.MethodPost, "/caterer/account/password", fmt.Sprintf(`{"current_password":"falsch","new_password":%q,"confirm_password":%q}`, catererRenewedPassword, catererRenewedPassword), catererToken)
+	require.Equal(t, http.StatusUnauthorized, status, string(body))
+	assert.Equal(t, "identity.current_password_wrong", decodeCatererResponse(t, body, nil), "a wrong current password marks its field, not the session")
+	status, body = request(http.MethodPost, "/caterer/account/password", fmt.Sprintf(`{"current_password":%q,"new_password":%q,"confirm_password":"anders"}`, catererContractPassword, catererRenewedPassword), catererToken)
+	require.Equal(t, http.StatusBadRequest, status, string(body))
+	assert.Equal(t, "identity.password_mismatch", decodeCatererResponse(t, body, nil))
+	status, body = request(http.MethodPost, "/caterer/account/password", fmt.Sprintf(`{"current_password":%q,"new_password":%q,"confirm_password":%q}`, catererContractPassword, catererRenewedPassword, catererRenewedPassword), staffToken)
+	assert.Equal(t, http.StatusUnauthorized, status, "a school session changes no caterer password: %s", body)
+	status, body = request(http.MethodPost, "/caterer/account/password", fmt.Sprintf(`{"current_password":%q,"new_password":%q,"confirm_password":%q}`, catererContractPassword, catererRenewedPassword, catererRenewedPassword), catererToken)
+	require.Equal(t, http.StatusNoContent, status, string(body))
+	status, body = request(http.MethodPost, "/caterer/auth/login", fmt.Sprintf(`{"email":%q,"password":%q}`, email, catererContractPassword), "")
+	require.Equal(t, http.StatusUnauthorized, status, "the old password no longer signs in: %s", body)
+	status, body = request(http.MethodPost, "/caterer/auth/login", fmt.Sprintf(`{"email":%q,"password":%q}`, email, catererRenewedPassword), "")
+	require.Equal(t, http.StatusOK, status, string(body))
+	decodeCatererResponse(t, body, &tokens)
+	catererToken = tokens.AccessToken
+
 	status, body = request(http.MethodPost, "/caterer/schools/"+schoolID+"/orders/999999999/confirm", "", catererToken)
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Equal(t, "meals.order_not_found", decodeCatererResponse(t, body, nil))
@@ -165,7 +186,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		VALUES (?, 'operations.meal_plan_enabled', 'true'::jsonb), (?, 'operations.meal_registration_enabled', 'true'::jsonb)
 		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, school, school)
 	require.NoError(t, err)
-	registerToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:register"))
+	registerToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:register"))
 	status, body = request(http.MethodGet, "/api/meal-plan/participants?date=2026-09-07&include=all", "", registerToken)
 	require.Equal(t, http.StatusOK, status, string(body))
 	status, body = request(http.MethodGet, "/api/meal-plan/participants/export?date=2026-09-07&format=pdf", "", registerToken)
@@ -185,7 +206,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", deniedToken)
 		require.Equal(t, http.StatusForbidden, status, "delivery exports require meals:orders: %s", body)
 	}
-	ordersToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:orders"))
+	ordersToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:orders"))
 	for _, export := range []struct{ path, token, contentType string }{
 		{"/caterer/orders/export?from=2026-09-07&to=2026-09-11&format=pdf", catererToken, "application/pdf"},
 		{"/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", ordersToken, "text/csv; charset=utf-8"},

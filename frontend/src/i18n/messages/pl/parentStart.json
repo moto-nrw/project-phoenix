@@ -1,0 +1,39 @@
+{
+  "kicker": "Portal dla rodziców",
+  "greeting": {
+    "morning": "Dzień dobry, {name}",
+    "morningPlain": "Dzień dobry",
+    "day": "Dzień dobry, {name}",
+    "dayPlain": "Dzień dobry",
+    "evening": "Dobry wieczór, {name}",
+    "eveningPlain": "Dobry wieczór"
+  },
+  "subtitle": "Najważniejsze sprawy na dziś w jednym miejscu.",
+  "todo": {
+    "title": "Do zrobienia",
+    "description": "Nowe wiadomości, terminy i prośby o odpowiedź w jednym miejscu.",
+    "openCount": "Otwarte: {count}",
+    "unread": "Nieprzeczytane",
+    "today": "Dziś",
+    "allDay": "Cały dzień",
+    "emptyTitle": "Wszystko załatwione",
+    "emptyDescription": "Na razie nie ma nic do zrobienia.",
+    "messageTitleOne": "Nowa wiadomość",
+    "messageTitleMany": "Nowe wiadomości: {count}",
+    "messageContext": "OGS · Dotyczy: {name}",
+    "pollContext": "Ankieta · {school}",
+    "declarationContext": "Zgoda · {school}",
+    "newsContext": "List do rodziców · {school}",
+    "ackContext": "Wymagane potwierdzenie · {school}",
+    "appointmentContext": "Termin, dotyczy: {name}",
+    "appointmentContextPlain": "Termin w OGS",
+    "showMoreOne": "Pokaż jeszcze jeden punkt",
+    "showMoreMany": "Pokaż więcej ({count})",
+    "showLess": "Pokaż mniej",
+    "loading": "Wczytywanie zadań",
+    "errorObject": "zestawienie wszystkich zadań"
+  },
+  "childrenLoading": "Wczytywanie dzieci",
+  "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. OGS Państwa szkoły może to ustawić.",
+  "errorObject": "zestawienie Twoich dzieci"
+}

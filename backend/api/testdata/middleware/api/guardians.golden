@@ -1,0 +1,37 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware
+	DELETE /api/guardians/students/{studentId}/guardians/{guardianId}
+	DELETE /api/guardians/{id}
+	DELETE /api/guardians/{id}/phone-numbers/{phoneId}
+	GET /api/guardians/
+	GET /api/guardians/invitable
+	GET /api/guardians/invitations/pending
+	GET /api/guardians/invitations/pending-approval
+	GET /api/guardians/payment-overview
+	GET /api/guardians/search
+	GET /api/guardians/students/{studentId}/guardians
+	GET /api/guardians/without-account
+	GET /api/guardians/{id}
+	GET /api/guardians/{id}/delete-preview
+	GET /api/guardians/{id}/payment
+	GET /api/guardians/{id}/phone-numbers/
+	GET /api/guardians/{id}/students
+	POST /api/guardians/
+	POST /api/guardians/bulk-invite
+	POST /api/guardians/invitations/{invitationId}/approve
+	POST /api/guardians/invitations/{invitationId}/reject
+	POST /api/guardians/payment-overview/export
+	POST /api/guardians/students/{studentId}/guardians
+	POST /api/guardians/students/{studentId}/guardians/batch
+	POST /api/guardians/students/{studentId}/invite
+	POST /api/guardians/{id}/invite
+	POST /api/guardians/{id}/payment/reveal
+	POST /api/guardians/{id}/phone-numbers/
+	POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+	PUT /api/guardians/relationships/{relationshipId}
+	PUT /api/guardians/students/{studentId}/payer
+	PUT /api/guardians/{id}
+	PUT /api/guardians/{id}/payment
+	PUT /api/guardians/{id}/phone-numbers/{phoneId}

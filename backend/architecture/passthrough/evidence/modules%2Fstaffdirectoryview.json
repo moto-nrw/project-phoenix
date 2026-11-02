@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (d *Directory) ReachableStaffIDs(ctx context.Context, ids []int64, permission string) (map[int64]bool, error) {\n\tlinks, names, err := d.permittedStaffLinks(ctx, schoolmembership.StaffFilter{IDs: ids})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]bool, len(links))\n\tfor _, link := range links {\n\t\tif d.deps.HasPermission(permission, names[link.accountID]) {\n\t\t\tresult[link.staff.ID] = true\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/staffdirectoryview/Directory.ReachableStaffIDs",
+      "owner": "modules/staffdirectoryview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *MembershipError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/staffdirectoryview/MembershipError.Error",
+      "owner": "modules/staffdirectoryview"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "packages": [
+    {
+      "path": "modules/emergencysnapshot/http",
+      "owner": "emergency-snapshot",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/emergencysnapshot",
+      "owner": "emergency-snapshot",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/emergencysnapshot/internal/adapters/nameorder",
+      "owner": "emergency-snapshot",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/emergencysnapshot/compose",
+      "owner": "emergency-snapshot",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "emergency-snapshot.http.public",
+      "description": "The Emergency Snapshot HTTP adapter calls its own public projection capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "http",
+      "target_owner": "emergency-snapshot",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.http.common.tenant-runtime-common",
+      "description": "The Emergency Snapshot HTTP adapter uses the shared HTTP runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "emergency-snapshot.http.security-contract",
+      "description": "The Emergency Snapshot HTTP adapter binds the established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    }
+  ]
+}

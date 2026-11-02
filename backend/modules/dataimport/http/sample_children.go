@@ -9,7 +9,7 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
 
-// Registered codes of a refused sample children request (error-registry.json,
+// Registered codes of a refused sample children request (error-registry/,
 // #4658).
 const (
 	codeImportNotTestTraeger      = "import.not_test_traeger"

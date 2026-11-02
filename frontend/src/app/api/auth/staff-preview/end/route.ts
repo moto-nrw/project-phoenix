@@ -12,26 +12,12 @@ const forwardPreviewEnd = createPublicJsonProxy({
   forwardClientHeaders: true,
 });
 
-function presentedPreviewToken(body: unknown): string | undefined {
-  if (typeof body !== "object" || body === null) return undefined;
-  const token = (body as { preview_token?: unknown }).preview_token;
-  return typeof token === "string" && token !== "" ? token : undefined;
-}
-
-/**
- * Records the end of a staff preview. The browser holds no token (#5005):
- * ending a running preview sends no body, and the route takes the preview
- * token from the session cookie. A start whose session swap failed still
- * presents the token it was just handed. Without a token there is no running
- * preview left to close (an expired session already recorded its end in the
- * JWT callback), so the route answers 204 without asking the backend.
- */
+/** End only the preview held in the httpOnly session, never a browser bearer. */
 async function POSTHandler(request: ServerAuthRequest, context: RouteContext) {
-  const body: unknown = await request.json().catch(() => null);
   const session = request.auth;
-  const previewToken =
-    presentedPreviewToken(body) ??
-    (session?.user?.isPreview ? session.user.token : undefined);
+  const previewToken = session?.user?.isPreview
+    ? session.user.token
+    : undefined;
   if (!previewToken) return new Response(null, { status: 204 });
 
   const headers = new Headers(request.headers);

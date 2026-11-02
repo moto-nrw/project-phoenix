@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,5 +35,5 @@ func TestRoomSnapshotExportQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 rooms -> %d reads, 8 rooms -> %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "api.rooms.snapshot_export.reads", large)
+	querybudgets.AssertQueryBudget(t, "api.rooms.snapshot_export.reads", large)
 }

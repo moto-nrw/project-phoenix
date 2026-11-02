@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	"github.com/stretchr/testify/assert"
@@ -522,7 +523,7 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, 3)
-	testpkg.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
 }
 
 func TestPickupPermissionRequestsAreVisibleToEveryChildGuardian(t *testing.T) {

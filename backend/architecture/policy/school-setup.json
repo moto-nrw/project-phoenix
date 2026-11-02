@@ -1,0 +1,132 @@
+{
+  "packages": [
+    {
+      "path": "modules/schoolsetup/internal/adapters/schoolsetupview",
+      "owner": "school-setup",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolsetup",
+      "owner": "school-setup",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolsetup/internal/application",
+      "owner": "school-setup",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolsetup/compose",
+      "owner": "school-setup",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolsetup/http",
+      "owner": "school-setup",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "school-setup.http.security-contract",
+      "description": "The school setup HTTP adapter names the permissions of the onboarding wizard (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/schoolsetup/http"
+    },
+    {
+      "id": "school-setup.integration-test.projection",
+      "description": "The school setup projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.application.public",
+      "description": "The wizard service answers in its public contract and returns its errors.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "application",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.tenant-runtime",
+      "description": "The wizard composition binds the request tenant transaction the store and the projection require.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.orm-sql",
+      "description": "The wizard composition resolves the concrete ORM transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-setup.http.public",
+      "description": "The wizard routes call exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "http",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.integration-test.http",
+      "description": "The wizard integration tests mount the wizard routes with the test tenant mechanics (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "http"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "school-setup-progress",
+      "package": "modules/schoolsetup/internal/adapters/schoolsetupview",
+      "data_objects": [
+        "auth.guardian_invitations",
+        "auth.invitation_tokens",
+        "education.groups",
+        "facilities.rooms",
+        "users.student_school_memberships"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

@@ -39,9 +39,12 @@ type TraegerAccounts struct {
 	credentials func(ctx context.Context, email, password, ipAddress, userAgent string) (int64, error)
 	// runAdmin opens the administrative unit, or joins an ambient one.
 	runAdmin func(context.Context, func(context.Context) error) error
-	expiry   time.Duration
-	now      func() time.Time
-	logger   *slog.Logger
+	// inAdminUnit reports an ambient administrative transaction, the unit
+	// the operator's invitation participates in.
+	inAdminUnit func(context.Context) bool
+	expiry      time.Duration
+	now         func() time.Time
+	logger      *slog.Logger
 }
 
 // TraegerAccountsDependencies are the ports the account management consumes.
@@ -57,15 +60,17 @@ type TraegerAccountsDependencies struct {
 	// Unit is the administrative unit New binds for the global identity
 	// operations (newCommandTransactions().RunAdmin): it joins an ambient
 	// transaction or opens one.
-	Unit   func(context.Context, func(context.Context) error) error
-	Expiry time.Duration
-	Logger *slog.Logger
+	Unit func(context.Context, func(context.Context) error) error
+	// InAdminUnit reports an ambient administrative transaction.
+	InAdminUnit func(context.Context) bool
+	Expiry      time.Duration
+	Logger      *slog.Logger
 }
 
 // NewTraegerAccounts composes the account management.
 func NewTraegerAccounts(deps TraegerAccountsDependencies) (*TraegerAccounts, error) {
 	if deps.Store == nil || deps.Memberships == nil || deps.Delivery == nil || deps.Audit == nil ||
-		deps.Passwords == nil || deps.Credentials == nil || deps.Unit == nil {
+		deps.Passwords == nil || deps.Credentials == nil || deps.Unit == nil || deps.InAdminUnit == nil {
 		return nil, errors.New("identity access: every Träger account dependency is required")
 	}
 	if deps.Expiry <= 0 {
@@ -77,7 +82,7 @@ func NewTraegerAccounts(deps TraegerAccountsDependencies) (*TraegerAccounts, err
 	}
 	return &TraegerAccounts{
 		store: deps.Store, memberships: deps.Memberships, delivery: deps.Delivery, audit: deps.Audit,
-		passwords: deps.Passwords, credentials: deps.Credentials, runAdmin: deps.Unit,
+		passwords: deps.Passwords, credentials: deps.Credentials, runAdmin: deps.Unit, inAdminUnit: deps.InAdminUnit,
 		expiry: deps.Expiry, now: time.Now, logger: logger.With("flow", "traeger_accounts"),
 	}, nil
 }
@@ -203,11 +208,7 @@ func (t *TraegerAccounts) ListTraegerBuero(ctx context.Context, actor identityac
 // InviteTraegerAccount spends any open invitation of the address, stores a
 // new one and queues its mail in the same unit.
 func (t *TraegerAccounts) InviteTraegerAccount(ctx context.Context, actor identityaccess.TraegerActor, email string, roles []string) (identityaccess.TraegerInvitation, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" || !strings.Contains(email, "@") {
-		return identityaccess.TraegerInvitation{}, identityaccess.ErrTraegerInvalidEmail
-	}
-	roles, err := normalizeTraegerRoles(roles)
+	email, roles, err := normalizeTraegerInvitation(email, roles)
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
@@ -228,9 +229,64 @@ func (t *TraegerAccounts) InviteTraegerAccount(ctx context.Context, actor identi
 	return invitation, nil
 }
 
-// invite refuses an address that already belongs to the Träger-Büro, then
-// replaces its open invitation and queues the mail.
+// invite stores and mails the invitation of an acting person and writes it
+// to the ledger.
 func (t *TraegerAccounts) invite(ctx context.Context, actor identityaccess.TraegerActor, unit traegerUnit, email string, roles []string) (domain.TraegerInvitation, error) {
+	createdBy := actor.AccountID
+	created, err := t.storeInvitation(ctx, actor.OrganizationID, &createdBy, unit, email, roles)
+	if err != nil {
+		return domain.TraegerInvitation{}, err
+	}
+	return created, t.record(ctx, actor, identityaccess.TraegerAccountInvitationCreated, nil, &email, nil, roles)
+}
+
+// InviteTraegerAccountForOperator stores and mails an invitation the moto
+// team sends from the operator portal (#5144), on the caller's
+// administrative transaction. The invitation has no inviting account; the
+// operator audit of the caller names the operator. The ledger of the
+// Träger-Büro records the acceptance as usual.
+func (t *TraegerAccounts) InviteTraegerAccountForOperator(ctx context.Context, organizationID int64, email string, roles []string) (identityaccess.TraegerInvitation, error) {
+	if t == nil {
+		return identityaccess.TraegerInvitation{}, identityaccess.ErrTraegerAccountsUnavailable
+	}
+	if !t.inAdminUnit(ctx) {
+		return identityaccess.TraegerInvitation{}, identityaccess.ErrTraegerTransactionRequired
+	}
+	if organizationID <= 0 {
+		return identityaccess.TraegerInvitation{}, identityaccess.ErrNoTraegerMembership
+	}
+	email, roles, err := normalizeTraegerInvitation(email, roles)
+	if err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	// The Verwaltung lock first, like every command of the Träger-Büro: an
+	// invitation of the same address from the Träger-Portal waits.
+	if _, _, err := t.store.LockTraegerAdministrators(ctx, organizationID); err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	traeger, live, err := t.memberships.FindLiveTraeger(ctx, organizationID)
+	if err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	if !live {
+		return identityaccess.TraegerInvitation{}, identityaccess.ErrNoTraegerMembership
+	}
+	members, err := t.memberships.ListActiveTraegerMemberships(ctx, organizationID)
+	if err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	created, err := t.storeInvitation(ctx, organizationID, nil, traegerUnit{name: traeger.Name, members: members}, email, roles)
+	if err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	invitation := publicTraegerInvitation(created)
+	invitation.Token = ""
+	return invitation, nil
+}
+
+// storeInvitation refuses an address that already belongs to the
+// Träger-Büro, then replaces its open invitation and queues the mail.
+func (t *TraegerAccounts) storeInvitation(ctx context.Context, organizationID int64, createdBy *int64, unit traegerUnit, email string, roles []string) (domain.TraegerInvitation, error) {
 	account, found, _, err := t.store.FindLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.TraegerInvitation{}, err
@@ -239,13 +295,12 @@ func (t *TraegerAccounts) invite(ctx context.Context, actor identityaccess.Traeg
 		return domain.TraegerInvitation{}, identityaccess.ErrTraegerAlreadyMember
 	}
 	now := t.now()
-	if _, err := t.store.RevokeOpenTraegerInvitationsForEmail(ctx, actor.OrganizationID, email, now); err != nil {
+	if _, err := t.store.RevokeOpenTraegerInvitationsForEmail(ctx, organizationID, email, now); err != nil {
 		return domain.TraegerInvitation{}, err
 	}
-	createdBy := actor.AccountID
 	created, _, err := t.store.InsertTraegerInvitation(ctx, domain.TraegerInvitation{
-		OrganizationID: actor.OrganizationID, Email: email, Token: uuid.Must(uuid.NewV4()).String(),
-		Roles: roles, ExpiresAt: now.Add(t.expiry), CreatedBy: &createdBy,
+		OrganizationID: organizationID, Email: email, Token: uuid.Must(uuid.NewV4()).String(),
+		Roles: roles, ExpiresAt: now.Add(t.expiry), CreatedBy: createdBy,
 	})
 	if err != nil {
 		return domain.TraegerInvitation{}, err
@@ -253,7 +308,7 @@ func (t *TraegerAccounts) invite(ctx context.Context, actor identityaccess.Traeg
 	if err := t.delivery.DispatchTraegerInvitation(ctx, publicTraegerInvitation(created), unit.name, t.expiry); err != nil {
 		return domain.TraegerInvitation{}, fmt.Errorf("queue Träger invitation mail: %w", err)
 	}
-	return created, t.record(ctx, actor, identityaccess.TraegerAccountInvitationCreated, nil, &email, nil, roles)
+	return created, nil
 }
 
 // RevokeTraegerInvitation spends an open invitation of the Träger.
@@ -516,6 +571,17 @@ func (t *TraegerAccounts) record(ctx context.Context, actor identityaccess.Traeg
 		OrganizationID: actor.OrganizationID, ActorAccountID: actor.AccountID, Action: action,
 		TargetAccountID: targetAccountID, TargetEmail: targetEmail, RolesBefore: before, RolesAfter: after,
 	})
+}
+
+// normalizeTraegerInvitation lowercases the address and normalizes the role
+// set of an invitation.
+func normalizeTraegerInvitation(email string, roles []string) (string, []string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || !strings.Contains(email, "@") {
+		return "", nil, identityaccess.ErrTraegerInvalidEmail
+	}
+	roles, err := normalizeTraegerRoles(roles)
+	return email, roles, err
 }
 
 // normalizeTraegerRoles deduplicates and sorts a role set and refuses an

@@ -1,0 +1,4 @@
+GET /api/platform/announcements/unread -> basis
+GET /api/platform/announcements/unread/count -> basis
+POST /api/platform/announcements/{id}/dismiss -> basis
+POST /api/platform/announcements/{id}/seen -> basis

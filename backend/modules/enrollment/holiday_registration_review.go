@@ -40,6 +40,12 @@ const (
 	HolidayAuditRebook  = "rebook"
 	HolidayAuditFreeze  = "freeze"
 	HolidayAuditReopen  = "reopen"
+	// HolidayAuditProof records a proof of benefits the Träger-Büro opened
+	// (#5238).
+	HolidayAuditProof = "proof"
+	// HolidayAuditHealth records a read of the health information of a
+	// registration (#4722).
+	HolidayAuditHealth = "health"
 )
 
 var (
@@ -124,13 +130,16 @@ type HolidayRegistrationList struct {
 	StatusCounts  map[string]int               `json:"status_counts"`
 }
 
-// HolidayRegistrationHealth is the health information of one child. Only
-// the detail of a registration shows it.
+// HolidayRegistrationHealth is the health information of one child: the
+// fixed health fields and the answers to the child questions marked as
+// health information. Only the health read of a registration shows it
+// (#4722).
 type HolidayRegistrationHealth struct {
-	ChildID     int64  `json:"child_id"`
-	Allergies   string `json:"allergies"`
-	Medication  string `json:"medication"`
-	HealthNotes string `json:"health_notes"`
+	ChildID     int64          `json:"child_id"`
+	Allergies   string         `json:"allergies"`
+	Medication  string         `json:"medication"`
+	HealthNotes string         `json:"health_notes"`
+	CustomData  HolidayAnswers `json:"custom_data"`
 }
 
 // HolidayRegistrationContact is an emergency contact or a person allowed to
@@ -166,24 +175,68 @@ type HolidayRegistrationEvent struct {
 	Details        HolidayRegistrationEventDetails `json:"details"`
 }
 
+// HolidayChildAnswers are the answers of one child to the questions of the
+// form.
+type HolidayChildAnswers struct {
+	ChildID    int64          `json:"child_id"`
+	CustomData HolidayAnswers `json:"custom_data"`
+}
+
+// HolidayRegistrationAnswers are the form version and the answers of one
+// registration as the store reads them, the children in their order.
+type HolidayRegistrationAnswers struct {
+	LegalAcceptances map[string]time.Time
+	FormVersion      int
+	CustomData       HolidayAnswers
+	Children         []HolidayChildAnswers
+}
+
 // HolidayRegistrationDetail is one registration with everything the parent
-// entered, its consents and its history.
+// entered except the health information, its consents and its history. Form
+// is the version of the period's form the registration was submitted with;
+// CustomData and ChildCustomData are the answers to its questions without
+// health information (#5198); the health read returns those (#4722).
+// BenefitsProofs are the proofs of benefits the parents attached (#5238);
+// only the detail names them.
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
-	Health             []HolidayRegistrationHealth  `json:"health"`
-	Contacts           []HolidayRegistrationContact `json:"contacts"`
-	PrivacyConsentAt   time.Time                    `json:"privacy_consent_at"`
-	HealthConsentAt    *time.Time                   `json:"health_consent_at"`
-	BindingConfirmedAt *time.Time                   `json:"binding_confirmed_at"`
-	History            []HolidayRegistrationEvent   `json:"history"`
+	LegalAcceptances map[string]time.Time         `json:"legal_acceptances"`
+	SecondGuardian   *HolidayGuardianInput        `json:"second_guardian,omitempty"`
+	Form             *HolidayPeriodForm           `json:"form"`
+	CustomData       HolidayAnswers               `json:"custom_data"`
+	ChildCustomData  []HolidayChildAnswers        `json:"child_custom_data"`
+	Contacts         []HolidayRegistrationContact `json:"contacts"`
+	PrivacyConsentAt time.Time                    `json:"privacy_consent_at"`
+	HealthConsentAt  *time.Time                   `json:"health_consent_at"`
+	// ConsentVersion is the version of the consent texts the parents agreed
+	// to; 0 for a registration before #4722, which shares no health
+	// information with the hosting school.
+	ConsentVersion     int                        `json:"consent_version"`
+	BindingConfirmedAt *time.Time                 `json:"binding_confirmed_at"`
+	BenefitsProofs     []HolidayRegistrationProof `json:"benefits_proofs"`
+	History            []HolidayRegistrationEvent `json:"history"`
 }
 
 // HolidayRegistrationExportRow is one booking of the export: one row per
-// child and week.
+// child and week. Answers are the family's and the child's answers to the
+// export's Columns, never to a question with health information (#5198).
+// AnswerFields keeps their definitions from the submitted form version.
 type HolidayRegistrationExportRow struct {
-	Registration HolidayRegistrationSummary
-	Child        HolidayRegistrationChild
-	Booking      HolidayRegistrationBooking
+	SecondGuardian *HolidayGuardianInput
+	Registration   HolidayRegistrationSummary
+	Child          HolidayRegistrationChild
+	Booking        HolidayRegistrationBooking
+	Answers        HolidayAnswers
+	AnswerFields   []HolidayFormField
+}
+
+// HolidayRegistrationExport is the export of a period: its rows and one
+// column per question without health information of the form versions the
+// rows were submitted with, labelled as the newest of them labels it.
+type HolidayRegistrationExport struct {
+	Period  HolidayPeriod
+	Rows    []HolidayRegistrationExportRow
+	Columns []HolidayFormField
 }
 
 // HolidayReviewer is the person of the Träger-Büro who reviews: the Träger
@@ -200,10 +253,14 @@ type HolidayReviewer struct {
 type HolidayRegistrationReview interface {
 	ListHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter) (HolidayRegistrationList, error)
 	HolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistrationDetail, error)
+	// HolidayRegistrationHealth opens the health information of one
+	// registration and records the read (#4722). The route lets only the
+	// right traeger_health:read call it.
+	HolidayRegistrationHealth(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistrationHealthDetail, error)
 	// ExportHolidayRegistrations lists one row per booking of the filter, for
 	// the CSV and Excel export. format names the file format in the audit
 	// trail.
-	ExportHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter, format string) (HolidayPeriod, []HolidayRegistrationExportRow, error)
+	ExportHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter, format string) (HolidayRegistrationExport, error)
 	// ChangeHolidayRegistration confirms, cancels, freezes or reopens a
 	// registration: action is HolidayAuditConfirm, HolidayAuditCancel,
 	// HolidayAuditFreeze or HolidayAuditReopen.
@@ -211,6 +268,9 @@ type HolidayRegistrationReview interface {
 	// RebookHolidayChild replaces the bookings of one child: one time model
 	// per week, at least one week.
 	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingInput) (HolidayRegistrationDetail, error)
+	// OpenHolidayRegistrationProof returns one proof of benefits of a
+	// registration with its bytes (#5238).
+	OpenHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, proofID int64) (HolidayProofFile, error)
 }
 
 // HolidaySchoolNames names the schools of a Träger for the export of the

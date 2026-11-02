@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,7 @@ type scenarioSetup struct {
 	autoStart       timetable.InstanceAutoStart
 	careOffering    careplan.CareOfferingCapability
 	statusDays      studentpresence.StatusDays
+	hub             *realtime.Hub
 	db              *bun.DB
 	ctx             context.Context
 	tenantID        int64
@@ -80,7 +82,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	db := testpkg.SetupTestDB(t)
 
 	repoFactorySchedules := api.NewCareScheduleSuiteRepositories(testpkg.NewDatabase(t, db))
-	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, err := api.NewTestTimetable(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	ttLifecycle, ttPlanning, ttMaterialization, ttActive, ttSchedules, ttCareOfferings, ttStatusDays, hub, err := api.NewTestTimetableWithHub(testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -168,6 +170,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 		svc:             svc,
 		instance:        fixtures.FromInstanceLifecycle(ttLifecycle.Instances),
 		timetableData:   ttPlanning.Planning,
+		hub:             hub,
 		active:          ttActive,
 		materialization: ttMaterialization,
 		careDay:         ttSchedules.CareDay,

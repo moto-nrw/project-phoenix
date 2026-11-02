@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -182,8 +184,8 @@ func TestConversationCore_BindsTheSharedRules(t *testing.T) {
 	require.Len(t, rr.marks, 1)
 
 	// A nil broadcaster is a no-op, never a panic.
-	core.Broadcast(1, 200, 42, 7)
-	core.BroadcastRead(1, 200, 42, 7)
+	core.Broadcast(1, 200, 42, 7, communication.ParentMessageAudienceTeam)
+	core.BroadcastRead(1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 }
 
 // --- MarkReadToNewest ---------------------------------------------------
@@ -425,16 +427,33 @@ func TestBroadcast_FiresParentMessageEvent(t *testing.T) {
 	t.Parallel()
 
 	bc := testpkg.NewRecordingBroadcaster()
-	Broadcast(bc, nil, 1, 200, 42, 7)
+	Broadcast(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 	require.Len(t, bc.Events(), 1)
 	assert.Equal(t, realtime.EventParentMessage, bc.Events()[0].Type)
+}
+
+// TestBroadcast_LeadershipConversationWakesOnlyLeadership pins the SSE
+// routing of a leadership conversation (#5200): it never goes through the
+// tenant-wide staff fan-out.
+func TestBroadcast_LeadershipConversationWakesOnlyLeadership(t *testing.T) {
+	t.Parallel()
+
+	bc := testpkg.NewRecordingBroadcaster()
+	Broadcast(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceLeadership)
+	BroadcastRead(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceLeadership)
+	assert.Empty(t, bc.CallsByMethod("parent"), "a leadership conversation must not reach every staff tab")
+	leadership := bc.CallsByMethod("leadership")
+	require.Len(t, leadership, 2)
+	assert.Equal(t, int64(200), leadership[0].GuardianID, "the guardian's own tabs still wake")
+	assert.Equal(t, realtime.EventParentMessage, leadership[0].Event.Type)
+	assert.Equal(t, realtime.EventParentMessageRead, leadership[1].Event.Type)
 }
 
 func TestBroadcastRead_FiresReadEvent(t *testing.T) {
 	t.Parallel()
 
 	bc := testpkg.NewRecordingBroadcaster()
-	BroadcastRead(bc, nil, 1, 200, 42, 7)
+	BroadcastRead(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 	require.Len(t, bc.Events(), 1)
 	assert.Equal(t, realtime.EventParentMessageRead, bc.Events()[0].Type)
 }
@@ -443,13 +462,13 @@ func TestBroadcast_NilBroadcasterAndBadTenantAreNoOps(t *testing.T) {
 	t.Parallel()
 
 	// nil broadcaster: nothing to call, no panic.
-	Broadcast(nil, nil, 1, 200, 42, 7)
-	BroadcastRead(nil, nil, 1, 200, 42, 7)
+	Broadcast(nil, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
+	BroadcastRead(nil, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 	// Non-positive tenant: a no-op even with a live broadcaster (never fan out an
 	// un-scoped event across the whole platform).
 	bc := testpkg.NewRecordingBroadcaster()
-	Broadcast(bc, nil, 0, 200, 42, 7)
-	BroadcastRead(bc, nil, -1, 200, 42, 7)
+	Broadcast(bc, nil, 0, 200, 42, 7, communication.ParentMessageAudienceTeam)
+	BroadcastRead(bc, nil, -1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 	assert.Empty(t, bc.Events(), "a non-positive tenant must not broadcast")
 }
 
@@ -459,7 +478,7 @@ func TestBroadcast_DeliveryErrorIsSwallowed(t *testing.T) {
 	// A delivery error is logged, never returned (the message already committed).
 	bc := testpkg.NewRecordingBroadcaster()
 	bc.Err = errors.New("client buffer full")
-	Broadcast(bc, nil, 1, 200, 42, 7)
-	BroadcastRead(bc, nil, 1, 200, 42, 7)
+	Broadcast(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
+	BroadcastRead(bc, nil, 1, 200, 42, 7, communication.ParentMessageAudienceTeam)
 	assert.Len(t, bc.Events(), 2, "the fan-out is attempted; the error does not propagate")
 }

@@ -13,7 +13,7 @@ import (
 
 // BroadcastCall records one realtime.Broadcaster invocation.
 type BroadcastCall struct {
-	Method     string // "group", "tenant", "admin", "all", "parent", "guardian", "staff" or "school"
+	Method     string // "group", "tenant", "admin", "all", "parent", "leadership", "guardian", "staff" or "school"
 	TenantID   int64
 	Topic      string  // active-group topic (BroadcastToGroup only)
 	GuardianID int64   // guardian account ID (BroadcastParentMessage / BroadcastToGuardian)
@@ -89,6 +89,11 @@ func (b *RecordingBroadcaster) BroadcastParentMessage(tenantID, guardianAccountI
 	return b.record(BroadcastCall{Method: "parent", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})
 }
 
+// BroadcastLeadershipParentMessage implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event realtime.Event) error {
+	return b.record(BroadcastCall{Method: "leadership", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})
+}
+
 // BroadcastToGuardian implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastToGuardian(tenantID, guardianAccountID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "guardian", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})
@@ -104,7 +109,7 @@ func (b *RecordingBroadcaster) Calls() []BroadcastCall {
 }
 
 // CallsByMethod returns every recorded call made through the given method
-// ("group", "tenant", "admin", "all", "parent", "guardian", "staff" or "school").
+// ("group", "tenant", "admin", "all", "parent", "leadership", "guardian", "staff" or "school").
 func (b *RecordingBroadcaster) CallsByMethod(method string) []BroadcastCall {
 	out := make([]BroadcastCall, 0)
 	for _, c := range b.Calls() {

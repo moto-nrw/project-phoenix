@@ -1,0 +1,6 @@
+{
+  "api/traeger/contribution-rules": [
+    "GET traeger /traeger/contribution-rules",
+    "POST traeger /traeger/contribution-rules"
+  ]
+}

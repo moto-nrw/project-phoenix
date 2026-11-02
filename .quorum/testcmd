@@ -1,1 +1,1 @@
-scripts/test-changed.sh
+scripts/run-go-toolchain.sh scripts/test-changed.sh --fast

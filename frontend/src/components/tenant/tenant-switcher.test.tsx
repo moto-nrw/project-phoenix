@@ -59,6 +59,7 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(async () => ({ user: { token: "test-session" } })),
   signOut: mockSignOut,
 }));
+vi.mock("~/lib/tenant-session-cookie", () => ({ signOutTenant: mockSignOut }));
 
 vi.mock("~/lib/swr", () => ({
   mutate: mockMutate,
@@ -361,7 +362,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -391,7 +391,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -444,9 +443,12 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() =>
       expect(window.location.href).toBe("http://school-b.localhost:3000/"),
     );
-    expect(mockSignOut).toHaveBeenCalledWith({
-      callbackUrl: "http://school-b.localhost:3000/",
-    });
+    expect(mockSignOut).toHaveBeenCalledWith(
+      {
+        callbackUrl: "http://school-b.localhost:3000/",
+      },
+      expect.any(AbortSignal),
+    );
   });
 
   it("offers moto schule when the selected school only grants Lehrkraft access", async () => {
@@ -543,7 +545,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });

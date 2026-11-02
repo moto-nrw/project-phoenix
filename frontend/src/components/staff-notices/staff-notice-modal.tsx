@@ -10,7 +10,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { AUDIENCE_LABELS } from "~/lib/staff-notices-api";
 import type {
   StaffNotice,
@@ -78,7 +78,7 @@ function initialState(notice: StaffNotice | null): FormState {
       body: "",
       priority: "info",
       audience: "all",
-      validFrom: todayISO(),
+      validFrom: berlinTodayISO(),
       validUntil: "",
       weekdays: [],
       weekPattern: 0,

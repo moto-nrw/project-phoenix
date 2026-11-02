@@ -20,6 +20,10 @@ import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { displayKeys } from "~/lib/swr/portal-keys";
+import { DISPLAY_REFUSALS } from "~/lib/everyday-action-refusals";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -70,11 +74,15 @@ function InfoDisplaysPageContent() {
   const { tenantSlug } = useTenant();
 
   const {
-    data: displays,
+    data: confirmedDisplays,
     error: displaysError,
     isLoading,
     mutate,
-  } = useSWRAuth<InfoDisplay[]>("info-displays", listDisplays);
+  } = useSWRAuth<InfoDisplay[]>(displayKeys.list(), listDisplays);
+
+  const optimistic = useOptimisticAction(displayKeys.list(), confirmedDisplays);
+  const displays = optimistic.data;
+  const inFlight = useRef(false);
 
   // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
   const loadError = useSwrLoadError(
@@ -111,19 +119,43 @@ function InfoDisplaysPageContent() {
     action: () => Promise<T>,
     failEvent: string,
     onError: (err: unknown) => void,
+    update: (rows: InfoDisplay[]) => InfoDisplay[] = (rows) => rows,
+    commit: (value: T) => void = () => {
+      void mutate();
+    },
   ): Promise<{ ok: true; value: T } | { ok: false }> => {
+    if (inFlight.current) return { ok: false };
+    inFlight.current = true;
     setBusy(true);
     try {
-      const value = await action();
-      await mutate();
-      return { ok: true, value };
-    } catch (err) {
-      logger.error(failEvent, {
-        error: err instanceof Error ? err.message : String(err),
+      const outcome = await optimistic.run({
+        optimistic: update,
+        request: action,
+        commit,
+        refusal: {
+          codes: DISPLAY_REFUSALS,
+          matches: (key) => key === displayKeys.list(),
+        },
       });
-      onError(err);
+      if (outcome.status === "discarded") return { ok: false };
+      if (outcome.status === "done") return { ok: true, value: outcome.result };
+      // A 404 names one deleted display, not lost access to the list.
+      if (
+        outcome.error instanceof ApiError &&
+        outcome.error.status === 404 &&
+        outcome.error.code === wireErrorCode("general.input")
+      )
+        void mutate();
+      logger.error(failEvent, {
+        error:
+          outcome.error instanceof Error
+            ? outcome.error.message
+            : String(outcome.error),
+      });
+      onError(outcome.error);
       return { ok: false };
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -164,6 +196,16 @@ function InfoDisplaysPageContent() {
       () => updateDisplay(renameTarget.id, { name: nameInput }),
       "display_rename_failed",
       showNameError,
+      (rows) =>
+        rows.map((row) =>
+          row.id === renameTarget.id ? { ...row, name: nameInput } : row,
+        ),
+      (saved) => {
+        void mutate(
+          (rows) => rows?.map((row) => (row.id === saved.id ? saved : row)),
+          { revalidate: false },
+        );
+      },
     );
     if (!result.ok) return;
     toast.success(`Das Display heißt jetzt „${result.value.name}“.`);
@@ -182,6 +224,16 @@ function InfoDisplaysPageContent() {
             : "das Einschalten des Displays",
           retry: () => void handleToggleActive(display),
         }),
+      (rows) =>
+        rows.map((row) =>
+          row.id === display.id ? { ...row, isActive: !display.isActive } : row,
+        ),
+      (saved) => {
+        void mutate(
+          (rows) => rows?.map((row) => (row.id === saved.id ? saved : row)),
+          { revalidate: false },
+        );
+      },
     );
     if (!result.ok) return;
     toast.success(
@@ -210,25 +262,26 @@ function InfoDisplaysPageContent() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setBusy(true);
     deleteErrors.clear();
-    try {
-      await deleteDisplay(deleteTarget.id);
-      await mutate();
-      toast.success(`Das Display „${deleteTarget.name}“ ist gelöscht.`);
-      setDeleteTarget(null);
-    } catch (err) {
-      logger.error("display_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Der Fehler bleibt im offenen Löschdialog.
-      void deleteErrors.show(err, {
-        object: "das Display",
-        retry: () => retryDeleteRef.current(),
-      });
-    } finally {
-      setBusy(false);
-    }
+    const id = deleteTarget.id;
+    const remove = (rows: InfoDisplay[]) => rows.filter((row) => row.id !== id);
+    const result = await run(
+      () => deleteDisplay(id),
+      "display_delete_failed",
+      (err) => {
+        void deleteErrors.show(err, {
+          object: "das Display",
+          retry: () => retryDeleteRef.current(),
+        });
+      },
+      remove,
+      () => {
+        void mutate((rows) => rows && remove(rows), { revalidate: false });
+      },
+    );
+    if (!result.ok) return;
+    toast.success(`Das Display „${deleteTarget.name}“ ist gelöscht.`);
+    setDeleteTarget(null);
   };
 
   useLayoutEffect(() => {
@@ -269,6 +322,7 @@ function InfoDisplaysPageContent() {
             align: "right",
             render: (row) => (
               <OverflowMenu
+                disabled={busy}
                 items={[
                   {
                     label: "Umbenennen",

@@ -1,0 +1,11 @@
+{
+  "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "attachment_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "file_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_name_invalid": "Dosya adı kabul edilmiyor. Lütfen dosyayı yeniden seçin.",
+  "file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_type_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_unreadable": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "folder_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "quota_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

@@ -1,0 +1,1360 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate; modules/careplan/pickup_schedules.go:92. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate; modules/careplan.PickupScheduleService (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BulkPickupTimes.GetBulkEffectivePickupTimesForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate; modules/careplan.PickupScheduleService (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.GetBulkEffectivePickupTimesForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted; modules/organizationtenancy/school.go:49. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchoolBySubdomain (organization-tenancy) through api.deviceSchoolDirectory.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchools.FindSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/organizationtenancy.SchoolQuery.FindSchool (organization-tenancy) through api.deviceSchools.FindSchool. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.Settings.ResolveStringForTenant",
+      "reason": "Read-only newly exposed target: device-fleet reaches modules/settings/records.BatchSettingsService.ResolveStringForTenant (settings-platform) through modules/settings/records.SettingsService.ResolveStringForTenant. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.Settings.ResolveStringForTenant",
+      "reason": "Read-only newly exposed target: device-fleet reaches modules/settings/records.SettingsService.ResolveStringForTenant (settings-platform) through modules/settings/records.SettingsService.ResolveStringForTenant. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveStringForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListOrganizationsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListOrganizationsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListOrganizationsByID; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizationsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListOrganizationsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListOrganizationsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListOrganizationsByID; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListOrganizationsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByID; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByID; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByID",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByOrganization",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByOrganization",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.tagScanSchoolDirectory.ListSchoolsByOrganization",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator.Directory.ListSchoolsByOrganization",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.IsPlannedInstanceStatus; modules/timetable/activity_instances.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.SessionRecords.ListSessionInstances; modules/timetable/session_records.go:12. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListPlannedActivities(context.Context, time.Time) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.PlannedActivity, error)}.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PlannedActivitySource.ListPlannedActivities",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable/internal/application.SessionRecords.ListSessionInstances; modules/timetable/internal/application/session_records.go:41. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PresenceQuery.ListAttendance",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.PresenceQuery.ListVisits",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.Group.ParticipantLimit; modules/timetable/groups.go:66. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable.TemplateCatalog.ListTemplateGroups; modules/timetable/session_records.go:22. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "interface{ListActivityTemplates(context.Context) ([]github.com/moto-nrw/project-phoenix/modules/devicefleet/compose.ActivityTemplate, error)}.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.TemplateSource.ListActivityTemplates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetable/internal/application.SessionRecords.ListTemplateGroups; modules/timetable/internal/application/session_records.go:21. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable.Group.ParticipantLimit (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable.TemplateCatalog.ListTemplateGroups (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListActivityTemplates",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListTemplateGroups (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListActivityTemplates. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable.IsPlannedInstanceStatus (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable.SessionRecords.ListSessionInstances (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.DashboardSources.ListPlannedActivities",
+      "reason": "Read-only already reviewed target: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListSessionInstances (timetable-activities) through modules/devicefleet/internal/application.DashboardSources.ListPlannedActivities. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.DisplayEnabled",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.DisplayEnabled",
+      "reason": "Read-only newly exposed target: device-fleet reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenant (settings-platform) through roots/owners.displayTenantFacts.DisplayEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted; modules/organizationtenancy/school.go:49. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.displayTenantFacts.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports.TenantFacts.School",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.SchoolQuery.FindSchool; modules/organizationtenancy/organizationtenancy.go:97. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.FindRoom; modules/facilities/facilities.go:57. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoomByName; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoomByName; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoomByName; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindRoomByName; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindRoomByName; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.FindRoomByName; modules/facilities/facilities.go:59. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.FindRoomForUpdate; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.FindRoomForUpdate; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Catalog.FindRoomForUpdate; modules/facilities.Catalog (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.FindRoomForUpdate; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Catalog.FindRoomForUpdate; modules/facilities.Catalog (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Query.FindRoomForUpdate; modules/facilities/facilities.go:58. ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomForUpdate",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindToiletRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindToiletRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindToiletRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.FindToiletRoom; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.FindToiletRoom; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.FindToiletRoom; modules/facilities/facilities.go:60. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRooms; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRooms; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRooms; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRooms; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRooms; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.ListRooms; modules/facilities/facilities.go:61. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsByID; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsByID; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRoomsByID; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsByID; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRoomsByID; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.ListRoomsByID; modules/facilities/facilities.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsPage; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsPage; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRoomsPage; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Capability.ListRoomsPage; modules/facilities.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Catalog.ListRoomsPage; modules/facilities.Catalog (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities.Query.ListRoomsPage; modules/facilities/facilities.go:62. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.LockRoomsByID; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.LockRoomsByID; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Catalog.LockRoomsByID; modules/facilities.Catalog (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Capability.LockRoomsByID; modules/facilities.Capability (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Catalog.LockRoomsByID; modules/facilities.Catalog (supplied contract method). ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/facilities.Query.LockRoomsByID; modules/facilities/facilities.go:64. ",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.LockRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict; modules/studentpresence/internal/application/session_record_facade.go:104. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.CheckRoomConflict; modules/studentpresence/session_records.go:34. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.CheckRoomConflict; modules/studentpresence/internal/adapters/postgres/session_repository.go:172. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.CheckRoomConflict; modules/studentpresence/internal/adapters/postgres/session_repository.go:172. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.SessionRecords.CreateSession; modules/studentpresence/internal/application/session_record_facade.go:55.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.SessionRecords.CreateSession; modules/studentpresence/session_records.go:16.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/compose.SessionRecords.CreateSession; modules/studentpresence/compose.SessionRecords (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/compose.SessionRecords.CreateSession; modules/studentpresence/compose.SessionRecords (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames; modules/studentpresence/internal/application/session_record_facade.go:94. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames; modules/studentpresence/session_records.go:28. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames; modules/studentpresence/internal/adapters/postgres/session_repository.go:132. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames; modules/studentpresence/internal/adapters/postgres/session_repository.go:132. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID; modules/studentpresence/internal/application/session_record_facade.go:89. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.FindActiveByRoomID; modules/studentpresence/session_records.go:25. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveByRoomID; modules/studentpresence/internal/adapters/postgres/session_repository.go:69. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveByRoomID; modules/studentpresence/internal/adapters/postgres/session_repository.go:69. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.FindActiveGroups; modules/studentpresence/internal/application/session_record_facade.go:99. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.FindActiveGroups; modules/studentpresence/session_records.go:30. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveGroups; modules/studentpresence/internal/adapters/postgres/session_repository.go:252. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindActiveGroups; modules/studentpresence/internal/adapters/postgres/session_repository.go:252. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate; modules/studentpresence/internal/application/session_record_facade.go:72.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.SessionRecords.FindByIDForUpdate; modules/studentpresence/session_records.go:22.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence/compose.SessionRecords.FindByIDForUpdate; modules/studentpresence/internal/adapters/postgres/session_repository.go:287.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence/compose.SessionRecords.FindByIDForUpdate; modules/studentpresence/internal/adapters/postgres/session_repository.go:287.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.FindByIDs; modules/studentpresence/internal/application/session_record_facade.go:77. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.FindByIDs; modules/studentpresence/session_records.go:24. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindByIDs; modules/studentpresence/internal/adapters/postgres/session_repository.go:263. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindByIDs; modules/studentpresence/internal/adapters/postgres/session_repository.go:263. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.FindSession; modules/studentpresence/internal/application/session_record_facade.go:67. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.FindSession; modules/studentpresence/session_records.go:19. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindSession; modules/studentpresence/compose.SessionRecords (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.FindSession; modules/studentpresence/compose.SessionRecords (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs; modules/studentpresence/internal/adapters/postgres/session_repository.go:300. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs; modules/studentpresence/session_records.go:36. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs; modules/studentpresence/internal/adapters/postgres/session_repository.go:300. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs; modules/studentpresence/internal/adapters/postgres/session_repository.go:300. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.SessionRecords.SessionRows; modules/studentpresence/internal/application/session_record_facade.go:111. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.SessionRecords.SessionRows; modules/studentpresence/session_records.go:39. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.SessionRows; modules/studentpresence/compose.SessionRecords (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/compose.SessionRecords.SessionRows; modules/studentpresence/compose.SessionRecords (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity; modules/studentpresence/internal/adapters/postgres/session_repository.go:230.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.SessionRecords.UpdateLastActivity; modules/studentpresence/session_records.go:35.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/compose.SessionRecords.UpdateLastActivity; modules/studentpresence/internal/adapters/postgres/session_repository.go:230.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/compose.SessionRecords.UpdateLastActivity; modules/studentpresence/internal/adapters/postgres/session_repository.go:230.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    }
+  ]
+}

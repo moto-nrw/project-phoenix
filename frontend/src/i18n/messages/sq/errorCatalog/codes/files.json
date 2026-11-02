@@ -1,0 +1,11 @@
+{
+  "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "attachment_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "file_name_invalid": "Emri i skedarit nuk lejohet. Ju lutemi zgjidhni skedarin përsëri.",
+  "file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "file_type_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "folder_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "quota_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+}

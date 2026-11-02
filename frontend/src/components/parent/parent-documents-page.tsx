@@ -25,6 +25,7 @@ import {
   listMyDocuments,
   type ParentDocument,
 } from "~/lib/parent-api";
+import { documentsConcept } from "~/lib/concepts/documents";
 
 export function ParentDocumentsPage() {
   const t = useTranslations("parentDocuments");
@@ -57,7 +58,7 @@ export function ParentDocumentsPage() {
         <LoadErrorAlert error={error} />
       ) : documents.length === 0 ? (
         <EmptyState
-          icon={<MotoConceptIcon concept="documents" />}
+          icon={<MotoConceptIcon concept={documentsConcept} />}
           title={t("emptyTitle")}
           description={t("emptyDescription")}
         />
@@ -100,7 +101,7 @@ function ParentDocumentCard({
   return (
     <ParentSection
       level={2}
-      concept="documents"
+      concept={documentsConcept}
       title={t("confirmationLetter", { period: document.period_name })}
       description={t("sender", { traeger: document.traeger_name })}
       actions={

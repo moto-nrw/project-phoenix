@@ -133,6 +133,9 @@ type BookingEnrollment interface {
 	SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error)
 	// SelectionHistory lists every dated selection of the child.
 	SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error)
+	// StudentSelectionsAt lists the selections of all the student's approved
+	// request children in force on the date.
+	StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error)
 	// ApprovedChildren lists the approved bookings of the offerings still in
 	// force on or after the date.
 	ApprovedChildren(ctx context.Context, offeringIDs []int64, onOrAfter calendar.Date) ([]ApprovedOfferingChild, error)
@@ -218,7 +221,8 @@ type PickupScheduleGuardians interface {
 
 // BookingManualPlans reads the Regeltermine that keep planning a student on
 // weekdays from a date on other than through a booking-created roster row
-// (#5102). Runs in the caller's tenant transaction.
+// (#5102), leaving out those a remaining booking carries (#5342). Runs in
+// the caller's tenant transaction.
 type BookingManualPlans interface {
-	ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, weekdays []int) ([]careplan.ManualRosterTemplate, error)
+	ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, change careplan.BookingDayChange) ([]careplan.ManualRosterTemplate, error)
 }

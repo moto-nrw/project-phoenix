@@ -1,10 +1,40 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { findUnrunTests } from './check-test-runners.mjs';
 
 function check(files) {
   return findUnrunTests(Object.keys(files), file => files[file]);
 }
+
+test('CLI accepts a tracked-path list over 1 MiB without hiding an unrun test', () => {
+  const root = mkdtempSync(join(tmpdir(), 'moto-test-runners-'));
+  try {
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    mkdirSync(join(root, 'scripts'));
+    writeFileSync(join(root, 'scripts/unrun.test.mjs'), '');
+    writeFileSync(join(bin, 'git'), `#!${process.execPath}
+if (process.argv[2] === 'rev-parse') process.stdout.write(process.env.FIXTURE_ROOT);
+else process.stdout.write(('absent/'+'x'.repeat(120)+'\\0').repeat(9000)+'scripts/unrun.test.mjs\\0');
+`, { mode: 0o755 });
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('./check-test-runners.mjs', import.meta.url))], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURE_ROOT: root },
+    });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /Test files without a CI runner/);
+    assert.match(result.stderr, /scripts\/unrun\.test\.mjs/);
+    assert.doesNotMatch(result.stderr, /ENOBUFS/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const packageJson = JSON.stringify({
   scripts: {

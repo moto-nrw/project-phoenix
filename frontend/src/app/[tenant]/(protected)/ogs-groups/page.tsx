@@ -1,5 +1,7 @@
 "use client";
 
+import { groupKeys } from "~/lib/swr/groups-keys";
+
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -77,6 +79,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { weekProtocolsPath } from "~/lib/week-protocols-api";
 import { usePresenceMode } from "~/lib/tenant-context";
 import {
   StudentTable,
@@ -126,9 +129,12 @@ import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
-import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { substitutionConcept } from "~/lib/concepts/substitution";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -457,9 +463,7 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    hasSessionAccess(session)
-      ? `ogs-students-${selectedGroupId ?? "auto"}`
-      : null,
+    hasSessionAccess(session) ? groupKeys.live(selectedGroupId) : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();
@@ -576,7 +580,7 @@ function OGSGroupPageContent() {
       // was in flight would otherwise leave a stale seed pinned until the
       // next event.
       if (dataGroupId) {
-        void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
+        void tenantMutate(groupKeys.live(dataGroupId), liveData, {
           revalidate: true,
         });
       }
@@ -1084,7 +1088,7 @@ function OGSGroupPageContent() {
       <TenantPage
         title={OGS_GROUPS_LABEL}
         empty={{
-          icon: <MotoConceptIcon concept="groups" size={48} />,
+          icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
           description:
             "Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden.",
@@ -1101,6 +1105,16 @@ function OGSGroupPageContent() {
         canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
         activeTransfersCount: groupTransfer.transfers.length,
         onOpenTransfer: () => groupTransfer.setOpen(true),
+        // Wie das Backend: die Leitung immer, sonst Fachkräfte der eigenen
+        // oder vertretenen Gruppe; Gäste (nur groups:read) nie.
+        onOpenWeekProtocols:
+          canAdministerGroups ||
+          hasPermission(session, "groups:manage") ||
+          (hasPermission(session, "groups:update") &&
+            (currentGroup.isPersonal === true ||
+              currentGroup.viaSubstitution === true))
+            ? () => router.push(weekProtocolsPath(currentGroup.id))
+            : undefined,
       })
     : [];
 
@@ -1399,7 +1413,7 @@ function OGSGroupPageContent() {
             ) : null}
             {currentGroup?.viaSubstitution ? (
               <div className="flex items-center gap-2">
-                <MotoConceptIcon concept="substitution" size={18} />
+                <MotoConceptIcon concept={substitutionConcept} size={18} />
                 <span className="text-sm font-medium text-gray-900">
                   In Vertretung
                 </span>
@@ -1456,7 +1470,7 @@ function OGSGroupPageContent() {
         empty={
           !showSkeleton && !error && students.length === 0
             ? {
-                icon: <MotoConceptIcon concept="children" size={48} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={48} />,
                 title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
                 description:
                   allGroups.length > 1

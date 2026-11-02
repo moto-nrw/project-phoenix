@@ -5,6 +5,8 @@ import {
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
   fetchHolidayRegistration,
+  fetchHolidayRegistrationHealth,
+  withHolidayHealthAnswers,
   fetchHolidayRegistrations,
   rebookHolidayChild,
 } from "./traeger-holiday-registrations-api";
@@ -45,9 +47,6 @@ const BACKEND_DETAIL = {
       ],
       duplicate_registration_ids: [8],
     },
-  ],
-  health: [
-    { child_id: 9, allergies: "Erdnüsse", medication: "", health_notes: "" },
   ],
   contacts: [
     {
@@ -127,7 +126,33 @@ describe("traeger-holiday-registrations-api", () => {
     });
   });
 
-  it("maps the detail with health information, contacts and history", async () => {
+  it("maps a second guardian on details without adding it to the list", async () => {
+    const backend = {
+      ...BACKEND_DETAIL,
+      second_guardian: {
+        first_name: "Tom",
+        last_name: "Anders",
+        email: "tom@example.org",
+        phone: "0151 2345678",
+      },
+    };
+    fetchMock.mockResolvedValue(jsonResponse(200, { data: backend }));
+    expect((await fetchHolidayRegistration("5", "7")).secondGuardian).toEqual({
+      firstName: "Tom",
+      lastName: "Anders",
+      email: "tom@example.org",
+      phone: "0151 2345678",
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { data: { registrations: [backend], total: 1 } }),
+    );
+    expect(
+      (await fetchHolidayRegistrations("5", EMPTY_HOLIDAY_REGISTRATION_FILTER))
+        .registrations[0],
+    ).not.toHaveProperty("secondGuardian");
+  });
+
+  it("maps the detail with contacts and history, without health information", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
     );
@@ -137,9 +162,8 @@ describe("traeger-holiday-registrations-api", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/traeger/holiday-periods/5/registrations/7",
     );
-    expect(detail.health).toEqual([
-      { childId: "9", allergies: "Erdnüsse", medication: "", healthNotes: "" },
-    ]);
+    expect(detail.secondGuardian).toBeNull();
+    expect(detail).not.toHaveProperty("health");
     expect(detail.history).toEqual([
       {
         action: "rebook",
@@ -158,6 +182,44 @@ describe("traeger-holiday-registrations-api", () => {
         after: [],
       },
     ]);
+  });
+
+  it("maps the pinned form version and the answers per family and child (#5198)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          ...BACKEND_DETAIL,
+          form: {
+            version: 4,
+            fields: [
+              { key: "quelle", label: "Quelle", type: "text", sort_order: 0 },
+            ],
+          },
+          custom_data: { quelle: "Elternbrief" },
+          child_custom_data: [{ child_id: 9, custom_data: { tetanus: "ja" } }],
+        },
+      }),
+    );
+
+    const detail = await fetchHolidayRegistration("5", "7");
+
+    expect(detail.form.version).toBe(4);
+    expect(detail.form.fields.map((field) => field.key)).toEqual(["quelle"]);
+    expect(detail.answers).toEqual({ quelle: "Elternbrief" });
+    expect(detail.childAnswers).toEqual({ "9": { tetanus: "ja" } });
+  });
+
+  it("maps a registration without answers to empty answers", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
+    );
+
+    const detail = await fetchHolidayRegistration("5", "7");
+
+    expect(detail.form).toEqual({ version: 0, fields: [], legalBlocks: [] });
+    expect(detail.answers).toEqual({});
+    expect(detail.childAnswers).toEqual({});
   });
 
   it("posts an action and puts the bookings of a rebooking", async () => {
@@ -240,5 +302,52 @@ describe("traeger-holiday-registrations-api", () => {
         "xlsx",
       ),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("reads the health information apart and merges its answers (#4722)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          custom_data: { krankenkasse: "AOK" },
+          children: [
+            {
+              child_id: 9,
+              allergies: "Erdnüsse",
+              medication: "",
+              health_notes: "",
+              custom_data: { tetanus: "ja" },
+            },
+          ],
+        },
+      }),
+    );
+
+    const health = await fetchHolidayRegistrationHealth("5", "7");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/7/health",
+    );
+    expect(health).toEqual({
+      answers: { krankenkasse: "AOK" },
+      children: [
+        {
+          childId: "9",
+          allergies: "Erdnüsse",
+          medication: "",
+          healthNotes: "",
+          answers: { tetanus: "ja" },
+        },
+      ],
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
+    );
+    const merged = withHolidayHealthAnswers(
+      await fetchHolidayRegistration("5", "7"),
+      health,
+    );
+    expect(merged.answers).toMatchObject({ krankenkasse: "AOK" });
+    expect(merged.childAnswers["9"]).toMatchObject({ tetanus: "ja" });
   });
 });

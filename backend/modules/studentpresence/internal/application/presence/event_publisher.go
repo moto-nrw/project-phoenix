@@ -33,4 +33,8 @@ type EventPublisher interface {
 	SupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string)
 	// DashboardCountsChanged sends the tenant-wide dashboard refresh (#2057).
 	DashboardCountsChanged(ctx context.Context, eduGroupIDs []string)
+	// SupervisionChanged queues the tenant-wide active_supervision_changed
+	// for a session until the surrounding transaction commits (#5017); it
+	// carries no child identity.
+	SupervisionChanged(ctx context.Context, activeGroupID int64, reason string)
 }

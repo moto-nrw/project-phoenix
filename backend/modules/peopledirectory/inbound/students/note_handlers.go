@@ -33,6 +33,9 @@ type studentNoteResponse struct {
 	SubjectDate      string `json:"subject_date,omitempty"`
 	ActivityGroupID  string `json:"activity_group_id,omitempty"`
 	EducationGroupID string `json:"education_group_id,omitempty"`
+	// SharedWithSchool marks a note the OGS released for the Lehrkraft of
+	// the child's class (#4797); writers and readers see it on the note.
+	SharedWithSchool bool `json:"shared_with_school"`
 	// CanEdit and CanDelete tell the client which affordances to render, so it
 	// never offers an action the next request refuses.
 	CanEdit   bool      `json:"can_edit"`
@@ -50,6 +53,9 @@ type studentNoteRequestBody struct {
 	SubjectDate      *string `json:"subject_date"`
 	ActivityGroupID  *string `json:"activity_group_id"`
 	EducationGroupID *string `json:"education_group_id"`
+	// SharedWithSchool releases the note for the school (#4797). Omitted on
+	// create it stays off; omitted on update it keeps the stored value.
+	SharedWithSchool *bool `json:"shared_with_school"`
 }
 
 func (rs *Resource) listStudentNotes(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +141,7 @@ func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
 	note, err := rs.StudentNotes.CreateStudentNote(r.Context(), peopleModule.CreateStudentNote{
 		StudentID: student.ID, AuthorAccountID: callerAccountID(r),
 		Kind: body.Kind, Visibility: body.Visibility, Category: body.Category,
-		Body: body.Body, Subject: subject,
+		Body: body.Body, Subject: subject, SharedWithSchool: body.SharedWithSchool != nil && *body.SharedWithSchool,
 		RevalidateSubject: func(ctx context.Context) error {
 			return rs.revalidateNoteSubject(ctx, student.ID, subject)
 		},
@@ -169,6 +175,7 @@ func (rs *Resource) updateStudentNote(w http.ResponseWriter, r *http.Request) {
 	note, err := rs.StudentNotes.UpdateStudentNote(r.Context(), peopleModule.UpdateStudentNote{
 		ID: noteID, StudentID: student.ID, ActorAccountID: callerAccountID(r), Kind: body.Kind,
 		Visibility: body.Visibility, Category: body.Category, Body: body.Body, SubjectDate: subject.Date,
+		SharedWithSchool: body.SharedWithSchool,
 	})
 	if err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
@@ -504,7 +511,7 @@ func buildNoteResponse(
 	response := studentNoteResponse{
 		ID: strconv.FormatInt(note.ID, 10), StudentID: strconv.FormatInt(note.StudentID, 10),
 		Kind: note.Kind, Visibility: note.Visibility, Category: note.Category,
-		Body: note.Body, Origin: note.Origin, Edited: note.Edited(),
+		Body: note.Body, Origin: note.Origin, Edited: note.Edited(), SharedWithSchool: note.SharedWithSchool,
 		CreatedAt: note.CreatedAt, UpdatedAt: note.UpdatedAt,
 		CanDelete: noteCanBeDeleted(note, audience, student.GroupID),
 	}

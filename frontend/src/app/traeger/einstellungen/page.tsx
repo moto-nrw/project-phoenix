@@ -4,30 +4,21 @@
 // des Trägers gelten. Eine Schule kann abweichen, wo die Einstellung das
 // erlaubt; Schul-Abweichungen ändert nur die Schule selbst.
 
-import { useCallback, useEffect, useState } from "react";
-import { Settings } from "lucide-react";
+import { useCallback, useState } from "react";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
-import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { CardSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useApiLoadError } from "~/contexts/ToastContext";
+import { Alert } from "~/components/ui/alert";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { createLogger } from "~/lib/logger";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
 import type { SettingsSchema } from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
-  fetchTraegerSettingsSchema,
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
-
-const TAB_CONCEPTS: Record<string, MotoConceptKey> = {
-  enrollment: "enrollments",
-};
 
 function hasWritableSetting(schema: SettingsSchema): boolean {
   return schema.tabs.some((tab) =>
@@ -38,50 +29,14 @@ function hasWritableSetting(schema: SettingsSchema): boolean {
 }
 
 export default function TraegerSettingsPage() {
-  const [schema, setSchema] = useState<SettingsSchema | null>(null);
-  const [loading, setLoading] = useState(true);
-  const schemaLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = schemaLoad;
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setSchema(await fetchTraegerSettingsSchema());
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_settings_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setSchema(null);
-      await showLoadError(err, {
-        object: "die Liste der Einstellungen",
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError]);
-
-  // After a save the schema is read again for the stored value, its date
-  // and DependsOn. A failed refresh keeps the shown values and says so.
-  const refresh = useCallback(async () => {
-    try {
-      setSchema(await fetchTraegerSettingsSchema());
-      clearLoadError();
-    } catch (err) {
-      logger.warn("traeger_settings_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "die Liste der Einstellungen",
-        retry: () => void load(),
-      });
-    }
-  }, [clearLoadError, load, showLoadError]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: schema,
+    isLoading: loading,
+    loadError,
+    mutate,
+  } = useTraegerSettingsSchema();
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const refresh = useCallback(() => mutate().catch(() => undefined), [mutate]);
 
   // Save and reset throw the ApiError of a failed request; the field shows
   // it on the shared error path.
@@ -108,62 +63,71 @@ export default function TraegerSettingsPage() {
     (tab) => tab.key !== TRAEGER_BRANDING_TAB,
   );
 
+  const activeTab =
+    tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null;
+  const fromTraeger = tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items)
+    .filter((item) => item.source === "traeger").length;
   return (
-    <div className="w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Einstellungen
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es
-          erlaubt ist, kann eine Schule einen eigenen Wert eintragen.
-        </p>
-        {schema && tabs.length > 0 && !hasWritableSetting(schema) ? (
-          <p className="mt-1 text-sm text-gray-500">
-            Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro
-            das Recht dazu hat.
-          </p>
-        ) : null}
-      </div>
-
-      <LoadErrorAlert error={schemaLoad.error} />
-
-      {loading && !schema ? (
-        <SkeletonRegion
-          label="Einstellungen werden geladen"
-          className="space-y-6"
-        >
-          <CardSkeleton rows={3} />
-          <CardSkeleton rows={2} />
-        </SkeletonRegion>
-      ) : null}
-
-      {!loading && schema && tabs.length === 0 ? (
-        <EmptyState
-          icon={<Settings className="h-12 w-12" aria-hidden="true" />}
-          title="Es gibt noch keine Einstellungen für den Träger."
-          description="Die Schulen legen ihre Einstellungen bis dahin selbst fest."
+    <TenantPage
+      title="Einstellungen"
+      info="Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen."
+      stats={
+        tabs.length > 0 ? (
+          <TenantPageStats
+            items={[
+              {
+                value: tabs.length,
+                label: tabs.length === 1 ? "Bereich" : "Bereiche",
+              },
+              { value: fromTraeger, label: "vom Träger festgelegt" },
+            ]}
+          />
+        ) : null
+      }
+      statsLoading={loading && !schema}
+      tabs={
+        activeTab
+          ? {
+              value: activeTab.key,
+              onChange: setSelectedTab,
+              label: "Einstellungsbereiche",
+              items: tabs.map((tab) => ({
+                value: tab.key,
+                label: displayTabLabel(tab),
+              })),
+            }
+          : undefined
+      }
+      error={loadError}
+      loading={loading && !schema}
+      empty={
+        !loading && schema && tabs.length === 0
+          ? {
+              title: "Es gibt noch keine Einstellungen für den Träger.",
+              description:
+                "Die Schulen legen ihre Einstellungen bis dahin selbst fest.",
+            }
+          : null
+      }
+    >
+      {schema && tabs.length > 0 && !hasWritableSetting(schema) ? (
+        <Alert
+          type="info"
+          message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
-
-      {tabs.map((tab) => (
-        <section key={tab.key} className="space-y-4">
-          <ConceptSectionHeader
-            title={displayTabLabel(tab)}
-            concept={TAB_CONCEPTS[tab.key] ?? "settings"}
-          />
-          {tab.categories.map((category) => (
-            <SettingsCategory
-              key={category.key}
-              category={category}
-              onSave={handleSave}
-              onReset={handleReset}
-              onSchemaRefresh={() => void refresh()}
-              audience="traeger"
-            />
-          ))}
-        </section>
+      {activeTab?.categories.map((category) => (
+        <SettingsCategory
+          key={category.key}
+          category={category}
+          onSave={handleSave}
+          onReset={handleReset}
+          onSchemaRefresh={() => void refresh()}
+          audience="traeger"
+        />
       ))}
-    </div>
+    </TenantPage>
   );
 }

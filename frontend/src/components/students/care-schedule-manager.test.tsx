@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -6,6 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import { CareScheduleManager } from "./care-schedule-manager";
 import { ApiError } from "~/lib/api-error";
 import { toISODate } from "~/lib/date-helpers";
@@ -700,7 +704,119 @@ describe("CareScheduleManager", () => {
     );
   });
 
-  it("shows weekend days and opens their exceptions when the weekend follows Friday", async () => {
+  it("returns to the current week through Heute and the week return action", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    // Anker: die Wochenleiste der aktuellen Woche ist geladen.
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Zurück zur aktuellen Woche" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    const heute = screen.getByRole("button", { name: "Heute" });
+    expect(heute).toHaveAttribute("type", "button");
+    expect(heute).toBeEnabled();
+    fireEvent.click(heute);
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    const back = screen.getByRole("button", {
+      name: "Zurück zur aktuellen Woche",
+    });
+    expect(back).toHaveAttribute("type", "button");
+    fireEvent.click(back);
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
+    // Anker: der Bearbeiten-Zustand ist offen.
+    expect(
+      screen.getByText("Wochenplan im Test speichern"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zurück zur aktuellen Woche" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("moves the week through the desktop and mobile week arrows", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    const previous = screen.getAllByRole("button", { name: "Vorherige Woche" });
+    const next = screen.getAllByRole("button", { name: "Nächste Woche" });
+    // Desktop-Leiste und mobile Wochenleiste tragen je ein Pfeilpaar.
+    expect(previous).toHaveLength(2);
+    expect(next).toHaveLength(2);
+    for (const arrow of [...previous, ...next]) {
+      expect(arrow).toHaveAttribute("type", "button");
+    }
+
+    for (const arrow of next) {
+      fireEvent.click(arrow);
+    }
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-08",
+      "2026-06-12",
+    );
+
+    for (const arrow of screen.getAllByRole("button", {
+      name: "Vorherige Woche",
+    })) {
+      fireEvent.click(arrow);
+    }
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+  });
+
+  it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", async () => {
+    render(<CareScheduleManager studentId="42" weekendFollowsFriday />);
+    await screen.findByText("Betreuungszeiten");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    );
+    // Anker: die Woche ist gerendert und endet am Freitag.
+    expect(screen.getAllByText("Fr").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Sa")).not.toBeInTheDocument();
+    expect(screen.queryByText("So")).not.toBeInTheDocument();
+  });
+
+  it("shows weekend days of today's weekend and opens their exceptions when the weekend follows Friday", async () => {
+    setTestClock("2026-05-30T12:00:00+02:00"); // Saturday
     const onVisibleDateRangeChange = vi.fn();
 
     render(
@@ -727,6 +843,79 @@ describe("CareScheduleManager", () => {
     );
   });
 
+  it("updates an open week and its fetch range after Berlin midnight", async () => {
+    setTestClock("2026-05-29T23:59:00+02:00"); // Friday
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        weekendFollowsFriday
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    );
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-31",
+    );
+    expect(mockFetchStudentPickupData).toHaveBeenCalledWith("42", {
+      from: "2026-05-25",
+      to: "2026-05-31",
+    });
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-31",
+    );
+    expect(screen.getAllByText("Sa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("So").length).toBeGreaterThan(0);
+  });
+
+  it("keeps a selected future week after Berlin Monday midnight", async () => {
+    setTestClock("2026-05-31T23:59:00+02:00"); // Sunday
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-01",
+      "2026-06-05",
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-01",
+      "2026-06-05",
+    );
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+  });
+
   it("uses the visible week's start date for weekly changes", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
@@ -746,46 +935,51 @@ describe("CareScheduleManager", () => {
     expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
   });
 
-  it("keeps direct saving when review is off even if an offering matches", async () => {
-    const onUpdate = vi.fn();
+  it.each(schoolDateCases("2026-05-27"))(
+    "keeps direct saving when review is off even if an offering matches in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
 
-    render(
-      <CareScheduleManager
-        studentId="42"
-        statusDays={statusDays}
-        onUpdate={onUpdate}
-      />,
-    );
-    await screen.findByText("Betreuungszeiten");
+      const onUpdate = vi.fn();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
-    );
-    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+      render(
+        <CareScheduleManager
+          studentId="42"
+          statusDays={statusDays}
+          onUpdate={onUpdate}
+        />,
+      );
+      await screen.findByText("Betreuungszeiten");
 
-    await waitFor(() => {
-      expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
-        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
-        care_days: [1],
-        arrival_schedules: [
-          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-        ],
-        effective_from: "2026-05-27",
+      fireEvent.click(
+        screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+      );
+      fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+      await waitFor(() => {
+        expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+          schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+          care_days: [1],
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+          effective_from: "2026-05-27",
+        });
+        expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+          schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+          care_days: [1],
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+          effective_from: "2026-05-27",
+          preview_token: "preview-token",
+          resolution: "exception",
+        });
+        expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
+        expect(onUpdate).toHaveBeenCalled();
       });
-      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
-        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
-        care_days: [1],
-        arrival_schedules: [
-          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-        ],
-        effective_from: "2026-05-27",
-        preview_token: "preview-token",
-        resolution: "exception",
-      });
-      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
-      expect(onUpdate).toHaveBeenCalled();
-    });
-  });
+    },
+  );
 
   it("saves an arrival-only edit without reopening pickup review", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);

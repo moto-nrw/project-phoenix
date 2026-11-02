@@ -1,0 +1,7 @@
+DELETE /auth/passkeys/{passkeyId} -> basis
+GET /auth/passkeys/ -> basis
+POST /auth/passkeys/enrollment/challenge -> basis
+POST /auth/passkeys/login/options -> basis
+POST /auth/passkeys/login/verify -> basis
+POST /auth/passkeys/register/options -> basis
+POST /auth/passkeys/register/verify -> basis

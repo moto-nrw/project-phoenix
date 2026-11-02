@@ -1,0 +1,349 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.MarkDemoSchoolUsed",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.PrepareDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.ReplaceDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.DemoSchoolProgress",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.MarkDemoSchoolUsed",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.OrderDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.RetireDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchools.LoadDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchools.RememberDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchools.ReserveDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchools.UpdateDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/DemoSchools.WithDemoLease",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/identityStoreFailure.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.GetKeyDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.ListKeyDateCounts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.SeedKeyDateCounts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.UpdateKeyDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.DeleteDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.GetDeviceTransferStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.GetProvisioningStats",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListAllAccounts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListAllDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListOrganizationSummaries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListOrganizations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSchoolSummaries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSystemRoles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreOrganization",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeleteOrganization",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeletePerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeleteSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.DemoSchoolProgress",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.MarkDemoSchoolUsed",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.RetireDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ActiveDemoSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ClaimDemoSchoolOrder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.FailDemoSchoolOrder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.FinishDemoSchoolOrder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReadyDemoSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReleaseDemoSchoolOrders",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RequeueDeferredDemoSchoolOrder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RequeueDeferredDemoSchoolOrders",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RetireDemoSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReturnDemoSchoolOrder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.LoadDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.RememberDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.ReserveDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.UpdateDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.WithDemoLease",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ActiveNames",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Finish",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Load",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ReadyNames",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ReleaseClaims",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.RetireMany",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Return",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListAllAccounts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListOrganizationDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListOrganizationSchoolSummaries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListPWAUsage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListSystemRoles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.RestoreOrganization",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.SoftDeleteOrganization",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolByOrganizationAndSlug",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySlug",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySubdomain",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/organizationtenancy/internal/application/Service.ListOrganizations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0112",
+      "id": "modules/organizationtenancy/internal/application/TraegerMasterData.LogoImage",
+      "reason": "ADR 0112 (#4653): reads the logo of the session's Träger after refusing a missing Träger and maps a missing logo to the owner's not-found error; the Träger transaction is the caller's."
+    }
+  ]
+}

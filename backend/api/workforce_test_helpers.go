@@ -7,13 +7,14 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -39,6 +40,27 @@ type WorkforceTestModule struct {
 	// SickReports is the shift-plan-sync entry of the sick-report writes,
 	// bound to the real cascade the way the service graph binds it (#4825).
 	SickReports owners.WorkforceAbsenceWrites
+	// PayrollDispatch is a school without the automatic send (#4805): the
+	// month close queues nothing. The dispatch has its own tests.
+	PayrollDispatch workforce.PayrollDispatch
+}
+
+// payrollDispatchOff is the Lohnbüro of a school that never switched the
+// automatic send on.
+type payrollDispatchOff struct{}
+
+func (payrollDispatchOff) QueueAfterMonthClose(context.Context, workforce.PayrollDispatchTrigger) error {
+	return nil
+}
+
+func (payrollDispatchOff) Overview(context.Context) (workforce.PayrollDispatchOverview, error) {
+	return workforce.PayrollDispatchOverview{}, nil
+}
+
+func (payrollDispatchOff) RunDue(context.Context) (int, error) { return 0, nil }
+
+func (payrollDispatchOff) Download(context.Context, int64, string) (workforce.PayrollDownload, error) {
+	return workforce.PayrollDownload{}, workforce.ErrPayrollDownloadUnavailable
 }
 
 // NewWorkforceTestModule composes the Workforce owner over db and returns it
@@ -85,7 +107,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	settingsService := settings.Settings
-	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
+	realtimeHub := realtime.NewHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  owners.MustNewPeopleDirectory(db).PersonWrites,
 		StudentDirectory: owners.MustNewPeopleDirectory(db).StudentDirectory,
@@ -143,7 +165,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, nil, err
 	}
 	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, shiftPlanSyncer, tenant.NewTransactionRunner().RunInTx)
-	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports}, usersService, err
+	return WorkforceTestModule{StaffAdmin: staffAdmin, TimeTracking: timeTracking, SickReports: sickReports, PayrollDispatch: payrollDispatchOff{}}, usersService, err
 }
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the

@@ -281,7 +281,7 @@ type templateResponse struct {
 	// could not be read; the list itself still renders.
 	RosterMaintenance *templateRosterMaintenanceResponse `json:"roster_maintenance,omitempty"`
 	// ManualRosterConfirmed: the school keeps this series' children by hand
-	// on purpose ("Bleibt von Hand gepflegt", #5103), so the deviation hint
+	// on purpose ("Liste so lassen", #5103), so the deviation hint
 	// stays hidden. Read from the series root.
 	ManualRosterConfirmed bool `json:"manual_roster_confirmed"`
 }
@@ -318,7 +318,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	// "0 Kinder". Only the schedule join below stays period-filtered, which
 	// decides WHETHER the card appears at all.
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(r.Context())
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(r.Context(), periodID, childrenPerStaffRatio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(r.Context(), periodID, childrenPerStaffRatio, nil)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return

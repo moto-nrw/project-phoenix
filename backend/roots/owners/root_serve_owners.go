@@ -101,6 +101,18 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 	})
 }
 
+// BuildSchoolVacations composes the school vacations of the School Calendar
+// (#5345) over the tenant's federal state and the OpenHolidays API.
+func BuildSchoolVacations(settings settingsCompose.SettingsService) (schoolcalendar.SchoolVacationOwner, error) {
+	return schoolCalendarCompose.NewSchoolVacations(func(ctx context.Context) (string, error) {
+		region, err := settings.ResolveString(ctx, configModels.KeyFederalState)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve federal state setting: %w", err)
+		}
+		return region, nil
+	}, "", nil)
+}
+
 // BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
 func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (workforceCompose.WorkTime, error) {
@@ -123,6 +135,16 @@ func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 			observability.ObserveAppointmentsOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, appointmentsModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
+}
+
+// BuildServeParentConferences composes the Elternsprechtag days and
+// bookings of the School Calendar (#4801); nil without a database, which
+// leaves the Sprechtag routes answering that it is not configured.
+func BuildServeParentConferences(db transactionruntime.Database) schoolcalendar.ParentConferences {
+	if db.Pool() == nil {
+		return nil
+	}
+	return schoolCalendarCompose.NewParentConferences(db.Pool())
 }
 
 // BuildPeopleDirectory composes the People Directory over its owners, the

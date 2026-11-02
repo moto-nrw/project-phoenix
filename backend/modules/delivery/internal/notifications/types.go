@@ -15,6 +15,8 @@ package notifications
 import (
 	"sort"
 	"sync"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
 // Portals a notification type can belong to.
@@ -40,6 +42,16 @@ const (
 	// only while holding the type's Permission.
 	ChannelEmail = "email"
 )
+
+// permissionUsersDelete restates the permission registry's name, which this
+// package may not import: the exit notices go to whoever may plan an exit
+// (#4809). TestStaffPlannedExitNoticeFollowsTheRight pins it to the registry.
+const permissionUsersDelete = "users:delete"
+
+// permissionStaffStammdaten restates the personnel-record right: the
+// qualification reminders go to whoever maintains the Nachweise (#4808).
+// TestStaffQualificationNoticeFollowsTheRight pins it to the registry.
+const permissionStaffStammdaten = "staff:stammdaten"
 
 // Groups the profile page renders as headings, in this order.
 const (
@@ -80,10 +92,22 @@ const (
 	TypeStaffMessage = "staff_message"
 	// TypeStaffSurvey announces a new or still open staff survey (#4781).
 	TypeStaffSurvey = "staff_survey"
+	// TypeStaffPlannedExit reminds the Leitung of a planned staff exit and
+	// tells it when the exit is blocked (#4809).
+	TypeStaffPlannedExit = contract.NotificationStaffPlannedExit
+
+	// TypeStaffQualificationExpiry reminds the Leitung of a Nachweis that
+	// expires (#4808); TypeStaffQualificationOwnExpiry reminds the person.
+	TypeStaffQualificationExpiry    = contract.NotificationStaffQualificationExpiry
+	TypeStaffQualificationOwnExpiry = contract.NotificationStaffQualificationOwnExpiry
 	// TypeSchoolClassAbsenceReported tells a Lehrkraft or the
 	// Schulverwaltung in moto schule that a child of one of their classes was
 	// reported sick or excused for today (#4792).
 	TypeSchoolClassAbsenceReported = "school_class_absence_reported"
+	// TypeSchoolParentConferenceBooking tells a Lehrkraft in moto schule that
+	// a family booked, moved or cancelled a slot at her Elternsprechtag
+	// (#4801). The calendar produces it under the same key.
+	TypeSchoolParentConferenceBooking = "school_parent_conference_booking"
 	// TypeSchoolUnreportedAbsence tells the Schulverwaltung in moto schule
 	// how many children the Lehrkräfte marked absent this morning without a
 	// report (#4791). It names no child.
@@ -250,6 +274,7 @@ func init() {
 	registerPickupTypes()
 	registerActivityTypes()
 	registerStaffMessageTypes()
+	registerStaffQualificationTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
 	registerSchoolTypes()
@@ -362,6 +387,20 @@ func registerStaffMessageTypes() {
 		Portal:      PortalStaff,
 		SortOrder:   3,
 	})
+
+	// The Leitung's task (#4809): on until the person switches it off, and
+	// only offered to the holders of users:delete, who plan the exits.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffPlannedExit,
+		Label:       "Austritte aus dem Team",
+		Description: "Eine Woche vor dem letzten Arbeitstag einer Person, am Tag selbst und wenn ihr Austritt warten muss.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersDelete,
+		DefaultOn:   true,
+		SortOrder:   4,
+	})
+
 }
 
 func registerParentMessageTypes() {
@@ -477,5 +516,41 @@ func registerSchoolTypes() {
 		Permission:  permissionClassDayAbsenceReportWrite,
 		DefaultOn:   true,
 		SortOrder:   2,
+	})
+
+	// No school gate: the Lehrkraft offered the day herself and decides
+	// here whether her phone rings for its bookings.
+	RegisterType(TypeDefinition{
+		Key:         TypeSchoolParentConferenceBooking,
+		Label:       "Buchungen am Elternsprechtag",
+		Description: "Wenn Eltern einen Termin an Ihrem Elternsprechtag buchen, verschieben oder absagen.",
+		Group:       GroupAppointments,
+		Portal:      PortalSchool,
+		SortOrder:   1,
+	})
+}
+
+// registerStaffQualificationTypes registers the reminders of #4808.
+func registerStaffQualificationTypes() {
+	// The Leitung's task (#4808): on until switched off, offered to the
+	// holders of staff:stammdaten. The person's own reminder is offered to
+	// everyone and, like the other personal reminders, switched on by them.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffQualificationExpiry,
+		Label:       "Ablaufende Nachweise im Team",
+		Description: "Wenn ein Nachweis wie Erste Hilfe oder Führungszeugnis bald abläuft und am Ablauftag.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		Permission:  permissionStaffStammdaten,
+		DefaultOn:   true,
+		SortOrder:   5,
+	})
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffQualificationOwnExpiry,
+		Label:       "Eigene Nachweise",
+		Description: "Wenn einer Ihrer Nachweise bald abläuft und am Ablauftag. Eine E-Mail bekommen Sie in jedem Fall.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		SortOrder:   6,
 	})
 }

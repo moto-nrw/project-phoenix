@@ -33,6 +33,9 @@ const (
 	AuditResourceAnnouncement  = "announcement"
 	AuditResourceTagScan       = "unregistered_tag_scan"
 	AuditResourceTraegerMember = "traeger_member"
+	// AuditResourceTraegerInvitation is an invitation into a Träger-Büro
+	// the operator sent (#5144).
+	AuditResourceTraegerInvitation = "traeger_invitation"
 	// AuditResourceSampleChildren is the sample children of a test Träger
 	// (#4658); the resource ID is the Träger.
 	AuditResourceSampleChildren = "sample_children"

@@ -24,6 +24,8 @@ func NewMessageStore(database Database) *MessageStore {
 }
 
 type staffMessageRow struct {
+	ClientMessageID string `bun:"client_message_id,nullzero"`
+	SendReplayed    bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel   `bun:"table:users.staff_messages,alias:staff_message"`
 	ID              int64     `bun:"id,pk,autoincrement"`
 	CreatedAt       time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -38,7 +40,7 @@ type staffMessageRow struct {
 func (r *staffMessageRow) value() *communication.StaffMessageRecord {
 	return &communication.StaffMessageRecord{
 		ID: r.ID, TenantID: r.TenantID, ThreadID: r.ThreadID,
-		SenderAccountID: r.SenderAccountID, SenderName: r.SenderName, Body: r.Body,
+		SenderAccountID: r.SenderAccountID, SenderName: r.SenderName, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, Body: r.Body,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -63,21 +65,29 @@ func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communicat
 	}
 	row := &staffMessageRow{
 		ID: message.ID, TenantID: message.TenantID, ThreadID: message.ThreadID,
-		SenderAccountID: message.SenderAccountID, SenderName: message.SenderName, Body: message.Body,
+		SenderAccountID: message.SenderAccountID, SenderName: message.SenderName, ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body,
 		CreatedAt: message.CreatedAt, UpdatedAt: message.UpdatedAt,
 	}
-	if _, err := db.NewInsert().
+	result, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(staffMessagesTable).
 		ExcludeColumn("created_at", "updated_at").
-		Returning("id, created_at, updated_at").
-		Exec(ctx); err != nil {
+		On("CONFLICT (tenant_id, sender_account_id, client_message_id) WHERE client_message_id IS NOT NULL DO UPDATE").
+		Set("client_message_id = EXCLUDED.client_message_id").
+		Where("staff_messages.thread_id = EXCLUDED.thread_id AND staff_messages.body = EXCLUDED.body").
+		Returning("staff_messages.*, (xmax <> 0) AS send_replayed").
+		Exec(ctx)
+	if err != nil {
 		return fmt.Errorf("create staff message: %w", err)
 	}
-	message.ID = row.ID
-	message.CreatedAt = row.CreatedAt
-	message.UpdatedAt = row.UpdatedAt
-	input.ID, input.TenantID, input.CreatedAt, input.UpdatedAt = message.ID, message.TenantID, message.CreatedAt, message.UpdatedAt
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return communication.ErrMessageSendConflict
+	}
+	*input = *row.value()
 	return nil
 }
 
@@ -127,6 +137,36 @@ func (s *MessageStore) DeleteStaffMessagesBefore(ctx context.Context, cutoff tim
 	affected, err := res.RowsAffected()
 	if err != nil {
 		return 0, fmt.Errorf("delete old staff messages: %w", err)
+	}
+	if affected > 0 {
+		if _, err := db.ExecContext(ctx, `
+			WITH previews AS (
+				SELECT thread.id, latest.id AS last_message_id, latest.created_at AS last_message_at,
+					latest.body AS last_message_body, latest.sender_account_id AS last_sender_account_id
+				FROM users.staff_message_threads AS thread
+				LEFT JOIN LATERAL (
+					SELECT id, created_at, body, sender_account_id
+					FROM users.staff_messages
+					WHERE thread_id = thread.id AND tenant_id = thread.tenant_id
+					ORDER BY created_at DESC, id DESC
+					LIMIT 1
+				) AS latest ON TRUE
+				WHERE thread.tenant_id = ?
+					AND (thread.last_message_at < ? OR NOT EXISTS (
+						SELECT 1 FROM users.staff_messages current
+						WHERE current.id = thread.last_message_id AND current.tenant_id = thread.tenant_id
+					))
+			)
+			UPDATE users.staff_message_threads AS thread
+			SET last_message_id = previews.last_message_id,
+				last_message_at = previews.last_message_at,
+				last_message_body = COALESCE(previews.last_message_body, ''),
+				last_sender_account_id = previews.last_sender_account_id
+			FROM previews
+			WHERE thread.id = previews.id AND thread.tenant_id = ?
+		`, tenantID, cutoff, tenantID); err != nil {
+			return 0, fmt.Errorf("refresh staff message previews after retention: %w", err)
+		}
 	}
 	return affected, nil
 }

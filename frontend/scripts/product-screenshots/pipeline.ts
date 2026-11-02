@@ -12,6 +12,7 @@ import sharp from "sharp";
 
 import type { StackAccess } from "./access";
 import { captureShots } from "./capture";
+import { assertConcurrency, mapConcurrent } from "./concurrency";
 import { DEVICES, type DeviceId } from "./devices";
 import { BEZEL_DIR, frameMockup, webpVariants } from "./frame";
 import { referenceInstant } from "./reference-time";
@@ -65,6 +66,8 @@ export interface PipelineOptions {
   readonly now?: Date;
   readonly bezelDir?: string;
   readonly loadTimeoutMs?: number;
+  readonly captureConcurrency?: number;
+  readonly frameConcurrency?: number;
   readonly log?: (message: string) => void;
 }
 
@@ -241,11 +244,17 @@ export async function replaceOutput(
 export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
   const log = options.log ?? (() => undefined);
   const now = options.now ?? new Date();
+  const captureConcurrency = options.captureConcurrency ?? 4;
+  const frameConcurrency = options.frameConcurrency ?? 2;
+  assertConcurrency(captureConcurrency);
+  assertConcurrency(frameConcurrency);
   await assertReplaceable(options.outDir);
 
+  const captureStarted = performance.now();
   const raws = await captureShots({
     access: options.access,
     shots: options.shots,
+    concurrency: captureConcurrency,
     now,
     ...(options.loadTimeoutMs === undefined
       ? {}
@@ -253,21 +262,35 @@ export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
     log,
   });
 
-  const staged = new Map<string, StagedFile[]>();
-  for (const raw of raws) {
+  log(
+    `Aufnahmen: ${raws.length}, ${Math.round(performance.now() - captureStarted)} ms, Parallelität ${captureConcurrency}`,
+  );
+  const frameStarted = performance.now();
+  const prepared = await mapConcurrent(raws, frameConcurrency, async (raw) => {
     log(`Rahme ${raw.shotId} auf ${raw.device}`);
     const mockup = await frameMockup(
       raw.png,
       DEVICES[raw.device],
       options.bezelDir ?? BEZEL_DIR,
     );
-    const files = staged.get(raw.shotId) ?? [];
-    files.push(
-      ...(await stageImage(raw.shotId, "roh", raw.device, raw.png)),
-      ...(await stageImage(raw.shotId, "mockup", raw.device, mockup)),
-    );
-    staged.set(raw.shotId, files);
+    return {
+      shotId: raw.shotId,
+      files: [
+        ...(await stageImage(raw.shotId, "roh", raw.device, raw.png)),
+        ...(await stageImage(raw.shotId, "mockup", raw.device, mockup)),
+      ],
+    };
+  });
+  const staged = new Map<string, StagedFile[]>();
+  // Completion order never changes manifest/device order.
+  for (const item of prepared) {
+    const files = staged.get(item.shotId) ?? [];
+    files.push(...item.files);
+    staged.set(item.shotId, files);
   }
+  log(
+    `Rahmen und Varianten: ${Math.round(performance.now() - frameStarted)} ms, Parallelität ${frameConcurrency}`,
+  );
 
   const manifest: Manifest = {
     format: MANIFEST_FORMAT,
@@ -288,7 +311,7 @@ export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
   // beim Schreiben lässt die vorige Ausgabe unberührt.
   const tmpDir = join(
     dirname(options.outDir),
-    `.${basename(options.outDir)}.tmp-${process.pid}`,
+    `.${basename(options.outDir)}.tmp-${randomUUID()}`,
   );
   await rm(tmpDir, { recursive: true, force: true });
   try {

@@ -32,6 +32,7 @@ import {
 } from "~/components/enrollment/admin-enrollment-detail";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
 
@@ -110,7 +111,7 @@ export function StudentEnrollmentsTab({
         // ein Sprung ueber Ebene 3.
         level={3}
         title="Anmeldungen"
-        concept="enrollments"
+        concept={enrollmentsConcept}
         subtitle="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."
         actions={
           !isLoading && !error && requests.length > 0 ? (

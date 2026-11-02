@@ -7,7 +7,8 @@ import {
   shellSwrConfig,
 } from "~/app/[tenant]/providers";
 import type { ShellBootstrap } from "~/lib/shell-seed";
-import { mutate, SWRConfig } from "~/lib/swr";
+import { mutate } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import type { UserContextResponse } from "~/lib/user-context-types";
 import { USER_CONTEXT_SWR_KEY, useUserContext } from "./use-user-context";
 
@@ -105,7 +106,7 @@ describe("useUserContext with the shell seed", () => {
 
     // Wie useTenantMutate(USER_CONTEXT_SWR_KEY) nach einer Einstellung.
     await act(async () => {
-      await mutate(`${tenantState.slug}:${USER_CONTEXT_SWR_KEY}`);
+      await mutate(`${tenantState.slug}:7:${USER_CONTEXT_SWR_KEY}`);
     });
 
     await waitFor(() =>

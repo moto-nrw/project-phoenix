@@ -95,7 +95,7 @@ var (
 	ErrUnknownStep = errors.New("unknown setup step")
 )
 
-// The registered codes of the wizard's conflicts (error-registry.json). The
+// The registered codes of the wizard's conflicts (error-registry/). The
 // package may not import api/common, so it names each code once here.
 const (
 	CodeSetupCompleted  = "school.setup_completed"

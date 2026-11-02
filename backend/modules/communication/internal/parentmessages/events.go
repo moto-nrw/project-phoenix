@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
@@ -303,7 +305,7 @@ func (e *EventEmitter) reconcileChildEventThread(txCtx context.Context, studentI
 	// its request_created pill; if either is absent there is no stale "open"
 	// notice to reconcile, so drop without creating a thread or leaving a
 	// dangling status pill.
-	existing, ferr := e.threadRepo.FindByStudentGuardian(txCtx, studentID, guardianAccountID)
+	existing, ferr := e.threadRepo.FindByStudentGuardian(txCtx, studentID, guardianAccountID, deliveryPorts.ParentAudienceTeam)
 	if ferr != nil {
 		return nil, "", ferr
 	}
@@ -343,7 +345,9 @@ func (e *EventEmitter) broadcastChildEvent(ctx context.Context, tenantID, studen
 	if skipGuardianBroadcast {
 		broadcastGuardianID = 0
 	}
-	e.runtime.RegisterAfterCommit(ctx, func() { Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID) })
+	e.runtime.RegisterAfterCommit(ctx, func() {
+		Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID, deliveryPorts.ParentAudienceTeam)
+	})
 }
 
 func (e *EventEmitter) childEventThread(txCtx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent, messagingOff, isTerminal bool) (threadResult *ParentMessageThread, suppressReason string, skipGuardianBroadcast bool, err error) {
@@ -394,7 +398,7 @@ func (e *EventEmitter) childEventThread(txCtx context.Context, tenantID, student
 		// staff inbox drops the stale "Anfrage bearbeiten" CTA.
 		skipGuardianBroadcast = revoked
 	} else {
-		created, cerr := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
+		created, cerr := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID, deliveryPorts.ParentAudienceTeam)
 		if cerr != nil {
 			return nil, suppressReason, skipGuardianBroadcast, cerr
 		}

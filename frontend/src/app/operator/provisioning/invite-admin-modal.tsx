@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -36,8 +39,6 @@ export function InviteAdminModal({
   const { show: showError, clear: clearError } = formErrors;
 
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
-  const inputClasses =
-    "focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none";
 
   // Reset form when opening
   useEffect(() => {
@@ -103,30 +104,36 @@ export function InviteAdminModal({
       title={`Admin einladen — ${schoolName}`}
       footer={
         inviteResult ? (
-          <button
+          <Button
             type="button"
             onClick={handleClose}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+            variant="primary"
+            size="md"
+            className="flex-1"
           >
             Schließen
-          </button>
+          </Button>
         ) : (
           <>
-            <button
+            <Button
               type="button"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              variant="outline"
+              size="md"
+              className="flex-1"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={(e) => void handleInvite(e)}
               disabled={inviteSaving || !inviteEmail.trim()}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              variant="primary"
+              size="md"
+              className="flex-1"
             >
               {inviteSaving ? "Wird gesendet..." : "Einladung senden"}
-            </button>
+            </Button>
           </>
         )
       }
@@ -172,78 +179,66 @@ export function InviteAdminModal({
           ref={formRef}
         >
           <FormErrorAlert message={formErrors.error} />
-          <FormField
+          <Input
+            id="invite-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            maxLength={255}
             label="E-Mail"
-            htmlFor="invite-email"
             required
             error={formErrors.fieldError("email")}
-          >
-            <input
-              id="invite-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              maxLength={255}
-              className={inputClasses}
-              required
-            />
-          </FormField>
+            controlSize="compact"
+          />
           <div className="grid grid-cols-2 gap-4">
-            <FormField
+            <Input
+              id="invite-first-name"
+              name="first_name"
+              type="text"
+              autoComplete="given-name"
+              value={inviteFirstName}
+              onChange={(e) => setInviteFirstName(e.target.value)}
+              maxLength={255}
               label="Vorname"
-              htmlFor="invite-first-name"
               error={formErrors.fieldError("first_name")}
-            >
-              <input
-                id="invite-first-name"
-                name="first_name"
-                type="text"
-                autoComplete="given-name"
-                value={inviteFirstName}
-                onChange={(e) => setInviteFirstName(e.target.value)}
-                maxLength={255}
-                className={inputClasses}
-              />
-            </FormField>
-            <FormField
-              label="Nachname"
-              htmlFor="invite-last-name"
-              error={formErrors.fieldError("last_name")}
-            >
-              <input
-                id="invite-last-name"
-                name="last_name"
-                type="text"
-                autoComplete="family-name"
-                value={inviteLastName}
-                onChange={(e) => setInviteLastName(e.target.value)}
-                maxLength={255}
-                className={inputClasses}
-              />
-            </FormField>
-          </div>
-          <div className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3">
-            <input
-              id="invite-admin-caregiver-enabled"
-              type="checkbox"
-              checked={caregiverEnabled}
-              onChange={(e) => setCaregiverEnabled(e.target.checked)}
-              className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
+              controlSize="compact"
             />
-            <div className="space-y-1">
-              <label
-                htmlFor="invite-admin-caregiver-enabled"
-                className="text-sm font-medium text-gray-900"
-              >
-                Auch in der Betreuung einsetzen
-              </label>
-              <p className="text-sm text-gray-600">
-                Vergibt zusätzlich die Rolle Betreuung und legt das nötige
-                Staff-/Teacher-Profil an.
-              </p>
-            </div>
+            <Input
+              id="invite-last-name"
+              name="last_name"
+              type="text"
+              autoComplete="family-name"
+              value={inviteLastName}
+              onChange={(e) => setInviteLastName(e.target.value)}
+              maxLength={255}
+              label="Nachname"
+              error={formErrors.fieldError("last_name")}
+              controlSize="compact"
+            />
+          </div>
+          <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <label
+              htmlFor="invite-admin-caregiver-enabled"
+              className="flex cursor-pointer items-start gap-3 text-sm font-medium text-gray-900"
+            >
+              <Checkbox
+                id="invite-admin-caregiver-enabled"
+                checked={caregiverEnabled}
+                onChange={(e) => setCaregiverEnabled(e.target.checked)}
+                aria-describedby="invite-admin-caregiver-hint"
+                className="mt-0.5"
+              />
+              Auch in der Betreuung einsetzen
+            </label>
+            <p
+              id="invite-admin-caregiver-hint"
+              className="mt-1 pl-8 text-sm text-gray-600"
+            >
+              Vergibt zusätzlich die Rolle Betreuung und legt das nötige
+              Staff-/Teacher-Profil an.
+            </p>
           </div>
           {caregiverEnabled && (
             <FormField

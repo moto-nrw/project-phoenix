@@ -1,0 +1,63 @@
+{
+  "packages": [
+    {
+      "path": "api/common",
+      "owner": "tenant-runtime",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "middleware",
+      "owner": "tenant-runtime",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "tenant",
+      "owner": "tenant-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "tenant-runtime.common.http.tenant-runtime-public",
+      "description": "The standing shared HTTP runtime consumes tenant scope, transactions and rollback markers (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "tenant-runtime",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "api/common"
+    },
+    {
+      "id": "tenant-runtime.common.http.security-runtime-contract",
+      "description": "The standing shared HTTP runtime consumes validated principals and the permission registry (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "tenant-runtime",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "api/common"
+    },
+    {
+      "id": "tenant-runtime.common.http.security-runtime-public",
+      "description": "The standing shared HTTP runtime consumes authorization decisions, local-seeder gates and upload filename entropy (ADR 0046, #2738, #3898).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "tenant-runtime",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "api/common"
+    }
+  ]
+}

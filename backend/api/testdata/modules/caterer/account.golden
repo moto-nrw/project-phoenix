@@ -1,0 +1,5 @@
+GET /caterer/account/mfa -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/account/mfa/confirm -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/account/mfa/disable -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/account/mfa/start -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/account/password -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)

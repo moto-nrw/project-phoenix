@@ -46,6 +46,10 @@ import type {
   StaffPoolEntry,
   StaffPoolResponse,
 } from "~/lib/timetable-types";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
+import { staffConcept } from "~/lib/concepts/staff";
+import { substitutionConcept } from "~/lib/concepts/substitution";
 
 const logger = createLogger({ component: "StaffPoolSlideOver" });
 
@@ -184,7 +188,9 @@ export function StaffPoolSlideOver({
               <Fragment key={instanceId ?? "none"}>
                 <PoolSection
                   title="Auf anderen Blöcken"
-                  icon={<MotoConceptIcon concept="substitution" size={14} />}
+                  icon={
+                    <MotoConceptIcon concept={substitutionConcept} size={14} />
+                  }
                   emptyText="Niemand ist zeitgleich auf einem anderen Block eingeplant."
                   entries={grouped.assignedElsewhere}
                   renderActions={
@@ -203,7 +209,7 @@ export function StaffPoolSlideOver({
                             >
                               <span className="inline-flex items-center gap-1.5">
                                 <MotoConceptIcon
-                                  concept="substitution"
+                                  concept={substitutionConcept}
                                   size={14}
                                 />
                                 Hierher verschieben
@@ -215,7 +221,7 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Im Dienst, frei"
-                  icon={<MotoConceptIcon concept="staff" size={14} />}
+                  icon={<MotoConceptIcon concept={staffConcept} size={14} />}
                   emptyText="Niemand ist im Zeitfenster frei im Dienst."
                   entries={grouped.onShiftFree}
                   renderActions={
@@ -239,19 +245,21 @@ export function StaffPoolSlideOver({
                 />
                 <PoolSection
                   title="Bereits auf diesem Block"
-                  icon={<MotoConceptIcon concept="staff" size={16} />}
+                  icon={<MotoConceptIcon concept={staffConcept} size={16} />}
                   emptyText="Noch niemand zugeordnet."
                   entries={grouped.assignedHere}
                 />
                 <PoolSection
                   title="Abwesend"
-                  icon={<MotoConceptIcon concept="staff" size={14} />}
+                  icon={<MotoConceptIcon concept={staffConcept} size={14} />}
                   emptyText="Keine Abwesenheiten."
                   entries={grouped.absent}
                 />
                 <PoolSection
                   title="Kein Dienst im Zeitfenster"
-                  icon={<MotoConceptIcon concept="closingDays" size={14} />}
+                  icon={
+                    <MotoConceptIcon concept={closingDaysConcept} size={14} />
+                  }
                   emptyText="Alle übrigen Personen haben Dienst."
                   entries={grouped.notOnShift}
                   collapsedByDefault
@@ -463,7 +471,7 @@ function PoolEntryRow({
               }`}
             >
               <MotoConceptIcon
-                concept="careTimes"
+                concept={careTimesConcept}
                 size={12}
                 className="shrink-0"
               />

@@ -2,6 +2,17 @@
 // Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
 // vom Server am selben Feld landen wie die eigene Prüfung.
 
+import {
+  buildFieldsByKey,
+  type ConditionContext,
+  isFieldVisible,
+  visibleAnswerData,
+} from "~/lib/enrollment-field-visibility";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "~/lib/holiday-form-field";
+import type { NewUploadValue } from "~/lib/enrollment-uploads";
 import type {
   HolidayContactPayload,
   HolidayKnownChild,
@@ -11,9 +22,20 @@ import type {
   HolidayRegistrationPayload,
 } from "~/lib/holiday-registration-api";
 
+/**
+ * Version of the consent texts the form shows (#4722). Version 2 names the
+ * OGS that hosts a holiday week as a reader of the health information; the
+ * backend shares health information only for registrations under it.
+ */
+const HOLIDAY_CONSENT_VERSION = 2;
+
 export const MAX_CHILDREN = 3;
-export const MAX_EMERGENCY_CONTACTS = 3;
-export const MAX_PICKUP_PERSONS = 5;
+// Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
+// backend/modules/enrollment/internal/application/holiday_registrations.go.
+// The offer does not expose these limits.
+const MAX_EMERGENCY_CONTACTS = 3;
+const MAX_PICKUP_PERSONS = 5;
+export const MAX_CONTACTS = MAX_EMERGENCY_CONTACTS + MAX_PICKUP_PERSONS;
 
 /** The school choice of a child who attends no school of the Träger. */
 export const OTHER_SCHOOL = "other";
@@ -33,9 +55,13 @@ export interface ChildDraft {
   readonly bookings: Readonly<Record<string, string>>;
   /** The child of the parent's account this draft started from (#4662). */
   readonly knownStudentId?: string;
+  /** Answers to the Träger's questions per child, by key (#5198). */
+  readonly answers: Readonly<Record<string, unknown>>;
 }
 
 export interface ContactDraft {
+  readonly emergency: boolean;
+  readonly pickup: boolean;
   readonly key: string;
   readonly name: string;
   readonly phone: string;
@@ -49,19 +75,44 @@ export interface RegistrationDraft {
     readonly email: string;
     readonly phone: string;
   };
+  readonly secondGuardian: RegistrationDraft["guardian"];
   readonly children: readonly ChildDraft[];
-  readonly emergencyContacts: readonly ContactDraft[];
-  readonly pickupPersons: readonly ContactDraft[];
+  readonly contacts: readonly ContactDraft[];
+  readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
   readonly bindingConfirmed: boolean;
   /** The family receives benefits; the Träger checks it (#4664). */
   readonly benefitsDeclared: boolean;
+  /**
+   * The proofs of the benefits the parent uploaded (#5238); optional, the
+   * Träger-Büro may still collect them later.
+   */
+  readonly benefitsProofs: readonly NewUploadValue[];
+  /** Answers to the Träger's questions per family, by key (#5198). */
+  readonly answers: Readonly<Record<string, unknown>>;
 }
+
+/** Hint of a refused field, translated, or undefined. */
+export type FieldError = (name: string) => string | undefined;
 
 /** The reason a field is refused, as a key of `holidayRegistration.errors`. */
 export type FieldErrorKey =
-  "required" | "email" | "school" | "weeks" | "privacy" | "health" | "binding";
+  | "required"
+  | "email"
+  | "phone"
+  | "school"
+  | "weeks"
+  | "privacy"
+  | "health"
+  | "binding"
+  | "yesNo"
+  | "choose"
+  | "contactRole"
+  | "emergencyRequired"
+  | "emergencyLimit"
+  | "pickupLimit"
+  | "contactLimit";
 
 let keyCounter = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
@@ -78,23 +129,33 @@ export function emptyChild(): ChildDraft {
     medication: "",
     healthNotes: "",
     bookings: {},
+    answers: {},
   };
 }
 
 export function emptyContact(): ContactDraft {
-  return { key: nextKey("contact"), name: "", phone: "", relationship: "" };
+  return {
+    key: nextKey("contact"),
+    name: "",
+    phone: "",
+    relationship: "",
+    emergency: true,
+    pickup: false,
+  };
 }
 
 export function emptyRegistration(): RegistrationDraft {
   return {
     guardian: { firstName: "", lastName: "", email: "", phone: "" },
+    secondGuardian: { firstName: "", lastName: "", email: "", phone: "" },
     children: [emptyChild()],
-    emergencyContacts: [emptyContact()],
-    pickupPersons: [],
+    contacts: [emptyContact()],
     privacyConsent: false,
     healthConsent: false,
     bindingConfirmed: false,
     benefitsDeclared: false,
+    benefitsProofs: [],
+    answers: {},
   };
 }
 
@@ -137,7 +198,8 @@ function isUntouched(child: ChildDraft): boolean {
     child.allergies === blank.allergies &&
     child.medication === blank.medication &&
     child.healthNotes === blank.healthNotes &&
-    Object.keys(child.bookings).length === 0
+    Object.keys(child.bookings).length === 0 &&
+    Object.keys(child.answers).length === 0
   );
 }
 
@@ -174,14 +236,157 @@ export function toggleKnownChild(
   return { ...draft, children: [...children, childFromKnown(known, offer)] };
 }
 
-function childHasHealthInfo(child: ChildDraft): boolean {
-  return [child.allergies, child.medication, child.healthNotes].some(
-    (value) => value.trim() !== "",
+/** The answers a family-level question is evaluated against. */
+export function familyContext(
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+): ConditionContext {
+  return {
+    guardianAnswers: { ...draft.answers },
+    fieldsByKey: buildFieldsByKey(form.fields),
+  };
+}
+
+/** The answers a question of one child is evaluated against. */
+export function childContext(
+  draft: RegistrationDraft,
+  child: ChildDraft,
+  form: HolidayFormVersion,
+): ConditionContext {
+  return { ...familyContext(draft, form), childAnswers: { ...child.answers } };
+}
+
+/** Whether a question carries an answer: a yes or no, or some text. */
+export function isAnswered(field: HolidayFormField, value: unknown): boolean {
+  if (field.type === "boolean") return typeof value === "boolean";
+  return typeof value === "string" && value.trim() !== "";
+}
+
+/** The visible questions of one scope that collect an answer. */
+function visibleQuestions(
+  form: HolidayFormVersion,
+  child: boolean,
+  ctx: ConditionContext,
+): HolidayFormField[] {
+  return form.fields.filter(
+    (field) =>
+      Boolean(field.applies_to_child) === child &&
+      field.type !== "information" &&
+      isFieldVisible(field, ctx),
   );
 }
 
-export function hasHealthInfo(draft: RegistrationDraft): boolean {
-  return draft.children.some(childHasHealthInfo);
+function answersHealth(
+  form: HolidayFormVersion,
+  child: boolean,
+  answers: Readonly<Record<string, unknown>>,
+  ctx: ConditionContext,
+): boolean {
+  return visibleQuestions(form, child, ctx).some(
+    (field) => field.health && isAnswered(field, answers[field.key]),
+  );
+}
+
+function childHasHealthInfo(
+  draft: RegistrationDraft,
+  child: ChildDraft,
+  form: HolidayFormVersion,
+): boolean {
+  return (
+    [child.allergies, child.medication, child.healthNotes].some(
+      (value) => value.trim() !== "",
+    ) ||
+    answersHealth(form, true, child.answers, childContext(draft, child, form))
+  );
+}
+
+/**
+ * Whether the registration carries health information: the fixed health
+ * fields or an answer to a question marked as health information (#5198).
+ */
+export function hasHealthInfo(
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+): boolean {
+  return (
+    draft.children.some((child) => childHasHealthInfo(draft, child, form)) ||
+    answersHealth(form, false, draft.answers, familyContext(draft, form))
+  );
+}
+
+/** The answer of a question as the backend reads it; text is trimmed. */
+function sentAnswers(
+  form: HolidayFormVersion,
+  child: boolean,
+  answers: Readonly<Record<string, unknown>>,
+  ctx: ConditionContext,
+): Record<string, unknown> {
+  const visible = visibleAnswerData(form.fields, child, { ...answers }, ctx);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(visible)) {
+    if (typeof value === "string") {
+      if (value.trim() !== "") out[key] = value.trim();
+    } else if (typeof value === "boolean") {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/** The visible questions of the family, for the summary. */
+export function visibleFamilyQuestions(
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+): HolidayFormField[] {
+  return visibleQuestions(form, false, familyContext(draft, form));
+}
+
+/** The visible questions of one child, for the summary. */
+export function visibleChildQuestions(
+  draft: RegistrationDraft,
+  child: ChildDraft,
+  form: HolidayFormVersion,
+): HolidayFormField[] {
+  return visibleQuestions(form, true, childContext(draft, child, form));
+}
+
+/** The family answers that are sent: visible questions, answered ones only. */
+function familyAnswersToSend(
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+): Record<string, unknown> {
+  return sentAnswers(form, false, draft.answers, familyContext(draft, form));
+}
+
+/** The answers of one child that are sent. */
+function childAnswersToSend(
+  draft: RegistrationDraft,
+  child: ChildDraft,
+  form: HolidayFormVersion,
+): Record<string, unknown> {
+  return sentAnswers(
+    form,
+    true,
+    child.answers,
+    childContext(draft, child, form),
+  );
+}
+
+function requireAnswers(
+  errors: Record<string, FieldErrorKey>,
+  prefix: string,
+  questions: readonly HolidayFormField[],
+  answers: Readonly<Record<string, unknown>>,
+) {
+  for (const field of questions) {
+    if (!field.required || isAnswered(field, answers[field.key])) continue;
+    errors[`${prefix}custom_data.${field.key}`] =
+      field.type === "boolean"
+        ? "yesNo"
+        : field.type === "select"
+          ? "choose"
+          : "required";
+  }
 }
 
 /** The bookings of a child in the order of the period's weeks. */
@@ -193,6 +398,16 @@ export function bookedWeeks(
     const timeModelId = child.bookings[week.id];
     return timeModelId ? [{ weekId: week.id, timeModelId }] : [];
   });
+}
+
+/** Matches the canonical optional contact formats of Enrollment intake. */
+const SECOND_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
+const PHONE = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
+
+export function hasSecondGuardian(draft: RegistrationDraft): boolean {
+  return Object.values(draft.secondGuardian).some(
+    (value) => value.trim() !== "",
+  );
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -207,31 +422,55 @@ function requireText(
 
 function validateContacts(
   errors: Record<string, FieldErrorKey>,
-  prefix: string,
   contacts: readonly ContactDraft[],
-  phoneRequired: boolean,
 ) {
+  let emergencyCount = 0;
+  let pickupCount = 0;
   contacts.forEach((contact, index) => {
-    requireText(errors, `${prefix}.${index}.name`, contact.name);
-    if (phoneRequired) {
-      requireText(errors, `${prefix}.${index}.phone`, contact.phone);
+    const prefix = `contacts.${index}`;
+    requireText(errors, `${prefix}.name`, contact.name);
+    if (contact.emergency) {
+      requireText(errors, `${prefix}.phone`, contact.phone);
+      if (++emergencyCount > MAX_EMERGENCY_CONTACTS)
+        errors[`${prefix}.emergency`] = "emergencyLimit";
     }
+    if (contact.pickup && ++pickupCount > MAX_PICKUP_PERSONS)
+      errors[`${prefix}.pickup`] = "pickupLimit";
+    if (!contact.emergency && !contact.pickup)
+      errors[`${prefix}.emergency`] = "contactRole";
+    if (index >= MAX_CONTACTS) errors[`${prefix}.name`] = "contactLimit";
   });
+  if (emergencyCount === 0)
+    errors["contacts.0.emergency"] = "emergencyRequired";
 }
 
-/** Checks a registration before the summary; empty means complete. */
+/** Map the two payload lists back to the submitted person's form fields. */
+export function contactFieldFromPayload(
+  field: string,
+  contacts: readonly ContactDraft[],
+): string {
+  const match =
+    /^(emergency_contacts|pickup_persons)(?:\.(\d+)(?:\.(.+))?)?$/.exec(field);
+  if (!match) return field;
+  const role = match[1] === "emergency_contacts" ? "emergency" : "pickup";
+  if (match[2] === undefined) return `contacts.0.${role}`;
+  const indices = contacts.flatMap((contact, index) =>
+    contact[role] ? [index] : [],
+  );
+  const index = indices[Number(match[2])];
+  return index === undefined ? field : `contacts.${index}.${match[3] ?? role}`;
+}
+
+/**
+ * Checks a registration before the summary; empty means complete. The
+ * errors follow the order of the form, so the first one is the field the
+ * parent reaches first: the form focuses it after a failed check.
+ */
 export function validateRegistration(
   draft: RegistrationDraft,
   offer: HolidayRegistrationOffer,
 ): Record<string, FieldErrorKey> {
   const errors: Record<string, FieldErrorKey> = {};
-  requireText(errors, "guardian.first_name", draft.guardian.firstName);
-  requireText(errors, "guardian.last_name", draft.guardian.lastName);
-  requireText(errors, "guardian.phone", draft.guardian.phone);
-  if (!EMAIL.test(draft.guardian.email.trim())) {
-    errors["guardian.email"] =
-      draft.guardian.email.trim() === "" ? "required" : "email";
-  }
   draft.children.forEach((child, index) => {
     const prefix = `children.${index}`;
     requireText(errors, `${prefix}.first_name`, child.firstName);
@@ -241,15 +480,53 @@ export function validateRegistration(
     if (bookedWeeks(child, offer).length === 0) {
       errors[`${prefix}.bookings`] = "weeks";
     }
+    requireAnswers(
+      errors,
+      `${prefix}.`,
+      visibleQuestions(
+        offer.form,
+        true,
+        childContext(draft, child, offer.form),
+      ),
+      child.answers,
+    );
   });
-  validateContacts(errors, "emergency_contacts", draft.emergencyContacts, true);
-  validateContacts(errors, "pickup_persons", draft.pickupPersons, false);
+  requireText(errors, "guardian.first_name", draft.guardian.firstName);
+  requireText(errors, "guardian.last_name", draft.guardian.lastName);
+  if (!EMAIL.test(draft.guardian.email.trim())) {
+    errors["guardian.email"] =
+      draft.guardian.email.trim() === "" ? "required" : "email";
+  }
+  requireText(errors, "guardian.phone", draft.guardian.phone);
+  if (hasSecondGuardian(draft)) {
+    const second = draft.secondGuardian;
+    requireText(errors, "second_guardian.first_name", second.firstName);
+    requireText(errors, "second_guardian.last_name", second.lastName);
+    if (second.email.trim() && !SECOND_EMAIL.test(second.email.trim())) {
+      errors["second_guardian.email"] = "email";
+    }
+    if (second.phone.trim() && !PHONE.test(second.phone.trim())) {
+      errors["second_guardian.phone"] = "phone";
+    }
+  }
+  // The questions per family follow the parent in the form.
+  requireAnswers(
+    errors,
+    "",
+    visibleQuestions(offer.form, false, familyContext(draft, offer.form)),
+    draft.answers,
+  );
+  validateContacts(errors, draft.contacts);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
-  if (hasHealthInfo(draft) && !draft.healthConsent) {
+  if (hasHealthInfo(draft, offer.form) && !draft.healthConsent) {
     errors.health_consent = "health";
   }
   if (offer.binding && !draft.bindingConfirmed) {
     errors.binding_confirmed = "binding";
+  }
+  for (const block of offer.form.legalBlocks ?? []) {
+    if (block.enabled && block.required && !draft.legalAcceptances?.[block.key])
+      errors[`legal_acceptances.${block.key}`] = "required";
   }
   return errors;
 }
@@ -286,6 +563,16 @@ export function payloadFromDraft(
       email: draft.guardian.email.trim(),
       phone: draft.guardian.phone.trim(),
     },
+    ...(hasSecondGuardian(draft)
+      ? {
+          second_guardian: {
+            first_name: draft.secondGuardian.firstName.trim(),
+            last_name: draft.secondGuardian.lastName.trim(),
+            email: draft.secondGuardian.email.trim().toLowerCase(),
+            phone: draft.secondGuardian.phone.trim(),
+          },
+        }
+      : {}),
     children: draft.children.map((child) => {
       const guest = child.school === OTHER_SCHOOL;
       return {
@@ -298,14 +585,30 @@ export function payloadFromDraft(
         medication: child.medication.trim(),
         health_notes: child.healthNotes.trim(),
         bookings: quoteBookings(child, offer),
+        custom_data: childAnswersToSend(draft, child, offer.form),
       };
     }),
-    emergency_contacts: draft.emergencyContacts.map(contactPayload),
-    pickup_persons: draft.pickupPersons.map(contactPayload),
+    emergency_contacts: draft.contacts
+      .filter((contact) => contact.emergency)
+      .map(contactPayload),
+    pickup_persons: draft.contacts
+      .filter((contact) => contact.pickup)
+      .map(contactPayload),
+    legal_acceptances: Object.fromEntries(
+      (offer.form.legalBlocks ?? [])
+        .filter((b) => b.enabled)
+        .map((b) => [b.key, draft.legalAcceptances?.[b.key] === true]),
+    ),
     privacy_consent: draft.privacyConsent,
-    health_consent: hasHealthInfo(draft) && draft.healthConsent,
+    health_consent: hasHealthInfo(draft, offer.form) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,
     benefits_declared: draft.benefitsDeclared,
+    benefits_proof_tokens: draft.benefitsDeclared
+      ? draft.benefitsProofs.map((proof) => proof.token)
+      : [],
     captcha_token: captchaToken,
+    form_version: offer.form.version,
+    consent_version: HOLIDAY_CONSENT_VERSION,
+    custom_data: familyAnswersToSend(draft, offer.form),
   };
 }

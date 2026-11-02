@@ -1,0 +1,90 @@
+{
+  "sectionTitle": "Twoja odpowiedź",
+  "signersAny": "Wystarczy jedna osoba sprawująca opiekę prawną na dziecko.",
+  "signersAll": "Każda osoba sprawująca opiekę prawną odpowiada sama.",
+  "nothingPreselected": "Nic nie jest wybrane z góry.",
+  "version": "Wersja {version}",
+  "deadline": "Termin do {date}",
+  "closed": "Termin minął",
+  "passwordNote": "Zanim odpowiesz, moto poprosi o Twoje hasło.",
+  "signatureNote": "Aby wyrazić zgodę, podpisz się palcem lub myszą.",
+  "state": {
+    "open": "Otwarte",
+    "partial": "Częściowo odpowiedziano",
+    "agreed": "Zgoda",
+    "declined": "Odmowa",
+    "revoked": "Wycofano",
+    "no_signer": "Nikt nie może odpowiedzieć",
+    "expired": "Termin minął"
+  },
+  "action": {
+    "agreed": "Zgadzam się",
+    "declined": "Nie zgadzam się",
+    "revoked": "Wycofaj zgodę"
+  },
+  "done": {
+    "agreed": "Zgoda",
+    "declined": "Odmowa",
+    "revoked": "Zgoda wycofana"
+  },
+  "explain": {
+    "agreed": "Wybierając „Zgadzam się”, oświadczasz w imieniu {name}, że wyrażasz zgodę.",
+    "declined": "Wybierając „Nie zgadzam się”, oświadczasz w imieniu {name}, że nie wyrażasz zgody."
+  },
+  "settled": {
+    "agreed": "{name} wyraził(a) zgodę.",
+    "declined": "{name} odmówił(a).",
+    "revoked": "{name} wycofał(a) zgodę."
+  },
+  "settledOnDate": {
+    "agreed": "{name} wyraził(a) zgodę {date}.",
+    "declined": "{name} odmówił(a) {date}.",
+    "revoked": "{name} wycofał(a) zgodę {date}."
+  },
+  "settledUnknown": "Dla {name} jest już odpowiedź.",
+  "oneIsEnough": "Wystarczy jedna odpowiedź.",
+  "ownAnyway": "Nadal możesz odpowiedzieć samodzielnie.",
+  "cannotSubmit": "Tutaj nie możesz odpowiedzieć za {name}. Robią to osoby sprawujące opiekę prawną.",
+  "myAction": "Twoja odpowiedź: {action}, {date}",
+  "myActionNoDate": "Twoja odpowiedź: {action}",
+  "proof": "Zobacz potwierdzenie",
+  "othersTitle": "Inne osoby sprawujące opiekę prawną",
+  "otherOpen": "jeszcze brak odpowiedzi",
+  "revokeHint": "Możesz wycofać swoją zgodę. Szkoła od razu to zobaczy.",
+  "closedNoAction": "Termin minął. Nie możesz już odpowiedzieć.",
+  "confirmTitle": "Sprawdź swoją odpowiedź",
+  "confirmBody": "Twoja odpowiedź dla {name}: {action}.",
+  "confirmChild": "Dziecko",
+  "confirmAction": "Twoja odpowiedź",
+  "confirmVersion": "Tekst",
+  "confirmRecorded": "moto zapisuje Twoją odpowiedź z datą i godziną. Szkoła ją widzi.",
+  "passwordLabel": "Hasło do Twojego konta rodzica",
+  "signature": {
+    "label": "Twój podpis",
+    "hint": "Podpisz się w polu palcem, rysikiem lub myszą.",
+    "canvas": "Pole na podpis",
+    "clear": "Wyczyść pole",
+    "typeInstead": "Wpisz imię i nazwisko",
+    "drawInstead": "Narysuj zamiast tego",
+    "typedName": "Twoje imię i nazwisko",
+    "confirm": "Potwierdź podpis",
+    "confirmed": "Twój podpis jest gotowy.",
+    "confirmedTyped": "Wpisane imię i nazwisko jest gotowe.",
+    "change": "Podpisz ponownie",
+    "preview": "Twój podpis",
+    "emptyDrawing": "Podpisz się w polu.",
+    "nameTooShort": "Wpisz swoje imię i nazwisko."
+  },
+  "revokeTitle": "Wycofaj zgodę",
+  "revokeBody": "Wycofujesz swoją zgodę w imieniu {name}.",
+  "revokeConfirm": "Wycofaj",
+  "cancel": "Anuluj",
+  "saving": "Zapisywanie …",
+  "saved": "Twoja odpowiedź dla {name} została zapisana.",
+  "errors": {
+    "passwordRequired": "Wpisz swoje hasło.",
+    "uncertainReload": "Aktualny stan jest ładowany ponownie. Sprawdź go, zanim odpowiesz jeszcze raz.",
+    "signatureRequired": "Podpisz się i dotknij „Potwierdź podpis”."
+  },
+  "errorObjectAnswer": "odpowiedź"
+}

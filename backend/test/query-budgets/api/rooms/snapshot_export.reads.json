@@ -1,0 +1,6 @@
+{
+  "scenario": "api.rooms.snapshot_export.reads",
+  "max": 4,
+  "exact": false,
+  "description": "#2941: formerly one identity query per supervisor / teacher."
+}

@@ -10,8 +10,10 @@ import (
 // Runtime binds authentication context and rendering outside the HTTP adapter.
 type Runtime struct {
 	ReportGuard func(http.Handler) http.Handler
-	Actor       func(*http.Request) studentpresence.StatisticsActor
-	Export      func(ExportDocument, ExportFormat, string) (ExportFile, error)
+	// StudentGuard admits the per-child Soll-und-Ist comparison (#4774).
+	StudentGuard func(http.Handler) http.Handler
+	Actor        func(*http.Request) studentpresence.StatisticsActor
+	Export       func(ExportDocument, ExportFormat, string) (ExportFile, error)
 }
 
 // ExportFormat selects the statistics download format.

@@ -21,7 +21,6 @@ import {
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -40,6 +39,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 const logger = createLogger({ component: "DatabaseDevicesPage" });
 
@@ -341,8 +341,8 @@ function DevicesPageContent() {
                 : "Registrieren Sie das erste Gerät, um Karten zu lesen.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.devices.icon}
-                  tone={MOTO_CONCEPTS.devices.tone}
+                  icon={devicesConcept.icon}
+                  tone={devicesConcept.tone}
                   size={48}
                 />
               ),
@@ -412,8 +412,8 @@ function DevicesPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.devices.icon}
-                tone={MOTO_CONCEPTS.devices.tone}
+                icon={devicesConcept.icon}
+                tone={devicesConcept.tone}
                 size={20}
               />
             ),

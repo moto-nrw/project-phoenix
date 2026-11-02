@@ -33,8 +33,8 @@ type clock struct{ now func() time.Time }
 
 func (c clock) Now() time.Time                      { return c.now() }
 func (c clock) Day(instant time.Time) calendar.Date { return calendar.DateFromTime(instant) }
-func NewSessionLifecycle(active studentpresence.Presence, presence devicescan.SupervisionQuery, people scanCompose.PersonDirectory, heartbeat interface {
+func NewSessionLifecycle(active studentpresence.Presence, counts OpenVisitCounts, presence devicescan.SupervisionQuery, people scanCompose.PersonDirectory, heartbeat interface {
 	PingDevice(context.Context, string) error
 }, mirror scanCompose.SessionMirror, logger *slog.Logger, principal devicescan.DevicePrincipal) devicescan.SessionLifecycle {
-	return scanCompose.NewSessionLifecycle(lifecycleStore{Presence: active, active: active, presence: presence}, scanCompose.NewLifecyclePeople(people), heartbeat, mirror, logger, principal)
+	return scanCompose.NewSessionLifecycle(lifecycleStore{OpenVisitCounts: counts, active: active, presence: presence}, scanCompose.NewLifecyclePeople(people), heartbeat, mirror, logger, principal)
 }

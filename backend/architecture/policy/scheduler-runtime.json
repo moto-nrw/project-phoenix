@@ -1,0 +1,80 @@
+{
+  "packages": [
+    {
+      "path": "modules/schedulerruntime/internal/application",
+      "owner": "scheduler-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/compose",
+      "owner": "scheduler-runtime",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/ports",
+      "owner": "scheduler-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/internal/adapters/jobruntime",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/internal/adapters/cleanupruns",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/internal/adapters/workerlease",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "platform.cleanup_runs",
+      "write_owner": "scheduler-runtime"
+    },
+    {
+      "name": "platform.worker_leases",
+      "write_owner": "scheduler-runtime"
+    }
+  ],
+  "rules": [
+    {
+      "id": "scheduler-runtime.postgres.tenant-runtime-public",
+      "description": "The Worker lease store opens its administrative transaction and joins the job transaction through the tenant runtime (#2726).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.compose.tenant-runtime",
+      "description": "Scheduler Runtime composition builds the Worker's job runtime and lease store over the unit of work the root hands it (#4003).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    }
+  ]
+}

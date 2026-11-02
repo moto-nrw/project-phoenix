@@ -1,11 +1,11 @@
 "use client";
 
-import useSWR from "swr";
+import { staffOnboardingKeys } from "~/lib/swr/portal-keys";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   fetchStaffOnboarding,
-  staffOnboardingSWRKey,
   type StaffOnboardingState,
 } from "~/lib/staff-onboarding-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -28,15 +28,13 @@ export function useStaffOnboarding(): {
     !isAdmin(session) &&
     !hasPermission(session, "config:update");
   const cacheKey =
-    allowed && tenantSlug && accountID
-      ? staffOnboardingSWRKey(tenantSlug, accountID)
-      : null;
-  const { data, mutate } = useSWR<StaffOnboardingState | null>(
+    allowed && tenantSlug && accountID ? staffOnboardingKeys.key() : null;
+  const { data, mutate } = useSWRAuth<StaffOnboardingState | null>(
     cacheKey,
     fetchStaffOnboarding,
     // Der Stand ändert sich nur durch die Person selbst; die Schule wird
     // beim Zurückkehren in den Tab bereit.
-    { revalidateOnFocus: true },
+    { keepPreviousData: false, revalidateOnFocus: true },
   );
 
   return {

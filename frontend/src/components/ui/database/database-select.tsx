@@ -8,6 +8,7 @@ import {
   useRef,
 } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { apiErrorFromResponse, unavailableApiError } from "~/lib/api-error";
@@ -156,13 +157,13 @@ export function DatabaseSelect({
   return (
     <div className="w-full">
       {label && (
-        <label
+        <FieldLabel
           htmlFor={id ?? name}
-          className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+          required={required}
+          className="mb-1 text-xs md:text-sm"
         >
           {label}
-          {required && "*"}
-        </label>
+        </FieldLabel>
       )}
 
       {loadError ? (

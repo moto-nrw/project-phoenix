@@ -1,0 +1,12 @@
+{
+  "already_assigned": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "internal": "{object} işlenemedi. Daha sonra yeniden deneyin.",
+  "invalid_period": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "invalid_target": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "last_supervisor": "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
+  "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "not_running": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "self_assignment": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+}

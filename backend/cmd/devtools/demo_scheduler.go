@@ -153,7 +153,7 @@ func (s *demoScheduler) prepareLeased(ctx context.Context, order DemoSchoolOrder
 			if requeueErr != nil {
 				s.rememberFailedDeferredRequeue(order.Slug)
 			}
-			slog.Warn("demo school deferred seed failed; school will be rebuilt",
+			slog.Warn("demo school deferred seed failed; school will be rebuilt unless hidden",
 				"school", order.Slug,
 				"error", errors.Join(err, requeueErr),
 			)

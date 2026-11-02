@@ -8,7 +8,6 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { setTestClock } from "~/test/clock";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
@@ -26,6 +25,8 @@ import { TagesplanView } from "./tagesplan-view";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 // Starten ist eine Aktion ohne Formular: Fehler gehen als Toast über
 // useApiErrorDisplay (#2516). Ladefehler laufen über den echten Hook.
@@ -215,8 +216,18 @@ describe("TagesplanView", () => {
     expect(help.parentElement).toHaveClass("lg:hidden");
   });
 
-  it("steps onto Saturday when the weekend follows Friday's plan (#3921)", () => {
+  it("steps over a weekend of another week although the weekend follows Friday's plan (#5028)", () => {
+    // Testuhr: Mittwoch 2026-09-09.
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    searchParams.current = new URLSearchParams("d=2026-07-17");
+    render(<TagesplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
+  });
+
+  it("steps onto Saturday of today's weekend when the weekend follows Friday's plan (#3921)", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-19T12:00:00+02:00"); // Sonntag
     searchParams.current = new URLSearchParams("d=2026-07-17");
     render(<TagesplanView />);
     fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
@@ -333,12 +344,12 @@ describe("TagesplanView", () => {
     const staffIcon = screen.getByText("Maria Muster").querySelector("svg");
     expect(roomIcon).toHaveAttribute(
       "data-moto-duotone-tone",
-      MOTO_CONCEPTS.rooms.tone,
+      roomsConcept.tone,
     );
     expect(roomIcon).toHaveAttribute("aria-hidden", "true");
     expect(staffIcon).toHaveAttribute(
       "data-moto-duotone-tone",
-      MOTO_CONCEPTS.staff.tone,
+      staffConcept.tone,
     );
     expect(staffIcon).toHaveAttribute("aria-hidden", "true");
   });

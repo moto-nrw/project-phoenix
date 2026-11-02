@@ -10,6 +10,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/uptrace/bun"
 )
@@ -25,6 +26,8 @@ type testTimetable struct {
 	corrections timetableModule.AttendanceCorrections
 	lock        timetableModule.RecurrenceWriteLock
 	review      timetableModule.TemplateRosterReview
+	// materialization is the composed one unless the suite replaced it.
+	materialization timetableModule.MaterializationCapability
 }
 
 func (t *testTimetable) RosterReview() timetableModule.TemplateRosterReview { return t.review }
@@ -50,6 +53,7 @@ type testTimetableOptions struct {
 	validateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	resyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	materialization            timetableModule.MaterializationCapability
+	nonWorkingDays             timetableModule.NonWorkingDayCalendar
 	instances                  timetableModule.InstanceLifecycleCapability
 }
 
@@ -91,6 +95,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		ValidateOfferingSource:     options.validateOfferingSource,
 		ResyncOfferingRoster:       options.resyncOfferingRoster,
 		Materialization:            options.materialization,
+		NonWorkingDays:             options.nonWorkingDays,
 		Instances:                  options.instances,
 	}
 	if len(clocks) > 0 && clocks[0] != nil {
@@ -107,6 +112,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		lock:                   module.RecurrenceLock,
 		corrections:            module.AttendanceCorrections,
 		review:                 module.RosterReview,
+		materialization:        module.Materialization,
 	}
 }
 
@@ -118,6 +124,7 @@ type TimetableOptions struct {
 	ValidateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	ResyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	Materialization            timetableModule.MaterializationCapability
+	NonWorkingDays             timetableModule.NonWorkingDayCalendar
 	Instances                  timetableModule.InstanceLifecycleCapability
 	Clock                      func() time.Time
 }
@@ -132,6 +139,7 @@ type TimetableHTTPModule struct {
 	ConflictDetection     timetableModule.ConflictDetectionCapability
 	AttendanceCorrections timetableModule.AttendanceCorrections
 	RecurrenceLock        timetableModule.RecurrenceWriteLock
+	Materialization       timetableModule.MaterializationCapability
 }
 
 // TimetableModule is what the route suites take from the root's timetable
@@ -186,6 +194,9 @@ var RootCompositions struct {
 	Rows func(db *bun.DB, clocks ...func() time.Time) (TimetableRows, error)
 	// People serves the People port of the timetable routes over db.
 	People func(db *bun.DB) (People, error)
+	// StudentTemplateDays removes and keeps a child on hand-maintained
+	// Regeltermine (#5102) over db, with today from the clock.
+	StudentTemplateDays func(db *bun.DB, today func() calendar.Date, staffing timetablePorts.StaffingAnnouncer) timetableModule.StudentTemplateDays
 	// RecurrenceLock is the owner's tenant recurrence gate over db.
 	RecurrenceLock func(db *bun.DB) (timetableModule.RecurrenceWriteLock, error)
 	// SessionRecords are Student Presence's live sessions over db.

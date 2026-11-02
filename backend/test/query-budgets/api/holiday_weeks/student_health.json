@@ -1,0 +1,6 @@
+{
+  "scenario": "api.holiday_weeks.student_health",
+  "max": 4,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks/students/{studentId}/health\n(#4722): the tenant binding, the student and its person for the names and\nthe date of birth, and one statement over the hosted weeks and their\nconfirmed children. The access log entry writes but selects nothing. Flat\nin the number of weeks and registrations."
+}

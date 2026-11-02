@@ -74,7 +74,7 @@ export function NumberRangeCard({
       actions={
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="md"
           onClick={() => setOpen(true)}
         >

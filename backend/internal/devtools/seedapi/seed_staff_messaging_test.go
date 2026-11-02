@@ -19,6 +19,7 @@ func TestSeedStaffMessagingStepLeavesTwoThreadsUnreadForTheAdmin(t *testing.T) {
 	type event struct{ method, thread, who string }
 	var events []event
 	threadOf := map[string]string{}
+	groupMembers := map[string]int{}
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		who := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer token-")
@@ -38,6 +39,15 @@ func TestSeedStaffMessagingStepLeavesTwoThreadsUnreadForTheAdmin(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			id := fmt.Sprintf("t%d", len(threadOf)+1)
 			threadOf[id] = who + ">" + body["account_id"].(string)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread_id":"%s"}}`, id)
+		case "/api/staff-messages/groups":
+			var body struct {
+				Name       string   `json:"name"`
+				AccountIDs []string `json:"account_ids"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			id := fmt.Sprintf("g%d", len(groupMembers)+1)
+			groupMembers[id] = len(body.AccountIDs)
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread_id":"%s"}}`, id)
 		default:
 			events = append(events, event{r.Method, strings.TrimPrefix(r.URL.Path, "/api/staff-messages/threads/"), who})
@@ -61,7 +71,14 @@ func TestSeedStaffMessagingStepLeavesTwoThreadsUnreadForTheAdmin(t *testing.T) {
 	// not opened it since.
 	unreadForThomas := map[string]bool{}
 	sent := 0
+	groupSent := 0
 	for _, e := range events {
+		if _, isGroup := groupMembers[e.thread]; isGroup {
+			if e.method == seedHTTPMethodPost {
+				groupSent++
+			}
+			continue
+		}
 		thomas := strings.HasPrefix(threadOf[e.thread], "s1>") || strings.HasSuffix(threadOf[e.thread], ">101")
 		switch {
 		case e.method == seedHTTPMethodPost:
@@ -83,5 +100,14 @@ func TestSeedStaffMessagingStepLeavesTwoThreadsUnreadForTheAdmin(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 2, unread)
+
+	// The group chats (#4776) are created with their members and filled.
+	require.Len(t, groupMembers, len(staffChatGroups))
+	groupTotal := 0
+	for i, group := range staffChatGroups {
+		assert.Equal(t, len(group.members), groupMembers[fmt.Sprintf("g%d", i+1)])
+		groupTotal += len(group.messages)
+	}
+	assert.Equal(t, groupTotal, groupSent)
 	assert.Equal(t, "admin", rt.Client.auth.Token, "the step hands the admin session back")
 }

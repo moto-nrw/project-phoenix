@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestListPeriodsQueryBudget pins the statement count of GET /periods (#3124).
@@ -83,5 +84,5 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	t.Logf("query budget: 3 periods → %d queries, 6 periods → %d queries", smallCount, largeCount)
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the period count (no per-period N+1)")
-	testpkg.AssertQueryBudget(t, "api.timetable.periods.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.periods.list", counter.Queries())
 }

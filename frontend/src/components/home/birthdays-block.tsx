@@ -21,6 +21,7 @@ import {
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
+import { birthdaysConcept } from "~/lib/concepts/birthdays";
 
 /**
  * So viele Namen passen in die drei Rasterzeilen hohe Karte unter die
@@ -119,7 +120,7 @@ export function BirthdaysBlock({
   return (
     <SectionCard
       title="Geburtstage"
-      leading={<HomeCardIcon concept="birthdays" />}
+      leading={<HomeCardIcon concept={birthdaysConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
     >

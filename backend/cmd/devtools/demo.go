@@ -50,7 +50,7 @@ var demoCmd = &cobra.Command{
 		}
 		defer func() { _ = db.Close() }()
 		adapterFactory := newSeedCommandAdapter
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "demo") {
+		if isPublicDemo() {
 			inbox, err := seedapi.NewDemoCodeInbox(os.Getenv("APP_ENV"))
 			if err != nil {
 				return err
@@ -81,6 +81,12 @@ func init() {
 	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://127.0.0.1:8080)")
 	demoCmd.Flags().Bool("once", false, "Provision or reload the school, execute one tick and exit (smoke verification)")
 	demoCmd.Flags().String("heartbeat", "", "File rewritten after every successful tick; the container healthcheck reads its age")
+}
+
+// isPublicDemo reports whether the process runs as the public demo's sidecar
+// (APP_ENV=demo), the only environment whose server mounts the demo routes.
+func isPublicDemo() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "demo")
 }
 
 func validateDemoTarget(baseURL, environment string) error {
@@ -275,6 +281,9 @@ func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seed
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	// The sidecar has no database it may write presence to; the public
+	// demo's server mounts the operator route for the past instead (ADR 0127).
+	options.PresenceHistoryRoute = isPublicDemo()
 	var schoolID int64
 	stateSaved := false
 	if options.DeferHistory {

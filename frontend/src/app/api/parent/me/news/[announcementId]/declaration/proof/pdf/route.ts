@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Erklärungen (#3430), Elternseite: der Nachweis als PDF der Schule für dieses
 // Konto und ein Kind.
@@ -79,4 +80,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withParentAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));

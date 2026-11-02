@@ -11,6 +11,20 @@ import (
 type CareDayQuery interface {
 	ResolveForDate(context.Context, []int64, calendar.Date) (map[int64]CareDayStatus, error)
 	ResolveForRange(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]CareDayStatus, error)
+	// ResolvePlannedForRange returns each verdict with the effective arrival
+	// and pickup times behind it, so a reader that needs the planned clock
+	// times (the occupancy by time of day, #4764) does not re-derive the plan
+	// date by date.
+	ResolvePlannedForRange(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]PlannedCareDay, error)
+}
+
+// PlannedCareDay is the care-day verdict with the planned clock times of the
+// day. Arrival and Pickup are nil where the plan names no time — always nil
+// for a day the child is not expected.
+type PlannedCareDay struct {
+	Status  CareDayStatus
+	Arrival *calendar.WallClock
+	Pickup  *calendar.WallClock
 }
 
 // CareDayStatus is the derived per-child, per-day care-plan verdict.

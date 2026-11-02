@@ -1,0 +1,43 @@
+{
+  "kicker": "Appointments at a glance",
+  "title": "Calendar",
+  "description": "Appointments and events for your children at a glance.",
+  "empty": "There are no appointments in the next 3 months.",
+  "groups": {
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "later": "Later"
+  },
+  "when": "{date} at {time}",
+  "whenAllDay": "{date}, all day",
+  "forChild": "For {name}",
+  "types": {
+    "care": "Care time",
+    "invitation": "Invitation",
+    "appointment": "Appointment"
+  },
+  "accept": "Accept",
+  "decline": "Decline",
+  "accepted": "Appointment accepted.",
+  "declined": "Appointment declined.",
+  "answeredAccepted": "Accepted",
+  "answeredDeclined": "Declined",
+  "cancelledByOgs": "Cancelled by the OGS",
+  "previousMonth": "Previous month",
+  "nextMonth": "Next month",
+  "close": "Close",
+  "allDay": "All day",
+  "moreEvents": "+ {count} more",
+  "responseRequired": "Response required",
+  "weekdayShort": {
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri",
+    "6": "Sat",
+    "7": "Sun"
+  },
+  "errorObjectList": "the list of appointments",
+  "errorObjectResponse": "the reply"
+}

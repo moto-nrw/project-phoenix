@@ -807,6 +807,10 @@ func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id in
 	return true, nil
 }
 
+func (s *lifecycleInvitations) LockGuardianAccountEmail(context.Context, string) error {
+	return nil
+}
+
 // InsertAccount mirrors the store's account provisioning; the fake accounts
 // live in the shared session store.
 func (s *lifecycleInvitations) InsertAccount(_ context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error) {

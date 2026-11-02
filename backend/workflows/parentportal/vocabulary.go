@@ -34,6 +34,7 @@ type (
 	CareScheduleRequestCapabilities = care.CareScheduleRequestCapabilities
 	CareScheduleWeekday             = care.CareScheduleWeekday
 	ChildCareSchedule               = care.ChildCareSchedule
+	Child                           = care.Child
 	ChildConsent                    = care.ChildConsent
 	ChildFeatureFlags               = care.ChildFeatureFlags
 	ChildGuardian                   = care.ChildGuardian
@@ -147,6 +148,7 @@ var (
 	ErrMasterDataRequestDisabled        = care.ErrMasterDataRequestDisabled
 	ErrMasterDataRequestNotFound        = care.ErrMasterDataRequestNotFound
 	ErrMasterDataRequestNotPending      = care.ErrMasterDataRequestNotPending
+	ErrMealParticipationManageDenied    = care.ErrMealParticipationManageDenied
 	ErrMealParticipationCutoff          = care.ErrMealParticipationCutoff
 	ErrMealParticipationOutOfRange      = care.ErrMealParticipationOutOfRange
 	ErrMealPlanDisabled                 = care.ErrMealPlanDisabled
@@ -156,6 +158,8 @@ var (
 	ErrNoDates                          = care.ErrNoDates
 	ErrNoteTooLong                      = care.ErrNoteTooLong
 	ErrNotesDisabled                    = care.ErrNotesDisabled
+	ErrInvalidMessageAudience           = messaging.ErrInvalidAudience
+	ErrLeadershipMessagesUnavailable    = messaging.ErrLeadershipUnavailable
 	ErrPastCareDate                     = care.ErrPastCareDate
 	ErrPhotoConsentNotWithdrawn         = care.ErrPhotoConsentNotWithdrawn
 	ErrPickupChangeCutoffPassed         = care.ErrPickupChangeCutoffPassed

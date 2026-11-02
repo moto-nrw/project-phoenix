@@ -323,7 +323,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		MFA: mfa, Lifecycle: lifecycle, Operators: operators, Demo: demo, TenantRuntime: unit,
 		Resets: owners.PasswordResetDependencies(&owners.PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable,
-			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
+			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL, TraegerURL: strings.TrimRight(cfg.TraegerURL, "/"),
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		}, logger),

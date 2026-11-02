@@ -30,8 +30,8 @@ func TestUpdateStudent_LiftFailsWhenStatusDayResponseCannotBeVerified(t *testing
 
 	statusDays := tc.resource.StudentStatusDayService
 	tc.resource.StudentStatusDayService = statusDayResponseFailure{
-		StatusDays: statusDays,
-		err:        errors.New("status day response lookup failed"),
+		StatusDayReads: statusDays,
+		err:            errors.New("status day response lookup failed"),
 	}
 
 	lift := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
@@ -46,7 +46,7 @@ func TestUpdateStudent_LiftFailsWhenStatusDayResponseCannotBeVerified(t *testing
 }
 
 type statusDayResponseFailure struct {
-	studentpresence.StatusDays
+	studentpresence.StatusDayReads
 	err error
 }
 

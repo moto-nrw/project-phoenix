@@ -423,3 +423,16 @@ func TestCoreActionTableEntriesAreWellFormed(t *testing.T) {
 		}
 	}
 }
+
+func TestAccidentReportSigningRoutesShareTheSigningEvent(t *testing.T) {
+	t.Parallel()
+
+	for _, pattern := range []string{
+		"/api/students/{id}/accident-reports/{documentId}/paper-copy",
+		"/api/students/{id}/accident-reports/{documentId}/signature",
+	} {
+		action, ok := CoreActions()[RouteKey{Method: http.MethodPost, Pattern: pattern}]
+		require.True(t, ok, pattern)
+		assert.Equal(t, "accident_report_signed", action.Event, pattern)
+	}
+}

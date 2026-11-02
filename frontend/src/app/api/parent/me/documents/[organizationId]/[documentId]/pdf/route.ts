@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Dokumentenpostfach (#4671): ein Dokument des Trägers als gespeichertes PDF.
 //
@@ -80,4 +81,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withParentAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));

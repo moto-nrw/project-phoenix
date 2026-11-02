@@ -1,0 +1,22 @@
+{
+  "title": "Takvime abone ol",
+  "description": "Randevulara telefonunuzun takviminde bir kez abone olun. Yeni, değişen ve iptal edilen randevular sonrasında otomatik olarak görünür. Her randevuyu tek tek eklemeniz gerekmez.",
+  "showLink": "Abonelik bağlantısını göster",
+  "subscribe": "Takvimde abone ol",
+  "linkLabel": "Abonelik bağlantısı (kopyalamak için)",
+  "copy": "Kopyala",
+  "copiedButton": "Kopyalandı",
+  "copied": "Bağlantı kopyalandı.",
+  "copyFailed": "Kopyalama yapılamadı. Lütfen bağlantıyı elle seçin.",
+  "linkOnce": "Güvenlik nedeniyle bu bağlantıyı yalnızca şimdi görüyorsunuz. Hemen takviminize kopyalayın.",
+  "howToTitle": "Şöyle yapın:",
+  "howToMac": "Mac: Abonelik penceresi açılmazsa Takvim uygulamasında Ayarlar, Genel bölümünden Apple Takvim'i varsayılan takvim uygulaması olarak seçin. Alternatif: Dosya, Yeni Takvim Aboneliği, abonelik bağlantısını yapıştırın.",
+  "howToApple": "iPhone/iPad: Ayarlar, Takvim, Hesaplar, Hesap Ekle, Diğer, Abone Olunan Takvim Ekle, sonra bağlantıyı yapıştırın.",
+  "howToAndroid": "Android: Bilgisayarda Google Takvim'de Diğer takvimler, URL ile, sonra bağlantıyı yapıştırın. Takvim daha sonra telefonda da görünür.",
+  "regenerate": "Bağlantıyı yeniden oluştur",
+  "regenerated": "Yeni abonelik bağlantısı oluşturuldu. Eski bağlantı artık geçerli değil.",
+  "loadObject": "abonelik bağlantısı",
+  "rotateObject": "abonelik bağlantısı",
+  "alreadyActive": "Abonelik bağlantınız zaten etkin. Güvenlik nedeniyle yeniden gösterilmez. Artık elinizde yoksa yeni bir bağlantı oluşturun; eski bağlantı o zaman geçerliliğini yitirir.",
+  "createNew": "Yeni abonelik bağlantısı oluştur"
+}

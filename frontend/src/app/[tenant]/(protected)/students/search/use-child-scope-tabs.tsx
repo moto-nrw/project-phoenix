@@ -20,6 +20,8 @@ import {
   roomIdFromScope,
   type ScopeRoom,
 } from "./child-scope-tabs";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 const EMPTY_IDS: readonly string[] = [];
 const EMPTY_ROOMS: readonly ScopeRoom[] = [];
@@ -120,7 +122,7 @@ export function useChildScopeTabs({
   if (enabled && showGroupEntry && !openCareGroupMode) {
     menuItems.push({
       label: "Zur Gruppenseite",
-      icon: <MotoConceptIcon concept="groups" size={16} />,
+      icon: <MotoConceptIcon concept={groupsConcept} size={16} />,
       href: tenantPath("/ogs-groups"),
       onClick: noop,
     });
@@ -128,7 +130,7 @@ export function useChildScopeTabs({
   if (enabled && showStaffEntries && !isBinaryMode) {
     menuItems.push({
       label: "Zur Aufsicht",
-      icon: <MotoConceptIcon concept="supervision" size={16} />,
+      icon: <MotoConceptIcon concept={supervisionConcept} size={16} />,
       href: tenantPath("/active-supervisions"),
       onClick: noop,
     });

@@ -1,0 +1,18 @@
+{
+  "description": "Randevularınıza telefonunuzun takviminde bir kez abone olun. Yeni, değişen ve iptal edilen randevular sonrasında otomatik olarak görünür. Hiçbir randevuyu tek tek eklemeniz gerekmez. Telefon takvimindeki değişiklikler moto'ya ulaşmaz.",
+  "createNew": "Yeni erişim bilgileri oluştur",
+  "regenerate": "Erişim bilgilerini yeniden oluştur",
+  "alreadyActive": "Erişim bilgileriniz zaten etkin. Yalnızca bir kez gösterilir. Artık elinizde yoksa yenilerini oluşturun. Önceki takvim aboneliği de o zaman sona erer.",
+  "regenerated": "Yeni erişim bilgileri oluşturuldu. Öncekiler artık geçerli değil.",
+  "caldavTitle": "Bir takvim programına bağlan",
+  "caldavDescription": "moto takviminizi örneğin Thunderbird'de görüntüleyin. Orada randevuları yalnızca görebilirsiniz. Takvim programları bu erişime CalDAV der.",
+  "caldavAddress": "Adres",
+  "caldavUsername": "Kullanıcı adı",
+  "caldavPassword": "Uygulama şifresi",
+  "addressCopied": "Adres kopyalandı.",
+  "usernameCopied": "Kullanıcı adı kopyalandı.",
+  "passwordCopied": "Uygulama şifresi kopyalandı.",
+  "passwordOnce": "Uygulama şifresini yalnızca şimdi görüyorsunuz. Hemen takvim programına kaydedin.",
+  "passwordHidden": "Uygulama şifresi zaten gösterildi. Artık elinizde yoksa yeni erişim bilgileri oluşturun.",
+  "caldavUnavailable": "Bağlantı şu anda kullanılamıyor. Lütfen tekrar deneyin."
+}

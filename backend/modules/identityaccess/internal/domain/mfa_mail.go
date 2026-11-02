@@ -53,6 +53,17 @@ type TrustedDeviceMail struct {
 	// AddedAt is the German-formatted moment the device was trusted.
 	AddedAt     string
 	TrustedDays int
+	// Caterer marks a device of the caterer portal (#4497): its holder
+	// manages it in the caterer's account, and a moto operator resets it.
+	Caterer bool
+}
+
+// CatererMFAResetMail tells a caterer that a moto operator reset its second
+// factor (#4497). ResetAt is the German-formatted moment.
+type CatererMFAResetMail struct {
+	Recipient   string
+	ReferenceID int64
+	ResetAt     string
 }
 
 // MFACodeMailFor builds the code mail of one recipient.

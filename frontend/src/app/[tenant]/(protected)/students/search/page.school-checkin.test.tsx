@@ -193,8 +193,8 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({
     actionButton,
     mobileActionButton,
   }: {
@@ -319,7 +319,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       error: null,
     } as never);
     vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "search-rooms-list") {
+      if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
         return {
           data: [],
           isLoading: false,
@@ -732,7 +732,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       // must not narrow the list of the next.
       window.localStorage.clear();
       vi.mocked(useSWRAuth).mockImplementation((key) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return { data: [], isLoading: false, error: null } as never;
         }
         return {

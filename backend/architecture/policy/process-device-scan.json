@@ -1,0 +1,218 @@
+{
+  "packages": [
+    {
+      "path": "modules/devicescan",
+      "owner": "process-device-scan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan/ports",
+      "owner": "process-device-scan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan/internal/application",
+      "owner": "process-device-scan",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicescan/compose",
+      "owner": "process-device-scan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "api/iot",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicescan/http/checkin",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/compose",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan/http/data",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicescan/http/sessions",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicescan/http/staffclock",
+      "owner": "process-device-scan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "process-device-scan.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.http.public",
+      "description": "Device-scan HTTP data routes call the existing owned scan capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.to.device-fleet",
+      "description": "process-device-scan coordinates the public device-fleet capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.to.facilities",
+      "description": "Device check-in resolves and validates rooms through the public Facilities capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.http.feedback",
+      "description": "Device-scan HTTP data routes call the existing public feedback capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.workflow-test.facilities",
+      "description": "Device check-in tests exercise the public room value contract.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.application.public",
+      "description": "The device-scan workflow implements the public kiosk scan contract (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.application.port",
+      "description": "The device-scan workflow depends on its consumer-owned ports (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
+      "target_role": "port"
+    },
+    {
+      "id": "process-device-scan.decision-test.device-fleet",
+      "description": "Device scan decision tests fake the public Device Fleet capability (#2698).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.student-presence-public",
+      "description": "The device-scan composition records visits through the public Student Presence DTOs (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.tenant-runtime",
+      "description": "The device-scan composition binds the request transaction rollback of the tenant runtime (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.orm-sql",
+      "description": "The device-scan composition classifies missing rows of the retained people lookups (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "process-device-scan.compose.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    }
+  ]
+}

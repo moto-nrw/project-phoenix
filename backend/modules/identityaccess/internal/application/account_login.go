@@ -157,6 +157,8 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 		challengeScope = "school"
 	case domain.ScopeOrg:
 		challengeScope = "org"
+	case domain.ScopeCaterer:
+		challengeScope = domain.MFAChallengeScopeCaterer
 	}
 	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, challengeScope, ipAddress)
 	if err != nil {

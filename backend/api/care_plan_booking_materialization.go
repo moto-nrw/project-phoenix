@@ -21,6 +21,7 @@ func timetableOfferingRosterResync(rosters careplan.SourcedRosters) func(context
 			TemplateID: in.TemplateID, OfferingIDs: in.OfferingIDs, GradeLevels: in.GradeLevels,
 			SchoolClasses: in.SchoolClasses, CalendarPeriodID: in.CalendarPeriodID, EffectiveFrom: in.EffectiveFrom,
 			ScopeRequestChildIDs: in.ScopeRequestChildIDs, TolerateDriftedSources: in.TolerateDriftedSources,
+			StoredOfferingIDs: in.StoredOfferingIDs,
 		})
 	}
 }

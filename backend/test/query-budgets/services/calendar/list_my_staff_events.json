@@ -1,0 +1,6 @@
+{
+  "scenario": "services.calendar.list_my_staff_events",
+  "max": 11,
+  "exact": false,
+  "description": "modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments."
+}

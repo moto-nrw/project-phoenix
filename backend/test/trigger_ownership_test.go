@@ -3,12 +3,13 @@ package test
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestDatabaseTriggerOwnership(t *testing.T) {
 	db := SetupTestDB(t)
 	root, err := findBackendRoot()
 	require.NoError(t, err)
-	raw, err := os.ReadFile(filepath.Join(root, "architecture/policy.json"))
+	raw, err := artifacts.ReadPolicy(filepath.Join(root, "architecture/policy.json"))
 	require.NoError(t, err)
 	var objects struct {
 		DataObjects []struct {

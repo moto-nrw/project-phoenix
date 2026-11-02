@@ -27,7 +27,7 @@ type TemplateListRow struct {
 	ListKind                  *string
 	Notes                     *string
 	IncludeClosingDays        bool
-	// ManualRosterConfirmed is the series root's "Bleibt von Hand gepflegt"
+	// ManualRosterConfirmed is the series root's "Liste so lassen"
 	// (#5103).
 	ManualRosterConfirmed   bool
 	SeriesLastDay           *string

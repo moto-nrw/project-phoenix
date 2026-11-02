@@ -30,6 +30,7 @@ func NewStaffOffboardingOwners(db transactionruntime.Database, people staffoffbo
 	if err != nil {
 		return offboardingcompose.Dependencies{}, err
 	}
+
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
 		return offboardingcompose.Dependencies{}, err

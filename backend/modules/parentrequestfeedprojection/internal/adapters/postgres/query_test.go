@@ -7,6 +7,7 @@ import (
 	"time"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -183,7 +184,7 @@ func TestListNewParentRequestsQueryBudget(t *testing.T) {
 		return listErr
 	})
 	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
+	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
 		return strings.Contains(sqlLower, "select kind, id, created_at")
 	}))
 }

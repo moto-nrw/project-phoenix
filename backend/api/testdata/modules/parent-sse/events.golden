@@ -1,0 +1,1 @@
+GET /parent-sse/events -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

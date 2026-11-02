@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -53,6 +55,7 @@ import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -83,6 +86,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
 function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
   const { status } = useSession();
+  const invalidate = useInvalidateMatching();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -137,10 +141,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     data: organizations,
     error: organizationsError,
     mutate: mutateOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organization: OrganizationSummary | undefined = useMemo(
@@ -161,27 +169,39 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchools,
-  } = useSWR(
-    isAuthenticated && organization
-      ? ["operator-organization-schools", organization.id]
-      : null,
-    () =>
-      operatorProvisioningService.listOrganizationSchools(
-        organization?.id ?? "",
-      ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+    () => operatorProvisioningService.listSchoolSummaries(),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const school: SchoolSummary | undefined = useMemo(
-    () => schools?.find((item) => item.slug === schoolSlug),
-    [schoolSlug, schools],
+    () =>
+      schools?.find(
+        (item) =>
+          item.slug === schoolSlug && item.organizationId === organization?.id,
+      ),
+    [schoolSlug, schools, organization?.id],
   );
 
   useSetBreadcrumb({ pageTitle: school?.name ?? "Schule" });
 
   const refreshSchoolDetail = useCallback(async () => {
-    await Promise.all([mutateOrganizations(), mutateSchools()]);
-  }, [mutateOrganizations, mutateSchools]);
+    await Promise.all([
+      mutateOrganizations(),
+      mutateSchools(),
+      invalidate(
+        (key) =>
+          operatorProvisioningKeys.summaryChanges(key) &&
+          key !== operatorProvisioningKeys.organizationSummaries() &&
+          key !== operatorProvisioningKeys.schoolSummaries(),
+      ),
+    ]);
+  }, [mutateOrganizations, mutateSchools, invalidate]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
@@ -190,10 +210,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateSchoolAccounts,
-  } = useSWR(
-    accountsActive ? ["operator-school-accounts", school?.id] : null,
+  } = useSWRAuth(
+    accountsActive ? operatorProvisioningKeys.schoolAccounts(school?.id) : null,
     () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -203,10 +227,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateSchoolDevices,
-  } = useSWR(
-    devicesActive ? ["operator-school-devices", school?.id] : null,
+  } = useSWRAuth(
+    devicesActive ? operatorProvisioningKeys.schoolDevices(school?.id) : null,
     () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -216,10 +244,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
-    personsActive ? ["operator-school-persons", school?.id] : null,
+  } = useSWRAuth(
+    personsActive ? operatorProvisioningKeys.schoolPersons(school?.id) : null,
     () => operatorProvisioningService.listSchoolPersons(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // PWA standalone usage (#2189): shown in the header, so it loads with the
@@ -228,12 +260,16 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     data: pwaUsage,
     error: pwaUsageError,
     mutate: mutatePwaUsage,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && school != null
-      ? ["operator-school-pwa-usage", school.id]
+      ? operatorProvisioningKeys.schoolPwaUsage(school.id)
       : null,
     () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // One alert for the page head: the provider and school lists it is built
@@ -272,9 +308,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const transferSchools = useMemo(
     () =>
       (schools ?? [])
-        .filter((item) => item.active && item.deletedAt == null)
+        .filter(
+          (item) =>
+            item.organizationId === organization?.id &&
+            item.active &&
+            item.deletedAt == null,
+        )
         .map(summaryToSchool),
-    [schools],
+    [schools, organization?.id],
   );
 
   const openCaregiverModal = useCallback(
@@ -562,7 +603,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       <EntityHeaderCard
         back={organizationBack}
         title={school.name}
-        concept="schools"
+        concept={schoolsConcept}
         subdomain={school.subdomain}
         active={school.active}
         createdAt={school.createdAt}

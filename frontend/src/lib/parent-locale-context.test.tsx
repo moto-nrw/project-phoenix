@@ -13,13 +13,9 @@ import { useLocale } from "next-intl";
 import { writeLocaleCookie } from "~/i18n/locales";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
 
-const reloadMock = vi.hoisted(() => vi.fn());
-vi.mock("~/lib/parent-locale-navigation", () => ({
-  reloadForLocaleChange: reloadMock,
-}));
-
-// A stored language that differs from the render refreshes the server tree
-// instead of loading the document a second time (#5001).
+// A language change refreshes the server tree instead of loading the
+// document a second time, so client state such as a half-filled form
+// survives it (#5001, #5327).
 const refreshMock = vi.hoisted(() => vi.fn());
 const routerMock = vi.hoisted(() => ({ refresh: refreshMock }));
 vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
@@ -127,14 +123,14 @@ describe("ParentLocaleProvider — anonymous", () => {
     expect(mockedFetchProfile).not.toHaveBeenCalled();
   });
 
-  it("setLocale writes the cookie and reloads without persisting", async () => {
+  it("setLocale writes the cookie and soft-refreshes without persisting", async () => {
     setSession("unauthenticated");
     renderProvider();
 
     fireEvent.click(screen.getByText("set-ru"));
 
     await waitFor(() => expect(mockedWriteCookie).toHaveBeenCalledWith("ru"));
-    expect(reloadMock).toHaveBeenCalled();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
     // No profile write when anonymous.
     expect(mockedUpdateLocale).not.toHaveBeenCalled();
   });
@@ -152,7 +148,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     await waitFor(() => expect(mockedUpdateLocale).toHaveBeenCalledWith("en"));
     expect(screen.getByTestId("locale").textContent).toBe("en");
     // ... but no refresh: the tree was already server-rendered in "en".
-    expect(reloadMock).not.toHaveBeenCalled();
     expect(refreshMock).not.toHaveBeenCalled();
   });
 
@@ -166,7 +161,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     await waitFor(() => expect(mockedUpdateLocale).toHaveBeenCalledWith("de"));
     // de is the default, but it may still be an explicit pre-login choice.
     // Persisting it prevents the next non-German browser from overwriting it.
-    expect(reloadMock).not.toHaveBeenCalled();
     expect(refreshMock).not.toHaveBeenCalled();
   });
 
@@ -184,7 +178,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     // Stored ru ≠ rendered de → refresh the server tree in ru, without
     // loading the document again.
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
-    expect(reloadMock).not.toHaveBeenCalled();
   });
 
   it("refreshes for an unsynced local choice the profile does not know yet", async () => {
@@ -201,7 +194,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId("locale").textContent).toBe("ru");
     expect(mockedWriteCookie).toHaveBeenCalledWith("ru");
-    expect(reloadMock).not.toHaveBeenCalled();
 
     // The refreshed server tree renders in ru; nothing refreshes again.
     mockedUseLocale.mockReturnValue("ru");
@@ -214,7 +206,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     );
     expect(screen.getByTestId("locale").textContent).toBe("ru");
     expect(refreshMock).toHaveBeenCalledTimes(1);
-    expect(reloadMock).not.toHaveBeenCalled();
   });
 
   it("does not refresh when the stored locale already matches the render", async () => {
@@ -225,7 +216,6 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     renderProvider();
 
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
-    expect(reloadMock).not.toHaveBeenCalled();
     expect(refreshMock).not.toHaveBeenCalled();
   });
 
@@ -238,13 +228,12 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
     // No crash, no refresh, stays on the server-resolved locale.
     expect(screen.getByTestId("locale").textContent).toBe("de");
-    expect(reloadMock).not.toHaveBeenCalled();
     expect(refreshMock).not.toHaveBeenCalled();
   });
 });
 
 describe("ParentLocaleProvider — setLocale when authenticated", () => {
-  it("persists the chosen locale to the profile and reloads", async () => {
+  it("persists the chosen locale to the profile and soft-refreshes", async () => {
     setSession("authenticated");
     mockedUseLocale.mockReturnValue("de");
     // Stored de so the mount effect is a no-op (no refresh from sync).
@@ -252,71 +241,56 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
 
     renderProvider();
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
-    reloadMock.mockClear();
+    refreshMock.mockClear();
 
     fireEvent.click(screen.getByText("set-ru"));
 
     await waitFor(() => expect(mockedUpdateLocale).toHaveBeenCalledWith("ru"));
     expect(mockedWriteCookie).toHaveBeenCalledWith("ru");
-    expect(reloadMock).toHaveBeenCalled();
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
   });
 
-  it("shows the failed persist after the reload but still switches the UI", async () => {
+  it("shows the failed persist at once but still switches the UI", async () => {
     setSession("authenticated");
     mockedUseLocale.mockReturnValue("de");
     mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
-    mockedUpdateLocale.mockRejectedValue(
-      new ApiError("diag", 503, {
-        code: "general.unavailable",
-        instance: "req-locale",
-      }),
-    );
+    const failure = new ApiError("diag", 503, {
+      code: "general.unavailable",
+      instance: "req-locale",
+    });
+    mockedUpdateLocale.mockRejectedValue(failure);
 
-    const { unmount } = renderProvider();
+    renderProvider();
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
-    reloadMock.mockClear();
+    refreshMock.mockClear();
     mockedWriteCookie.mockClear();
 
     fireEvent.click(screen.getByText("set-ru"));
 
-    // The cookie + reload still apply the choice locally, ...
+    // The cookie + soft refresh still apply the choice locally, ...
     await waitFor(() => expect(mockedWriteCookie).toHaveBeenCalledWith("ru"));
-    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
-    // ... and the reload would wipe a toast, so nothing is shown yet.
-    expect(showErrorMock).not.toHaveBeenCalled();
-
-    // The reloaded page shows the failed account save, not swallowed.
-    unmount();
-    mockedUseLocale.mockReturnValue("ru");
-    mockedUpdateLocale.mockResolvedValue({ portal_locale: "ru" });
-    renderProvider();
-
-    await waitFor(() => expect(showErrorMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    // ... and the failed account save is shown, not swallowed: the soft
+    // refresh keeps the toast.
+    expect(showErrorMock).toHaveBeenCalledTimes(1);
     const [shownError, options] = showErrorMock.mock.calls[0]!;
-    expect(shownError).toBeInstanceOf(ApiError);
-    expect((shownError as ApiError).code).toBe("general.unavailable");
-    // The Vorgangskennung survives the reload too.
-    expect((shownError as ApiError).requestId).toBe("req-locale");
+    expect(shownError).toBe(failure);
     expect(options).toMatchObject({
       object: "errorObject",
       messageSuffix: "savedOnDevice",
     });
-    expect(window.sessionStorage.length).toBe(0);
+    expect(screen.getByTestId("locale").textContent).toBe("ru");
 
     // Wiederholen saves the chosen language again.
+    mockedUpdateLocale.mockResolvedValue({ portal_locale: "ru" });
     (options as { retry: () => void }).retry();
     await waitFor(() =>
       expect(mockedUpdateLocale).toHaveBeenLastCalledWith("ru"),
     );
-
-    await waitFor(() =>
-      expect(mockedFetchProfile.mock.calls.length).toBeGreaterThanOrEqual(2),
-    );
-    expect(screen.getByTestId("locale").textContent).toBe("ru");
     expect(mockedWriteCookie).not.toHaveBeenCalledWith("de");
   });
 
-  it("keeps a save that got no answer marked as such across the reload (#2512)", async () => {
+  it("shows a save that got no answer marked as such (#2512)", async () => {
     setSession("authenticated");
     mockedUseLocale.mockReturnValue("de");
     mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
@@ -324,47 +298,15 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
       unavailableApiError(new TypeError("Failed to fetch")),
     );
 
-    const { unmount } = renderProvider();
+    renderProvider();
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
     fireEvent.click(screen.getByText("set-ru"));
-    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
-
-    unmount();
-    mockedUseLocale.mockReturnValue("ru");
-    renderProvider();
 
     await waitFor(() => expect(showErrorMock).toHaveBeenCalledTimes(1));
     expect(showErrorMock.mock.calls[0]![0]).toMatchObject({
       code: "general.unavailable",
       noResponse: true,
     });
-  });
-
-  it("shows the failed persist at once when the reload could not keep it", async () => {
-    setSession("authenticated");
-    mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
-    const failure = new ApiError("diag", 503, { code: "general.unavailable" });
-    mockedUpdateLocale.mockRejectedValue(failure);
-    const setItem = vi
-      .spyOn(window.sessionStorage, "setItem")
-      .mockImplementation(() => {
-        throw new Error("quota");
-      });
-
-    renderProvider();
-    await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
-    reloadMock.mockClear();
-
-    fireEvent.click(screen.getByText("set-ru"));
-
-    await waitFor(() =>
-      expect(showErrorMock).toHaveBeenCalledWith(
-        failure,
-        expect.objectContaining({ object: "errorObject" }),
-      ),
-    );
-    expect(reloadMock).not.toHaveBeenCalled();
-    setItem.mockRestore();
   });
 
   it("serializes profile saves so the last locale choice wins", async () => {
@@ -379,7 +321,7 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
 
     renderProvider();
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
-    reloadMock.mockClear();
+    refreshMock.mockClear();
 
     fireEvent.click(screen.getByText("set-ru"));
     await waitFor(() => expect(mockedUpdateLocale).toHaveBeenCalledWith("ru"));
@@ -396,7 +338,7 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
       "ru",
       "en",
     ]);
-    expect(reloadMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(window.localStorage.getItem("phoenix_parent_unsynced_locale")).toBe(
       null,
     );

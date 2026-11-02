@@ -1,0 +1,19 @@
+{
+  "sectionTitle": "Групові повідомлення від OGS",
+  "sectionDescription": "Тут OGS пише групі, класу або гуртку вашої дитини.",
+  "closed": "Закрито",
+  "forChildren": "Для: {names}",
+  "privacyNote": "Вашу відповідь отримає лише OGS. Інші батьки її не бачать.",
+  "replyTitle": "Відповідь для OGS",
+  "replyChildLabel": "Відповідь за",
+  "replyPlaceholder": "Напишіть відповідь для OGS",
+  "replyFieldLabel": "Відповідь",
+  "sentConfirmation": "OGS отримала вашу відповідь.",
+  "toChat": "До чату з OGS",
+  "closedNote": "Це групове повідомлення закрито. Ви й далі можете писати OGS у чаті про вашу дитину.",
+  "writingDisabled": "Ви не можете відповісти на це повідомлення. Читати його ви можете.",
+  "answerTo": "Відповідь на: {title}",
+  "errorObjectThread": "групове повідомлення",
+  "errorObjectAnswer": "відповідь",
+  "errorObjectList": "групові повідомлення"
+}

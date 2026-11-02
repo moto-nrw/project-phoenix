@@ -9,7 +9,7 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
 
-// Registered codes of a refused upload (error-registry.json, #2517). This
+// Registered codes of a refused upload (error-registry/, #2517). This
 // package does not import api/common, so it names each code once here.
 const (
 	codeImportFileTooLarge       = "import.file_too_large"

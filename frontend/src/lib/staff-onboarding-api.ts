@@ -33,13 +33,6 @@ export interface StaffOnboardingState {
   skippedSteps: readonly StaffOnboardingStepKey[];
 }
 
-export function staffOnboardingSWRKey(
-  tenantSlug: string,
-  accountID: string,
-): string {
-  return `staff-onboarding:${tenantSlug}:${accountID}`;
-}
-
 interface BackendState {
   dismissed?: unknown;
   school_ready?: unknown;

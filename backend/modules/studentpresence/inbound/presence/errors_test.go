@@ -165,3 +165,12 @@ func assertEnvelope(t *testing.T, resp *common.ErrResponse, wantCode string) {
 	assert.Equal(t, resp.HTTPStatusCode, body.Status)
 	assert.Equal(t, wantCode, body.Code)
 }
+
+func TestErrorRenderer_ChangedVisitCohortIsAConflict(t *testing.T) {
+	t.Parallel()
+	renderer := presence.ErrorRenderer(studentpresence.ErrVisitWriteConflict)
+	response, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok)
+	require.Equal(t, http.StatusConflict, response.HTTPStatusCode)
+	assertEnvelope(t, response, "general.business_rejection")
+}

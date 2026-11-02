@@ -5,6 +5,8 @@ import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { apiErrorFromResponse } from "~/lib/api-error";
 import { sessionFetch } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "ActivitiesConfig" });
 
@@ -95,7 +97,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     plural: "Aktivitäten",
   },
 
-  concept: "activities",
+  concept: activitiesConcept,
 
   backUrl: "/database",
 
@@ -110,7 +112,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     sections: [
       {
         title: "Grundinformationen",
-        concept: "activities",
+        concept: activitiesConcept,
         columns: 2,
         fields: [
           {
@@ -171,7 +173,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       {
         title: "Betreuer",
-        concept: "staff",
+        concept: staffConcept,
         fields: [
           {
             name: "supervisor_id",

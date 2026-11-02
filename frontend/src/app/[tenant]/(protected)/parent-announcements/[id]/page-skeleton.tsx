@@ -9,12 +9,13 @@ import { TenantPage } from "~/components/ui/tenant-page";
  * an der noch nicht geladenen Mitteilung.
  */
 export function AnnouncementDetailLoadingPage({
+  title = "Mitteilung",
   referrer = "/parent-announcements",
   backLabel = "Zurück zu den Mitteilungen",
-}: Readonly<{ referrer?: string; backLabel?: string }>) {
+}: Readonly<{ title?: string; referrer?: string; backLabel?: string }>) {
   return (
     <TenantPage
-      title="Mitteilung"
+      title={title}
       back
       backHref={referrer}
       backLabel={backLabel}

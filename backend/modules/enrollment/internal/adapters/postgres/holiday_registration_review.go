@@ -19,22 +19,27 @@ import (
 
 // holidayReviewRegistrationRow is one registration as the review reads it.
 type holidayReviewRegistrationRow struct {
-	ID                 int64      `bun:"id"`
-	Status             string     `bun:"status"`
-	FreezeOverride     *string    `bun:"freeze_override"`
-	SubmittedAt        time.Time  `bun:"submitted_at"`
-	GuardianFirstName  string     `bun:"guardian_first_name"`
-	GuardianLastName   string     `bun:"guardian_last_name"`
-	GuardianEmail      string     `bun:"guardian_email"`
-	GuardianPhone      string     `bun:"guardian_phone"`
-	PrivacyConsentAt   time.Time  `bun:"privacy_consent_at"`
-	HealthConsentAt    *time.Time `bun:"health_consent_at"`
-	BindingConfirmedAt *time.Time `bun:"binding_confirmed_at"`
-	BenefitsDeclared   bool       `bun:"benefits_declared"`
+	ID                      int64      `bun:"id"`
+	Status                  string     `bun:"status"`
+	FreezeOverride          *string    `bun:"freeze_override"`
+	SubmittedAt             time.Time  `bun:"submitted_at"`
+	GuardianFirstName       string     `bun:"guardian_first_name"`
+	GuardianLastName        string     `bun:"guardian_last_name"`
+	GuardianEmail           string     `bun:"guardian_email"`
+	GuardianPhone           string     `bun:"guardian_phone"`
+	SecondGuardianFirstName string     `bun:"second_guardian_first_name"`
+	SecondGuardianLastName  string     `bun:"second_guardian_last_name"`
+	SecondGuardianEmail     string     `bun:"second_guardian_email"`
+	SecondGuardianPhone     string     `bun:"second_guardian_phone"`
+	PrivacyConsentAt        time.Time  `bun:"privacy_consent_at"`
+	HealthConsentAt         *time.Time `bun:"health_consent_at"`
+	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
+	BenefitsDeclared        bool       `bun:"benefits_declared"`
+	ConsentVersion          *int       `bun:"consent_version"`
 }
 
-// holidayReviewChildRow is one child as the review reads it. The health
-// fields stay empty unless the read asks for them.
+// holidayReviewChildRow is one child as the review reads it, without its
+// sealed health information.
 type holidayReviewChildRow struct {
 	ID                       int64         `bun:"id"`
 	RegistrationID           int64         `bun:"holiday_registration_id"`
@@ -43,9 +48,6 @@ type holidayReviewChildRow struct {
 	BirthDate                calendar.Date `bun:"birth_date"`
 	HomeSchoolID             *int64        `bun:"home_school_id"`
 	GuestSchoolName          string        `bun:"guest_school_name"`
-	Allergies                string        `bun:"allergies"`
-	Medication               string        `bun:"medication"`
-	HealthNotes              string        `bun:"health_notes"`
 	DuplicateRegistrationIDs []int64       `bun:"duplicate_registration_ids,array"`
 }
 
@@ -59,7 +61,8 @@ type holidayReviewBookingRow struct {
 const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared
+			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -82,9 +85,7 @@ const (
 	reviewChildrenFilter = ` FROM enrollment.holiday_registration_children AS child
 		WHERE child.organization_id = ? AND child.holiday_period_id = ? AND (?::bigint = 0 OR child.holiday_registration_id = ?)
 		ORDER BY child.holiday_registration_id, child.position`
-	reviewChildrenQuery           = `SELECT ` + reviewChildrenColumns + reviewChildrenFilter
-	reviewChildrenWithHealthQuery = `SELECT ` + reviewChildrenColumns +
-		`, child.allergies, child.medication, child.health_notes` + reviewChildrenFilter
+	reviewChildrenQuery = `SELECT ` + reviewChildrenColumns + reviewChildrenFilter
 	reviewBookingsQuery = `SELECT booking.holiday_registration_child_id, booking.holiday_period_week_id,
 			booking.holiday_week_time_model_id
 		FROM enrollment.holiday_registration_bookings AS booking
@@ -95,11 +96,11 @@ const (
 
 // ReadHolidayReview reads the registrations of a period, or the one
 // registration registrationID names, with their children and bookings: three
-// statements for any number of registrations. health reads the health
-// information of the children too. A booking names only its week and time
-// model. The second result is the freeze override of each registration:
-// "frozen", "reopened" or empty when the deadline decides.
-func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64, health bool) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error) {
+// statements for any number of registrations. It reads no health
+// information; ReadHolidaySealedHealth does (#4722). A booking names only its
+// week and time model. The second result is the freeze override of each
+// registration: "frozen", "reopened" or empty when the deadline decides.
+func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, nil, err
@@ -113,12 +114,7 @@ func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organi
 		return []enrollment.HolidayRegistrationDetail{}, map[int64]string{}, nil
 	}
 	var children []holidayReviewChildRow
-	if health {
-		err = db.NewRaw(reviewChildrenWithHealthQuery, organizationID, periodID, registrationID, registrationID).Scan(ctx, &children)
-	} else {
-		err = db.NewRaw(reviewChildrenQuery, organizationID, periodID, registrationID, registrationID).Scan(ctx, &children)
-	}
-	if err != nil {
+	if err := db.NewRaw(reviewChildrenQuery, organizationID, periodID, registrationID, registrationID).Scan(ctx, &children); err != nil {
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration children: %w", err)
 	}
 	var bookings []holidayReviewBookingRow
@@ -136,7 +132,6 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			enrollment.HolidayRegistrationBooking{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID})
 	}
 	byRegistration := map[int64][]enrollment.HolidayRegistrationChild{}
-	health := map[int64][]enrollment.HolidayRegistrationHealth{}
 	for _, child := range children {
 		duplicates := child.DuplicateRegistrationIDs
 		if duplicates == nil {
@@ -147,11 +142,6 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName,
 			Bookings: childBookings[child.ID], DuplicateRegistrationIDs: duplicates,
 		})
-		if child.Allergies != "" || child.Medication != "" || child.HealthNotes != "" {
-			health[child.RegistrationID] = append(health[child.RegistrationID], enrollment.HolidayRegistrationHealth{
-				ChildID: child.ID, Allergies: child.Allergies, Medication: child.Medication, HealthNotes: child.HealthNotes,
-			})
-		}
 	}
 	details := make([]enrollment.HolidayRegistrationDetail, len(registrations))
 	for i, row := range registrations {
@@ -162,11 +152,60 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 				GuardianEmail: row.GuardianEmail, GuardianPhone: row.GuardianPhone, BenefitsDeclared: row.BenefitsDeclared,
 				Children: byRegistration[row.ID],
 			},
-			Health:           health[row.ID],
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
+		}
+		if row.ConsentVersion != nil {
+			details[i].ConsentVersion = *row.ConsentVersion
+		}
+		if row.SecondGuardianFirstName != "" {
+			details[i].SecondGuardian = &enrollment.HolidayGuardianInput{
+				FirstName: row.SecondGuardianFirstName, LastName: row.SecondGuardianLastName,
+				Email: row.SecondGuardianEmail, Phone: row.SecondGuardianPhone,
+			}
 		}
 	}
 	return details
+}
+
+const (
+	reviewFamilyHealthQuery = `SELECT health_data FROM enrollment.holiday_registrations
+		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`
+	reviewChildrenHealthQuery = `SELECT id, position, health_data FROM enrollment.holiday_registration_children
+		WHERE organization_id = ? AND holiday_period_id = ? AND holiday_registration_id = ?
+		ORDER BY position`
+)
+
+// ReadHolidaySealedHealth reads the sealed health information of one
+// registration of the period: two statements; found is false for a
+// registration outside the period (#4722).
+func (s *HolidayRegistrationStore) ReadHolidaySealedHealth(ctx context.Context, organizationID, periodID, registrationID int64) (enrollment.HolidaySealedRegistrationHealth, bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return enrollment.HolidaySealedRegistrationHealth{}, false, err
+	}
+	var families []struct {
+		HealthData []byte `bun:"health_data"`
+	}
+	if err := db.NewRaw(reviewFamilyHealthQuery, organizationID, periodID, registrationID).Scan(ctx, &families); err != nil {
+		return enrollment.HolidaySealedRegistrationHealth{}, false, fmt.Errorf("enrollment postgres: read sealed holiday family health: %w", err)
+	}
+	if len(families) == 0 {
+		return enrollment.HolidaySealedRegistrationHealth{}, false, nil
+	}
+	var children []struct {
+		ID         int64  `bun:"id"`
+		Position   int    `bun:"position"`
+		HealthData []byte `bun:"health_data"`
+	}
+	if err := db.NewRaw(reviewChildrenHealthQuery, organizationID, periodID, registrationID).Scan(ctx, &children); err != nil {
+		return enrollment.HolidaySealedRegistrationHealth{}, false, fmt.Errorf("enrollment postgres: read sealed holiday child health: %w", err)
+	}
+	sealed := enrollment.HolidaySealedRegistrationHealth{Family: families[0].HealthData,
+		Children: make([]enrollment.HolidaySealedChildHealth, len(children))}
+	for i, child := range children {
+		sealed.Children[i] = enrollment.HolidaySealedChildHealth{ChildID: child.ID, Position: child.Position, Sealed: child.HealthData}
+	}
+	return sealed, true, nil
 }
 
 func holidayFreezeOverrides(registrations []holidayReviewRegistrationRow) map[int64]string {
@@ -352,4 +391,65 @@ func (s *HolidayRegistrationStore) AppendHolidayAudit(ctx context.Context, organ
 		return fmt.Errorf("enrollment postgres: append holiday registration audit: %w", err)
 	}
 	return nil
+}
+
+const (
+	reviewRegistrationAnswersQuery = `SELECT id, form_version, custom_data, legal_acceptances
+		FROM enrollment.holiday_registrations
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)`
+	reviewChildAnswersQuery = `SELECT id, holiday_registration_id, custom_data
+		FROM enrollment.holiday_registration_children
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR holiday_registration_id = ?)
+		ORDER BY holiday_registration_id, position`
+)
+
+// ReadHolidayAnswers reads the form version and the answers of the
+// registrations of a period, or of the one registrationID names, with the
+// answers of their children (#5198): two statements for any number of
+// registrations. Only the detail and the export read them; the list does
+// not.
+func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidayRegistrationAnswers, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var registrations []struct {
+		ID               int64                     `bun:"id"`
+		LegalAcceptances map[string]time.Time      `bun:"legal_acceptances,type:jsonb"`
+		FormVersion      int                       `bun:"form_version"`
+		CustomData       enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewRegistrationAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &registrations); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration answers: %w", err)
+	}
+	answers := make(map[int64]enrollment.HolidayRegistrationAnswers, len(registrations))
+	if len(registrations) == 0 {
+		return answers, nil
+	}
+	for _, row := range registrations {
+		answers[row.ID] = enrollment.HolidayRegistrationAnswers{
+			LegalAcceptances: row.LegalAcceptances, FormVersion: row.FormVersion, CustomData: answersOrEmpty(row.CustomData), Children: []enrollment.HolidayChildAnswers{},
+		}
+	}
+	var children []struct {
+		ID             int64                     `bun:"id"`
+		RegistrationID int64                     `bun:"holiday_registration_id"`
+		CustomData     enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewChildAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &children); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration child answers: %w", err)
+	}
+	for _, child := range children {
+		registration, ok := answers[child.RegistrationID]
+		if !ok {
+			continue
+		}
+		registration.Children = append(registration.Children, enrollment.HolidayChildAnswers{
+			ChildID: child.ID, CustomData: answersOrEmpty(child.CustomData),
+		})
+		answers[child.RegistrationID] = registration
+	}
+	return answers, nil
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import React, {
   Suspense,
@@ -25,7 +26,7 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
+
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -48,6 +49,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
 import { AttendanceExportDialog } from "~/components/students/attendance-export-dialog";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -99,7 +101,7 @@ function formatWeekday(dateKey: string): string {
 }
 
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
 
   const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
@@ -352,7 +354,7 @@ function HistoryTable({
   readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
   // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
   // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
   const { data: session } = useSession();
@@ -366,7 +368,9 @@ function HistoryTable({
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
-        leading={<ConceptIconTile concept="changeHistory" variant="section" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="section" />
+        }
         bodyClassName="mt-4 -mx-5 -mb-5"
       >
         {days.length === 0 ? null : (
@@ -691,6 +695,7 @@ export default function StudentRoomHistoryPage() {
 }
 
 function StudentRoomHistoryPageContent() {
+  const today = useBerlinToday();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -813,7 +818,9 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
+        }
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}
@@ -871,7 +878,7 @@ function StudentRoomHistoryPageContent() {
           onClose={() => setExportOpen(false)}
           studentId={studentId}
           studentName={displayName}
-          today={berlinTodayISO()}
+          today={today}
           visibleDays={history.caps.attendanceDays}
         />
       ) : null}

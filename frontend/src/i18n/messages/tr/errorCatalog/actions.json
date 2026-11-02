@@ -1,0 +1,7 @@
+{
+  "retry": "Yeniden dene",
+  "copyRequestId": "İstek numarasını kopyala",
+  "requestId": "İstek numarası: {requestId}",
+  "crash": "{object} işlenemedi. Daha sonra yeniden deneyin.",
+  "fieldCheck": "Bu alanı kontrol edin."
+}

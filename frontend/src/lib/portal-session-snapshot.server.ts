@@ -4,6 +4,10 @@ import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { env } from "~/env";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
+import {
+  portalOfScope,
+  sessionFamilyState,
+} from "~/server/auth/token-validation";
 
 /**
  * A decoded, fresh portal JWT. It still holds the access and refresh tokens:
@@ -26,9 +30,10 @@ export type FreshPortalToken = JWT & {
  * Only the named cookie is read, decrypted with its own salt: another
  * portal's cookie on the same request (the domain-wide tenant cookie, for
  * example) neither decrypts nor counts. The token must carry the portal's
- * scope and be outside the refresh window; otherwise the caller returns no
- * snapshot and SessionProvider fetches the session through the portal's
- * response-aware route as before.
+ * scope, be outside the refresh window and belong to a family Identity &
+ * Access confirms live (#5399); otherwise the caller returns no snapshot and
+ * SessionProvider fetches the session through the portal's response-aware
+ * route as before.
  */
 export async function readFreshPortalToken(
   cookieName: string,
@@ -57,6 +62,15 @@ export async function readFreshPortalToken(
     (typeof token.refreshTokenExpiry === "number" &&
       token.refreshTokenExpiry <= now) ||
     token.error
+  ) {
+    return null;
+  }
+  // A cookie a late answer wrote back after its logout must not hydrate a
+  // signed-in page (#5399): only a family Identity & Access confirms live
+  // makes a snapshot; otherwise the provider asks the session route.
+  if (
+    (await sessionFamilyState(token.token, portalOfScope(token.scope))) !==
+    "live"
   ) {
     return null;
   }

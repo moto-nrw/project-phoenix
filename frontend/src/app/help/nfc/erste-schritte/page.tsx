@@ -255,7 +255,7 @@ export default function NfcQuickstartPage() {
                   </p>
                   <Link
                     href="/help/gruppe/nfc?role=caregiver&nfc_enabled=true"
-                    className="bg-moto-green hover:bg-moto-green-hover active:bg-moto-green-active mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-gray-950 transition-colors print:hidden"
+                    className="bg-moto-green-fill hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors print:hidden"
                   >
                     NFC-Anleitungen öffnen
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />

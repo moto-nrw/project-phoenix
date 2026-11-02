@@ -1,13 +1,16 @@
 package architecture
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -983,20 +986,53 @@ func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 	t.Parallel()
 
-	authorization := make(chan string, 1)
-	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-		authorization <- r.Header.Get("Authorization")
-		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	})
-	defer server.Close()
+	for _, tc := range []struct {
+		name, apiURL, authorization string
+	}{
+		{name: "custom HTTP API", apiURL: "http://127.0.0.1:1234"},
+		{name: "custom HTTPS API", apiURL: "https://issues.example.test"},
+		{name: "GitHub API positive control", apiURL: "https://api.github.com", authorization: "Bearer example-github-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
-	if err != nil {
-		t.Fatalf("issue audit failed: %v\n%s", err, output)
+			requests := 0
+			client := issueClientFunc(func(_ context.Context, request IssueRequest) (IssueResponse, error) {
+				requests++
+				if want := tc.apiURL + "/repos/moto-nrw/project-phoenix/issues/2583"; request.URL != want {
+					t.Fatalf("issue URL = %q, want %q", request.URL, want)
+				}
+				if got := request.Headers["Authorization"]; got != tc.authorization {
+					t.Fatalf("Authorization = %q, want %q", got, tc.authorization)
+				}
+				return IssueResponse{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"state":"open"}`))}, nil
+			})
+			err := RunCLI([]string{
+				"audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"),
+				"--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", tc.apiURL,
+			}, CLIDependencies{
+				IssueClient: client,
+				Getenv: func(key string) string {
+					if key != "GITHUB_TOKEN" {
+						t.Fatalf("unexpected environment lookup: %q", key)
+					}
+					return "example-github-token"
+				},
+			})
+			if err != nil {
+				t.Fatalf("issue audit failed: %v", err)
+			}
+			if requests != 1 {
+				t.Fatalf("issue requests = %d, want 1", requests)
+			}
+		})
 	}
-	if got := <-authorization; got != "" {
-		t.Fatalf("GitHub token leaked to custom API endpoint: %q", got)
-	}
+}
+
+type issueClientFunc func(context.Context, IssueRequest) (IssueResponse, error)
+
+func (f issueClientFunc) Do(ctx context.Context, request IssueRequest) (IssueResponse, error) {
+	return f(ctx, request)
 }
 
 func TestIssueAuditNetworkFailureDoesNotAffectDeterministicCheck(t *testing.T) {
@@ -1058,9 +1094,10 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	if err := os.CopyFS(repo, os.DirFS(fixturePath(t, "valid"))); err != nil {
 		t.Fatalf("copy project fixture: %v", err)
 	}
+	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), baseline)
-	runGit(t, repo, "init", "-q")
+	gitfixture.Init(t, repo)
 	runGit(t, repo, "config", "user.email", "architecture-test@example.test")
 	runGit(t, repo, "config", "user.name", "Architecture Test")
 	runGit(t, repo, "config", "commit.gpgsign", "false")
@@ -1160,23 +1197,11 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	output, err := processOutput(dir, gitTestEnvironment(), "git", append([]string{"-C", dir}, args...)...)
-	if err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, output)
-	}
-	return string(output)
+	return gitfixture.Run(t, dir, args...)
 }
 
 func gitTestEnvironment() []string {
-	var environment []string
-	for _, variable := range os.Environ() {
-		if strings.HasPrefix(variable, "GIT_CONFIG=") || strings.HasPrefix(variable, "GIT_CONFIG_COUNT=") ||
-			strings.HasPrefix(variable, "GIT_CONFIG_KEY_") || strings.HasPrefix(variable, "GIT_CONFIG_VALUE_") {
-			continue
-		}
-		environment = append(environment, variable)
-	}
-	return environment
+	return gitfixture.Environment(os.Environ())
 }
 
 func readFile(t *testing.T, path string) string {

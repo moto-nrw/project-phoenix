@@ -1,0 +1,4 @@
+GET /api/birthdays/
+GET /api/birthdays/opt-out
+POST /api/birthdays/staff-export
+PUT /api/birthdays/opt-out

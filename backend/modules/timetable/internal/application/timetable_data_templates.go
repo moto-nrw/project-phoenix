@@ -34,8 +34,8 @@ func (d *timetableData) ListTemplateEntriesForTemplatePeriod(ctx context.Context
 	return d.templateEntries(ctx, rows, &periodID, []int64{templateID}, childrenPerStaffRatio)
 }
 
-func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
-	rows, err := d.deps.Templates.ListTemplateRowsForPeriod(ctx, periodID)
+func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *timetable.TemplateScheduleWindow) ([]timetable.TemplateListEntry, error) {
+	rows, err := d.deps.Templates.ListTemplateRowsForPeriod(ctx, periodID, window)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,16 @@
+{
+  "title": "Documents",
+  "description": "Here you find letters the provider sent you. For example the confirmation of holiday care.",
+  "emptyTitle": "No documents yet",
+  "emptyDescription": "When the provider sends you a letter, you find it here. You also get it by email.",
+  "confirmationLetter": "Confirmation letter {period}",
+  "sender": "From {traeger}",
+  "children": "For",
+  "amount": "Amount",
+  "number": "Invoice number",
+  "sentAt": "Sent on",
+  "download": "Download PDF",
+  "downloading": "Downloading …",
+  "errorObject": "the documents",
+  "downloadErrorObject": "the document"
+}
