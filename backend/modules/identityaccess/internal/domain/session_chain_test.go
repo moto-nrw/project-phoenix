@@ -93,3 +93,89 @@ func TestSessionChainCollidingToken(t *testing.T) {
 		t.Fatalf("SessionChain() error = %v, want ErrSessionChainAmbiguous", err)
 	}
 }
+
+// TestSessionChainFollowsSwitchLineage pins #5422: a logout reaches every
+// family a switch minted from the chain and the family the chain was
+// switched from, in both directions and transitively, but not another
+// login of the account nor a family of another account that names it.
+func TestSessionChainFollowsSwitchLineage(t *testing.T) {
+	t.Parallel()
+	switched := func(id int64, account int64, family, from string) AccountSession {
+		return AccountSession{ID: id, AccountID: account, TokenHash: fmt.Sprintf("t%d", id), FamilyID: family, SwitchedFromFamilyID: from}
+	}
+	sessions := []AccountSession{
+		switched(1, 7, "login", ""),
+		switched(2, 7, "first", "login"),
+		switched(3, 7, "first", "login"),
+		switched(4, 7, "second", "login"),
+		switched(5, 7, "third", "second"),
+		switched(6, 7, "other-login", ""),
+		switched(7, 8, "foreign", "login"),
+	}
+	lineage := []int64{1, 2, 3, 4, 5}
+	for _, start := range []AccountSession{sessions[0], sessions[1], sessions[4]} {
+		chain, err := SessionChain(start, sessions)
+		if err != nil {
+			t.Fatalf("from %d: %v", start.ID, err)
+		}
+		if got := chainIDs(chain); fmt.Sprint(got) != fmt.Sprint(lineage) {
+			t.Fatalf("from %d: chain = %v, want %v", start.ID, got, lineage)
+		}
+	}
+	chain, err := SessionChain(sessions[5], sessions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := chainIDs(chain); fmt.Sprint(got) != "[6]" {
+		t.Fatalf("another login joins nothing: chain = %v", got)
+	}
+}
+
+func TestSessionChainFollowsSwitchLineageWithoutAncestorRows(t *testing.T) {
+	t.Parallel()
+	sessions := []AccountSession{
+		{ID: 1, AccountID: 7, FamilyID: "first", SwitchedFromFamilyID: "cleaned-root"},
+		{ID: 2, AccountID: 7, FamilyID: "second", SwitchedFromFamilyID: "cleaned-root"},
+		{ID: 3, AccountID: 7, FamilyID: "other-login"},
+		{ID: 4, AccountID: 8, FamilyID: "foreign", SwitchedFromFamilyID: "cleaned-root"},
+	}
+	for _, start := range sessions[:2] {
+		chain, err := SessionChain(start, sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := chainIDs(chain); fmt.Sprint(got) != "[1 2]" {
+			t.Fatalf("from %d: chain = %v, want [1 2]", start.ID, got)
+		}
+	}
+}
+
+// TestSessionChainJoinsTheOriginOnlyWithinItsPortal pins the Absprung
+// direction of #5422: a Träger logout reaches the school sessions opened
+// from it, a school logout does not end the Träger session.
+func TestSessionChainJoinsTheOriginOnlyWithinItsPortal(t *testing.T) {
+	t.Parallel()
+	sessions := []AccountSession{
+		{ID: 1, AccountID: 7, FamilyID: "traeger", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeOrg},
+		{ID: 2, AccountID: 7, FamilyID: "school-a", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
+		{ID: 3, AccountID: 7, FamilyID: "school-b", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
+	}
+	for _, tc := range []struct {
+		start AccountSession
+		want  string
+	}{{sessions[0], "[1 2 3]"}, {sessions[1], "[2 3]"}} {
+		chain, err := SessionChain(tc.start, sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fmt.Sprint(chainIDs(chain)); got != tc.want {
+			t.Fatalf("from %d: chain = %s, want %s", tc.start.ID, got, tc.want)
+		}
+	}
+	if got := SwitchLineage(sessions[1]); got != "traeger" {
+		t.Fatalf("lineage of an Absprung = %q, want the Träger family", got)
+	}
+	if got := SwitchLineage(sessions[0]); got != "traeger" {
+		t.Fatalf("lineage of a login = %q, want its own family", got)
+	}
+}
