@@ -395,8 +395,14 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 			return err
 		}
 	}
-	if _, err := r.service.store.RecordAccountLogin(ctx, r.account.ID, time.Now()); err != nil {
+	recorded, _, err := r.service.store.RecordAccountLogin(ctx, r.account.ID, time.Now())
+	if err != nil {
 		return err
+	}
+	// The rotation locked the live account first (lockAccount), so it cannot
+	// be erased by now; the check keeps the stamp's contract in one place.
+	if !recorded {
+		return failed("get account", domain.ErrAccountNotFound)
 	}
 	return nil
 }

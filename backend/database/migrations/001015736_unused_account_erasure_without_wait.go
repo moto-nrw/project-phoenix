@@ -56,15 +56,15 @@ func unusedAccountErasureWithoutWaitDown(ctx context.Context, db *bun.DB) error 
 //   - It has a budget: at most 200 accounts a run, and none started later
 //     than 500 ms after the candidate scan. The clock starts after the scan, so
 //     a slow scan never leaves a run without an attempt. Each single lock wait
-//     ends after 100 ms and a started account is finished, so the time the run
-//     holds account locks is bounded, not cut off. It therefore ends well
-//     before deadlock_timeout, so a writer waiting for an account the run has
-//     already erased is not taken for part of a cycle. The rest waits for the
-//     next run, which finds it again in the database.
+//     ends after 100 ms and a started account is finished. The 500 ms bound
+//     the start of new accounts, not the run time: the scan, the account
+//     started last and a slow server come on top, so the run is bounded but
+//     not held below a fixed time. The rest waits for the next run, which
+//     finds it again in the database.
 //   - It takes the candidates in random order, so accounts whose rows stay
-//     locked run after run cannot keep the accounts behind them waiting: a
-//     deferral costs at most one lock_timeout, and in each run every account
-//     has its chance to come before them.
+//     locked run after run do not keep the same accounts behind them waiting
+//     in every run. A deferral costs at most one lock_timeout. The fairness is
+//     probabilistic: no maximum delay for a single account is guaranteed.
 //   - A locked table the candidate scan reads skips the run with one log line.
 //
 // Which accounts are unused, what goes with an erased account and how it is

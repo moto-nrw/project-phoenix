@@ -25,10 +25,13 @@ import (
 // transaction, in both orders against the erasure, and compare the deferred
 // account with a snapshot.
 
-// erasedQuickly is the bound a run that meets a lock in use returns within:
-// deadlock_timeout (1 s). Each lock wait of the run ends after lock_timeout
-// (100 ms); the rest is the work of the run.
-const erasedQuickly = time.Second
+// erasedQuickly bounds a run that meets locks in use. The run starts no
+// account later than 500 ms after its scan, each lock wait ends after
+// lock_timeout (100 ms), and the account started last is finished; the scan
+// and the work of the run come on top and slow down on a loaded machine. A
+// run that waited for a holder instead would only return once the holder
+// ends, after the 5 s guard of eraseNow.
+const erasedQuickly = 2 * time.Second
 
 type erasureFixture struct {
 	db     *bun.DB
