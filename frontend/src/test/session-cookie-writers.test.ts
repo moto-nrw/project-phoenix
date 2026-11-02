@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   INVENTORY_ROOTS,
   cookieWrites,
@@ -562,6 +562,30 @@ describe("cookie readers", () => {
   });
 });
 
+describe("the regex inventory as a baseline", () => {
+  const missed: string[] = [];
+  let read = 0;
+  // Parsing every source file is setup, not a check; under a full parallel
+  // run it takes longer than one test's budget.
+  beforeAll(() => {
+    const root = process.cwd();
+    for (const file of inventoryFiles(root, INVENTORY_ROOTS)) {
+      const source = readFileSync(path.join(root, file), "utf8");
+      read++;
+      if (
+        legacyCookieWriter(file, source) &&
+        !cookieWrites(file, source).length
+      )
+        missed.push(file);
+    }
+  }, 120_000);
+
+  it("flags every file of the inventory the regex inventory flagged", () => {
+    expect(read).toBeGreaterThan(1000);
+    expect(missed).toEqual([]);
+  });
+});
+
 describe("cookieWrites", () => {
   it.each([
     "`Set-Cookie`",
@@ -607,17 +631,6 @@ describe("cookieWrites", () => {
 }`,
       ),
     ).toEqual([]);
-  });
-
-  it("flags every file of the inventory the regex inventory flagged", () => {
-    const root = process.cwd();
-    const missed = inventoryFiles(root, INVENTORY_ROOTS).filter((file) => {
-      const source = readFileSync(path.join(root, file), "utf8");
-      return (
-        legacyCookieWriter(file, source) && !cookieWrites(file, source).length
-      );
-    });
-    expect(missed).toEqual([]);
   });
 
   it("names the line and the code of each write", () => {

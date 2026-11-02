@@ -784,26 +784,23 @@ class Inventory {
   }
 }
 
-/** Every way the file can write a cookie, from its syntax tree. */
-export function cookieWrites(file: string, source: string): CookieWrite[] {
-  const inventory = new Inventory(parse(file, source));
-  inventory.run();
-  return inventory.writes.sort(
-    (a, b) => a.line - b.line || a.kind.localeCompare(b.kind),
-  );
+export interface CookieInventory {
+  /** Every way the file can write a cookie. */
+  writes: CookieWrite[];
+  /**
+   * Every place the file names or reads a session cookie name: a spelled
+   * `session-token`, also in a regular expression, or Auth.js' `sessionToken`
+   * cookie options.
+   */
+  sessionCookieNames: { line: number; code: string }[];
 }
 
-/**
- * Every place the file names or reads a session cookie name: a spelled
- * `session-token`, also in a regular expression, or Auth.js' `sessionToken`
- * cookie options.
- */
-export function sessionCookieNameSources(
-  file: string,
-  source: string,
-): { line: number; code: string }[] {
+/** Both inventories of one file, from one parse of its syntax tree. */
+export function inventoryOf(file: string, source: string): CookieInventory {
   const sourceFile = parse(file, source);
-  const found: { line: number; code: string }[] = [];
+  const inventory = new Inventory(sourceFile);
+  inventory.run();
+  const sessionCookieNames: { line: number; code: string }[] = [];
   walk(sourceFile, (node) => {
     const text = ts.isRegularExpressionLiteral(node)
       ? node.text
@@ -816,10 +813,31 @@ export function sessionCookieNameSources(
     const line =
       sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line +
       1;
-    if (found.some((entry) => entry.line === line)) return;
-    found.push({ line, code: node.getText(sourceFile).slice(0, 80) });
+    if (sessionCookieNames.some((entry) => entry.line === line)) return;
+    sessionCookieNames.push({
+      line,
+      code: node.getText(sourceFile).slice(0, 80),
+    });
   });
-  return found;
+  return {
+    writes: inventory.writes.sort(
+      (a, b) => a.line - b.line || a.kind.localeCompare(b.kind),
+    ),
+    sessionCookieNames,
+  };
+}
+
+/** Every way the file can write a cookie, from its syntax tree. */
+export function cookieWrites(file: string, source: string): CookieWrite[] {
+  return inventoryOf(file, source).writes;
+}
+
+/** See CookieInventory.sessionCookieNames. */
+export function sessionCookieNameSources(
+  file: string,
+  source: string,
+): { line: number; code: string }[] {
+  return inventoryOf(file, source).sessionCookieNames;
 }
 
 /** What the inventory reads: the app, the browser's static scripts, Next's config. */

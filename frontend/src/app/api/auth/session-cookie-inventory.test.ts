@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -12,9 +20,9 @@ import { operatorInvitationCookieName } from "~/lib/operator/operator-invitation
 import { LOCALE_COOKIE_NAME } from "~/i18n/locales";
 import {
   INVENTORY_ROOTS,
-  cookieWrites,
   inventoryFiles,
-  sessionCookieNameSources,
+  inventoryOf,
+  type CookieInventory,
   type CookieWrite,
   type CookieWriteKind,
 } from "~/test/session-cookie-writers";
@@ -35,19 +43,23 @@ const ALL = inventoryFiles(ROOT, INVENTORY_ROOTS);
 const matching = (pattern: RegExp) =>
   ALL.filter((file) => pattern.test(code(file))).sort();
 
-let writes: Map<string, CookieWrite[]> | undefined;
+/** Both inventories of every file, read once per run (see beforeAll). */
+const inventories = new Map<string, CookieInventory>();
+function readInventories() {
+  for (const file of ALL)
+    inventories.set(
+      file,
+      inventoryOf(file, readFileSync(path.join(ROOT, file), "utf8")),
+    );
+}
 /** Every cookie write of the inventory, by file. */
 function cookieWritesByFile(): Map<string, CookieWrite[]> {
-  writes ??= new Map(
-    ALL.flatMap((file) => {
-      const found = cookieWrites(
-        file,
-        readFileSync(path.join(ROOT, file), "utf8"),
-      );
-      return found.length ? [[file, found] as const] : [];
-    }),
+  expect(inventories.size).toBe(ALL.length);
+  return new Map(
+    [...inventories]
+      .filter(([, inventory]) => inventory.writes.length)
+      .map(([file, inventory]) => [file, inventory.writes]),
   );
-  return writes;
 }
 const writersOf = (kind: CookieWriteKind) =>
   [...cookieWritesByFile()]
@@ -158,6 +170,10 @@ describe("Auth.js actions", () => {
 });
 
 describe("session cookie writers", () => {
+  // Parsing every source file is setup, not a check; under a full parallel
+  // run it takes longer than one test's budget.
+  beforeAll(readInventories, 120_000);
+
   it("wraps both methods of every portal's Auth.js route", () => {
     expect(matching(/\b\w*[hH]andlers\.(GET|POST)\b/)).toEqual(AUTH_ROUTES);
     expect(ALL.filter((file) => file.includes("[...nextauth]")).sort()).toEqual(
@@ -302,12 +318,9 @@ describe("session cookie writers", () => {
     // Fail-closed for patterns the writer inventory cannot see: new code
     // that spells a session cookie name, matches it or reads Auth.js'
     // sessionToken cookie options needs a review and an entry here.
+    expect(inventories.size).toBe(ALL.length);
     const sources = ALL.filter(
-      (file) =>
-        sessionCookieNameSources(
-          file,
-          readFileSync(path.join(ROOT, file), "utf8"),
-        ).length,
+      (file) => inventories.get(file)?.sessionCookieNames.length,
     );
     expect(sources).toEqual([
       // The option sessionToken carries the access token, no cookie name.
