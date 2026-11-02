@@ -26,10 +26,12 @@ Zielschule noch die Adressierung verändern. Der bestehende Poll-Abgleich
 (verbunden fünf Minuten, sonst 60 Sekunden) bleibt die Rückfallebene.
 Mail und Push bleiben unabhängig davon dauerhafte Zustellaufträge.
 
-Die unadressierten Legacy-API-Aufrufe `BroadcastToAll` bleiben unverändert
-lokal. Sie werden nicht über den Schulkanal verteilt. Ihre Vertragsmigration
-ist [#5492](https://github.com/moto-nrw/project-phoenix/issues/5492), nicht Teil
-der bereits schulgebundenen Worker-Produzenten.
+Die unadressierten Legacy-API-Aufrufe `BroadcastToAll` wurden mit
+[#5541](https://github.com/moto-nrw/project-phoenix/pull/5541) für
+[#5492](https://github.com/moto-nrw/project-phoenix/issues/5492) entfernt.
+Ankunftsplan-Signale werden nach dem Commit über `BroadcastToTenant` an die
+Schule des schreibenden Kontexts zugestellt und über den Schulkanal verteilt.
+Ohne gültige Schule wird kein Signal gesendet.
 
 Die Konstruktion bleibt gemäß ADR 0068 in Deliverys `compose`-Paket. Der neue
 Konstruktor `NewPostgresRealtimeHub` benötigt genau 32 zusätzliche Zeilen,

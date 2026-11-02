@@ -476,9 +476,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "api/classDayMorningBroadcaster.BroadcastToAll",
-      "reason": "Root event translation: routes Delivery's queued school refresh to the captured tenant as student_updated, from which the hub derives the school-only class_day_changed notice. Changes audience and event type; no unchanged forwarding debt."
+      "decision": "0147",
+      "id": "api/classDayMorningBroadcaster.BroadcastToTenant",
+      "reason": "Root event translation: routes Delivery's queued refresh to the context school as student_updated; the hub derives school-only class_day_changed. No unchanged forwarding debt."
     },
     {
       "decision": "0090",
@@ -3221,9 +3221,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0147",
       "id": "roots/owners/careRequestBroadcaster.ArrivalScheduleChanged",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Root event translation: binds Care Plan's school-scoped approval notice to BroadcastToTenant and the fixed parent_request event source, without child data."
     },
     {
       "decision": "0090",
