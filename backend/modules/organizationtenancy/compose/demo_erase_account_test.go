@@ -244,3 +244,80 @@ func TestDemoVisitorErasureWaitsForAParallelTraegerMembership(t *testing.T) {
 		return err
 	})
 }
+
+// waitForLockWait waits until another session runs a statement containing
+// marker and waits for a lock.
+func waitForLockWait(t *testing.T, db *bun.DB, marker string) {
+	t.Helper()
+	require.Eventually(t, func() bool { return lockWaits(t, db, marker) }, 10*time.Second, 10*time.Millisecond,
+		"a statement with %q waits for a lock", marker)
+}
+
+func lockWaits(t *testing.T, db *bun.DB, marker string) bool {
+	t.Helper()
+	var waiting int
+	err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND pid <> pg_backend_pid()
+			AND wait_event_type = 'Lock' AND strpos(query, ?) > 0`, marker).Scan(t.Context(), &waiting)
+	return err == nil && waiting > 0
+}
+
+// The trigger auth.lock_live_account_reference locks a membership row first
+// (the row an UPDATE changes) and its account second. The erasure keeps that
+// order (#5540): while it waits for a row, it holds no account. Here the
+// staff calendar feed writes its token into the visitor's membership while
+// the erasure is stopped at its first write; neither may end in a deadlock.
+func TestDemoVisitorErasureLocksTheMembershipBeforeTheAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID)
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
+
+	// Barrier: the visitor's person row, the first row the erasure writes.
+	barrier, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = barrier.Rollback() }()
+	_, err = barrier.ExecContext(ctx, `SELECT id FROM users.persons WHERE account_id = ? FOR UPDATE`, accounts.caregiver)
+	require.NoError(t, err)
+
+	erasure := make(chan error, 1)
+	go func() {
+		_, _, retireErr := queue.RetireDemoSchools(ctx, []string{slug})
+		erasure <- retireErr
+	}()
+	waitForLockWait(t, db, "retire_expired_demo_schools")
+
+	// EnsureStaffCalendarFeedToken: it locks the membership row, then its
+	// trigger locks the account.
+	update := make(chan error, 1)
+	go func() {
+		_, updateErr := db.ExecContext(ctx, `UPDATE auth.account_tenants SET staff_calendar_feed_token = 'feed-token-hash'
+			WHERE account_id = ? AND tenant_id = ? AND status = 'active'
+			AND (staff_calendar_feed_token IS NULL OR staff_calendar_feed_token = '')`, accounts.caregiver, schoolID)
+		update <- updateErr
+	}()
+	var updateErr error
+	updated := false
+	require.Eventually(t, func() bool {
+		select {
+		case updateErr = <-update:
+			updated = true
+			return true
+		default:
+			return lockWaits(t, db, "staff_calendar_feed_token")
+		}
+	}, 10*time.Second, 10*time.Millisecond, "the token update either finishes or waits for the erasure")
+
+	require.NoError(t, barrier.Rollback())
+	require.NoError(t, <-erasure, "the erasure must not deadlock with the membership update")
+	if !updated {
+		updateErr = <-update
+	}
+	require.NoError(t, updateErr, "the membership update must not deadlock with the erasure")
+	assert.Equal(t, fmt.Sprintf("demo-besuch-%d@example.invalid", accounts.caregiver), stateOfAccount(t, db, accounts.caregiver).Email)
+	requireNothingLeftToErase(t, queue)
+}

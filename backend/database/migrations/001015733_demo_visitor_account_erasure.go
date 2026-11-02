@@ -41,6 +41,10 @@ func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 //   - It locks the visitor accounts before it decides which of them hang only
 //     in demo schools. Without the lock, a school or Träger membership written
 //     while the erasure ran was not seen, and the account was anonymized anyway.
+//     It takes the locks in the order of auth.lock_live_account_reference:
+//     first every row it still writes whose writers lock the account in that
+//     trigger, then the account. It writes the visitor schools before that
+//     and holds no account while it waits for one of their rows.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -140,15 +144,6 @@ const demoVisitorAccountErasureUpSQL = `
 				visitor.visitor_account_ids := array_remove(visitor.visitor_account_ids || recovered_visitor_account_ids, NULL);
 				visitor.visitor_parent_account_ids := array_remove(visitor.visitor_parent_account_ids || recovered_visitor_parent_account_ids, NULL);
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
-					-- Hold the visitor accounts until the check below is done (#5540).
-					-- A school or Träger membership another transaction is writing
-					-- holds its account with a key share lock: the erasure waits for
-					-- it and then sees it, or the membership waits for the erasure
-					-- and then finds an erased account.
-					PERFORM 1 FROM auth.accounts AS account
-					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-					ORDER BY account.id
-					FOR UPDATE;
 					UPDATE users.persons SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
 						AND account_id = ANY (visitor.visitor_account_ids);
@@ -207,6 +202,34 @@ const demoVisitorAccountErasureUpSQL = `
 					DELETE FROM auth.mfa_overrides
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 						AND tenant_id = ANY (visitor.visitor_school_ids);
+					-- Hold the visitor accounts until the check below is done (#5540).
+					-- A school or Träger membership another transaction is writing
+					-- holds its account with a key share lock: the erasure waits for
+					-- it and then sees it, or the membership waits for the erasure
+					-- and then finds an erased account.
+					-- Lock order of auth.lock_live_account_reference: a row that
+					-- references an account first, the account second. The writes
+					-- above hold no account. The rows the erasure still writes after
+					-- the check and whose writers lock their account in that trigger
+					-- (memberships, roles, profiles, demo accesses) are locked here,
+					-- before the accounts, each table in id order.
+					PERFORM 1 FROM auth.account_tenants
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+					ORDER BY id FOR UPDATE;
+					PERFORM 1 FROM auth.account_roles
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+					ORDER BY id FOR UPDATE;
+					PERFORM 1 FROM users.profiles
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+					ORDER BY id FOR UPDATE;
+					PERFORM 1 FROM auth.demo_accesses
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						OR parent_account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+					ORDER BY id FOR UPDATE;
+					PERFORM 1 FROM auth.accounts AS account
+					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+					ORDER BY account.id
+					FOR UPDATE;
 					SELECT COALESCE(array_agg(account.id), '{}') INTO erased_account_ids
 					FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
