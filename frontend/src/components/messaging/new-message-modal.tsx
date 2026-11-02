@@ -326,13 +326,15 @@ export function NewMessageModal({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             <div className="space-y-3">
               {!hasPreset && (
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="md"
                   onClick={resetToStudentStep}
-                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+                  className="gap-1"
                 >
                   <ArrowLeft className="h-4 w-4" /> Anderes Kind wählen
-                </button>
+                </Button>
               )}
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                 <p className="text-sm font-semibold text-gray-900">

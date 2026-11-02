@@ -313,7 +313,7 @@ export function ParentFirstSteps({
           size="md"
           onClick={() => setView("checklist")}
           aria-label={t("open", { count: steps.length - finished })}
-          className="gap-2"
+          className="gap-2 rounded-full py-2.5 pr-3 pl-4 shadow-lg hover:shadow-xl"
         >
           <span>{t("shortTitle")}</span>
           <span

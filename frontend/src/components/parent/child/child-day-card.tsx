@@ -333,7 +333,7 @@ function ChildDayActions({
     <>
       <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.sick", { name: firstName })}
         </span>
       ) : (
@@ -355,7 +355,7 @@ function ChildDayActions({
     <>
       <MotoConceptIcon concept={pickupConcept} size={20} aria-hidden="true" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t(
             withMode
               ? "actions.pickupCompactWithMode"
@@ -384,7 +384,7 @@ function ChildDayActions({
         aria-hidden="true"
       />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.messageCompact")}
         </span>
       ) : (

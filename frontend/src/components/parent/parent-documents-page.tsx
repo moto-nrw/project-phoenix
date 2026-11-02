@@ -107,7 +107,7 @@ function ParentDocumentCard({
       actions={
         <Button
           type="button"
-          variant="secondary"
+          variant="primary"
           size="md"
           onClick={() => void download()}
           disabled={downloading}

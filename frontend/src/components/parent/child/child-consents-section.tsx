@@ -181,7 +181,7 @@ export function ChildConsentsSection({
                   <div>
                     <Button
                       type="button"
-                      variant="success"
+                      variant="ghost"
                       size="compact"
                       className="mt-1"
                       aria-label={t("grantButton")}

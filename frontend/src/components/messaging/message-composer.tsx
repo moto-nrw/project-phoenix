@@ -119,8 +119,8 @@ export function MessageComposer({
           placeholder={placeholder}
           className={`moto-content-surface w-full resize-none overflow-hidden rounded-lg border border-gray-300 text-gray-900 transition-[border-color,box-shadow] hover:border-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:opacity-60 ${
             parent
-              ? "max-h-40 min-h-9 px-3 py-2 text-base leading-5"
-              : "max-h-40 min-h-10 px-4 py-2.5 text-sm leading-5"
+              ? "max-h-40 min-h-8 px-3 py-1.5 text-base leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
+              : "max-h-40 min-h-10 px-4 py-2.5 text-sm leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
           }`}
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (

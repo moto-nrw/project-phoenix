@@ -844,7 +844,8 @@ export default function GuardianFormModal({
                             variant="ghost"
                             size="icon"
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
-                            disabled={isLoading || phone.isPrimary}
+                            disabled={isLoading}
+                            aria-pressed={phone.isPrimary}
                             title={
                               phone.isPrimary
                                 ? "Primär"
