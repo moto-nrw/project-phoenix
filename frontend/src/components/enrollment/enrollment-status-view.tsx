@@ -820,7 +820,7 @@ function EnrollmentStatusHero({
               <ButtonLink
                 href={editHref}
                 variant="primary"
-                size="base"
+                size="md"
                 className="gap-2"
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />

@@ -78,7 +78,7 @@ export function PayrollDownloadContent({ link }: { readonly link: string }) {
             <Button
               type="button"
               variant="primary"
-              size="field"
+              size="md"
               className="w-full"
               isLoading={state === "loading"}
               loadingText="Wird heruntergeladen …"

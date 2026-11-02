@@ -480,7 +480,7 @@ export function FieldEditorRow({
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                variant="surface"
+                variant="outline_danger"
                 size="icon"
                 aria-label="Frage entfernen"
               >
