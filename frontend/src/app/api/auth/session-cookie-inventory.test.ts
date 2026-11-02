@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { encode } from "next-auth/jwt";
@@ -9,33 +9,55 @@ import { withBrowserSession } from "~/server/auth/browser-session";
 import { isSessionCookieName } from "~/server/auth/session-cookie-writes";
 import { DEMO_TOKEN_COOKIE } from "../demo/access/forward";
 import { operatorInvitationCookieName } from "~/lib/operator/operator-invitation-session.server";
+import { LOCALE_COOKIE_NAME } from "~/i18n/locales";
+import {
+  INVENTORY_ROOTS,
+  cookieWrites,
+  inventoryFiles,
+  sessionCookieNameSources,
+  type CookieWrite,
+  type CookieWriteKind,
+} from "~/test/session-cookie-writers";
 
 // #5399, re-review of #5403: every session cookie of every portal leaves
 // through one exit, gateSessionCookieWrites. This inventory names every way
 // a session cookie can be written and fails when a new one passes the exit.
+// #5444: the writers come from the syntax tree (src/test/session-cookie-
+// writers.ts), with aliases, destructuring and JavaScript files.
 
 const ROOT = process.cwd();
-const SRC = path.join(ROOT, "src");
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const absolute = path.join(dir, entry);
-    if (statSync(absolute).isDirectory()) return sourceFiles(absolute);
-    if (!/\.(ts|tsx)$/.test(entry) || /\.(test|spec)\.tsx?$/.test(entry))
-      return [];
-    return [absolute];
-  });
-}
-
-const relative = (file: string) => path.relative(ROOT, file);
 /** Source without comments: a comment that names Set-Cookie writes nothing. */
 const code = (file: string) =>
   readFileSync(path.join(ROOT, file), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
-const ALL = sourceFiles(SRC).map(relative);
+const ALL = inventoryFiles(ROOT, INVENTORY_ROOTS);
 const matching = (pattern: RegExp) =>
   ALL.filter((file) => pattern.test(code(file))).sort();
+
+let writes: Map<string, CookieWrite[]> | undefined;
+/** Every cookie write of the inventory, by file. */
+function cookieWritesByFile(): Map<string, CookieWrite[]> {
+  writes ??= new Map(
+    ALL.flatMap((file) => {
+      const found = cookieWrites(
+        file,
+        readFileSync(path.join(ROOT, file), "utf8"),
+      );
+      return found.length ? [[file, found] as const] : [];
+    }),
+  );
+  return writes;
+}
+const writersOf = (kind: CookieWriteKind) =>
+  [...cookieWritesByFile()]
+    .filter(([, found]) => found.some((write) => write.kind === kind))
+    .map(([file]) => file)
+    .sort();
+const kindsOf = (file: string) =>
+  [
+    ...new Set((cookieWritesByFile().get(file) ?? []).map((w) => w.kind)),
+  ].sort();
 
 /** The six portals' Auth.js routes: signin, callbacks, session, update(), … */
 const AUTH_ROUTES = [
@@ -201,40 +223,114 @@ describe("session cookie writers", () => {
       "src/server/auth/route-handler.ts",
       "src/server/auth/session-cookie-writes.ts",
     ]);
-    // Everyone else only reads the jar.
-    for (const file of matching(/\bcookies\(\)/))
-      expect(code(file), file).not.toMatch(
-        /cookies\(\)\)?\.(set|delete)\(|cookieStore\.(set|delete)\(|jar\.(set|delete)\(/,
-      );
+    // Everyone else only reads the jar: any other use of cookies() of
+    // next/headers, through an alias, destructuring, a string key or a
+    // helper, counts as a write.
+    expect(writersOf("next-cookie-jar")).toEqual([
+      "src/server/auth/session-cookie-writes.ts",
+    ]);
   });
 
   it("lets only listed code write a cookie, and no session cookie", () => {
-    const writers = {
-      // The exit itself.
-      "src/server/auth/session-cookie-writes.ts": null,
+    const writers: Record<
+      string,
+      { kinds: CookieWriteKind[]; proof: RegExp | null }
+    > = {
+      // The exit itself: takes the jar's session cookies (Next's internal
+      // cookie adapter) and serializes them.
+      "src/server/auth/session-cookie-writes.ts": {
+        kinds: [
+          "cookie-header",
+          "cookie-library",
+          "cookie-list",
+          "next-cookie-jar",
+        ],
+        proof: null,
+      },
       // finishResponse composes the route's cookies, then calls the exit.
-      "src/server/auth/route-handler.ts": null,
+      "src/server/auth/route-handler.ts": {
+        kinds: ["cookie-header"],
+        proof: null,
+      },
       // The backend's own cookies (trusted device), without session cookies.
-      "src/lib/auth-proxy.server.ts": /withoutSessionCookies\(/,
-      "src/lib/login-route.server.ts": /withoutSessionCookies\(/,
+      "src/lib/auth-proxy.server.ts": {
+        kinds: ["cookie-header"],
+        proof: /withoutSessionCookies\(/,
+      },
+      "src/lib/login-route.server.ts": {
+        kinds: ["cookie-header"],
+        proof: /withoutSessionCookies\(/,
+      },
       // Cookies of their own, never a session cookie (checked below).
-      "src/app/api/demo/access/sessions/route.ts": /DEMO_TOKEN_COOKIE,/,
-      "src/app/api/operator/auth/invitations/accept/route.ts":
-        /operatorInvitationCookieName\(/,
-      "src/app/api/operator/auth/invitations/session/route.ts":
-        /operatorInvitationCookieName\(/,
-    } as const;
-    expect(
-      matching(
-        /set-cookie|\.cookies\.(set|delete)\(|\.(set|append)\(\s*["'`]set-cookie/i,
-      ),
-    ).toEqual(Object.keys(writers).sort());
-    for (const [file, pattern] of Object.entries(writers))
-      if (pattern) expect(code(file), file).toMatch(pattern);
+      "src/app/api/demo/access/sessions/route.ts": {
+        kinds: ["cookie-list"],
+        proof: /DEMO_TOKEN_COOKIE,/,
+      },
+      "src/app/api/operator/auth/invitations/accept/route.ts": {
+        kinds: ["cookie-list"],
+        proof: /operatorInvitationCookieName\(/,
+      },
+      "src/app/api/operator/auth/invitations/session/route.ts": {
+        kinds: ["cookie-list"],
+        proof: /operatorInvitationCookieName\(/,
+      },
+      // The parents portal's language, in the browser (#5444: the regex
+      // inventory did not see document.cookie).
+      "src/i18n/locales.ts": {
+        kinds: ["document-cookie"],
+        proof: /document\.cookie = `\$\{LOCALE_COOKIE_NAME\}=/,
+      },
+    };
+    expect([...cookieWritesByFile().keys()].sort()).toEqual(
+      Object.keys(writers).sort(),
+    );
+    for (const [file, { kinds, proof }] of Object.entries(writers)) {
+      expect(kindsOf(file), file).toEqual(kinds);
+      if (proof) expect(code(file), file).toMatch(proof);
+    }
+    // A writer handing cookies() or a Set-Cookie name to another module
+    // would let that module write unlisted.
+    expect(writersOf("module-export")).toEqual([]);
     expect(isSessionCookieName(DEMO_TOKEN_COOKIE)).toBe(false);
     expect(
       isSessionCookieName(operatorInvitationCookieName(randomUUID())),
     ).toBe(false);
+    expect(isSessionCookieName(LOCALE_COOKIE_NAME)).toBe(false);
+  });
+
+  it("knows every place that names a session cookie", () => {
+    // Fail-closed for patterns the writer inventory cannot see: new code
+    // that spells a session cookie name, matches it or reads Auth.js'
+    // sessionToken cookie options needs a review and an entry here.
+    const sources = ALL.filter(
+      (file) =>
+        sessionCookieNameSources(
+          file,
+          readFileSync(path.join(ROOT, file), "utf8"),
+        ).length,
+    );
+    expect(sources).toEqual([
+      // The option sessionToken carries the access token, no cookie name.
+      "src/lib/auth-proxy.server.ts",
+      // Layout snapshots read the session cookie by its configured name.
+      "src/lib/caterer-session-snapshot.server.ts",
+      "src/lib/operator-session-snapshot.server.ts",
+      "src/lib/parent-session-snapshot.server.ts",
+      "src/lib/school-session-snapshot.server.ts",
+      "src/lib/tenant-session-snapshot.server.ts",
+      "src/lib/traeger-session-snapshot.server.ts",
+      // The six portals' Auth.js configs name their cookie.
+      "src/server/auth/caterer-config.ts",
+      "src/server/auth/operator-config.ts",
+      "src/server/auth/parent-config.ts",
+      "src/server/auth/school-config.ts",
+      // The exit's isSessionCookieName.
+      "src/server/auth/session-cookie-writes.ts",
+      "src/server/auth/tenant-config.ts",
+      "src/server/auth/traeger-config.ts",
+      // The inventory's own pattern.
+      "src/test/session-cookie-writers.ts",
+    ]);
   });
 
   it("has two callers of the exit: Auth.js' routes and every BFF route", () => {

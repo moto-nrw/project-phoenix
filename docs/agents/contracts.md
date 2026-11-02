@@ -547,7 +547,12 @@ old session back; the browser only saves requests.
    actions write no session cookie.
    `frontend/src/app/api/auth/session-cookie-inventory.test.ts` lists every
    Auth.js action, route and instance and every cookie writer and fails on a
-   new one that bypasses the exit. A cookie leaves
+   new one that bypasses the exit. It reads the writers from the syntax tree
+   (`frontend/src/test/session-cookie-writers.ts`, #5444) of TypeScript and
+   JavaScript files: any use of a cookie jar or list other than a read counts,
+   through aliases, destructuring and string keys, as do `document.cookie` and
+   `cookieStore`; every place that names a session cookie is listed too.
+   A cookie leaves
    only for a changed session (sign-in, rotation, `update()` with a change,
    school switch, preview) whose refresh-token family Identity & Access
    confirms live while the response is built. An unchanged re-encoding
