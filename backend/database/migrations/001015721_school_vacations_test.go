@@ -43,7 +43,7 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 
-	// The wage types (1.15.725, #4807) and the Nachweisarten (1.15.724,
+	// The wage types (1.15.728, #4807) and the Nachweisarten (1.15.724,
 	// #4808) extend this erasure; they go first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))

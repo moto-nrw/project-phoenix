@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	payrollWageTypesVersion     = "1.15.725"
+	payrollWageTypesVersion     = "1.15.728"
 	payrollWageTypesDescription = "Eigene Lohnarten und Zuschläge für Nacht-, Sonntags- und Feiertagsarbeit im DATEV-Export (#4807)"
 )
 

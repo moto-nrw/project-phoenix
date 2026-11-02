@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.725 (#4807): the 1.15.724 (#4808) delete with the wage types and surcharge rules.
+// 1.15.728 (#4807): the 1.15.724 (#4808) delete with the wage types and surcharge rules.
 func installPayrollWageTypeErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasureDeleteSQL)
 	return err
