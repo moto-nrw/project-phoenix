@@ -44,10 +44,11 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	insertParentConference(t, db)
 
-	// The wage types (1.15.732, #4807), the Nachweisarten (1.15.724, #4808)
-	// and the school vacations (1.15.721, #5345) extend this erasure; they go
-	// first.
+	// The wage types (1.15.733, #4807), the realtime notifications (1.15.727,
+	// #5504), the Nachweisarten (1.15.724, #4808) and the school vacations
+	// (1.15.721, #5345) extend this erasure; they go first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))
+	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
@@ -69,6 +70,7 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	assert.True(t, names["calendar.parent_conference_bookings"])
 	require.NoError(t, schoolVacationsUp(ctx, db))
 	require.NoError(t, staffQualificationTypesUp(ctx, db))
+	require.NoError(t, realtimeNotificationsUp(ctx, db))
 	require.NoError(t, payrollWageTypesUp(ctx, db))
 
 	// Like school_erasure_assert_empty, only the erasure itself calls the

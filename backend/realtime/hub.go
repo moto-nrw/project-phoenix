@@ -69,10 +69,13 @@ func removeClient(clients []*Client, target *Client) []*Client {
 
 // Hub manages SSE client connections and broadcasts events
 type Hub struct {
-	publish      func(string) error
-	origin       string
-	clients      map[*Client]bool
-	groupClients map[string][]*Client // composite tenant:group key -> subscribers
+	publish func(string) error
+	origin  string
+	// notificationContent loads relayed notifications (#5504); fixed by
+	// NewRelayedHub, nil for a hub that shows none.
+	notificationContent NotificationContent
+	clients             map[*Client]bool
+	groupClients        map[string][]*Client // composite tenant:group key -> subscribers
 	// guardianClients indexes parent-portal clients by their guardian account id
 	// (Client.UserID) and tenantClients indexes staff clients by tenant id, so
 	// BroadcastParentMessage delivers in O(recipients) instead of scanning every

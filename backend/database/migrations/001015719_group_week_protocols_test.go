@@ -21,10 +21,12 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT to_regclass('schedule.group_week_protocols') IS NOT NULL`).Scan(ctx, &found))
 		return found
 	}
-	// The wage types (1.15.732, #4807), the Nachweisarten (1.15.724, #4808),
-	// the school vacations (1.15.721, #5345) and the Elternsprechtag
-	// (1.15.720, #4801) extend this erasure; they go first.
+	// The wage types (1.15.733, #4807), the realtime notifications (1.15.727,
+	// #5504), the Nachweisarten (1.15.724, #4808), the school vacations
+	// (1.15.721, #5345) and the Elternsprechtag (1.15.720, #4801) extend this
+	// erasure; they go first.
 	require.NoError(t, payrollWageTypesDown(ctx, db))
+	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))
 	require.NoError(t, schoolVacationsDown(ctx, db))
 	require.NoError(t, parentConferencesDown(ctx, db))
@@ -42,6 +44,7 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	require.NoError(t, parentConferencesUp(ctx, db))
 	require.NoError(t, schoolVacationsUp(ctx, db))
 	require.NoError(t, staffQualificationTypesUp(ctx, db))
+	require.NoError(t, realtimeNotificationsUp(ctx, db))
 	require.NoError(t, payrollWageTypesUp(ctx, db))
 
 	school := testpkg.UniqueTestTenantID(t)

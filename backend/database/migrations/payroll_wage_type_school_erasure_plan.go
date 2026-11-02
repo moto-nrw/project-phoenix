@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.732 (#4807): the 1.15.724 (#4808) plan with the wage types and surcharge rules.
+// 1.15.733 (#4807): the 1.15.727 (#5504) plan with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePlanSQL)
 	return err
@@ -168,6 +168,7 @@ const payrollWageTypeErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.schoo
   {"name": "platform.email_delivery","predicate": "r.tenant_id = $1"},
   {"name": "platform.email_outbox","predicate": "r.tenant_id = $1"},
   {"name": "platform.push_outbox","predicate": "r.tenant_id = $1"},
+  {"name": "platform.realtime_notifications","predicate": "r.tenant_id = $1"},
   {"name": "platform.schools","predicate": "r.id = $1"},
   {"name": "platform.storage_backfill_checkpoints","predicate": "r.tenant_id = $1"},
   {"name": "schedule.activity_exceptions","predicate": "r.tenant_id = $1"},

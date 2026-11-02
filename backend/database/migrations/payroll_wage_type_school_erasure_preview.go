@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.732 (#4807): the 1.15.724 (#4808) preview with the wage types and surcharge rules.
+// 1.15.733 (#4807): the 1.15.727 (#5504) preview with the wage types and surcharge rules.
 func installPayrollWageTypeErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasurePreviewSQL)
 	return err
@@ -175,6 +175,7 @@ const payrollWageTypeErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('platform.email_delivery',(SELECT count(*) FROM platform.email_delivery AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('platform.email_outbox',(SELECT count(*) FROM platform.email_outbox AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('platform.push_outbox',(SELECT count(*) FROM platform.push_outbox AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('platform.realtime_notifications',(SELECT count(*) FROM platform.realtime_notifications AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('platform.schools',(SELECT count(*) FROM platform.schools AS r WHERE r.id = p_school));
  v_counts := v_counts || jsonb_build_object('platform.storage_backfill_checkpoints',(SELECT count(*) FROM platform.storage_backfill_checkpoints AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.activity_exceptions',(SELECT count(*) FROM schedule.activity_exceptions AS r WHERE r.tenant_id = p_school));

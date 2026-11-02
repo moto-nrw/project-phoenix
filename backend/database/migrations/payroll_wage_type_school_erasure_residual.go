@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.732 (#4807): the 1.15.724 (#4808) residual with the wage types and surcharge rules.
+// 1.15.733 (#4807): the 1.15.727 (#5504) residual with the wage types and surcharge rules.
 func installPayrollWageTypeErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollWageTypeErasureResidualSQL)
 	return err
@@ -323,6 +323,8 @@ const payrollWageTypeErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.s
     SELECT 1 FROM platform.email_outbox AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM platform.push_outbox AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM platform.realtime_notifications AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM platform.schools AS r WHERE r.id = p_school_id
     UNION ALL

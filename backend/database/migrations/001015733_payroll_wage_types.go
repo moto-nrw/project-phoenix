@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	payrollWageTypesVersion     = "1.15.732"
+	payrollWageTypesVersion     = "1.15.733"
 	payrollWageTypesDescription = "Eigene Lohnarten und Zuschläge für Nacht-, Sonntags- und Feiertagsarbeit im DATEV-Export (#4807)"
 )
 
@@ -18,9 +18,9 @@ func init() {
 		Version:     payrollWageTypesVersion,
 		Description: payrollWageTypesDescription,
 		DependsOn: []string{
-			traegerLeadershipRolesVersion,  // the last migration before this one
-			staffQualificationTypesVersion, // whose erasure functions this extends
-			staffAbsenceTypesVersion,       // the absence types that gain a wage type
+			demoVisitorErasureRealtimeNotificationsVersion, // the last migration before this one
+			realtimeNotificationsVersion,                   // whose erasure functions this extends
+			staffAbsenceTypesVersion,                       // the absence types that gain a wage type
 		},
 	})
 	Migrations.MustRegister(payrollWageTypesUp, payrollWageTypesDown)
@@ -179,16 +179,16 @@ func payrollWageTypesUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// payrollWageTypesDown reinstalls the 1.15.724 erasure before it drops the
+// payrollWageTypesDown reinstalls the 1.15.727 erasure before it drops the
 // tables, so the installed plan never names a missing table.
 func payrollWageTypesDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
-			installStaffQualificationTypeErasurePlan, installStaffQualificationTypeErasurePreflight, installStaffQualificationTypeErasureResidual,
-			installStaffQualificationTypeErasureDelete, installStaffQualificationTypeErasurePreview,
+			installRealtimeNotificationErasurePlan, installRealtimeNotificationErasurePreflight, installRealtimeNotificationErasureResidual,
+			installRealtimeNotificationErasureDelete, installRealtimeNotificationErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
-				return fmt.Errorf("restore the school erasure of 1.15.724: %w", err)
+				return fmt.Errorf("restore the school erasure of 1.15.727: %w", err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, payrollWageTypesDownSQL); err != nil {
