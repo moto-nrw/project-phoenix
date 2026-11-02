@@ -21,6 +21,10 @@ func init() {
 }
 
 func demoVisitorAccountErasureUp(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, `ALTER TABLE platform.demo_school_states
+		ADD COLUMN IF NOT EXISTS erasure_deferrals INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("count the deferred erasures of demo orders: %w", err)
+	}
 	if _, err := db.ExecContext(ctx, demoVisitorAccountErasureUpSQL); err != nil {
 		return fmt.Errorf("erase the push subscriptions, profiles and avatar files of demo visitors: %w", err)
 	}
@@ -28,25 +32,32 @@ func demoVisitorAccountErasureUp(ctx context.Context, db *bun.DB) error {
 }
 
 // demoVisitorAccountErasureDown reinstalls the function exactly as 1.15.732
-// left it.
+// left it and drops the deferral counter.
 func demoVisitorAccountErasureDown(ctx context.Context, db *bun.DB) error {
 	if err := demoVisitorErasureRealtimeNotificationsUp(ctx, db); err != nil {
 		return fmt.Errorf("restore the demo visitor erasure of 1.15.732: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `ALTER TABLE platform.demo_school_states DROP COLUMN IF EXISTS erasure_deferrals`); err != nil {
+		return fmt.Errorf("drop the deferral counter of demo orders: %w", err)
 	}
 	return nil
 }
 
 // demoVisitorAccountErasureUpSQL is platform.erase_closed_demo_visitors of
-// 1.15.732 with four changes (#5540):
+// 1.15.732 with these changes (#5540):
 //   - It locks the visitor accounts before it decides which of them hang only
 //     in demo schools. Without the lock, a school or Träger membership written
 //     while the erasure ran was not seen, and the account was anonymized anyway.
-//     It never waits for an account: writers lock rows and accounts in both
-//     orders (an UPDATE the row first, an upsert the account first, in
-//     auth.lock_live_account_reference), so a wait could close a cycle. It
-//     locks the accounts with NOWAIT; when one is in use, a subtransaction
-//     rolls the order back and the next hourly run retries it. A role
-//     outside the visitor schools now keeps the account too.
+//     A role outside the visitor schools now keeps the account too.
+//   - It never waits for a lock. Writers lock rows and accounts in every
+//     order (an UPDATE the row first, an upsert the account first, in
+//     auth.lock_live_account_reference; role removal the role, then all
+//     sessions), so any wait could close a cycle. The function runs with
+//     lock_timeout 100ms, far below deadlock_timeout, and each order runs in
+//     a subtransaction: on lock_not_available or deadlock_detected it is
+//     rolled back, counted in platform.demo_school_states.erasure_deferrals
+//     and retried by the next hourly run; from 24 deferrals in a row the
+//     function logs a warning.
 //   - It deletes the push subscriptions of the retired schools: endpoint and
 //     user agent of the visitor's devices.
 //   - An anonymized account loses what auth.erase_unused_accounts removes,
@@ -63,6 +74,10 @@ const demoVisitorAccountErasureUpSQL = `
 		VOLATILE
 		SECURITY DEFINER
 		SET search_path = pg_catalog
+		-- The erasure never waits for a lock (#5540): far below
+		-- deadlock_timeout (1 s), a wait gives up before PostgreSQL could
+		-- pick the other transaction of a cycle as its victim.
+		SET lock_timeout = '100ms'
 		AS $$
 		DECLARE
 			hidden_schools BIGINT[];
@@ -73,8 +88,14 @@ const demoVisitorAccountErasureUpSQL = `
 			visitor RECORD;
 			target_name TEXT;
 			erased INTEGER := 0;
+			deferrals INTEGER;
+			deferral_reason TEXT;
 		BEGIN
-			PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0));
+			-- Another erasure is running; it handles the orders. The caller
+			-- retire_expired_demo_schools already holds this lock.
+			IF NOT pg_try_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0)) THEN
+				RETURN 0;
+			END IF;
 			FOR visitor IN
 				SELECT state.name, state.tenant_id, state.attempts,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
@@ -87,6 +108,12 @@ const demoVisitorAccountErasureUpSQL = `
 				ORDER BY state.name
 			LOOP
 				target_name := visitor.name;
+				-- One subtransaction per order. When any lock it needs is in use
+				-- longer than lock_timeout, or a deadlock is detected anyway, the
+				-- order is rolled back untouched, state row included, and the next
+				-- hourly run retries it (#5540). Neither the run nor the other
+				-- transaction fails.
+				BEGIN
 				PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
 				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
 				SELECT state.name, state.tenant_id, state.attempts,
@@ -103,10 +130,6 @@ const demoVisitorAccountErasureUpSQL = `
 				IF NOT FOUND THEN
 					CONTINUE;
 				END IF;
-				-- One subtransaction per order: when an account of the visitor is
-				-- in use (lock_not_available below), the order is left untouched,
-				-- state row included, for the next hourly run (#5540).
-				BEGIN
 				-- Keep the runtime path in addition to the migration backfill. It
 				-- covers a row restored from a pre-migration backup before it is
 				-- erased, including a final failed school's original subdomain.
@@ -208,29 +231,14 @@ const demoVisitorAccountErasureUpSQL = `
 					DELETE FROM auth.mfa_overrides
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 						AND tenant_id = ANY (visitor.visitor_school_ids);
-					-- Hold the visitor accounts until the check below is done, without
-					-- ever waiting for one (#5540). Writers of a row that references an
-					-- account lock in both orders: an UPDATE locks the row, then its
-					-- trigger auth.lock_live_account_reference the account; an upsert
-					-- or insert locks the account in that trigger, then waits for a
-					-- conflicting row, possibly one deleted above. Any writer that
-					-- holds an account would therefore close a cycle with an erasure
-					-- waiting for it. NOWAIT defers the order instead; a membership
-					-- written meanwhile is seen by the check in the next run. The
-					-- visitor's demo accesses are updated row first, so they are
-					-- locked before the accounts.
-					PERFORM 1 FROM auth.demo_accesses
-					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-						OR parent_account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
-					ORDER BY id FOR UPDATE;
+					-- Hold the visitor accounts until the check below is done (#5540):
+					-- a school or Träger membership another transaction is writing
+					-- holds its account, so the erasure gives up after lock_timeout
+					-- and the next run's check sees the membership.
 					PERFORM 1 FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
 					ORDER BY account.id
-					FOR UPDATE NOWAIT;
-					-- After the check, membership tables are written only for an
-					-- account without any membership or role outside the visitor
-					-- schools; their rows there are gone, and its profiles are written
-					-- by upserts, which wait for the account before the profile.
+					FOR UPDATE;
 					SELECT COALESCE(array_agg(account.id), '{}') INTO erased_account_ids
 					FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
@@ -345,8 +353,24 @@ const demoVisitorAccountErasureUpSQL = `
 				END IF;
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
-				EXCEPTION WHEN lock_not_available THEN
-					RAISE LOG 'demo visitor erasure deferred: an account of order % is in use', target_name;
+				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+					deferral_reason := SQLSTATE;
+					-- Count the deferrals in a row; a successful erasure deletes the
+					-- state row. Failing to count must not fail the run.
+					BEGIN
+						UPDATE platform.demo_school_states SET erasure_deferrals = erasure_deferrals + 1
+						WHERE name = target_name
+						RETURNING erasure_deferrals INTO deferrals;
+					EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+						deferrals := NULL;
+					END;
+					IF deferrals >= 24 THEN
+						RAISE WARNING 'demo visitor erasure of order % deferred % times in a row (SQLSTATE %): a lock it needs stays in use',
+							target_name, deferrals, deferral_reason;
+					ELSE
+						RAISE LOG 'demo visitor erasure of order % deferred (SQLSTATE %, % in a row): a lock it needs is in use',
+							target_name, deferral_reason, COALESCE(deferrals::TEXT, 'unknown');
+					END IF;
 				END;
 			END LOOP;
 			RETURN erased;

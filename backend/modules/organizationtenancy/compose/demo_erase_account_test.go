@@ -255,14 +255,8 @@ func TestDemoVisitorErasureDefersWhileATraegerMembershipIsWritten(t *testing.T) 
 	})
 }
 
-// waitForLockWait waits until another session runs a statement containing
+// lockWaits reports whether another session runs a statement containing
 // marker and waits for a lock.
-func waitForLockWait(t *testing.T, db *bun.DB, marker string) {
-	t.Helper()
-	require.Eventually(t, func() bool { return lockWaits(t, db, marker) }, 10*time.Second, 10*time.Millisecond,
-		"a statement with %q waits for a lock", marker)
-}
-
 func lockWaits(t *testing.T, db *bun.DB, marker string) bool {
 	t.Helper()
 	var waiting int
@@ -273,10 +267,10 @@ func lockWaits(t *testing.T, db *bun.DB, marker string) bool {
 }
 
 // An UPDATE of a membership locks the row first and its account second, in
-// auth.lock_live_account_reference. The erasure holds no account while it
-// waits for a row (#5540). Here the staff calendar feed writes its token into
-// the visitor's membership while the erasure is stopped at its first write;
-// neither may end in a deadlock.
+// auth.lock_live_account_reference. The erasure never waits for a lock
+// (#5540): stopped at its first write, it gives up after lock_timeout and
+// defers the order. Here the staff calendar feed writes its token into the
+// visitor's membership meanwhile; neither fails, and the next run erases.
 func TestDemoVisitorErasureLocksTheMembershipBeforeTheAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -294,51 +288,26 @@ func TestDemoVisitorErasureLocksTheMembershipBeforeTheAccount(t *testing.T) {
 	_, err = barrier.ExecContext(ctx, `SELECT id FROM users.persons WHERE account_id = ? FOR UPDATE`, accounts.caregiver)
 	require.NoError(t, err)
 
-	erasure := make(chan error, 1)
-	go func() {
-		_, _, retireErr := queue.RetireDemoSchools(ctx, []string{slug})
-		erasure <- retireErr
-	}()
-	waitForLockWait(t, db, "retire_expired_demo_schools")
-
+	assert.Zero(t, retireNow(t, queue, slug), "the order waits for the next run")
 	// EnsureStaffCalendarFeedToken: it locks the membership row, then its
 	// trigger locks the account.
-	update := make(chan error, 1)
-	go func() {
-		_, updateErr := db.ExecContext(ctx, `UPDATE auth.account_tenants SET staff_calendar_feed_token = 'feed-token-hash'
-			WHERE account_id = ? AND tenant_id = ? AND status = 'active'
-			AND (staff_calendar_feed_token IS NULL OR staff_calendar_feed_token = '')`, accounts.caregiver, schoolID)
-		update <- updateErr
-	}()
-	var updateErr error
-	updated := false
-	require.Eventually(t, func() bool {
-		select {
-		case updateErr = <-update:
-			updated = true
-			return true
-		default:
-			return lockWaits(t, db, "staff_calendar_feed_token")
-		}
-	}, 10*time.Second, 10*time.Millisecond, "the token update either finishes or waits for the erasure")
-
+	_, err = db.ExecContext(ctx, `UPDATE auth.account_tenants SET staff_calendar_feed_token = 'feed-token-hash'
+		WHERE account_id = ? AND tenant_id = ? AND status = 'active'
+		AND (staff_calendar_feed_token IS NULL OR staff_calendar_feed_token = '')`, accounts.caregiver, schoolID)
+	require.NoError(t, err, "the membership update must not fail beside the erasure")
 	require.NoError(t, barrier.Rollback())
-	require.NoError(t, <-erasure, "the erasure must not deadlock with the membership update")
-	if !updated {
-		updateErr = <-update
-	}
-	require.NoError(t, updateErr, "the membership update must not deadlock with the erasure")
+
+	assert.Equal(t, 1, retireNow(t, queue, slug))
 	assert.Equal(t, fmt.Sprintf("demo-besuch-%d@example.invalid", accounts.caregiver), stateOfAccount(t, db, accounts.caregiver).Email)
 	requireNothingLeftToErase(t, queue)
 }
 
 // An upsert locks the account first, in auth.lock_live_account_reference,
-// and then waits for a conflicting row. When the erasure has just deleted
-// the visitor's membership or role and a school writes the same one again,
-// the writer holds the account and waits for the erasure (#5540). The erasure
-// must not wait for that account in turn: it leaves the order for its next
-// run, the writer finishes, and the next run erases the order.
-func eraseWhileADeletedRowIsWrittenAgain(t *testing.T, setup func(ctx context.Context, db *bun.DB, accountID, schoolID int64), upsert string) {
+// and then the conflicting row. While a school writes the visitor's
+// membership or role again, the erasure gives up on the account or the row
+// after lock_timeout (#5540): it leaves the order for its next run, the
+// writer finishes, and the next run erases the order.
+func eraseWhileARowIsWrittenAgain(t *testing.T, setup func(ctx context.Context, db *bun.DB, accountID, schoolID int64), upsert string) {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := t.Context()
@@ -347,18 +316,73 @@ func eraseWhileADeletedRowIsWrittenAgain(t *testing.T, setup func(ctx context.Co
 	onlyInSchools(t, db, accounts.caregiver, schoolID)
 	onlyInSchools(t, db, accounts.parent, schoolID)
 	setup(ctx, db, accounts.caregiver, schoolID)
-	// The barrier: an older demo access of the visitor, which the erasure
-	// locks after it deleted the memberships and roles of the visitor school.
-	var accessID int64
-	require.NoError(t, db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name, account_id)
-		VALUES ('frueher@example.org', 'OGS Alt', 'hash-alt-' || ?0, NOW() + INTERVAL '1 day', 'ogs-alt-' || ?0, 'Anna', 'Alt', ?0)
-		RETURNING id`, accounts.caregiver).Scan(ctx, &accessID))
 	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
 
-	barrier, err := db.BeginTx(ctx, &sql.TxOptions{})
+	writer, err := db.BeginTx(ctx, &sql.TxOptions{})
 	require.NoError(t, err)
-	defer func() { _ = barrier.Rollback() }()
-	_, err = barrier.ExecContext(ctx, `SELECT id FROM auth.demo_accesses WHERE id = ? FOR UPDATE`, accessID)
+	defer func() { _ = writer.Rollback() }()
+	_, err = writer.ExecContext(ctx, upsert, accounts.caregiver, schoolID)
+	require.NoError(t, err)
+
+	assert.Zero(t, retireNow(t, queue, slug), "the order waits for the next run")
+	require.NoError(t, writer.Commit(), "the writer must not fail beside the erasure")
+
+	assert.Equal(t, 1, retireNow(t, queue, slug))
+	assert.NotNil(t, stateOfAccount(t, db, accounts.caregiver).Erased, "the next run erases the demo-only account")
+	requireNothingLeftToErase(t, queue)
+}
+
+// EnsureActiveTenantMapping writes a membership with an upsert.
+func TestDemoVisitorErasureDefersForARewrittenMembership(t *testing.T) {
+	t.Parallel()
+	eraseWhileARowIsWrittenAgain(t, func(context.Context, *bun.DB, int64, int64) {},
+		`INSERT INTO auth.account_tenants (account_id, tenant_id, status) VALUES (?, ?, 'active')
+		ON CONFLICT (account_id, tenant_id) DO UPDATE SET status = 'active'`)
+}
+
+// AssignAccountRole writes a role with an upsert.
+func TestDemoVisitorErasureDefersForARewrittenRole(t *testing.T) {
+	t.Parallel()
+	eraseWhileARowIsWrittenAgain(t, func(ctx context.Context, db *bun.DB, accountID, schoolID int64) {
+		_, err := db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+			SELECT ?, id, ? FROM auth.roles ORDER BY id LIMIT 1`, accountID, schoolID).Exec(ctx)
+		require.NoError(t, err)
+	}, `INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		SELECT ?0, id, ?1 FROM auth.roles ORDER BY id LIMIT 1
+		ON CONFLICT DO NOTHING`)
+}
+
+// RemoveRoleFromAccount locks the account, deletes the role and then every
+// session of the account. The erasure deletes the sessions of the visitor
+// schools and then their roles. Before #5540 each waited for the other's
+// rows: a deadlock that aborted the whole erasure run. Now the erasure gives
+// up on the role after lock_timeout and rolls its sessions back; the role
+// removal finishes and the next run erases the order.
+func TestDemoVisitorErasureDefersWhileARoleIsRemoved(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID)
+	var roleID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
+	_, err := db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, accounts.caregiver, roleID, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope)
+		VALUES (?, encode(sha256(convert_to('role-removal-' || ?::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant')`,
+		accounts.caregiver, accounts.caregiver, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
+
+	// RemoveRoleFromAccount: lockManageableAccount, DeleteAccountRole ...
+	removal, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = removal.Rollback() }()
+	_, err = removal.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, accounts.caregiver)
+	require.NoError(t, err)
+	_, err = removal.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?`, accounts.caregiver, roleID)
 	require.NoError(t, err)
 
 	type outcome struct {
@@ -370,45 +394,62 @@ func eraseWhileADeletedRowIsWrittenAgain(t *testing.T, setup func(ctx context.Co
 		_, erased, retireErr := queue.RetireDemoSchools(ctx, []string{slug})
 		erasure <- outcome{erased: erased, err: retireErr}
 	}()
-	waitForLockWait(t, db, "retire_expired_demo_schools")
+	// The erasure holds the visitor school's sessions and waits for the role,
+	// or has already given up.
+	var result outcome
+	finished := false
+	require.Eventually(t, func() bool {
+		select {
+		case result = <-erasure:
+			finished = true
+			return true
+		default:
+			return lockWaits(t, db, "retire_expired_demo_schools")
+		}
+	}, 10*time.Second, 10*time.Millisecond, "the erasure either waits for the role or gives up")
 
-	written := make(chan error, 1)
-	go func() {
-		_, writeErr := db.ExecContext(ctx, upsert, accounts.caregiver, schoolID)
-		written <- writeErr
-	}()
-	waitForLockWait(t, db, "written again")
-
-	require.NoError(t, barrier.Rollback())
-	result := <-erasure
-	require.NoError(t, result.err, "the erasure must not deadlock with the writer")
+	// ... then DeleteAccountSessionsWithAudit: every session of the account.
+	_, err = removal.ExecContext(ctx, `DELETE FROM auth.tokens WHERE account_id = ?`, accounts.caregiver)
+	require.NoError(t, err, "the role removal must not deadlock with the erasure")
+	require.NoError(t, removal.Commit())
+	if !finished {
+		result = <-erasure
+	}
+	require.NoError(t, result.err, "the erasure run must not deadlock with the role removal")
 	assert.Zero(t, result.erased, "the order waits for the next run")
-	require.NoError(t, <-written, "the writer must not deadlock with the erasure")
 
 	assert.Equal(t, 1, retireNow(t, queue, slug))
-	assert.NotNil(t, stateOfAccount(t, db, accounts.caregiver).Erased, "the next run erases the demo-only account")
+	assert.NotNil(t, stateOfAccount(t, db, accounts.caregiver).Erased)
 	requireNothingLeftToErase(t, queue)
 }
 
-// EnsureActiveTenantMapping writes a membership with an upsert.
-func TestDemoVisitorErasureDefersForARewrittenMembership(t *testing.T) {
+// An order the erasure defers is counted in its state row; a long run of
+// deferrals becomes a warning (#5540).
+func TestDemoVisitorErasureCountsItsDeferrals(t *testing.T) {
 	t.Parallel()
-	eraseWhileADeletedRowIsWrittenAgain(t, func(context.Context, *bun.DB, int64, int64) {},
-		`INSERT INTO auth.account_tenants (account_id, tenant_id, status) VALUES (?, ?, 'active') /* written again */
-		ON CONFLICT (account_id, tenant_id) DO UPDATE SET status = 'active'`)
-}
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	onlyInSchools(t, db, accounts.caregiver, schoolID)
+	onlyInSchools(t, db, accounts.parent, schoolID)
+	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
 
-// AssignAccountRole writes a role with an upsert.
-func TestDemoVisitorErasureDefersForARewrittenRole(t *testing.T) {
-	t.Parallel()
-	var roleID int64
-	eraseWhileADeletedRowIsWrittenAgain(t, func(ctx context.Context, db *bun.DB, accountID, schoolID int64) {
-		require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
-		_, err := db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, accountID, roleID, schoolID).Exec(ctx)
-		require.NoError(t, err)
-	}, `INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
-		SELECT ?0, id, ?1 FROM auth.roles ORDER BY id LIMIT 1 /* written again */
-		ON CONFLICT DO NOTHING`)
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, accounts.caregiver)
+	require.NoError(t, err)
+	for range 2 {
+		assert.Zero(t, retireNow(t, queue, slug))
+	}
+	var deferrals int
+	require.NoError(t, db.NewRaw(`SELECT erasure_deferrals FROM platform.demo_school_states WHERE name = ?`, slug).Scan(ctx, &deferrals))
+	assert.Equal(t, 2, deferrals)
+	require.NoError(t, holder.Rollback())
+
+	assert.Equal(t, 1, retireNow(t, queue, slug))
+	assert.Empty(t, demoOrderNames(t, db), "an erased order leaves no state row, counter included")
 }
 
 // A profile change holds the account first (UpdateProfile sets the user name,

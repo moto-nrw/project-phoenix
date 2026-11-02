@@ -2,12 +2,12 @@ package migrations
 
 import (
 	"regexp"
-	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 var deletedTable = regexp.MustCompile(`DELETE FROM ([a-z_]+\.[a-z_]+)`)
@@ -58,34 +58,36 @@ func TestDemoRoleCannotWriteTheVisitorAccountTablesDirectly(t *testing.T) {
 	}
 }
 
-// Writers of a row that references an account lock in two orders: an
-// UPDATE locks the row and then, in auth.lock_live_account_reference, the
-// account; an upsert or insert locks the account in that trigger first. The
-// demo erasure never waits for an account (#5540): it locks them with
-// NOWAIT and defers the order in a subtransaction when one is in use. It
-// writes the memberships and roles of the visitor schools before, locks only
-// the demo accesses (updated row first) before the accounts, and locks no
-// row of a table an upsert writes (memberships, roles, profiles) before them.
-func TestDemoVisitorErasureLockOrder(t *testing.T) {
+// Writers lock rows and accounts in every order: an UPDATE locks the row
+// and then, in auth.lock_live_account_reference, the account; an upsert
+// locks the account in that trigger first; role removal locks the role and
+// then deletes every session of the account. Instead of an order of its own,
+// the demo erasure never waits for a lock (#5540): it runs with a
+// lock_timeout far below deadlock_timeout and defers an order whose lock is
+// in use, or that a deadlock hits anyway, in a subtransaction, so that
+// neither the run nor the other transaction fails.
+func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	var definition string
-	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(t.Context(), &definition))
-	accountLock := strings.Index(definition, "PERFORM 1 FROM auth.accounts")
-	require.Positive(t, accountLock, "the erasure locks the visitor accounts")
-	before, after := definition[:accountLock], definition[accountLock:]
-	assert.Regexp(t, `^PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE NOWAIT;`, after, "the erasure never waits for an account")
-	assert.Regexp(t, `EXCEPTION WHEN lock_not_available THEN`, after, "an account in use defers the order")
+	ctx := t.Context()
+	var config []string
+	require.NoError(t, db.NewRaw(`SELECT COALESCE(proconfig, '{}') FROM pg_proc
+		WHERE oid = 'platform.erase_closed_demo_visitors()'::regprocedure`).Scan(ctx, pgdialect.Array(&config)))
+	assert.Contains(t, config, "lock_timeout=100ms", "the erasure gives up on a lock before a deadlock is detected")
+	var deadlockTimeout, lockTimeout float64
+	require.NoError(t, db.NewRaw(`SELECT
+		EXTRACT(EPOCH FROM current_setting('deadlock_timeout')::interval),
+		EXTRACT(EPOCH FROM '100ms'::interval)`).Scan(ctx, &deadlockTimeout, &lockTimeout))
+	assert.Less(t, lockTimeout*5, deadlockTimeout, "the lock timeout stays far below deadlock_timeout")
 
-	for _, table := range []string{"auth.account_tenants", "auth.account_roles"} {
-		visitorSchools := regexp.MustCompile(`DELETE FROM ` + regexp.QuoteMeta(table) + `\s[^;]*tenant_id = ANY \(visitor\.visitor_school_ids\);`)
-		assert.True(t, visitorSchools.MatchString(before), "%s of the visitor schools goes before any account is held", table)
-	}
-	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "users.profiles"} {
-		assert.NotRegexp(t, `PERFORM 1 FROM `+regexp.QuoteMeta(table)+`\s`, before, "no row of %s is locked before the account", table)
-	}
-	assert.Regexp(t, `PERFORM 1 FROM auth\.demo_accesses\s[^;]*FOR UPDATE;`, before, "the demo accesses are locked before the accounts")
-	assert.Regexp(t, `DELETE FROM auth\.demo_accesses\s`, after)
-	assert.Regexp(t, `auth\.account_roles AS role\s+WHERE role\.account_id = account\.id\s+AND role\.tenant_id <> ALL \(visitor\.visitor_school_ids\)`, after,
+	var definition string
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &definition))
+	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+deferral_reason := SQLSTATE;`, definition,
+		"an order whose lock is in use is deferred, not failed")
+	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'`, definition,
+		"the subtransaction covers the order's own locks too")
+	assert.Regexp(t, `PERFORM 1 FROM auth\.accounts[^;]*FOR UPDATE;`, definition, "the check holds the visitor accounts")
+	assert.Regexp(t, `auth\.account_roles AS role\s+WHERE role\.account_id = account\.id\s+AND role\.tenant_id <> ALL \(visitor\.visitor_school_ids\)`, definition,
 		"a role outside the visitor schools keeps the account")
+	assert.Regexp(t, `deferrals >= 24 THEN\s+RAISE WARNING`, definition, "a long run of deferrals is reported")
 }
