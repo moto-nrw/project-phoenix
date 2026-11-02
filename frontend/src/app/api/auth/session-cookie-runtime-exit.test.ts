@@ -328,7 +328,10 @@ describe("the lock at the server's exit", () => {
   it("fails the gate when the lock at the exit is missing", async () => {
     const locked = ServerResponse.prototype.writeHead;
     // What a server looks like when instrumentation.ts did not run.
-    ServerResponse.prototype.writeHead = function (...args) {
+    ServerResponse.prototype.writeHead = function (
+      this: ServerResponse,
+      ...args: unknown[]
+    ) {
       return Reflect.apply(locked, this, args) as ServerResponse;
     } as typeof locked;
     try {
