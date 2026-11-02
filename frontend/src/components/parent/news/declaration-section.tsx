@@ -606,7 +606,7 @@ function DeclarationChildCard({
               <Button
                 key={action}
                 type="button"
-                size={settledByOther ? "md" : "touch"}
+                size="md"
                 variant={
                   settledByOther || action === "declined"
                     ? "outline"
@@ -628,7 +628,7 @@ function DeclarationChildCard({
           <p className="text-sm leading-6 text-gray-600">{t("revokeHint")}</p>
           <Button
             type="button"
-            size="touch"
+            size="md"
             variant="outline_danger"
             className="mt-2 w-full sm:w-auto"
             disabled={busy}

@@ -50,8 +50,18 @@ describe("Toast", () => {
     expect(
       screen.getByRole("button", { name: "Tippen zum Rückgängig" }),
     ).toHaveClass("h-11");
-    expect(screen.getByRole("button", { name: "Schließen" })).toHaveClass(
-      "h-11",
+    // #5531: Das X ist der Kit-Knopf `ghost` `icon` ohne eigene Maße oder
+    // Farben; unter Fingerbedienung trägt die Fingerregel des Kits 44 × 44 px.
+    const close = screen.getByRole("button", { name: "Schließen" });
+    expect(close).toHaveClass(
+      "h-8",
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "hover:bg-gray-100",
+    );
+    expect(close.className).not.toMatch(
+      /(?:^|\s)(?:h-11|w-11|text-current)(?:\s|$)/,
     );
 
     fireEvent.click(

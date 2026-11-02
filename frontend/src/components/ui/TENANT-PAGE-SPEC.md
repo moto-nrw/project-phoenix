@@ -190,9 +190,10 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
     gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
 17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
-    zieht Knöpfe, Felder und Auswahllisten der Kopfkarte auf 40 px
-    (Telefon: 44 px, die Touch-Untergrenze — dieselbe Begründung wie
-    `Button size="touch"` der Eltern-App). `SegmentedControl` (Spur 40 px),
+    zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
+    Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die
+    Touch-Untergrenze — dieselbe wie die Fingerregel des Button-Kits).
+    `SegmentedControl` (Spur 40 px),
     `ToggleChip` (`h-10`) und die Navigationsgruppe der
     `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
     neben einem 40er in derselben Zeile.

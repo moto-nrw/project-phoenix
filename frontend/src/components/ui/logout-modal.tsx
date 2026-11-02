@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { Modal } from "./modal";
+import { Button } from "./button";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LogoutModal" });
@@ -73,14 +74,14 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
           Möchten Sie sich wirklich von Ihrem Konto abmelden?
         </p>
         <div className="mt-6">
-          <button
+          <Button
             type="button"
+            size="md"
             onClick={handleConfirmLogout}
             disabled={isLoggingOut}
-            className="inline-flex items-center rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-gray-800 hover:shadow-xl focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none disabled:hover:scale-100"
           >
-            <span>{isLoggingOut ? "Abmeldung läuft..." : "Abmelden"}</span>
-          </button>
+            {isLoggingOut ? "Abmeldung läuft..." : "Abmelden"}
+          </Button>
         </div>
       </div>
     </Modal>

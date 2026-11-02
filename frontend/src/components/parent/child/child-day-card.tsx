@@ -411,7 +411,7 @@ function ChildDayActions({
           <Button
             type="button"
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
             onClick={onSick}
           >
@@ -421,7 +421,7 @@ function ChildDayActions({
           <ButtonLink
             href={parentPath(`/parents/children/${studentId}?action=sick`)}
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
           >
             {absenceActionContent}
@@ -433,7 +433,7 @@ function ChildDayActions({
           <Button
             type="button"
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
             onClick={onPickup}
           >
@@ -443,7 +443,7 @@ function ChildDayActions({
           <ButtonLink
             href={parentPath(`/parents/children/${studentId}?action=pickup`)}
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
           >
             {pickupActionContent}
@@ -454,7 +454,7 @@ function ChildDayActions({
         <ButtonLink
           href={parentPath(childConversationPath(studentId))}
           variant="surface"
-          size="touch"
+          size="md"
           className={`${actionClassName} ${
             actionCount !== 3
               ? ""

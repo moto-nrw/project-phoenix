@@ -9,6 +9,7 @@ import React, {
   type RefObject,
 } from "react";
 import { Modal } from "./modal";
+import { Button } from "./button";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
 import type { DatabaseFormErrorPath } from "./database/database-form";
@@ -263,13 +264,9 @@ export function PasswordResetModal({
             <p className="mt-4 text-gray-600">{copy.successMessage}</p>
             <p className="mt-2 text-sm text-gray-500">{copy.successHint}</p>
             <div className="mt-6">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none"
-              >
-                <span>{copy.close}</span>
-              </button>
+              <Button type="button" size="md" onClick={handleClose}>
+                {copy.close}
+              </Button>
             </div>
           </>
         ) : (
@@ -320,18 +317,19 @@ export function PasswordResetModal({
               </div>
 
               <div className="flex justify-center gap-3 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="md"
                   onClick={handleClose}
                   disabled={isLoading}
-                  className="inline-flex items-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {copy.cancel}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  size="md"
                   disabled={isLoading || rateLimitActive}
-                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
                   {isLoading ? (
                     <>
@@ -360,7 +358,7 @@ export function PasswordResetModal({
                   ) : (
                     <span>{copy.submit}</span>
                   )}
-                </button>
+                </Button>
               </div>
             </form>
           </>

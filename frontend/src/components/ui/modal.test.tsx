@@ -144,10 +144,19 @@ describe("Modal", () => {
       "flex-1",
       "wrap-anywhere",
     );
+    // #5531: Das X ist der Kit-Knopf `ghost` `icon` — 32 px mit Maus, unter
+    // Fingerbedienung mindestens 44 × 44 px.
     expect(screen.getByRole("button", { name: "Modal schließen" })).toHaveClass(
-      "size-11",
+      "h-8",
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "hover:bg-gray-100",
       "shrink-0",
     );
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }).className,
+    ).not.toMatch(/scale-/);
   });
 
   it("should render close button in header when title is provided", async () => {
@@ -965,7 +974,11 @@ describe("ConfirmationModal", () => {
     const closeButton = screen.getByRole("button", {
       name: "Modal schließen",
     });
-    expect(closeButton).toHaveClass("size-11");
+    // #5531: Auf dem Telefon trägt die Fingerregel des Kits die 44 px.
+    expect(closeButton).toHaveClass(
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+    );
     expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
       "hidden",
     );

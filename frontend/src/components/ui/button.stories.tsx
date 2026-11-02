@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
+import { Plus } from "lucide-react";
+
 import { Button } from "./button";
+import { Input } from "./input";
 
 const meta = {
   title: "components/ui/Button",
@@ -62,6 +65,70 @@ export const Ghost: Story = {
   },
 };
 
+export const GhostDanger: Story = {
+  args: {
+    variant: "ghost_danger",
+    size: "md",
+    children: "Entfernen",
+  },
+};
+
+/** Textknopf: kein Polster, sichtbarer Fokusring (Tab drücken). */
+export const Link: Story = {
+  args: {
+    variant: "link",
+    size: "md",
+    type: "button",
+    children: "Passwort vergessen?",
+  },
+};
+
+/** Schwebender Anlegen-Knopf: rund, 56 px, grün. */
+export const Fab: Story = {
+  args: {
+    variant: "fab",
+    size: "icon",
+    type: "button",
+    "aria-label": "Aktivität erstellen",
+    children: <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />,
+  },
+};
+
+/** Gestrichelte Hinzufügen-Fläche. */
+export const Dashed: Story = {
+  args: {
+    variant: "dashed",
+    size: "md",
+    type: "button",
+    className: "w-full gap-1.5",
+    children: (
+      <>
+        <Plus className="h-4 w-4" aria-hidden />
+        Weitere Nummer hinzufügen
+      </>
+    ),
+  },
+};
+
+/** 40 px: bündig mit `Input controlSize="compact"` in derselben Zeile. */
+export const FieldNextToInput: Story = {
+  render: () => (
+    <div className="flex max-w-md items-end gap-2">
+      <div className="flex-1">
+        <Input
+          name="email"
+          label="E-Mail"
+          controlSize="compact"
+          placeholder="name@schule.de"
+        />
+      </div>
+      <Button type="button" size="field">
+        Code senden
+      </Button>
+    </div>
+  ),
+};
+
 export const Loading: Story = {
   args: {
     isLoading: true,
@@ -80,6 +147,7 @@ export const Sizes: Story = {
     <div className="flex flex-wrap items-center gap-3">
       <Button size="sm">sm</Button>
       <Button size="md">md</Button>
+      <Button size="field">field</Button>
       <Button size="base">base</Button>
       <Button size="lg">lg</Button>
       <Button size="xl">xl</Button>

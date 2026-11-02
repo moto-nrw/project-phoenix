@@ -99,8 +99,8 @@ export function Toast({
       aria-label={closeLabel}
       onClick={onClose}
       className={cn(
-        "absolute shrink-0 text-current hover:bg-black/5 hover:text-current",
-        touchFriendly ? "top-1 right-1 h-11 w-11" : "top-2.5 right-2.5",
+        "absolute shrink-0",
+        touchFriendly ? "top-1 right-1" : "top-2.5 right-2.5",
       )}
     >
       <X className="h-4 w-4" aria-hidden="true" />
