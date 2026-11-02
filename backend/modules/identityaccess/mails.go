@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The mails of the Identity & Access flows (#4082): what each one says, which
@@ -323,6 +325,43 @@ func TraegerInvitationMail(invitation TraegerInvitation, traegerName, origin, tr
 			"LogoURL":       origin + motoLogoPath,
 		},
 	}
+}
+
+// TraegerAccountChangeMail tells a person of the Träger-Büro that their roles
+// changed or that they were removed (#5474): who did it, when, the roles
+// before and after, and whom to ask. A change the person made with their own
+// account says so; the mail then points at Leitung and moto, should it not
+// have been them.
+func TraegerAccountChangeMail(notice TraegerAccountChangeNotice, origin string) Mail {
+	removed := notice.Action == TraegerAccountMemberRemoved
+	subject := "Ihre Rollen im Träger-Portal von moto haben sich geändert"
+	if removed {
+		subject = "Sie sind nicht mehr im Träger-Büro"
+	}
+	occurred := notice.OccurredAt.In(calendar.Berlin)
+	return Mail{
+		Subject:  schoolSubject(subject, notice.TraegerName),
+		Template: "traeger-account-change.html",
+		Content: map[string]any{
+			"TraegerName":    notice.TraegerName,
+			"Removed":        removed,
+			"Self":           notice.ActorEmail == notice.TargetEmail,
+			"ActorEmail":     notice.ActorEmail,
+			"Date":           occurred.Format("02.01.2006"),
+			"Time":           occurred.Format("15:04"),
+			"RolesBefore":    traegerRoleNamesOrNone(notice.RolesBefore),
+			"RolesAfter":     traegerRoleNamesOrNone(notice.RolesAfter),
+			"ContactAddress": DemoContactAddress,
+			"LogoURL":        trimmedLogoURL(MailOrigin(origin)),
+		},
+	}
+}
+
+func traegerRoleNamesOrNone(roles []string) string {
+	if names := TraegerRoleLabels(roles); names != "" {
+		return names
+	}
+	return "keine"
 }
 
 // --- the public demo ----------------------------------------------------------

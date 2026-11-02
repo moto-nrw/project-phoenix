@@ -340,8 +340,9 @@ func (t *TraegerAccounts) RevokeTraegerInvitation(ctx context.Context, actor ide
 	})
 }
 
-// ChangeTraegerRoles replaces the role set of an active member. The session
-// of that person picks the new rights up at its next refresh.
+// ChangeTraegerRoles replaces the role set of an active member and mails the
+// person (#5474). The session of that person picks the new rights up at its
+// next refresh.
 func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identityaccess.TraegerActor, accountID int64, roles []string) (identityaccess.TraegerMember, error) {
 	roles, err := normalizeTraegerRoles(roles)
 	if err != nil {
@@ -371,13 +372,13 @@ func (t *TraegerAccounts) ChangeTraegerRoles(ctx context.Context, actor identity
 			return identityaccess.ErrTraegerMemberNotFound
 		}
 		result = publicTraegerMember(accounts[0], membership)
-		return t.record(txCtx, actor, identityaccess.TraegerAccountRolesChanged, &accountID, &accounts[0].Email, before, roles)
+		return t.recordAndNotify(txCtx, actor, unit, identityaccess.TraegerAccountRolesChanged, accounts[0], before, roles)
 	})
 	return result, err
 }
 
 // RemoveTraegerMember ends the membership of an active member, withdraws its
-// roles and ends its Träger sessions at once.
+// roles, ends its Träger sessions at once and mails the person (#5474).
 func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identityaccess.TraegerActor, accountID int64) error {
 	return t.run(ctx, actor, func(txCtx context.Context, unit traegerUnit) error {
 		if _, ok := unit.member(accountID); !ok {
@@ -403,7 +404,7 @@ func (t *TraegerAccounts) RemoveTraegerMember(ctx context.Context, actor identit
 		if _, err := t.store.DeleteTraegerAccountSessions(txCtx, actor.OrganizationID, accountID); err != nil {
 			return err
 		}
-		return t.record(txCtx, actor, identityaccess.TraegerAccountMemberRemoved, &accountID, &accounts[0].Email, before, nil)
+		return t.recordAndNotify(txCtx, actor, unit, identityaccess.TraegerAccountMemberRemoved, accounts[0], before, nil)
 	})
 }
 

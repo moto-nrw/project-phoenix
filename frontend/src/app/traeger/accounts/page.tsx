@@ -1,8 +1,8 @@
 "use client";
 
 // Personen des Träger-Büros (#4650): wer im Träger-Portal arbeitet, mit
-// welcher Rolle, und wer eingeladen ist. Nur mit dem Recht „Konten
-// verwalten“ (Rolle Leitung, #5471).
+// welcher Rolle, wer eingeladen ist und der Verlauf der Änderungen (#5474).
+// Nur mit dem Recht „Konten verwalten“ (Rolle Leitung, #5471).
 
 import { useCallback, useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
@@ -11,6 +11,7 @@ import {
   ChangeTraegerRolesModal,
   InviteTraegerAccountModal,
 } from "~/components/traeger/traeger-account-modals";
+import { TraegerAccountHistory } from "~/components/traeger/traeger-account-history";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -58,6 +59,8 @@ export default function TraegerAccountsPage() {
   const [editing, setEditing] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Every change on the page reads the history again.
+  const [historyVersion, setHistoryVersion] = useState(0);
   const bueroLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = bueroLoad;
   const confirmErrors = useApiFormError();
@@ -85,6 +88,11 @@ export default function TraegerAccountsPage() {
     void load();
   }, [load]);
 
+  const reloadAfterChange = useCallback(async () => {
+    setHistoryVersion((version) => version + 1);
+    await load();
+  }, [load]);
+
   const closeConfirm = () => {
     setPending(null);
     confirmErrors.clear();
@@ -109,7 +117,7 @@ export default function TraegerAccountsPage() {
         success("Die Einladung ist zurückgenommen.");
       }
       setPending(null);
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       logger.error("traeger_account_change_failed", {
         kind: pending.kind,
@@ -261,13 +269,13 @@ export default function TraegerAccountsPage() {
           <InviteTraegerAccountModal
             isOpen={inviting}
             onClose={() => setInviting(false)}
-            onInvited={load}
+            onInvited={reloadAfterChange}
           />
           <ChangeTraegerRolesModal
             member={editing}
             members={buero.members}
             onClose={() => setEditing(null)}
-            onChanged={load}
+            onChanged={reloadAfterChange}
           />
           <ConfirmDeleteModal
             isOpen={pending !== null}
@@ -349,6 +357,7 @@ export default function TraegerAccountsPage() {
           />
         </SectionCard>
       ) : null}
+      <TraegerAccountHistory version={historyVersion} />
     </TenantPage>
   );
 }

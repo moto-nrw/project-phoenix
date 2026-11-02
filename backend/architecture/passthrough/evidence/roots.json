@@ -7415,6 +7415,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d traegerInvitationDelivery) DispatchTraegerAccountChange(ctx context.Context, notice identityaccess.TraegerAccountChangeNotice) error {\n\tif d.dispatcher == nil {\n\t\treturn nil\n\t}\n\tmessage := *identityMessage(d.from, email.NewEmail(\"\", notice.TargetEmail), identityaccess.TraegerAccountChangeMail(notice, d.frontendURL))\n\treturn d.outbox.EnqueueTransactionalMail(ctx, DurableMail{Message: message, Type: \"traeger_account_change\", ReferenceID: notice.TargetAccountID, Backoff: d.backoff})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/traegerInvitationDelivery.DispatchTraegerAccountChange",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d traegerInvitationDelivery) DispatchTraegerInvitation(ctx context.Context, invitation identityaccess.TraegerInvitation, traegerName string, expiry time.Duration) error {\n\tif d.dispatcher == nil {\n\t\treturn nil\n\t}\n\tmessage := *identityMessage(d.from, email.NewEmail(\"\", invitation.Email), identityaccess.TraegerInvitationMail(invitation, traegerName, d.frontendURL, d.traegerURL, expiry))\n\treturn d.outbox.EnqueueTransactionalMail(ctx, DurableMail{Message: message, Type: \"traeger_invitation\", ReferenceID: invitation.ID, Backoff: d.backoff, ExpiresAt: invitation.ExpiresAt})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/traegerInvitationDelivery.DispatchTraegerInvitation",
