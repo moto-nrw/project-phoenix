@@ -170,3 +170,15 @@ func TestLinkStart_NamesTheDayALaterSelectionStarts(t *testing.T) {
 	_, ok = linkStart(&careplan.BookedOffering{}, nil, from)
 	assert.False(t, ok, "a request child that is not approved books nothing")
 }
+
+func TestLinkUntil_EndsWithTheEarlierSelectionOrServiceWindow(t *testing.T) {
+	t.Parallel()
+
+	service := &careplan.OfferingPhase{ServiceEnd: calendar.NewDate(2026, 11, 18)}
+	earlier := calendar.NewDate(2026, 11, 17)
+	later := calendar.NewDate(2026, 11, 20)
+
+	assert.Equal(t, calendar.NewDate(2026, 11, 19), *linkUntil(&careplan.BookedOffering{}, service))
+	assert.Equal(t, earlier, *linkUntil(&careplan.BookedOffering{ValidUntil: &earlier}, service))
+	assert.Equal(t, calendar.NewDate(2026, 11, 19), *linkUntil(&careplan.BookedOffering{ValidUntil: &later}, service))
+}

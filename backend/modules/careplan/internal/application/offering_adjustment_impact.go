@@ -103,6 +103,7 @@ func (m *BookingMaterialization) otherEnrollmentDayBookings(
 			if link.start.After(from) {
 				booking.From = new(link.start)
 			}
+			booking.Until = link.until
 			result = append(result, booking)
 		}
 	}
@@ -115,11 +116,12 @@ func (m *BookingMaterialization) otherEnrollmentDayBookings(
 // public package merely for a read bound.
 const otherEnrollmentLookaheadDays = 400
 
-// datedLink is a selection with the first day from the date on that it is in
-// force and its phase serves.
+// datedLink is a selection with the interval in which it is in force and its
+// phase serves.
 type datedLink struct {
 	link  *careplan.BookedOffering
 	start calendar.Date
+	until *calendar.Date
 }
 
 // otherEnrollmentLinks lists the selections of the student's other request
@@ -147,7 +149,7 @@ func (m *BookingMaterialization) otherEnrollmentLinks(
 			services[link.RequestChildID] = service
 		}
 		if start, ok := linkStart(link, service, from); ok {
-			links = append(links, datedLink{link: link, start: start})
+			links = append(links, datedLink{link: link, start: start, until: linkUntil(link, service)})
 		}
 	}
 	return links, nil
@@ -168,6 +170,14 @@ func linkStart(link *careplan.BookedOffering, service *careplan.OfferingPhase, f
 		return "", false
 	}
 	return start, true
+}
+
+func linkUntil(link *careplan.BookedOffering, service *careplan.OfferingPhase) *calendar.Date {
+	until := service.ServiceEnd.AddDays(1)
+	if link.ValidUntil != nil && link.ValidUntil.Before(until) {
+		until = *link.ValidUntil
+	}
+	return &until
 }
 
 // activeOfferingsByID keeps the active offerings by id.
