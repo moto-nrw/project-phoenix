@@ -152,7 +152,7 @@ export function BirthdaysBlock({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="mt-1 text-gray-600"
+                className="mt-1"
                 onClick={() => setAllOpen(true)}
               >
                 Noch {hiddenCount}{" "}

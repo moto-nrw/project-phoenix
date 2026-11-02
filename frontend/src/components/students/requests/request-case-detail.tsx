@@ -85,7 +85,6 @@ export function RequestCaseDetail({
             type="button"
             variant="ghost"
             size="md"
-            className="max-sm:min-h-11"
             onClick={onBackToList}
           >
             Zur Liste

@@ -14,6 +14,7 @@ import {
   blockTintStyle,
 } from "~/components/timetable/block-row-parts";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -263,14 +264,16 @@ export function PlannedNowSection({
                         </div>
                       </div>
 
-                      <button
+                      <Button
                         type="button"
+                        variant="primary"
+                        size="md"
                         disabled={
                           isStartingInstance === instance.id ||
                           !canStartPlannedInstance(instance, now)
                         }
                         onClick={() => onStart(instance)}
-                        className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        className="shrink-0 gap-2"
                       >
                         <Play className="h-4 w-4" aria-hidden="true" />
                         {isStartingInstance === instance.id
@@ -280,7 +283,7 @@ export function PlannedNowSection({
                             : instance.startAvailableAt
                               ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
                               : "Nur für Eingeplante"}
-                      </button>
+                      </Button>
                     </div>
 
                     <div

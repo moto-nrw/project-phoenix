@@ -111,7 +111,7 @@ export function SchoolCheckinModeMobile({
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
-        className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.99]"
+        className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
         style={{
           backgroundColor: "var(--color-white)",
           color: GROUP_ROOM_SHADES.text,
@@ -184,7 +184,7 @@ export function SchoolCheckinModeMobile({
           <Button
             type="button"
             variant="primary"
-            size="md"
+            size="compact"
             onClick={onToggle}
             disabled={disabled}
             aria-label="Fertig, An- und Abmelde-Modus beenden"
@@ -225,7 +225,7 @@ export function SchoolCheckinModeMobile({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="shrink-0 shadow-none"
+                className="shrink-0"
                 onClick={selectAll.onSelectAll}
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || disabled
@@ -249,7 +249,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="ghost"
               size="icon"
-              className="shadow-none max-[359px]:justify-self-end"
+              className="max-[359px]:justify-self-end"
               onClick={onClearSelection}
               disabled={
                 selectedCount === 0 ||
@@ -264,7 +264,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="success"
               size="compact"
-              className="rounded-lg text-white shadow-none hover:shadow-none max-[359px]:w-full"
+              className="max-[359px]:w-full"
               onClick={() => onBulkAction?.("in")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
@@ -281,7 +281,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="danger"
               size="compact"
-              className="rounded-lg shadow-none hover:shadow-none max-[359px]:w-full"
+              className="max-[359px]:w-full"
               onClick={() => onBulkAction?.("out")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined

@@ -130,4 +130,126 @@ export const buttonRatchetAllowlist = [
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
+    lines: [376],
+    reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/calendar/personal-calendar.tsx",
+    lines: [1059],
+    reason: "Termin-Block im Kalenderraster: Kalenderzelle",
+  },
+  {
+    rule: "no-button-override",
+    file: "src/components/class-day/class-day-overview.tsx",
+    lines: [172],
+    reason: "Klassenkarte (Kachel, size card mit Mindesthöhe)",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/dashboard/mobile-bottom-nav.tsx",
+    lines: [1302, 1503, 1538],
+    reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/day-flow-block.tsx",
+    lines: [140],
+    reason: "Listenzeile der Startseite, verlinkt weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/home-block-content.tsx",
+    lines: [202, 274],
+    reason: "Listenzeilen der Startseite, verlinken weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/messages-block.tsx",
+    lines: [82],
+    reason: "Listenzeile der Startseite, verlinkt weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/my-group-block.tsx",
+    lines: [253, 284, 316],
+    reason: "Listenzeilen der Startseite, verlinken weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/open-requests-block.tsx",
+    lines: [101],
+    reason: "Listenzeile der Startseite, verlinkt weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/home/reminders-block.tsx",
+    lines: [134],
+    reason: "Listenzeile der Startseite, verlinkt weiter",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-plan-view.tsx",
+    lines: [495],
+    reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1312],
+    reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1512, 1555],
+    reason:
+      "Abwesenheits- und Wochentagskarte, öffnen Dialog bzw. Editor: Kacheln",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/companion-picker.tsx",
+    lines: [410],
+    reason: "Suchtreffer zum Auswählen: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/parent-messages-card.tsx",
+    lines: [138],
+    reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/planned-status-days-modal.tsx",
+    lines: [947],
+    reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/student-detail-components.tsx",
+    lines: [1176],
+    reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/time-tracking/betreuungsplan-heute-card.tsx",
+    lines: [386],
+    reason:
+      "Zeile „Betreuungsplan heute“, verlinkt auf Heute: Navigationszeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/timetable/event-form/step-termin.tsx",
+    lines: [140],
+    reason: "Typauswahl im Terminformular: Auswahlkachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/timetable/period-switcher-dropdown.tsx",
+    lines: [277],
+    reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+  },
 ];

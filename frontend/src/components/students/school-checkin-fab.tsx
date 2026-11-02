@@ -147,7 +147,7 @@ export function SchoolCheckinFab({
         aria-label={label}
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
-        className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${sizeClasses}`}
+        className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${sizeClasses}`}
         style={buttonStyle}
       >
         <span

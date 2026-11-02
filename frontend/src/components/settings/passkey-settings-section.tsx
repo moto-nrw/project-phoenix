@@ -213,7 +213,7 @@ export function PasskeySettingsSection({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               className="gap-2"
               disabled={busy}
               onClick={() => {
@@ -318,7 +318,7 @@ export function PasskeySettingsSection({
             <Button
               type="button"
               variant="primary"
-              size="sm"
+              size="md"
               disabled={busy || code.trim().length === 0}
               onClick={() => void finishEnrollment()}
             >
@@ -327,7 +327,7 @@ export function PasskeySettingsSection({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               disabled={busy}
               onClick={() => {
                 setConfirmingEnrollment(false);

@@ -220,9 +220,8 @@ function AddSupervisorButton({
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="surface"
       size="md"
-      className="bg-white"
       onClick={() => onAddSupervisor(activeGroupId)}
     >
       <UserPlus className="h-4 w-4" aria-hidden="true" />

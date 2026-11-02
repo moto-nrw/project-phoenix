@@ -51,7 +51,7 @@ export { setupStorageKey } from "./notification-setup-decision";
 const logger = createLogger({ component: "NotificationSetupDialog" });
 const INSTALL_GUIDE_REMIND_MS = 24 * 60 * 60 * 1000;
 const REMIND_LATER_MS = 7 * 24 * 60 * 60 * 1000;
-const ACTION_CLASS = "w-full max-sm:min-h-11 sm:w-auto";
+const ACTION_CLASS = "w-full sm:w-auto";
 
 type SetupMode = "enable" | "install-ios" | "install-android" | "denied";
 

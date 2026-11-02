@@ -72,7 +72,6 @@ export function SchoolCheckinMissingHint({
             type="button"
             variant="ghost"
             size="compact"
-            className="shadow-none"
             onClick={onDismiss}
           >
             Ausblenden

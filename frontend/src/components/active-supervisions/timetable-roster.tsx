@@ -377,7 +377,6 @@ function RosterRowActions({
               onClick={() => runAction("excused")}
               variant="outline"
               size="md"
-              className="text-moto-purple-strong !ring-moto-purple"
             >
               Entschuldigt
             </Button>
@@ -436,7 +435,7 @@ function RosterRowActions({
             variant="outline"
             size="icon"
             aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-            className="size-9 shrink-0"
+            className="shrink-0"
           >
             <ArrowUpRightIcon
               className="size-4"
@@ -846,9 +845,8 @@ function TimetableRosterHeader({
             <Button
               type="button"
               onClick={onAddPresentStudents}
-              variant="outline"
+              variant="surface"
               size="md"
-              className="bg-white"
             >
               <Users className="h-4 w-4" aria-hidden="true" />
               Anwesende Kinder
@@ -858,9 +856,8 @@ function TimetableRosterHeader({
             <Button
               type="button"
               onClick={onAddStudent}
-              variant="outline"
+              variant="surface"
               size="md"
-              className="bg-white"
             >
               <UserPlus className="h-4 w-4" aria-hidden="true" />
               Kind hinzufügen

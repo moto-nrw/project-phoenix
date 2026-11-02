@@ -3,7 +3,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   SlideOver,
@@ -1424,7 +1424,11 @@ function CalendarEventDetail({
                 event.appointment_id!,
               )}/ics`}
               download
-              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+              className={buttonClassName({
+                variant: "outline",
+                size: "md",
+                className: "w-full gap-1.5",
+              })}
             >
               <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
               Zum Kalender hinzufügen
@@ -1466,9 +1470,9 @@ function CalendarEventDetail({
               {onCancel && !cancelled ? (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="ghost_danger"
                   size="md"
-                  className="text-moto-red-strong gap-2"
+                  className="gap-2"
                   disabled={managing}
                   onClick={() => {
                     onCancel(event);
@@ -1482,9 +1486,9 @@ function CalendarEventDetail({
               {onDelete ? (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="ghost_danger"
                   size="md"
-                  className="text-moto-red-strong gap-2"
+                  className="gap-2"
                   disabled={managing}
                   onClick={() => {
                     onDelete(event);
@@ -1665,9 +1669,8 @@ export function PersonalCalendarChrome({
       {viewMode !== "day" ? (
         <Button
           type="button"
-          variant={showWeekend ? "primary" : "outline"}
+          variant={showWeekend ? "primary" : "surface"}
           size="compact"
-          className={showWeekend ? "" : "bg-white"}
           aria-pressed={showWeekend}
           onClick={() => onShowWeekendChange(!showWeekend)}
         >

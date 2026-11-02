@@ -229,7 +229,7 @@ function ProtectionAction({
       type="button"
       variant={compact ? "ghost" : "outline"}
       size="md"
-      className={compact ? "gap-1.5 max-sm:min-h-11" : "max-sm:min-h-11"}
+      className={compact ? "gap-1.5" : undefined}
       onClick={open}
     >
       {compact ? (

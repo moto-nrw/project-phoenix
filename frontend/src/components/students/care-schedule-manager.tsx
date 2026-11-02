@@ -1242,7 +1242,6 @@ function MobileCareWeek({
           size="icon"
           aria-label="Vorherige Woche"
           onClick={onPreviousWeek}
-          className="h-10"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -1255,7 +1254,6 @@ function MobileCareWeek({
           size="icon"
           aria-label="Nächste Woche"
           onClick={onNextWeek}
-          className="h-10"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -1424,15 +1422,16 @@ function CareDayCard({
               pencils per card that both opened the same dialog, plus a third
               nameless one for the week, is the confusion #893 reports. */}
           {!readOnly && !hasStatus ? (
-            <button
+            <Button
               type="button"
+              variant="surface"
+              size="compact"
               onClick={() => onEditDay(day.date)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               title={hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
             >
               <SquarePen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               Ausnahme
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

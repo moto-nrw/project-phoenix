@@ -211,7 +211,7 @@ export function BookingLeftoverHints({
               type="button"
               variant="ghost"
               size="md"
-              className="mt-2 min-h-11 w-full px-3 text-sm font-medium"
+              className="mt-2 w-full"
               aria-expanded={expanded}
               aria-controls={openListId}
               onClick={() => setExpanded((current) => !current)}

@@ -104,7 +104,7 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
         type="button"
         variant="ghost"
         size="compact"
-        className="shrink-0 text-sm"
+        className="shrink-0"
         aria-label="Hinweis zum Wochenende"
         onClick={show}
       >

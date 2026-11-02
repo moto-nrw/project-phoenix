@@ -392,7 +392,6 @@ export function ConflictDecisionGroup({
           type="button"
           variant="primary"
           size="md"
-          className="max-sm:min-h-11"
           disabled={!ready || busy}
           onClick={() => setConfirming(true)}
         >

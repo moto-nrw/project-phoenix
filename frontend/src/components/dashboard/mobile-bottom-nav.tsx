@@ -1357,7 +1357,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       onClick={closeOverflowMenu}
                       variant="ghost"
                       size="md"
-                      className="w-full justify-start gap-3 px-4"
+                      className="w-full justify-start gap-3"
                     >
                       <Bell
                         className="h-5 w-5 text-gray-600"
@@ -1377,7 +1377,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       }}
                       variant="ghost"
                       size="md"
-                      className="w-full justify-start gap-3 px-4"
+                      className="w-full justify-start gap-3"
                     >
                       <Eye
                         className="h-5 w-5 text-gray-600"
@@ -1402,7 +1402,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     onClick={closeOverflowMenu}
                     variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
                     size="md"
-                    className="w-full justify-start gap-3 px-4"
+                    className="w-full justify-start gap-3"
                   >
                     <MobileNavIcon
                       item={{ iconKey: "profile" }}
@@ -1420,7 +1420,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   }}
                   variant="ghost"
                   size="md"
-                  className="w-full justify-start gap-3 px-4"
+                  className="w-full justify-start gap-3"
                 >
                   <MobileNavIcon
                     item={{ iconKey: "profile", concept: logoutConcept }}

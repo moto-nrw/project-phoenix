@@ -22,6 +22,7 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   DetailSectionSkeleton,
@@ -151,14 +152,16 @@ function NavButton({
   readonly children: ReactNode;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="surface"
+      size="md"
       aria-label={ariaLabel}
       onClick={onClick}
-      className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-sm font-semibold text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      className="gap-1"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -345,19 +348,15 @@ export function CarePlanView({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorheriger Tag</span>
               </NavButton>
-              {selectedDate !== today ? (
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate(today)}
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900"
-                >
-                  Heute
-                </button>
-              ) : (
-                <span className="inline-flex h-9 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500">
-                  Heute
-                </span>
-              )}
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                disabled={selectedDate === today}
+                onClick={() => setSelectedDate(today)}
+              >
+                Heute
+              </Button>
               <NavButton
                 ariaLabel="Nächster Tag"
                 onClick={() =>
@@ -377,19 +376,15 @@ export function CarePlanView({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
               </NavButton>
-              {!isCurrentWeek ? (
-                <button
-                  type="button"
-                  onClick={() => setWeekStartISO(currentWeekStartISO)}
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900"
-                >
-                  Diese Woche
-                </button>
-              ) : (
-                <span className="inline-flex h-9 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500">
-                  Diese Woche
-                </span>
-              )}
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                disabled={isCurrentWeek}
+                onClick={() => setWeekStartISO(currentWeekStartISO)}
+              >
+                Diese Woche
+              </Button>
               <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

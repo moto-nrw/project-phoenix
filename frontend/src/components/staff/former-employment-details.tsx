@@ -153,9 +153,10 @@ function FormerEmploymentTimes({ staff }: Readonly<{ staff: Staff }>) {
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Button
-          variant="secondary"
-          size="sm"
-          className="min-h-11 flex-1 sm:min-h-0 sm:flex-none"
+          type="button"
+          variant="surface"
+          size="md"
+          className="flex-1 sm:flex-none"
           disabled={Boolean(
             staff.startedOn && month <= staff.startedOn.slice(0, 7),
           )}
@@ -167,9 +168,10 @@ function FormerEmploymentTimes({ staff }: Readonly<{ staff: Staff }>) {
           {formatDate(from)} bis {formatDate(to)}
         </span>
         <Button
-          variant="secondary"
-          size="sm"
-          className="min-h-11 flex-1 sm:min-h-0 sm:flex-none"
+          type="button"
+          variant="surface"
+          size="md"
+          className="flex-1 sm:flex-none"
           disabled={month >= staff.endedOn!.slice(0, 7)}
           onClick={() => moveMonth(1)}
         >

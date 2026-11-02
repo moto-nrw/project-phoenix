@@ -476,11 +476,11 @@ export function StudentsInRoomSection({
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="compact"
             onClick={openInSearch}
             aria-label="Alle Kinder öffnen"
             title="Alle Kinder öffnen"
-            className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+            className="shrink-0"
           >
             Alle Kinder
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -718,10 +718,10 @@ function BulkMoveToolbar({
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="compact"
           onClick={allSelected ? onClearSelection : onSelectAll}
           disabled={isMoving}
-          className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
+          className="shrink-0"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
         </Button>
@@ -747,12 +747,12 @@ function BulkMoveToolbar({
         <Button
           type="button"
           variant="primary"
-          size="sm"
+          size="md"
           isLoading={isMoving}
           loadingText="Bewege..."
           onClick={onMoveSelected}
           disabled={!canMove}
-          className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
+          className="w-full sm:w-auto"
         >
           In Raum setzen
         </Button>
@@ -931,11 +931,11 @@ function SelectableStudentRow({
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="compact"
         onClick={onOpen}
         aria-label={`${fullName} Profil öffnen`}
         title="Profil öffnen"
-        className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+        className="shrink-0"
       >
         Profil
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />

@@ -573,14 +573,15 @@ export function SpontaneousActivityStart({
           {suggestedActivities.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {suggestedActivities.map((activity) => (
-                <button
+                <Button
                   key={activity.id}
                   type="button"
+                  variant="surface"
+                  size="compact"
                   onClick={() => setActivityInput(activity.name)}
-                  className="hover:border-moto-blue hover:text-moto-blue-strong rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700"
                 >
                   {activity.name}
-                </button>
+                </Button>
               ))}
             </div>
           ) : null}

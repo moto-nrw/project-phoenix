@@ -516,9 +516,8 @@ export function StammdatenTab({
         <div className="flex justify-end">
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="md"
-            className="bg-white"
             onClick={startEditing}
           >
             Bearbeiten
@@ -735,7 +734,7 @@ export function StammdatenTab({
               <ButtonLink
                 href={tenantPath("/payroll")}
                 variant="ghost"
-                size="compact"
+                size="md"
               >
                 Abrechnung
               </ButtonLink>
@@ -771,9 +770,8 @@ export function StammdatenTab({
             !editing && !financialError ? (
               <Button
                 type="button"
-                variant="outline"
-                size="compact"
-                className="bg-white"
+                variant="surface"
+                size="md"
                 onClick={() => void toggleReveal()}
                 disabled={revealing}
               >

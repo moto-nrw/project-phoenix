@@ -567,11 +567,11 @@ export function ClassDayOverview({
           <div className="flex w-full items-center gap-1 lg:w-auto">
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               size="icon"
               aria-label="Vorheriger Tag"
               onClick={() => shiftDay(-1)}
-              className="h-9 w-9 shrink-0 rounded-lg bg-white"
+              className="shrink-0"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -586,11 +586,11 @@ export function ClassDayOverview({
             />
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               size="icon"
               aria-label="Nächster Tag"
               onClick={() => shiftDay(1)}
-              className="h-9 w-9 shrink-0 rounded-lg bg-white"
+              className="shrink-0"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
