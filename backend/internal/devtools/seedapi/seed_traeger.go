@@ -12,7 +12,7 @@ import (
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
-// (#4650), one per role it hands out besides the Verwaltung. The Träger-Portal
+// (#4650), one per role it hands out besides the Verwaltung and the Leitung. The Träger-Portal
 // shows people by address only; the reserved TLD .example receives no mail.
 var seedTraegerInvitees = []struct {
 	email string
@@ -24,17 +24,23 @@ var seedTraegerInvitees = []struct {
 
 // seedTraegerOperatorInvitee is the person the moto team invites into the
 // Träger-Büro from the operator portal (#5144), with two roles in one step.
+// The Träger-Büro already has its Leitung, so she gets Verwaltung without
+// Leitung and Schulzugang (#5471).
 var seedTraegerOperatorInvitee = struct {
 	email string
 	roles []string
 }{"petra.hoffmann@ganztag-nord.example", []string{"administration", "billing"}}
 
+// seedTraegerAdminRoles are the Träger roles of the bootstrap school admin.
+var seedTraegerAdminRoles = []string{"administration", "leadership", "school_access", "billing"}
+
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
-// credentials and sees the Träger's schools. The admin also holds the role
-// Abrechnung, so the dev database shows the contribution rules (#4664); both
-// roles go in one assignment (#5144). The operator also invites a person
+// credentials and sees the Träger's schools. The admin holds Leitung and
+// Schulzugang besides Verwaltung (#5471), so the dev database manages the
+// accounts and opens the schools, and the role Abrechnung, so it shows the
+// contribution rules (#4664); all roles go in one assignment (#5144). The operator also invites a person
 // without a moto account (#5144). Signed in to the Träger-Portal,
 // the admin then invites a colleague for the Abrechnung and one for the
 // Personal (#4650), so the page "Personen" shows a person and open
@@ -51,10 +57,10 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.OperatorAuth)
 	defer rt.Client.BindAuth(previousAuth)
 	path := fmt.Sprintf("/operator/organizations/%d/traeger-members", rt.Bootstrap.OrganizationID)
-	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": []string{"administration", "billing"}}); err != nil {
+	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": seedTraegerAdminRoles}); err != nil {
 		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
-	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung and Abrechnung")
+	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung, Leitung, Schulzugang and Abrechnung")
 	if _, err := rt.Client.Post(path+"/invitations", map[string]any{"email": seedTraegerOperatorInvitee.email, "roles": seedTraegerOperatorInvitee.roles}); err != nil {
 		return fmt.Errorf("invite into the Träger-Büro from the operator portal: %w", err)
 	}

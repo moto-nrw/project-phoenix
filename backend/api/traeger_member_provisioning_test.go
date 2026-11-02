@@ -239,8 +239,9 @@ func TestOperatorTraegerGrantsOfOneAccountQueueWithoutDeadlock(t *testing.T) {
 
 // The moto team invites the first person of a Träger-Büro without a moto
 // account (spec #4611 user story 2, #5144): the Träger-Büro's own invitation
-// with several roles, in the operator audit. The person accepts with a new
-// password and signs in to the Träger-Portal without any school account.
+// with several roles, in the operator audit. The first person also gets
+// Leitung (#5471). The person accepts with a new password and signs in to
+// the Träger-Portal without any school account.
 func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -282,7 +283,7 @@ func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 		Roles []string `json:"roles"`
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, address, invitation.Email)
-	assert.Equal(t, []string{"administration", "billing"}, invitation.Roles, "several roles in one invitation")
+	assert.Equal(t, []string{"administration", "billing", "leadership"}, invitation.Roles, "several roles in one invitation, Leitung for the first person")
 	assert.NotContains(t, rec.Body.String(), "token", "the link stays in the mail")
 	var stored struct {
 		CreatedBy *int64 `bun:"created_by"`
@@ -295,7 +296,7 @@ func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 	var audited int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log
 		WHERE operator_id = ? AND action = 'create' AND resource_type = 'traeger_invitation' AND resource_id = ?
-		AND changes->>'email' = ? AND changes->'roles' = '["administration", "billing"]'::jsonb`, operatorID, invitation.ID, address).Scan(ctx, &audited))
+		AND changes->>'email' = ? AND changes->'roles' = '["administration", "billing", "leadership"]'::jsonb`, operatorID, invitation.ID, address).Scan(ctx, &audited))
 	assert.Equal(t, 1, audited, "the invitation is in the operator audit with the operator as actor")
 
 	var link string
@@ -312,6 +313,7 @@ func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 	require.Equal(t, http.StatusOK, accepted.Code, accepted.Body.String())
 	code, answer := traegerSignIn(t, traeger, address, password, 0)
 	require.Equal(t, http.StatusOK, code)
+	assert.Contains(t, traegerTokenClaims(t, answer.AccessToken)["permissions"], identityaccess.TraegerRightAccountsManage, "the first person manages the accounts")
 	listed, schools := traegerSchools(t, traeger, answer.AccessToken)
 	require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
 	require.Len(t, schools, 1)
@@ -324,6 +326,10 @@ func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 	rec = call(invitations, map[string]any{"email": address, "roles": []string{"read_only"}})
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"traeger.already_member"`, "a member is not invited again")
+
+	rec = call(invitations, map[string]any{"email": "zweite-" + address, "roles": []string{"read_only"}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"roles":["read_only"]`, "with a Leitung in the Träger-Büro the invitation keeps the chosen roles")
 }
 
 // A deactivated Träger gets no invitation and no mail (#5144). The identity
@@ -407,5 +413,5 @@ func TestOperatorInvitationsOfOneAddressQueueInAnEmptyTraegerBuero(t *testing.T)
 	var open []string
 	require.NoError(t, db.NewRaw(`SELECT array_to_string(roles, ',') FROM auth.traeger_invitations
 		WHERE organization_id = ? AND email = ? AND used_at IS NULL AND revoked_at IS NULL`, organizationID, address).Scan(ctx, &open))
-	assert.Equal(t, []string{"administration"}, open, "the later invitation replaces the earlier one")
+	assert.Equal(t, []string{"administration,leadership"}, open, "the later invitation replaces the earlier one, with Leitung in an empty Träger-Büro (#5471)")
 }

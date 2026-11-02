@@ -140,7 +140,7 @@ export default function TraegerSchoolsPage() {
         <>
           Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.
           {canOpen &&
-            " „Öffnen“ zeigt die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung."}
+            " „Öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule."}
         </>
       }
       stats={
