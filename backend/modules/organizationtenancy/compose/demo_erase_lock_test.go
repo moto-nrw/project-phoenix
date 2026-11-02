@@ -627,18 +627,11 @@ func TestDemoRunKeepsItsBudgetWhenManyOrdersWait(t *testing.T) {
 	require.NoError(t, err)
 	schools, err := NewDemoSchools(db)
 	require.NoError(t, err)
-	slugs := make([]string, 0, 14)
+	names := make([]string, 0, 14)
 	for i := range 14 {
-		schoolID, _ := testpkg.CreateTestTenant(t, db)
-		slug := orderDemoSchool(t, db, fmt.Sprintf("OGS Nord %d", i))
-		_, err := queue.ClaimDemoSchoolOrder(ctx)
-		require.NoError(t, err)
-		require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
-		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
-		_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
-		require.NoError(t, err)
-		slugs = append(slugs, slug)
+		names = append(names, fmt.Sprintf("OGS Nord %d", i))
 	}
+	slugs := hiddenOrders(t, db, queue, schools, names...)
 	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
 	require.NoError(t, err)
 	defer func() { _ = holder.Rollback() }()
@@ -653,6 +646,56 @@ func TestDemoRunKeepsItsBudgetWhenManyOrdersWait(t *testing.T) {
 		retireNow(t, queue, nil)
 	}
 	assert.Empty(t, demoOrderNames(t, db), "the next runs erase every order")
+}
+
+// hiddenOrders orders, seeds and hides one demo school per name, the state
+// an order is in an hour after its last access expired.
+func hiddenOrders(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoolQueue, schools *organizationtenancy.DemoSchools, names ...string) []string {
+	t.Helper()
+	ctx := t.Context()
+	slugs := make([]string, 0, len(names))
+	for _, name := range names {
+		schoolID, _ := testpkg.CreateTestTenant(t, db)
+		slug := orderDemoSchool(t, db, name)
+		_, err := queue.ClaimDemoSchoolOrder(ctx)
+		require.NoError(t, err)
+		require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+		_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+		require.NoError(t, err)
+		slugs = append(slugs, slug)
+	}
+	return slugs
+}
+
+// Orders that stay locked run after run do not starve the others behind
+// them: a deferral puts an order behind the orders not deferred as often,
+// so the run's budget reaches the unlocked orders (#5540).
+func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	locked := hiddenOrders(t, db, queue, schools, "OGS A 1", "OGS A 2", "OGS A 3", "OGS A 4", "OGS A 5", "OGS A 6", "OGS A 7")
+	free := hiddenOrders(t, db, queue, schools, "OGS Z 1", "OGS Z 2")
+	holder, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	for _, slug := range locked {
+		require.NoError(t, seedLock(slug)(ctx, holder))
+	}
+
+	for run := 0; run < 4; run++ {
+		retireNow(t, queue, nil)
+	}
+	remaining := demoOrderNames(t, db)
+	for _, slug := range free {
+		assert.NotContains(t, remaining, slug, "an order behind locked ones is erased while they stay locked")
+	}
+	assert.Len(t, remaining, len(locked))
 }
 
 // An order meets a lock once per run: it is deferred, counted and logged

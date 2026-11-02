@@ -86,6 +86,7 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 		"an order whose lock is in use is deferred, not failed")
 	assert.Contains(t, definition, "WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)",
 		"every hidden or failed order is open, whatever its status")
+	assert.Contains(t, definition, "ORDER BY state.erasure_deferrals, state.name", "a deferred order goes behind the others")
 	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
 		"a run has a budget")
 	assert.Regexp(t, `BEGIN\s+PERFORM pg_advisory_xact_lock\(hashtextextended\('demo school seed:'`, definition,
@@ -112,6 +113,8 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 		"a hidden or failed order is left to the erasure: one deferral per order and run")
 	assert.Regexp(t, `IF tried >= 50 OR clock_timestamp\(\) - statement_timestamp\(\) > INTERVAL '500 milliseconds' THEN`, definition,
 		"the retirement has the run's budget too")
+	assert.Contains(t, definition, "array_agg(target.name ORDER BY COALESCE(ordered.erasure_deferrals, 0), target.name)",
+		"a deferred order goes behind the others in the retirement too")
 	assert.Regexp(t, `state\.status = 'ready'\s+AND state\.first_name <> ''\s+AND school\.deleted_at IS NULL\s+AND NOT EXISTS \(SELECT 1 FROM auth\.demo_accesses`, definition,
 		"every run retires the open visitor orders no access names, so deferred work is found again")
 	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'demo school retirement skipped this run`, definition,

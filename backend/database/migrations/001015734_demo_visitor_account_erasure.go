@@ -125,7 +125,9 @@ const demoVisitorAccountErasureUpSQL = `
 				-- (#5540): a hidden school is never found again otherwise.
 				WHERE (state.status = 'failed' OR school.deleted_at IS NOT NULL)
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
-				ORDER BY state.name
+				-- A deferral puts an order behind the orders deferred less often:
+				-- orders that stay locked never starve the others of the budget.
+				ORDER BY state.erasure_deferrals, state.name
 			LOOP
 				target_name := visitor.name;
 				-- A run has a budget, so it ends well below deadlock_timeout
@@ -469,7 +471,9 @@ const demoSchoolRetirementWithoutWaitSQL = `
 				RETURN;
 			END IF;
 			BEGIN
-				SELECT COALESCE(array_agg(DISTINCT target.name ORDER BY target.name), '{}'::TEXT[]) INTO targets
+				-- Orders deferred less often come first, so orders that stay
+				-- locked never starve the others of the budget.
+				SELECT COALESCE(array_agg(target.name ORDER BY COALESCE(ordered.erasure_deferrals, 0), target.name), '{}'::TEXT[]) INTO targets
 				FROM (
 					SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS named(name)
 					UNION
@@ -480,7 +484,8 @@ const demoSchoolRetirementWithoutWaitSQL = `
 						AND state.first_name <> ''
 						AND school.deleted_at IS NULL
 						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
-				) AS target;
+				) AS target
+				LEFT JOIN platform.demo_school_states AS ordered ON ordered.name = target.name;
 			EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 				RAISE LOG 'demo school retirement skipped this run (SQLSTATE %): a table it reads is locked', SQLSTATE;
 				RETURN NEXT;
