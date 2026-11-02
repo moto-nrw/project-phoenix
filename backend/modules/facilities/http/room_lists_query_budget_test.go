@@ -155,6 +155,9 @@ func TestRoomListsQueryBudget(t *testing.T) {
 			}
 			require.Len(t, seen, len(expected), "every expected room must be returned")
 			if route.occupancy {
+				require.Len(t, counter.Selects("staff_school_memberships"), 1, "one membership set read")
+				require.Len(t, counter.Selects("users.persons"), 1, "one person set read")
+				require.Empty(t, counter.Selects("staff_employment_profiles"), "names do not require employment hydration")
 				require.NotNil(t, body.Pagination)
 				require.Equal(t, 1, body.Pagination.CurrentPage)
 				require.Equal(t, 100, body.Pagination.PageSize)
