@@ -71,6 +71,10 @@ func (rs *Resource) removeStudentTemplateDays(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	if !validStudentTemplateDaysWeekdays(req.Weekdays) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("weekdays must be ISO weekdays")))
+		return
+	}
 	removalFrom, err := rs.boundedStudentTemplateDaysRemovalFrom(r.Context(), templateID, studentID, req.Weekdays, from, until)
 	if err != nil {
 		switch {
@@ -124,42 +128,96 @@ func (rs *Resource) validateBoundedStudentTemplateDaysRemoval(
 	if err := rs.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return "", err
 	}
+	segments, err := rs.TemplateSeries.ListGroups(ctx, timetableModule.ActiveTemplateSeries(templateID))
+	if err != nil {
+		return "", err
+	}
+	series := make(map[int64]struct{}, len(segments))
+	for _, segment := range segments {
+		series[segment.ID] = struct{}{}
+	}
 	periods, err := rs.CalendarPeriods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
-		ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: from.String(),
+		ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: until.String(),
 	})
 	if err != nil {
 		return "", err
 	}
+	seriesLeftovers := make([]timetableModule.BookingLeftover, 0)
 	for _, period := range periods {
 		leftovers, err := rs.detectBookingLeftovers(ctx, period.ID)
 		if err != nil {
 			return "", err
 		}
 		for _, leftover := range leftovers {
-			if effectiveFrom, matches := boundedStudentTemplateDaysRemovalMatches(leftover, templateID, studentID, weekdays, from, until); matches {
-				return effectiveFrom, nil
+			if _, belongsToSeries := series[leftover.TemplateID]; !belongsToSeries {
+				continue
 			}
+			seriesLeftovers = append(seriesLeftovers, leftover)
 		}
+	}
+	if effectiveFrom, matches := boundedStudentTemplateDaysRemovalMatchesSeries(seriesLeftovers, studentID, weekdays, from, until); matches {
+		return effectiveFrom, nil
 	}
 	return "", errBoundedStudentTemplateDaysRemovalStale
 }
 
+// boundedStudentTemplateDaysRemovalMatchesSeries confirms every requested
+// weekday across the active segments of one Regeltermin series.
+func boundedStudentTemplateDaysRemovalMatchesSeries(
+	leftovers []timetableModule.BookingLeftover, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
+) (calendar.Date, bool) {
+	matchedWeekdays := make(map[int]bool, len(weekdays))
+	var effectiveFrom calendar.Date
+	for _, leftover := range leftovers {
+		fromLeftover, matches := boundedStudentTemplateDaysRemovalMatches(leftover, studentID, from, until)
+		if !matches {
+			continue
+		}
+		for _, weekday := range leftover.Weekdays {
+			matchedWeekdays[weekday] = true
+		}
+		if effectiveFrom == "" || fromLeftover.Before(effectiveFrom) {
+			effectiveFrom = fromLeftover
+		}
+	}
+	return effectiveFrom, effectiveFrom != "" &&
+		sameRemovalWeekdays(sortedRemovalWeekdays(matchedWeekdays), weekdays) && until.After(effectiveFrom)
+}
+
 func (rs *Resource) boundedStudentTemplateDaysRemovalWired() bool {
 	return rs.RecurrenceLock != nil && rs.CalendarPeriods != nil && rs.TimetableData != nil && rs.RosterReview != nil &&
-		rs.MaterializationService != nil && rs.OfferingSourceOptions != nil
+		rs.MaterializationService != nil && rs.OfferingSourceOptions != nil && rs.TemplateSeries != nil
 }
 
 func boundedStudentTemplateDaysRemovalMatches(
-	leftover timetableModule.BookingLeftover, templateID, studentID int64, weekdays []int, from calendar.Date, until *calendar.Date,
+	leftover timetableModule.BookingLeftover, studentID int64, from calendar.Date, until *calendar.Date,
 ) (calendar.Date, bool) {
-	if leftover.TemplateID != templateID || leftover.StudentID != studentID || leftover.Until == nil || leftover.BookingEndedOn.After(from) {
-		return "", false
-	}
-	if *leftover.Until != *until || !sameRemovalWeekdays(leftover.Weekdays, weekdays) {
+	if leftover.StudentID != studentID || leftover.Until == nil || leftover.BookingEndedOn.After(from) {
 		return "", false
 	}
 	effectiveFrom := max(from, leftover.From)
-	return effectiveFrom, until.After(effectiveFrom)
+	if !until.After(effectiveFrom) {
+		return "", false
+	}
+	return effectiveFrom, *leftover.Until == *until
+}
+
+func sortedRemovalWeekdays(weekdays map[int]bool) []int {
+	result := make([]int, 0, len(weekdays))
+	for weekday := range weekdays {
+		result = append(result, weekday)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func validStudentTemplateDaysWeekdays(weekdays []int) bool {
+	for _, weekday := range weekdays {
+		if weekday < timetableModule.WeekdayMonday || weekday > timetableModule.WeekdaySunday {
+			return false
+		}
+	}
+	return true
 }
 
 func sameRemovalWeekdays(left, right []int) bool {

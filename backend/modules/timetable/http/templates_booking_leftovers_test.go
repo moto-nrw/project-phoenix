@@ -333,6 +333,63 @@ func TestBookingLeftoversRemoveOnlyTheGap(t *testing.T) {
 	}
 }
 
+// TestBookingLeftoversRemoveOnlyTheGapAcrossPlanningPeriods confirms a gap
+// from an earlier booking change when its first hand-planned day and carrying
+// booking are in the next planning period.
+func TestBookingLeftoversRemoveOnlyTheGapAcrossPlanningPeriods(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	later := createTemplateTestPeriodRange(t, s.db, "Leftover-Next", rosterReviewMonday.AddDays(7), rosterReviewMonday.AddDays(120), 1, nil)
+	child := createClassStudents(t, s.db, "2h", 1)[0]
+	body := s.handTemplateBody("Hausaufgaben 2h", []int64{child})
+	body["calendar_period_id"] = later.ID
+	w := doTemplateJSON(t, s.router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	template := decodeTemplateData[createTemplateResponse](t, w).TemplateID
+
+	start, end := rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(121)
+	change, rebooked := rosterReviewMonday.AddDays(-3), rosterReviewMonday.AddDays(14)
+	window := func(from, until calendar.Date, ended bool, weekdays ...int) timetableModule.OfferingBookingWindow {
+		return timetableModule.OfferingBookingWindow{ValidFrom: &from, ValidUntil: &until, Weekdays: weekdays, Ended: ended}
+	}
+	s.sources.bookings = []timetableModule.OfferingWeekdayBooking{{
+		OfferingID: leftoverGanztagID, StudentID: child, CountsAsCare: true, Weekdays: []int{timetableModule.WeekdayThursday},
+		Windows: []timetableModule.OfferingBookingWindow{
+			window(start, change, true, timetableModule.WeekdayThursday), window(rebooked, end, false, timetableModule.WeekdayThursday),
+		},
+	}}
+
+	w = doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
+		"weekdays": []int{timetableModule.WeekdayThursday}, "effective_from": rosterReviewMonday.String(), "effective_until": rebooked.String(),
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+}
+
+// TestBoundedStudentTemplateDaysRemovalMatchesSeries aggregates the weekday
+// union Care Plan reports for a split Regeltermin series under its latest id.
+func TestBoundedStudentTemplateDaysRemovalMatchesSeries(t *testing.T) {
+	t.Parallel()
+	from, until := calendar.NewDate(2030, 3, 4), calendar.NewDate(2030, 4, 1)
+	actual, matches := boundedStudentTemplateDaysRemovalMatchesSeries([]timetableModule.BookingLeftover{
+		{TemplateID: 9, StudentID: 4, Weekdays: []int{timetableModule.WeekdayMonday}, BookingEndedOn: from, From: from.AddDays(7), Until: &until},
+		{TemplateID: 11, StudentID: 4, Weekdays: []int{timetableModule.WeekdayThursday}, BookingEndedOn: from, From: from.AddDays(3), Until: &until},
+	}, 4, []int{timetableModule.WeekdayMonday, timetableModule.WeekdayThursday}, from, &until)
+	assert.True(t, matches)
+	assert.Equal(t, from.AddDays(3), actual)
+}
+
+func TestBookingLeftoversRejectsInvalidWeekdayBeforeBoundedValidation(t *testing.T) {
+	t.Parallel()
+	s := buildBookingLeftoversModule(t)
+	child := createClassStudents(t, s.db, "2o", 1)[0]
+	template := s.createHandTemplate(t, "Hausaufgaben 2o", []int64{child})
+
+	w := doTemplateJSON(t, s.router, http.MethodPost, fmt.Sprintf("/templates/%d/students/%d/remove-days", template, child), map[string]any{
+		"weekdays": []int{0}, "effective_from": rosterReviewMonday.String(), "effective_until": rosterReviewMonday.AddDays(14).String(),
+	})
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+}
+
 // TestBookingLeftoversRemoveOnlyTheGapBehindRosterDeviation ensures that a
 // roster-deviation hint hides the duplicate leftover only in the display. A
 // bounded removal received with a booking-change impact remains valid.

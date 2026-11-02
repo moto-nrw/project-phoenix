@@ -25,7 +25,8 @@ import {
   type BookingLeftover,
   bookingLeftoverKey,
 } from "~/lib/booking-leftover";
-import { formatDate } from "~/lib/date-helpers";
+import { parseISODate, formatDate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -68,6 +69,7 @@ export function BookingLeftoverHints({
   const [expanded, setExpanded] = useState(false);
   const [removing, setRemoving] = useState<BookingLeftover | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
+  const firstRemovableDay = earliestRemovalDay(useBerlinToday());
   const openListId = useId();
   const key = periodId ? timetableKeys.bookingLeftovers(periodId) : null;
   const { data, error } = useSWRAuth(
@@ -196,6 +198,7 @@ export function BookingLeftoverHints({
                   <OpenLeftoverActions
                     leftover={leftover}
                     busy={busyKey === bookingLeftoverKey(leftover)}
+                    canRemove={gapEndsAfter(leftover.until, firstRemovableDay)}
                     onRemove={setRemoving}
                     onKeep={(item) => void decide(item, true)}
                   />
@@ -302,27 +305,31 @@ export function BookingLeftoverHints({
 function OpenLeftoverActions({
   leftover,
   busy,
+  canRemove,
   onRemove,
   onKeep,
 }: Readonly<{
   leftover: BookingLeftover;
   busy: boolean;
+  canRemove: boolean;
   onRemove: (leftover: BookingLeftover) => void;
   onKeep: (leftover: BookingLeftover) => void;
 }>) {
   const about = `${leftover.studentName} in „${leftover.templateName}“`;
   return (
     <>
-      <Button
-        type="button"
-        variant="surface"
-        size="compact"
-        aria-label={`Entfernen: ${about}`}
-        onClick={() => onRemove(leftover)}
-        disabled={busy}
-      >
-        Entfernen
-      </Button>
+      {canRemove ? (
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          aria-label={`Entfernen: ${about}`}
+          onClick={() => onRemove(leftover)}
+          disabled={busy}
+        >
+          Entfernen
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="surface"
@@ -335,6 +342,21 @@ function OpenLeftoverActions({
       </Button>
     </>
   );
+}
+
+// The command leaves today's planning untouched, so a bounded gap that ends
+// tomorrow or earlier no longer offers a removal action.
+function earliestRemovalDay(today: string): string {
+  const tomorrow = parseISODate(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return toISODate(tomorrow);
+}
+
+function gapEndsAfter(
+  until: string | null,
+  firstRemovableDay: string,
+): boolean {
+  return until === null || until > firstRemovableDay;
 }
 
 /** One child in one Regeltermin: who, where, which days, since when. */

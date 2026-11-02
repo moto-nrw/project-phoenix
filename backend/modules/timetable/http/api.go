@@ -114,6 +114,7 @@ type Dependencies struct {
 	// the Vertretungsplan saves (slice S3). TimetableData serves the planner's
 	// reads from the Timetable owner (#3551).
 	Templates      timetable.TemplateAdministration
+	TemplateSeries timetable.ActivityGroupQuery
 	RecurrenceLock timetable.RecurrenceWriteLock
 	// RosterReview compares hand-kept Regeltermine with the bookings and
 	// connects them to a Betreuungsangebot (#5103).

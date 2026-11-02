@@ -54,6 +54,10 @@ vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
 
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => "2026-09-09",
+}));
+
 import { ApiError } from "~/lib/api-error";
 import { BookingLeftoverHints } from "./booking-leftover-hints";
 
@@ -193,6 +197,22 @@ describe("BookingLeftoverHints", () => {
         effectiveUntil: "2026-11-16",
       }),
     );
+  });
+
+  it("does not offer removal after a bounded gap has ended", () => {
+    mocks.leftovers.current = [{ ...hannah, until: "2026-09-10" }];
+    renderHints();
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Entfernen: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Bleibt so: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the failed removal open with its error", async () => {
