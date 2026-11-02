@@ -73,6 +73,23 @@ export const GhostDanger: Story = {
   },
 };
 
+/** Leiser Knopf auf einer farbigen Meldung: nimmt deren Textfarbe an. */
+export const GhostTone: Story = {
+  args: {
+    variant: "ghost_tone",
+    size: "compact",
+    type: "button",
+    children: "Wiederholen",
+  },
+  decorators: [
+    (Story) => (
+      <div className="bg-moto-red-soft text-moto-red-strong rounded-xl p-4">
+        <Story />
+      </div>
+    ),
+  ],
+};
+
 /** Textknopf: kein Polster, sichtbarer Fokusring (Tab drücken). */
 export const Link: Story = {
   args: {

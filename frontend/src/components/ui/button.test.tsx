@@ -148,6 +148,22 @@ describe("Button", () => {
     expect(classes.some((c) => /^shadow-(?:sm|md|lg)$/.test(c))).toBe(false);
   });
 
+  it("renders ghost_tone in the text colour of the surface it sits on", () => {
+    render(<Button variant="ghost_tone">Wiederholen</Button>);
+
+    const classes = screen.getByRole("button").className.split(" ");
+    // Auf einer roten Fehlerfläche rot, auf einer grünen grün (#5531).
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "bg-transparent",
+        "text-current",
+        "hover:bg-black/5",
+        "focus-visible:ring-2",
+      ]),
+    );
+    expect(classes).not.toContain("text-gray-600");
+  });
+
   it("renders ghost_danger as a quiet red button", () => {
     render(<Button variant="ghost_danger">Entfernen</Button>);
 
@@ -212,6 +228,7 @@ describe("Button", () => {
       "surface",
       "ghost",
       "ghost_danger",
+      "ghost_tone",
       "link",
       "fab",
       "dashed",

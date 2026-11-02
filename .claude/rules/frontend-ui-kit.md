@@ -161,6 +161,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 | Variant | Use for |
 |---|---|
 | `primary` (gray-900), `secondary`, `outline`, `surface`, `ghost` | Neutral actions |
+| `ghost_tone` | Quiet action on a coloured notice (toast, alert): takes the notice's text colour |
 | `success` | Green confirm, every import submit |
 | `danger`, `outline_danger`, `ghost_danger` (quiet red) | Destructive |
 | `warning` | Proceed despite a side effect (orange) |
@@ -170,7 +171,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 **Finger rule.** Under `pointer: coarse` every kit button is at least 44 px high, `icon` 44 × 44 px; with a mouse nothing changes. The kit does this for every portal; no `min-h-11` overrides, no `touch` size.
 
-**Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`.
+**Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`; on a coloured notice (toast) `ghost_tone` `icon`.
 
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
 

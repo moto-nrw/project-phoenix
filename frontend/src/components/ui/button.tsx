@@ -23,6 +23,7 @@ type ButtonVariant =
   | "surface"
   | "ghost"
   | "ghost_danger"
+  | "ghost_tone"
   | "link"
   | "fab"
   | "dashed";
@@ -114,6 +115,10 @@ export function buttonClassName({
     // ein gefüllter roter Knopf zu laut wäre.
     ghost_danger:
       "bg-transparent text-moto-red-strong hover:bg-moto-red-soft active:bg-moto-red/20",
+    // Leiser Knopf auf einer farbigen Meldung (Toast, Fehlerkasten): nimmt die
+    // Textfarbe der Fläche an, rot auf Fehler, grün auf Erfolg.
+    ghost_tone:
+      "bg-transparent text-current hover:bg-black/5 active:bg-black/10",
     // Textknopf („Passwort vergessen?“): kein Polster, kein Schatten, aber
     // derselbe sichtbare Fokusring wie jeder Kit-Knopf.
     link: "h-auto rounded-sm bg-transparent px-0 py-0 text-gray-600 underline-offset-2 shadow-none hover:text-gray-900 hover:underline",

@@ -156,7 +156,6 @@
     "src/components/timetable/period-switcher-dropdown.tsx": 1,
     "src/components/traeger/shell/traeger-bottom-nav.tsx": 1,
     "src/components/ui/database/catalog-color-field.tsx": 1,
-    "src/components/ui/form-error-alert.tsx": 1,
     "src/components/ui/planning-context-bar.tsx": 4,
     "src/components/ui/request-id-button.tsx": 1,
     "src/components/ui/section-card.tsx": 1,

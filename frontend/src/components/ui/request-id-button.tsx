@@ -39,13 +39,13 @@ export function RequestIdButton({
       {feedback ? <span role="status">{feedback}</span> : null}
       <Button
         type="button"
-        variant="ghost"
+        variant="ghost_tone"
         size="compact"
         aria-label={copyLabel}
         onClick={() => void handleCopy()}
         // A request ID is a 36-character UUID: let it wrap inside the alert
         // or toast instead of running past its edge.
-        className="h-auto min-h-8 max-w-full min-w-0 self-center py-1 text-left break-all whitespace-normal text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
+        className="h-auto min-h-8 max-w-full min-w-0 self-center py-1 text-left break-all whitespace-normal underline underline-offset-2"
       >
         {label?.replace("{requestId}", requestId) ?? requestId}
       </Button>

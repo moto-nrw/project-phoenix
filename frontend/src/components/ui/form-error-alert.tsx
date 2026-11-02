@@ -97,10 +97,10 @@ export function errorAlertActions(
       {retry ? (
         <Button
           type="button"
-          variant="ghost"
+          variant="ghost_tone"
           size="compact"
           onClick={retry.onClick}
-          className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
+          className="shrink-0 self-center underline underline-offset-2"
         >
           {retry.label}
         </Button>

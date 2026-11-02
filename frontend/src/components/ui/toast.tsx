@@ -64,12 +64,12 @@ export function Toast({
         {action ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="ghost_tone"
             size="compact"
             aria-label={action.accessibleLabel}
             onClick={action.onClick}
             className={cn(
-              "shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current",
+              "shrink-0 self-center underline underline-offset-2",
               touchFriendly ? "h-11 px-3 text-sm" : "",
             )}
           >
@@ -94,7 +94,7 @@ export function Toast({
   const close = (
     <Button
       type="button"
-      variant="ghost"
+      variant="ghost_tone"
       size="icon"
       aria-label={closeLabel}
       onClick={onClose}
