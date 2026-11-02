@@ -358,3 +358,56 @@ func TestNotificationStaysLocalWhenRelayPoolIsBusy(t *testing.T) {
 	requireRelayedNotification(t, client)
 	require.Empty(t, published)
 }
+
+func schoolClient(t *testing.T, hub *realtime.Hub, schoolID, accountID int64) *realtime.Client {
+	t.Helper()
+	client := &realtime.Client{Channel: make(chan realtime.Event, 16), AccountID: accountID}
+	hub.RegisterSchool(client, schoolID)
+	t.Cleanup(func() { hub.Unregister(client) })
+	return client
+}
+
+// A relayed notification is shown only while its staff recipient still
+// belongs to the school in the addressed portal, the same delivery-time rule
+// Web Push applies (#5504). The producer resolved the recipients earlier; a
+// delayed or replayed signal must not outlive a revoked membership or role.
+func TestRelayedStaffNotificationRechecksMembershipAndRole(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var payloads []string
+	producer, err := realtime.NewRelayedHub(slog.Default(), func(payload string) error { payloads = append(payloads, payload); return nil })
+	require.NoError(t, err)
+	api, err := realtime.NewRelayedHub(slog.Default(), func(string) error { return nil })
+	require.NoError(t, err)
+	notificationChannel(t, db, api)
+	school := testpkg.Tenant(t)
+	_, staff := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Staff")
+	_, teacher := testpkg.CreateTestCalendarStaff(t, db, "Relay", "Lehrkraft")
+	testpkg.AssignLehrkraftSystemRole(t, db, teacher.ID, school)
+	staffTab := staffClient(t, api, school, staff.ID)
+	teacherTab := schoolClient(t, api, school, teacher.ID)
+
+	sender := notificationChannel(t, db, producer)
+	require.NoError(t, sender.Deliver(context.Background(), staffNotification(school, staff.ID)))
+	schoolNotice := staffNotification(school, teacher.ID)
+	schoolNotice.Portal = "school"
+	require.NoError(t, sender.Deliver(context.Background(), schoolNotice))
+	require.Len(t, payloads, 2)
+
+	// While both still belong to the school, the relayed copies arrive.
+	require.NoError(t, api.ReceiveSignal(payloads[0]))
+	requireRelayedNotification(t, staffTab)
+	require.NoError(t, api.ReceiveSignal(payloads[1]))
+	requireRelayedNotification(t, teacherTab)
+
+	_, err = db.ExecContext(context.Background(), `UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`, staff.ID, school)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?
+		AND role_id = (SELECT id FROM auth.roles WHERE name = 'lehrkraft' AND is_system)`, teacher.ID, school)
+	require.NoError(t, err)
+
+	_ = api.ReceiveSignal(payloads[0])
+	_ = api.ReceiveSignal(payloads[1])
+	require.Empty(t, staffTab.Channel, "a staff member whose school membership ended still saw the notification")
+	require.Empty(t, teacherTab.Channel, "an account without the Lehrkraft role still saw a school-portal notification")
+}
