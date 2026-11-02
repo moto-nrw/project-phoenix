@@ -24,7 +24,10 @@ type (
 	stubPushSubscriptions struct {
 		deliveryPorts.PushSubscriptionRepository
 	}
-	stubPushOutbox     struct{ PushOutbox }
+	stubPushOutbox struct{ PushOutbox }
+	stubRelayStore struct {
+		deliveryPorts.RealtimeNotificationStore
+	}
 	stubService        struct{ Service }
 	stubRecipients     struct{ StaffRecipientResolver }
 	stubConsent        struct{ ConsentStore }
@@ -48,7 +51,7 @@ func TestTenantConstructorsBindTheRuntimeAtConstruction(t *testing.T) {
 	runtime, db := newMockTenantRuntime(t, nil), lazyTestDatabase()
 	permits := PermissionMatch(func(string, []string) bool { return true })
 
-	sse, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil)
+	sse, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, stubRelayStore{})
 	require.NoError(t, err)
 	assert.NotNil(t, sse.(*sseChannel).tenantRuntime)
 	assert.NotNil(t, sse.(*sseChannel).guardians, "the guardian child-access check is wired")
@@ -78,7 +81,7 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 
 	for name, construct := range map[string]func(tenant.UnitOfWork) error{
 		"sse": func(runtime tenant.UnitOfWork) error {
-			_, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil)
+			_, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, stubRelayStore{})
 			return err
 		},
 		"web push": func(runtime tenant.UnitOfWork) error {
@@ -103,9 +106,10 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 	}
 
 	missing := map[string]error{}
-	_, missing["sse broadcaster"] = NewTenantSSEChannel(runtime, nil, db, stubChildAccess{}, nil)
-	_, missing["sse database"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, nil, stubChildAccess{}, nil)
-	_, missing["sse child access"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, nil, nil)
+	_, missing["sse broadcaster"] = NewTenantSSEChannel(runtime, nil, db, stubChildAccess{}, nil, stubRelayStore{})
+	_, missing["sse database"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, nil, stubChildAccess{}, nil, stubRelayStore{})
+	_, missing["sse child access"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, nil, nil, stubRelayStore{})
+	_, missing["sse relay store"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, nil)
 	_, missing["web push database"] = NewTenantDurableWebPushChannel(runtime, nil, stubPushSubscriptions{}, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push repository"] = NewTenantDurableWebPushChannel(runtime, db, nil, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push outbox"] = NewTenantDurableWebPushChannel(runtime, db, stubPushSubscriptions{}, VAPIDConfig{}, nil, nil)

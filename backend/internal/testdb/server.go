@@ -27,20 +27,18 @@ func EnsureServer(ctx context.Context, cfg *Config) error {
 	}
 	return ensureServer(ctx, cfg, func(ctx context.Context) error {
 		return startTestContainer(ctx, cfg)
-	}, syncLocalSuperuserPassword)
+	})
 }
 
 func ensureServer(
 	ctx context.Context,
 	cfg *Config,
 	start func(context.Context) error,
-	repairAuthentication func(context.Context, *Config) error,
 ) error {
 	return ensureServerWithDependencies(
 		ctx,
 		cfg,
 		start,
-		repairAuthentication,
 		pingServer,
 		isPostgresAuthenticationFailure,
 	)
@@ -53,7 +51,6 @@ func ensureServerWithDependencies(
 	ctx context.Context,
 	cfg *Config,
 	start func(context.Context) error,
-	repairAuthentication func(context.Context, *Config) error,
 	ping serverPinger,
 	isAuthenticationFailure authenticationFailureClassifier,
 ) error {
@@ -63,16 +60,10 @@ func ensureServerWithDependencies(
 	}
 
 	if isPostgresStarting(pingErr) || isConnectionTimeout(pingErr) {
-		return waitForServer(ctx, cfg, repairAuthentication, ping, isAuthenticationFailure)
+		return waitForServer(ctx, cfg, ping, isAuthenticationFailure)
 	}
 	if isAuthenticationFailure(pingErr) {
-		if err := repairAuthentication(ctx, cfg); err != nil {
-			return fmt.Errorf("test database authentication failed and local password synchronization failed: %v: %w", pingErr, err)
-		}
-		if err := ping(ctx, cfg); err != nil {
-			return fmt.Errorf("test database authentication still fails after local password synchronization: %w", err)
-		}
-		return nil
+		return testDatabaseAuthenticationError()
 	}
 	if !errors.Is(pingErr, syscall.ECONNREFUSED) {
 		return fmt.Errorf("test database connection failed; refusing to restart the shared server: %w", pingErr)
@@ -83,32 +74,23 @@ func ensureServerWithDependencies(
 
 To run integration tests manually:
   1. Start test database: docker compose --profile test up -d postgres-test
-  2. Ensure .env contains: TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable`, err)
+  2. Set TEST_DB_DSN from the server-owning checkout's root .env (see docs/agents/operations.md#test-database)`, err)
 	}
-	return waitForServer(ctx, cfg, repairAuthentication, ping, isAuthenticationFailure)
+	return waitForServer(ctx, cfg, ping, isAuthenticationFailure)
 }
 
 func waitForServer(
 	ctx context.Context,
 	cfg *Config,
-	repairAuthentication func(context.Context, *Config) error,
 	ping serverPinger,
 	isAuthenticationFailure authenticationFailureClassifier,
 ) error {
 	deadline := time.Now().Add(60 * time.Second)
-	authenticationRepaired := false
 	for {
 		if err := ping(ctx, cfg); err == nil {
 			return nil
 		} else if isAuthenticationFailure(err) {
-			if authenticationRepaired {
-				return fmt.Errorf("test database authentication still fails after local password synchronization: %w", err)
-			}
-			if repairErr := repairAuthentication(ctx, cfg); repairErr != nil {
-				return fmt.Errorf("test database authentication failed after container start and local password synchronization failed: %v: %w", err, repairErr)
-			}
-			authenticationRepaired = true
-			continue
+			return testDatabaseAuthenticationError()
 		} else if time.Now().After(deadline) {
 			return fmt.Errorf("test database server did not become ready within 60s after container start: %w", err)
 		}
@@ -137,51 +119,10 @@ func isPostgresAuthenticationFailure(err error) bool {
 
 type dockerCommandRunner func(context.Context, string, io.Reader, ...string) ([]byte, error)
 
-func syncLocalSuperuserPassword(ctx context.Context, cfg *Config) error {
-	return syncLocalSuperuserPasswordWithRunner(ctx, cfg, runDockerCommand)
-}
-
-func syncLocalSuperuserPasswordWithRunner(ctx context.Context, cfg *Config, run dockerCommandRunner) error {
-	username := cfg.templateURL.User.Username()
-	password, hasPassword := cfg.templateURL.User.Password()
-	if username != "postgres" || !hasPassword {
-		return fmt.Errorf("automatic password synchronization requires the postgres user with a password")
-	}
-	host := cfg.templateURL.Hostname()
-	if !isLoopbackHost(host) {
-		return fmt.Errorf("automatic password synchronization is limited to a loopback TEST_DB_DSN host, got %q", host)
-	}
-	port := cfg.templateURL.Port()
-	if port == "" {
-		port = "5432"
-	}
-
-	backend, err := backendRoot()
-	if err != nil {
-		return fmt.Errorf("locate backend module root: %w", err)
-	}
-	projectRoot := filepath.Dir(backend)
-	composeFile := filepath.Join(projectRoot, "docker-compose.example.yml")
-	if _, err := os.Stat(composeFile); err != nil {
-		return fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
-	}
-
-	composeProject, _, configuredPort, err := inspectTestContainer(ctx, cfg, run)
-	if err != nil {
-		return fmt.Errorf("locate shared postgres-test container: %w", err)
-	}
-	if !configuredPort {
-		return fmt.Errorf("shared postgres-test container does not publish configured port %s", port)
-	}
-	composeArgs := []string{"compose", "-p", composeProject, "-f", composeFile}
-
-	statement := fmt.Sprintf("ALTER ROLE %s WITH PASSWORD %s;\n", quoteIdentifier(username), quoteLiteral(password))
-	execArgs := append(append([]string{}, composeArgs...),
-		"exec", "-T", "postgres-test", "psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres")
-	if output, err := run(ctx, projectRoot, strings.NewReader(statement), execArgs...); err != nil {
-		return fmt.Errorf("synchronize postgres-test superuser password: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return nil
+// Never include the driver's error here: authentication diagnostics can carry
+// connection details supplied by the caller.
+func testDatabaseAuthenticationError() error {
+	return fmt.Errorf("test database authentication failed; shared server credentials were not changed; use TEST_DB_DSN from the server-owning checkout's root .env, not backend/dev.env.example; an exported TEST_DB_DSN takes precedence; see docs/agents/operations.md#test-database")
 }
 
 func isLoopbackHost(host string) bool {

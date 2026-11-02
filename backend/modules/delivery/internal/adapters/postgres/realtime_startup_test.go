@@ -49,7 +49,7 @@ func TestRealtimeHubWaitsForListenerReadiness(t *testing.T) {
 	}
 	constructed := make(chan result, 1)
 	go func() {
-		hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(delayed, slog.Default(), true)
+		hub, closer, err := deliveryCompose.NewPostgresRealtimeHub(delayed, testpkg.TenantRuntime(t, db), slog.Default(), true)
 		constructed <- result{hub, closer, err}
 	}()
 	var held *heldListenConn
