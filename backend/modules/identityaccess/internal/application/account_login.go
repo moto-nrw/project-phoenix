@@ -384,7 +384,7 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 				slog.Int64("account_id", account.ID),
 				slog.Any("error", err))
 		}
-		return s.capSessionsUnlessDemo(txCtx, account.ID, created.PortalScope)
+		return s.capSessionsUnlessDemo(txCtx, account.ID, stored)
 	})
 	if err != nil {
 		return domain.AccountSession{}, err
