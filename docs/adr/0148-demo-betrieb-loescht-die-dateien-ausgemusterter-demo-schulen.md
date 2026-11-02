@@ -85,6 +85,9 @@ Ledger.
 
 - Die Datenbankzeilen einer ausgemusterten Demo-Schule bleiben ausgeblendet,
   bis die Demo-Datenbank neu aufgebaut wird; nur ihre Dateien gehen.
+- `TenantObjects` entfernt beim Löschen auch den geleerten Schulordner
+  (`<art>/<schule>/`), damit kein Pfad mehr die Schule nennt. Das gilt auch
+  für die Schullöschung; ihr Nachzählen bleibt 0.
 - Ein neuer Namensraum im Datenkatalog bleibt ohne geprüften Löschweg
   ungültig (`validateErasureFiles`); der Demo-Prozess startet dann nicht.
 - Der Sidecar kann jetzt Dateien des Demo-Servers löschen. Das ist seine

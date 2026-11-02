@@ -111,6 +111,33 @@ func schoolUploads(tree map[string]string, schoolID int64) map[string]string {
 	return owned
 }
 
+// schoolPaths lists every file or directory below root whose path names the
+// school: a segment that is its ID or starts with its ID and an underscore.
+// The shared global account objects are not the school's.
+func schoolPaths(t *testing.T, root string, schoolID int64) []string {
+	t.Helper()
+	id := strconv.FormatInt(schoolID, 10)
+	var paths []string
+	require.NoError(t, filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		segments := strings.Split(filepath.ToSlash(rel), "/")
+		if len(segments) > 1 && segments[1] == "global" {
+			return err
+		}
+		for _, segment := range segments {
+			if segment == id || strings.HasPrefix(segment, id+"_") {
+				paths = append(paths, rel)
+				break
+			}
+		}
+		return err
+	}))
+	return paths
+}
+
 func hideDemoSchool(t *testing.T, db *bun.DB, schoolID int64, ago string) {
 	t.Helper()
 	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() - ?::interval WHERE id = ?`, ago, schoolID).Exec(t.Context())
@@ -165,6 +192,7 @@ func TestDemoProcessErasesTheUploadsOfRetiredDemoSchools(t *testing.T) {
 	after := demoUploadTree(t, uploads)
 	assert.Equal(t, 1, schools)
 	assert.Empty(t, schoolUploads(after, retired), "no object of the retired school is left in any namespace")
+	assert.Empty(t, schoolPaths(t, uploads, retired), "no file or directory names the retired school")
 	assert.Equal(t, int64(len(schoolUploads(before, retired))), removed, "every object of the retired school is counted")
 	for path, content := range before {
 		if _, gone := schoolUploads(before, retired)[path]; !gone {
@@ -228,6 +256,6 @@ func TestDemoSchoolFileErasureRetriesASchoolAfterAStorageFailure(t *testing.T) {
 	schools, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, schools)
-	assert.Empty(t, schoolUploads(demoUploadTree(t, uploads), retired))
+	assert.Empty(t, schoolPaths(t, uploads, retired))
 	assert.NotNil(t, demoFileMarker(t, db, retired))
 }

@@ -45,8 +45,16 @@ func (l *Local) TenantObjects(ctx context.Context, kind, layout string, tenantID
 		if err != nil {
 			return 0, errors.New("storage: tenant namespace unavailable")
 		}
-		defer func() { _ = tenant.Close() }()
-		return visitTenantObjects(ctx, tenant, "", remove)
+		count, err := visitTenantObjects(ctx, tenant, "", remove)
+		_ = tenant.Close()
+		if err != nil || !remove {
+			return count, err
+		}
+		// The emptied tenant directory goes too, so no path names the tenant.
+		if err := dir.Remove(id); err != nil && !os.IsNotExist(err) {
+			return count, errors.New("storage: removal failed")
+		}
+		return count, nil
 	}
 	return visitTenantObjects(ctx, dir, id+"_", remove)
 }

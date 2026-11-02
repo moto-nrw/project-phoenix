@@ -29,3 +29,31 @@ func TestTenantErasureRejectsSymlinksAndMissingRoot(t *testing.T) {
 	_, err = NewLocal(root).TenantObjects(t.Context(), "student-photos", "tenantPrefix", namespaceID, false)
 	require.Error(t, err)
 }
+
+func TestTenantErasureRemovesTheEmptiedTenantDirectory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	// IDs are opaque namespace keys here, not database fixtures.
+	var namespaceID int64 = 74
+	tenantDir := filepath.Join(root, "files", fmt.Sprint(namespaceID))
+	require.NoError(t, os.MkdirAll(filepath.Join(tenantDir, "nested"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(tenantDir, "nested", "object"), []byte("synthetic"), 0600))
+	neighbour := filepath.Join(root, "files", fmt.Sprintf("%d0", namespaceID), "object")
+	require.NoError(t, os.MkdirAll(filepath.Dir(neighbour), 0700))
+	require.NoError(t, os.WriteFile(neighbour, []byte("synthetic"), 0600))
+
+	count, err := NewLocal(root).TenantObjects(t.Context(), "files", "tenantDir", namespaceID, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+	require.DirExists(t, tenantDir, "counting removes nothing")
+
+	count, err = NewLocal(root).TenantObjects(t.Context(), "files", "tenantDir", namespaceID, true)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
+	require.NoDirExists(t, tenantDir)
+	require.FileExists(t, neighbour)
+
+	count, err = NewLocal(root).TenantObjects(t.Context(), "files", "tenantDir", namespaceID, true)
+	require.NoError(t, err)
+	require.Zero(t, count, "a repeated removal finds nothing")
+}
