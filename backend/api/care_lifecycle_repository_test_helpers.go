@@ -14,8 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
@@ -63,7 +61,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	return CareLifecycleTestRepositories{
 		carePlan: carePlan.CarePlan,
 		lifecycle: carePlanCompose.CareLifecycleDependencies{
-			StudentDirectory: studentDirectoryView.NewReader(),
+			StudentDirectory: owners.StudentDirectoryReader(),
 			DB:               db.Pool(), Records: carePlan.CarePlan,
 			Owners: owners.NewCareLifecycleOwners(
 				members.Student, members.Person, membership, people, tt.Timetable, calendar,

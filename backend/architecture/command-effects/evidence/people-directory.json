@@ -5737,6 +5737,14 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "binding_digest": "4557260decede81439b525480269dc45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.StudentDirectoryRows.OpenStudentHealth",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentModelRows",
       "binding_digest": "13503f3a4a2d6fb23515d2723d1d1753",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.StudentDirectoryRows.StudentModelRows",
@@ -5889,6 +5897,22 @@
       "target_owner": "guardian-link-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "binding_digest": "69fa3156c6ffd623415530904e656f2f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.HealthOpener.OpenStudentHealth",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "binding_digest": "4557260decede81439b525480269dc45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.HealthOpener.OpenStudentHealth",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.AllSchoolsStudentModelRows",
       "binding_digest": "d2aef48c448702cb642c5a1da347c9b7",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.AllSchoolsStudentModelRows",
@@ -5918,6 +5942,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.AllSchoolsStudentRows",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.AllSchoolsStudentRows",
+      "target_owner": "student-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "binding_digest": "69fa3156c6ffd623415530904e656f2f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest.StudentDirectory.OpenStudentHealth",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
+      "binding_digest": "4557260decede81439b525480269dc45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentDirectory.OpenStudentHealth",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.OpenStudentHealth",
       "target_owner": "student-directory-view"
     },
     {

@@ -6281,6 +6281,14 @@
       "target_owner": "student-directory-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "binding_digest": "29b2be372097d3038b5c2988cb33b9d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.SealStudentHealth",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.SealStudentHealth",
+      "target_owner": "student-directory-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres.Reader.StudentDisplayRows",
       "binding_digest": "d09392f08ac5317022fc87c03b566ea5",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.StudentDirectory.StudentDisplayRows",

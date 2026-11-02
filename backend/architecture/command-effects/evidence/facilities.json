@@ -146,7 +146,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom",
-      "binding_digest": "51416ef8ed57d550eb5688afb7e090d3",
+      "binding_digest": "123d319663b42c44b8796d1772250393",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListByRoom",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.LiveGroup.StartedOn",
@@ -154,7 +154,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListByRoom",
-      "binding_digest": "aa1d687355ad683a85ffacaa60af6148",
+      "binding_digest": "2de7947590ec6780ccbbfa6bd1951a1a",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListByRoom",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
@@ -162,7 +162,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors",
-      "binding_digest": "fbe54426a43d722bc42bb066b961e9fd",
+      "binding_digest": "baa2996c91e71744a9730773e3738733",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListSupervisors",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.GroupSupervision.EndedOn",
@@ -170,7 +170,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListSupervisors",
-      "binding_digest": "ee36b0bc3a662b2848f7e2da312739d5",
+      "binding_digest": "0edca624106385f82104a58a1224e263",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListSupervisors",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
@@ -178,7 +178,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.openGroupCatalogAdapter.ListVisits",
-      "binding_digest": "af78f72b9c9ee8fd7221c79c212d4916",
+      "binding_digest": "da1df9ec492dfa6a02a86dc26f3687bc",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.OpenGroupCatalog.ListVisits",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",

@@ -21,14 +21,18 @@ type studentRosterRow struct {
 	AccountID *int64  `bun:"account_id"`
 }
 
-func (r studentRosterRow) toRosterEntry() directory.StudentRosterEntry {
+func (r studentRosterRow) toRosterEntry(health HealthOpener) (directory.StudentRosterEntry, error) {
+	record, err := r.toDomain(health)
+	if err != nil {
+		return directory.StudentRosterEntry{}, err
+	}
 	return directory.StudentRosterEntry{
-		Record:    directory.StudentStateFromRecord(r.toDomain()),
+		Record:    directory.StudentStateFromRecord(record),
 		FirstName: r.FirstName,
 		LastName:  r.LastName,
 		TagID:     r.TagID,
 		AccountID: r.AccountID,
-	}
+	}, nil
 }
 
 // selectStudentRoster is the shared shape of every roster read: the child's own
@@ -67,7 +71,11 @@ func (s *studentDirectoryReads) selectStudentRoster(
 	stats.Rows = int64(len(rows))
 	result := make([]directory.StudentRosterEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, row.toRosterEntry())
+		entry, err := row.toRosterEntry(s.rows)
+		if err != nil {
+			return nil, stats, err
+		}
+		result = append(result, entry)
 	}
 	return result, stats, nil
 }

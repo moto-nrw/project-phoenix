@@ -970,7 +970,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.provisioningPeople.ListPersons",
-      "binding_digest": "97f37969a9032f7c67cc659159a37e8c",
+      "binding_digest": "e84304ed3bd236f6da9aa14e283f5eb9",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.ListPersons",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.OperatorPersonStudentMembership",

@@ -22,7 +22,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
@@ -53,7 +52,7 @@ func BuildParentPortal(
 	if err != nil {
 		return nil, err
 	}
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), StudentDirectoryReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, fmt.Errorf("compose parent portal care profiles: %w", err)
 	}

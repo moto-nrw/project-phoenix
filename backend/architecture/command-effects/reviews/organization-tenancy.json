@@ -1285,7 +1285,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningPeople.ListPersons",
-      "reason": "Read-only newly exposed target: organization-tenancy reaches modules/peopledirectory/compose.OperatorPersonStudentMembership (people-directory) through roots/owners.provisioningPeople.ListPersons. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: organization-tenancy reaches modules/peopledirectory/compose.OperatorPersonStudentMembership (people-directory) through roots/owners.provisioningPeople.ListPersons. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #5472: the binding body changed only because the root closure builds the student directory reader over the health key ring; same target, same effect.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.OperatorPersonStudentMembership",
       "target_owner": "people-directory"

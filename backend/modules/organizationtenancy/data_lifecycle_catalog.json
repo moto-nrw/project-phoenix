@@ -309,7 +309,7 @@
     {"name": "users.student_care_exit_removals", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},
     {"name": "users.student_care_exit_source_removals", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},
     {"name": "users.student_care_exits", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "recorded_by": "auth.accounts.id"}},
-    {"name": "users.student_care_profiles", "scope": "tenant", "export": "include", "personKeys": {"membership_id": "users.student_school_memberships.id"}},
+    {"name": "users.student_care_profiles", "scope": "tenant", "export": "include", "reason": "Care row of a child; its health field is sealed with HEALTH_DATA_KEYS (#5472) and leaves in the export only sealed.", "personKeys": {"membership_id": "users.student_school_memberships.id"}},
     {"name": "users.student_companions", "scope": "tenant", "export": "include", "personKeys": {"student_low_id": "users.student_profiles.id", "student_high_id": "users.student_profiles.id"}},
     {"name": "users.student_data_change_requests", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"field_key": "Field identifier, not a secret."}, "personKeys": {"student_id": "users.student_profiles.id", "submitted_by": "auth.accounts.id", "reviewed_by": "auth.accounts.id"}},
     {"name": "users.student_document_file_cleanup", "scope": "tenant", "export": "include"},

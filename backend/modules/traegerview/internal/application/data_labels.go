@@ -27,6 +27,7 @@ var dataLabels = map[string]string{
 	"class_absence_list_export":    "Fehlzeiten einer Klasse (Export)",
 	"supervision_student_sheet":    "Abholung und Notfallkontakte eines Kindes",
 	"student_health_list_export":   "Gesundheitsliste (Export)",
+	"student_health_view":          "Gesundheitsangaben eines Kindes",
 	"attendance_statistics":        "Statistik der Anwesenheit",
 	"time_tracking_export":         "Arbeitszeiten des Personals (Export)",
 	"traeger_access_log":           "Zugriffsprotokoll im Träger-Portal",

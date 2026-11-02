@@ -28,7 +28,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -161,7 +160,7 @@ func BuildPeopleDirectory(db transactionruntime.Database, observe func(peopleCom
 	if err != nil {
 		return nil, err
 	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
+	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), StudentDirectoryReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}

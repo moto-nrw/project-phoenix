@@ -29,8 +29,10 @@ type studentRecordRow struct {
 	AddressCity       *string `bun:"address_city"`
 	AddressPostalCode *string `bun:"address_postal_code"`
 
-	ExtraInfo    *string `bun:"extra_info"`
-	HealthInfo   *string `bun:"health_info"`
+	ExtraInfo *string `bun:"extra_info"`
+	// HealthInfo travels with the record; its sealed column belongs to Care
+	// Plan, which the write path hands it to (#5472).
+	HealthInfo   *string `bun:"-"`
 	PickupStatus *string `bun:"pickup_status"`
 
 	DepartureDays          domain.DepartureDays         `bun:"departure_days"`
