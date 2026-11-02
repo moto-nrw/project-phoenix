@@ -1,0 +1,6 @@
+{
+  "scenario": "api.rooms.available",
+  "max": 4,
+  "exact": true,
+  "description": "Protected JWT available rooms route with real owner capabilities and tenant transaction at N=3/N=8, filter-matching foreign tenant excluded, exact response values and zero writes. Positive occupancy/visits/supervisor labels on paginated root only. Outer host session-liveness checks excluded."
+}
