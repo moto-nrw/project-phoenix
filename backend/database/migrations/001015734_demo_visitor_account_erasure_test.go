@@ -127,3 +127,31 @@ func TestDemoVisitorErasureNeverWaitsForALock(t *testing.T) {
 	assert.Regexp(t, `EXCEPTION WHEN lock_not_available OR deadlock_detected THEN\s+RAISE LOG 'demo visitor erasure skipped this run`, definition,
 		"a locked table the erasure scan reads skips the erasure")
 }
+
+// 1.15.734 can run after 1.15.735 (#5562), as it does where that one was
+// deployed first: the runner applies every unapplied migration, and neither
+// depends on the other. The trigger of 1.15.735 stays and fires on none of
+// the writes of the demo run (deferral counter, status, row delete).
+func TestDemoVisitorAccountErasureRunsAfterTheDemoSchoolOrigins(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	require.NoError(t, demoVisitorAccountErasureDown(ctx, db))
+	require.NoError(t, demoVisitorAccountErasureUp(ctx, db))
+
+	var trigger string
+	require.NoError(t, db.NewRaw(`SELECT pg_get_triggerdef(oid) FROM pg_trigger
+		WHERE tgname = 'demo_school_states_record_origin'`).Scan(ctx, &trigger))
+	assert.Contains(t, trigger, "AFTER INSERT OR UPDATE OF tenant_id, visitor_school_ids ON platform.demo_school_states")
+	for _, column := range []string{"erasure_deferrals", "status"} {
+		assert.NotContains(t, trigger, column, "the demo run's writes do not fire the origin trigger")
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_demo`)
+	require.NoError(t, err)
+	var retired struct{ Hidden, Erased int }
+	require.NoError(t, tx.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools('{}'::text[])`).Scan(ctx, &retired))
+}
