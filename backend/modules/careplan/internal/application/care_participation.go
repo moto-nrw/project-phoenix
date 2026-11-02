@@ -126,8 +126,8 @@ func (s *CareLifecycle) inUnitApplyBookingAuthoritySetting(ctx context.Context, 
 		return nil, err
 	}
 	if !enabled {
-		_, err := s.records.MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx, time.Now())
-		if err == nil {
+		changed, err := s.records.MarkPendingWithdrawalsObsoleteForWeeklyPlans(ctx, time.Now())
+		if err == nil && changed > 0 {
 			s.announcePlanningChange(ctx)
 		}
 		return &careplan.BookingAuthorityImpact{
@@ -143,12 +143,15 @@ func (s *CareLifecycle) inUnitApplyBookingAuthoritySetting(ctx context.Context, 
 	if len(impact.BlockingChildren) > 0 {
 		return impact, careplan.ErrBookingAuthorityBlocked
 	}
-	if _, err := s.reconcileBookingEvaluations(ctx, evaluations, on); err != nil {
+	changed, err := s.reconcileBookingEvaluations(ctx, evaluations, on)
+	if err != nil {
 		return nil, err
 	}
 	// The planned completions decide who still counts as cared for, so the
 	// planned child counts move with the switch (#5554).
-	s.announcePlanningChange(ctx)
+	if changed {
+		s.announcePlanningChange(ctx)
+	}
 	return impact, nil
 }
 

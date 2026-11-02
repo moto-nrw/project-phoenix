@@ -129,15 +129,26 @@ func TestCareLifecycle_BookingExpiryAnnouncesToStaffingViews(t *testing.T) {
 func TestCareLifecycle_BookingAuthoritySwitchAnnouncesToStaffingViews(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
+	scope := testpkg.NewTenantScope(t, db)
 	today := calendar.NewDate(2026, 8, 24)
 	svc, broadcaster := newAnnouncingCareLifecycleAt(t, db, today, false)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Nora", "Umstellung", "2b")
+	expiresOn := today.AddDays(5)
+	createCareBooking(t, db, scope, student.ID, "staffing-switch", nil, &expiresOn)
 
-	_, err := testpkg.TenantQuery2(t, ctx, db, svc.ApplyBookingAuthoritySetting, today, true)
+	_, err := testpkg.TenantQuery2(t, scope.Context(), db, svc.ApplyBookingAuthoritySetting, today, true)
 	require.NoError(t, err)
-	require.Len(t, staffingAnnouncements(t, broadcaster, testpkg.Tenant(t)), 1, "switching on wakes the staffing views")
+	require.Len(t, staffingAnnouncements(t, broadcaster, scope.TenantID), 1, "switching on wakes the staffing views")
 
-	_, err = testpkg.TenantQuery2(t, ctx, db, svc.ApplyBookingAuthoritySetting, today, false)
+	_, err = testpkg.TenantQuery2(t, scope.Context(), db, svc.ApplyBookingAuthoritySetting, today, true)
 	require.NoError(t, err)
-	assert.Len(t, staffingAnnouncements(t, broadcaster, testpkg.Tenant(t)), 2, "switching off wakes them again")
+	assert.Len(t, staffingAnnouncements(t, broadcaster, scope.TenantID), 1, "an unchanged enabled setting wakes nobody")
+
+	_, err = testpkg.TenantQuery2(t, scope.Context(), db, svc.ApplyBookingAuthoritySetting, today, false)
+	require.NoError(t, err)
+	require.Len(t, staffingAnnouncements(t, broadcaster, scope.TenantID), 2, "switching off wakes the staffing views")
+
+	_, err = testpkg.TenantQuery2(t, scope.Context(), db, svc.ApplyBookingAuthoritySetting, today, false)
+	require.NoError(t, err)
+	assert.Len(t, staffingAnnouncements(t, broadcaster, scope.TenantID), 2, "an unchanged disabled setting wakes nobody")
 }
