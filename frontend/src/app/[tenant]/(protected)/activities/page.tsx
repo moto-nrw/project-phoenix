@@ -422,10 +422,10 @@ function ActivitiesPageContent() {
       {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
       <Button
         type="button"
-        variant="primary"
+        variant="fab"
         size="icon"
         onClick={() => setIsQuickCreateOpen(true)}
-        className="fixed right-4 bottom-24 z-40 h-14 w-14 rounded-full md:hidden"
+        className="fixed right-4 bottom-24 z-40 md:hidden"
         aria-label="Aktivität erstellen"
       >
         <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />

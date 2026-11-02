@@ -1,10 +1,5 @@
 {
   "no-hand-rolled-button": {
-    "src/app/[tenant]/(protected)/database/personal/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/students/page.tsx": 1,
-    "src/app/[tenant]/(protected)/meal-plan/page.tsx": 1,
-    "src/app/[tenant]/(protected)/parent-announcements/page.tsx": 3,
     "src/app/[tenant]/(protected)/profile/page.tsx": 1,
     "src/app/[tenant]/page.tsx": 1,
     "src/app/help/nfc/erste-schritte/page.tsx": 1,
@@ -74,14 +69,6 @@
     "src/components/ui/planning-context-bar.tsx": 1
   },
   "no-button-override": {
-    "src/app/[tenant]/(protected)/activities/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/personal/import/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/students/class-list/import/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/students/import/page.tsx": 1,
-    "src/app/[tenant]/(protected)/database/students/page.tsx": 1,
-    "src/app/[tenant]/(protected)/day-log/page.tsx": 1,
-    "src/app/[tenant]/(protected)/home/page.tsx": 1,
-    "src/app/[tenant]/(protected)/time-tracking/page.tsx": 5,
     "src/components/active-supervisions/open-room-sections.tsx": 1,
     "src/components/active-supervisions/past-blocks-section.tsx": 1,
     "src/components/active-supervisions/timetable-roster.tsx": 4,

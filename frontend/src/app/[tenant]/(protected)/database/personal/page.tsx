@@ -5,7 +5,7 @@ import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "~/components/ui/navigation-link";
+import { ButtonLink } from "~/components/ui/button";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -407,12 +407,13 @@ function TeachersPageContent() {
                   onChange={handleGroupingChange}
                 />
                 {canImportStaff ? (
-                  <Link
+                  <ButtonLink
                     href={tenantPath("/database/personal/import")}
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    variant="outline"
+                    size="md"
                   >
                     Importieren
-                  </Link>
+                  </ButtonLink>
                 ) : null}
               </>
             ) : null}
