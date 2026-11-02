@@ -8,7 +8,14 @@ import {
   it,
   vi,
 } from "vitest";
-import { createServer, get, ServerResponse, type Server } from "node:http";
+import {
+  createServer,
+  get,
+  IncomingMessage,
+  ServerResponse,
+  type Server,
+} from "node:http";
+import { Socket } from "node:net";
 import type { AddressInfo } from "node:net";
 import { encode, getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
@@ -717,5 +724,130 @@ describe("session cookie names at the exit", () => {
 
     expect(names.some(isSessionCookieName)).toBe(false);
     expect(await setCookiesAt("/app-cookies")).toEqual(lines);
+  });
+});
+
+// #5520 re-check: the exit never throws for its own sake. A response without
+// a request context, an unusual header form or a failure inside the lock
+// leaves without the session cookie, and Node judges the rest as without the
+// lock.
+describe("the exit never throws", () => {
+  /** A response no server emitted: no request context, no approvals. */
+  const response = () =>
+    new ServerResponse(new IncomingMessage(new Socket())) as RawResponse;
+  /** The head Node would send. */
+  const head = (res: ServerResponse) =>
+    (res as unknown as { _header: string | null })._header ?? "";
+  let line: string;
+  beforeEach(async () => {
+    line = `${NAME}=${await sealed()}; Path=/`;
+  });
+
+  it.each<[string, (res: RawResponse) => void]>([
+    ["no headers argument", (res) => res.writeHead(200)],
+    ["undefined headers", (res) => res.writeHead(200, undefined)],
+    ["undefined after a message", (res) => res.writeHead(200, "OK", undefined)],
+    ["a number Set-Cookie", (res) => res.writeHead(200, { "Set-Cookie": 5 })],
+    [
+      "raw header pairs",
+      (res) =>
+        res.writeHead(200, [
+          "Set-Cookie",
+          line,
+          "X-Probe",
+          "1",
+          "Set-Cookie",
+          "a=1",
+        ]),
+    ],
+    [
+      "header tuples",
+      (res) =>
+        res.writeHead(200, [
+          ["Set-Cookie", line],
+          ["X-Probe", "1"],
+        ] as unknown as string[]),
+    ],
+    [
+      "the writeHeader alias",
+      (res) => res.writeHeader(200, { "Set-Cookie": [line, "a=1"] }),
+    ],
+  ])("writes %s without a request context", (_, write) => {
+    const res = response();
+    res.setHeader("Set-Cookie", [line, "kept=1"]);
+
+    expect(() => write(res)).not.toThrow();
+    expect(head(res)).not.toContain(`${NAME}=`);
+    expect(head(res)).toMatch(/^HTTP\/1\.1 200/);
+  });
+
+  it("reads numbers in a cached Set-Cookie list", () => {
+    const res = response();
+    res.setHeader("Set-Cookie", [1, 2] as unknown as string[]);
+
+    expect(() => res.writeHead(200)).not.toThrow();
+    expect(head(res)).toContain("Set-Cookie: 1");
+  });
+
+  it("writes an undefined Set-Cookie without any Set-Cookie instead of throwing", () => {
+    const res = response();
+    res.setHeader("Set-Cookie", line);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() =>
+        res.writeHead(200, {
+          "Set-Cookie": undefined,
+          "X-Probe": "1",
+        } as never),
+      ).not.toThrow();
+      expect(head(res)).not.toContain("Set-Cookie");
+      expect(head(res)).toContain("X-Probe: 1");
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("leaves raw pairs of odd length to Node's own error, without the session cookie", () => {
+    const res = response();
+    res.setHeader("Set-Cookie", line);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => res.writeHead(200, ["Set-Cookie", line, "X-Probe"])).toThrow(
+        expect.objectContaining({ code: expect.stringMatching(/^ERR_/) }),
+      );
+      expect(head(res)).not.toContain(`${NAME}=`);
+      expect(res.getHeader("set-cookie")).toBeUndefined();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("drops every Set-Cookie and keeps the response when the lock fails", () => {
+    const failing = Object.getOwnPropertyDescriptor(env, "TENANT_DOMAIN");
+    Object.defineProperty(env, "TENANT_DOMAIN", {
+      configurable: true,
+      get() {
+        throw new Error("configuration unreadable");
+      },
+    });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = response();
+      res.setHeader("Set-Cookie", [line, "a=1"]);
+
+      expect(() =>
+        res.writeHead(200, { "Set-Cookie": line, "X-Probe": "1" }),
+      ).not.toThrow();
+      expect(head(res)).not.toContain("Set-Cookie");
+      expect(head(res)).toContain("X-Probe: 1");
+      expect(errors).toHaveBeenCalledWith(
+        "session_cookie_exit_failed",
+        expect.objectContaining({ error: "configuration unreadable" }),
+      );
+    } finally {
+      errors.mockRestore();
+      if (failing) Object.defineProperty(env, "TENANT_DOMAIN", failing);
+      else delete (env as { TENANT_DOMAIN?: string }).TENANT_DOMAIN;
+    }
   });
 });

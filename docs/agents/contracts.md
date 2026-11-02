@@ -583,7 +583,10 @@ old session back; the browser only saves requests.
    ≤ 0 and an `Expires` that is a valid date not later than now. Any value,
    a repeated, contradicting or unreadable lifetime needs an approval. Every
    other line is dropped and logged as `session_cookie_write_refused_at_exit`
-   with the cookie name, never the value. Without the lock the gate throws,
+   with the cookie name, never the value. The exit itself never throws: a
+   head it cannot read leaves without any Set-Cookie line and is logged as
+   `session_cookie_exit_failed`; Node judges the rest. Without the lock the
+   gate throws,
    so every response through it fails loudly instead of leaving the exit
    open; the test setup installs it as production does. Not covered: an
    HTTP/2 server and the Edge runtime (neither is used; every route runs on

@@ -273,7 +273,7 @@ describe("session cookie writers", () => {
       // none of them hands a writer out.
       "src/lib/session-cookie-exit.server.ts": {
         kinds: ["cookie-header", "module-export"],
-        proof: /const admitted = admitSetCookies\(this, lines\);/,
+        proof: /const admitted = admitSetCookies\(response, lines\);/,
       },
       // finishResponse composes the route's cookies, then calls the exit.
       "src/server/auth/route-handler.ts": {

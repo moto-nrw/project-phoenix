@@ -210,12 +210,14 @@ function sessionCookieWrite(setCookie: string): string | null {
  */
 function admitSetCookies(
   response: ServerResponse,
-  setCookies: readonly string[],
-): string[] {
+  setCookies: readonly unknown[],
+): unknown[] {
   const approved = exitState().responses.get(response)?.lines;
   return setCookies.filter((setCookie) => {
-    const name = sessionCookieWrite(setCookie);
-    if (name === null || approved?.has(setCookie.trim())) return true;
+    // Node takes any value for a header, numbers included.
+    const line = String(setCookie);
+    const name = sessionCookieWrite(line);
+    if (name === null || approved?.has(line.trim())) return true;
     logger.error("session_cookie_write_refused_at_exit", { cookie: name });
     return false;
   });
@@ -300,6 +302,51 @@ function lockEmit(prototype: Server | HttpsServer) {
   prototype.emit = locked;
 }
 
+/** Merges writeHead's Set-Cookie into the response, then admits it once. */
+function filterHead(response: ServerResponse, args: unknown[], index: number) {
+  if (args.length > index)
+    args[index] = mergeCookieHeaders(response, args[index]);
+  const own = response.getHeader("set-cookie");
+  if (own === undefined || typeof own === "number") return;
+  const lines: unknown[] = typeof own === "string" ? [own] : own;
+  const admitted = admitSetCookies(response, lines);
+  if (admitted.length === lines.length) return;
+  if (admitted.length) response.setHeader("set-cookie", admitted as string[]);
+  else response.removeHeader("set-cookie");
+}
+
+/** Takes every Set-Cookie out of the head, without throwing. */
+function dropSetCookies(
+  response: ServerResponse,
+  args: unknown[],
+  index: number,
+  given: unknown,
+) {
+  try {
+    response.removeHeader("set-cookie");
+  } catch {
+    // A response that refuses removeHeader already sent its head.
+  }
+  if (args.length <= index) return;
+  try {
+    if (Array.isArray(given)) {
+      args[index] =
+        given.length && Array.isArray(given[0])
+          ? (given as unknown[][]).filter(([name]) => !isSetCookie(name))
+          : given.filter(
+              (_, i) => !isSetCookie(given[i % 2 === 0 ? i : i - 1]),
+            );
+    } else if (given && typeof given === "object") {
+      args[index] = Object.fromEntries(
+        Object.entries(given).filter(([name]) => !isSetCookie(name)),
+      );
+    } else args[index] = given;
+  } catch {
+    // Unreadable headers do not leave with this head.
+    args[index] = undefined;
+  }
+}
+
 /** Filters every response head at writeHead and its legacy writeHeader alias. */
 function lockWriteHead() {
   const writeHead = ServerResponse.prototype.writeHead as WriteHead;
@@ -310,16 +357,17 @@ function lockWriteHead() {
   const locked = function (this: ServerResponse, ...args: unknown[]) {
     if (!this.headersSent) {
       const index = typeof args[1] === "string" ? 2 : 1;
-      if (args.length > index)
-        args[index] = mergeCookieHeaders(this, args[index]);
-      const own = this.getHeader("set-cookie");
-      if (own !== undefined && typeof own !== "number") {
-        const lines = typeof own === "string" ? [own] : own;
-        const admitted = admitSetCookies(this, lines);
-        if (admitted.length !== lines.length) {
-          if (admitted.length) this.setHeader("set-cookie", admitted);
-          else this.removeHeader("set-cookie");
-        }
+      const given = args[index];
+      try {
+        filterHead(this, args, index);
+      } catch (error) {
+        // The exit never throws for its own sake: whatever it cannot read
+        // leaves without any Set-Cookie line (fail-closed), and Node judges
+        // the rest of the head as without the lock.
+        logger.error("session_cookie_exit_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        dropSetCookies(this, args, index, given);
       }
     }
     return Reflect.apply(writeHead, this, args) as ServerResponse;
