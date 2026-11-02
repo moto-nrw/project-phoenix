@@ -58,7 +58,9 @@ Beziehungsrechte vor der Zustellung erneut prüft. Die Sicht
 Konto und Schule Zuordnung, Rolle und Kind-Freigabe für diese Prüfung. Die Kopie ist `tenant`, wird
 nicht zurückgegeben (kein Schuldatensatz, nur ein Zustellhilfsmittel) und mit
 der Schule gelöscht; die
-nächtliche Delivery-Aufbewahrung löscht sie vorher.
+nächtliche Delivery-Aufbewahrung löscht sie vorher. Beim Löschen eines
+Demo-Besuchs entfernt `platform.erase_closed_demo_visitors` seit Migration
+1.15.732 alle Kopien der ausgemusterten Demo-Schule mit (#5540).
 
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
