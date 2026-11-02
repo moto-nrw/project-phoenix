@@ -108,7 +108,7 @@ function CopyValueRow({
         </p>
         <Button
           type="button"
-          size="sm"
+          size="md"
           variant={copied ? "success" : "outline"}
           className="shrink-0 sm:min-w-28"
           aria-describedby={id}

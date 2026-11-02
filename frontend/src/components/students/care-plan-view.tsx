@@ -348,15 +348,21 @@ export function CarePlanView({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorheriger Tag</span>
               </NavButton>
-              <Button
-                type="button"
-                variant="surface"
-                size="md"
-                disabled={selectedDate === today}
-                onClick={() => setSelectedDate(today)}
-              >
-                Heute
-              </Button>
+              {selectedDate === today ? (
+                // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
+                <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
+                  Heute
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="surface"
+                  size="md"
+                  onClick={() => setSelectedDate(today)}
+                >
+                  Heute
+                </Button>
+              )}
               <NavButton
                 ariaLabel="Nächster Tag"
                 onClick={() =>
@@ -376,15 +382,21 @@ export function CarePlanView({
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
               </NavButton>
-              <Button
-                type="button"
-                variant="surface"
-                size="md"
-                disabled={isCurrentWeek}
-                onClick={() => setWeekStartISO(currentWeekStartISO)}
-              >
-                Diese Woche
-              </Button>
+              {isCurrentWeek ? (
+                // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
+                <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
+                  Diese Woche
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="surface"
+                  size="md"
+                  onClick={() => setWeekStartISO(currentWeekStartISO)}
+                >
+                  Diese Woche
+                </Button>
+              )}
               <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

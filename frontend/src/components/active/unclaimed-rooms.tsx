@@ -228,10 +228,10 @@ export function UnclaimedRooms({
       {hasSupervisors && (
         <Button
           type="button"
-          variant="surface"
+          variant="ghost_tone"
           size="icon"
           onClick={handleDismiss}
-          className="absolute -top-3 -right-3 z-10"
+          className="absolute top-2 right-2"
           aria-label="Banner schließen"
         >
           <X className="h-4 w-4" aria-hidden="true" />

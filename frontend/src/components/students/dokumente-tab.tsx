@@ -426,7 +426,7 @@ export function StudentDokumenteTab({
                 <Button
                   type="button"
                   variant="link"
-                  size="compact"
+                  size="md"
                   disabled={uploading || !effectiveUploadCategory}
                   onClick={() => fileInputRef.current?.click()}
                 >

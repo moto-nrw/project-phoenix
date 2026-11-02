@@ -146,7 +146,8 @@ export const buttonRatchetAllowlist = [
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
     lines: [172],
-    reason: "Klassenkarte (Kachel, size card mit Mindesthöhe)",
+    reason:
+      "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
   {
     rule: "no-hand-rolled-button",
@@ -193,7 +194,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-plan-view.tsx",
-    lines: [495],
+    lines: [507],
     reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {

@@ -131,7 +131,6 @@ export function DatabaseCreateAction({
             className="fixed right-4 bottom-24 z-40 flex md:hidden"
             // Schwebender Symbolknopf: Das Portal löst ihn aus dem
             // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.
-            data-icon-only=""
             data-setup-tour="create"
             aria-label={ariaLabel}
           >
