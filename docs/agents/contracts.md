@@ -939,6 +939,9 @@ demo process ticks only schools redeemed in the last 30 minutes (#3464) and,
 for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `auth.demo_accesses` and delete rows, and read and set `deleted_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
+For the file erasure of retired demo schools (#5544, ADR 0148) it reads and
+adds rows of `platform.demo_school_file_erasures` (migration 1.15.735), never
+changes or deletes one.
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,

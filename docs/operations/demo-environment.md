@@ -18,8 +18,10 @@ The provisioning API, simulator and demo banner are separate work in #3456.
 | PostgreSQL | `127.0.0.1:5434` | None; SSH tunnel only |
 
 Compose owns the `demo` network and PostgreSQL volume within its own project.
-The uploads volume is explicitly named `phoenix-demo-uploads`. Nothing mounts
-the staging or production volumes. Containers reach the API as `server:8080`
+The uploads volume is explicitly named `phoenix-demo-uploads`; the server and
+the demo process mount it, the demo process only to remove the files of
+retired demo schools (#5544, ADR 0148). Nothing mounts the staging or
+production volumes. Containers reach the API as `server:8080`
 and PostgreSQL as `postgres:5432`, never through a public host. The demo
 process shares the server's network namespace and calls the API as
 `127.0.0.1:8080`; the server's rate limiters exempt that loopback peer only
