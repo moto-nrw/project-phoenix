@@ -22,11 +22,65 @@ func init() {
 }
 
 func demoVisitorErasureSchoolMailUp(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, demoVisitorErasureSchoolMailUpSQL); err != nil {
-		return fmt.Errorf("erase the mail of retired demo schools with their visitor: %w", err)
-	}
-	return nil
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, demoVisitorErasureSchoolMailUpSQL); err != nil {
+			return fmt.Errorf("erase the mail of retired demo schools with their visitor: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, erasedDemoVisitorDeliveriesSQL); err != nil {
+			return fmt.Errorf("erase the deliveries left in demo schools of erased visitors: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, erasedDemoVisitorOutboxSQL); err != nil {
+			return fmt.Errorf("erase the mail left in demo schools of erased visitors: %w", err)
+		}
+		return nil
+	})
 }
+
+// erasedDemoVisitorDeliveriesSQL and erasedDemoVisitorOutboxSQL remove the
+// mail the function of 1.15.646 left behind. A visitor it erased has no
+// platform.demo_school_states row any more, so the function never reaches
+// those schools again. Their visitor accounts are recognizable: an account
+// the function anonymized carries the address demo-besuch-<id>@example.invalid
+// of its own id, and its persons and guardian profiles still link it to the
+// hidden demo schools. Only those schools lose their mail, not every
+// soft-deleted school; a school an open order still names is left to the
+// function. Running both again finds nothing. The old address of mail
+// without a school cannot be told reliably, so that mail is left (#5521).
+const erasedDemoVisitorDeliveriesSQL = `
+DELETE FROM platform.email_delivery
+WHERE tenant_id IN (
+	SELECT school.id FROM platform.schools AS school
+	WHERE school.deleted_at IS NOT NULL
+		AND EXISTS (
+			SELECT 1 FROM auth.accounts AS account
+			WHERE account.email = 'demo-besuch-' || account.id || '@example.invalid'
+				AND (
+					EXISTS (SELECT 1 FROM users.persons AS person
+						WHERE person.tenant_id = school.id AND person.account_id = account.id)
+					OR EXISTS (SELECT 1 FROM users.guardian_profiles AS guardian
+						WHERE guardian.tenant_id = school.id AND guardian.account_id = account.id)))
+		AND NOT EXISTS (
+			SELECT 1 FROM platform.demo_school_states AS state
+			WHERE state.tenant_id = school.id OR school.id = ANY (state.visitor_school_ids)))
+`
+
+const erasedDemoVisitorOutboxSQL = `
+DELETE FROM platform.email_outbox
+WHERE tenant_id IN (
+	SELECT school.id FROM platform.schools AS school
+	WHERE school.deleted_at IS NOT NULL
+		AND EXISTS (
+			SELECT 1 FROM auth.accounts AS account
+			WHERE account.email = 'demo-besuch-' || account.id || '@example.invalid'
+				AND (
+					EXISTS (SELECT 1 FROM users.persons AS person
+						WHERE person.tenant_id = school.id AND person.account_id = account.id)
+					OR EXISTS (SELECT 1 FROM users.guardian_profiles AS guardian
+						WHERE guardian.tenant_id = school.id AND guardian.account_id = account.id)))
+		AND NOT EXISTS (
+			SELECT 1 FROM platform.demo_school_states AS state
+			WHERE state.tenant_id = school.id OR school.id = ANY (state.visitor_school_ids)))
+`
 
 // demoVisitorErasureSchoolMailDown reinstalls the function exactly as 1.15.646
 // left it.
@@ -44,8 +98,9 @@ func demoVisitorErasureSchoolMailDown(ctx context.Context, db *bun.DB) error {
 // account. Since #4808 the scheduler mails the Leitung of a demo school, the
 // visitor's caregiver account, about expiring qualifications; the parent-only
 // match left those mails and the visitor's name in platform.email_outbox.
-// An exclusive visitor account also loses its mail without a school before
-// its address is replaced. The rest of the function is unchanged.
+// An exclusive visitor account also loses its mail without a school or Träger
+// before its address is replaced; a Träger member is no exclusive account.
+// The rest of the function is unchanged.
 const demoVisitorErasureSchoolMailUpSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
@@ -219,6 +274,14 @@ const demoVisitorErasureSchoolMailUpSQL = `
 							UNION ALL
 							SELECT 1 FROM platform.email_delivery AS delivery
 							WHERE delivery.account_id = account.id AND delivery.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							-- A Träger member is no demo-only account: it keeps its address,
+							-- its Träger access and its Träger mail (#5521).
+							SELECT 1 FROM platform.organization_accounts AS traeger_member
+							WHERE traeger_member.account_id = account.id
+							UNION ALL
+							SELECT 1 FROM auth.organization_account_roles AS traeger_role
+							WHERE traeger_role.account_id = account.id
 						);
 					IF cardinality(erased_account_ids) > 0 THEN
 						DELETE FROM auth.tokens WHERE account_id = ANY (erased_account_ids);
@@ -233,10 +296,11 @@ const demoVisitorErasureSchoolMailUpSQL = `
 						DELETE FROM auth.passkey_sessions WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM auth.demo_accesses
 						WHERE account_id = ANY (erased_account_ids) OR parent_account_id = ANY (erased_account_ids);
-						-- Mail without a school (password reset, MFA code) is addressed to
-						-- the account's address, which is about to be replaced.
+						-- Mail without a school or Träger (password reset, MFA code) is
+						-- addressed to the account's address, which is about to be replaced.
 						DELETE FROM platform.email_outbox
 						WHERE tenant_id IS NULL
+							AND organization_id IS NULL
 							AND LOWER(recipient->>'address') IN (
 								SELECT LOWER(email) FROM auth.accounts WHERE id = ANY (erased_account_ids));
 						DELETE FROM auth.password_reset_rate_limits
