@@ -278,9 +278,9 @@ func TestDetectBookingLeftoversJudgesTheRowsFirstDay(t *testing.T) {
 	assert.Empty(t, leftovers, "the Mensa booking carries every Thursday from 03.12. on")
 }
 
-// A current gap is not hidden by a later booking that ends as well (quorum
-// review of #5452): the removal starts with the first uncarried Thursday.
-func TestDetectBookingLeftoversStartsWithTheEarliestGap(t *testing.T) {
+// A later booking can end after carrying an earlier gap. Both uncovered
+// intervals need a removal; the booking days between them stay planned.
+func TestDetectBookingLeftoversNamesEachDisjointGap(t *testing.T) {
 	t.Parallel()
 	later, laterEnds := calendar.NewDate(2026, 12, 1), calendar.NewDate(2027, 1, 5)
 	bookings := []timetable.OfferingWeekdayBooking{
@@ -289,9 +289,14 @@ func TestDetectBookingLeftoversStartsWithTheEarliestGap(t *testing.T) {
 	}
 	leftovers := timetable.DetectBookingLeftovers(leftoverScope(),
 		[]timetable.BookingLeftoverTemplate{handTemplate(handRow(leftoverChild))}, bookings)
-	require.Len(t, leftovers, 1)
+	require.Len(t, leftovers, 2, "%+v", leftovers)
 	assert.Equal(t, calendar.NewDate(2026, 11, 5), leftovers[0].From, "the first Thursday without a booking")
-	assert.Equal(t, laterEnds, leftovers[0].BookingEndedOn, "Bleibt so covers every ended booking of the day")
+	require.NotNil(t, leftovers[0].Until)
+	assert.Equal(t, later, *leftovers[0].Until)
+	assert.Equal(t, leftoverChange, leftovers[0].BookingEndedOn)
+	assert.Equal(t, calendar.NewDate(2027, 1, 7), leftovers[1].From)
+	assert.Nil(t, leftovers[1].Until)
+	assert.Equal(t, laterEnds, leftovers[1].BookingEndedOn)
 }
 
 // Adjacent cases of the same rule (quorum review of #5452): the first
