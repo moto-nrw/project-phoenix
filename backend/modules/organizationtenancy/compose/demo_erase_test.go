@@ -279,6 +279,169 @@ func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
 	assert.Zero(t, remaining, "an outbox without a delivery must still be erased by its recipient account")
 }
 
+// Since #4808 the scheduler mails the Leitung of a demo school, the visitor's
+// caregiver account, about expiring qualifications, and a mail to another
+// person of the school can name the visitor (an absence request names the
+// requester). Every mail of the retired school goes with the visitor (#5521),
+// and an exclusive visitor account also loses its mail without a school. The
+// mail of a school still open stays.
+func TestDemoSchoolQueueErasesEveryMailOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	_, err = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.MapAccountToTenant(t, db, accounts.caregiver, schoolID)
+	var caregiverEmail string
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, accounts.caregiver).Scan(ctx, &caregiverEmail))
+	mail := func(tenantID *int64, recipientName, recipientAddress, firstName, requesterName string) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, kind, related_entity_type, recipient, payload, status)
+			VALUES (?, 'transactional_mail', 'staff_qualification_reminder', jsonb_build_object('name', ?, 'address', ?),
+				jsonb_build_object('Content', jsonb_build_object('FirstName', ?, 'RequesterName', ?)), 'pending') RETURNING id`,
+			tenantID, recipientName, recipientAddress, firstName, requesterName).Scan(ctx, &id))
+		return id
+	}
+	reminder := mail(&schoolID, visitorFull, caregiverEmail, visitorFirst, "")
+	request := mail(&schoolID, "Anna Müller", "anna.mueller@example.org", "Anna", visitorFull)
+	_, err = db.NewRaw(`INSERT INTO platform.email_delivery (tenant_id, related_entity_type, related_entity_id, outbox_id, recipient_email)
+		VALUES (?, 'staff_absence', ?, ?, 'anna.mueller@example.org')`, schoolID, request, request).Exec(ctx)
+	require.NoError(t, err)
+	withoutSchool := mail(nil, visitorFull, caregiverEmail, visitorFirst, "")
+	stillOpen := mail(&openID, "Anna Müller", "anna.mueller@example.org", "Anna", "")
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
+
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, erased)
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM platform.email_outbox WHERE id IN (?) ORDER BY id`,
+		bun.List([]int64{reminder, request, withoutSchool, stillOpen})).Scan(ctx, &remaining))
+	assert.Equal(t, []int64{stillOpen}, remaining,
+		"the caregiver's reminder, the mail naming the visitor and the caregiver's mail without a school must be erased")
+	var deliveries int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_delivery WHERE tenant_id = ?`, schoolID).Scan(ctx, &deliveries))
+	assert.Zero(t, deliveries, "the retired school keeps no delivery record")
+}
+
+// retireVisitorOrder orders a demo school for the visitor accounts, finishes
+// and retires it, and requires that it erased the order.
+func retireVisitorOrder(t *testing.T, db *bun.DB, schoolID int64, accounts visitorAccounts) {
+	t.Helper()
+	ctx := t.Context()
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	require.Equal(t, 1, erased)
+}
+
+// visitorMail writes a mail to address into the school (nil: no school) and
+// the Träger (nil: none) and returns its id.
+func visitorMail(t *testing.T, db *bun.DB, schoolID, organizationID *int64, address string) int64 {
+	t.Helper()
+	var id int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, organization_id, kind, recipient, payload, status)
+		VALUES (?, ?, 'transactional_mail', jsonb_build_object('address', ?), '{}'::jsonb, 'pending') RETURNING id`,
+		schoolID, organizationID, address).Scan(t.Context(), &id))
+	return id
+}
+
+func remainingMails(t *testing.T, db *bun.DB, ids ...int64) []int64 {
+	t.Helper()
+	var remaining []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM platform.email_outbox WHERE id IN (?) ORDER BY id`, bun.List(ids)).Scan(t.Context(), &remaining))
+	return remaining
+}
+
+// A visitor account that is also a member of a Träger is no demo-only
+// account: it keeps its address, so its Träger mail and its mail without a
+// school stay (#5521).
+func TestDemoSchoolQueueKeepsTheTraegerMailOfAVisitorAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	_, err := db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.MapAccountToTenant(t, db, accounts.caregiver, schoolID)
+	var organizationID int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, schoolID).Scan(ctx, &organizationID))
+	_, err = db.NewRaw(`INSERT INTO platform.organization_accounts (organization_id, account_id, status, activated_at)
+		VALUES (?, ?, 'active', NOW())`, organizationID, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO auth.organization_account_roles (organization_id, account_id, role)
+		VALUES (?, ?, 'read_only')`, organizationID, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	var email string
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, accounts.caregiver).Scan(ctx, &email))
+	traegerMail := visitorMail(t, db, nil, &organizationID, email)
+	withoutSchool := visitorMail(t, db, nil, nil, email)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+	assert.Equal(t, []int64{traegerMail, withoutSchool}, remainingMails(t, db, traegerMail, withoutSchool),
+		"a Träger member keeps its Träger mail and its mail without a school")
+	var kept string
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, accounts.caregiver).Scan(ctx, &kept))
+	assert.Equal(t, email, kept, "a Träger member keeps its address")
+}
+
+// A visitor account that also belongs to a real school keeps that school's
+// mail and its mail without a school; only the retired demo school loses its
+// mail (#5521).
+func TestDemoSchoolQueueKeepsTheMailOfAVisitorAccountsRealSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	realID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	_, err := db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, accounts.caregiver).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.MapAccountToTenant(t, db, accounts.caregiver, schoolID)
+	testpkg.MapAccountToTenant(t, db, accounts.caregiver, realID)
+	var email string
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, accounts.caregiver).Scan(ctx, &email))
+	demoMail := visitorMail(t, db, &schoolID, nil, email)
+	realMail := visitorMail(t, db, &realID, nil, email)
+	_, err = db.NewRaw(`INSERT INTO platform.email_delivery (tenant_id, related_entity_type, related_entity_id, outbox_id, account_id, recipient_email)
+		VALUES (?, 'staff_absence', ?, ?, ?, ?)`, realID, realMail, realMail, accounts.caregiver, email).Exec(ctx)
+	require.NoError(t, err)
+	withoutSchool := visitorMail(t, db, nil, nil, email)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+	assert.Equal(t, []int64{realMail, withoutSchool}, remainingMails(t, db, demoMail, realMail, withoutSchool),
+		"only the retired demo school loses its mail")
+	var deliveries int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_delivery WHERE outbox_id = ?`, realMail).Scan(ctx, &deliveries))
+	assert.Equal(t, 1, deliveries, "the real school keeps its delivery record")
+}
+
 func TestDemoSchoolQueueRecoversVisitorAccountsAfterTheirStateWriteFails(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
