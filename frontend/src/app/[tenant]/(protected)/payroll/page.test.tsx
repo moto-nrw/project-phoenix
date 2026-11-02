@@ -18,6 +18,7 @@ const {
   updateWageTypeMock,
   updateSurchargeRuleMock,
   archiveWageTypeMock,
+  createSurchargeRuleMock,
   setAbsenceTypeWageTypeMock,
   swrData,
   swrKeys,
@@ -27,6 +28,7 @@ const {
   updateWageTypeMock: vi.fn(),
   updateSurchargeRuleMock: vi.fn(),
   archiveWageTypeMock: vi.fn(),
+  createSurchargeRuleMock: vi.fn(),
   setAbsenceTypeWageTypeMock: vi.fn(),
   // Per SWR key: the page loads the status, the latest dispatch and, for
   // the SFTP way, whether the counterpart is ready.
@@ -89,6 +91,7 @@ vi.mock("~/lib/payroll-rules-api", async (importOriginal) => ({
   updateWageType: updateWageTypeMock,
   updateSurchargeRule: updateSurchargeRuleMock,
   archiveWageType: archiveWageTypeMock,
+  createSurchargeRule: createSurchargeRuleMock,
   setAbsenceTypeWageType: setAbsenceTypeWageTypeMock,
 }));
 
@@ -461,6 +464,7 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
     updateWageTypeMock.mockResolvedValue(undefined);
     updateSurchargeRuleMock.mockResolvedValue(undefined);
     archiveWageTypeMock.mockResolvedValue(undefined);
+    createSurchargeRuleMock.mockResolvedValue(undefined);
     setAbsenceTypeWageTypeMock.mockResolvedValue(undefined);
     resetSwr();
     swrData["payroll-rules"] = { data: payrollRules() };
@@ -725,6 +729,44 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
       ),
     ).toBeInTheDocument();
     // Anker: Die Karten bleiben nach der erfolgreichen Archivierung sichtbar.
+    expect(
+      screen.getByRole("heading", { name: "Eigene Lohnarten" }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("schließt den Dialog nach einer angelegten Zuschlagsregel trotz fehlendem Refresh", async () => {
+    mutateMock.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    render(<PayrollPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zuschlagsregel anlegen" }),
+    );
+    fireEvent.change(screen.getByLabelText(/^Prozent/), {
+      target: { value: "25" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Lohnart" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Nachtzuschlag" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    await waitFor(() =>
+      expect(createSurchargeRuleMock).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Übersicht zu den Lohnarten und Zuschlägen",
+        ),
+      ),
+    ).toBeInTheDocument();
+    // Anker: Die Karten bleiben nach dem Anlegen sichtbar.
     expect(
       screen.getByRole("heading", { name: "Eigene Lohnarten" }),
     ).toBeInTheDocument();

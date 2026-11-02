@@ -13,6 +13,14 @@ const { createWageTypeMock, createSurchargeRuleMock } = vi.hoisted(() => ({
   createSurchargeRuleMock: vi.fn(),
 }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 vi.mock("~/lib/payroll-rules-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/payroll-rules-api")>()),
   createWageType: createWageTypeMock,
@@ -52,6 +60,25 @@ describe("payroll rule dialogs (#4807)", () => {
     );
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("schließt eine angelegte Lohnart, ohne auf das Nachladen zu warten", async () => {
+    const refreshed = deferred<void>();
+    const onCreated = vi.fn(() => refreshed.promise);
+    const onClose = vi.fn();
+    render(
+      <CreateWageTypeModal isOpen onClose={onClose} onCreated={onCreated} />,
+      { wrapper: ToastProvider },
+    );
+
+    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
+      target: { value: "Sonntagszuschlag" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    await waitFor(() => expect(createWageTypeMock).toHaveBeenCalledTimes(1));
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("legt keine Lohnart mit fünf Ziffern an", () => {
@@ -105,5 +132,42 @@ describe("payroll rule dialogs (#4807)", () => {
         wageTypeId: "7",
       }),
     );
+  });
+
+  it("schließt eine angelegte Zuschlagsregel, ohne auf das Nachladen zu warten", async () => {
+    const refreshed = deferred<void>();
+    const onCreated = vi.fn(() => refreshed.promise);
+    const onClose = vi.fn();
+    render(
+      <CreateSurchargeRuleModal
+        isOpen
+        wageTypes={[
+          {
+            id: "7",
+            name: "Nachtzuschlag",
+            number: "310",
+            unit: "stunden",
+          },
+        ]}
+        onClose={onClose}
+        onCreated={onCreated}
+      />,
+      { wrapper: ToastProvider },
+    );
+
+    fireEvent.change(screen.getByLabelText(/^Prozent/), {
+      target: { value: "25" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Lohnart" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Nachtzuschlag" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    await waitFor(() =>
+      expect(createSurchargeRuleMock).toHaveBeenCalledTimes(1),
+    );
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

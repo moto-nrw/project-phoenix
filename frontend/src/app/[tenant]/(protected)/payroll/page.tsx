@@ -237,6 +237,23 @@ export default function PayrollPage() {
   // Eine Änderung an den eigenen Lohnarten und Regeln: der Fehler steht wie
   // beim Speichern einer Einstellung über den Karten, danach gilt wieder der
   // Stand vom Server.
+  const refreshRules = useCallback(
+    async (showFailure = true) => {
+      try {
+        await mutateRules();
+      } catch (err: unknown) {
+        logger.error("payroll_rules_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (showFailure) {
+          void showSaveError(err, {
+            object: "die Übersicht zu den Lohnarten und Zuschlägen",
+          });
+        }
+      }
+    },
+    [mutateRules, showSaveError],
+  );
   const changeRulesRef = useRef<ChangeRules>(() => Promise.resolve(false));
   const ruleSaveQueues = useRef(new Map<string, Promise<boolean>>());
   const changeRules = useCallback<ChangeRules>(
@@ -256,18 +273,7 @@ export default function PayrollPage() {
             retry: () => void changeRulesRef.current(object, run, queueKey),
           });
         } finally {
-          try {
-            await mutateRules();
-          } catch (err: unknown) {
-            logger.error("payroll_rules_refresh_failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            if (saved) {
-              void showSaveError(err, {
-                object: "die Übersicht zu den Lohnarten und Zuschlägen",
-              });
-            }
-          }
+          await refreshRules(saved);
         }
         return saved;
       };
@@ -286,7 +292,7 @@ export default function PayrollPage() {
       });
       return next;
     },
-    [mutateRules, clearSaveError, showSaveError],
+    [refreshRules, clearSaveError, showSaveError],
   );
   useLayoutEffect(() => {
     changeRulesRef.current = changeRules;
@@ -333,7 +339,7 @@ export default function PayrollPage() {
             rules={rules}
             loadError={rulesLoadError}
             onChange={changeRules}
-            onCreated={() => mutateRules()}
+            onCreated={() => void refreshRules()}
           />
           <DatevCard status={status} onSave={save} />
           <LohnbueroCard
@@ -920,7 +926,7 @@ function PayrollRuleCards({
   readonly rules: PayrollRules | undefined;
   readonly loadError: ReturnType<typeof useSwrLoadError>;
   readonly onChange: ChangeRules;
-  readonly onCreated: () => Promise<unknown>;
+  readonly onCreated: () => void;
 }) {
   const [creating, setCreating] = useState<"wage_type" | "rule" | null>(null);
   const [archiving, setArchiving] = useState<ArchiveTarget | null>(null);

@@ -82,7 +82,7 @@ export function CreateWageTypeModal({
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly onCreated: () => void | Promise<unknown>;
+  readonly onCreated: () => void;
 }) {
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
@@ -109,8 +109,8 @@ export function CreateWageTypeModal({
     formErrors.clear();
     try {
       await createWageType({ name: name.trim(), number: number.trim(), unit });
-      await onCreated();
       close();
+      onCreated();
     } catch (err) {
       void formErrors.show(err, { object: "die Lohnart" });
     } finally {
@@ -193,7 +193,7 @@ export function CreateSurchargeRuleModal({
   readonly isOpen: boolean;
   readonly wageTypes: readonly PayrollWageType[];
   readonly onClose: () => void;
-  readonly onCreated: () => void | Promise<unknown>;
+  readonly onCreated: () => void;
 }) {
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
@@ -243,8 +243,8 @@ export function CreateSurchargeRuleModal({
         rateHundredths: rateValue,
         wageTypeId: selectedWageType,
       });
-      await onCreated();
       close();
+      onCreated();
     } catch (err) {
       void formErrors.show(err, { object: "die Zuschlagsregel" });
     } finally {
