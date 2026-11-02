@@ -163,7 +163,8 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	smallStudents := addStudents(0, 3)
 	addRolloverChain(smallStudents[0], 1)
 
-	counter := testpkg.CaptureQueries(t, api.db.Pool())
+	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
+	countedHandler := api.queryBudgetHandler(counter)
 	type queryRun struct {
 		total     []string
 		overview  []string
@@ -172,7 +173,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	}
 	run := func() queryRun {
 		counter.Reset()
-		response := checkpointRequest(api, checkpointScenario{
+		response := checkpointRequest(countedHandler, checkpointScenario{
 			Method:        http.MethodGet,
 			Path:          fmt.Sprintf("/api/enrollment/phases/%d/responses", phase.ID),
 			Authenticated: true,
