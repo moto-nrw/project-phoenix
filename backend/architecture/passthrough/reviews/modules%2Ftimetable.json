@@ -2052,11 +2052,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/timetable/internal/domain/schedulerecords/Timeframe.IsOpen",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/timetable/ports/markedRecordError.Error",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
