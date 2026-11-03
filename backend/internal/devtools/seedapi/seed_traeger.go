@@ -323,10 +323,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number")
-	if err := seedHolidayAfterConfirmation(rt, auth, periodID, siblings, duplicate, registration); err != nil {
-		return "", err
-	}
-	if err := seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings); err != nil {
+	if err := seedHolidayAfterConfirmation(rt, auth, token, periodID, siblings, duplicate, registration); err != nil {
 		return "", err
 	}
 	return token, nil
@@ -373,13 +370,17 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 }
 
 // seedHolidayAfterConfirmation corrects the confirmed siblings' details
-// (#5629) and confirms the second registration with the cost takeover by a
-// cost bearer (#5627).
-func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, periodID, siblings, duplicate int64, registration map[string]any) error {
+// (#5629), confirms the second registration with the cost takeover by a
+// cost bearer (#5627) and merges a third sibling's registration with the
+// siblings (#5628).
+func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, periodID, siblings, duplicate int64, registration map[string]any) error {
 	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return err
 	}
-	return seedHolidayCostTakeover(rt, auth, periodID, duplicate)
+	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
+		return err
+	}
+	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
 }
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
