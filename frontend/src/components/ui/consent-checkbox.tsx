@@ -14,7 +14,8 @@ import { FieldErrorHint } from "./field-error-hint";
  * Einwilligungen from it, so they look and behave the same.
  *
  * `action` sits at the end of the row, outside the label, so a button there
- * (the legal text to read) never ticks the box.
+ * (the legal text to read) never ticks the box. `description` stands below
+ * the text and its star, for example a translation that only helps reading.
  */
 export function ConsentCheckbox({
   name,
@@ -24,6 +25,7 @@ export function ConsentCheckbox({
   required = false,
   error,
   action,
+  description,
   id,
 }: Readonly<{
   /** Form name; the error path finds the field by it. */
@@ -35,6 +37,8 @@ export function ConsentCheckbox({
   /** The hint under the row. Nothing renders while it is empty. */
   error?: string;
   action?: ReactNode;
+  /** A line below the text and its star; part of the label. */
+  description?: ReactNode;
   /** Defaults to `name`. */
   id?: string;
 }>) {
@@ -65,6 +69,11 @@ export function ConsentCheckbox({
           <span className="min-w-0 flex-1 leading-6 text-gray-900">
             {label}
             {required && <RequiredMark />}
+            {description != null && (
+              <span className="mt-1 block text-sm text-gray-600">
+                {description}
+              </span>
+            )}
           </span>
         </label>
         {action}

@@ -86,7 +86,9 @@ export function HolidayRegistrationHistory({
           Das Träger-Büro hat diese Anmeldung noch nicht geändert.
         </p>
       ) : (
-        <ol className="space-y-2 text-sm text-gray-700">
+        // Eine Debitorennummer hat bis zu 35 Zeichen ohne Leerzeichen (#5621);
+        // sie bricht um, statt am Kartenrand abgeschnitten zu werden.
+        <ol className="space-y-2 text-sm wrap-anywhere text-gray-700">
           {registration.history.map((event, index) => {
             const detail = eventDetail(event, period, registration);
             return (

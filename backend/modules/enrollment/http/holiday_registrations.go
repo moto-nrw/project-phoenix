@@ -96,6 +96,9 @@ type HolidayRegistrationOfferResponse struct {
 	Schools              []HolidayRegistrationSchool `json:"schools"`
 	CaptchaSiteKey       string                      `json:"captcha_site_key"`
 	Form                 HolidayRegistrationForm     `json:"form"`
+	// ConsentTexts are the German texts of the fixed declarations the form
+	// shows; they bind, a translation only helps reading (#5626).
+	ConsentTexts capability.HolidayConsentTexts `json:"consent_texts"`
 }
 
 // HolidayRegistrationForm is the current version of the period's form for
@@ -151,8 +154,10 @@ type holidayContactRequest struct {
 // custom_data holds the answers per family, children[].custom_data those
 // per child (#5198). benefits_proof_tokens name the uploaded proofs of the
 // benefits (#5238). consent_version names the version of the consent texts
-// the parent agreed to (#4722). guardian_address is the postal address of
-// the parent, when the form asks for it (#5625).
+// the parent agreed to (#4722). custody_confirmed and declaration_name are
+// the custody and the typed name of the declaration (#5626).
+// guardian_address is the postal address of the parent, when the form
+// asks for it (#5625).
 type HolidayRegistrationRequest struct {
 	Guardian          holidayGuardianRequest    `json:"guardian"`
 	GuardianAddress   *holidayAddressRequest    `json:"guardian_address"`
@@ -163,6 +168,8 @@ type HolidayRegistrationRequest struct {
 	PrivacyConsent    bool                      `json:"privacy_consent"`
 	HealthConsent     bool                      `json:"health_consent"`
 	BindingConfirmed  bool                      `json:"binding_confirmed"`
+	CustodyConfirmed  bool                      `json:"custody_confirmed"`
+	DeclarationName   string                    `json:"declaration_name"`
 	BenefitsDeclared  bool                      `json:"benefits_declared"`
 	BenefitsProofs    []string                  `json:"benefits_proof_tokens"`
 	CaptchaToken      string                    `json:"captcha_token"`
@@ -206,6 +213,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		EmergencyContacts: holidayContacts(req.EmergencyContacts),
 		PickupPersons:     holidayContacts(req.PickupPersons),
 		PrivacyConsent:    req.PrivacyConsent, HealthConsent: req.HealthConsent, BindingConfirmed: req.BindingConfirmed,
+		CustodyConfirmed: req.CustodyConfirmed, DeclarationName: req.DeclarationName,
 		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
 		FormVersion: req.FormVersion, CustomData: req.CustomData, ConsentVersion: req.ConsentVersion,
 	}
@@ -286,6 +294,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 			Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields),
 			LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks), AddressRequirement: offer.Form.AddressRequirement,
 		},
+		ConsentTexts: offer.ConsentTexts,
 	}
 }
 
