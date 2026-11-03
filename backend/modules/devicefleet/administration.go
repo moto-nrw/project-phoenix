@@ -109,6 +109,23 @@ func (s *administration) GetDeviceByID(ctx context.Context, id int64) (*Device, 
 	return administrationDevicePointer(device), nil
 }
 
+// GetPersistedDeviceRoomName resolves only the current room projection of
+// this transaction's trusted write result. Preserve the former readback's
+// GetDeviceByID wrapper and not-found mapping, not a new HTTP error identity.
+func (s *administration) GetPersistedDeviceRoomName(ctx context.Context, device *Device) (*string, error) {
+	if device == nil || device.ID <= 0 {
+		return nil, &AdministrationError{Op: "GetDeviceByID", Err: errors.New("invalid ID")}
+	}
+	name, err := s.devices.DeviceRoomName(ctx, *device)
+	if err != nil {
+		if errors.Is(err, ErrDeviceNotFound) {
+			return nil, &AdministrationError{Op: "GetDeviceByID", Err: ErrAdministrationDeviceNotFound}
+		}
+		return nil, &AdministrationError{Op: "GetDeviceByID", Err: err}
+	}
+	return name, nil
+}
+
 // GetDeviceByDeviceID retrieves a device by its device ID.
 func (s *administration) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*Device, error) {
 	if deviceID == "" {
@@ -337,6 +354,14 @@ type Administration interface {
 	DeviceAdministration
 	DeviceMonitoring
 	DeviceDiscovery
+	DeviceWriteRoomReadback
+}
+
+// DeviceWriteRoomReadback serves the native write response, not CRUD lookups.
+// Its input must be the unmodified full owner write result in the same tenant
+// transaction. Existing DeviceAdministration and its other callers stay unchanged.
+type DeviceWriteRoomReadback interface {
+	GetPersistedDeviceRoomName(context.Context, *Device) (*string, error)
 }
 
 // DeviceAdministration creates, edits and removes fleet devices.

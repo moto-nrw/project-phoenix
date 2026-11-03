@@ -89,6 +89,8 @@ type TenantFacts interface {
 
 // Transaction is the owner's seam onto the shared tenant runtime.
 type Transaction interface {
+	// TenantID validates the ambient tenant unit without changing role, scope or SQL.
+	TenantID(context.Context) (int64, error)
 	// RunWrite executes callback inside the caller's ambient tenant
 	// transaction, opening one when none exists.
 	RunWrite(context.Context, func(context.Context) error) error

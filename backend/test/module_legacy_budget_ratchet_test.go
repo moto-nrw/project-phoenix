@@ -201,7 +201,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
 // ADR 0148: the demo school file erasure constructor of
 // modules/organizationtenancy/compose adds exactly 10 LOC.
-const moduleComposeBudgetTotal = 12800
+const moduleComposeBudgetTotal = 12784
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -225,7 +225,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose/imports": 29,
 	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
 	"modules/delivery/compose":                      393,
-	"modules/devicefleet/compose":                   219,
+	"modules/devicefleet/compose":                   203,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
 	"modules/devicescan/compose":        540,

@@ -159,6 +159,15 @@ type Display struct {
 type DeviceQuery interface {
 	DeviceLookup
 	DeviceOnlineStatus
+	DeviceRoomProjection
+}
+
+// DeviceRoomProjection refreshes only room presentation for an already-owned
+// value. It is not a device lookup or an authorization boundary: callers must
+// pass the unmodified full RETURNING row from this owner's successful write
+// in the same tenant transaction, while its device row lock is still held.
+type DeviceRoomProjection interface {
+	DeviceRoomName(context.Context, Device) (*string, error)
 }
 
 // DeviceLookup resolves device records and fleet listings.
