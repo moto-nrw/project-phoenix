@@ -183,7 +183,7 @@ export function ChildDayCard({
               href={parentPath(`/parents/children/${child.studentId}`)}
               variant="ghost"
               size="md"
-              className="min-h-11 shrink-0 px-3 text-sm font-medium hover:bg-gray-100"
+              className="shrink-0"
             >
               {t("actions.profile")}
               <ChevronRight
@@ -328,14 +328,12 @@ function ChildDayActions({
         ? "@md:grid-cols-2"
         : "";
   const actionClassName =
-    display === "compact"
-      ? "min-w-0 w-full gap-2 px-3 py-2 text-sm font-semibold"
-      : "w-full gap-3 px-4 py-2";
+    display === "compact" ? "min-w-0 w-full gap-2" : "w-full gap-3";
   const absenceActionContent = (
     <>
       <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.sick", { name: firstName })}
         </span>
       ) : (
@@ -357,7 +355,7 @@ function ChildDayActions({
     <>
       <MotoConceptIcon concept={pickupConcept} size={20} aria-hidden="true" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t(
             withMode
               ? "actions.pickupCompactWithMode"
@@ -386,7 +384,7 @@ function ChildDayActions({
         aria-hidden="true"
       />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.messageCompact")}
         </span>
       ) : (

@@ -64,16 +64,18 @@ export function GroupReadReceipt({
       align="end"
       preferredWidth={260}
       renderTrigger={({ ref, open: isOpen, panelId, toggle }) => (
-        <button
+        <Button
           ref={ref}
           type="button"
+          variant="link"
+          size="compact"
           onClick={toggle}
           aria-expanded={isOpen}
           aria-controls={panelId}
-          className="mt-1 px-1 text-xs text-gray-500 underline-offset-2 hover:underline"
+          className="mt-1"
         >
           {label}
-        </button>
+        </Button>
       )}
     >
       {() => (

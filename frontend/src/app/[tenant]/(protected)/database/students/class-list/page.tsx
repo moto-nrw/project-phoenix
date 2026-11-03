@@ -20,7 +20,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -504,12 +504,13 @@ export default function ClassListEntriesPage() {
         if (row.kind === "student") {
           return (
             <div className="flex items-center justify-end">
-              <Link
-                href={`/students/${row.student.id}`}
-                className="rounded-md px-2.5 py-1 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              <ButtonLink
+                href={tenantPath(`/students/${row.student.id}`)}
+                variant="ghost"
+                size="compact"
               >
                 Öffnen
-              </Link>
+              </ButtonLink>
             </div>
           );
         }
@@ -582,13 +583,15 @@ export default function ClassListEntriesPage() {
       actions={
         canCreate ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Link
+            <ButtonLink
               href={tenantPath("/database/students/class-list/import")}
-              className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              variant="outline"
+              size="md"
+              className="gap-2"
             >
               <Upload className="h-4 w-4" aria-hidden="true" />
               Sammelimport
-            </Link>
+            </ButtonLink>
             <DatabaseCreateAction
               label="Eintrag"
               ariaLabel="Klassenlisteneintrag anlegen"

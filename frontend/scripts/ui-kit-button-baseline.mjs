@@ -76,6 +76,30 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/guardians/guardian-picker-panel.tsx",
+    lines: [326],
+    reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/messaging/new-message-modal.tsx",
+    lines: [381],
+    reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/messaging/new-team-message-modal.tsx",
+    lines: [161],
+    reason: "Person in der Empfängerliste wählen: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/announcements/parent-target-picker.tsx",
+    lines: [46],
+    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
     lines: [148],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",

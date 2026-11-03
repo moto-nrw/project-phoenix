@@ -413,13 +413,7 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   if (!sharing.state) return null;
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="md"
-        className="max-sm:min-h-11"
-        onClick={control.show}
-      >
+      <Button type="button" variant="ghost" size="md" onClick={control.show}>
         {t("button")}
       </Button>
       <SharingDialog control={control} t={t} />

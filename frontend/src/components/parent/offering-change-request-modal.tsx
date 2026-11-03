@@ -446,7 +446,7 @@ export function OfferingChangeRequestModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 max-sm:min-h-11 sm:w-auto"
+              className="w-full gap-2 sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || loading || !catalog || emptyCatalog}
             >

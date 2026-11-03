@@ -251,7 +251,6 @@ function WeekNavigation({
           type="button"
           variant="ghost"
           size="icon"
-          className="min-h-11 min-w-11"
           aria-label={t("previousWeek")}
           disabled={!weekReady || weekOffset === 0}
           onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
@@ -274,7 +273,6 @@ function WeekNavigation({
           type="button"
           variant="ghost"
           size="icon"
-          className="min-h-11 min-w-11"
           aria-label={t("nextWeek")}
           disabled={!weekReady || weekOffset >= lastWeek}
           onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
@@ -320,7 +318,6 @@ function MealParticipationEditActions({
         type="button"
         variant="ghost"
         size="md"
-        className="min-h-11"
         onClick={onCancel}
         disabled={saving}
       >
@@ -330,7 +327,6 @@ function MealParticipationEditActions({
         type="button"
         variant="primary"
         size="md"
-        className="min-h-11"
         onClick={onSave}
         disabled={saving}
         isLoading={saving}
@@ -919,7 +915,6 @@ function ParticipationWeek({
                     type="button"
                     variant="success"
                     size="md"
-                    className="max-sm:min-h-11"
                     disabled={saving}
                     onClick={() => void saveWeek(true)}
                   >
@@ -931,7 +926,6 @@ function ParticipationWeek({
                     type="button"
                     variant="outline_danger"
                     size="md"
-                    className="max-sm:min-h-11"
                     disabled={saving}
                     onClick={() => {
                       clearWeekCancelError();
@@ -1124,7 +1118,7 @@ function ParticipationWeek({
                             type="button"
                             variant="ghost"
                             size="md"
-                            className="ml-auto min-h-11 shrink-0 px-3 text-sm font-medium"
+                            className="ml-auto shrink-0"
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}
@@ -1174,8 +1168,7 @@ function ParticipationWeek({
                                   ? "outline_danger"
                                   : "success"
                               }
-                              size="compact"
-                              className="min-h-11"
+                              size="md"
                               disabled={saving}
                               onClick={() =>
                                 stageDayChange(day, !displayedParticipation)
@@ -1192,8 +1185,7 @@ function ParticipationWeek({
                             <Button
                               type="button"
                               variant="ghost"
-                              size="compact"
-                              className="min-h-11"
+                              size="md"
                               disabled={saving}
                               onClick={stageDayReset}
                             >

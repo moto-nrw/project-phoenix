@@ -749,7 +749,7 @@ export default function MealPlanPage() {
                     {rows.map((row, idx) => (
                       <div
                         key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
+                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200 pointer-coarse:pr-12"
                       >
                         <textarea
                           rows={1}
@@ -793,29 +793,33 @@ export default function MealPlanPage() {
                             row.dish.trim() !== "" ||
                             row.note.trim() !== "" ||
                             row.allergens.length > 0) && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               aria-label="Gericht entfernen"
                               onClick={() => requestRemove(date, idx)}
                               disabled={editingLocked}
-                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                              className="absolute top-1 right-1"
                             >
-                              <X className="h-4 w-4" />
-                            </button>
+                              <X className="h-4 w-4" aria-hidden />
+                            </Button>
                           )}
                       </div>
                     ))}
 
                     {canEdit && (
-                      <button
+                      <Button
                         type="button"
+                        variant="dashed"
+                        size="md"
                         onClick={() => addRow(date)}
                         disabled={editingLocked}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                        className="w-full gap-1"
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-4 w-4" aria-hidden />
                         Gericht
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

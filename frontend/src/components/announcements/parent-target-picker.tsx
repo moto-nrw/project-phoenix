@@ -7,6 +7,7 @@ import { Check } from "lucide-react";
 import { summarizeTargets } from "~/components/announcements/announcement-meta";
 import type { FormError } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -276,12 +277,13 @@ export function ParentTargetPicker({
             {selectedStudents.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {selectedStudents.map((t) => (
-                  <button
+                  <Button
                     key={targetKey(t)}
                     type="button"
+                    variant="surface"
+                    size="compact"
                     onClick={() => t.ref_id && removeStudent(t.ref_id)}
                     title="Entfernen"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-800 transition-colors hover:border-gray-400 hover:bg-gray-100"
                   >
                     <span className="max-w-48 truncate">
                       {t.ref_id ? (studentNames[t.ref_id] ?? "Kind") : "Kind"}
@@ -289,7 +291,7 @@ export function ParentTargetPicker({
                     <span aria-hidden className="text-gray-400">
                       ×
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
