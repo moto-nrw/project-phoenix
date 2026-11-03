@@ -43,8 +43,8 @@ const (
 		"Es geht um die OGS, die ein Kind in einer Ferienwoche betreut. " +
 		"Sie sieht die Angaben ab der Bestätigung bis zum letzten Tag der Woche."
 	holidayBindingConfirmedText = "Ich weiß, dass die Anmeldung verbindlich ist."
-	holidayCustodyConfirmedText = "Ich bin allein sorgeberechtigt. " +
-		"Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden."
+	holidayCustodyConfirmedText = "Ich darf die Anmeldung allein abgeben: " +
+		"Ich bin allein sorgeberechtigt oder die andere sorgeberechtigte Person ist einverstanden."
 	holidayDeclarationNameText = "Mit Ihrem Namen geben Sie die Erklärungen oben ab."
 )
 

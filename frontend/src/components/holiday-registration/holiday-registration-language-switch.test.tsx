@@ -126,7 +126,9 @@ function fillRegistration() {
   fireEvent.click(
     screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
-  fireEvent.click(screen.getByLabelText(/Ich bin allein sorgeberechtigt/));
+  fireEvent.click(
+    screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+  );
   type(screen.getByLabelText("Ihr Vor- und Nachname"), "Eva Maria Muster");
 }
 
@@ -154,7 +156,7 @@ describe("HolidayRegistrationForm language switch", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back and change" }));
     // The German declaration binds; the translation stands below it (#5626).
     const custody = screen.getByRole("checkbox", {
-      name: /Ich bin allein sorgeberechtigt\..*Translation, the German text applies: I have sole custody\./,
+      name: /Ich darf die Anmeldung allein abgeben:.*Translation, the German text applies: I may submit the registration on my own:/,
     });
     expect(custody).toBeChecked();
     expect(screen.getByLabelText("Your first and last name")).toHaveValue(

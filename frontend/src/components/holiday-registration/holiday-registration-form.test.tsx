@@ -198,7 +198,9 @@ function fillRegistration() {
   fireEvent.click(
     screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
-  fireEvent.click(screen.getByLabelText(/Ich bin allein sorgeberechtigt/));
+  fireEvent.click(
+    screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+  );
   type(screen.getByLabelText("Ihr Vor- und Nachname"), "Eva Maria Muster");
 }
 
@@ -406,7 +408,9 @@ describe("HolidayRegistrationForm", () => {
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
     );
     expect(
-      await screen.findByText("Bitte bestätigen Sie das Sorgerecht."),
+      await screen.findByText(
+        "Bitte bestätigen Sie, dass Sie die Anmeldung abgeben dürfen.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Bitte geben Sie Ihren Namen ein."),
@@ -739,7 +743,9 @@ describe("HolidayRegistrationForm", () => {
     fireEvent.click(
       screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
     );
-    fireEvent.click(screen.getByLabelText(/Ich bin allein sorgeberechtigt/));
+    fireEvent.click(
+      screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+    );
     type(screen.getByLabelText("Ihr Vor- und Nachname"), "Sabine Schneider");
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),

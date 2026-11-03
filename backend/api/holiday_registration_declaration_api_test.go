@@ -32,7 +32,7 @@ const (
 		"Es geht um die OGS, die ein Kind in einer Ferienwoche betreut. " +
 		"Sie sieht die Angaben ab der Bestätigung bis zum letzten Tag der Woche."
 	declarationBindingText = "Ich weiß, dass die Anmeldung verbindlich ist."
-	declarationCustodyText = "Ich bin allein sorgeberechtigt. Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden."
+	declarationCustodyText = "Ich darf die Anmeldung allein abgeben: Ich bin allein sorgeberechtigt oder die andere sorgeberechtigte Person ist einverstanden."
 	declarationNameText    = "Mit Ihrem Namen geben Sie die Erklärungen oben ab."
 )
 

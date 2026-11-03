@@ -10,6 +10,6 @@ export const HOLIDAY_CONSENT_TEXTS: HolidayConsentTexts = {
     "Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder.",
   bindingConfirmed: "Ich weiß, dass die Anmeldung verbindlich ist.",
   custodyConfirmed:
-    "Ich bin allein sorgeberechtigt. Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden.",
+    "Ich darf die Anmeldung allein abgeben: Ich bin allein sorgeberechtigt oder die andere sorgeberechtigte Person ist einverstanden.",
   declarationName: "Mit Ihrem Namen geben Sie die Erklärungen oben ab.",
 };

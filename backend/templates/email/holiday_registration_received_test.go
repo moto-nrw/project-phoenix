@@ -54,7 +54,7 @@ func TestHolidayRegistrationReceivedTemplate_RendersTheDeclaration(t *testing.T)
 		"Declaration": map[string]any{
 			"Name": "Eva Muster", "GivenAt": "16.11.2026 um 09:30 Uhr", "Version": 3,
 			"Statements": []map[string]any{
-				{"Title": "Sorgerecht", "Text": "Ich bin allein sorgeberechtigt. Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden."},
+				{"Title": "Sorgerecht", "Text": "Ich darf die Anmeldung allein abgeben: Ich bin allein sorgeberechtigt oder die andere sorgeberechtigte Person ist einverstanden."},
 				{"Title": "Fotos", "Text": "Ich bin mit Fotos einverstanden.", "Detail": "Die OGS macht Fotos.\nSie hängen im Flur."},
 			},
 		},
@@ -63,7 +63,7 @@ func TestHolidayRegistrationReceivedTemplate_RendersTheDeclaration(t *testing.T)
 	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-received.html", content))
 	body := out.String()
 	for _, want := range []string{"Ihre Erklärung", "Name: Eva Muster", "Abgegeben am 16.11.2026 um 09:30 Uhr", "Fassung der Texte: 3",
-		"Sorgerecht", "Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden.", "Fotos",
+		"Sorgerecht", "Ich bin allein sorgeberechtigt oder die andere sorgeberechtigte Person ist einverstanden.", "Fotos",
 		"Ich bin mit Fotos einverstanden.", "Sie hängen im Flur."} {
 		assert.Contains(t, body, template.HTMLEscapeString(want))
 	}
