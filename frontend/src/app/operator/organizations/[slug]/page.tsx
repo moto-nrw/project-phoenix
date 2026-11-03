@@ -62,6 +62,7 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
   DeletedEntityCard,
+  TrashToggleButton,
   useSoftDeletable,
 } from "~/app/operator/provisioning/soft-delete-shared";
 import {
@@ -535,16 +536,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       return (
         <>
           {deletedSchools.length > 0 && (
-            <Button
-              type="button"
-              variant={schoolDelete.showTrash ? "outline_danger" : "outline"}
-              size="compact"
-              aria-pressed={schoolDelete.showTrash}
-              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-            >
-              {" "}
-              Papierkorb ({deletedSchools.length}){" "}
-            </Button>
+            <TrashToggleButton
+              count={deletedSchools.length}
+              active={schoolDelete.showTrash}
+              onToggle={() =>
+                schoolDelete.setShowTrash(!schoolDelete.showTrash)
+              }
+            />
           )}
           <Button
             type="button"

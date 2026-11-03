@@ -291,13 +291,14 @@ function UnregisteredTagsTable({
         align: "right",
         render: (row) =>
           !row.resolvedAt && (
-            <button
+            <Button
               type="button"
+              variant="surface"
+              size="compact"
               onClick={() => onResolve(row)}
-              className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
             >
               Erledigen
-            </button>
+            </Button>
           ),
       },
     ],

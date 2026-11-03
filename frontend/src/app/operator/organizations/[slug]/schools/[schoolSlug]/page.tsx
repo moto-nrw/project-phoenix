@@ -5,7 +5,6 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -33,7 +32,7 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { Button, buttonClassName } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
@@ -483,7 +482,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         >
           Kinderkontingent
         </Button>
-        <Link
+        <ButtonLink
+          variant="outline"
+          size="compact"
           href={
             school
               ? `/operator/schools/${school.id}/settings?back=${encodeURIComponent(
@@ -491,14 +492,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 )}`
               : "#"
           }
-          className={buttonClassName({
-            variant: "outline",
-            size: "compact",
-            className: "",
-          })}
         >
           Einstellungen
-        </Link>
+        </ButtonLink>
         <Button
           type="button"
           variant="outline_danger"

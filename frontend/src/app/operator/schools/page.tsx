@@ -9,7 +9,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -18,12 +17,14 @@ import {
 } from "~/lib/operator/provisioning-api";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
+import { Button } from "~/components/ui/button";
 import { DataTable } from "~/components/ui/data-table";
 import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
   DeletedEntityCard,
+  TrashToggleButton,
 } from "../provisioning/soft-delete-shared";
 import {
   SchoolRestoreModal,
@@ -158,24 +159,26 @@ export default function OperatorSchoolsPage() {
   );
 
   const actionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="md"
       onClick={() => setCreateSchoolOpen(true)}
-      className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
     >
       Neue Schule
-    </button>
+    </Button>
   );
 
   const mobileActionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="icon"
       onClick={() => setCreateSchoolOpen(true)}
-      className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
       aria-label="Neue Schule"
     >
       <PlusIcon />
-    </button>
+    </Button>
   );
 
   const handleRowClick = useCallback(
@@ -209,16 +212,13 @@ export default function OperatorSchoolsPage() {
         <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <Button
-              type="button"
-              variant={schoolDelete.showTrash ? "outline_danger" : "outline"}
-              size="compact"
-              aria-pressed={schoolDelete.showTrash}
-              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-            >
-              {" "}
-              Papierkorb ({deletedSummaries.length}){" "}
-            </Button>
+            <TrashToggleButton
+              count={deletedSummaries.length}
+              active={schoolDelete.showTrash}
+              onToggle={() =>
+                schoolDelete.setShowTrash(!schoolDelete.showTrash)
+              }
+            />
           </div>
         )}
 

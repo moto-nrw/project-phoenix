@@ -24,6 +24,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useSoftDeletable,
   DeletedEntityCard,
+  TrashToggleButton,
 } from "../provisioning/soft-delete-shared";
 import {
   OrgRestoreModal,
@@ -148,13 +149,14 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger anlegen
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
       >
         Neuer Träger
-      </button>
+      </Button>
     </div>
   );
 
@@ -168,14 +170,15 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="icon"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
         aria-label="Neuer Träger"
       >
         <PlusIcon />
-      </button>
+      </Button>
     </div>
   );
 
@@ -266,16 +269,11 @@ export default function OperatorOrganizationsPage() {
         <LoadErrorAlert error={orgsLoadError} className="mb-4" />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <Button
-              type="button"
-              variant={orgDelete.showTrash ? "outline_danger" : "outline"}
-              size="compact"
-              aria-pressed={orgDelete.showTrash}
-              onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
-            >
-              {" "}
-              Papierkorb ({deletedOrganizations.length}){" "}
-            </Button>
+            <TrashToggleButton
+              count={deletedOrganizations.length}
+              active={orgDelete.showTrash}
+              onToggle={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
+            />
           </div>
         )}
 

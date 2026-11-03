@@ -312,4 +312,16 @@ export const buttonRatchetAllowlist = [
     reason:
       "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/app/operator/announcements/page.tsx",
+    lines: [696],
+    reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/app/operator/announcements/page.tsx",
+    lines: [806, 948, 1037],
+    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
+  },
 ];
