@@ -29,6 +29,31 @@ interface DataFieldProps {
   readonly inline?: boolean;
 }
 
+interface DataGridProps {
+  readonly children: ReactNode;
+  /**
+   * Column count from `sm` upwards; below that the grid stacks. `1` is a
+   * plain list of fields (a balance preview), `4` a row of short figures
+   * (import preview, key figures) that starts two-up on narrow screens.
+   * Default `2` is the detail-view layout (BAUARTEN-SPEC Bauart 2 Regel 2).
+   */
+  readonly columns?: 1 | 2 | 4;
+}
+
+const gridColumnClasses: Record<
+  NonNullable<DataGridProps["columns"]>,
+  string
+> = {
+  1: "grid grid-cols-1 gap-y-2 md:gap-y-3",
+  2: "grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3",
+  4: "grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4 md:gap-x-4 md:gap-y-3",
+};
+
+/** Grid layout for DataField components; see `columns`. */
+export function DataGrid({ children, columns = 2 }: DataGridProps) {
+  return <dl className={gridColumnClasses[columns]}>{children}</dl>;
+}
+
 /**
  * Displays a label/value pair using semantic dt/dd elements.
  * Used consistently across all detail modals.

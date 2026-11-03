@@ -14,7 +14,7 @@ import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker"
 import { Button } from "~/components/ui/button";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { DataField, DataGrid } from "~/components/ui/data-field";
 import { SectionCard } from "~/components/ui/section-card";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";

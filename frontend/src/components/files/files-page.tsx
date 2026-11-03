@@ -20,7 +20,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
-import { DataField } from "~/components/ui/detail-modal-components";
+import { DataField } from "~/components/ui/data-field";
 import {
   OverflowMenu,
   type OverflowMenuEntry,

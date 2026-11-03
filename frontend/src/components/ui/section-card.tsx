@@ -5,9 +5,8 @@ import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import { DataFieldSkeleton } from "~/components/ui/data-field";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
 // Das eine Kartenpolster (ADR 0149, Entscheidung 9): 20 px, auf dem Telefon
@@ -18,6 +17,75 @@ const CARD_PADDING = "compact:p-4 p-5 max-sm:p-4";
 const ZONE_PADDING_X = "compact:px-4 px-5 max-sm:px-4";
 const ZONE_PADDING_TOP = "compact:pt-4 pt-5 max-sm:pt-4";
 const ZONE_PADDING_BOTTOM = "compact:pb-4 pb-5 max-sm:pb-4";
+
+function SectionCardLoadingRows({ rows }: Readonly<{ rows: number }>) {
+  return (
+    <dl className="space-y-3">
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} aria-hidden="true">
+          <dt className="text-xs text-gray-500">
+            <span className="block h-3 w-20 animate-pulse rounded bg-gray-200 motion-reduce:animate-none" />
+          </dt>
+          <dd className="mt-0.5 text-sm font-medium text-gray-900">
+            <span className="block h-4 w-2/3 animate-pulse rounded bg-gray-200 motion-reduce:animate-none" />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const CONCEPT_ICON_COLORS: Record<MotoDuotoneTone, string> = {
+  blue: "text-moto-blue-strong [--moto-icon-secondary:var(--color-moto-blue-light)]",
+  timeTracking:
+    "text-moto-time-tracking-strong [--moto-icon-secondary:var(--color-moto-time-tracking-light)]",
+  teal: "text-moto-teal-strong [--moto-icon-secondary:var(--color-moto-teal-light)]",
+  magenta:
+    "text-moto-magenta-strong [--moto-icon-secondary:var(--color-moto-magenta-light)]",
+  orange:
+    "text-moto-orange-strong [--moto-icon-secondary:var(--color-moto-orange)]",
+  amber:
+    "text-moto-amber [--moto-icon-secondary:var(--color-moto-amber-light)]",
+  purple:
+    "text-moto-purple-strong [--moto-icon-secondary:var(--color-moto-purple-light)]",
+  greenDeep:
+    "text-moto-green-strong [--moto-icon-secondary:var(--color-moto-green-light)]",
+  greenVivid:
+    "text-moto-green-vivid [--moto-icon-secondary:var(--color-moto-green-muted)]",
+  indigo:
+    "text-moto-indigo-strong [--moto-icon-secondary:var(--color-moto-indigo-light)]",
+  red: "text-moto-red-strong [--moto-icon-secondary:var(--color-white)]",
+  coral:
+    "text-moto-coral-strong [--moto-icon-secondary:var(--color-moto-coral-light)]",
+  cyan: "text-moto-cyan-strong [--moto-icon-secondary:var(--color-moto-cyan-light)]",
+  navy: "text-moto-navy-strong [--moto-icon-secondary:var(--color-moto-navy-light)]",
+  mint: "text-moto-mint-strong [--moto-icon-secondary:var(--color-moto-mint-light)]",
+  wine: "text-moto-wine-strong [--moto-icon-secondary:var(--color-moto-wine-light)]",
+  gold: "text-moto-gold-strong [--moto-icon-secondary:var(--color-moto-gold-light)]",
+  petrol:
+    "text-moto-petrol-strong [--moto-icon-secondary:var(--color-moto-petrol-light)]",
+  neutral:
+    "text-moto-neutral-strong [--moto-icon-secondary:var(--color-moto-neutral-light)]",
+  stone:
+    "text-moto-stone-strong [--moto-icon-secondary:var(--color-moto-stone-light)]",
+};
+
+function SectionCardConceptIcon({
+  concept,
+}: Readonly<{ concept: MotoConcept }>) {
+  const Icon = concept.icon;
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+      <Icon
+        size={22}
+        weight={concept.weight}
+        className={cn("moto-duotone-icon", CONCEPT_ICON_COLORS[concept.tone])}
+        data-moto-duotone-tone={concept.tone}
+        aria-hidden="true"
+      />
+    </span>
+  );
+}
 
 /**
  * The disclosure toggle of a collapsible `SectionCard`. Exported for a
@@ -263,8 +331,7 @@ export function SectionCard({
   const showBody = hasBody && open;
   const showFooter = footer != null && footer !== false && open;
   const leadingVisual =
-    leading ??
-    (concept ? <ConceptIconTile concept={concept} variant="section" /> : null);
+    leading ?? (concept ? <SectionCardConceptIcon concept={concept} /> : null);
   const hasHeader =
     title != null ||
     kicker != null ||
@@ -413,11 +480,7 @@ export function SectionCard({
               aria-live="polite"
               aria-busy="true"
             >
-              <dl className="space-y-3">
-                {Array.from({ length: loadingRows }, (_, index) => (
-                  <DataFieldSkeleton key={index} />
-                ))}
-              </dl>
+              <SectionCardLoadingRows rows={loadingRows} />
             </div>
           ) : (
             children

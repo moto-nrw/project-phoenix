@@ -24,7 +24,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { DataField } from "~/components/ui/detail-modal-components";
+import { DataField } from "~/components/ui/data-field";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
