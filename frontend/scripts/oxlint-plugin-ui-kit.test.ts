@@ -885,7 +885,7 @@ describe("button ratchet baseline", () => {
     // die Standard-Baseline statt UI_KIT_BUTTON_BASELINE_PATH, sieht es keine
     // Erhöhung, schreibt und endet mit 0; dann wird dieser Test rot.
     const [baselinedFile] = Object.keys(
-      buttonRatchetBaseline["no-hand-rolled-button"],
+      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
     ).filter((file) => file.endsWith(".tsx"));
     expect(baselinedFile).toBeDefined();
     const baselinedLines = sources.get(baselinedFile!) ?? [
