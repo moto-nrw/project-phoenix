@@ -18,6 +18,97 @@ describe("Modal", () => {
     vi.useRealTimers();
   });
 
+  // #5579: Kopf mit Symbol und Untertitel, ohne eigenen Kopf im Inhalt.
+  it("names the dialog by its title and describes it with the subtitle next to the icon", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Neue Funktionen"
+          icon={<span data-testid="modal-icon" />}
+          description="Was ist neu?"
+        >
+          <p>Inhalt</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Neue Funktionen" });
+    expect(dialog).toHaveAccessibleDescription("Was ist neu?");
+    const header = screen.getByRole("heading", { name: "Neue Funktionen" })
+      .parentElement?.parentElement;
+    expect(header).toContainElement(screen.getByTestId("modal-icon"));
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides a suspended dialog without unmounting its children and ignores Escape", async () => {
+    const onClose = vi.fn();
+    const modal = (suspended: boolean) => (
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={onClose}
+          title="Formular"
+          suspended={suspended}
+        >
+          <input aria-label="Entwurf" defaultValue="" />
+        </Modal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Entwurf" }), {
+      target: { value: "bleibt" },
+    });
+
+    rerender(modal(true));
+    expect(screen.queryByRole("dialog", { name: "Formular" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(modal(false));
+    expect(
+      screen.getByRole("dialog", { name: "Formular" }),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("bleibt")).toBeInTheDocument();
+  });
+
+  it("caps the dialog at the requested size, also as a phone sheet", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Breit"
+          size="xl"
+          mobileSheet
+        >
+          <p>Inhalt</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Breit" })).toHaveClass(
+      "max-w-4xl",
+      "max-sm:max-w-none",
+      "rounded-t-2xl",
+    );
+  });
+
   it("should not render when isOpen is false", async () => {
     const { unmount } = render(
       <TestWrapper>

@@ -1,4 +1,5 @@
 "use client";
+import { Z_LAYER } from "./overlay-styles";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 
@@ -234,7 +235,7 @@ function RangeCalendar({
     <div
       ref={panelRef}
       data-range-panel
-      className="fixed z-[10001] max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:max-h-none sm:overflow-visible"
+      className={`fixed ${Z_LAYER.popover} max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
           ? {
