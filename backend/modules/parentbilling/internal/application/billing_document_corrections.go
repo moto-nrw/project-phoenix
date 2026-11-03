@@ -143,6 +143,7 @@ func (b *BillingLetters) issueCorrection(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return parentbilling.BillingDocument{}, fmt.Errorf("parent billing: reserve a number: %w", err)
 	}
+	document.RunID = run.ID
 	document.Number, document.IssuedOn = formatInvoiceNumber(pattern, issuedOn.Year(), sequence), &issuedOn
 	if document.ID, err = b.store.IssueDocument(ctx, organizationID, run, year, sequence, document); err != nil {
 		return parentbilling.BillingDocument{}, err

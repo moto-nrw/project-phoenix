@@ -168,7 +168,7 @@ func (m *BillingLetterMail) MailBillingLetter(ctx context.Context, reviewer pare
 }
 
 // PrintBillingLetters combines the letters of every family of a released
-// run, in the order of their invoice numbers, and records the read.
+// run, in document issuance order, and records the read.
 func (m *BillingLetterMail) PrintBillingLetters(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64) (parentbilling.BillingLetterFile, error) {
 	current, err := m.letterRun(ctx, reviewer, runID, false)
 	if err != nil {
