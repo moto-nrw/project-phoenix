@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -65,23 +66,94 @@ type letterContent struct {
 	letterhead parentbilling.Letterhead
 }
 
-// confirmationLetter writes the letter of one issued invoice.
+// confirmationLetter writes the letter of one issued invoice: the
+// address field, the facts and the footer come from the invoice and the
+// letterhead; subject, salutation, body and closing come from the Träger's
+// template of the confirmation letter, filled with the values of this
+// invoice (#4677, ADR 0149). Without a template of its own the Träger
+// writes with the standard template, the letter of ADR 0121.
 func confirmationLetter(content letterContent) Letter {
 	document, head := content.document, content.letterhead
-	sender := textLines(head.SenderText)
+	filled := templates.Fill(letterTemplate(head.Template), letterValues(content))
 	return Letter{
 		Title:       "Bestätigung und Rechnung " + document.Number,
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
-		Sender:      sender,
+		Sender:      textLines(head.SenderText),
 		Recipient:   nonBlank("Familie "+document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)),
 		Facts:       letterFacts(content),
-		Subject:     "Bestätigung und Rechnung: " + content.run.PeriodName,
-		Salutation:  "Sehr geehrte Familie " + strings.TrimSpace(document.RecipientLastName) + ",",
-		Blocks:      letterBlocks(content),
-		Closing:     nonBlank("Mit freundlichen Grüßen", firstLine(sender)),
+		Subject:     filled.Subject,
+		Salutation:  filled.Salutation,
+		Blocks:      letterBlocks(filled.Blocks),
+		Closing:     filled.Closing,
 		Footer:      nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
 	}
+}
+
+// letterTemplate is the Träger's template, or the standard one while the
+// letterhead carries none.
+func letterTemplate(template parentbilling.LetterTemplate) templates.Template {
+	if strings.TrimSpace(template.Body) == "" {
+		return templates.Default(templates.KindConfirmation)
+	}
+	return templates.Template{Subject: template.Subject, Salutation: template.Salutation, Body: template.Body, Closing: template.Closing}
+}
+
+// letterValues are the values of every placeholder of the confirmation
+// letter for one invoice.
+func letterValues(content letterContent) map[string]templates.Value {
+	document, head := content.document, content.letterhead
+	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
+	values := map[string]templates.Value{
+		"familienname":    text(document.RecipientLastName),
+		"anmelder":        text(fullName(document.RecipientFirstName, document.RecipientLastName)),
+		"kinder":          text(childNames(document.Children)),
+		"traeger":         text(firstLine(textLines(head.SenderText))),
+		"ansprechperson":  text(head.ContactName),
+		"rueckfragen":     text(questionText(head)),
+		"zeitraum":        text(content.run.PeriodName),
+		"rechnungsnummer": text(document.Number),
+		"positionen":      {Rows: rows(positionFacts(document))},
+		"summe":           text(formatEuro(document.TotalCents)),
+		"zahlungshinweis": text(paymentText(content)),
+		"hinweise":        text(content.input.Notes),
+		"notfallnummern":  {Rows: emergencyRows(content.input.EmergencyContacts)},
+	}
+	if document.IssuedOn != nil {
+		values["datum"] = text(germanDate(*document.IssuedOn))
+	}
+	if document.TotalCents > 0 {
+		values["zahlen_bis"] = text(germanDate(content.input.PaymentDueOn))
+	}
+	return values
+}
+
+func emergencyRows(contacts []parentbilling.BillingEmergencyContact) []templates.Row {
+	result := make([]templates.Row, len(contacts))
+	for i, contact := range contacts {
+		result[i] = templates.Row{Label: contact.Name, Value: contact.Phone}
+	}
+	return result
+}
+
+func rows(facts []LetterFact) []templates.Row {
+	result := make([]templates.Row, len(facts))
+	for i, fact := range facts {
+		result[i] = templates.Row(fact)
+	}
+	return result
+}
+
+func letterBlocks(blocks []templates.Block) []LetterBlock {
+	result := make([]LetterBlock, len(blocks))
+	for i, block := range blocks {
+		var facts []LetterFact
+		for _, row := range block.Rows {
+			facts = append(facts, LetterFact(row))
+		}
+		result[i] = LetterBlock{Heading: block.Heading, Text: block.Text, Bold: block.Bold, Facts: facts}
+	}
+	return result
 }
 
 func letterFacts(content letterContent) []LetterFact {
@@ -103,34 +175,6 @@ func letterFacts(content letterContent) []LetterFact {
 		}
 	}
 	return facts
-}
-
-func letterBlocks(content letterContent) []LetterBlock {
-	document := content.document
-	blocks := []LetterBlock{
-		{Text: fmt.Sprintf("wir bestätigen die Anmeldung von %s für „%s“. Sie haben gebucht:",
-			childNames(document.Children), content.run.PeriodName)},
-		{Facts: positionFacts(document)},
-		{Text: paymentText(content), Bold: document.TotalCents > 0},
-	}
-	if notes := strings.TrimSpace(content.input.Notes); notes != "" {
-		blocks = append(blocks, LetterBlock{Heading: "Bitte beachten Sie", Text: notes})
-	}
-	if contacts := content.input.EmergencyContacts; len(contacts) > 0 {
-		facts := make([]LetterFact, len(contacts))
-		for i, contact := range contacts {
-			facts[i] = LetterFact{Label: contact.Name, Value: contact.Phone}
-		}
-		blocks = append(blocks, LetterBlock{
-			Heading: "Notfallnummern",
-			Text:    "In dringenden Fällen und wenn Ihr Kind krank ist, erreichen Sie die Betreuung hier:",
-			Facts:   facts,
-		})
-	}
-	if question := questionText(content.letterhead); question != "" {
-		blocks = append(blocks, LetterBlock{Text: question})
-	}
-	return blocks
 }
 
 // positionFacts lists every position of the invoice by child and closes

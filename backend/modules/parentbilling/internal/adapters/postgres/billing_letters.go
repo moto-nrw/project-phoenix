@@ -28,6 +28,7 @@ type runLettersRow struct {
 	EmergencyContacts  []parentbilling.BillingEmergencyContact `bun:"emergency_contacts,type:jsonb"`
 	CreatedByAccountID *int64                                  `bun:"created_by_account_id"`
 	CreatedAt          time.Time                               `bun:"created_at,nullzero,default:current_timestamp"`
+	TemplateVersion    int                                     `bun:"template_version"`
 }
 
 func (r runLettersRow) letters() parentbilling.BillingLetters {
@@ -37,7 +38,7 @@ func (r runLettersRow) letters() parentbilling.BillingLetters {
 	}
 	return parentbilling.BillingLetters{
 		PaymentDueOn: r.PaymentDueOn, Notes: r.Notes, EmergencyContacts: contacts, CreatedAt: r.CreatedAt,
-		CreatedByAccountID: r.CreatedByAccountID,
+		CreatedByAccountID: r.CreatedByAccountID, TemplateVersion: r.TemplateVersion,
 	}
 }
 
@@ -72,15 +73,15 @@ func (s *Store) RunLetters(ctx context.Context, organizationID, runID int64) (*p
 }
 
 // InsertRunLetters stores what the Abrechnung wrote for the letters of a
-// run.
-func (s *Store) InsertRunLetters(ctx context.Context, organizationID, runID, accountID int64, input parentbilling.BillingLetterInput) (parentbilling.BillingLetters, error) {
+// run and the template version they are written with.
+func (s *Store) InsertRunLetters(ctx context.Context, organizationID, runID, accountID int64, input parentbilling.BillingLetterInput, templateVersion int) (parentbilling.BillingLetters, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.BillingLetters{}, err
 	}
 	row := &runLettersRow{
 		OrganizationID: organizationID, RunID: runID, PaymentDueOn: input.PaymentDueOn, Notes: input.Notes,
-		EmergencyContacts: input.EmergencyContacts, CreatedByAccountID: &accountID,
+		EmergencyContacts: input.EmergencyContacts, CreatedByAccountID: &accountID, TemplateVersion: templateVersion,
 	}
 	if row.EmergencyContacts == nil {
 		row.EmergencyContacts = []parentbilling.BillingEmergencyContact{}

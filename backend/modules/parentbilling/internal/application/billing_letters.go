@@ -27,7 +27,9 @@ type LetterStore interface {
 	RunLetters(ctx context.Context, organizationID, runID int64) (*parentbilling.BillingLetters, error)
 	// InsertRunLetters reports letters that already exist as
 	// ErrBillingLettersExist.
-	InsertRunLetters(ctx context.Context, organizationID, runID, accountID int64, input parentbilling.BillingLetterInput) (parentbilling.BillingLetters, error)
+	// templateVersion is the version of the Träger's template the letters
+	// are written with (#4677).
+	InsertRunLetters(ctx context.Context, organizationID, runID, accountID int64, input parentbilling.BillingLetterInput, templateVersion int) (parentbilling.BillingLetters, error)
 	// InsertDocumentLetter stores the PDF; the database adds its SHA-256.
 	InsertDocumentLetter(ctx context.Context, organizationID, runID, documentID int64, file parentbilling.BillingLetterFile) error
 	// DocumentLetter reads the stored letter of an invoice of the run and
@@ -80,7 +82,7 @@ func (b *BillingLetters) CreateBillingLetters(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.BillingLetters{}, err
 	}
-	letters, err := b.store.InsertRunLetters(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, input)
+	letters, err := b.store.InsertRunLetters(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, input, head.Template.Version)
 	if err != nil {
 		return parentbilling.BillingLetters{}, err
 	}

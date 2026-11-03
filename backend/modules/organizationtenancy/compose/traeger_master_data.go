@@ -11,3 +11,9 @@ import (
 func NewTraegerMasterData() organizationtenancy.TraegerMasterData {
 	return application.NewTraegerMasterData(postgres.NewTraegerMasterDataStore())
 }
+
+// NewTraegerDocumentTemplates builds the document templates of a Träger
+// (#4677, ADR 0149) in the Träger transaction the route opens.
+func NewTraegerDocumentTemplates() organizationtenancy.TraegerDocumentTemplates {
+	return application.NewTraegerDocumentTemplates(postgres.NewTraegerMasterDataStore())
+}

@@ -248,7 +248,7 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 func OwnTraegerMasterData(tb testing.TB, db *bun.DB, organizationID int64) {
 	tb.Helper()
 	tb.Cleanup(func() {
-		for _, table := range []string{"platform.traeger_master_data_audit", "platform.traeger_bank_accounts", "platform.traeger_profiles"} {
+		for _, table := range []string{"platform.traeger_master_data_audit", "platform.traeger_document_templates", "platform.traeger_bank_accounts", "platform.traeger_profiles"} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Träger master data")
 		}
