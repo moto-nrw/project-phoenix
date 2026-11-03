@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -10,7 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { OnepagerHeader } from "~/components/help/onepager-header";
-import { ButtonLink } from "~/components/ui/button";
+import { buttonClassName } from "~/components/ui/button-styles";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -253,15 +254,17 @@ export default function NfcQuickstartPage() {
                     beenden, Kinder ein- und auschecken, Arbeitszeiten stempeln,
                     Geräte einstellen und Fehler beheben.
                   </p>
-                  <ButtonLink
+                  <Link
                     href="/help/gruppe/nfc?role=caregiver&nfc_enabled=true"
-                    variant="success"
-                    size="md"
-                    className="mt-3 gap-2 print:hidden"
+                    className={buttonClassName({
+                      variant: "success",
+                      size: "md",
+                      className: "mt-3 gap-2 print:hidden",
+                    })}
                   >
                     NFC-Anleitungen öffnen
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </ButtonLink>
+                  </Link>
                   <p className="mt-2 hidden text-[12px] leading-5 font-medium text-gray-700 print:mt-2 print:block">
                     So finden Sie es: moto im Browser öffnen, unten links auf
                     Hilfe klicken und die Anleitungen zum NFC-Tablet wählen.
