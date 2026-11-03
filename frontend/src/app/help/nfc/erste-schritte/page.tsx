@@ -11,7 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { OnepagerHeader } from "~/components/help/onepager-header";
-import { buttonClassName } from "~/components/ui/button-styles";
+import { buttonStyles } from "~/components/ui/button-styles";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -256,7 +256,7 @@ export default function NfcQuickstartPage() {
                   </p>
                   <Link
                     href="/help/gruppe/nfc?role=caregiver&nfc_enabled=true"
-                    className={buttonClassName({
+                    className={buttonStyles({
                       variant: "success",
                       size: "md",
                       className: "mt-3 gap-2 print:hidden",

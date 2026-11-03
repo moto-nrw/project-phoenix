@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
-import { buttonClassName } from "~/components/ui/button-styles";
+import { buttonStyles } from "~/components/ui/button-styles";
 
 /**
  * Kopf der gedruckten NFC-Kurzanleitung.
@@ -26,7 +26,7 @@ export function OnepagerHeader({
       <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border p-3 shadow-sm sm:relative sm:p-4">
         <Link
           href="/help"
-          className={buttonClassName({
+          className={buttonStyles({
             variant: "surface",
             size: "md",
             className: "min-w-0 gap-2",
@@ -40,7 +40,7 @@ export function OnepagerHeader({
           <a
             href={pdf.href}
             download={pdf.download}
-            className={buttonClassName({
+            className={buttonStyles({
               variant: "surface",
               size: "md",
               className: "gap-2 whitespace-nowrap",

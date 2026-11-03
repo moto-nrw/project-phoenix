@@ -1,5 +1,3 @@
-import { cn } from "~/lib/utils";
-
 export type ButtonVariant =
   | "primary"
   | "secondary"
@@ -18,7 +16,7 @@ export type ButtonVariant =
 export type ButtonSize =
   "sm" | "md" | "field" | "base" | "lg" | "xl" | "compact" | "icon" | "card";
 
-export function buttonClassName({
+export function buttonStyles({
   variant,
   size,
   className,
@@ -104,12 +102,14 @@ export function buttonClassName({
   const baseStyles =
     "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
 
-  return cn(
+  return [
     baseStyles,
     sizeStyles[size],
     variantStyles[variant],
     textSizes[size],
     touchTarget && "h-11 w-11",
     className,
-  );
+  ]
+    .filter(Boolean)
+    .join(" ");
 }

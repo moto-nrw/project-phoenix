@@ -2,14 +2,27 @@
 
 import type { PrefetchResource } from "./data-prefetch-intent";
 import {
-  buttonClassName,
+  buttonStyles,
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
 import Link from "next/link";
 import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
+import { cn } from "~/lib/utils";
 
-export { buttonClassName } from "./button-styles";
+export function buttonClassName({
+  variant,
+  size,
+  className,
+  touchTarget = false,
+}: Readonly<{
+  variant: ButtonVariant;
+  size: ButtonSize;
+  className: string;
+  touchTarget?: boolean;
+}>) {
+  return cn(buttonStyles({ variant, size, className, touchTarget }));
+}
 
 // Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
 declare global {
