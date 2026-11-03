@@ -7,15 +7,19 @@
 // sind die des Backends, so landet ein Fehler an seinem Feld. Wochen ändert
 // nur „Umbuchen“, Gesundheitsangaben ändern sich hier nicht.
 
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  lazy,
+  Suspense,
+  useRef,
+  useState,
+} from "react";
 import {
   DateOfBirthPicker,
   type DateOfBirthTranslator,
 } from "~/components/enrollment/date-of-birth-picker";
-import {
-  CustomDateField,
-  NativeDateControl,
-} from "~/components/enrollment/custom-date-field";
+import { CustomDateField } from "~/components/enrollment/custom-date-field";
 import {
   type GuardianAddressDraft,
   GuardianAddressFields,
@@ -50,6 +54,14 @@ import {
 } from "./holiday-registration-edit-fields";
 
 const logger = createLogger({ component: "HolidayRegistrationEdit" });
+
+// The calendar of the kit date picker loads only when an open edit form
+// asks a date question; the German texts are its defaults.
+const ISODatePicker = lazy(() =>
+  import("~/components/ui/date-picker").then((module) => ({
+    default: module.ISODatePicker,
+  })),
+);
 
 // Limits of the public form; the backend checks them as well.
 const MAX_EMERGENCY_CONTACTS = 3;
@@ -573,8 +585,6 @@ function Questions({
       onChange={(key, value) => onChange({ ...answers, [key]: value })}
       tr={germanText}
       renderDate={({ name, field, value, error, onChange: change }) => (
-        // The native date field of the kit Input: the calendar of the date
-        // picker would double the page's bundle growth.
         <CustomDateField
           field={field}
           inputName={name}
@@ -582,7 +592,23 @@ function Questions({
           error={error}
           onChange={change}
           controlId={name.replaceAll(".", "-")}
-          renderControl={NativeDateControl}
+          renderControl={(control) => (
+            <Suspense fallback={null}>
+              <ISODatePicker
+                id={control.id}
+                name={control.name}
+                controlSize="md"
+                value={control.value}
+                onChange={control.onChange}
+                invalid={control.invalid}
+                ariaDescribedBy={control.ariaDescribedBy}
+                calendarLayout="popover"
+                // A question can ask for any date, from a birthday to an
+                // appointment: the year stays selectable, without bounds.
+                monthYearNavigation
+              />
+            </Suspense>
+          )}
         />
       )}
     />

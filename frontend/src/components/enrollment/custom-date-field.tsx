@@ -1,14 +1,13 @@
 "use client";
 
 // Eine Datumsfrage eines Formulars: Beschriftung, Hilfetext, Fehler am Feld.
-// Das Bedienelement bringt der Aufrufer mit: den Kalender der Datumsauswahl
-// (CustomDateFieldInput) oder das Datumsfeld des Kit-Inputs, wo eine Seite
-// den Kalender nicht laden soll (Bearbeitung durch das Träger-Büro, #5629).
+// Das Bedienelement ist die Datumsauswahl des Kits; der Aufrufer bringt sie
+// mit, übersetzt (CustomDateFieldInput) oder erst bei Bedarf geladen
+// (Bearbeitung durch das Träger-Büro, #5629).
 
 import type { ReactNode } from "react";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
-import { Input } from "~/components/ui/input";
 import { type CustomFieldInputProps, HelpText } from "./custom-field-input";
 
 /** What the frame hands its date control. */
@@ -57,27 +56,5 @@ export function CustomDateField({
       })}
       <FieldErrorHint id={errorId} message={error} />
     </div>
-  );
-}
-
-/** The native date field of the kit Input, without a calendar to load. */
-export function NativeDateControl({
-  id,
-  name,
-  value,
-  onChange,
-  invalid,
-  ariaDescribedBy,
-}: DateControlProps) {
-  return (
-    <Input
-      type="date"
-      id={id}
-      name={name}
-      value={value}
-      aria-invalid={invalid || undefined}
-      aria-describedby={ariaDescribedBy}
-      onChange={(event) => onChange(event.target.value)}
-    />
   );
 }
