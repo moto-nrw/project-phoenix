@@ -17,6 +17,8 @@ describe("paymentTextProblem", () => {
     expect(paymentTextProblem(BUILT_IN_PAYMENT_TEXT)).toBeNull();
     expect(paymentTextProblem("")).toBeNull();
     expect(paymentTextProblem("ü".repeat(600))).toBeNull();
+    // An emoji is one character, as the backend counts it.
+    expect(paymentTextProblem(`${"a".repeat(599)}😀`)).toBeNull();
   });
 
   it.each([
@@ -29,6 +31,7 @@ describe("paymentTextProblem", () => {
     ],
     ["Betrag}", "Eine geschweifte Klammer steht allein."],
     ["ü".repeat(601), "Der Text ist zu lang. Erlaubt sind 600 Zeichen."],
+    [`${"a".repeat(600)}😀`, "Der Text ist zu lang. Erlaubt sind 600 Zeichen."],
   ])("refuses %s", (text, start) => {
     expect(paymentTextProblem(text)).toMatch(
       new RegExp(`^${start.replaceAll(/[{}.]/g, "\\$&")}`),

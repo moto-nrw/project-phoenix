@@ -489,6 +489,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	}
 	h.complete(period, read, overrides)
 	detail := read[0]
+	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion); ok {
+		detail.ConsentTexts = &texts
+	}
 	if detail.Contacts, err = h.store.ReadHolidayContacts(ctx, reviewer.OrganizationID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration contacts: %w", err)
 	}

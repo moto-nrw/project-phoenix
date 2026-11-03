@@ -195,7 +195,7 @@ function DebtorNumberField({
       <DataGrid columns={2}>
         <DataField label="Debitorennummer">
           {debtorNumber ? (
-            <span className="font-mono">{debtorNumber}</span>
+            <span className="font-mono wrap-anywhere">{debtorNumber}</span>
           ) : (
             "Noch keine Nummer."
           )}

@@ -2064,6 +2064,8 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Die Kennzeichnung `Für Eltern sichtbar` zeigt Angaben, die Eltern sehen.",
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
       "Fehlt `Bearbeiten` oder `Wochenplan`? Fragen Sie Ihre Leitung nach den nötigen Rechten.",
+      // #5618: care-schedule-manager.tsx (hiddenBookedPickup), Knopf im Tagesdialog.
+      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt für diesen Wochentag in jeder Woche.",
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
@@ -2488,6 +2490,7 @@ export const enrollmentReviewTopic =
         "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
+        "Unter `Abholzeit weicht von der Buchung ab` gilt an einem Tag noch eine von Hand eingetragene Abholzeit. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit. Steht ein Datum dabei, gilt sie erst ab diesem Tag.",
         // #5497
         "Steht dort ein Enddatum, gibt es danach wieder eine passende Buchung. Das Kind wird dann nur bis zu diesem Tag herausgenommen.",
         "Haben Sie die Seite schon verlassen? Der Hinweis bleibt im `Betreuungsplan` unter `Ohne passende Buchung eingeplant`.",
@@ -5086,6 +5089,7 @@ export const ownShiftPlanTopic = function ownShiftPlanTopic(): HelpTopic {
       "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
       "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
       "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
+      "Ist eine Woche leer, nennt die Seite Ihre nächste Schicht. `Zur nächsten Schicht` bringt Sie zu dieser Woche.",
     ],
     differences: [
       "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",
@@ -6062,7 +6066,8 @@ export const parentHolidayRegistrationTopic =
         "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
         "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
         "Tragen Sie unter `Kontakte` jede weitere Person einmal ein. Wählen Sie `Notfallkontakt`, `Darf die Kinder abholen` oder beides. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
-        "Setzen Sie die Haken unter `Einverständnis`.",
+        "Setzen Sie die Haken unter `Einverständnis`. Dazu gehört das Sorgerecht: Sie sind allein sorgeberechtigt, oder die andere sorgeberechtigte Person ist einverstanden.",
+        "Tragen Sie unter `Ihre Erklärung` Ihren Vor- und Nachnamen ein. Damit geben Sie die Erklärungen ab.",
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
         "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
@@ -6070,9 +6075,10 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
-        "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
+        "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf.",
       notes: [
         "Ein Elternkonto brauchen Sie nicht.",
+        "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
         "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
         "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
@@ -6706,6 +6712,8 @@ export const parentRequestsTopic = function parentRequestsTopic(
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
+      // Von Hand eingetragene Abholzeiten überdecken eine neue Buchung.
+      "Gilt an einem Tag noch eine von Hand eingetragene Abholzeit? Dann bleibt die Anfrage ebenfalls offen. Sie zeigt `Abholzeit weicht von der Buchung ab`. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit. Steht ein Datum dabei, gilt sie erst ab diesem Tag. Bis dahin gilt die eingetragene Zeit weiter.",
       // #5137: Klassen-Regeltermine holen das Kind wieder herein.
       "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
       // #4767: Warteliste je AG; Nachrücken ist die normale Freigabe.
@@ -10148,6 +10156,7 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, allgemeine Antworten unter `Allgemeine Angaben`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
+            "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
@@ -10249,7 +10258,8 @@ export const traegerHolidayRegistrationTopic =
         "Eltern brauchen kein Elternkonto.",
         "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
         "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
-        "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage.",
+        "Eltern bestätigen bei jeder Anmeldung das Sorgerecht. Mit ihrem Vor- und Nachnamen geben sie die Erklärungen ab.",
+        "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage. Sie enthält die Erklärung der Eltern mit dem genauen Text, auch Ihre bestätigten Hinweise.",
         "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",
         "Drei Monate nach der letzten Woche löscht moto die Anmeldungen. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
       ],

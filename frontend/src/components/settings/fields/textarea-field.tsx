@@ -8,7 +8,6 @@ interface TextareaFieldProps {
   readonly disabled?: boolean;
   /** Example text of an empty field. */
   readonly placeholder?: string;
-  readonly maxLength?: number;
   /** id of the hint that explains why the value is refused. */
   readonly errorId?: string;
 }
@@ -29,7 +28,6 @@ export function TextareaField({
   onBlur,
   disabled = false,
   placeholder,
-  maxLength,
   errorId,
 }: TextareaFieldProps) {
   return (
@@ -38,7 +36,6 @@ export function TextareaField({
       aria-invalid={errorId ? true : undefined}
       aria-describedby={errorId}
       placeholder={placeholder}
-      maxLength={maxLength}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}

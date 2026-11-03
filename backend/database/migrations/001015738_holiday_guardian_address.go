@@ -14,10 +14,10 @@ func init() {
 		Version:     holidayGuardianAddressVersion,
 		Description: "Ferienanmeldung: schaltbare Anschrift des Elternteils, Kopie in der Rechnung (#5625)",
 		DependsOn: []string{
-			unusedAccountErasureWithoutWaitVersion, // the last migration before this one
-			holidayPeriodFormsVersion,              // the versions of the form this extends
-			holidaySecondGuardianVersion,           // the registration columns this extends
-			parentBillingHolidayRunsVersion,        // the invoices this extends
+			holidayRegistrationDeclarationVersion, // the last migration before this one
+			holidayPeriodFormsVersion,             // the versions of the form this extends
+			holidaySecondGuardianVersion,          // the registration columns this extends
+			parentBillingHolidayRunsVersion,       // the invoices this extends
 		},
 	})
 	Migrations.MustRegister(holidayGuardianAddressUp, holidayGuardianAddressDown)

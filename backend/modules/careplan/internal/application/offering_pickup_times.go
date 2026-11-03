@@ -75,10 +75,11 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
-	offering, err := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)
+	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, date, date)
 	if err != nil {
 		return fmt.Errorf("load offering pickup for reset: %w", err)
 	}
+	offering := projection.OfferingForDate(studentID, date)
 	if offering == nil {
 		return careplan.ErrPickupResetNoOffering
 	}

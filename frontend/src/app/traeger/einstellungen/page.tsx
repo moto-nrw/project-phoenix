@@ -21,11 +21,12 @@ import {
 } from "~/lib/traeger-api";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
-import { TraegerPaymentTextPreview } from "~/components/traeger/traeger-payment-text-preview";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   DEBTOR_NUMBER_ON_CONFIRM_KEY,
   PAYMENT_TEXT_KEY,
   TRAEGER_HOLIDAY_TAB,
+  paymentTextPreview,
 } from "~/lib/traeger-payment-text";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
@@ -150,12 +151,22 @@ export default function TraegerSettingsPage() {
         />
       ))}
       {activeTab && paymentText ? (
-        <TraegerPaymentTextPreview
-          text={typeof paymentText.value === "string" ? paymentText.value : ""}
-          asksDebtorNumber={
-            tabItem(activeTab, DEBTOR_NUMBER_ON_CONFIRM_KEY)?.value === true
-          }
-        />
+        // The payment sentence with example values, bold as the letter
+        // prints it; a display only, the text changes in the field above.
+        <SectionCard
+          title="Vorschau des Zahlungstexts"
+          description="So steht der Text im Schreiben, mit Beispielwerten. Bei 0 € steht dort: „Sie müssen für diese Betreuung nichts bezahlen.“"
+        >
+          <figure aria-label="Vorschau des Zahlungstexts">
+            <p className="font-semibold wrap-anywhere whitespace-pre-line text-gray-900">
+              {paymentTextPreview(
+                typeof paymentText.value === "string" ? paymentText.value : "",
+                tabItem(activeTab, DEBTOR_NUMBER_ON_CONFIRM_KEY)?.value ===
+                  true,
+              )}
+            </p>
+          </figure>
+        </SectionCard>
       ) : null}
     </TenantPage>
   );

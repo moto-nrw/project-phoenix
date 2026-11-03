@@ -199,12 +199,19 @@ type AdjustmentAudit interface {
 type PickupWeekdayRow struct {
 	ID      int64
 	Weekday int
+	// PickupTime is the stored time as "HH:MM".
+	PickupTime string
+	// Manual marks a staff override. A legacy care_offering row is not one:
+	// the projection ignores it.
+	Manual bool
 }
 
 // BookingPickup reads the date-aware offering pickup projection and changes
 // the stored weekly pickup rows it overrides.
 type BookingPickup interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error)
+	// OfferingPickupsBetween projects the student's pickup baseline over the
+	// dates; OfferingForDate reads the booked pickup of one day from it.
+	OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 	WeekdayRows(ctx context.Context, studentID int64) ([]PickupWeekdayRow, error)
 	DeleteWeekdayRow(ctx context.Context, id int64) error
 }

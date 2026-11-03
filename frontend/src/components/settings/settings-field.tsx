@@ -40,6 +40,7 @@ import {
   PAYMENT_TEXT_KEY,
   paymentTextProblem,
 } from "~/lib/traeger-payment-text";
+import { textTooLong } from "~/lib/text-length";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
@@ -195,6 +196,13 @@ function validateLocally(
   // The payment text of the Träger takes only its placeholders (#5622).
   if (setting.key === PAYMENT_TEXT_KEY) {
     return paymentTextProblem(typeof value === "string" ? value : "");
+  }
+
+  // A text limit counts characters like the backend (#5622).
+  const maxLength = setting.validation?.max_length;
+  if (maxLength != null && typeof value === "string") {
+    const tooLong = textTooLong(value, maxLength);
+    if (tooLong) return tooLong;
   }
 
   if (setting.type === "number") {
@@ -1990,7 +1998,6 @@ function renderField(
           placeholder={
             setting.key === PAYMENT_TEXT_KEY ? BUILT_IN_PAYMENT_TEXT : undefined
           }
-          maxLength={setting.validation?.max_length}
           errorId={errorId}
         />
       );

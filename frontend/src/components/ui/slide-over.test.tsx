@@ -105,7 +105,12 @@ vi.mock("vaul", async () => {
   };
 });
 
-import { SlideOver, SlideOverBody, SlideOverContent } from "./slide-over";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverCloseButton,
+  SlideOverContent,
+} from "./slide-over";
 
 function StatefulContent() {
   const [value, setValue] = useState("");
@@ -310,5 +315,29 @@ describe("SlideOver", () => {
     // Anker: der Body zeigt seinen Inhalt, nur ohne Fehler.
     expect(screen.getByText("Formularfelder")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // #5579: dasselbe Schließen-X wie Modal und FormModal, der Kit-Knopf
+  // `ghost` `icon` mit 44 px unter Fingerbedienung.
+  it("renders the close X as the kit ghost icon button", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverCloseButton aria-label="Panel schließen" />
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    const close = screen.getByRole("button", { name: "Panel schließen" });
+    expect(close).toHaveAttribute("type", "button");
+    expect(close).toHaveAttribute("data-overlay-close");
+    expect(close).toHaveClass(
+      "h-8",
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "hover:bg-gray-100",
+    );
+    expect(close.className).not.toContain("rounded-full");
   });
 });

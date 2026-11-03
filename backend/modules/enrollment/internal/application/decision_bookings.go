@@ -128,9 +128,13 @@ func (d *Decisions) adjustChildOfferings(ctx context.Context, input enrollment.U
 // rosterImpactOf hands Care Plan's roster impact to the enrollment contract.
 func rosterImpactOf(impact careplan.RosterImpact) enrollment.RosterImpact {
 	result := enrollment.RosterImpact{
-		EffectiveFrom: impact.EffectiveFrom,
-		Adjusted:      make([]enrollment.AdjustedRosterTemplate, 0, len(impact.Adjusted)),
-		NotAdjusted:   make([]enrollment.ManualRosterTemplate, 0, len(impact.NotAdjusted)),
+		EffectiveFrom:   impact.EffectiveFrom,
+		Adjusted:        make([]enrollment.AdjustedRosterTemplate, 0, len(impact.Adjusted)),
+		NotAdjusted:     make([]enrollment.ManualRosterTemplate, 0, len(impact.NotAdjusted)),
+		PickupOverrides: make([]enrollment.PickupOverride, 0, len(impact.PickupOverrides)),
+	}
+	for _, override := range impact.PickupOverrides {
+		result.PickupOverrides = append(result.PickupOverrides, enrollment.PickupOverride(override))
 	}
 	for _, template := range impact.Adjusted {
 		result.Adjusted = append(result.Adjusted, enrollment.AdjustedRosterTemplate(template))

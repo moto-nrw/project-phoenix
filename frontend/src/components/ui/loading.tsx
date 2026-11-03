@@ -4,6 +4,7 @@
 
 "use client";
 
+import { Z_LAYER } from "./overlay-styles";
 import { SpinnerIcon } from "~/components/ui/icons";
 
 interface LoadingProps {
@@ -16,7 +17,7 @@ export function Loading({
   fullPage = true,
 }: LoadingProps) {
   const containerClasses = fullPage
-    ? "fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50"
+    ? `fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm ${Z_LAYER.sheet}`
     : "flex min-h-40 items-center justify-center py-8";
 
   return (
