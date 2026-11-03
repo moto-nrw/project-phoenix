@@ -15,9 +15,9 @@
       "maxBytes": 762778
     },
     "/traeger/ferien/[id]/anmeldungen/[registrationId]": {
-      "referenceBytes": 831392,
-      "maxBytes": 848020,
-      "_reason": "#5629: Das Träger-Büro ändert die Angaben einer Anmeldung an Ort und Stelle (Eltern, Kind, Kontakte, Antworten). Die Formulare laden erst mit „Ändern“, ohne Kalender und ohne Zeilenmenü. Lokale kalte Messung: Merge-Basis 819885, PR 831392 Bytes (+11,2 kB, innerhalb der 2-%-Delta-Toleranz). Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
+      "referenceBytes": 829895,
+      "maxBytes": 846493,
+      "_reason": "#5629: Das Träger-Büro ändert die Angaben einer Anmeldung an Ort und Stelle (Eltern, Kind, Kontakte, Antworten). Die Formulare laden erst mit „Ändern“, ohne Kalender und ohne Zeilenmenü. Lokale kalte Messung: Merge-Basis 818432, PR 829895 Bytes (+11,2 kB, innerhalb der 2-%-Delta-Toleranz). Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
     },
     "/traeger/ferien/neu": {
       "referenceBytes": 784016,
