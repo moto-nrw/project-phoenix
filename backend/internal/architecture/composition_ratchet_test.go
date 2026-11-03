@@ -1,6 +1,7 @@
 package architecture
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -165,11 +166,61 @@ func TestCompositionSurfaceResolvesCrossFileDependenciesAndTestScopes(t *testing
 
 func TestCompositionRatchetWrapperFromGitHook(t *testing.T) {
 	t.Parallel()
-	holdRepositoryGraphLoad(t)
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
-	gitDir := strings.TrimSpace(runGit(t, root, "rev-parse", "--absolute-git-dir"))
-	output, err := runArchitectureWithEnv(t, map[string]string{"GIT_DIR": gitDir, "GIT_WORK_TREE": "."}, "check")
-	if err != nil || !strings.Contains(output, "composition surface passed:") {
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	entries, err := os.ReadDir(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := filepath.Join(repo, "backend")
+	if err := os.Mkdir(backend, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.Name() != ".git" {
+			if err := os.Rename(filepath.Join(repo, entry.Name()), filepath.Join(backend, entry.Name())); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	cli := filepath.Join(repo, "scripts", "backend-architecture")
+	if err := os.MkdirAll(cli, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Keep the real wrapper and CLI, but give them a small backend to check.
+	// No check options: the wrapper must still choose the default baseline
+	// and merge base after clearing the hook's repository-local Git variables.
+	cliSource := filepath.Join(root, "scripts", "backend-architecture")
+	cliFiles, err := os.ReadDir(cliSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range cliFiles {
+		if strings.HasSuffix(file.Name(), ".go") {
+			if err := os.Symlink(filepath.Join(cliSource, file.Name()), filepath.Join(cli, file.Name())); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	// Only the module's local replacement changes: compile the actual checker,
+	// not the tiny backend whose policy and Git history the wrapper checks.
+	module := strings.ReplaceAll(readFile(t, filepath.Join(cliSource, "go.mod")), "=> ../../backend", "=> "+filepath.Join(root, "backend"))
+	writeFile(t, filepath.Join(cli, "go.mod"), module)
+	writeFile(t, filepath.Join(cli, "go.sum"), readFile(t, filepath.Join(cliSource, "go.sum")))
+	wrapper := filepath.Join(root, "scripts", "backend-architecture.sh")
+	environment := append(gitTestEnvironment(), "GOCACHEPROG=")
+	snapshot, err := processOutput(repo, environment, wrapper, "passthrough-snapshot", "--decision", "0075")
+	if err != nil {
+		t.Fatalf("snapshot fixture pass-throughs: %v\n%s", err, snapshot)
+	}
+	writeFile(t, filepath.Join(backend, "architecture", "passthrough.json"), string(snapshot))
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "backend layout")
+	runGit(t, repo, "update-ref", "refs/remotes/origin/development", "HEAD")
+	gitDir := strings.TrimSpace(runGit(t, repo, "rev-parse", "--absolute-git-dir"))
+	environment = append(environment, "GIT_DIR="+gitDir, "GIT_WORK_TREE=.")
+	output, err := processOutput(repo, environment, wrapper, "check")
+	if err != nil || !strings.Contains(string(output), "composition surface passed:") {
 		t.Fatalf("hook-local Git environment broke base comparison: %v\n%s", err, output)
 	}
 }
