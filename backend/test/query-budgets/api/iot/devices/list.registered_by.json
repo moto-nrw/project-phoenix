@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.devices.list.registered_by",
+  "max": 6,
+  "exact": true,
+  "description": "GET /api/iot/registered-by/{personId}; owner HTTP, N1/N3/N8 distinct real devices/rooms, archive/other-school/filter controls, real tenant transaction/RLS, independent DTO and zero writes; all production statements, fresh existing settings memo per request."
+}
