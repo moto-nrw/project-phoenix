@@ -174,6 +174,23 @@ describe("MultiSelect", () => {
       expect(screen.queryByRole("option", { name: "Fußball-AG" })).toBeNull();
     });
 
+    it("closes the panel when Tab leaves the select-all action", () => {
+      render(<Controlled searchable selectAll />);
+      openMenu();
+
+      const selectAll = screen.getByRole("button", {
+        name: "Alle auswählen",
+      });
+      // Anker: Das geöffnete Panel enthält die Aktion zum Auswählen aller Werte.
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      fireEvent.keyDown(selectAll, { key: "Tab" });
+
+      expect(trigger()).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(trigger()).toHaveFocus();
+    });
+
     it("keeps keyboard focus on an option when filtering changes its index", () => {
       const onChange = vi.fn();
       render(<Controlled searchable onChange={onChange} />);

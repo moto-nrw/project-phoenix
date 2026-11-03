@@ -846,6 +846,30 @@ describe("CustomSelect", () => {
       expect(screen.getByText("Keine Treffer.")).toBeInTheDocument();
     });
 
+    it("closes the panel when Tab leaves the search field", () => {
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          searchable
+          value=""
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+      fireEvent.click(trigger);
+      const search = screen.getByRole("textbox", { name: "Suchen" });
+      // Anker: Die Suche liegt im geöffneten Listbox-Panel.
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+      fireEvent.keyDown(search, { key: "Tab" });
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+
     it("steps from the search field into the list and selects with Enter", () => {
       const onChange = vi.fn();
       render(

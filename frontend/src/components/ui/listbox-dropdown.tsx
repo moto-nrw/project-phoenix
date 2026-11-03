@@ -788,6 +788,9 @@ export function ListboxDropdown<K extends string>({
     setFocusIndex((prev) => nextEnabledIndex(options, prev, direction));
   };
 
+  const hasPanel =
+    searchable || menuHeader !== undefined || menuFooter !== undefined;
+
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -812,6 +815,15 @@ export function ListboxDropdown<K extends string>({
       return;
     }
     onSearchKeyDown?.(event);
+  };
+
+  const handlePanelKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Tab") {
+      // The panel is portaled, so its controls are not part of the trigger's
+      // local focus order. Return to the trigger before the browser continues
+      // tabbing, just as options do in a plain listbox.
+      closeAndReturnFocus();
+    }
   };
 
   const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -856,15 +868,14 @@ export function ListboxDropdown<K extends string>({
         // default action: the browser then continues the Tab traversal
         // from the trigger, so keyboard users reach the next field instead
         // of being trapped inside the popup.
-        closeAndReturnFocus();
+        if (!hasPanel) {
+          closeAndReturnFocus();
+        }
         break;
       default:
         break;
     }
   };
-
-  const hasPanel =
-    searchable || menuHeader !== undefined || menuFooter !== undefined;
 
   // The option list itself. It is the whole menu for a plain select, and the
   // middle of the panel once a search field or a slot joins it.
@@ -1087,6 +1098,7 @@ export function ListboxDropdown<K extends string>({
                 role="presentation"
                 onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
+                onKeyDownCapture={handlePanelKeyDownCapture}
               >
                 {searchable ? (
                   <div className="relative p-2 pb-1">
