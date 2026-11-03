@@ -2488,7 +2488,7 @@ export const enrollmentReviewTopic =
         "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
-        "Unter `Abholzeit weicht von der Buchung ab` gilt an einem Tag noch eine von Hand eingetragene Abholzeit. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit.",
+        "Unter `Abholzeit weicht von der Buchung ab` gilt an einem Tag noch eine von Hand eingetragene Abholzeit. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit. Steht ein Datum dabei, gilt sie erst ab diesem Tag.",
         // #5497
         "Steht dort ein Enddatum, gibt es danach wieder eine passende Buchung. Das Kind wird dann nur bis zu diesem Tag herausgenommen.",
         "Haben Sie die Seite schon verlassen? Der Hinweis bleibt im `Betreuungsplan` unter `Ohne passende Buchung eingeplant`.",
@@ -6707,7 +6707,7 @@ export const parentRequestsTopic = function parentRequestsTopic(
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       // Von Hand eingetragene Abholzeiten überdecken eine neue Buchung.
-      "Gilt an einem Tag noch eine von Hand eingetragene Abholzeit? Dann bleibt die Anfrage ebenfalls offen. Sie zeigt `Abholzeit weicht von der Buchung ab`. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit. Steht ein Datum dabei, gilt die eingetragene Zeit bis dahin weiter.",
+      "Gilt an einem Tag noch eine von Hand eingetragene Abholzeit? Dann bleibt die Anfrage ebenfalls offen. Sie zeigt `Abholzeit weicht von der Buchung ab`. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit. Steht ein Datum dabei, gilt sie erst ab diesem Tag. Bis dahin gilt die eingetragene Zeit weiter.",
       // #5137: Klassen-Regeltermine holen das Kind wieder herein.
       "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
       // #4767: Warteliste je AG; Nachrücken ist die normale Freigabe.

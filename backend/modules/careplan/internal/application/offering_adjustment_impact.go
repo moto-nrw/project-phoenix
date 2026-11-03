@@ -75,7 +75,8 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 // pickupOverrides lists the weekdays on which a stored staff pickup time
 // differs from the pickup time the bookings set from the date on. The
 // projection lets the staff row win, so without a hint the old time stays
-// in force after the booking changed.
+// in force after the booking changed. One projection from today to the last
+// weekday of the change's first week answers every row and every day.
 func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID int64, from calendar.Date) ([]careplan.PickupOverride, error) {
 	result := []careplan.PickupOverride{}
 	if m.deps.Pickup == nil {
@@ -85,70 +86,63 @@ func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID 
 	if err != nil {
 		return nil, fmt.Errorf("decision: load pickup schedules for roster impact: %w", err)
 	}
+	manual := make([]ports.PickupWeekdayRow, 0, len(rows))
 	for _, row := range rows {
-		if !row.Manual || row.Weekday < 1 || row.Weekday > 5 {
-			continue
+		if row.Manual && row.Weekday >= 1 && row.Weekday <= 5 {
+			manual = append(manual, row)
 		}
+	}
+	if len(manual) == 0 {
+		return result, nil
+	}
+	today := m.todayDate()
+	start, end := from, from.AddDays(6)
+	if today.Before(start) {
+		start = today
+	}
+	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load offering pickup for roster impact: %w", err)
+	}
+	for _, row := range manual {
 		date := nextWeekdayFrom(from, row.Weekday)
-		booked, lookupErr := m.offeringPickupClock(ctx, studentID, date)
-		if lookupErr != nil {
-			return nil, lookupErr
-		}
+		booked := offeringPickupClock(projection, studentID, date)
 		if booked == "" || booked == row.PickupTime {
 			continue
 		}
-		resetNow, checkErr := m.pickupResetKeepsEarlierDays(ctx, studentID, row, date)
-		if checkErr != nil {
-			return nil, checkErr
-		}
 		result = append(result, careplan.PickupOverride{
-			Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked, ResetNow: resetNow,
+			Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked,
+			ResetNow: pickupResetKeepsEarlierDays(projection, studentID, row, nextWeekdayFrom(today, row.Weekday), date),
 		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Weekday < result[j].Weekday })
 	return result, nil
 }
 
-// maxPickupResetLookaheadWeeks bounds the check below; a change further
-// ahead is reported, but not offered for reset yet.
-const maxPickupResetLookaheadWeeks = 60
-
 // pickupResetKeepsEarlierDays reports whether removing the stored weekday
-// row now leaves every day before the change's first weekday unchanged. The
-// row is undated, so a reset removes it from today on: that is only safe when
-// the bookings already set the stored time on every such day (the booking
-// the stored time copied), or when the change is in force today.
-func (m *BookingMaterialization) pickupResetKeepsEarlierDays(
-	ctx context.Context, studentID int64, row ports.PickupWeekdayRow, first calendar.Date,
-) (bool, error) {
-	day := nextWeekdayFrom(m.todayDate(), row.Weekday)
-	for weeks := 0; day.Before(first); weeks++ {
-		if weeks >= maxPickupResetLookaheadWeeks {
-			return false, nil
+// row now leaves every day from day up to the change's first weekday
+// unchanged. The row is undated, so a reset removes it from today on: that is
+// only safe when the bookings already set the stored time on every such day
+// (the booking the stored time copied), or when the change is in force today.
+func pickupResetKeepsEarlierDays(
+	projection *careplan.PickupBaselineProjection, studentID int64, row ports.PickupWeekdayRow, day, first calendar.Date,
+) bool {
+	for ; day.Before(first); day = day.AddDays(7) {
+		if offeringPickupClock(projection, studentID, day) != row.PickupTime {
+			return false
 		}
-		booked, err := m.offeringPickupClock(ctx, studentID, day)
-		if err != nil {
-			return false, err
-		}
-		if booked != row.PickupTime {
-			return false, nil
-		}
-		day = day.AddDays(7)
 	}
-	return true, nil
+	return true
 }
 
 // offeringPickupClock is the booked pickup time on the date as "HH:MM";
 // empty when no booking sets one.
-func (m *BookingMaterialization) offeringPickupClock(ctx context.Context, studentID int64, date calendar.Date) (string, error) {
-	offering, err := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)
-	if err != nil {
-		return "", fmt.Errorf("decision: load offering pickup for roster impact: %w", err)
-	}
+func offeringPickupClock(projection *careplan.PickupBaselineProjection, studentID int64, date calendar.Date) string {
+	offering := projection.OfferingForDate(studentID, date)
 	if offering == nil {
-		return "", nil
+		return ""
 	}
-	return offering.PickupTime.Format("15:04"), nil
+	return offering.PickupTime.Format("15:04")
 }
 
 // nextWeekdayFrom is the first date on or after from on the ISO weekday

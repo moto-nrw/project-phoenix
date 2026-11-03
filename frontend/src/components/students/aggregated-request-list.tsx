@@ -168,19 +168,37 @@ export function AggregatedRequestList({
   // Mit der Anfrage merkt sich die Liste das Ergebnis der Freigabe. Wechselt
   // die OGS das Kind und kommt zurück, zeigt die Karte es wieder, statt die
   // schon entschiedene Anfrage erneut zur Entscheidung anzubieten.
+  // Gezeigt wird die Karte nur unter den Filtern, unter denen sie entschieden
+  // wurde: Suche, Kind und Art wirken auf dem Server, eine gehaltene Anfrage
+  // käme sonst auch in eine Liste, in die sie nicht gehört.
+  const heldScope = JSON.stringify([
+    filters.search.trim(),
+    filters.studentId ?? null,
+    filters.types,
+    filters.includeAggregated !== false,
+    filters.includeEnrollment === true,
+  ]);
   const [heldItems, setHeldItems] = useState<
     ReadonlyMap<
       string,
-      { request: AggregatedOpenRequest; decision: HeldOfferingDecision }
+      {
+        request: AggregatedOpenRequest;
+        decision: HeldOfferingDecision;
+        scope: string;
+      }
     >
   >(() => new Map());
   const handleHold = useCallback(
     (request: AggregatedOpenRequest, decision: HeldOfferingDecision) => {
       setHeldItems((current) =>
-        new Map(current).set(itemKey(request), { request, decision }),
+        new Map(current).set(itemKey(request), {
+          request,
+          decision,
+          scope: heldScope,
+        }),
       );
     },
-    [],
+    [heldScope],
   );
   const heldDecisions = useMemo(
     () =>
@@ -225,10 +243,11 @@ export function AggregatedRequestList({
     if (heldItems.size === 0) return items;
     const loaded = new Set(items.map(itemKey));
     const held = [...heldItems.values()]
+      .filter((entry) => entry.scope === heldScope)
       .map((entry) => entry.request)
       .filter((item) => !loaded.has(itemKey(item)));
     return [...items, ...held];
-  }, [items, heldItems]);
+  }, [items, heldItems, heldScope]);
   const openCases = useMemo(
     () => (view === "open" ? groupOpenCases(shownItems, withdrawals) : []),
     [shownItems, view, withdrawals],

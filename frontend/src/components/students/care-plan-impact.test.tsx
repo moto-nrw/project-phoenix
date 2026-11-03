@@ -516,6 +516,12 @@ describe("CarePlanImpact", () => {
   });
 
   describe("entered pickup times that hide the booking", () => {
+    // Die Änderung gilt schon (Stichtag 30.10., heute Freitag 06.11.); der
+    // Fall mit Stichtag in der Zukunft steht in eigenen Tests.
+    beforeEach(() => {
+      mocks.berlinToday.current = "2026-11-06";
+    });
+
     it("lists each weekday with the entered and the booked time", () => {
       grantPermissions(["users:update"]);
       renderImpact(pickupImpact);
@@ -613,7 +619,7 @@ describe("CarePlanImpact", () => {
           pickupImpact.pickupOverrides[0]!,
           {
             weekday: 4,
-            date: "2026-11-05",
+            date: "2026-11-12",
             storedTime: "15:15",
             bookedTime: "16:00",
             resetNow: false,
@@ -621,12 +627,12 @@ describe("CarePlanImpact", () => {
         ],
       });
 
-      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
-        "Donnerstags: eingetragen 15:15 Uhr, ab 05.11.2026 gebucht 16:00 Uhr.",
+      expect(screen.getByText("Donnerstags").closest("li")).toHaveTextContent(
+        "Donnerstags: eingetragen 15:15 Uhr, ab 12.11.2026 gebucht 16:00 Uhr.",
       );
       expect(
         screen.getByText(
-          "Steht ein Datum dabei, gilt die eingetragene Zeit bis dahin weiter. Ab diesem Tag setzen Sie sie unter „Betreuungszeiten“ zurück.",
+          "Donnerstags gilt die eingetragene Zeit bis zum genannten Tag weiter. Ab diesem Tag setzen Sie sie unter „Betreuungszeiten“ zurück.",
         ),
       ).toBeInTheDocument();
 
@@ -640,9 +646,40 @@ describe("CarePlanImpact", () => {
       expect(mocks.resetStudentPickupToOffering.mock.calls).toEqual([
         ["42", 1, "2026-11-02"],
       ]);
-      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
-        "ab 05.11.2026 gebucht 16:00 Uhr.",
+      expect(screen.getByText("Donnerstags").closest("li")).toHaveTextContent(
+        "ab 12.11.2026 gebucht 16:00 Uhr.",
       );
+    });
+
+    // Bis zum Stichtag ergibt die Buchung schon die eingetragene Zeit; die
+    // gebuchte neue Zeit gilt erst ab dem Stichtag. Das Datum bleibt stehen,
+    // vor und nach dem Übernehmen, und die Meldung nennt es auch.
+    it("keeps a future change's date before and after taking it over", async () => {
+      mocks.berlinToday.current = "2026-10-28";
+      grantPermissions(["users:update"]);
+      mocks.resetStudentPickupToOffering.mockResolvedValue({});
+      renderImpact(pickupImpact);
+
+      expect(screen.getByText(/Montags/).closest("li")).toHaveTextContent(
+        "Montags: eingetragen 14:30 Uhr, ab 02.11.2026 gebucht 16:00 Uhr.",
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("Ab 02.11.2026 gelten die gebuchten Abholzeiten."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByText(/Montags/).closest("li")).toHaveTextContent(
+        "Montags: ab 02.11.2026 16:00 Uhr wie gebucht.",
+      );
+      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
+        "Donnerstags: ab 05.11.2026 16:00 Uhr wie gebucht.",
+      );
+      expect(screen.queryByText(/jetzt 16:00 Uhr/)).not.toBeInTheDocument();
     });
 
     it("offers no reset while every weekday still applies until the change", () => {

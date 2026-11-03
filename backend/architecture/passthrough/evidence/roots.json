@@ -3866,9 +3866,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (p bookingPickup) OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error) {\n\treturn p.baselines.OfferingPickupForDate(ctx, studentID, date)\n}",
-      "form": "forward-debt",
-      "id": "roots/owners/bookingPickup.OfferingPickupForDate",
+      "evidence": "func (p bookingPickup) OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error) {\n\treturn p.baselines.Project(ctx, []int64{studentID}, from, to)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingPickup.OfferingPickupsBetween",
       "owner": "roots"
     },
     {

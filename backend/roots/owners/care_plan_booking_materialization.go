@@ -558,7 +558,7 @@ func (a bookingAdjustmentAudit) ActorSnapshot(ctx context.Context, accountID int
 }
 
 type bookingPickupReads interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error)
+	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 }
 
 type bookingPickupRecords interface {
@@ -573,8 +573,8 @@ type bookingPickup struct {
 	rows      bookingPickupRecords
 }
 
-func (p bookingPickup) OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error) {
-	return p.baselines.OfferingPickupForDate(ctx, studentID, date)
+func (p bookingPickup) OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error) {
+	return p.baselines.Project(ctx, []int64{studentID}, from, to)
 }
 
 func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {

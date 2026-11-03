@@ -123,6 +123,23 @@ func TestUpsertStudentPickupScheduleKeepsBookedTimeAProjection(t *testing.T) {
 	}
 }
 
+// A row the plain upsert would reject must not delete the stored override
+// just because its time repeats the booking.
+func TestUpsertStudentPickupScheduleValidatesBeforeRemovingAnOverride(t *testing.T) {
+	t.Parallel()
+	rows := &recordingPickupRows{rows: []*careplan.PickupSchedule{
+		{ID: 11, StudentID: 7, Weekday: 1, PickupTime: wallClock("15:15"), Source: careplan.ScheduleSourceStaff},
+	}}
+	service := NewPickupSchedules(rows, nil, nil, passThroughTransaction{}, bookedPickup{clock: "14:30"}, nil, nil, nil, nil)
+
+	err := service.UpsertStudentPickupSchedule(context.Background(),
+		&careplan.PickupSchedule{StudentID: 7, Weekday: 1, PickupTime: wallClock("14:30")})
+
+	require.ErrorContains(t, err, "created_by is required")
+	assert.Empty(t, rows.deleted)
+	assert.Empty(t, rows.upserts)
+}
+
 func TestNextISOWeekday(t *testing.T) {
 	t.Parallel()
 	wednesday := calendar.NewDate(2026, 11, 4)

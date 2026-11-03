@@ -162,6 +162,11 @@ func (s *pickupScheduleService) upsertUnlessBooked(ctx context.Context, row *car
 	if s.PickupBaselineReader == nil || row == nil || !emptyOptionalPickupNotes(row.Notes) {
 		return s.upsertSchedule(ctx, row)
 	}
+	// An invalid row must fail as on the plain upsert, before it can remove
+	// a stored override.
+	if err := row.Validate(); err != nil {
+		return &careplan.ScheduleError{Op: "upsert student pickup schedule", Err: err}
+	}
 	date := nextISOWeekday(calendar.TodayDate(), row.Weekday)
 	projection, err := s.Project(ctx, []int64{row.StudentID}, date, date)
 	if err != nil {

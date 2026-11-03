@@ -286,7 +286,9 @@ describe("OfferingRequestReviewItem", () => {
       await screen.findByText("Abholzeit weicht von der Buchung ab"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/eingetragen 14:30 Uhr, gebucht 16:00 Uhr/),
+      screen.getByText(
+        /eingetragen 14:30 Uhr, ab 01.02.2027 gebucht 16:00 Uhr/,
+      ),
     ).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
   });

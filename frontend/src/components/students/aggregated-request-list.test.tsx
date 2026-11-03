@@ -3168,4 +3168,39 @@ describe("AggregatedRequestList", () => {
       await screen.findByText("gehalten: Freigegeben."),
     ).toBeInTheDocument();
   });
+
+  // Suche, Kind und Art filtert der Server. Eine gehaltene Freigabe gehört
+  // in die Liste, in der sie entschieden wurde, nicht in eine Suche nach
+  // einem anderen Kind; mit den alten Filtern kommt sie wieder.
+  it("zeigt eine gehaltene Freigabe nur unter ihren Filtern", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [stampedItem("offering", "5", "2026-08-29T10:00:00Z")],
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+    const callsBefore = mockListOpen.mock.calls.length;
+    mockListOpen.mockResolvedValue({ items: [] });
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, search: "Anderes Kind" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockListOpen.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("offering-item-5")).not.toBeInTheDocument(),
+    );
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+  });
 });

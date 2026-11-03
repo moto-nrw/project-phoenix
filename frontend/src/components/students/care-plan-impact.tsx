@@ -382,6 +382,10 @@ function PickupOverrides({
   // bis zum Stichtag noch, bleibt sie bis dahin stehen.
   const resettable = open.filter((override) => override.resetNow);
   const later = open.filter((override) => !override.resetNow);
+  // Liegt der Stichtag in der Zukunft, gilt die gebuchte Zeit erst ab dann:
+  // das Datum steht dabei, vor und nach dem Übernehmen.
+  const today = useBerlinToday();
+  const startsLater = (override: PickupOverride) => override.date > today;
 
   const takeBookedTimes = async () => {
     if (studentId === undefined) return;
@@ -395,7 +399,15 @@ function PickupOverrides({
         );
         onReset(override.weekday);
       }
-      toast.success("Jetzt gelten die gebuchten Abholzeiten.");
+      const firstLater = resettable
+        .filter(startsLater)
+        .map((override) => override.date)
+        .sort()[0];
+      toast.success(
+        firstLater === undefined
+          ? "Jetzt gelten die gebuchten Abholzeiten."
+          : `Ab ${formatDate(firstLater)} gelten die gebuchten Abholzeiten.`,
+      );
     } catch (err) {
       logger.warn("care_plan_impact_pickup_reset_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -442,11 +454,11 @@ function PickupOverrides({
               <span className="font-medium text-gray-900">
                 {capitalize(formatWeekdayAdverbs([override.weekday]))}
               </span>
-              {done.has(override.weekday)
-                ? `: jetzt ${override.bookedTime} Uhr wie gebucht.`
-                : override.resetNow
-                  ? `: eingetragen ${override.storedTime} Uhr, gebucht ${override.bookedTime} Uhr.`
-                  : `: eingetragen ${override.storedTime} Uhr, ab ${formatDate(override.date)} gebucht ${override.bookedTime} Uhr.`}
+              {pickupOverrideText(
+                override,
+                done.has(override.weekday),
+                startsLater(override),
+              )}
             </span>
             {done.has(override.weekday) ? (
               <StatusBadge tone="green" label="Übernommen" />
@@ -456,8 +468,11 @@ function PickupOverrides({
       </ul>
       {later.length > 0 ? (
         <p className="mt-3 text-sm text-gray-600">
-          Steht ein Datum dabei, gilt die eingetragene Zeit bis dahin weiter. Ab
-          diesem Tag setzen Sie sie unter „Betreuungszeiten“ zurück.
+          {capitalize(
+            formatWeekdayAdverbs(later.map((override) => override.weekday)),
+          )}{" "}
+          gilt die eingetragene Zeit bis zum genannten Tag weiter. Ab diesem Tag
+          setzen Sie sie unter „Betreuungszeiten“ zurück.
         </p>
       ) : null}
       {studentId !== undefined && !canReset && resettable.length > 0 ? (
@@ -467,6 +482,20 @@ function PickupOverrides({
       ) : null}
     </SectionCard>
   );
+}
+
+function pickupOverrideText(
+  override: PickupOverride,
+  done: boolean,
+  startsLater: boolean,
+): string {
+  const from = startsLater ? `ab ${formatDate(override.date)} ` : "";
+  if (done) {
+    return startsLater
+      ? `: ${from}${override.bookedTime} Uhr wie gebucht.`
+      : `: jetzt ${override.bookedTime} Uhr wie gebucht.`;
+  }
+  return `: eingetragen ${override.storedTime} Uhr, ${from}gebucht ${override.bookedTime} Uhr.`;
 }
 
 function capitalize(text: string): string {
