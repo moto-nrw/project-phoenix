@@ -96,11 +96,6 @@ export function BillingLettersCard({
         <DataField label="Erstellt am">
           {formatBerlinDate(letters.createdAt)}
         </DataField>
-        <DataField label="Vorlage">
-          {letters.templateVersion > 0
-            ? `Version ${letters.templateVersion}`
-            : "Standardvorlage"}
-        </DataField>
         <DataField label="Hinweise für die Eltern">
           {letters.notes ? (
             <span className="whitespace-pre-line">{letters.notes}</span>
@@ -120,6 +115,11 @@ export function BillingLettersCard({
           ) : (
             "Keine"
           )}
+        </DataField>
+        <DataField label="Vorlage">
+          {letters.templateVersion > 0
+            ? `Version ${letters.templateVersion}`
+            : "Standardvorlage"}
         </DataField>
       </DataGrid>
     </SectionCard>

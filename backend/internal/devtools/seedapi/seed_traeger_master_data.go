@@ -113,7 +113,7 @@ func seedTraegerBankAccountsOnce(client *Client, auth AuthRef) error {
 // confirmation letter (#4677): the standard letter with a warmer opening and
 // closing, so the seeded letters show version 1 of a Träger template.
 var seedTraegerLetterTemplate = map[string]any{
-	"subject":    "Ferienbetreuung {{zeitraum}}: Bestätigung und Rechnung",
+	"subject":    "Ihre Anmeldung für {{zeitraum}}: Bestätigung und Rechnung",
 	"salutation": "Liebe Familie {{familienname}},",
 	"body": "vielen Dank für Ihre Anmeldung. Wir bestätigen die Anmeldung von {{kinder}} für „{{zeitraum}}“. Sie haben gebucht:\n\n" +
 		"{{positionen}}\n\n" +
