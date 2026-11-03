@@ -596,7 +596,7 @@ export interface HolidayRegistrationPersonEdit {
 }
 
 /** The postal address of the parent who registered (#5625). */
-export interface HolidayRegistrationAddressEdit {
+interface HolidayRegistrationAddressEdit {
   readonly street: string;
   readonly postalCode: string;
   readonly city: string;
