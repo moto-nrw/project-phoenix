@@ -1,7 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor as waitForDOM } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
+
+// renderHook updates result.current without a DOM mutation. Poll the same
+// assertions more promptly; keep Testing Library's timeout and real timers.
+const waitFor: typeof waitForDOM = (callback, options) =>
+  waitForDOM(callback, { interval: 5, ...options });
 
 vi.unmock("swr");
 const mocks = vi.hoisted(() => ({

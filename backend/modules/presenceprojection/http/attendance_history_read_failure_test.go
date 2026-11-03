@@ -152,9 +152,12 @@ func TestStudentResponsesHideSettingsReadFailures(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Private", "Settings", "3a")
 	account := testpkg.CreateTestAccount(t, tc.db, "student-settings-reader")
 	tc.resource.SettingsService = failedHistorySettings{tc.settingsService, "operations.student_photos_enabled"}
-	for _, path := range []string{"/", fmt.Sprintf("/%d", student.ID)} {
-		t.Run(path, func(t *testing.T) {
-			response := authExec(t, tc, testutil.NewRequest(http.MethodGet, path, nil), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	for _, route := range []struct{ name, path string }{
+		{"/", "/"},
+		{"/{studentID}", fmt.Sprintf("/%d", student.ID)},
+	} {
+		t.Run(route.name, func(t *testing.T) {
+			response := authExec(t, tc, testutil.NewRequest(http.MethodGet, route.path, nil), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 			assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
 			assert.Contains(t, response.Body.String(), `"code":"general.server"`)
 			assert.NotContains(t, response.Body.String(), "private visibility settings read failure")

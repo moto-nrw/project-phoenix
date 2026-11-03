@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,16 +12,12 @@ import (
 func sideEffectRegisterOnlyShrinks(root string, current map[string]losableSideEffectNotice) error {
 	repo := filepath.Dir(root)
 	run := func(args ...string) ([]byte, error) {
-		command := exec.Command("git", args...)
-		command.Dir = repo
-		return command.Output()
+		return registerGitOutput(repo, args...)
 	}
-	// Never turn a missing base ref into a successful shrink check.
-	revision, err := run("rev-parse", "--verify", "origin/development^{commit}")
+	base, err := registerMergeBase(run)
 	if err != nil {
-		return fmt.Errorf("notice ratchet needs fetched origin/development: %w", err)
+		return err
 	}
-	base := strings.TrimSpace(string(revision))
 	path := "backend/" + sideEffectNoticeRegister
 	entries, err := run("ls-tree", "--name-only", base, "--", path)
 	if err != nil {

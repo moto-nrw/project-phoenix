@@ -87,8 +87,9 @@ describe("shared resource factories", () => {
           reader: useSWRAuth(factory.key(), fetcher),
           key: useSWRCacheKey()(factory.key()),
         }));
-        await waitFor(() =>
-          expect(result.current.reader.data).toEqual({ name: scope }),
+        await waitFor(
+          () => expect(result.current.reader.data).toEqual({ name: scope }),
+          { interval: 5 },
         );
         expect(result.current.key).toBe(
           scope === "platform"

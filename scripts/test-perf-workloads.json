@@ -1,0 +1,22 @@
+{
+  "quick": [
+    "src/lib/holiday-host-api.test.ts",
+    "src/lib/analytics-routes.test.ts",
+    "src/components/holiday-registration/holiday-registration-model.test.ts",
+    "src/components/timetable/timetable-event-modal.test.tsx",
+    "src/lib/hooks/everyday-actions.optimistic.test.tsx",
+    "src/components/school-setup/school-setup-wizard.test.tsx"
+  ],
+  "full": [],
+  "ci-node": ["--disableConsoleIntercept", "--project", "api-node", "--project", "logic-node"],
+  "ci-dom-1": ["--disableConsoleIntercept", "--project", "app-dom", "--project", "school-date-dom", "--shard", "1/2"],
+  "ci-dom-2": ["--disableConsoleIntercept", "--project", "app-dom", "--project", "school-date-dom", "--shard", "2/2"],
+  "backend-full-worker3": { "runner": "go", "args": ["-count=1", "./..."], "treatment": "darwin-worker3-v1" },
+  "backend-api-full": { "runner": "go", "args": ["-count=1", "./api"] },
+  "backend-api-auth": { "runner": "go", "args": ["-count=1", "./api", "-run", "^(TestPasswordFailuresLockAccountAcrossPortals|TestPasswordLoginLockExpiresAndSuccessfulCredentialsResetAllPortals|TestConcurrentPasswordFailuresCannotLoseAttemptsOrLockOtherIdentities|TestPasswordLoginRefusalsDoNotEnumerateAccountsAcrossPortals|TestOperatorMFAAuditSharesTriggeringTransaction|TestOperatorMFAAuditFailureRollsBackEnrollment|TestSchoolLoginHandler_PortalRoleGate|TestSchoolPortalTokenMatrix|TestSchoolMiddleware_RejectsOtherScopes|TestSchoolMiddleware_ZeroTenantID_Unauthorized|TestTenantMiddleware_RejectsSchoolScope)$"] },
+  "backend-full": { "runner": "go", "args": ["-count=1", "./..."] },
+  "backend-architecture": { "runner": "go", "args": ["-count=1", "./internal/architecture"] },
+  "backend-export": { "runner": "go", "args": ["-count=1", "./modules/organizationtenancy/compose"] },
+  "backend-lifecycle": { "runner": "go", "args": ["-count=1", "./internal/testdb"] },
+  "backend-smoke": { "runner": "go", "args": ["-count=1", "./modules/identityaccess/internal/domain"] }
+}

@@ -52,21 +52,22 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 	date := calendar.NewDate(2099, time.March, 2)
 	permissions := []string{"class_day:read", "class_day:arrival_exception_write", "users:update", "admin:*"}
 	routes := []struct {
+		name   string
 		method string
 		path   string
 		body   string
 	}{
-		{http.MethodGet, "/class-day/arrival-exceptions?class=" + className, ""},
-		{http.MethodGet, "/class-day/arrival-exceptions/block-start?class=" + className + "&date=" + date.String(), ""},
-		{http.MethodPut, fmt.Sprintf("/class-day/arrival-exceptions/%s/%s", className, date), `{"arrival_time":"12:45"}`},
-		{http.MethodDelete, fmt.Sprintf("/class-day/arrival-exceptions/%s/%s", className, date), ""},
+		{"list", http.MethodGet, "/class-day/arrival-exceptions?class=" + className, ""},
+		{"block-start", http.MethodGet, "/class-day/arrival-exceptions/block-start?class=" + className + "&date=" + date.String(), ""},
+		{"update", http.MethodPut, fmt.Sprintf("/class-day/arrival-exceptions/%s/%s", className, date), `{"arrival_time":"12:45"}`},
+		{"delete", http.MethodDelete, fmt.Sprintf("/class-day/arrival-exceptions/%s/%s", className, date), ""},
 	}
 
 	tenantClaims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: tenantID, IsAdmin: true, Scope: tenant.ScopeTenant}
 	schoolClaims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool}
 
 	for _, route := range routes {
-		t.Run(route.method+" "+route.path, func(t *testing.T) {
+		t.Run(route.method+" "+route.name, func(t *testing.T) {
 			// Tenant scope, even over-privileged: 401 before any handler.
 			req := httptest.NewRequest(route.method, route.path, strings.NewReader(route.body))
 			req.Header.Set("Content-Type", "application/json")

@@ -394,3 +394,133 @@ test("import.meta comments, strings and ordinary object calls are not file input
   `);
   assert.equal(f.run("--check-guards").status, 0);
 });
+
+// These are dispatch/inventory tests using fixture()'s stub pnpm, not a Vite
+// dependency-selection proof. Real behavior qualification is a separate phase.
+const qualityPath = "frontend/scripts/product-screenshots/quality.ts";
+const qualityTest = "scripts/product-screenshots/quality.test.ts";
+function qualityFixture(t, tracked = true) {
+  const f = fixture(t);
+  f.git("checkout", "--", "frontend/src/lib/product.ts");
+  f.write(`frontend/${qualityTest}`, 'import { quality } from "./quality"; quality();\n');
+  if (tracked) f.write(qualityPath, "export const quality = () => true;\n");
+  f.git("add", "frontend/scripts");
+  f.git("commit", "-qm", "quality fixture baseline");
+  return f;
+}
+function assertFileMode(f, paths, expected) {
+  const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "--mode-files"], {
+    input: JSON.stringify(paths), encoding: "utf8", env: f.env,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, `${expected}\n`, JSON.stringify(paths));
+}
+function assertQualityDispatch(f, base, mode) {
+  const classified = f.run("--mode", base);
+  assert.equal(classified.status, 0, classified.stderr);
+  assert.equal(classified.stdout, `${mode}\n`);
+  const result = f.run(base);
+  assert.equal(result.status, 0, result.stderr);
+  const args = readFileSync(join(f.root, "args"), "utf8").split("\n").filter(Boolean);
+  if (mode === "full") assert.deepEqual(args, ["exec", "vitest", "run"]);
+  else {
+    assert.equal(mode, "incremental");
+    assert.deepEqual(args.slice(0, 3), ["exec", "vitest", "run"]);
+    assert.equal(args.filter(arg => arg === qualityTest).length, 1);
+    assert.equal(args.filter(arg => arg === "src/lib/service-worker.test.ts").length, 1);
+    assert.ok(!args.includes("--changed"), "execute the retained closure, not a second graph filter");
+  }
+}
+for (const state of ["modified", "staged", "untracked", "committed", "deleted"]) {
+  test(`only the exact quality module stays incremental when ${state}`, t => {
+    const f = qualityFixture(t, state !== "untracked");
+    const base = f.git("rev-parse", "HEAD");
+    if (state === "deleted") rmSync(join(f.root, qualityPath));
+    else f.write(qualityPath, "export const quality = () => false;\n");
+    if (state === "staged" || state === "committed") f.git("add", qualityPath);
+    if (state === "committed") f.git("commit", "-qm", "quality-only change");
+    const changed = new Set([
+      ...f.git("diff", "--no-renames", "--name-only", base).split("\n"),
+      ...f.git("ls-files", "--others", "--exclude-standard").split("\n"),
+    ].filter(file => file.startsWith("frontend/")));
+    assert.deepEqual([...changed], [qualityPath], "the ordinary source probe must not mask this path");
+    assertFileMode(f, [qualityPath], "incremental");
+    assertQualityDispatch(f, base, "incremental");
+  });
+}
+for (const [destination, mode] of [
+  ["frontend/scripts/product-screenshots/quality-renamed.ts", "full"],
+  ["frontend/src/lib/quality-probe.ts", "incremental"],
+]) {
+  test(`quality rename with stale importer to ${destination}: ${mode}`, t => {
+    const f = qualityFixture(t);
+    const base = f.git("rev-parse", "HEAD");
+    f.git("mv", qualityPath, destination);
+    assert.match(readFileSync(join(f.root, `frontend/${qualityTest}`), "utf8"), /from "\.\/quality"/);
+    assertFileMode(f, [qualityPath, destination], mode);
+    assertQualityDispatch(f, base, mode);
+  });
+}
+test("opaque-to-quality rename keeps both paths and forces full for Git and CI JSON", t => {
+  const f = qualityFixture(t, false);
+  const opaque = "frontend/scripts/product-screenshots/opaque.input";
+  f.write(opaque, "export const quality = () => true;\n");
+  f.git("add", opaque);
+  f.git("commit", "-qm", "opaque baseline input");
+  const base = f.git("rev-parse", "HEAD");
+  f.git("mv", opaque, qualityPath);
+  assert.deepEqual(f.git("diff", "--no-renames", "--name-only", base).split("\n").sort(), [opaque, qualityPath].sort());
+  assertFileMode(f, [opaque, qualityPath], "full");
+  assertQualityDispatch(f, base, "full");
+});
+for (const input of [
+  "frontend/scripts/product-screenshots/quality.test.ts",
+  "frontend/scripts/product-screenshots/capture.ts",
+  "frontend/scripts/product-screenshots/pipeline.ts",
+  "frontend/scripts/product-screenshots/shots.yaml",
+  "frontend/scripts/product-screenshots/bezel.png",
+  "frontend/public/help/probe.webp", "frontend/src/i18n/messages/probe.json",
+  "frontend/src/test/fixtures/probe.ts", "frontend/src/test/setup-common.ts",
+  "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/vitest.config.ts",
+  "scripts/test-frontend-changed.mjs", "scripts/test-frontend-changed.test.mjs",
+  "scripts/test-changed.sh", "scripts/test-changed_test.sh",
+  ".github/workflows/main.yml", ".github/workflows/test.yml",
+]) {
+  test(`quality exception does not absorb fallback control: ${input}`, t => {
+    const f = qualityFixture(t);
+    const base = f.git("rev-parse", "HEAD");
+    const file = join(f.root, input);
+    f.write(input, (existsSync(file) ? readFileSync(file, "utf8") : "") + "\n// control\n");
+    // Exercise controls alone AND beside the exception, in both classifiers.
+    assertFileMode(f, [input], "full");
+    assertFileMode(f, [qualityPath, input], "full");
+    assertQualityDispatch(f, base, "full");
+    f.write(qualityPath, "export const quality = () => false;\n");
+    assertQualityDispatch(f, base, "full");
+  });
+}
+test("registered IO guard remains scheduled on a quality-only diff without graph results", t => {
+  const f = qualityFixture(t);
+  const guard = "src/lib/service-worker.test.ts";
+  f.write(`frontend/${guard}`, 'import { readFileSync } from "node:fs"; readFileSync("scripts/product-screenshots/quality.ts", "utf8");\n');
+  f.git("add", `frontend/${guard}`);
+  f.git("commit", "-qm", "registered IO consumer fixture");
+  const base = f.git("rev-parse", "HEAD");
+  f.write(qualityPath, "export const quality = () => false;\n");
+  const checked = f.run("--check-guards");
+  assert.equal(checked.status, 0, checked.stderr);
+  assertQualityDispatch(f, base, "incremental");
+});
+test("quality path does not exempt unknown transitive IO through a helper cycle", t => {
+  const f = qualityFixture(t);
+  f.write("frontend/src/lib/quality-io-probe.test.ts", 'import { read } from "./quality-io-first"; read();\n');
+  f.write("frontend/src/lib/quality-io-first.ts", 'export { read } from "./quality-io-second.js";\n');
+  f.write("frontend/src/lib/quality-io-second.ts", 'import "./quality-io-first"; export { readFileSync as read } from "node:fs";\n');
+  f.git("add", "frontend/src/lib");
+  f.git("commit", "-qm", "unknown transitive IO fixture");
+  f.write(qualityPath, "export const quality = () => false;\n");
+  assertFileMode(f, [qualityPath], "incremental");
+  const checked = f.run("--check-guards");
+  assert.equal(checked.status, 1, checked.stderr);
+  assert.match(checked.stderr, /quality-io-probe\.test\.ts/);
+});

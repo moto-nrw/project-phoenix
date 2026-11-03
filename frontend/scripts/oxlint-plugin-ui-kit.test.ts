@@ -1,83 +1,76 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import {
+  lintSource as lintProbe,
+  removeProbeDirectories,
+} from "./oxlint-probe";
 
 const temporaryDirectories: string[] = [];
 
 function lintSource(source: string, relativePath = "probe.tsx") {
-  const directory = mkdtempSync(join(tmpdir(), "ui-kit-"));
-  temporaryDirectories.push(directory);
-  const sourcePath = join(directory, relativePath);
-  mkdirSync(dirname(sourcePath), { recursive: true });
-  writeFileSync(sourcePath, source);
-
-  return spawnSync(
-    resolve("node_modules/.bin/oxlint"),
-    ["-c", resolve(".oxlintrc.json"), sourcePath],
-    { encoding: "utf8" },
-  );
+  return lintProbe(source, relativePath);
 }
 
-describe("ui-kit/no-hand-rolled-overlay", () => {
-  it("reports the first hand-rolled overlay in a formerly baselined file", () => {
-    const result = lintSource(
+describe.concurrent("ui-kit/no-hand-rolled-overlay", () => {
+  it("reports the first hand-rolled overlay in a formerly baselined file", async () => {
+    const result = await lintSource(
       `function Probe() {
         return <div className="fixed inset-0">Overlay</div>;
       }
       void Probe;`,
       "src/components/background-wrapper.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-hand-rolled-overlay)");
   });
 });
 
-describe("ui-kit/no-tiny-text", () => {
-  it("rejects a legacy token reintroduced at a different source location", () => {
-    const result = lintSource(
+describe.concurrent("ui-kit/no-tiny-text", () => {
+  it("rejects a legacy token reintroduced at a different source location", async () => {
+    const result = await lintSource(
       `function Probe() {
         return <span className="text-[11px]">Probe</span>;
       }
       void Probe;`,
       "src/app/[tenant]/(protected)/calendar/page.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-tiny-text)");
   });
 
-  it("rejects an additional legacy token on the same baseline line", () => {
-    const result = lintSource(
+  it("rejects an additional legacy token on the same baseline line", async () => {
+    const result = await lintSource(
       `${"\n".repeat(31)}const className = "text-[10px] text-[10px]";`,
       "src/components/ui/avatar.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-tiny-text\)/g)).toHaveLength(1);
   });
 });
 
-describe("ui-kit/no-hand-rolled-surface", () => {
-  it("reports a hand-built card surface anywhere outside the kit", () => {
-    const result = lintSource(
+describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
+  it("reports a hand-built card surface anywhere outside the kit", async () => {
+    const result = await lintSource(
       `
       function Probe() {
         return <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm" />;
@@ -86,14 +79,14 @@ describe("ui-kit/no-hand-rolled-surface", () => {
     `,
       "src/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-surface\)/g)).toHaveLength(1);
   });
 
-  it("reports a surface assembled across conditional className branches", () => {
-    const result = lintSource(
+  it("reports a surface assembled across conditional className branches", async () => {
+    const result = await lintSource(
       `
       function Probe({ active }: { active: boolean }) {
         return <div className={\`rounded-xl border p-3 \${active ? "border-gray-900 bg-gray-50" : "border-gray-200 bg-white"}\`} />;
@@ -102,14 +95,14 @@ describe("ui-kit/no-hand-rolled-surface", () => {
     `,
       "src/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-surface\)/g)).toHaveLength(1);
   });
 
-  it("accepts the kit surfaces and non-card shapes", () => {
-    const result = lintSource(
+  it("accepts the kit surfaces and non-card shapes", async () => {
+    const result = await lintSource(
       `
       function Probe() {
         return <>
@@ -125,14 +118,14 @@ describe("ui-kit/no-hand-rolled-surface", () => {
     `,
       "src/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 
-  it("ignores prefixed tokens, frameless borders and translucent fills", () => {
-    const result = lintSource(
+  it("ignores prefixed tokens, frameless borders and translucent fills", async () => {
+    const result = await lintSource(
       `
       function Probe() {
         return <>
@@ -149,14 +142,14 @@ describe("ui-kit/no-hand-rolled-surface", () => {
     `,
       "src/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 
-  it("honours the documented oxlint-disable-next-line escape hatch", () => {
-    const result = lintSource(
+  it("honours the documented oxlint-disable-next-line escape hatch", async () => {
+    const result = await lintSource(
       `
       function Probe() {
         return (
@@ -168,53 +161,53 @@ describe("ui-kit/no-hand-rolled-surface", () => {
     `,
       "src/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-hand-rolled-surface");
   });
 });
 
-describe("ui-kit/no-rounded-3xl", () => {
-  it("reports rounded-3xl, also inside the kit", () => {
+describe.concurrent("ui-kit/no-rounded-3xl", () => {
+  it("reports rounded-3xl, also inside the kit", async () => {
     for (const path of ["src/probe.tsx", "src/components/ui/probe.tsx"]) {
-      const result = lintSource(
+      const result = await lintSource(
         `function Probe() {
           return <div className="rounded-3xl p-4" />;
         }
         void Probe;`,
         path,
       );
-      const output = `${result.stdout}${result.stderr}`;
+      const output = result.output;
 
       expect(result.status, path).toBe(1);
       expect(output.match(/ui-kit\(no-rounded-3xl\)/g), path).toHaveLength(1);
     }
   });
 
-  it("accepts the canonical radius and exempts test files", () => {
-    const canonical = lintSource(
+  it("accepts the canonical radius and exempts test files", async () => {
+    const canonical = await lintSource(
       `function Probe() {
         return <div className="moto-content-surface rounded-2xl border p-4" />;
       }
       void Probe;`,
       "src/probe.tsx",
     );
-    const fixture = lintSource(
+    const fixture = await lintSource(
       `const className = "rounded-3xl";
       void className;`,
       "src/probe.test.tsx",
     );
 
     for (const result of [canonical, fixture]) {
-      const output = `${result.stdout}${result.stderr}`;
+      const output = result.output;
       expect(result.status, output).toBe(0);
       expect(output).not.toContain("no-rounded-3xl");
     }
   });
 });
 
-describe("ui-kit/no-tenant-kicker", () => {
+describe.concurrent("ui-kit/no-tenant-kicker", () => {
   const kickerSource = `function SectionCard(_: { kicker?: string; title: string }) {
       return null;
     }
@@ -223,12 +216,12 @@ describe("ui-kit/no-tenant-kicker", () => {
     }
     void Probe;`;
 
-  it("reports a kicker in the tenant portal", () => {
-    const result = lintSource(
+  it("reports a kicker in the tenant portal", async () => {
+    const result = await lintSource(
       kickerSource,
       "src/app/[tenant]/(protected)/rooms/page.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-tenant-kicker\)/g)).toHaveLength(1);
@@ -241,16 +234,16 @@ describe("ui-kit/no-tenant-kicker", () => {
     "src/components/school/probe.tsx",
     "src/app/operator/probe/page.tsx",
     "src/app/[tenant]/(protected)/rooms/page.test.tsx",
-  ])("leaves %s alone", (path) => {
-    const result = lintSource(kickerSource, path);
-    const output = `${result.stdout}${result.stderr}`;
+  ])("leaves %s alone", async (path) => {
+    const result = await lintSource(kickerSource, path);
+    const output = result.output;
 
     expect(result.status, `${path}\n${output}`).toBe(0);
     expect(output).not.toContain("no-tenant-kicker");
   });
 });
 
-describe("ui-kit/no-hand-rolled-page-card", () => {
+describe.concurrent("ui-kit/no-hand-rolled-page-card", () => {
   it.each([
     "src/app/[tenant]/(protected)/page.tsx",
     "src/app/[tenant]/(protected)/loading.tsx",
@@ -259,8 +252,8 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
     // Das Träger-Portal rendert dasselbe Gerüst (#5146).
     "src/app/traeger/page.tsx",
     "src/app/traeger/ferien/[id]/page.tsx",
-  ])("reports the kit card chain spelled out in %s", (path) => {
-    const result = lintSource(
+  ])("reports the kit card chain spelled out in %s", async (path) => {
+    const result = await lintSource(
       `function Probe({ wide }: { wide: boolean }) {
           return <>
             <div className="moto-content-surface rounded-2xl border p-6" />
@@ -270,7 +263,7 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
         void Probe;`,
       path,
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, path).toBe(1);
     expect(
@@ -279,8 +272,8 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
     ).toHaveLength(2);
   });
 
-  it("reports a card surface composed from className arguments or branches", () => {
-    const result = lintSource(
+  it("reports a card surface composed from className arguments or branches", async () => {
+    const result = await lintSource(
       `function cn(...classes: string[]) {
         return classes.join(" ");
       }
@@ -293,21 +286,21 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
       void Probe;`,
       "src/app/[tenant]/(protected)/rooms/page.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-page-card\)/g)).toHaveLength(2);
   });
 
-  it("accepts control surfaces in pages and the chain in components", () => {
-    const pageControl = lintSource(
+  it("accepts control surfaces in pages and the chain in components", async () => {
+    const pageControl = await lintSource(
       `function Probe() {
         return <span className="moto-content-surface h-9 rounded-full border px-3" />;
       }
       void Probe;`,
       "src/app/[tenant]/(protected)/rooms/page.tsx",
     );
-    const componentCard = lintSource(
+    const componentCard = await lintSource(
       `function Probe() {
         return <div className="moto-content-surface rounded-2xl border p-6" />;
       }
@@ -316,14 +309,14 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
     );
 
     for (const result of [pageControl, componentCard]) {
-      const output = `${result.stdout}${result.stderr}`;
+      const output = result.output;
       expect(result.status, output).toBe(0);
       expect(output).not.toContain("no-hand-rolled-page-card");
     }
   });
 });
 
-describe("ui-kit/no-tabs-as-value-switcher", () => {
+describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
   const tabsSource = (
     label: string,
   ) => `import { TabsTrigger } from "~/components/ui/tabs";
@@ -332,10 +325,13 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     }
     void Probe;`;
 
-  it("reports a value choice on ui/Tabs", () => {
+  it("reports a value choice on ui/Tabs", async () => {
     for (const label of ["Woche", "Monat", "Woche A", "Ganzer Tag"]) {
-      const result = lintSource(tabsSource(label), "src/components/probe.tsx");
-      const output = `${result.stdout}${result.stderr}`;
+      const result = await lintSource(
+        tabsSource(label),
+        "src/components/probe.tsx",
+      );
+      const output = result.output;
 
       expect(result.status, label).toBe(1);
       expect(
@@ -345,8 +341,8 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     }
   });
 
-  it("reports nested and translated value-choice labels", () => {
-    const result = lintSource(
+  it("reports nested and translated value-choice labels", async () => {
+    const result = await lintSource(
       `import { TabsTrigger } from "~/components/ui/tabs";
       function t(key: string) {
         return key;
@@ -360,7 +356,7 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-tabs-as-value-switcher\)/g)).toHaveLength(
@@ -368,8 +364,8 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     );
   });
 
-  it("reports dynamic tabs without content panels", () => {
-    const result = lintSource(
+  it("reports dynamic tabs without content panels", async () => {
+    const result = await lintSource(
       `import {
         Tabs as ValueTabs,
         TabsList as ValueTabsList,
@@ -384,14 +380,14 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
   });
 
-  it("does not count content panels in nested tab groups", () => {
-    const result = lintSource(
+  it("does not count content panels in nested tab groups", async () => {
+    const result = await lintSource(
       `import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
       const tab = { id: "custom", label: "Eigene Ansicht" };
       function Probe() {
@@ -403,14 +399,14 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
   });
 
-  it("accepts dynamic labels with all supported content-panel imports", () => {
-    const result = lintSource(
+  it("accepts dynamic labels with all supported content-panel imports", async () => {
+    const result = await lintSource(
       `import * as TabsPrimitive from "@radix-ui/react-tabs";
       import {
         Tabs,
@@ -433,14 +429,14 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-tabs-as-value-switcher");
   });
 
-  it("ignores unrelated components named TabsTrigger", () => {
-    const result = lintSource(
+  it("ignores unrelated components named TabsTrigger", async () => {
+    const result = await lintSource(
       `function TabsTrigger(_: { children: unknown }) {
         return null;
       }
@@ -450,21 +446,21 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("no-tabs-as-value-switcher");
   });
 
-  it("accepts content tabs and leaves the other portals alone", () => {
+  it("accepts content tabs and leaves the other portals alone", async () => {
     for (const [label, path] of [
       ["Bearbeiten", "src/components/probe.tsx"],
       ["Verlauf", "src/components/probe.tsx"],
       ["Woche", "src/components/parent/probe.tsx"],
       ["Woche", "src/components/probe.test.tsx"],
     ] as const) {
-      const result = lintSource(tabsSource(label), path);
-      const output = `${result.stdout}${result.stderr}`;
+      const result = await lintSource(tabsSource(label), path);
+      const output = result.output;
 
       expect(result.status, `${label} ${path}\n${output}`).toBe(0);
       expect(output).not.toContain("no-tabs-as-value-switcher");
@@ -472,15 +468,16 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
   });
 });
 
-afterEach(() => {
+afterAll(() => {
+  removeProbeDirectories();
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
-describe("ui-kit/require-checkbox-label", () => {
-  it("reports sibling labels and aria-label-only checkboxes", () => {
-    const result = lintSource(`
+describe.concurrent("ui-kit/require-checkbox-label", () => {
+  it("reports sibling labels and aria-label-only checkboxes", async () => {
+    const result = await lintSource(`
       const Checkbox = (props: { id?: string; "aria-label"?: string }) =>
         <span {...props} />;
       function Probe() {
@@ -494,14 +491,14 @@ describe("ui-kit/require-checkbox-label", () => {
       }
       void Probe;
     `);
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(require-checkbox-label\)/g)).toHaveLength(2);
   });
 
-  it("accepts a checkbox inside a label-shaped ChoiceTile, not a button one", () => {
-    const result = lintSource(`
+  it("accepts a checkbox inside a label-shaped ChoiceTile, not a button one", async () => {
+    const result = await lintSource(`
       const Checkbox = (props: { id?: string }) =>
         <span {...props} />;
       const ChoiceTile = (props: { as?: string; children: unknown }) =>
@@ -515,14 +512,14 @@ describe("ui-kit/require-checkbox-label", () => {
       }
       void Probe;
     `);
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(require-checkbox-label\)/g)).toHaveLength(1);
   });
 
-  it("accepts a checkbox nested anywhere inside its label", () => {
-    const result = lintSource(`
+  it("accepts a checkbox nested anywhere inside its label", async () => {
+    const result = await lintSource(`
       const Checkbox = (props: { id: string }) =>
         <span {...props} />;
       function Probe() {
@@ -533,16 +530,16 @@ describe("ui-kit/require-checkbox-label", () => {
       }
       void Probe;
     `);
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("require-checkbox-label");
   });
 });
 
-describe("ui-kit/no-raw-input", () => {
-  it("reports hand-built text, checkbox and untyped inputs", () => {
-    const result = lintSource(`
+describe.concurrent("ui-kit/no-raw-input", () => {
+  it("reports hand-built text, checkbox and untyped inputs", async () => {
+    const result = await lintSource(`
       function Probe() {
         return <form>
           <input aria-label="Vorname" />
@@ -552,14 +549,14 @@ describe("ui-kit/no-raw-input", () => {
       }
       void Probe;
     `);
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-raw-input\)/g)).toHaveLength(3);
   });
 
-  it("keeps hidden and file inputs native", () => {
-    const result = lintSource(`
+  it("keeps hidden and file inputs native", async () => {
+    const result = await lintSource(`
       function Probe() {
         return <form>
           <input type="hidden" name="token" value="x" />
@@ -568,13 +565,13 @@ describe("ui-kit/no-raw-input", () => {
       }
       void Probe;
     `);
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(output).not.toContain("no-raw-input");
   });
 
-  it("leaves the kit itself alone", () => {
-    const result = lintSource(
+  it("leaves the kit itself alone", async () => {
+    const result = await lintSource(
       `
       export function Field() {
         return <input aria-label="Vorname" />;
@@ -582,7 +579,7 @@ describe("ui-kit/no-raw-input", () => {
     `,
       "src/components/ui/field.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(output).not.toContain("no-raw-input");
   });
@@ -591,7 +588,7 @@ describe("ui-kit/no-raw-input", () => {
 // #5531: Button-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
 // je Datei fest und darf nur sinken, bewusste Ausnahmen stehen begründet in
 // der Allowlist.
-describe("ui-kit/no-hand-rolled-button", () => {
+describe.concurrent("ui-kit/no-hand-rolled-button", () => {
   const handRolled = (count: number) =>
     `function Probe() {
       return <div>${Array.from(
@@ -602,16 +599,16 @@ describe("ui-kit/no-hand-rolled-button", () => {
     }
     void Probe;`;
 
-  it("fails a native button with button optics outside the kit", () => {
-    const result = lintSource(handRolled(1), "src/components/probe.tsx");
-    const output = `${result.stdout}${result.stderr}`;
+  it("fails a native button with button optics outside the kit", async () => {
+    const result = await lintSource(handRolled(1), "src/components/probe.tsx");
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(1);
   });
 
-  it("fails a link and a role=button element that look like buttons", () => {
-    const result = lintSource(
+  it("fails a link and a role=button element that look like buttons", async () => {
+    const result = await lintSource(
       `import Link from "next/link";
       function Probe() {
         return (
@@ -624,14 +621,14 @@ describe("ui-kit/no-hand-rolled-button", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(2);
   });
 
-  it("follows aliased link imports", () => {
-    const result = lintSource(
+  it("follows aliased link imports", async () => {
+    const result = await lintSource(
       `import AppLink from "next/link";
       import { NavLink as SidebarLink } from "~/components/ui/nav-link";
       import ProgressLink from "~/components/ui/navigation-link";
@@ -645,14 +642,14 @@ describe("ui-kit/no-hand-rolled-button", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-hand-rolled-button\)/g)).toHaveLength(3);
   });
 
-  it("does not read border sides or widths as a colour", () => {
-    const result = lintSource(
+  it("does not read border sides or widths as a colour", async () => {
+    const result = await lintSource(
       `function Probe() {
         return (
           <>
@@ -666,13 +663,11 @@ describe("ui-kit/no-hand-rolled-button", () => {
       "src/components/probe.tsx",
     );
 
-    expect(`${result.stdout}${result.stderr}`).not.toContain(
-      "no-hand-rolled-button",
-    );
+    expect(result.output).not.toContain("no-hand-rolled-button");
   });
 
-  it("follows a same-file class constant", () => {
-    const result = lintSource(
+  it("follows a same-file class constant", async () => {
+    const result = await lintSource(
       `const chip = "rounded-full bg-gray-100 px-3 py-1";
       function Probe() {
         return <button type="button" className={chip}>A</button>;
@@ -681,13 +676,11 @@ describe("ui-kit/no-hand-rolled-button", () => {
       "src/components/probe.tsx",
     );
 
-    expect(`${result.stdout}${result.stderr}`).toContain(
-      "ui-kit(no-hand-rolled-button)",
-    );
+    expect(result.output).toContain("ui-kit(no-hand-rolled-button)");
   });
 
-  it("accepts plain text buttons and kit-styled links", () => {
-    const result = lintSource(
+  it("accepts plain text buttons and kit-styled links", async () => {
+    const result = await lintSource(
       `import Link from "next/link";
       import { buttonClassName } from "~/components/ui/button";
       function Probe() {
@@ -702,36 +695,28 @@ describe("ui-kit/no-hand-rolled-button", () => {
       "src/components/probe.tsx",
     );
 
-    expect(`${result.stdout}${result.stderr}`).not.toContain(
-      "no-hand-rolled-button",
-    );
+    expect(result.output).not.toContain("no-hand-rolled-button");
   });
 
-  it("keeps the shrink-only baseline: equal and fewer pass, more fails", () => {
+  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
     const [file, count] = Object.entries(
       buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
     )[0]!;
     // Andere Klassenketten derselben Datei fallen weg: Die Sonde ersetzt sie.
-    const equal = lintSource(handRolled(count), file);
-    expect(`${equal.stdout}${equal.stderr}`).not.toContain(
-      "no-hand-rolled-button",
-    );
+    const equal = await lintSource(handRolled(count), file);
+    expect(equal.output).not.toContain("no-hand-rolled-button");
 
-    const more = lintSource(handRolled(count + 1), file);
+    const more = await lintSource(handRolled(count + 1), file);
     expect(more.status).toBe(1);
-    expect(`${more.stdout}${more.stderr}`).toContain(
-      "ui-kit(no-hand-rolled-button)",
-    );
+    expect(more.output).toContain("ui-kit(no-hand-rolled-button)");
 
     // Weniger Funde sind im Lint erlaubt; die gesenkte Baseline verlangt der
     // Test „button ratchet baseline“ unten.
-    const fewer = lintSource(handRolled(count - 1), file);
-    expect(`${fewer.stdout}${fewer.stderr}`).not.toContain(
-      "no-hand-rolled-button",
-    );
+    const fewer = await lintSource(handRolled(count - 1), file);
+    expect(fewer.output).not.toContain("no-hand-rolled-button");
   });
 
-  it("allows only the documented allowlist location", () => {
+  it("allows only the documented allowlist location", async () => {
     const entry = buttonRatchetAllowlist.find(
       (candidate) => candidate.rule === "no-hand-rolled-button",
     )!;
@@ -740,22 +725,18 @@ describe("ui-kit/no-hand-rolled-button", () => {
     const sourceAtLine = (targetLine: number) =>
       `${"\n".repeat(targetLine - 2)}function Probe() {\nreturn <button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>;\n}\nvoid Probe;`;
 
-    const allowed = lintSource(sourceAtLine(line), entry.file);
-    expect(`${allowed.stdout}${allowed.stderr}`).not.toContain(
-      "no-hand-rolled-button",
-    );
+    const allowed = await lintSource(sourceAtLine(line), entry.file);
+    expect(allowed.output).not.toContain("no-hand-rolled-button");
 
-    const moved = lintSource(sourceAtLine(line + 1), entry.file);
+    const moved = await lintSource(sourceAtLine(line + 1), entry.file);
     expect(moved.status).toBe(1);
-    expect(`${moved.stdout}${moved.stderr}`).toContain(
-      "ui-kit(no-hand-rolled-button)",
-    );
+    expect(moved.output).toContain("ui-kit(no-hand-rolled-button)");
   });
 });
 
-describe("ui-kit/no-button-override", () => {
-  it("fails sizing, colour and scale classes on a kit Button", () => {
-    const result = lintSource(
+describe.concurrent("ui-kit/no-button-override", () => {
+  it("fails sizing, colour and scale classes on a kit Button", async () => {
+    const result = await lintSource(
       `import { Button, ButtonLink } from "~/components/ui/button";
       function Probe() {
         return (
@@ -769,14 +750,14 @@ describe("ui-kit/no-button-override", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-button-override\)/g)).toHaveLength(3);
   });
 
-  it("follows aliased kit button imports", () => {
-    const result = lintSource(
+  it("follows aliased kit button imports", async () => {
+    const result = await lintSource(
       `import { Button as ActionButton, ButtonLink as ActionLink, buttonClassName as kitButtonClassName } from "~/components/ui/button";
       const className = kitButtonClassName({ variant: "primary", size: "md", className: "h-10" });
       function Probe() {
@@ -788,27 +769,25 @@ describe("ui-kit/no-button-override", () => {
       void Probe;`,
       "src/components/probe.tsx",
     );
-    const output = `${result.stdout}${result.stderr}`;
+    const output = result.output;
 
     expect(result.status).toBe(1);
     expect(output.match(/ui-kit\(no-button-override\)/g)).toHaveLength(3);
   });
 
-  it("fails optics passed through buttonClassName", () => {
-    const result = lintSource(
+  it("fails optics passed through buttonClassName", async () => {
+    const result = await lintSource(
       `import { buttonClassName } from "~/components/ui/button";
       export const cls = buttonClassName({ variant: "primary", size: "md", className: "h-10 shadow-sm" });`,
       "src/components/probe.tsx",
     );
 
     expect(result.status).toBe(1);
-    expect(`${result.stdout}${result.stderr}`).toContain(
-      "ui-kit(no-button-override)",
-    );
+    expect(result.output).toContain("ui-kit(no-button-override)");
   });
 
-  it("accepts pure layout classes", () => {
-    const result = lintSource(
+  it("accepts pure layout classes", async () => {
+    const result = await lintSource(
       `import { Button } from "~/components/ui/button";
       function Probe() {
         return <Button size="md" className="hidden w-full flex-1 shrink-0 gap-2 self-end mt-2 md:flex justify-start">A</Button>;
@@ -817,9 +796,7 @@ describe("ui-kit/no-button-override", () => {
       "src/components/probe.tsx",
     );
 
-    expect(`${result.stdout}${result.stderr}`).not.toContain(
-      "no-button-override",
-    );
+    expect(result.output).not.toContain("no-button-override");
   });
 });
 

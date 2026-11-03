@@ -1,9 +1,15 @@
 // Shared harness for the bauart oxlint rule tests: each probe file goes
 // through the real oxlint with the repo config.
 import { spawnSync } from "node:child_process";
+import { vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+
+// Only the concurrent suites importing this harness use wider batches. The
+// worker count and file isolation stay unchanged; each flush still starts
+// one oxlint process with separate roots and diagnostics for every probe.
+vi.setConfig({ maxConcurrency: 32 });
 
 const temporaryDirectories: string[] = [];
 
