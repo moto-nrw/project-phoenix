@@ -1,6 +1,10 @@
 # Test-Performance: Experimentjournal
 
-## Aktueller Stand, 2. November 2026
+## Aktueller Stand, 3. November 2026
+
+Lauf „Tests und Test-Support“ abgeschlossen: Frontend-Vollsuite 177,05 → 158,75 s (1,115×), Backend-Vollsuite 451,1 → 321,65 s (1,402×), gepaart n=2. 15 Kandidaten mit Endstatus, siehe [Neuer Lauf](#neuer-lauf-tests-und-test-support-3-november-2026). Verworfen in diesem Lauf: Overhead-Paket F-overhead (lucide pro Icon, jest-dom lazy; −3 %), B-mig (OwnTenantRows-Cleanup; −1,4 %), B-test-Paketvariante (AST-Dedup; −6,6 %), Fake-Timer für timetable-event-modal (−7 %).
+
+## Stand davor, 2. November 2026
 
 Behalten: gebündelte echte Lint-Probes, gezieltes Hook-/Factory-Polling und die exakt begrenzte Quality-Modul-Selektion. **7,2×** im neu kontrollierten Quality-Änderungsfall, keine belegten 4× für Vollsuite/Remote-CI. Native Kompilierungs-/Bündelungsansätze wurden nach ihren jeweiligen Grenzen verworfen. Neueste Entscheidung: [Runde 8](#runde-8-quality-selektion-behalten). Die folgenden früheren Standmeldungen bleiben als Historie erhalten.
 
