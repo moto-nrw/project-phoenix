@@ -73,6 +73,17 @@ export function getStudentDayTimes(
   };
 }
 
+/**
+ * Arrived, not here now, no pickup recorded: the child left for class (#5656).
+ * The backend reports no pickup time for that checkout. Only a caller that knows
+ * the live location can say so, hence the explicit `false`.
+ */
+function leftForClass(day: StudentDayTimes): boolean {
+  return (
+    day.checkedIn === false && Boolean(day.actualArrival) && !day.actualPickup
+  );
+}
+
 /** A recorded check-in or check-out, or the child is here right now. */
 function hasArrived(day: StudentDayTimes): boolean {
   return Boolean(day.actualArrival || day.actualPickup || day.checkedIn);
@@ -337,8 +348,9 @@ export function getStudentTimeStatus({
   }
 
   // A pickup can only be late for a child who is here. Without a check-in
-  // there is nobody to pick up, whatever the clock says (#3373).
-  if (kind === "pickup" && day && !hasArrived(day)) {
+  // there is nobody to pick up, whatever the clock says (#3373). The same goes
+  // for a child in class (#5656).
+  if (kind === "pickup" && day && (!hasArrived(day) || leftForClass(day))) {
     return {
       state: "awaiting-arrival",
       displayTime: displayPlannedTime,

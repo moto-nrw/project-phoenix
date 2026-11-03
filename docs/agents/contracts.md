@@ -250,6 +250,17 @@ order of its requests. All fields are additive; an older kiosk ignores them.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 
+### Destination "unterricht" (#5656)
+
+`POST /api/iot/attendance/toggle` with `confirm_daily_checkout` also accepts
+`destination: "unterricht"`. It closes the open stay with
+`active.attendance.check_out_reason = 'class'` and answers `checked_out_class`.
+The change is additive: `zuhause` and `unterwegs` keep their actions, messages
+and codes, and an unknown destination stays a 400 `general.input`. `GET` status
+responses keep reading `checked_out`, so a kiosk that does not know the
+destination scans the child back in as before. A repeat on a closed stay
+changes nothing and cannot relabel a home checkout. Deploy the backend first.
+
 ### Destination choice into released rooms (#3067)
 
 `GET /api/iot/rooms/available` flags each room with `is_open_room` (released

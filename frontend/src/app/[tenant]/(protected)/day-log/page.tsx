@@ -155,16 +155,20 @@ function studentDetailLine(student: DayLogStudent): string {
     const until = student.check_out_time
       ? formatClock(student.check_out_time)
       : "";
-    const range = until
-      ? `Ankunft ${from} · gegangen ${until}`
-      : `Ankunft ${from} · noch anwesend`;
+    // Ohne Rückkehr endet der Tag mit dem Weg zum Unterricht, nicht mit „gegangen“.
+    const leftForClass = student.class_periods?.some((p) => !p.until);
+    const range = !until
+      ? `Ankunft ${from} · noch anwesend`
+      : leftForClass
+        ? `Ankunft ${from} · zum Unterricht ${until}`
+        : `Ankunft ${from} · gegangen ${until}`;
     const parts = [range];
     for (const period of student.class_periods ?? []) {
-      parts.push(
-        period.until
-          ? `im Unterricht ${formatClock(period.from)} bis ${formatClock(period.until)} Uhr`
-          : `im Unterricht ab ${formatClock(period.from)} Uhr`,
-      );
+      if (period.until) {
+        parts.push(
+          `im Unterricht ${formatClock(period.from)} bis ${formatClock(period.until)} Uhr`,
+        );
+      }
     }
     if (student.check_out_note) {
       parts.push(`Grund für das frühe Gehen: ${student.check_out_note}`);

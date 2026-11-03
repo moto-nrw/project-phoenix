@@ -11,6 +11,25 @@ import {
 import { LOCATION_COLORS } from "./location-helper";
 
 describe("getStudentTimeStatus", () => {
+  // #5656: wer zum Unterricht gegangen ist, ist nicht „überfällig“.
+  it("does not call a pickup late for a child who left for class", () => {
+    const day = getStudentDayTimes({
+      arrival_time: "07:30",
+      actual_arrival_time: "07:32",
+      pickup_time: "10:00",
+      actual_pickup_time: null,
+      current_location: "Im Unterricht",
+    });
+    const status = getStudentTimeStatus({
+      plannedTime: "10:00",
+      now: new Date("2026-09-09T12:00:00+02:00"),
+      kind: "pickup",
+      day,
+    });
+
+    expect(status.state).toBe("awaiting-arrival");
+  });
+
   const now = new Date("2025-01-15T14:00:00");
 
   it("returns planned when the event is more than 30 minutes away", () => {

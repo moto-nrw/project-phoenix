@@ -557,8 +557,8 @@ func verifyManualStudentRows(rows []struct {
 				checkedOut++
 			}
 		case student.Location == "Im Unterricht":
-			// Left for class (#5656): checked out, but no pickup to report.
-			checkedOut++
+			// Left for class (#5656). After the care day's end the same child
+			// reads "Abwesend" without a pickup, so it counts in neither figure.
 		case student.Location == "Schule":
 			// Expected today but not checked in yet (#3260); the profile keeps
 			// the care day open until 23:59, so these rows stay "Schule".

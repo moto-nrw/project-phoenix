@@ -186,7 +186,7 @@ func attendanceExportColumns() []lists.Column {
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
 		{ID: attendanceColumnAssignment, Label: "Zuordnung"},
-		{ID: attendanceColumnNote, Label: "Früher gegangen"},
+		{ID: attendanceColumnNote, Label: "Grund für das Gehen"},
 	}
 }
 
@@ -198,7 +198,7 @@ func attendanceSessionExportColumns() []lists.Column {
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
-		{ID: attendanceColumnNote, Label: "Früher gegangen"},
+		{ID: attendanceColumnNote, Label: "Grund für das Gehen"},
 	}
 }
 

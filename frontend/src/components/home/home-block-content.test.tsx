@@ -387,7 +387,7 @@ describe("HomeBlockContent — Listen", () => {
 
 describe("HomeBlockContent — Kinder (#4347)", () => {
   const withAtSchool = data({
-    analytics: { ...analytics, studentsAtSchool: 21 },
+    analytics: { ...analytics, studentsAtSchool: 21, studentsInClass: 6 },
   });
 
   it("zählt die Kinder nach Status und führt jede Zahl in die passende Liste", () => {
