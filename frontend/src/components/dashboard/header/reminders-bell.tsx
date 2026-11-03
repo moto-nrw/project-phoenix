@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
 import { NavLink } from "~/components/ui/nav-link";
 import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
@@ -83,13 +84,15 @@ export function RemindersBell() {
 
   return (
     <div ref={containerRef} className="relative">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={() => setIsOpen((open) => !open)}
         aria-label={count > 0 ? `Erinnerungen (${count})` : "Erinnerungen"}
         aria-expanded={isOpen}
         title="Erinnerungen"
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-700"
+        className="relative"
       >
         <Bell className="h-5 w-5" />
         {count > 0 && (
@@ -97,7 +100,7 @@ export function RemindersBell() {
             {badgeLabel}
           </span>
         )}
-      </button>
+      </Button>
 
       {/*
         Mobile: pinned to the viewport just under the topbar and spanning the

@@ -425,9 +425,8 @@ export function StudentDokumenteTab({
                 Datei hierher ziehen oder{" "}
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="compact"
-                  className="text-moto-blue"
+                  variant="link"
+                  size="md"
                   disabled={uploading || !effectiveUploadCategory}
                   onClick={() => fileInputRef.current?.click()}
                 >

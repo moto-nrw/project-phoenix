@@ -320,7 +320,7 @@ export function StaffNoticeModal({
                   onClick={() => toggleWeekday(day.value)}
                   variant={selected ? "primary" : "outline"}
                   size="compact"
-                  className="h-9 w-11 px-0"
+                  className="w-11"
                 >
                   {day.label}
                 </Button>

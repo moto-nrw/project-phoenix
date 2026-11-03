@@ -225,7 +225,6 @@ export function RequestDecisionRow({
             type="button"
             variant="outline"
             size="md"
-            className="max-sm:min-h-11"
             disabled={markingDone}
             onClick={() => void markDone()}
           >

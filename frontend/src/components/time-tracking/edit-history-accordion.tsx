@@ -193,10 +193,10 @@ export function EditHistoryAccordion({
       {onEdit && (
         <Button
           type="button"
-          variant="ghost"
+          variant="dashed"
           size="compact"
           onClick={onEdit}
-          className="mt-2 w-full border border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600"
+          className="mt-2 w-full"
         >
           <SquarePen className="h-3.5 w-3.5" />
           Weitere Änderung vornehmen

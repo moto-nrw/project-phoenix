@@ -260,10 +260,9 @@ function ActiveDemoBanner() {
         target="_blank"
         rel="noopener noreferrer"
         variant="success"
+        // `compact`: Höhe des schmalen Streifens (#4346), dichte Leiste (#5529).
         size="compact"
-        // Radius wie die Knöpfe der Startseite (`md`), Höhe bleibt die des
-        // schmalen Streifens (#4346).
-        className="ml-auto shrink-0 rounded-lg text-sm"
+        className="ml-auto shrink-0"
         onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
       >
         Kostenlos starten

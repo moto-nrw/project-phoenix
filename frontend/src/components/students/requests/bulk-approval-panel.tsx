@@ -56,7 +56,6 @@ export function BulkApprovalPanel({
         type="button"
         variant="primary"
         size="md"
-        className="max-sm:min-h-11"
         disabled={blocked}
         onClick={open}
       >

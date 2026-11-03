@@ -463,7 +463,6 @@ export function AggregatedRequestList({
             type="button"
             variant="outline"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => {
               if (hasMore) void feed.loadMore();
               if (withdrawalsHaveMore) void loadMoreWithdrawals();

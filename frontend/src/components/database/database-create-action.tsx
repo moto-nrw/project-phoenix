@@ -3,6 +3,7 @@
 import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Button, buttonClassName } from "~/components/ui/button";
 import {
   OverflowMenu,
   type OverflowMenuItem,
@@ -26,10 +27,17 @@ interface DatabaseCreateActionProps {
   menuItems?: readonly OverflowMenuItem[];
 }
 
-const DESKTOP_CLASS =
-  "bg-moto-green-fill hover:bg-moto-green-fill-hover h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
-const FAB_CLASS =
-  "bg-moto-green-fill hover:bg-moto-green-fill-hover h-14 w-14 items-center justify-center rounded-full text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-50";
+// Anlegen im Kopf: Kit `success` `md`; mobil der schwebende Kit-Knopf `fab`.
+const DESKTOP_CLASS = buttonClassName({
+  variant: "success",
+  size: "md",
+  className: "flex gap-2",
+});
+const FAB_CLASS = buttonClassName({
+  variant: "fab",
+  size: "icon",
+  className: "flex",
+});
 
 /**
  * Renders both the desktop "+ Label" button and the mobile FAB. Visibility
@@ -65,7 +73,7 @@ export function DatabaseCreateAction({
           <OverflowMenu
             ariaLabel={ariaLabel}
             items={menuItems}
-            triggerClassName={`${DESKTOP_CLASS} flex`}
+            triggerClassName={DESKTOP_CLASS}
             triggerContent={
               <>
                 + {label}
@@ -84,7 +92,7 @@ export function DatabaseCreateAction({
               <OverflowMenu
                 ariaLabel={ariaLabel}
                 items={menuItems}
-                triggerClassName={`${FAB_CLASS} flex`}
+                triggerClassName={FAB_CLASS}
                 triggerContent={
                   <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
                 }
@@ -98,33 +106,36 @@ export function DatabaseCreateAction({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="success"
+        size="md"
         onClick={onClick}
         disabled={disabled}
-        className={`${DESKTOP_CLASS} hidden md:flex`}
+        className="hidden gap-2 md:flex"
         aria-label={ariaLabel}
         // Ziel der geführten Tour der ersten Schritte (#2832).
         data-setup-tour="create"
       >
         + {label}
-      </button>
+      </Button>
       {showMobileFab &&
         mounted &&
         createPortal(
-          <button
+          <Button
             type="button"
+            variant="fab"
+            size="icon"
             onClick={onClick}
             disabled={disabled}
-            className={`${FAB_CLASS} fixed right-4 bottom-24 z-40 flex md:hidden`}
+            className="fixed right-4 bottom-24 z-40 flex md:hidden"
             // Schwebender Symbolknopf: Das Portal löst ihn aus dem
             // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.
-            data-icon-only=""
             data-setup-tour="create"
             aria-label={ariaLabel}
           >
             <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
-          </button>,
+          </Button>,
           document.body,
         )}
     </>

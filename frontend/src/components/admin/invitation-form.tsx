@@ -461,7 +461,7 @@ export function InvitationForm({
           size="md"
           data-setup-tour="invite-submit"
           disabled={isSubmitting || isLoadingRoles || checkingAddress}
-          className="w-full py-2.5 font-semibold disabled:cursor-not-allowed"
+          className="w-full"
         >
           {isSubmitting
             ? "Wird gesendet…"

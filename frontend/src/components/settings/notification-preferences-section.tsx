@@ -333,7 +333,7 @@ function NotificationPreferencesSectionContent({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               disabled={busy}
               onClick={() => void disableAll()}
             >

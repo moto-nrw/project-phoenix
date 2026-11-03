@@ -209,9 +209,8 @@ export function KlassenTab({
         canEdit && assigned !== null && !editing ? (
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="md"
-            className="bg-white"
             onClick={startEditing}
           >
             Bearbeiten
@@ -293,11 +292,11 @@ export function KlassenTab({
                 </datalist>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="md"
+                  variant="surface"
+                  size="field"
                   onClick={addClass}
                   disabled={saving || newClass.trim() === ""}
-                  className="gap-1.5 bg-white"
+                  className="gap-1.5"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Hinzufügen

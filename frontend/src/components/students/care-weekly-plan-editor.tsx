@@ -396,9 +396,9 @@ export function CareWeeklyPlanGrid({
                   </label>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="link"
                     size="compact"
-                    className="mt-1 gap-1 px-0 text-xs text-gray-500 hover:text-gray-800"
+                    className="mt-1 gap-1"
                     aria-expanded={expandedWeekdays.has(day.value)}
                     onClick={() => toggleNotes(day.value)}
                   >

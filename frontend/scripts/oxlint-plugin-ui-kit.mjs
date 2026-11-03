@@ -571,7 +571,7 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
@@ -590,14 +590,14 @@ src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1
 src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@544
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@146 text-[10px]@295 text-[11px]@301
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@299 text-[11px]@305
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@326 text-[9px]@446 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@445 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
 src/components/timetable/month-planner-grid.tsx|text-[11px]@66 text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@201 text-[10px]@217 text-[11px]@226 text-[10px]@268 text-[10px]@292 text-[10px]@365 text-[10px]@379 text-[10px]@391 text-[11px]@399 text-[11px]@406
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@469

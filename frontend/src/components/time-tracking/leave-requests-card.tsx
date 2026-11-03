@@ -420,10 +420,9 @@ function AbsenceRequestItem({
           {cancelable && (
             <Button
               type="button"
-              variant="ghost"
+              variant="ghost_danger"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="text-moto-red hover:text-moto-red-hover px-0 hover:bg-transparent"
             >
               Stornieren
             </Button>

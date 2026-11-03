@@ -404,7 +404,7 @@ export function HolidayRegistrationForm({
         </div>
       </SectionCard>
 
-      <Button type="submit" variant="primary" size="lg" className="w-full">
+      <Button type="submit" variant="primary" size="md" className="w-full">
         {t("toSummary")}
       </Button>
     </form>

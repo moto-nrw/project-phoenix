@@ -12,6 +12,7 @@ import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -225,14 +226,16 @@ export function UnclaimedRooms({
     <div className="border-moto-amber/30 bg-moto-amber/10 relative mb-4 flex flex-col gap-3 rounded-xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       {/* Dismiss badge - positioned top right corner */}
       {hasSupervisors && (
-        <button
+        <Button
           type="button"
+          variant="ghost_tone"
+          size="icon"
           onClick={handleDismiss}
-          className="absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 shadow-sm ring-2 ring-white transition-colors hover:bg-gray-200 hover:text-gray-700"
+          className="absolute top-2 right-2"
           aria-label="Banner schließen"
         >
-          <X className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-        </button>
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
       )}
 
       <div className="flex items-center gap-3">
@@ -251,15 +254,13 @@ export function UnclaimedRooms({
         </div>
       </div>
 
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={() => void handleClaim()}
         disabled={claiming}
-        className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,box-shadow] duration-200 ${
-          claiming
-            ? "cursor-not-allowed bg-gray-200 text-gray-500"
-            : "bg-gray-900 text-white shadow-sm hover:bg-gray-800 hover:shadow-md"
-        } `}
+        className="shrink-0"
       >
         {claiming ? (
           <span className="flex items-center gap-2">
@@ -269,7 +270,7 @@ export function UnclaimedRooms({
         ) : (
           "Beaufsichtigen"
         )}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1058,9 +1058,11 @@ export function PlannedStatusDaysModal({
                     {selectedDates.map((date) => {
                       const key = toISODate(date);
                       return (
-                        <button
+                        <Button
                           key={key}
                           type="button"
+                          variant="surface"
+                          size="compact"
                           onClick={() =>
                             setSortedDates(
                               selectedDates.filter(
@@ -1068,11 +1070,10 @@ export function PlannedStatusDaysModal({
                               ),
                             )
                           }
-                          className="moto-content-surface inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                         >
                           {format(date, "dd.MM.yyyy", { locale: de })}
                           <X className="h-3.5 w-3.5 text-gray-400" />
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>

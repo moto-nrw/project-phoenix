@@ -98,7 +98,6 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="shadow-none"
                 onClick={selectAll.onSelectAll}
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || isRunning
@@ -115,7 +114,6 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="shadow-none"
                 onClick={onClearSelection}
                 disabled={noneSelected || isRunning}
               >
@@ -125,7 +123,6 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="success"
                 size="compact"
-                className="rounded-lg text-white shadow-none hover:shadow-none"
                 onClick={() => onBulkAction("in")}
                 disabled={noneSelected || isRunning}
               >
@@ -140,7 +137,6 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="danger"
                 size="compact"
-                className="rounded-lg shadow-none hover:shadow-none"
                 onClick={() => onBulkAction("out")}
                 disabled={noneSelected || isRunning}
               >
@@ -154,7 +150,7 @@ export function SchoolCheckinSelectionBar({
               <Button
                 type="button"
                 variant="primary"
-                size="md"
+                size="compact"
                 className="ml-1"
                 onClick={onFinish}
                 disabled={isRunning}
@@ -171,7 +167,7 @@ export function SchoolCheckinSelectionBar({
             <Button
               type="button"
               variant="primary"
-              size="md"
+              size="compact"
               className="ml-auto"
               onClick={onFinish}
               disabled={isRunning}
