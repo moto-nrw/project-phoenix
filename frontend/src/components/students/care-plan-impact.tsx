@@ -178,6 +178,7 @@ export function CarePlanImpact({
       {impact.pickupOverrides.length > 0 ? (
         <PickupOverrides
           overrides={impact.pickupOverrides}
+          effectiveFrom={impact.effectiveFrom}
           studentId={studentId}
           done={resetWeekdays}
           onReset={markReset}
@@ -362,11 +363,13 @@ function ManualTemplateEntry({
  */
 function PickupOverrides({
   overrides,
+  effectiveFrom,
   studentId,
   done,
   onReset,
 }: Readonly<{
   overrides: readonly PickupOverride[];
+  effectiveFrom: string;
   studentId?: string;
   done: ReadonlySet<number>;
   onReset: (weekday: number) => void;
@@ -399,14 +402,11 @@ function PickupOverrides({
         );
         onReset(override.weekday);
       }
-      const firstLater = resettable
-        .filter(startsLater)
-        .map((override) => override.date)
-        .sort()[0];
+      // Die Meldung nennt denselben Stichtag wie die Freigabe darüber.
       toast.success(
-        firstLater === undefined
-          ? "Jetzt gelten die gebuchten Abholzeiten."
-          : `Ab ${formatDate(firstLater)} gelten die gebuchten Abholzeiten.`,
+        effectiveFrom > today
+          ? `Ab ${formatDate(effectiveFrom)} gelten die gebuchten Abholzeiten.`
+          : "Jetzt gelten die gebuchten Abholzeiten.",
       );
     } catch (err) {
       logger.warn("care_plan_impact_pickup_reset_failed", {

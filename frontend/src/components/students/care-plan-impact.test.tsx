@@ -670,7 +670,7 @@ describe("CarePlanImpact", () => {
 
       await waitFor(() =>
         expect(
-          screen.getByText("Ab 02.11.2026 gelten die gebuchten Abholzeiten."),
+          screen.getByText("Ab 30.10.2026 gelten die gebuchten Abholzeiten."),
         ).toBeInTheDocument(),
       );
       expect(screen.getByText(/Montags/).closest("li")).toHaveTextContent(
