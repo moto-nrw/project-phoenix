@@ -228,21 +228,16 @@ function MultiSelectOptionLabel({
   label,
   badge,
 }: Readonly<{ label: string; badge?: string }>) {
-  if (!badge) {
-    return (
-      <span className="min-w-0 flex-1 truncate" title={label}>
-        {label}
-      </span>
-    );
-  }
   return (
     <span className="min-w-0 flex-1">
       <span className="block truncate" title={label}>
         {label}
       </span>
-      <span className="mt-1 block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-        {badge}
-      </span>
+      {badge ? (
+        <span className="mt-1 block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          {badge}
+        </span>
+      ) : null}
     </span>
   );
 }
