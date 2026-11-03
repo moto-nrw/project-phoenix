@@ -107,6 +107,27 @@ func TestRunLetterContentFindsTheInvoiceOfACorrection(t *testing.T) {
 	assert.Nil(t, runLetterContent(parentbilling.BillingRun{}, documents, invoice, parentbilling.BillingLetterInput{}, parentbilling.Letterhead{}).invoice)
 }
 
+// TestRunLetterContentFindsTheInvoiceAfterAPatternWithoutYear keeps the
+// balance of a credit right when the number pattern lost its year: the
+// credit (number_year 0) then sorts before its invoice among the documents
+// of the run, but the letter still names the invoice and what it asks for
+// after the credits issued up to the letter, in the order they were issued.
+func TestRunLetterContentFindsTheInvoiceAfterAPatternWithoutYear(t *testing.T) {
+	t.Parallel()
+	invoice := goldenLetterContent(t).document
+	invoice.ID = 20
+	first := creditOf(invoice, invoice.Children[0], parentbilling.BillingCreditInput{AmountCents: 1000, Reason: "a"})
+	second := creditOf(invoice, invoice.Children[1], parentbilling.BillingCreditInput{AmountCents: 500, Reason: "b"})
+	first.ID, second.ID = 31, 32
+	// The order of the number range: the credits without a year first.
+	documents := []parentbilling.BillingDocument{second, first, invoice}
+	content := runLetterContent(parentbilling.BillingRun{}, documents, first, parentbilling.BillingLetterInput{}, parentbilling.Letterhead{})
+	require.NotNil(t, content.invoice)
+	assert.Equal(t, invoice.ID, content.invoice.ID)
+	assert.Equal(t, int64(8250), content.leftCents, "the first credit leaves 82,50 €, the later one does not count yet")
+	assert.Equal(t, int64(7750), runLetterContent(parentbilling.BillingRun{}, documents, second, parentbilling.BillingLetterInput{}, parentbilling.Letterhead{}).leftCents)
+}
+
 // TestLetterMailOfACorrectionSaysWhatItIs gives the mail of a Storno and a
 // Gutschrift their own subject and text (#4690); an invoice keeps its mail.
 func TestLetterMailOfACorrectionSaysWhatItIs(t *testing.T) {

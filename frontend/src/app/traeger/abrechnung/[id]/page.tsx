@@ -14,10 +14,6 @@ import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
-import {
-  BillingDocumentCorrectionModal,
-  type BillingDocumentCorrectionTarget,
-} from "~/components/traeger/billing-document-correction-modal";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
@@ -92,8 +88,6 @@ export default function TraegerBillingRunPage() {
   const [correcting, setCorrecting] = useState<BillingCorrectionTarget | null>(
     null,
   );
-  const [documentCorrection, setDocumentCorrection] =
-    useState<BillingDocumentCorrectionTarget | null>(null);
   const [confirmingRelease, setConfirmingRelease] = useState(false);
   const router = useRouter();
   const reissueErrors = useApiErrorDisplay();
@@ -222,13 +216,8 @@ export default function TraegerBillingRunPage() {
                 setCorrecting(null);
                 setRun(corrected);
               }}
-            />
-            <BillingDocumentCorrectionModal
-              runId={run.id}
-              target={documentCorrection}
-              onClose={() => setDocumentCorrection(null)}
               onIssued={() => {
-                setDocumentCorrection(null);
+                setCorrecting(null);
                 void load();
               }}
             />
@@ -373,13 +362,13 @@ export default function TraegerBillingRunPage() {
               preview
                 ? undefined
                 : (document) =>
-                    setDocumentCorrection({ kind: "cancellation", document })
+                    setCorrecting({ kind: "cancellation", document })
             }
             onCredit={
               preview
                 ? undefined
                 : (document, child, leftCents) =>
-                    setDocumentCorrection({
+                    setCorrecting({
                       kind: "credit",
                       document,
                       child,

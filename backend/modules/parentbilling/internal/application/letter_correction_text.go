@@ -17,8 +17,10 @@ import (
 
 // runLetterContent is what the letter of one document of a run prints. The
 // letter of a cancellation or a credit finds its invoice among the
-// documents of the run, which come in the order of their numbers, and
-// counts what the invoice asks for after it and the documents before it.
+// documents of the run by its reference and counts what the invoice asks
+// for after this document and the ones issued before it. Issuance order is
+// the order of the IDs, not of the numbers: a pattern without a year sorts
+// a later credit before its invoice.
 func runLetterContent(run parentbilling.BillingRun, documents []parentbilling.BillingDocument, document parentbilling.BillingDocument,
 	input parentbilling.BillingLetterInput, head parentbilling.Letterhead,
 ) letterContent {
@@ -26,19 +28,17 @@ func runLetterContent(run parentbilling.BillingRun, documents []parentbilling.Bi
 	if document.Kind == parentbilling.DocumentInvoice || document.ReferenceDocumentID == nil {
 		return content
 	}
-	var upTo []parentbilling.BillingDocument
-	for i := range documents {
-		if documents[i].ID == *document.ReferenceDocumentID {
-			content.invoice = &documents[i]
-		}
-		upTo = append(upTo, documents[i])
-		if documents[i].ID == document.ID {
-			break
+	invoice, ok := findDocument(documents, *document.ReferenceDocumentID)
+	if !ok {
+		return content
+	}
+	issuedUpTo := []parentbilling.BillingDocument{document}
+	for _, other := range documents {
+		if other.ID < document.ID {
+			issuedUpTo = append(issuedUpTo, other)
 		}
 	}
-	if content.invoice != nil {
-		content.leftCents = leftOf(*content.invoice, upTo)
-	}
+	content.invoice, content.leftCents = &invoice, leftOf(invoice, issuedUpTo)
 	return content
 }
 
