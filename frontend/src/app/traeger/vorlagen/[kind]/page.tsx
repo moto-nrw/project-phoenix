@@ -1,6 +1,6 @@
 "use client";
 
-// Eine Vorlage des Trägers (#4677, ADR 0149): Betreff, Anrede, Brieftext und
+// Eine Vorlage des Trägers (#4677, ADR 0150): Betreff, Anrede, Brieftext und
 // Grußformel mit Platzhaltern, die Vorschau mit Beispieldaten im Briefkopf
 // des Trägers und die gespeicherten Versionen. Speichern legt eine neue
 // Version an; unbekannte Platzhalter lehnt das Backend ab.

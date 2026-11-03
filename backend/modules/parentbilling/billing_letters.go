@@ -108,7 +108,7 @@ type Letterhead struct {
 }
 
 // LetterTemplate is a version of the template of the confirmation letter
-// with its placeholders (#4677, ADR 0149). Version 0 is the standard
+// with its placeholders (#4677, ADR 0150). Version 0 is the standard
 // template.
 type LetterTemplate struct {
 	Version    int

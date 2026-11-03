@@ -2,10 +2,10 @@ package architecture
 
 // documentTemplatesTargetPackage is the pure template contract of Document
 // Rendering: kinds of document, placeholders, standard templates, the check
-// of unknown placeholders and the filling (#4677, ADR 0149).
+// of unknown placeholders and the filling (#4677, ADR 0150).
 const documentTemplatesTargetPackage = "modules/documentrendering/templates"
 
-// documentTemplatesSources are the owner roles ADR 0149 lets name the
+// documentTemplatesSources are the owner roles ADR 0150 lets name the
 // template contract: Organization & Tenancy keeps the versions of the
 // Träger's templates (public types, port, application, postgres rows, HTTP
 // request and error), and the Elternabrechnung fills the template of its
@@ -16,7 +16,7 @@ var documentTemplatesSources = map[string]map[string]bool{
 	"parent-billing":       {"application": true},
 }
 
-// reviewedDocumentTemplatesRule is one of the reaches ADR 0149 decides for
+// reviewedDocumentTemplatesRule is one of the reaches ADR 0150 decides for
 // #4677. It is pinned to its source owner and role, the one target package
 // and production. It grants no other Document Rendering package, no owner
 // kind, no external class and no test scope.

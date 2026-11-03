@@ -1,6 +1,6 @@
 "use client";
 
-// Vorlagen des Trägers (#4677, ADR 0149): für jede Dokumentart Betreff,
+// Vorlagen des Trägers (#4677, ADR 0150): für jede Dokumentart Betreff,
 // Anrede, Brieftext und Grußformel mit Platzhaltern. Die Liste zeigt, ob eine
 // Art die Standardvorlage oder eine eigene Version nutzt. Lesen darf, wer
 // „Übersicht lesen“ hat, ändern nur, wer „Einstellungen“ hat.

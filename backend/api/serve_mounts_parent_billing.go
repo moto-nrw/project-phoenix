@@ -157,7 +157,7 @@ type TraegerBrandingSettings interface {
 // master data of Organisation & Tenancy, which logs the read of the
 // contact person and the bank accounts, and to the branding settings of
 // the Träger (ADR 0112, ADR 0121), and the template of the confirmation
-// letter to the document templates of the Träger (#4677, ADR 0149).
+// letter to the document templates of the Träger (#4677, ADR 0150).
 type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
 	templates  organizationtenancy.TraegerDocumentTemplates

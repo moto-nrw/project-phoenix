@@ -23,7 +23,7 @@ func init() {
 }
 
 // traegerDocumentTemplatesUpSQL adds the document templates of a Träger
-// (#4677, spec #4611 user stories 91 and 92, ADR 0149):
+// (#4677, spec #4611 user stories 91 and 92, ADR 0150):
 //
 //   - platform.traeger_document_templates: every version of the template of
 //     a kind of document (subject, salutation, body, closing with
@@ -60,7 +60,7 @@ CREATE TABLE platform.traeger_document_templates (
 	)
 );
 COMMENT ON TABLE platform.traeger_document_templates IS
-	'Versions of the document templates of a Träger with placeholders (#4677, ADR 0149); a version never changes; read and written in the Träger transaction (ADR 0105).';
+	'Versions of the document templates of a Träger with placeholders (#4677, ADR 0150); a version never changes; read and written in the Träger transaction (ADR 0105).';
 
 CREATE FUNCTION platform.refuse_traeger_document_template_change() RETURNS trigger
 LANGUAGE plpgsql AS $$

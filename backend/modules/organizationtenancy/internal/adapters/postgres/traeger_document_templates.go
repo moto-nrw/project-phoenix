@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
-// Document templates of a Träger (#4677, ADR 0149) in
+// Document templates of a Träger (#4677, ADR 0150) in
 // platform.traeger_document_templates, under the same Träger policy as the
 // master data. A version is only ever added; a trigger refuses every change.
 

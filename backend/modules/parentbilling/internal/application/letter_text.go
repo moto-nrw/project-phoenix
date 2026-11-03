@@ -70,7 +70,7 @@ type letterContent struct {
 // address field, the facts and the footer come from the invoice and the
 // letterhead; subject, salutation, body and closing come from the Träger's
 // template of the confirmation letter, filled with the values of this
-// invoice (#4677, ADR 0149). Without a template of its own the Träger
+// invoice (#4677, ADR 0150). Without a template of its own the Träger
 // writes with the standard template, the letter of ADR 0121.
 func confirmationLetter(content letterContent) Letter {
 	document, head := content.document, content.letterhead

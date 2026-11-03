@@ -192,7 +192,7 @@
     },
     {
       "id": "parent-billing.application.document-rendering-templates",
-      "description": "The Elternabrechnung fills the Träger's template of the confirmation letter with the values of each invoice through the pure template contract of Document Rendering (#4677, ADR 0149).",
+      "description": "The Elternabrechnung fills the Träger's template of the confirmation letter with the values of each invoice through the pure template contract of Document Rendering (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],

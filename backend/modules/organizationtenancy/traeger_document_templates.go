@@ -9,7 +9,7 @@ import (
 )
 
 // Document templates of a Träger (#4677, spec #4611 user stories 91 and 92,
-// ADR 0149): for every kind of document the Träger-Büro writes subject,
+// ADR 0150): for every kind of document the Träger-Büro writes subject,
 // salutation, body and closing with placeholders. Every save is a new
 // version; a version never changes, so an issued document keeps the text it
 // was written with. Without a version of its own a kind uses the standard

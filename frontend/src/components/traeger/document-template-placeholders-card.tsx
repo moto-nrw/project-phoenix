@@ -2,7 +2,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import type { DocumentTemplatePlaceholder } from "~/lib/traeger-document-templates";
 
-/** Die Schreibregeln des Brieftexts, wie das Backend sie liest (ADR 0149). */
+/** Die Schreibregeln des Brieftexts, wie das Backend sie liest (ADR 0150). */
 const RULES: readonly { readonly mark: string; readonly text: string }[] = [
   { mark: "Leere Zeile", text: "beginnt einen neuen Absatz." },
   { mark: "# Text", text: "am Zeilenanfang macht die Zeile zur Überschrift." },

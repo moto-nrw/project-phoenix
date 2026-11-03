@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TestTraegerDocumentTemplateVersionsNeverChange pins ADR 0149 on
+// TestTraegerDocumentTemplateVersionsNeverChange pins ADR 0150 on
 // platform.traeger_document_templates: under the request role a Träger reads
 // and adds only its own versions and a school transaction sees none; no
 // role changes a version, the request role deletes none; a version number

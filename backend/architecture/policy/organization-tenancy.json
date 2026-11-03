@@ -249,7 +249,7 @@
     },
     {
       "id": "organization-tenancy.public.document-rendering-templates",
-      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0149).",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],
@@ -261,7 +261,7 @@
     },
     {
       "id": "organization-tenancy.port.document-rendering-templates",
-      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0149).",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],
@@ -273,7 +273,7 @@
     },
     {
       "id": "organization-tenancy.application.document-rendering-templates",
-      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0149).",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],
@@ -285,7 +285,7 @@
     },
     {
       "id": "organization-tenancy.postgres.document-rendering-templates",
-      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0149).",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],
@@ -297,7 +297,7 @@
     },
     {
       "id": "organization-tenancy.http.document-rendering-templates",
-      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0149).",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0150).",
       "scopes": [
         "production"
       ],
