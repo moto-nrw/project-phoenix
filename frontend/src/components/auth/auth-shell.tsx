@@ -360,6 +360,7 @@ function AuthTestimonialPanel({
             <button
               key={`${item.author}-${item.metric}`}
               type="button"
+              aria-pressed={index === activeIndex}
               aria-label={items.testimonialButtonLabel.replace(
                 "{number}",
                 String(index + 1),

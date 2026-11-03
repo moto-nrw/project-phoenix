@@ -858,6 +858,23 @@ describe("ui-kit/no-grey-button-fill", () => {
     expect(result.count).toBe(4);
   });
 
+  it("fails gray-300 and responsive grey resting fills", () => {
+    const result = lint(
+      `function Probe() {
+        return (
+          <>
+            <button type="button" className="bg-gray-300">A</button>
+            <button type="button" className="md:bg-gray-100">B</button>
+          </>
+        );
+      }
+      void Probe;`,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.count).toBe(2);
+  });
+
   it("accepts state tints, tracks, switches and navigation rows", () => {
     const result = lint(
       `import { NavLink as SideLink } from "~/components/ui/nav-link";
@@ -867,6 +884,8 @@ describe("ui-kit/no-grey-button-fill", () => {
             <button type="button" className="rounded-md px-3 py-2 hover:bg-gray-100 active:bg-gray-200">A</button>
             <div className="rounded-lg bg-gray-100 p-1"><button type="button" aria-pressed={on}>B</button></div>
             <button type="button" role="switch" aria-checked={on} className={on ? "bg-gray-900" : "bg-gray-200"} />
+            <button type="button" aria-pressed={on} className={on ? "bg-gray-300" : "bg-gray-100"}>C</button>
+            <button type="button" aria-selected={on} className="bg-gray-100">D</button>
             <a href="/c" aria-current={on ? "page" : undefined} className={on ? "bg-gray-100" : ""}>C</a>
             <SideLink href="/d" className="bg-gray-100">D</SideLink>
             <button type="button" className="bg-gray-50 rounded-md px-2">E</button>

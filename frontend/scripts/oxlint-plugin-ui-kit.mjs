@@ -1460,7 +1460,7 @@ const noButtonOverride = makeButtonRatchetRule({
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
-const GREY_REST_FILL_RE = /^bg-gray-[12]00(?:\/[\w.[\]]+)?$/;
+const GREY_REST_FILL_RE = /^bg-gray-[123]00(?:\/[\w.[\]]+)?$/;
 const NOT_BUTTON_ROLES = new Set([
   "switch",
   "tab",
@@ -1475,14 +1475,56 @@ const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
   if (role && NOT_BUTTON_ROLES.has(role)) return true;
+  if (
+    jsxAttribute(node, "aria-pressed") ||
+    jsxAttribute(node, "aria-selected")
+  ) {
+    return true;
+  }
   if (jsxAttribute(node, "aria-current")) return true;
   return bindings.navigationRows.has(name);
 }
 
-function hasGreyRestFill(text) {
-  return unprefixedTokens(text).some((token) =>
-    GREY_REST_FILL_RE.test(token.replace(/^!/, "")),
+const INTERACTION_STATE_VARIANTS = new Set([
+  "active",
+  "autofill",
+  "checked",
+  "disabled",
+  "enabled",
+  "focus",
+  "focus-visible",
+  "focus-within",
+  "hover",
+  "indeterminate",
+  "invalid",
+  "open",
+  "placeholder-shown",
+  "read-only",
+  "required",
+  "target",
+  "user-invalid",
+  "user-valid",
+  "valid",
+  "visited",
+]);
+
+function isInteractionStateVariant(variant) {
+  return (
+    INTERACTION_STATE_VARIANTS.has(variant) ||
+    /^(?:aria|data|group|has|peer)-/.test(variant)
   );
+}
+
+function hasGreyRestFill(text) {
+  return text.split(/\s+/).some((token) => {
+    const variants = token.split(":");
+    const hasInteractionState = variants
+      .slice(0, -1)
+      .some(isInteractionStateVariant);
+    return (
+      token && !hasInteractionState && GREY_REST_FILL_RE.test(bareToken(token))
+    );
+  });
 }
 
 const noGreyButtonFill = makeButtonRatchetRule({
