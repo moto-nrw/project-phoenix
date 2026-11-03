@@ -119,6 +119,7 @@ func letterValues(content letterContent) map[string]templates.Value {
 		"hinweise":        text(content.input.Notes),
 		"notfallnummern":  {Rows: emergencyRows(content.input.EmergencyContacts)},
 	}
+	values["datum"], values["zahlen_bis"] = templates.Value{}, templates.Value{}
 	if document.IssuedOn != nil {
 		values["datum"] = text(germanDate(*document.IssuedOn))
 	}
@@ -128,13 +129,14 @@ func letterValues(content letterContent) map[string]templates.Value {
 	return values
 }
 
-// unfilledLetterPlaceholders names the placeholders of the confirmation
-// letter a value map has no value for. Every placeholder its kind offers the
-// Träger must be filled, or a paragraph of the Träger's template vanishes.
-func unfilledLetterPlaceholders(values map[string]templates.Value) []string {
+// missingLetterValues names the placeholders of the confirmation letter the
+// letter writes no value for. Every placeholder its kind offers the Träger
+// must have one, even an empty one, or a paragraph of the Träger's template
+// would vanish without a reason.
+func missingLetterValues(values map[string]templates.Value) []string {
 	var missing []string
 	for _, placeholder := range templates.Placeholders(templates.KindConfirmation) {
-		if value := values[placeholder.Name]; value.Text == "" && len(value.Rows) == 0 {
+		if _, ok := values[placeholder.Name]; !ok {
 			missing = append(missing, placeholder.Name)
 		}
 	}

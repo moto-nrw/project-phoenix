@@ -249,7 +249,11 @@ func TestConfirmationLetterFollowsTheTemplateOfTheTraeger(t *testing.T) {
 // placeholder in a Träger's template stays empty by accident (#4677).
 func TestConfirmationLetterFillsEveryPlaceholderOfItsKind(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, unfilledLetterPlaceholders(letterValues(goldenLetterContent(t))))
+	content := goldenLetterContent(t)
+	assert.Empty(t, missingLetterValues(letterValues(content)))
+	// Values the invoice does not have stay present and empty.
+	content.document.TotalCents, content.document.IssuedOn = 0, nil
+	assert.Empty(t, missingLetterValues(letterValues(content)))
 	// The check itself notices a placeholder without a value.
-	assert.NotEmpty(t, unfilledLetterPlaceholders(nil))
+	assert.Contains(t, missingLetterValues(nil), "familienname")
 }

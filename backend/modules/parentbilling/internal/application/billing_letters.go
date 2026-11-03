@@ -199,6 +199,9 @@ func (b *BillingLetters) material(ctx context.Context, reviewer parentbilling.Ho
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {
+	if missing := missingLetterValues(letterValues(content)); len(missing) > 0 {
+		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: the letter writes no value for %s", strings.Join(missing, ", "))
+	}
 	file, err := b.renderer.RenderLetter(confirmationLetter(content), "bestaetigung-"+content.document.Number)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render letter: %w", err)
