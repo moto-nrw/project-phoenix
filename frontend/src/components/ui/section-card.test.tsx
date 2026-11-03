@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { exportsConcept } from "~/lib/concepts/exports";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 import { SectionCard } from "./section-card";
@@ -232,6 +233,18 @@ describe("SectionCard als einzige Kopfkarte (#5581)", () => {
     expect(
       card?.querySelector('[data-moto-duotone-tone="blue"]'),
     ).toBeInTheDocument();
+  });
+
+  it("nutzt für neutrale Konzeptsymbole die vorhandenen Grautöne", () => {
+    render(
+      <SectionCard title="Exporte" concept={exportsConcept}>
+        Inhalt
+      </SectionCard>,
+    );
+
+    const icon = document.querySelector('[data-moto-duotone-tone="neutral"]');
+    expect(icon).toHaveClass("text-gray-700");
+    expect(icon).toHaveClass("[--moto-icon-secondary:var(--color-gray-400)]");
   });
 
   it("zeigt die Fußzone unter dem Inhalt und blendet sie mit der Karte ein und aus", async () => {

@@ -64,8 +64,7 @@ const CONCEPT_ICON_COLORS: Record<MotoDuotoneTone, string> = {
   gold: "text-moto-gold-strong [--moto-icon-secondary:var(--color-moto-gold-light)]",
   petrol:
     "text-moto-petrol-strong [--moto-icon-secondary:var(--color-moto-petrol-light)]",
-  neutral:
-    "text-moto-neutral-strong [--moto-icon-secondary:var(--color-moto-neutral-light)]",
+  neutral: "text-gray-700 [--moto-icon-secondary:var(--color-gray-400)]",
   stone:
     "text-moto-stone-strong [--moto-icon-secondary:var(--color-moto-stone-light)]",
 };
