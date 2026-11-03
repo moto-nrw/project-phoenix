@@ -44,23 +44,3 @@ func (h *HolidayRegistrationReview) UploadHolidayRegistrationProof(ctx context.C
 		return enrollment.HolidayAuditProofUpload, map[string]any{"proof_id": proofID}, nil
 	})
 }
-
-// HolidayProofRegistrations names the registrations of a period of the
-// reviewer's Träger with a proof, for the list a cost bearer gets (#5627),
-// and records the read in the period's trail like a list.
-func (h *HolidayRegistrationReview) HolidayProofRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64) (map[int64]bool, error) {
-	if err := holidayReviewKey(reviewer, periodID, 1); err != nil {
-		return nil, err
-	}
-	if _, err := h.period(ctx, reviewer.OrganizationID, periodID, false); err != nil {
-		return nil, err
-	}
-	proofs, err := h.store.HolidayProofRegistrations(ctx, reviewer.OrganizationID, periodID)
-	if err != nil {
-		return nil, fmt.Errorf("enrollment: read holiday proof registrations: %w", err)
-	}
-	if err := h.audit(ctx, reviewer, periodID, 0, enrollment.HolidayAuditList, map[string]any{"proofs": len(proofs)}); err != nil {
-		return nil, err
-	}
-	return proofs, nil
-}

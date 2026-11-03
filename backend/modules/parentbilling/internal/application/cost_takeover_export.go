@@ -93,9 +93,13 @@ func (b *BillingRuns) costTakeoverInput(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return costTakeoverInput{}, fmt.Errorf("parent billing: read invoices: %w", err)
 	}
-	proofs, err := b.registrations.HolidayProofRegistrations(ctx, reviewer, run.HolidayPeriodID)
+	registrations, err := b.registrations.ConfirmedHolidayRegistrations(ctx, reviewer, run.HolidayPeriodID)
 	if err != nil {
 		return costTakeoverInput{}, fmt.Errorf("parent billing: read proofs: %w", err)
+	}
+	proofs := make(map[int64]bool, len(registrations))
+	for _, registration := range registrations {
+		proofs[registration.ID] = registration.HasBenefitsProof
 	}
 	confirmed, err := b.store.RegistrationConfirmations(ctx, reviewer.OrganizationID, run.HolidayPeriodID)
 	if err != nil {

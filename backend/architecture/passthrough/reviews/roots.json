@@ -797,11 +797,6 @@
     },
     {
       "decision": "0115",
-      "id": "api/parentBillingBillingRegistrations.HolidayProofRegistrations",
-      "reason": "ADR 0115 addendum (#5627): Consumer-port adapter of the billing run's holiday registrations; it reads through Enrollment's review, which checks the period of the Träger and records the read, which registrations of the period have a proof of benefits for the list of a cost bearer, and translates Enrollment's refusals into the Elternabrechnung's vocabulary."
-    },
-    {
-      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
       "reason": "ADR 0115 (#4664), ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it confirms with the debtor number through Enrollment's review in the caller's Träger transaction and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },

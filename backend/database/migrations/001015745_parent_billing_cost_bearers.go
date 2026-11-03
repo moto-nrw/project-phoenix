@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCostBearersVersion = "1.15.742"
+const parentBillingCostBearersVersion = "1.15.745"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -15,6 +15,7 @@ func init() {
 		Description: "Elternabrechnung: Kostenübernahme durch einen Kostenträger in der Ferienabrechnung (#5627)",
 		DependsOn: []string{
 			parentBillingDocumentCorrectionsVersion, // the last migration before this one; its document kinds this keeps
+			holidayRegistrationEditVersion,          // the audit action edit this keeps
 			holidayDebtorNumberVersion,              // the audit actions this extends
 			parentBillingHolidayRunsVersion,         // the invoice positions this extends
 			holidayRegistrationProofsVersion,        // the proofs the Träger-Büro now uploads too
@@ -99,7 +100,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
 		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number',
-			'proof_upload'));
+			'edit', 'proof_upload'));
 `
 
 // parentBillingCostBearersDownSQL drops the cost takeover. The lines and
@@ -110,7 +111,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT chk_holiday_registration_audit_action;
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
-		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number'));
+		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit'));
 
 DELETE FROM parent_billing.document_positions WHERE kind = 'cost_takeover';
 ALTER TABLE parent_billing.document_positions

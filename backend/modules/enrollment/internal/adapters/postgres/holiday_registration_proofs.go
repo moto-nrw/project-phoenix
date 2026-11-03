@@ -42,9 +42,6 @@ const (
 			(organization_id, holiday_period_id, holiday_registration_id, claimed_at, filename, content_type, size_bytes, content)
 		VALUES (?, ?, ?, statement_timestamp(), ?, ?, ?, ?)
 		RETURNING id`
-	holidayProofRegistrationsQuery = `SELECT DISTINCT holiday_registration_id
-		FROM enrollment.holiday_registration_proofs
-		WHERE organization_id = ? AND holiday_period_id = ? AND holiday_registration_id IS NOT NULL`
 	deleteUnclaimedHolidayProofsQuery = `DELETE FROM enrollment.holiday_registration_proofs
 		WHERE holiday_registration_id IS NULL AND created_at < ?`
 )
@@ -93,24 +90,6 @@ func (s *HolidayRegistrationStore) InsertClaimedHolidayProof(ctx context.Context
 		return 0, fmt.Errorf("enrollment postgres: insert claimed holiday proof: %w", err)
 	}
 	return id, nil
-}
-
-// HolidayProofRegistrations names the registrations of the period with a
-// claimed proof (#5627).
-func (s *HolidayRegistrationStore) HolidayProofRegistrations(ctx context.Context, organizationID, periodID int64) (map[int64]bool, error) {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	var ids []int64
-	if err := db.NewRaw(holidayProofRegistrationsQuery, organizationID, periodID).Scan(ctx, &ids); err != nil {
-		return nil, fmt.Errorf("enrollment postgres: read holiday proof registrations: %w", err)
-	}
-	registrations := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		registrations[id] = true
-	}
-	return registrations, nil
 }
 
 // ReadHolidayProofs reads the claimed proofs of a registration without

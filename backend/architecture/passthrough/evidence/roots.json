@@ -1115,13 +1115,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b parentBillingBillingRegistrations) HolidayProofRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (map[int64]bool, error) {\n\tproofs, err := b.review.HolidayProofRegistrations(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID)\n\tif err != nil {\n\t\treturn nil, parentBillingHolidayError(err)\n\t}\n\treturn proofs, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentBillingBillingRegistrations.HolidayProofRegistrations",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (b parentBillingHolidayRegistrations) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.ConfirmHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingHolidayRegistrations.ConfirmHolidayRegistration",

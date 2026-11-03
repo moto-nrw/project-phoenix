@@ -42,6 +42,7 @@ type holidayReviewRegistrationRow struct {
 	CustodyConfirmedAt      *time.Time `bun:"custody_confirmed_at"`
 	DeclarationName         *string    `bun:"declaration_name"`
 	DebtorNumber            *string    `bun:"debtor_number"`
+	BenefitsProofAttached   bool       `bun:"benefits_proof_attached"`
 }
 
 // holidayReviewChildRow is one child as the review reads it, without its
@@ -70,7 +71,10 @@ const (
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
 			custody_confirmed_at, declaration_name,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number
+			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number,
+			EXISTS (SELECT 1 FROM enrollment.holiday_registration_proofs AS proof
+				WHERE proof.organization_id = holiday_registrations.organization_id
+					AND proof.holiday_registration_id = holiday_registrations.id) AS benefits_proof_attached
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -161,7 +165,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 				Children: byRegistration[row.ID],
 			},
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
-			CustodyConfirmedAt: row.CustodyConfirmedAt,
+			CustodyConfirmedAt: row.CustodyConfirmedAt, BenefitsProofAttached: row.BenefitsProofAttached,
 		}
 		if row.DeclarationName != nil {
 			details[i].DeclarationName = *row.DeclarationName
@@ -246,7 +250,7 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'proof_upload')
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload')
 		ORDER BY occurred_at, id`
 )
 

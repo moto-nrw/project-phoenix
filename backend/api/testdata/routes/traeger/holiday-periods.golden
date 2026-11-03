@@ -18,3 +18,4 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 PUT /traeger/holiday-periods/{id}
 PUT /traeger/holiday-periods/{id}/form
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details

@@ -484,3 +484,59 @@ func TestConfirmationAndDeletionOfACostBearerWaitForEachOther(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Equal(t, "parent_billing.cost_bearer_in_use", refusalCode(t, rec))
 }
+
+// TestStornoOfAnInvoiceWithACostTakeoverReversesTheTakeover pins #5627 with
+// the Storno of #4690: the Storno negates every position of the invoice, the
+// cost takeover too, with its cost bearer. The overview for the Kämmerei
+// lists the reversed line as part of the Storno and no longer counts the
+// invoice for the cost bearer; the list for the reimbursement sums to zero.
+func TestStornoOfAnInvoiceWithACostTakeoverReversesTheTakeover(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Storno Kostenübernahme")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	createContributionRule(t, f, billing, siblingHalf())
+	office := createCostBearer(t, f, billing, youthOffice())
+	confirmSiblingsWithTakeover(t, f, office)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	invoice := documentByNumber(t, correctedRun(t, f, billing, run.ID), "FE-0001")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, cancellationPath(run.ID, invoice.ID),
+		map[string]any{"reason": "Falsch bestätigt"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	corrected := correctedRun(t, f, billing, run.ID)
+	var storno correctedDocumentBody
+	for _, document := range corrected.Documents {
+		if document.Kind == "cancellation" {
+			storno = document
+		}
+	}
+	require.Equal(t, "FE-0001", storno.ReferenceNumber, "the Storno belongs to the invoice with the cost takeover")
+	reversed := map[int64]bool{}
+	for _, child := range storno.Children {
+		for _, position := range child.Positions {
+			if position.Kind == "cost_takeover" {
+				reversed[position.AmountCents] = true
+			}
+		}
+	}
+	assert.Equal(t, map[int64]bool{9000: true, 3375: true}, reversed, "the Storno reverses both takeover lines")
+
+	overview := exportCSV(t, f, billing, run.ID)
+	assert.Contains(t, overview, "Kostenübernahme: Fachdienst Jugend des Landkreises Musterstadt;-90,00", "the invoice keeps its line")
+	assert.Contains(t, overview, "Kostenübernahme: Fachdienst Jugend des Landkreises Musterstadt;90,00", "the Storno reverses it")
+	assert.Contains(t, overview, "Storno", "the overview names the kind of the document")
+	assert.Contains(t, overview, "zu FE-0001", "and the invoice it belongs to")
+	assert.NotContains(t, overview, "Davon übernimmt", "the cost bearer pays nothing once its only invoice is cancelled")
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet,
+		billingRunPath(run.ID, fmt.Sprintf("/cost-takeovers/%d/export?format=csv", office.ID)), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	list := rec.Body.String()
+	assert.Contains(t, list, "(Storno zu FE-0001);Lia Muster;")
+	assert.Contains(t, list, ";-67,50;33,75;-33,75;", "the Storno row reverses the invoice row")
+	assert.Contains(t, list, "Summe;;;0,00", "the cost bearer owes nothing for the cancelled invoice")
+}

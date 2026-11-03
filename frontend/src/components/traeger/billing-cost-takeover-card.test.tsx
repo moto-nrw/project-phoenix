@@ -59,6 +59,7 @@ function child(id: string, positions: BillingPosition[]) {
 
 const RUN: BillingRunDetail = {
   id: "9",
+  holidayPeriodId: "1",
   periodName: "Sommerferien 2027",
   serviceFrom: "2027-07-05",
   serviceUntil: "2027-07-16",
@@ -80,6 +81,10 @@ const RUN: BillingRunDetail = {
     {
       id: "1",
       number: "FE-0001",
+      kind: "invoice",
+      referenceNumber: "",
+      reason: "",
+      history: [],
       issuedOn: "2026-09-02",
       registrationId: "31",
       recipientFirstName: "Eva",
@@ -104,6 +109,10 @@ const RUN: BillingRunDetail = {
     {
       id: "2",
       number: "FE-0002",
+      kind: "invoice",
+      referenceNumber: "",
+      reason: "",
+      history: [],
       issuedOn: "2026-09-02",
       registrationId: "32",
       recipientFirstName: "Tom",
@@ -136,6 +145,30 @@ describe("BillingCostTakeoverCard", () => {
     expect(runCostTakeovers(RUN)).toEqual([
       { id: "4", name: OFFICE, documents: 1, cents: 15000 },
     ]);
+  });
+
+  it("takes an invoice the Storno cancels out of the sum and the count", () => {
+    const invoice = RUN.documents[0]!;
+    const storno = {
+      ...invoice,
+      id: "3",
+      number: "FE-0003",
+      kind: "cancellation" as const,
+      referenceNumber: "FE-0001",
+      reason: "Falsch bestätigt",
+      children: invoice.children.map((entry) => ({
+        ...entry,
+        positions: entry.positions.map((line) => ({
+          ...line,
+          amountCents: -line.amountCents,
+        })),
+      })),
+    };
+
+    expect(
+      runCostTakeovers({ ...RUN, documents: [...RUN.documents, storno] }),
+    ).toEqual([]);
+    expect(runCostTakeovers(RUN)).toHaveLength(1);
   });
 
   it("downloads the list for the reimbursement of a released run", async () => {

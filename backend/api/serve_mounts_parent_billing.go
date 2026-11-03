@@ -357,23 +357,14 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 		}
 		registrations[i] = parentbilling.HolidayBillingRegistration{
 			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,
-			GuardianEmail: registration.GuardianEmail, DebtorNumber: registration.DebtorNumber, Children: children,
+			GuardianEmail: registration.GuardianEmail, DebtorNumber: registration.DebtorNumber,
+			HasBenefitsProof: registration.HasBenefitsProof, Children: children,
 		}
 		if address := registration.GuardianAddress; address != nil {
 			registrations[i].GuardianAddress = &parentbilling.PostalAddress{Street: address.Street, PostalCode: address.PostalCode, City: address.City}
 		}
 	}
 	return registrations, nil
-}
-
-// HolidayProofRegistrations names the registrations of the period with a
-// proof of benefits, through the review, which checks the Träger (#5627).
-func (b parentBillingBillingRegistrations) HolidayProofRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (map[int64]bool, error) {
-	proofs, err := b.review.HolidayProofRegistrations(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID)
-	if err != nil {
-		return nil, parentBillingHolidayError(err)
-	}
-	return proofs, nil
 }
 
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {
