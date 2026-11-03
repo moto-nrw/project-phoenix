@@ -4,9 +4,11 @@
 // Ferienzeitraums, Korrekturen mit Begründung und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Ausgestellte Rechnungen ändern sich
 // nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
-// Lauf hat die Übersicht für die Kämmerei (#4672).
+// Lauf hat die Übersicht für die Kämmerei (#4672). Eine ausgestellte Rechnung
+// lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
+// stellt der nächste Lauf des Zeitraums neu aus.
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   BillingCorrectionModal,
@@ -42,7 +44,9 @@ import {
   type BillingRunDetail,
   downloadBillingLetter,
   fetchBillingRun,
+  fetchBillingRuns,
   releaseBillingRun,
+  startBillingRun,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -52,7 +56,7 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen, die noch keine Rechnung haben. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
@@ -86,6 +90,8 @@ export default function TraegerBillingRunPage() {
     null,
   );
   const [confirmingRelease, setConfirmingRelease] = useState(false);
+  const router = useRouter();
+  const reissueErrors = useApiErrorDisplay();
   const [releasing, setReleasing] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
@@ -144,7 +150,29 @@ export default function TraegerBillingRunPage() {
     }
   };
 
+  // A cancelled invoice is issued again by the run of its period that is
+  // still a preview; without one, a new run starts (#4690).
+  const reissue = async () => {
+    if (!run) return;
+    try {
+      const open = (await fetchBillingRuns()).find(
+        (other) =>
+          other.status === "calculated" &&
+          other.holidayPeriodId === run.holidayPeriodId,
+      );
+      const target = open ?? (await startBillingRun(run.holidayPeriodId));
+      router.push(traegerPath(`/traeger/abrechnung/${target.id}`));
+    } catch (err) {
+      logger.error("traeger_billing_reissue_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void reissueErrors.show(err, { object: "der neue Lauf" });
+    }
+  };
+
   const preview = run?.status === "calculated";
+  const corrections =
+    run?.documents.filter((document) => document.kind !== "invoice") ?? [];
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
@@ -189,6 +217,10 @@ export default function TraegerBillingRunPage() {
                 setCorrecting(null);
                 setRun(corrected);
               }}
+              onIssued={() => {
+                setCorrecting(null);
+                void load();
+              }}
             />
             <ConfirmationModal
               isOpen={confirmingRelease}
@@ -230,11 +262,33 @@ export default function TraegerBillingRunPage() {
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
               <DataField label="Rechnungen">{run.previewCount}</DataField>
-              <DataField label="Summe">
+              <DataField
+                label={
+                  corrections.length > 0
+                    ? "Summe nach Storno und Gutschrift"
+                    : "Summe"
+                }
+              >
                 <span className="tabular-nums">
                   {formatEuro(run.previewCents)}
                 </span>
               </DataField>
+              {corrections.length > 0 ? (
+                <DataField label="Storno und Gutschrift">
+                  {corrections.length === 1
+                    ? "1 Dokument"
+                    : `${corrections.length} Dokumente`}{" "}
+                  über{" "}
+                  <span className="tabular-nums">
+                    {formatEuro(
+                      corrections.reduce(
+                        (sum, document) => sum + document.totalCents,
+                        0,
+                      ),
+                    )}
+                  </span>
+                </DataField>
+              ) : null}
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
@@ -286,7 +340,8 @@ export default function TraegerBillingRunPage() {
             />
           ) : null}
           {run.status === "released" && run.letters ? (
-            <BillingMailCard runId={run.id} />
+            // A new Storno or Gutschrift is a new letter to send (#4690).
+            <BillingMailCard key={run.documents.length} runId={run.id} />
           ) : null}
           <BillingRunOverviewCard
             run={run}
@@ -304,6 +359,24 @@ export default function TraegerBillingRunPage() {
                 ? (document) => void downloadLetter(document)
                 : undefined
             }
+            onCancel={
+              preview
+                ? undefined
+                : (document) =>
+                    setCorrecting({ kind: "cancellation", document })
+            }
+            onCredit={
+              preview
+                ? undefined
+                : (document, child, leftCents) =>
+                    setCorrecting({
+                      kind: "credit",
+                      document,
+                      child,
+                      leftCents,
+                    })
+            }
+            onReissue={preview ? undefined : () => void reissue()}
           />
           <BillingCostTakeoverCard run={run} />
         </>

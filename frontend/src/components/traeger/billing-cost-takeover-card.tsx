@@ -35,11 +35,17 @@ interface CostTakeover {
   readonly cents: number;
 }
 
-/** What each cost bearer pays in the run, in the order it first appears. */
+/**
+ * What each cost bearer pays in the run, in the order it first appears. A
+ * Storno negates its invoice, the takeover too (#4690): it reverses the
+ * amount and takes the invoice out of the count; a cost bearer with nothing
+ * left drops out.
+ */
 export function runCostTakeovers(run: BillingRunDetail): CostTakeover[] {
   const takeovers = new Map<string, CostTakeover>();
   for (const document of run.documents) {
     const counted = new Set<string>();
+    const count = document.kind === "cancellation" ? -1 : 1;
     for (const child of document.children) {
       for (const position of child.positions) {
         if (position.kind !== "cost_takeover" || !position.costBearerId) {
@@ -54,14 +60,16 @@ export function runCostTakeovers(run: BillingRunDetail): CostTakeover[] {
         };
         takeovers.set(id, {
           ...current,
-          documents: current.documents + (counted.has(id) ? 0 : 1),
+          documents: current.documents + (counted.has(id) ? 0 : count),
           cents: current.cents - position.amountCents,
         });
         counted.add(id);
       }
     }
   }
-  return [...takeovers.values()];
+  return [...takeovers.values()].filter(
+    (takeover) => takeover.documents > 0 || takeover.cents !== 0,
+  );
 }
 
 export function BillingCostTakeoverCard({

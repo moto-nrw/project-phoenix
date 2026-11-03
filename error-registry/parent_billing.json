@@ -171,6 +171,30 @@
       "legacy": "parent_billing.parent_document_not_found"
     },
     {
+      "code": "parent_billing.billing_document_correction_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_document_correction_invalid"
+    },
+    {
+      "code": "parent_billing.billing_document_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_document_not_found"
+    },
+    {
+      "code": "parent_billing.invoice_cancelled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_cancelled"
+    },
+    {
+      "code": "parent_billing.invoice_credited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_credited"
+    },
+    {
       "code": "parent_billing.cost_bearer_invalid",
       "class": "input",
       "parameters": [],

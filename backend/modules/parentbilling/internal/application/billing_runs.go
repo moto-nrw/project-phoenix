@@ -37,8 +37,14 @@ type RunStore interface {
 	// registration.
 	PeriodContributions(ctx context.Context, organizationID, periodID int64) (map[int64]parentbilling.HolidayContribution, error)
 	// IssuedRegistrations names the registrations of the period that an
-	// invoice of the service already bills.
+	// invoice of the service already bills: one that is not cancelled.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// CancelledInvoices names per registration the cancelled invoice of the
+	// period that no invoice replaces yet (#4690).
+	CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.BillingDocumentLink, error)
+	// ReferencingDocuments reads the cancellations, credits and replacing
+	// invoices of the given documents (#4690).
+	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
 	// LockPeriodBilling holds the invoices of the service and period until
 	// the transaction ends (#5621).
 	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
@@ -239,7 +245,7 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err := b.store.LockPeriodBilling(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID); err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
 	}
-	pattern, err := b.numberPattern(ctx, reviewer.OrganizationID, run.Service)
+	pattern, err := numberPatternOf(ctx, b.store, reviewer.OrganizationID, run.Service)
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
@@ -345,8 +351,15 @@ func (b *BillingRuns) lockCalculated(ctx context.Context, organizationID, runID 
 	return run, nil
 }
 
-func (b *BillingRuns) numberPattern(ctx context.Context, organizationID int64, service string) (string, error) {
-	ranges, err := b.store.ListNumberRanges(ctx, organizationID)
+// numberRangeReader reads the number ranges of a Träger.
+type numberRangeReader interface {
+	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
+}
+
+// numberPatternOf is the pattern of the service the invoices, the
+// cancellations and the credits take their numbers from.
+func numberPatternOf(ctx context.Context, store numberRangeReader, organizationID int64, service string) (string, error) {
+	ranges, err := store.ListNumberRanges(ctx, organizationID)
 	if err != nil {
 		return "", fmt.Errorf("parent billing: read number range: %w", err)
 	}
@@ -377,8 +390,13 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, fmt.Errorf("parent billing: read corrections: %w", err)
 	}
+	replaces, err := b.store.CancelledInvoices(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID)
+	if err != nil {
+		return preview{}, fmt.Errorf("parent billing: read cancelled invoices: %w", err)
+	}
 	return buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
+		replaces: replaces,
 	}), nil
 }
 
@@ -387,17 +405,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (parentbilling.BillingRunDetail, error) {
 	detail := parentbilling.BillingRunDetail{BillingRun: run, BilledInAdvance: run.Service == parentbilling.ServiceHoliday}
 	if run.Status == parentbilling.RunReleased {
-		documents, err := b.store.RunDocuments(ctx, reviewer.OrganizationID, run.ID)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read invoices: %w", err)
-		}
-		corrections, err := b.store.RunCorrections(ctx, reviewer.OrganizationID, run.ID)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read corrections: %w", err)
-		}
-		detail.Documents = withHistory(documents, corrections)
-		if detail.Letters, err = b.store.RunLetters(ctx, reviewer.OrganizationID, run.ID); err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read letters: %w", err)
+		var err error
+		if detail.Documents, detail.Letters, err = b.issued(ctx, reviewer.OrganizationID, run.ID); err != nil {
+			return parentbilling.BillingRunDetail{}, err
 		}
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
@@ -410,10 +420,14 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		}
 	}
 	for _, document := range detail.Documents {
-		detail.PreviewCount++
+		// A cancellation and a credit lower the sum, but are no invoice
+		// (#4690).
+		if document.Kind == parentbilling.DocumentInvoice {
+			detail.PreviewCount++
+		}
 		detail.PreviewCents += document.TotalCents
 	}
-	pattern, err := b.numberPattern(ctx, reviewer.OrganizationID, run.Service)
+	pattern, err := numberPatternOf(ctx, b.store, reviewer.OrganizationID, run.Service)
 	switch {
 	case errors.Is(err, parentbilling.ErrNumberRangeMissing):
 	case err != nil:
@@ -422,6 +436,28 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.NumberPattern, detail.NumberRangeSet = pattern, true
 	}
 	return detail, nil
+}
+
+// issued reads the documents of a released run with the corrections of the
+// run and the history of every invoice (#4690), and its letters.
+func (b *BillingRuns) issued(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, *parentbilling.BillingLetters, error) {
+	documents, err := b.store.RunDocuments(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read invoices: %w", err)
+	}
+	corrections, err := b.store.RunCorrections(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read corrections: %w", err)
+	}
+	documents, err = withDocumentHistory(ctx, b.store, organizationID, withHistory(documents, corrections))
+	if err != nil {
+		return nil, nil, err
+	}
+	letters, err := b.store.RunLetters(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read letters: %w", err)
+	}
+	return documents, letters, nil
 }
 
 // withHistory adds the corrections of the run to the children of the issued

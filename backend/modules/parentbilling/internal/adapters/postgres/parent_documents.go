@@ -17,7 +17,7 @@ import (
 // recipientDocumentsSQL lists the sent documents of one recipient, the
 // newest send first. The first send is when the document reached the
 // inbox; the children are the first names on its positions.
-const recipientDocumentsSQL = `SELECT document.id, document.run_id, document.number, run.period_name,
+const recipientDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, run.period_name,
 		document.service_from, document.service_until, document.issued_on, document.total_cents, sends.first_sent_at,
 		COALESCE((SELECT json_agg(DISTINCT position.child_first_name ORDER BY position.child_first_name)
 			FROM parent_billing.document_positions AS position
@@ -44,6 +44,7 @@ const recipientLetterSQL = `SELECT document.run_id, letter.filename, letter.pdf
 type recipientDocumentRow struct {
 	ID           int64         `bun:"id"`
 	RunID        int64         `bun:"run_id"`
+	Kind         string        `bun:"kind"`
 	Number       string        `bun:"number"`
 	PeriodName   string        `bun:"period_name"`
 	ServiceFrom  calendar.Date `bun:"service_from,type:date"`
@@ -72,12 +73,23 @@ func (s *Store) RecipientDocuments(ctx context.Context, organizationID int64, em
 			names = []string{}
 		}
 		documents[i] = parentbilling.ParentDocument{
-			DocumentID: row.ID, RunID: row.RunID, Kind: parentbilling.ParentDocumentKindConfirmationLetter, Number: row.Number,
+			DocumentID: row.ID, RunID: row.RunID, Kind: parentDocumentKind(row.Kind), Number: row.Number,
 			PeriodName: row.PeriodName, ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, IssuedOn: row.IssuedOn,
 			TotalCents: row.TotalCents, ChildNames: names, SentAt: row.FirstSentAt,
 		}
 	}
 	return documents, nil
+}
+
+// parentDocumentKind names the letter of a document in the inbox.
+func parentDocumentKind(kind string) string {
+	switch kind {
+	case parentbilling.DocumentCancellation:
+		return parentbilling.ParentDocumentKindCancellationLetter
+	case parentbilling.DocumentCredit:
+		return parentbilling.ParentDocumentKindCreditLetter
+	}
+	return parentbilling.ParentDocumentKindConfirmationLetter
 }
 
 // RecipientDocumentLetter reads the stored letter of one sent document of

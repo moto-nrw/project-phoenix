@@ -60,12 +60,16 @@ type LetterRenderer interface {
 	RenderLetter(letter Letter, filenameBase string) (parentbilling.BillingLetterFile, error)
 }
 
-// letterContent is everything one letter prints.
+// letterContent is everything one letter prints. The letter of a
+// cancellation or a credit also names its invoice and what the invoice
+// still asks for after it (#4690).
 type letterContent struct {
 	run        parentbilling.BillingRun
 	document   parentbilling.BillingDocument
 	input      parentbilling.BillingLetterInput
 	letterhead parentbilling.Letterhead
+	invoice    *parentbilling.BillingDocument
+	leftCents  int64
 }
 
 // confirmationLetter writes the letter of one issued invoice.

@@ -112,6 +112,12 @@ func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 	var total int64
 	documents, children := 0, 0
 	for _, document := range in.documents {
+		// A Storno negates its invoice, the takeover too (#4690): its rows
+		// reduce the sum and it takes the invoice out of the counts.
+		sign := 1
+		if document.Kind == parentbilling.DocumentCancellation {
+			sign = -1
+		}
 		billed := false
 		for _, child := range document.Children {
 			row, takeover, ok := costTakeoverRow(child, in.bearer.ID)
@@ -119,14 +125,14 @@ func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 				continue
 			}
 			billed = true
-			children++
+			children += sign
 			total += takeover
-			row["number"] = document.Number
+			row["number"] = takeoverDocumentNumber(document)
 			row["proof"], row["confirmed"] = registrationFacts(in, document.RegistrationID)
 			rows = append(rows, row)
 		}
 		if billed {
-			documents++
+			documents += sign
 		}
 	}
 	rows = append(rows, map[string]string{"weeks": "Summe", "takeover": formatAmount(total)})
@@ -136,6 +142,15 @@ func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 		Lines: costTakeoverLines(in, children, documents, total), Columns: costTakeoverColumns, Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}, documents
+}
+
+// takeoverDocumentNumber names a document in the list: an invoice by its
+// number, a Storno by its number and the invoice it cancels.
+func takeoverDocumentNumber(document parentbilling.BillingDocument) string {
+	if document.Kind == parentbilling.DocumentCancellation && document.ReferenceNumber != "" {
+		return document.Number + " (Storno zu " + document.ReferenceNumber + ")"
+	}
+	return document.Number
 }
 
 // proofGone is what the list says about the proof of a registration that

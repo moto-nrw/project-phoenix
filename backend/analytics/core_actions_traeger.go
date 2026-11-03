@@ -78,6 +78,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
 	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
+	// Storno and Gutschrift of an issued invoice (#4690) belong to the
+	// Träger as well.
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/cancellation"}: notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
 }
 
 func init() {

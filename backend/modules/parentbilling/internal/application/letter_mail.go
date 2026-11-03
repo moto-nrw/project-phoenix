@@ -10,8 +10,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
-// letterMailTemplate is the mail that carries a confirmation letter.
-const letterMailTemplate = "billing-letter.html"
+// letterMailTemplate is the mail that carries a confirmation letter,
+// correctionMailTemplate the one that carries the letter of a Storno or a
+// Gutschrift (#4690).
+const (
+	letterMailTemplate     = "billing-letter.html"
+	correctionMailTemplate = "billing-correction-letter.html"
+)
 
 // RenderLetterMail turns the payload of a claimed letter mail into the mail
 // the worker sends: the Träger is the sender and the stored PDF the
@@ -24,14 +29,20 @@ func RenderLetterMail(_ context.Context, payload json.RawMessage) (parentbilling
 	if len(mail.PDF) == 0 || strings.TrimSpace(mail.Filename) == "" {
 		return parentbilling.RenderedLetterMail{}, errors.New(parentbilling.MailKindBillingLetter + " payload has no letter")
 	}
-	subject := "Bestätigung und Rechnung"
+	subject, template := "Bestätigung und Rechnung", letterMailTemplate
+	switch mail.DocumentKind {
+	case parentbilling.DocumentCancellation:
+		subject, template = "Storno Ihrer Rechnung", correctionMailTemplate
+	case parentbilling.DocumentCredit:
+		subject, template = "Gutschrift zu Ihrer Rechnung", correctionMailTemplate
+	}
 	if mail.PeriodName != "" {
 		subject += ": " + mail.PeriodName
 	}
 	return parentbilling.RenderedLetterMail{
 		SenderName: strings.TrimSpace(mail.TraegerName),
 		Subject:    subject,
-		Template:   letterMailTemplate,
+		Template:   template,
 		Content: parentbilling.LetterMailContent{
 			GuardianName: mail.GuardianName, TraegerName: mail.TraegerName, PeriodName: mail.PeriodName, Number: mail.Number,
 		},

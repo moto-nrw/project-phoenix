@@ -88,6 +88,17 @@ var billingRunOverviewColumns = []ExportColumn{
 	{ID: "amount", Label: "Betrag in Euro"},
 }
 
+// billingRunNumberColumn replaces "Rechnungsnummer" when the run has a
+// Storno or a Gutschrift, which carry numbers of their own (#4690).
+var billingRunNumberColumn = ExportColumn{ID: "number", Label: "Nummer"}
+
+// billingRunCorrectionColumns follow the number when the run has a Storno
+// or a Gutschrift, or reissues a cancelled invoice (#4690).
+var billingRunCorrectionColumns = []ExportColumn{
+	{ID: "kind", Label: "Art"},
+	{ID: "reference", Label: "Bezug"},
+}
+
 // billingRunDebtorColumn follows the recipient when an invoice of the run
 // copied a debtor number (ADR 0122 addendum, #5621).
 var billingRunDebtorColumn = ExportColumn{ID: "debtor_number", Label: "Debitorennummer"}
@@ -108,8 +119,12 @@ var billingRunAddressColumns = []ExportColumn{
 func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.BillingDocument) ExportTable {
 	rows := []map[string]string{}
 	var total int64
+	corrected := hasCorrections(documents)
 	for _, document := range documents {
 		recipient := overviewRecipient(document)
+		if corrected {
+			recipient["kind"], recipient["reference"] = overviewKindLabel(document.Kind), overviewReference(document)
+		}
 		for _, child := range document.Children {
 			name := strings.TrimSpace(child.FirstName + " " + child.LastName)
 			for _, position := range child.Positions {
@@ -120,7 +135,7 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 			}
 		}
 		rows = append(rows, withValues(recipient, map[string]string{
-			"number": document.Number, "position": "Summe der Rechnung", "amount": formatAmount(document.TotalCents),
+			"number": document.Number, "position": overviewSumLabel(document), "amount": formatAmount(document.TotalCents),
 		}))
 		total += document.TotalCents
 	}
@@ -163,15 +178,21 @@ func withValues(from, row map[string]string) map[string]string {
 // debtor number when an invoice of the run has one, then the address
 // columns when an invoice of the run has an address.
 func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
-	debtor, address := false, false
+	debtor, address, corrected := false, false, hasCorrections(documents)
 	for _, document := range documents {
 		debtor = debtor || strings.TrimSpace(document.DebtorNumber) != ""
 		address = address || document.RecipientAddress != nil
 	}
-	if !debtor && !address {
+	if !debtor && !address && !corrected {
 		return billingRunOverviewColumns
 	}
 	columns := append([]ExportColumn{}, billingRunOverviewColumns[:2]...)
+	if corrected {
+		// A run with a Storno or a Gutschrift names the kind and the
+		// reference of every document (#4690).
+		columns = append([]ExportColumn{billingRunNumberColumn}, billingRunCorrectionColumns...)
+		columns = append(columns, billingRunOverviewColumns[1])
+	}
 	if debtor {
 		columns = append(columns, billingRunDebtorColumn)
 	}
@@ -181,11 +202,26 @@ func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
 	return append(columns, billingRunOverviewColumns[2:]...)
 }
 
-// overviewLines are the facts of the run under the title.
-func overviewLines(run parentbilling.BillingRun, documents []parentbilling.BillingDocument, total int64) []string {
+// overviewLines are the facts of the run under the title. The count names
+// the invoices; a Storno or a Gutschrift has a line of its own (#4690).
+func overviewLines(run parentbilling.BillingRun, all []parentbilling.BillingDocument, total int64) []string {
 	lines := []string{"Leistungszeitraum: " + run.ServiceFrom.Format("02.01.2006") + " bis " + run.ServiceUntil.Format("02.01.2006")}
 	if run.IssuedOn != nil {
 		lines = append(lines, "Rechnungsdatum: "+run.IssuedOn.Format("02.01.2006"))
+	}
+	documents := documentsOfKind(all, parentbilling.DocumentInvoice)
+	corrections := []string{}
+	for _, kind := range []struct{ kind, one, many string }{
+		{parentbilling.DocumentCancellation, "1 Storno", " Stornos"},
+		{parentbilling.DocumentCredit, "1 Gutschrift", " Gutschriften"},
+	} {
+		switch of := documentsOfKind(all, kind.kind); len(of) {
+		case 0:
+		case 1:
+			corrections = append(corrections, kind.one+": "+of[0].Number)
+		default:
+			corrections = append(corrections, strconv.Itoa(len(of))+kind.many+": "+documentNumbers(of))
+		}
 	}
 	count := strconv.Itoa(len(documents)) + " Rechnungen"
 	switch len(documents) {
@@ -195,11 +231,76 @@ func overviewLines(run parentbilling.BillingRun, documents []parentbilling.Billi
 	default:
 		count += ", Nummern " + documents[0].Number + " bis " + documents[len(documents)-1].Number
 	}
-	lines = append(lines, count, "Gesamtsumme: "+formatAmount(total)+" Euro")
-	for _, takeover := range runCostTakeovers(documents) {
+	lines = append(append(lines, count), corrections...)
+	lines = append(lines, "Gesamtsumme: "+formatAmount(total)+" Euro")
+	for _, takeover := range runCostTakeovers(all) {
 		lines = append(lines, "Davon übernimmt "+takeover.name+": "+formatAmount(takeover.cents)+" Euro ("+invoiceCount(takeover.documents)+")")
 	}
 	return lines
+}
+
+// hasCorrections reports a run with a Storno or a Gutschrift, or with an
+// invoice that replaces a cancelled one; its overview names the kind and
+// the reference of every document (#4690).
+func hasCorrections(documents []parentbilling.BillingDocument) bool {
+	for _, document := range documents {
+		if (document.Kind != "" && document.Kind != parentbilling.DocumentInvoice) || document.ReferenceNumber != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func documentsOfKind(documents []parentbilling.BillingDocument, kind string) []parentbilling.BillingDocument {
+	of := []parentbilling.BillingDocument{}
+	for _, document := range documents {
+		if document.Kind == kind || (kind == parentbilling.DocumentInvoice && document.Kind == "") {
+			of = append(of, document)
+		}
+	}
+	return of
+}
+
+func documentNumbers(documents []parentbilling.BillingDocument) string {
+	numbers := make([]string, len(documents))
+	for i, document := range documents {
+		numbers[i] = document.Number
+	}
+	return strings.Join(numbers, ", ")
+}
+
+// overviewKindLabel names the kind of a document in the overview.
+func overviewKindLabel(kind string) string {
+	switch kind {
+	case parentbilling.DocumentCancellation:
+		return "Storno"
+	case parentbilling.DocumentCredit:
+		return "Gutschrift"
+	}
+	return "Rechnung"
+}
+
+// overviewReference names the invoice a Storno or a Gutschrift belongs to,
+// and the cancelled invoice an invoice replaces.
+func overviewReference(document parentbilling.BillingDocument) string {
+	switch {
+	case document.ReferenceNumber == "":
+		return ""
+	case document.Kind == parentbilling.DocumentInvoice || document.Kind == "":
+		return "ersetzt " + document.ReferenceNumber
+	}
+	return "zu " + document.ReferenceNumber
+}
+
+// overviewSumLabel is the label of the sum row of a document.
+func overviewSumLabel(document parentbilling.BillingDocument) string {
+	switch document.Kind {
+	case parentbilling.DocumentCancellation:
+		return "Summe des Stornos"
+	case parentbilling.DocumentCredit:
+		return "Summe der Gutschrift"
+	}
+	return "Summe der Rechnung"
 }
 
 // overviewPositionLabel names what a position stands for, as the run page
@@ -230,6 +331,8 @@ func overviewPositionLabel(position parentbilling.BillingPosition) string {
 		return "Kostenübernahme: " + position.CostBearerName
 	case parentbilling.LineCorrection:
 		return "Korrektur: " + position.Note
+	case parentbilling.LineCredit:
+		return "Gutschrift: " + position.Note
 	}
 	return position.Kind
 }
@@ -243,12 +346,20 @@ type costTakeover struct {
 	documents int
 }
 
-// runCostTakeovers sums the cost takeovers of the invoices per cost bearer,
-// in the order the cost bearers first appear (#5627).
+// runCostTakeovers sums the cost takeovers of the documents per cost
+// bearer, in the order the cost bearers first appear (#5627). A Storno
+// negates every position of its invoice (#4690), the takeover line too: its
+// amount reverses the invoice's and it takes the invoice out of the count.
+// A cost bearer whose invoices are all cancelled pays nothing and is left
+// out.
 func runCostTakeovers(documents []parentbilling.BillingDocument) []costTakeover {
 	var takeovers []costTakeover
 	index := map[int64]int{}
 	for _, document := range documents {
+		count := 1
+		if document.Kind == parentbilling.DocumentCancellation {
+			count = -1
+		}
 		for _, paid := range documentCostTakeovers(document) {
 			at, ok := index[paid.id]
 			if !ok {
@@ -257,10 +368,16 @@ func runCostTakeovers(documents []parentbilling.BillingDocument) []costTakeover 
 				takeovers = append(takeovers, costTakeover{id: paid.id, name: paid.name})
 			}
 			takeovers[at].cents += paid.cents
-			takeovers[at].documents++
+			takeovers[at].documents += count
 		}
 	}
-	return takeovers
+	paying := takeovers[:0]
+	for _, takeover := range takeovers {
+		if takeover.documents > 0 || takeover.cents != 0 {
+			paying = append(paying, takeover)
+		}
+	}
+	return paying
 }
 
 // documentCostTakeovers is what each cost bearer pays of one invoice. A

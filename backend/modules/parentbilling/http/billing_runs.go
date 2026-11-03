@@ -21,7 +21,8 @@ import (
 // Träger right "Abrechnung" and runs in the Träger transaction of the
 // session's Träger. The Träger comes from the session, never from the
 // request. The confirmation letters of a released run sit below the run
-// (#4669, ADR 0121), with their mail and their print (#4670, ADR 0123).
+// (#4669, ADR 0121), with their mail and their print (#4670, ADR 0123), and
+// so do the Storno and the Gutschrift of an issued invoice (#4690).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
 	letters        capability.BillingLetterService
@@ -60,6 +61,8 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}/mailings", rs.mailings)
 		billing.Post("/{id}/mailings", rs.mailAll)
 		billing.Post("/{id}/documents/{documentID}/mailings", rs.mailOne)
+		billing.Post("/{id}/documents/{documentID}/cancellation", rs.cancel)
+		billing.Post("/{id}/documents/{documentID}/credits", rs.credit)
 	})
 	return r
 }

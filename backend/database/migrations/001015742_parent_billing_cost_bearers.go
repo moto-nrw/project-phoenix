@@ -14,10 +14,10 @@ func init() {
 		Version:     parentBillingCostBearersVersion,
 		Description: "Elternabrechnung: Kostenübernahme durch einen Kostenträger in der Ferienabrechnung (#5627)",
 		DependsOn: []string{
-			holidayGuestHomeSchoolNameVersion, // the last migration before this one
-			holidayDebtorNumberVersion,        // the audit actions this extends
-			parentBillingHolidayRunsVersion,   // the invoice positions this extends
-			holidayRegistrationProofsVersion,  // the proofs the Träger-Büro now uploads too
+			parentBillingDocumentCorrectionsVersion, // the last migration before this one; its document kinds this keeps
+			holidayDebtorNumberVersion,              // the audit actions this extends
+			parentBillingHolidayRunsVersion,         // the invoice positions this extends
+			holidayRegistrationProofsVersion,        // the proofs the Träger-Büro now uploads too
 		},
 	})
 	Migrations.MustRegister(parentBillingCostBearersUp, parentBillingCostBearersDown)
@@ -87,7 +87,7 @@ ALTER TABLE parent_billing.document_positions
 	ADD COLUMN cost_bearer_id BIGINT,
 	ADD COLUMN cost_bearer_name TEXT NOT NULL DEFAULT '',
 	DROP CONSTRAINT chk_document_positions_kind,
-	ADD CONSTRAINT chk_document_positions_kind CHECK (kind IN ('base', 'sibling', 'benefits_exemption', 'cost_takeover', 'correction')),
+	ADD CONSTRAINT chk_document_positions_kind CHECK (kind IN ('base', 'sibling', 'benefits_exemption', 'cost_takeover', 'correction', 'credit')),
 	ADD CONSTRAINT chk_document_positions_cost_bearer CHECK (
 		(kind = 'cost_takeover' AND cost_bearer_id IS NOT NULL AND BTRIM(cost_bearer_name) <> '')
 		OR (kind <> 'cost_takeover' AND cost_bearer_id IS NULL AND cost_bearer_name = ''));
@@ -116,7 +116,7 @@ DELETE FROM parent_billing.document_positions WHERE kind = 'cost_takeover';
 ALTER TABLE parent_billing.document_positions
 	DROP CONSTRAINT chk_document_positions_cost_bearer,
 	DROP CONSTRAINT chk_document_positions_kind,
-	ADD CONSTRAINT chk_document_positions_kind CHECK (kind IN ('base', 'sibling', 'benefits_exemption', 'correction')),
+	ADD CONSTRAINT chk_document_positions_kind CHECK (kind IN ('base', 'sibling', 'benefits_exemption', 'correction', 'credit')),
 	DROP COLUMN cost_bearer_name,
 	DROP COLUMN cost_bearer_id;
 

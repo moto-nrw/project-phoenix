@@ -2,7 +2,8 @@
 
 /**
  * Dokumente (#4671): the documents the Träger of the family's OGS sent to
- * this account, today the confirmation letters of holiday registrations.
+ * this account: the confirmation letters of holiday registrations and the
+ * letters of their Storno and Gutschrift (#4690).
  * Each one downloads as the stored PDF. The list only reads; the Träger
  * decides what is sent.
  */
@@ -26,6 +27,13 @@ import {
   type ParentDocument,
 } from "~/lib/parent-api";
 import { documentsConcept } from "~/lib/concepts/documents";
+
+/** The title of each kind of letter in the inbox (#4690). */
+const DOCUMENT_TITLES = {
+  confirmation_letter: "confirmationLetter",
+  cancellation_letter: "cancellationLetter",
+  credit_letter: "creditLetter",
+} as const satisfies Record<ParentDocument["kind"], string>;
 
 export function ParentDocumentsPage() {
   const t = useTranslations("parentDocuments");
@@ -102,7 +110,9 @@ function ParentDocumentCard({
     <ParentSection
       level={2}
       concept={documentsConcept}
-      title={t("confirmationLetter", { period: document.period_name })}
+      title={t(DOCUMENT_TITLES[document.kind], {
+        period: document.period_name,
+      })}
       description={t("sender", { traeger: document.traeger_name })}
       actions={
         <Button
