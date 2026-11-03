@@ -74,7 +74,8 @@ export function BillingDocumentBreakdown({
               <SlideOverTitle>
                 Rechnung an {recipientName(document)}
               </SlideOverTitle>
-              <SlideOverDescription>
+              {/* E-Mail und Debitorennummer (bis 35 Zeichen am Stück) brechen um. */}
+              <SlideOverDescription className="wrap-anywhere">
                 {issuedText(document)} · {document.recipientEmail}
                 {document.debtorNumber
                   ? ` · Debitorennummer ${document.debtorNumber}`
