@@ -896,3 +896,22 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - publish: zwei rateLimitExceeded-Tests warteten echten Drive-Backoff (6 × 1 s). Fake-Timer mit `nextTimerAsync`: Wand n=3 7,49/7,99/7,60 → 1,31/1,29/1,53 s (Median 7,60 → 1,31). Mutation „Ratenlimit nicht wiederholen“: vorher/nachher rot in denselben zwei Tests.
 - browser-token-ratchet: jeder `ts.X`-Zugriff über Vitests Importobjekt kostete ~⅔ der Laufzeit; `import ts = typescript`. Wand 8,30/7,61/7,58 → 3,53/3,50/3,59 s (Median 7,61 → 3,53). Mutation Refresh-Token in session-cache.ts: vorher/nachher rot an `expect(violations).toEqual([])`.
 - Inventar 34/1968 unverändert. Cross-Review Sol: OK; bestehende, unveränderte Lücke: Backoff-Wartezeit/Versuchszahl wird nicht geprüft (vorher wie nachher).
+
+### Runde F-overhead (setup/import/environment pro Datei): verworfen, Untergrenze
+- Diagnose (977 app-dom-Dateien): environment 167 ms, setup 90 ms, import 137 ms pro Datei; jest-dom 75 ms/Datei, lucide-react-CJS-Barrel 59 ms (628 Dateien); next-intl-Katalog nur 0,36 s gesamt (Hypothese widerlegt).
+- Kandidat (lucide per Icon, jest-dom lazy, 4 Dateien nach logic-node): volle Suite n=3 190,6 → 184,9 s (−3,0 %), CPU 878 → 851 s; Overhead −12 %, teils nur nach tests/import verschoben. Unter 20 %: zurückgenommen. Mutationen M1–M3 vorher/nachher rot; Inventar 1541/24771 gleich.
+- Untergrenze: Rest ist nativer happy-dom-Import (~140 ms/Datei) plus Testing Library/jest-dom, sobald ein Test sie nutzt; senkbar nur über bereits verworfene Bündelung/isolate:false/VM. Belege: `tmp/hc4/f-overhead/`.
+
+### Runde B-mig (database/migrations): verworfen, Untergrenze
+- Hypothese: `OwnTenantRows`-Cleanups vor dem ohnehin folgenden Clone-Drop sparen Zeit (58 Ausführungen, 14 s summiert). Paket n=3: 62,6/60,5/57,3 → 57,5/68,2/59,6 s, Median 60,5 → 59,6 s (−1,4 %): zurückgenommen.
+- Untergrenze: 297 von 329 Top-Level-Tests brauchen einen eigenen DB-Clone (Schemaänderungen); summiert 279,6 s Setup + 163,8 s Clone-Drop ≈ 55,4 s bei 8 parallelen Slots. Isoliert kostet ein Clone 0,08 s; unter Last serialisiert PostgreSQL CREATE/DROP DATABASE. Alle Tests laufen bereits parallel; kein Migrationslauf von Null pro Test.
+- Mutation `chk_work_sessions_source` entfernt: vorher/nachher rot („An error is expected but got nil“). Inventar 329/565/0 unverändert. Belege `tmp/hc4/b-mig/`.
+
+### Runde B-ident (identityaccess/behavior, inbound/account): behalten
+- Ursache: verweigernder Default-Mailer, echter Outbox-Worker wartete je Versand 1 s + 5 s. Sieben Tests nutzen den vorhandenen testhooks-Backoff (`WithAuthTestPasswordResetBackoff`); drei Versandversuche und alle Assertions bleiben.
+- behavior n=3: 46,0/50,2/52,3 → 20,6/24,1/17,7 s (Median 50,2 → 20,6); account 15,5/15,3/15,9 → 8,6/8,7/8,5 s (Median 15,5 → 8,6). Fünf 18–24-s-Tests und InvitationCreateSuccess (12,1 s) jetzt ≤ 0,3 s. Die drei Operator-Tests lagen reproduziert < 1,3 s (Baseline-Wert war Slot-Wartezeit).
+- 7/7 Mutationen (Grenze 3→4, Cleanup 24→48 h, Scope ignoriert u. a.) vorher/nachher rot an identischen Assertions. Inventar 636/965 bzw. 276/532 unverändert. Review Opus: OK.
+
+### Runde F-hooks (supervision-context, use-unread-count, use-sse): behalten
+- Ursache: `waitFor` auf renderHook-Ergebnisse prüfte erst nach 50-ms-Intervall erneut; use-unread-count lief zusätzlich überall mit `shouldAdvanceTime`-Fake-Timern, die Testing Library nicht erkennt. Lokaler waitFor-Wrapper mit 5-ms-Intervall; Fake-Timer nur noch im Debounce-Test.
+- Wand n=3, Median: 4,02 → 1,62 s; 3,08 → 1,33 s; 2,87 → 1,34 s. Mutationen (Stale-Refetch gedrosselt, Focus-Listener fehlt, Backoff ×1000) vorher/nachher rot. Inventar 81/28/23 unverändert. Review Sol: OK.
