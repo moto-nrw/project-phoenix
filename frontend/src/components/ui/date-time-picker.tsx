@@ -47,9 +47,9 @@ export function clampTimeToMin(
  * Kit replacement for `<input type="datetime-local">`: the kit calendar for the
  * day plus a time field for the clock.
  *
- * The time half stays a native `<input type="time">` — that is the app-wide
- * convention (every shift, activity and pickup form uses it) and the kit has no
- * time control, so inventing one here would create a second pattern.
+ * The time half is still a native `<input type="time">`, although the kit has
+ * `TimeField` (`./time-field`); moving it onto `TimeField` is a separate,
+ * visible change.
  */
 export function DateTimePicker({
   value,
