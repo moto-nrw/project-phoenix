@@ -27,8 +27,9 @@ import {
 //                                     moto-popover-surface (floating menus),
 //                                     ChoiceTile (selectable rows) or a kit
 //                                     surface component (issue #2933)
-//   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
-//                                     rounded-2xl (moto-content-surface)
+//   ui-kit/no-rounded-3xl           — off-scale surface radius, also per
+//                                     side/corner; cards are rounded-2xl
+//                                     (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
 //                                     label so its visible box is clickable
 //
@@ -68,6 +69,13 @@ import {
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.
 //
+// Two more keep the kit on one overlay system (#5579):
+//
+//   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
+//                                     text-muted-foreground …); bg-white/gray-*
+//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
+//                                     levels come from Z_LAYER
+//
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
 
@@ -86,7 +94,19 @@ const INSET_0_RE = /\binset-0\b/;
 const SURFACE_ROUNDED_RE = /(?:^|\s)rounded-(?:xl|2xl)(?=\s|$)/;
 const SURFACE_BORDER_RE = /(?:^|\s)border(?:-[1-9]\d*)?(?=\s|$)/;
 const SURFACE_BG_RE = /(?:^|\s)bg-white(?=\s|$)/;
-const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
+// Also the per-side and per-corner forms (`rounded-t-3xl`, `rounded-br-3xl`,
+// logical `rounded-s-3xl` / `rounded-ss-3xl` …): the Drawer used them (#5579).
+const ROUNDED_3XL_RE =
+  /\brounded-(?:(?:t|b|l|r|tl|tr|bl|br|s|e|ss|se|es|ee)-)?3xl(?![\w-])/g;
+// shadcn semantic colour tokens (`bg-background`, `text-muted-foreground`,
+// `ring-ring` …). They resolve to slate tints from the old shadcn theme, not
+// to the kit's white and gray scale; `bg-background` is not white (#5579).
+const SHADCN_TOKEN_RE =
+  /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
+// Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
+// `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
+const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
 const UI_KIT_DIR = "src/components/ui/";
@@ -414,6 +434,8 @@ function makeClassStringRule({
   regex,
   baseline = new Map(),
   skipUiKit,
+  onlyUiKit = false,
+  skipFiles = [],
   docs,
   messageId,
   message,
@@ -430,6 +452,8 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
+      if (onlyUiKit && !key.startsWith(UI_KIT_DIR)) return {};
+      if (skipFiles.includes(key)) return {};
       const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
@@ -611,6 +635,26 @@ const noRounded3xl = makeClassStringRule({
   messageId: "rounded3xl",
   message:
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md).",
+});
+
+const noShadcnTokens = makeClassStringRule({
+  regex: SHADCN_TOKEN_RE,
+  skipUiKit: false,
+  docs: "Disallow shadcn semantic colour tokens; the kit uses bg-white and the gray scale.",
+  messageId: "shadcnToken",
+  message:
+    "{{match}} is a shadcn theme token (slate, not the kit palette). Use bg-white / gray-* or a moto-* utility (see .claude/rules/frontend-ui-kit.md).",
+});
+
+const noRawZIndex = makeClassStringRule({
+  regex: RAW_Z_INDEX_RE,
+  skipUiKit: false,
+  onlyUiKit: true,
+  skipFiles: [Z_LAYER_FILE],
+  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  messageId: "rawZIndex",
+  message:
+    "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
 });
 
 // ui-kit/green-fill-white-text — auf einer deckend grünen Fläche steht weiße
@@ -2071,7 +2115,9 @@ export default {
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-raw-input": noRawInput,
+    "no-raw-z-index": noRawZIndex,
     "no-rounded-3xl": noRounded3xl,
+    "no-shadcn-tokens": noShadcnTokens,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,

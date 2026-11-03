@@ -257,6 +257,14 @@ export const parentAnnouncementKeys = {
 export const displayKeys = { list: () => "info-displays" } as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
+  // Eigene Schichten auf „Mein Dienstplan“ (#3821). Beide teilen das Präfix
+  // `time-tracking-own-shifts-week-` aus PLAN_CACHE_KEY_PREFIXES und den
+  // SSE-Präfixen: eine Planänderung frischt so auch die Suche nach der
+  // nächsten Schicht auf (#5639).
+  ownShiftsWeek: (from: string, to: string) =>
+    `time-tracking-own-shifts-week-${from}-${to}`,
+  ownShiftsAhead: (from: string, to: string) =>
+    `time-tracking-own-shifts-week-ahead-${from}-${to}`,
 } as const;
 
 /** Träger metadata only. Registrations, people and audit logs are never cached. */

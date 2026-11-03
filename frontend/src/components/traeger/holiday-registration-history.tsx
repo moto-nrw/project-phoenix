@@ -1,7 +1,8 @@
 "use client";
 
 // Verlauf einer Ferienanmeldung (#4663): jede Änderung des Träger-Büros mit
-// Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, beim Ändern der
+// Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, bei der
+// Debitorennummer die Nummer vorher und nachher (#5621), beim Ändern der
 // Angaben die geänderten Felder ohne ihre Werte (#5629). Nur zum Lesen.
 
 import { SectionCard } from "~/components/ui/section-card";
@@ -23,6 +24,7 @@ const ACTION_LABELS: Readonly<
   freeze: "Eingefroren",
   reopen: "Wieder geöffnet",
   rebook: "Umgebucht",
+  debtor_number: "Debitorennummer geändert",
   edit: "Angaben geändert",
 };
 
@@ -49,6 +51,16 @@ function bookingsText(
     .join("; ");
 }
 
+/** The debtor number a confirmation entered or a change changed (#5621). */
+function debtorNumberText(change: {
+  readonly before: string;
+  readonly after: string;
+}): string {
+  if (!change.before) return `Debitorennummer ${change.after}`;
+  if (!change.after) return `Debitorennummer ${change.before} entfernt`;
+  return `Debitorennummer vorher ${change.before}, jetzt ${change.after}`;
+}
+
 function eventDetail(
   event: HolidayRegistrationEvent,
   period: HolidayPeriod,
@@ -57,6 +69,7 @@ function eventDetail(
   if (event.action === "edit") {
     return editedFieldsText(event.fields, registration.form.fields) || null;
   }
+  if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
   if (event.action !== "rebook") return null;
   const child = registration.children.find(
     (entry) => entry.id === event.childId,
@@ -79,7 +92,9 @@ export function HolidayRegistrationHistory({
           Das Träger-Büro hat diese Anmeldung noch nicht geändert.
         </p>
       ) : (
-        <ol className="space-y-2 text-sm text-gray-700">
+        // Eine Debitorennummer hat bis zu 35 Zeichen ohne Leerzeichen (#5621);
+        // sie bricht um, statt am Kartenrand abgeschnitten zu werden.
+        <ol className="space-y-2 text-sm wrap-anywhere text-gray-700">
           {registration.history.map((event, index) => {
             const detail = eventDetail(event, period, registration);
             return (

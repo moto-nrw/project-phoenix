@@ -228,14 +228,51 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 	return nil
 }
 
-// seedHolidayRegistrations registers two siblings through the public link
-// (#4661), then a second parent registers the first sibling once more for
+// seedHolidayAddressForm saves the next version of the period's form with
+// its questions and the postal address as optional (#5625), so the
+// registration, its export, the invoice and the letter show an address.
+func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error {
+	path := fmt.Sprintf("/traeger/holiday-periods/%d/form", periodID)
+	raw, err := client.GetWithAuth(auth, path)
+	if err != nil {
+		return fmt.Errorf("read the holiday form: %w", err)
+	}
+	var form struct {
+		Data struct {
+			Fields      json.RawMessage `json:"fields"`
+			LegalBlocks json.RawMessage `json:"legal_blocks"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &form); err != nil {
+		return fmt.Errorf("decode the holiday form: %w", err)
+	}
+	fields := form.Data.Fields
+	if len(fields) == 0 {
+		fields = json.RawMessage(`[]`)
+	}
+	body := map[string]any{"fields": fields, "address_requirement": "optional"}
+	if len(form.Data.LegalBlocks) > 0 {
+		body["legal_blocks"] = form.Data.LegalBlocks
+	}
+	if _, err := client.PutWithAuth(auth, path, body); err != nil {
+		return fmt.Errorf("ask for the postal address in the holiday form: %w", err)
+	}
+	fmt.Println("  Träger-Büro: the holiday form asks for the postal address (optional)")
+	return nil
+}
+
+// seedHolidayRegistrations lets the form ask for the postal address
+// (#5625), registers two siblings through the public link (#4661), then a second parent registers the first sibling once more for
 // the second week, a possible duplicate, stating benefits with the uploaded
-// proof (#5238). The Träger-Büro reviews the list and confirms the siblings'
-// registration (#4663), which freezes its contribution (#4664); the
-// duplicate stays received. The form shows the siblings' contribution before
-// it is sent.
+// proof (#5238). The Träger-Büro asks for the debtor number at the
+// confirmation (#5621), reviews the list and confirms the siblings'
+// registration with their invented debtor number (#4663), which freezes its
+// contribution (#4664); the duplicate stays received and has no debtor
+// number yet. The form shows the siblings' contribution before it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
+	if err := seedHolidayAddressForm(rt.Client, auth, periodID); err != nil {
+		return "", err
+	}
 	token, registration, err := seedHolidayRegistration(published, homeSchool)
 	if err != nil {
 		return "", err
@@ -268,11 +305,14 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
+		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
-	fmt.Println("  Träger-Büro: siblings confirmed with their contribution, a possible duplicate waits for review")
+	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number, a possible duplicate waits for review")
 	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return "", err
 	}
@@ -305,6 +345,15 @@ func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrati
 	fmt.Println("  Träger-Büro: changed the phone number and added an emergency contact")
 	return nil
 }
+
+// seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
+// number of the family at the confirmation (#5621); the demo Träger works
+// like Bissendorf and switches it on.
+const seedDebtorNumberSettingKey = "parent_billing.debtor_number_on_confirm"
+
+// seedHolidayDebtorNumber is the invented debtor number of the confirmed
+// siblings; the letter names it as the reference to pay with.
+const seedHolidayDebtorNumber = "10 4711"
 
 // seedHolidayRegistrationPrefill reads the prefill of the holiday link as the
 // first seeded parent (#4662): the parents portal offers that family's
@@ -445,8 +494,9 @@ const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skippe
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
 // holiday guest for both weeks, with answers to the questions of the
-// period's standard template (#5198), under the consent texts that share the
-// health information with the hosting OGS (#4722). All names are invented.
+// period's standard template (#5198) and the postal address the form asks
+// for (#5625), under the consent texts that share the health information
+// with the hosting OGS (#4722). All names and addresses are invented.
 func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[string]any, error) {
 	var envelope struct {
 		Data struct {
@@ -470,8 +520,9 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		return map[string]any{"week_id": period.Weeks[week].ID, "time_model_id": period.Weeks[week].TimeModels[model].ID}
 	}
 	return period.PublicToken, map[string]any{
-		"second_guardian": map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
-		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
+		"second_guardian":  map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
+		"guardian":         map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
+		"guardian_address": map[string]any{"street": "Sonnenweg 7", "postal_code": "49143", "city": "Bissendorf"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
 				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)},

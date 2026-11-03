@@ -306,8 +306,12 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "guardian", Label: "Elternteil"},
 	{ID: "email", Label: "E-Mail"},
 	{ID: "phone", Label: "Telefon"},
+	{ID: "address_street", Label: "Straße und Hausnummer"},
+	{ID: "address_postal_code", Label: "PLZ"},
+	{ID: "address_city", Label: "Ort"},
 	{ID: "second_guardian", Label: "Zweites Elternteil"},
 	{ID: "second_guardian_phone", Label: "Telefon zweites Elternteil"},
+	{ID: "debtor_number", Label: "Debitorennummer"},
 	{ID: "duplicate", Label: "Mögliche Doppelanmeldung"},
 }
 
@@ -351,7 +355,9 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
 			"second_guardian": secondName, "second_guardian_phone": secondPhone,
+			"debtor_number": row.Registration.DebtorNumber,
 		}
+		addHolidayAddress(values, row.GuardianAddress)
 		addHolidayAnswers(values, row.AnswerFields, row.Answers)
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
@@ -396,6 +402,17 @@ func holidaySecondGuardianContact(guardian *capability.HolidayGuardianInput) (st
 		return "", ""
 	}
 	return guardian.FirstName + " " + guardian.LastName, guardian.Phone
+}
+
+// addHolidayAddress adds the postal address of the parent who registered
+// (#5625); a registration without one keeps the columns empty.
+func addHolidayAddress(values map[lists.ColumnID]string, address *capability.HolidayAddress) {
+	if address == nil {
+		return
+	}
+	values["address_street"] = address.Street
+	values["address_postal_code"] = address.PostalCode
+	values["address_city"] = address.City
 }
 
 // addHolidayAnswers adds the answers of a row to its question columns.

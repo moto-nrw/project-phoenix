@@ -42,7 +42,7 @@ import {
   type AttachmentLabels,
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
-import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
+import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -57,8 +57,10 @@ import {
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
+  fetchHolidayConfirmationSettings,
   fetchHolidayRegistration,
   fetchHolidayRegistrationHealth,
+  type HolidayConfirmationSettings,
   type HolidayRegistrationContact,
   type HolidayRegistrationDetail,
   type HolidayRegistrationHealthDetail,
@@ -140,6 +142,9 @@ export default function TraegerHolidayRegistrationPage() {
   const [contribution, setContribution] = useState<HolidayContribution | null>(
     null,
   );
+  // Whether the Träger asks for the debtor number (#5621).
+  const [confirmation, setConfirmation] =
+    useState<HolidayConfirmationSettings | null>(null);
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
@@ -160,15 +165,21 @@ export default function TraegerHolidayRegistrationPage() {
 
   const load = useCallback(async () => {
     try {
-      const [loadedRegistration, loadedContribution, loadedHealth] =
-        await Promise.all([
-          fetchHolidayRegistration(periodId, registrationId),
-          fetchHolidayContribution(periodId, registrationId),
-          canSeeHealth
-            ? fetchHolidayRegistrationHealth(periodId, registrationId)
-            : Promise.resolve(null),
-        ]);
+      const [
+        loadedRegistration,
+        loadedContribution,
+        loadedHealth,
+        loadedConfirmation,
+      ] = await Promise.all([
+        fetchHolidayRegistration(periodId, registrationId),
+        fetchHolidayContribution(periodId, registrationId),
+        canSeeHealth
+          ? fetchHolidayRegistrationHealth(periodId, registrationId)
+          : Promise.resolve(null),
+        fetchHolidayConfirmationSettings(),
+      ]);
       latestContribution.current++;
+      setConfirmation(loadedConfirmation);
       setRegistration(loadedRegistration);
       setHealth(loadedHealth);
       setContribution(loadedContribution);
@@ -328,10 +339,12 @@ export default function TraegerHolidayRegistrationPage() {
             registration={registration}
             contribution={contribution}
             previewPending={previewPending}
+            debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
             exemption={exemption}
             onExemptionChange={changeExemption}
             onChanged={changed}
             onConfirmed={load}
+            onDebtorNumberChanged={load}
           />
           <HolidayRegistrationProofCard
             periodId={periodId}
@@ -365,6 +378,13 @@ export default function TraegerHolidayRegistrationPage() {
                 <DataField label="E-Mail" fullWidth>
                   {registration.guardianEmail}
                 </DataField>
+                {registration.guardianAddress ? (
+                  <DataField label="Anschrift" fullWidth>
+                    {registration.guardianAddress.street},{" "}
+                    {registration.guardianAddress.postalCode}{" "}
+                    {registration.guardianAddress.city}
+                  </DataField>
+                ) : null}
                 <DataField label="Datenschutz zugestimmt">
                   {consentText(registration.privacyConsentAt)}
                 </DataField>

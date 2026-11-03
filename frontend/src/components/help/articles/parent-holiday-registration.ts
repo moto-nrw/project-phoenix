@@ -22,6 +22,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
       "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
       "Tragen Sie `Ihre Angaben` ein.",
+      "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
       "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
       "Tragen Sie unter `Kontakte` jede weitere Person einmal ein. Wählen Sie `Notfallkontakt`, `Darf die Kinder abholen` oder beides. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
       "Setzen Sie die Haken unter `Einverständnis`. Dazu gehört das Sorgerecht: Sie sind allein sorgeberechtigt, oder die andere sorgeberechtigte Person ist einverstanden.",

@@ -257,7 +257,6 @@ func TestTraegerEditFollowsTheStateAndKeepsContributionAndInvoice(t *testing.T) 
 	require.True(t, frozen.Frozen)
 	f.edited(t, f.editDetails(t, f.siblings, editedGuardians("0151 1111111", nil)))
 	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "confirm").Code)
-	contribution := f.contribution(t, f.siblings)
 	setNumberRange(t, f, billing, "FE-{NNNN}")
 	run := startBillingRun(t, f, billing, f.period.ID)
 	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(billingRun(t, f, billing, run.ID)))
@@ -265,6 +264,7 @@ func TestTraegerEditFollowsTheStateAndKeepsContributionAndInvoice(t *testing.T) 
 	invoice := billingRun(t, f, billing, run.ID)
 	require.Len(t, invoice.Documents, 1)
 	require.NotEmpty(t, invoice.Documents[0].Number)
+	contribution := f.contribution(t, f.siblings)
 
 	ben := f.readDetail(t, f.siblings).Children[1]
 	confirmed := f.edited(t, f.editDetails(t, f.siblings, map[string]any{

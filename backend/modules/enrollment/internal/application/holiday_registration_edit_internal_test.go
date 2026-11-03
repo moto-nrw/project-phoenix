@@ -23,8 +23,8 @@ type editReviewStore struct {
 	audited  []string
 }
 
-func (s *editReviewStore) LockHolidayRegistration(context.Context, int64, int64, int64) (string, string, bool, error) {
-	return enrollment.HolidayRegistrationReceived, "", true, nil
+func (s *editReviewStore) LockHolidayRegistration(context.Context, int64, int64, int64) (string, string, string, bool, error) {
+	return enrollment.HolidayRegistrationReceived, "", "", true, nil
 }
 
 func (s *editReviewStore) ReadHolidayReview(context.Context, int64, int64, int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error) {

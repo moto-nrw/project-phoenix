@@ -220,6 +220,16 @@ export default function TraegerBillingRunPage() {
               message="Bevor Sie freigeben: Legen Sie unter „Abrechnung“ das Muster der Rechnungsnummern fest."
             />
           ) : null}
+          {preview && run.missingDebtorNumbers > 0 ? (
+            <Alert
+              type="warning"
+              message={
+                run.missingDebtorNumbers === 1
+                  ? "1 Anmeldung hat noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein."
+                  : `${run.missingDebtorNumbers} Anmeldungen haben noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein.`
+              }
+            />
+          ) : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"

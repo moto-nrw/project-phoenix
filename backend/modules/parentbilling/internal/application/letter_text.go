@@ -14,9 +14,12 @@ import (
 // the children, the total, the reference to pay with, the payment date,
 // the bank account of the Träger, the free text of the run (packing list,
 // rule on illness), the emergency numbers of the hosting OGS and whom to
-// ask. The registration has no postal address, so the address field names
-// the family and the person who registered; the invoice number is the
-// reference to pay with, as the Bissendorf address number was.
+// ask. The address field names the family and the person who registered,
+// then the postal address the invoice copied from the registration when the
+// form asked for it (ADR 0121 addendum, #5625). The reference to pay with is
+// the debtor number of the family the invoice copied from the registration,
+// the Bissendorf address number, and without one the invoice number (ADR
+// 0121 addendum, #5621).
 
 // Letter is a confirmation letter as the Elternabrechnung writes it: every
 // text, in the parts of a letter. The LetterRenderer lays it out in the
@@ -74,7 +77,7 @@ func confirmationLetter(content letterContent) Letter {
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      sender,
-		Recipient:   nonBlank("Familie "+document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)),
+		Recipient:   recipientLines(document),
 		Facts:       letterFacts(content),
 		Subject:     "Bestätigung und Rechnung: " + content.run.PeriodName,
 		Salutation:  "Sehr geehrte Familie " + strings.TrimSpace(document.RecipientLastName) + ",",
@@ -84,8 +87,22 @@ func confirmationLetter(content letterContent) Letter {
 	}
 }
 
+// recipientLines are the lines of the address field: the family, the
+// person who registered and, when the invoice has one, the street and the
+// postal code with the city.
+func recipientLines(document parentbilling.BillingDocument) []string {
+	lines := []string{"Familie " + document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)}
+	if address := document.RecipientAddress; address != nil {
+		lines = append(lines, address.Street, strings.TrimSpace(address.PostalCode)+" "+strings.TrimSpace(address.City))
+	}
+	return nonBlank(lines...)
+}
+
 func letterFacts(content letterContent) []LetterFact {
 	facts := []LetterFact{{Label: "Rechnungsnummer", Value: content.document.Number}}
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		facts = append(facts, LetterFact{Label: "Debitorennummer", Value: number})
+	}
 	if content.document.IssuedOn != nil {
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.document.IssuedOn)})
 	}
@@ -165,12 +182,19 @@ func positionLabel(position parentbilling.BillingPosition) string {
 	return strings.TrimSuffix(label, ",")
 }
 
+// paymentText asks for the transfer. The reference to pay with is the
+// debtor number of the family when the invoice has one (ADR 0121 addendum,
+// #5621), otherwise the invoice number.
 func paymentText(content letterContent) string {
 	if content.document.TotalCents == 0 {
 		return "Sie müssen für diese Betreuung nichts bezahlen."
 	}
-	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
-		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), content.document.Number)
+	reference := "die Rechnungsnummer " + content.document.Number
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		reference = "Ihre Debitorennummer " + number
+	}
+	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck %s an.",
+		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), reference)
 }
 
 func questionText(head parentbilling.Letterhead) string {

@@ -23,6 +23,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
+  asksForAddress,
   childContext,
   contactFieldFromPayload,
   emptyChild,
@@ -40,6 +41,7 @@ import {
 import {
   ChildCard,
   ContactList,
+  GuardianAddressCard,
   KnownChildPicker,
   SecondGuardianCard,
 } from "./holiday-registration-sections";
@@ -320,6 +322,17 @@ export function HolidayRegistrationForm({
           />
         </div>
       </SectionCard>
+
+      {asksForAddress(offer.form) ? (
+        <GuardianAddressCard
+          address={draft.guardianAddress}
+          required={offer.form.addressRequirement === "required"}
+          fieldError={fieldError}
+          onChange={(guardianAddress) =>
+            setDraft({ ...draft, guardianAddress })
+          }
+        />
+      ) : null}
 
       <SecondGuardianCard
         guardian={draft.secondGuardian}

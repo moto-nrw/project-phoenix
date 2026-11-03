@@ -34,7 +34,7 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook" | "edit";
+  HolidayRegistrationAction | "confirm" | "rebook" | "debtor_number" | "edit";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -87,6 +87,11 @@ export interface HolidayRegistrationSummary {
   readonly guardianPhone: string;
   /** The parents state that they receive benefits (#4664). */
   readonly benefitsDeclared: boolean;
+  /**
+   * The family's number in the finance system of the Träger, entered at the
+   * confirmation (#5621); empty without one.
+   */
+  readonly debtorNumber: string;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -154,6 +159,14 @@ export interface HolidayRegistrationEvent {
   readonly childId: string;
   readonly before: readonly HolidayBookingChange[];
   readonly after: readonly HolidayBookingChange[];
+  /**
+   * The debtor number before and after, when a confirmation entered it or a
+   * change changed it (#5621); null otherwise.
+   */
+  readonly debtorNumber: {
+    readonly before: string;
+    readonly after: string;
+  } | null;
   /** The fields an edit changed, as paths like "guardian.phone" (#5629). */
   readonly fields: readonly string[];
 }
@@ -168,6 +181,15 @@ interface HolidayRegistrationProof {
 }
 
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
+  /**
+   * Postal address of the parent, when the form asked for it (#5625). Only
+   * the detail and the export name it, the list does not.
+   */
+  readonly guardianAddress: {
+    readonly street: string;
+    readonly postalCode: string;
+    readonly city: string;
+  } | null;
   readonly secondGuardian: {
     readonly firstName: string;
     readonly lastName: string;
@@ -235,6 +257,7 @@ interface BackendSummary {
   guardian_email: string;
   guardian_phone: string;
   benefits_declared?: boolean;
+  debtor_number?: string;
   children?: BackendChild[] | null;
 }
 
@@ -250,6 +273,11 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
+  guardian_address?: {
+    street: string;
+    postal_code: string;
+    city: string;
+  } | null;
   second_guardian?: {
     first_name: string;
     last_name: string;
@@ -282,6 +310,7 @@ interface BackendDetail extends BackendSummary {
           child_id?: number;
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
+          debtor_number?: { before: string; after: string } | null;
           fields?: string[] | null;
         } | null;
       }[]
@@ -310,6 +339,7 @@ function summaryFromBackend(
     guardianEmail: registration.guardian_email,
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
+    debtorNumber: registration.debtor_number ?? "",
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -347,6 +377,13 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
+    guardianAddress: registration.guardian_address
+      ? {
+          street: registration.guardian_address.street,
+          postalCode: registration.guardian_address.postal_code,
+          city: registration.guardian_address.city,
+        }
+      : null,
     secondGuardian: registration.second_guardian
       ? {
           firstName: registration.second_guardian.first_name,
@@ -379,6 +416,7 @@ function detailFromBackend(
       childId: event.details?.child_id ? String(event.details.child_id) : "",
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
+      debtorNumber: event.details?.debtor_number ?? null,
       fields: event.details?.fields ?? [],
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
@@ -674,4 +712,21 @@ export async function downloadHolidayRegistrations(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+/**
+ * What a confirmation of the Träger needs (#5621). It lives here, not in the
+ * contributions client, because the list reads it for its column too and
+ * should not load that client.
+ */
+export interface HolidayConfirmationSettings {
+  /** The Träger asks for the debtor number of the family. */
+  readonly debtorNumberRequired: boolean;
+}
+
+export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
+  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
+    "/api/traeger/holiday-contributions/confirmation-settings",
+  );
+  return { debtorNumberRequired: settings.debtor_number_required };
 }

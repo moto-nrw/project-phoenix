@@ -29,10 +29,10 @@ ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT chk_holiday_registration_audit_action;
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
-		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'edit'));
+		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit'));
 `
 
-// holidayRegistrationEditDownSQL restores the actions of 1.15.725. The
+// holidayRegistrationEditDownSQL restores the actions of 1.15.739. The
 // entries of a change of the details go with it; the details stay changed.
 const holidayRegistrationEditDownSQL = `
 DELETE FROM enrollment.holiday_registration_audit WHERE action = 'edit';
@@ -40,7 +40,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT IF EXISTS chk_holiday_registration_audit_action;
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
-		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health'));
+		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number'));
 `
 
 func holidayRegistrationEditUp(ctx context.Context, db *bun.DB) error {

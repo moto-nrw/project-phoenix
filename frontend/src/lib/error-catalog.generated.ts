@@ -759,6 +759,10 @@ export const ERROR_CATALOG = {
         "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_overlap":
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.debtor_number_invalid":
+        "Bitte prüfen Sie die Debitorennummer.",
+      "parent_billing.debtor_number_locked":
+        "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_number_taken":

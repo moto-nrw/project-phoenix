@@ -1,0 +1,84 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+)
+
+// The debtor number of a holiday registration (#5621, ADR 0121 addendum):
+// the number of the family in the finance system of the Träger, the
+// reference to pay with. The Träger decides with a setting whether its
+// office enters it at the confirmation; Enrollment keeps it at the
+// registration. It changes until an issued invoice copies it (ADR 0119).
+
+// HolidayConfirmationSettings reports whether a confirmation of the
+// session's Träger needs the debtor number.
+func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.HolidayConfirmationSettings, error) {
+	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
+		return parentbilling.HolidayConfirmationSettings{}, errTraegerRequired
+	}
+	required, err := h.asksDebtorNumber(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.HolidayConfirmationSettings{}, err
+	}
+	return parentbilling.HolidayConfirmationSettings{DebtorNumberRequired: required}, nil
+}
+
+// ChangeHolidayDebtorNumber changes the debtor number of a confirmed
+// registration while no issued invoice bills it. It holds the invoices of
+// the period first, so a release that runs at the same time copies either
+// the number before or the number after, and the change sees an invoice
+// the release committed.
+func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayDebtorNumber, error) {
+	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
+		return parentbilling.HolidayDebtorNumber{}, errTraegerRequired
+	}
+	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
+		return parentbilling.HolidayDebtorNumber{}, err
+	}
+	if err := h.store.LockPeriodBilling(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID); err != nil {
+		return parentbilling.HolidayDebtorNumber{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
+	}
+	issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+	if err != nil {
+		return parentbilling.HolidayDebtorNumber{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
+	}
+	if issued[registrationID] {
+		return parentbilling.HolidayDebtorNumber{}, parentbilling.ErrDebtorNumberLocked
+	}
+	registration, err := h.registrations.SetHolidayDebtorNumber(ctx, reviewer, periodID, registrationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayDebtorNumber{}, err
+	}
+	return parentbilling.HolidayDebtorNumber{RegistrationID: registration.ID, DebtorNumber: registration.DebtorNumber}, nil
+}
+
+// requireDebtorNumber refuses a blank debtor number when the Träger asks
+// for it.
+func (h *HolidayContributions) requireDebtorNumber(ctx context.Context, organizationID int64, debtorNumber string) error {
+	if strings.TrimSpace(debtorNumber) != "" {
+		return nil
+	}
+	required, err := h.asksDebtorNumber(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if required {
+		return validation.Errors{"debtor_number": errors.New("is required")}
+	}
+	return nil
+}
+
+func (h *HolidayContributions) asksDebtorNumber(ctx context.Context, organizationID int64) (bool, error) {
+	required, err := h.settings.AsksDebtorNumber(ctx, organizationID)
+	if err != nil {
+		return false, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
+	}
+	return required, nil
+}

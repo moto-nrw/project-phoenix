@@ -9,7 +9,9 @@
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 import type { FormLegalBlock } from "./enrollment-form-schema-api";
 import {
+  holidayAddressRequirement,
   holidayLegalBlocks,
+  type HolidayAddressRequirement,
   type HolidayLegalBlockWire,
   type HolidayFormField,
 } from "./holiday-form-field";
@@ -17,6 +19,7 @@ import { traegerRequest } from "./traeger-api";
 
 export {
   HOLIDAY_FORM_FIELD_TYPES,
+  type HolidayAddressRequirement,
   type HolidayFormField,
 } from "./holiday-form-field";
 
@@ -25,6 +28,8 @@ export interface HolidayForm {
   readonly legalBlocks?: readonly FormLegalBlock[];
   readonly version: number;
   readonly fields: readonly HolidayFormField[];
+  /** The building block „Anschrift“ of this version (#5625). */
+  readonly addressRequirement: HolidayAddressRequirement;
   readonly createdAt: string;
   /** The standard template (B7); „Standardvorlage einfügen“ adds from it. */
   readonly template: readonly HolidayFormField[];
@@ -34,6 +39,7 @@ interface BackendHolidayForm {
   legal_blocks?: HolidayLegalBlockWire[];
   version: number;
   fields?: HolidayFormField[] | null;
+  address_requirement?: string | null;
   created_at: string;
   template?: HolidayFormField[] | null;
 }
@@ -43,6 +49,7 @@ function formFromBackend(form: BackendHolidayForm): HolidayForm {
     legalBlocks: holidayLegalBlocks(form.legal_blocks),
     version: form.version,
     fields: form.fields ?? [],
+    addressRequirement: holidayAddressRequirement(form.address_requirement),
     createdAt: form.created_at,
     template: form.template ?? [],
   };
@@ -64,12 +71,14 @@ export async function saveHolidayForm(
   periodId: string,
   fields: readonly HolidayFormField[],
   legalBlocks: readonly FormLegalBlock[] = [],
+  addressRequirement: HolidayAddressRequirement = "off",
 ): Promise<HolidayForm> {
   return formFromBackend(
     await traegerRequest<BackendHolidayForm>(formPath(periodId), {
       method: "PUT",
       body: {
         fields,
+        address_requirement: addressRequirement,
         legal_blocks: legalBlocks.map((block) => ({
           ...block,
           attachments: block.attachments?.map((a) => ({
