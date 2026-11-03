@@ -63,21 +63,31 @@ function sizeClass(size: StatusBadgeSize, compact: boolean) {
   return compact ? "px-2 py-0.5" : "px-2.5 py-1";
 }
 
+function isIconComponent(icon: unknown): icon is LucideIcon {
+  // Lucide icons are forwardRef objects (`render`), plain components are
+  // functions. Elements, arrays and text are nodes, not components.
+  return (
+    typeof icon === "function" ||
+    (typeof icon === "object" &&
+      icon !== null &&
+      !isValidElement(icon) &&
+      "render" in icon)
+  );
+}
+
 function renderIcon(icon: LucideIcon | ReactNode) {
-  if (icon === null || icon === undefined || icon === false) return null;
-  if (isValidElement(icon)) {
-    return (
-      <span className="inline-flex shrink-0" aria-hidden="true">
-        {icon}
-      </span>
-    );
+  if (icon === null || icon === undefined || typeof icon === "boolean") {
+    return null;
   }
-  // Lucide icons are forwardRef objects, plain components are functions.
-  if (typeof icon === "function" || typeof icon === "object") {
-    const Icon = icon as LucideIcon;
+  if (isIconComponent(icon)) {
+    const Icon = icon;
     return <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />;
   }
-  return null;
+  return (
+    <span className="inline-flex shrink-0" aria-hidden="true">
+      {icon}
+    </span>
+  );
 }
 
 interface StatusPillCommonProps {

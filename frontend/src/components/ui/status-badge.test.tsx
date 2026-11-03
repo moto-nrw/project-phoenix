@@ -91,4 +91,17 @@ describe("StatusBadge", () => {
     expect(pill).toContainElement(icon);
     expect(icon.closest("[aria-hidden='true']")).not.toBeNull();
   });
+
+  it("renders any other icon node as hidden decoration instead of crashing", () => {
+    render(
+      <StatusBadge
+        label="Geprüft"
+        tone="blue"
+        icon={[<CheckCircleIcon key="a" data-testid="list-icon" />]}
+      />,
+    );
+    expect(screen.getByText("Geprüft")).toContainElement(
+      screen.getByTestId("list-icon"),
+    );
+  });
 });

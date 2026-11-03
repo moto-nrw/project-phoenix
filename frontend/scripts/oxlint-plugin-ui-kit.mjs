@@ -1868,7 +1868,7 @@ function splitAllowlistedFindings(rule, key, findings, allowlist) {
  * baseline at Program:exit. With UI_KIT_BUTTON_RATCHET=count every finding
  * is reported on its own; the baseline generator subtracts the allowlist.
  */
-function makeButtonRatchetRule({
+function makeRatchetRule({
   ruleName,
   description,
   message,
@@ -1960,7 +1960,7 @@ function makeButtonRatchetRule({
   };
 }
 
-const noHandRolledButton = makeButtonRatchetRule({
+const noHandRolledButton = makeRatchetRule({
   ruleName: "no-hand-rolled-button",
   description:
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
@@ -1981,7 +1981,7 @@ const noHandRolledButton = makeButtonRatchetRule({
   }),
 });
 
-const noButtonOverride = makeButtonRatchetRule({
+const noButtonOverride = makeRatchetRule({
   ruleName: "no-button-override",
   description:
     "Keep size and look of kit buttons in the kit; className carries layout only.",
@@ -2087,7 +2087,7 @@ function hasGreyRestFill(text) {
   });
 }
 
-const noGreyButtonFill = makeButtonRatchetRule({
+const noGreyButtonFill = makeRatchetRule({
   ruleName: "no-grey-button-fill",
   description:
     "Disallow a light-grey resting fill on buttons; neutral actions are outline, surface or ghost.",
@@ -2223,7 +2223,7 @@ function pillClassText(node, textOf) {
 }
 
 function makePillRatchetRule(options) {
-  return makeButtonRatchetRule({
+  return makeRatchetRule({
     ...options,
     baselines: pillRatchetBaseline,
     allowlist: [],
