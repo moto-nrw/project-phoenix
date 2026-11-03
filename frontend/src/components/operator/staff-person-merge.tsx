@@ -201,6 +201,7 @@ export function StaffPersonMerge({
             <Button
               type="button"
               variant="danger"
+              size="md"
               disabled={!confirmed || selected.size === 0 || saving || !!error}
               isLoading={saving}
               onClick={() => void merge()}

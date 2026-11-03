@@ -283,4 +283,22 @@ export const buttonRatchetAllowlist = [
     lines: [277],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/app/operator/announcements/page.tsx",
+    lines: [678],
+    reason: "Typ der Ankündigung: Wertauswahl, kein Knopf",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/app/operator/announcements/page.tsx",
+    lines: [709],
+    reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/app/operator/announcements/page.tsx",
+    lines: [819, 961, 1050],
+    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
+  },
 ];

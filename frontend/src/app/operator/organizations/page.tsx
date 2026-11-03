@@ -24,6 +24,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useSoftDeletable,
   DeletedEntityCard,
+  TrashToggleButton,
 } from "../provisioning/soft-delete-shared";
 import {
   OrgRestoreModal,
@@ -148,13 +149,14 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger anlegen
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
       >
         Neuer Träger
-      </button>
+      </Button>
     </div>
   );
 
@@ -168,14 +170,15 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="icon"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
         aria-label="Neuer Träger"
       >
         <PlusIcon />
-      </button>
+      </Button>
     </div>
   );
 
@@ -266,17 +269,11 @@ export default function OperatorOrganizationsPage() {
         <LoadErrorAlert error={orgsLoadError} className="mb-4" />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                orgDelete.showTrash
-                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Papierkorb ({deletedOrganizations.length})
-            </button>
+            <TrashToggleButton
+              count={deletedOrganizations.length}
+              active={orgDelete.showTrash}
+              onToggle={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
+            />
           </div>
         )}
 
