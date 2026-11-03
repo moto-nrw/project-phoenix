@@ -30,7 +30,7 @@ import {
   type AttachmentLabels,
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
-import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
+import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
