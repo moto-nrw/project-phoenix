@@ -19,7 +19,6 @@ import { createPortal } from "react-dom";
 import { cn } from "~/lib/utils";
 
 import { CheckboxIndicator } from "./checkbox";
-import { StatusBadge } from "./status-badge";
 
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
@@ -1153,7 +1152,9 @@ function OptionLabel<K extends string>({
         {option.label}
       </span>
       <span className="mt-1 block font-normal">
-        <StatusBadge label={option.badge} tone="gray" compact />
+        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-gray-600">
+          {option.badge}
+        </span>
       </span>
     </span>
   );
