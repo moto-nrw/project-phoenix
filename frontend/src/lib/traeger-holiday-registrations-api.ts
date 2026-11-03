@@ -13,6 +13,11 @@ import {
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
+import {
+  type BackendConsentTexts,
+  consentTextsFromBackend,
+  type HolidayConsentTexts,
+} from "./holiday-registration-api";
 import type {
   HolidayFormField,
   HolidayFormVersion,
@@ -171,6 +176,16 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly privacyConsentAt: string;
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
+  /**
+   * The declaration (#5626): when the parent confirmed the custody and the
+   * name typed to give the declarations; a registration before has neither.
+   */
+  readonly custodyConfirmedAt: string | null;
+  readonly declarationName: string;
+  /** The version of the consent texts; 0 before #4722. */
+  readonly consentVersion: number;
+  /** The German texts of that version; null when they are not kept. */
+  readonly consentTexts: HolidayConsentTexts | null;
   /** Only the detail names the proofs; list and export never do. */
   readonly benefitsProofs: readonly HolidayRegistrationProof[];
   readonly history: readonly HolidayRegistrationEvent[];
@@ -243,6 +258,10 @@ interface BackendDetail extends BackendSummary {
   privacy_consent_at: string;
   health_consent_at: string | null;
   binding_confirmed_at: string | null;
+  custody_confirmed_at?: string | null;
+  declaration_name?: string | null;
+  consent_version?: number | null;
+  consent_texts?: BackendConsentTexts | null;
   benefits_proofs?:
     | {
         id: number;
@@ -337,6 +356,12 @@ function detailFromBackend(
     privacyConsentAt: registration.privacy_consent_at,
     healthConsentAt: registration.health_consent_at,
     bindingConfirmedAt: registration.binding_confirmed_at,
+    custodyConfirmedAt: registration.custody_confirmed_at ?? null,
+    declarationName: registration.declaration_name ?? "",
+    consentVersion: registration.consent_version ?? 0,
+    consentTexts: registration.consent_texts
+      ? consentTextsFromBackend(registration.consent_texts)
+      : null,
     benefitsProofs: (registration.benefits_proofs ?? []).map((proof) => ({
       id: String(proof.id),
       filename: proof.filename,

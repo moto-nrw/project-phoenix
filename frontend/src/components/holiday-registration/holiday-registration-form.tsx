@@ -10,7 +10,6 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -45,6 +44,7 @@ import {
   SecondGuardianCard,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
+import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
 /** The code of a refusal because the Träger changed the form (#5198). */
@@ -365,44 +365,14 @@ export function HolidayRegistrationForm({
           })
         }
       />
-      <SectionCard title={t("consentTitle")}>
-        <div className="space-y-3">
-          <ConsentCheckbox
-            required
-            name="privacy_consent"
-            label={t("privacyConsent")}
-            checked={draft.privacyConsent}
-            error={fieldError("privacy_consent")}
-            onChange={(privacyConsent) =>
-              setDraft({ ...draft, privacyConsent })
-            }
-          />
-          {hasHealthInfo(draft, offer.form) ? (
-            <ConsentCheckbox
-              required
-              name="health_consent"
-              label={t("healthConsent")}
-              checked={draft.healthConsent}
-              error={fieldError("health_consent")}
-              onChange={(healthConsent) =>
-                setDraft({ ...draft, healthConsent })
-              }
-            />
-          ) : null}
-          {offer.binding ? (
-            <ConsentCheckbox
-              required
-              name="binding_confirmed"
-              label={t("bindingConfirmed")}
-              checked={draft.bindingConfirmed}
-              error={fieldError("binding_confirmed")}
-              onChange={(bindingConfirmed) =>
-                setDraft({ ...draft, bindingConfirmed })
-              }
-            />
-          ) : null}
-        </div>
-      </SectionCard>
+      <HolidayRegistrationDeclaration
+        texts={offer.consentTexts}
+        draft={draft}
+        binding={offer.binding}
+        hasHealth={hasHealthInfo(draft, offer.form)}
+        fieldError={fieldError}
+        onChange={(patch) => setDraft({ ...draft, ...patch })}
+      />
 
       <Button type="submit" variant="primary" size="md" className="w-full">
         {t("toSummary")}

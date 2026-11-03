@@ -37,3 +37,40 @@ func TestHolidayRegistrationReceivedTemplate_Renders(t *testing.T) {
 		assert.Contains(t, body, template.HTMLEscapeString(want))
 	}
 }
+
+// TestHolidayRegistrationReceivedTemplate_RendersTheDeclaration pins the
+// parent's copy of the declaration (#5626): the typed name, when it was
+// given, the version of the texts and every declaration in its words. A mail
+// enqueued before #5626 has no declaration and renders without the section.
+func TestHolidayRegistrationReceivedTemplate_RendersTheDeclaration(t *testing.T) {
+	t.Parallel()
+	tpl, err := template.ParseGlob(filepath.Join(".", "*.html"))
+	require.NoError(t, err, "parse all email templates")
+	content := map[string]any{
+		"GuardianName": "Eva Muster",
+		"SchoolName":   "Träger Bissendorf",
+		"PeriodName":   "Winterferien 2027",
+		"Children":     []map[string]any{{"Name": "Lia Muster", "Weeks": []string{"04.01.2027 bis 08.01.2027"}}},
+		"Declaration": map[string]any{
+			"Name": "Eva Muster", "GivenAt": "16.11.2026 um 09:30 Uhr", "Version": 3,
+			"Statements": []map[string]any{
+				{"Title": "Sorgerecht", "Text": "Ich bin allein sorgeberechtigt. Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden."},
+				{"Title": "Fotos", "Text": "Ich bin mit Fotos einverstanden.", "Detail": "Die OGS macht Fotos.\nSie hängen im Flur."},
+			},
+		},
+	}
+	var out bytes.Buffer
+	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-received.html", content))
+	body := out.String()
+	for _, want := range []string{"Ihre Erklärung", "Name: Eva Muster", "Abgegeben am 16.11.2026 um 09:30 Uhr", "Fassung der Texte: 3",
+		"Sorgerecht", "Oder die andere sorgeberechtigte Person ist mit der Anmeldung einverstanden.", "Fotos",
+		"Ich bin mit Fotos einverstanden.", "Sie hängen im Flur."} {
+		assert.Contains(t, body, template.HTMLEscapeString(want))
+	}
+	assert.NotContains(t, body, "Unterschrift", "the typed name is no signature")
+
+	delete(content, "Declaration")
+	out.Reset()
+	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-received.html", content))
+	assert.NotContains(t, out.String(), "Ihre Erklärung", "a mail without a declaration has no section")
+}

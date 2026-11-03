@@ -43,6 +43,44 @@ interface HolidayRegistrationSchool {
   readonly name: string;
 }
 
+/**
+ * The German texts of the fixed declarations of one version (#5626). They
+ * bind; a translation only helps reading. A text the version does not have
+ * is empty.
+ */
+export interface HolidayConsentTexts {
+  readonly version: number;
+  readonly privacyConsent: string;
+  readonly healthConsent: string;
+  readonly bindingConfirmed: string;
+  readonly custodyConfirmed: string;
+  readonly declarationName: string;
+}
+
+/** The consent texts as the backend sends them. */
+export interface BackendConsentTexts {
+  version: number;
+  privacy_consent: string;
+  health_consent: string;
+  binding_confirmed: string;
+  custody_confirmed: string;
+  declaration_name: string;
+}
+
+/** Maps the consent texts of the backend; missing texts stay empty. */
+export function consentTextsFromBackend(
+  texts: BackendConsentTexts | null | undefined,
+): HolidayConsentTexts {
+  return {
+    version: texts?.version ?? 0,
+    privacyConsent: texts?.privacy_consent ?? "",
+    healthConsent: texts?.health_consent ?? "",
+    bindingConfirmed: texts?.binding_confirmed ?? "",
+    custodyConfirmed: texts?.custody_confirmed ?? "",
+    declarationName: texts?.declaration_name ?? "",
+  };
+}
+
 /** The published holiday period behind a link. */
 export interface HolidayRegistrationOffer {
   readonly traegerName: string;
@@ -57,6 +95,8 @@ export interface HolidayRegistrationOffer {
   readonly captchaSiteKey: string;
   /** The questions of the Träger in their current version (#5198). */
   readonly form: HolidayFormVersion;
+  /** The German texts of the declarations the form shows (#5626). */
+  readonly consentTexts: HolidayConsentTexts;
 }
 
 interface BackendOffer {
@@ -91,6 +131,7 @@ interface BackendOffer {
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
   } | null;
+  consent_texts?: BackendConsentTexts | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -123,6 +164,9 @@ export interface HolidayRegistrationPayload {
   readonly privacy_consent: boolean;
   readonly health_consent: boolean;
   readonly binding_confirmed: boolean;
+  /** The custody and the typed name of the declaration (#5626). */
+  readonly custody_confirmed: boolean;
+  readonly declaration_name: string;
   readonly benefits_declared: boolean;
   /** Tokens of the uploaded proofs of benefits (#5238). */
   readonly benefits_proof_tokens: readonly string[];
@@ -131,8 +175,8 @@ export interface HolidayRegistrationPayload {
   readonly legal_acceptances?: Readonly<Record<string, boolean>>;
   readonly form_version: number;
   /**
-   * Version of the consent texts the parent agreed to (#4722): 2 names the
-   * hosting OGS as a reader of the health information.
+   * Version of the consent texts the parent agreed to (#4722): from 2 on the
+   * hosting OGS reads the health information, 3 adds the declaration (#5626).
    */
   readonly consent_version: number;
   /** Answers to the questions per family, by key (#5198). */
@@ -177,6 +221,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       version: offer.form?.version ?? 0,
       fields: offer.form?.fields ?? [],
     },
+    consentTexts: consentTextsFromBackend(offer.consent_texts),
   };
 }
 

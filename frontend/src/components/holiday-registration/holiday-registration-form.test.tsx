@@ -14,6 +14,7 @@ import type {
   HolidayKnownFamily,
   HolidayRegistrationOffer,
 } from "~/lib/holiday-registration-api";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 const { mockSubmit, mockQuote, mockUpload } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
@@ -112,6 +113,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 
@@ -196,6 +198,8 @@ function fillRegistration() {
   fireEvent.click(
     screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
+  fireEvent.click(screen.getByLabelText(/Ich bin allein sorgeberechtigt/));
+  type(screen.getByLabelText("Ihr Vor- und Nachname"), "Eva Maria Muster");
 }
 
 async function renderFilledForm() {
@@ -369,6 +373,90 @@ describe("HolidayRegistrationForm", () => {
       screen.queryByText("Bitte prüfen Sie Ihre Angaben"),
     ).not.toBeInTheDocument();
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("asks for the custody and the name, shows the name in the summary and sends the declaration (#5626)", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm();
+    fillRegistration();
+    const consents = within(
+      screen
+        .getByRole("heading", { name: "Einverständnis" })
+        .closest("section")!,
+    );
+    // The binding German texts come with the offer; no consent is asked twice.
+    expect(
+      consents.getByLabelText(`${HOLIDAY_CONSENT_TEXTS.privacyConsent} *`),
+    ).toBeChecked();
+    expect(consents.getAllByRole("checkbox")).toHaveLength(3);
+    expect(
+      screen.getByText(HOLIDAY_CONSENT_TEXTS.declarationName),
+    ).toBeInTheDocument();
+    for (const word of [/Unterschrift/i, /unterschreib/i, /schriftlich/i]) {
+      expect(document.body.textContent).not.toMatch(word);
+    }
+
+    const custody = screen.getByLabelText(
+      `${HOLIDAY_CONSENT_TEXTS.custodyConfirmed} *`,
+    );
+    fireEvent.click(custody);
+    const name = screen.getByLabelText("Ihr Vor- und Nachname");
+    type(name, "  ");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte bestätigen Sie das Sorgerecht."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihren Namen ein."),
+    ).toBeInTheDocument();
+    expect(custody).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(mockSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(custody);
+    type(name, " Eva Maria Muster ");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    const declaration = within(
+      (await screen.findByRole("heading", { name: "Ihre Erklärung" })).closest(
+        "section",
+      )!,
+    );
+    expect(declaration.getByText("Eva Maria Muster")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        privacy_consent: true,
+        binding_confirmed: true,
+        custody_confirmed: true,
+        declaration_name: "Eva Maria Muster",
+        consent_version: 3,
+      }),
+    );
+  });
+
+  it("shows the field of a declaration the server refuses (#5626)", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "declaration_name", reason: "is required" }],
+      }),
+    );
+    await renderFilledForm();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    const name = await screen.findByLabelText("Ihr Vor- und Nachname");
+    await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
   });
 
   it("registers a holiday guest after the summary", async () => {
@@ -651,6 +739,8 @@ describe("HolidayRegistrationForm", () => {
     fireEvent.click(
       screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
     );
+    fireEvent.click(screen.getByLabelText(/Ich bin allein sorgeberechtigt/));
+    type(screen.getByLabelText("Ihr Vor- und Nachname"), "Sabine Schneider");
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
     );
@@ -959,7 +1049,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       "link-key",
       expect.objectContaining({
         form_version: 3,
-        consent_version: 2,
+        consent_version: 3,
         custom_data: { newsletter: "Aus der Zeitung" },
         health_consent: true,
         children: [
