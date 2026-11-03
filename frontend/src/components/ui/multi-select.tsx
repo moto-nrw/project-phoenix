@@ -230,10 +230,9 @@ function MultiSelectOptionLabel({ label, badge }: MultiSelectOption) {
         {label}
       </span>
       {badge ? (
-        <>
-          <br />
+        <span className="mt-1 block">
           <StatusBadge label={badge} tone="gray" compact />
-        </>
+        </span>
       ) : null}
     </span>
   );
