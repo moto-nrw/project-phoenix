@@ -80,6 +80,7 @@ const CodeStudentsPickupChangeImpactChanged = "students.pickup_change_impact_cha
 const CodeStudentsPickupPermissionContactGone = "students.pickup_permission_contact_gone"
 const CodeStudentsPickupProofNotFound = "students.pickup_proof_not_found"
 const CodeStudentsPickupResetRequiresOffering = "students.pickup_reset_requires_offering"
+const CodeStudentsPickupResetStillNeeded = "students.pickup_reset_still_needed"
 const CodeStudentsReasonRequired = "students.reason_required"
 const CodeStudentsRequestNotDecided = "students.request_not_decided"
 const CodeStudentsRequestNotPast = "students.request_not_past"
@@ -170,6 +171,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsPickupPermissionContactGone, "business_rejection"},
 	{CodeStudentsPickupProofNotFound, "business_rejection"},
 	{CodeStudentsPickupResetRequiresOffering, "business_rejection"},
+	{CodeStudentsPickupResetStillNeeded, "business_rejection"},
 	{CodeStudentsReasonRequired, "input"},
 	{CodeStudentsRequestNotDecided, "business_rejection"},
 	{CodeStudentsRequestNotPast, "business_rejection"},

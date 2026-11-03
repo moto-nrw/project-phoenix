@@ -1071,6 +1071,8 @@ export const ERROR_CATALOG = {
         "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
       "students.pickup_proof_not_found":
         "Zu dieser Anfrage gibt es keine Unterschrift.",
+      "students.pickup_reset_still_needed":
+        "Die gebuchte Abholzeit können Sie erst ab {possible_from} übernehmen. Bis {needed_until} gilt an diesem Wochentag noch die eingetragene Zeit.",
       "students.reason_required":
         "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
       "students.request_not_decided":
