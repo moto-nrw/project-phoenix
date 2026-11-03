@@ -179,7 +179,6 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 		require.NotEmpty(t, counter.Selects("active.groups"), "real session history")
 		require.Len(t, counter.Selects("staff_school_memberships"), 1, "one membership set read")
 		require.Len(t, counter.Selects("users.persons"), 1, "one person set read")
-		require.Empty(t, counter.Selects("staff_employment_profiles"), "names do not require employment hydration")
 		queries := counter.Queries()
 		t.Logf("room history N=%d sessions in one room: statements=%d\n%s", n, len(queries), strings.Join(queries, "\n"))
 		return queries
@@ -187,6 +186,17 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 
 	add(0, 3)
 	small := measure(3)
+	withRoomEmploymentReadDenied(t, db, func() {
+		counter.Reset()
+		faultRequest := testutil.NewRequest(http.MethodGet, fmt.Sprintf("/%d/history", room.ID), nil)
+		faultQuery := faultRequest.URL.Query()
+		faultQuery.Set("start", windowStart.Format(time.RFC3339))
+		faultQuery.Set("end", windowEnd.Format(time.RFC3339))
+		faultRequest.URL.RawQuery = faultQuery.Encode()
+		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
+		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, claims)
+		assertRoomEmploymentReadFailure(t, counter, faultResponse)
+	})
 	add(3, 8)
 	large := measure(8)
 	require.Len(t, large, len(small), "history statements must not grow with sessions or distinct supervisors")

@@ -157,7 +157,6 @@ func TestRoomListsQueryBudget(t *testing.T) {
 			if route.occupancy {
 				require.Len(t, counter.Selects("staff_school_memberships"), 1, "one membership set read")
 				require.Len(t, counter.Selects("users.persons"), 1, "one person set read")
-				require.Empty(t, counter.Selects("staff_employment_profiles"), "names do not require employment hydration")
 				require.NotNil(t, body.Pagination)
 				require.Equal(t, 1, body.Pagination.CurrentPage)
 				require.Equal(t, 100, body.Pagination.PageSize)
@@ -178,6 +177,13 @@ func TestRoomListsQueryBudget(t *testing.T) {
 
 	add(0, 3)
 	small := measure(3)
+	withRoomEmploymentReadDenied(t, db, func() {
+		counter.Reset()
+		faultRequest := testutil.NewRequest(http.MethodGet, "/?page=1&page_size=100", nil)
+		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
+		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, testutil.AdminTestClaims(int(account.ID)))
+		assertRoomEmploymentReadFailure(t, counter, faultResponse)
+	})
 	add(3, 8)
 	large := measure(8)
 	for _, route := range routes {
