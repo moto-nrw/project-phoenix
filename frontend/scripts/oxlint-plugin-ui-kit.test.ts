@@ -196,6 +196,21 @@ describe("ui-kit/no-dynamic-color-class", () => {
     expect(count, output).toBe(1);
   });
 
+  it("reports a mutable alias passed to className", () => {
+    const { count, output } = ruleHits(
+      `
+      function Probe({ color }: { color: string }) {
+        let iconClass = \`h-4 w-4 text-\${color}\`;
+        return <svg className={iconClass} />;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
   it("ignores non-class template literals and accepts static class strings", () => {
     const { count, output } = ruleHits(
       `
@@ -256,6 +271,23 @@ describe("ui-kit/no-white-on-warm-fill", () => {
     );
 
     expect(count, output).toBe(0);
+  });
+
+  it("reports warm fills and white text composed from const values", () => {
+    const { count, output } = ruleHits(
+      `
+      declare const cn: (...classes: string[]) => string;
+      const fill = "bg-moto-orange";
+      const text = "text-white";
+      function Probe() {
+        return <div className={cn(fill, text)} />;
+      }
+      void Probe;
+    `,
+      "no-white-on-warm-fill",
+    );
+
+    expect(count, output).toBe(1);
   });
 });
 

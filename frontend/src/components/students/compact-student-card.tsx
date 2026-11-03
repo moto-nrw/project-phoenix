@@ -91,7 +91,7 @@ export function CompactStudentCard({
       onClick={onClick}
       aria-label={`${firstName} ${lastName} - Profil öffnen`}
       data-testid={`compact-student-card-${studentId}`}
-      className={`group flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-300 ${chromeClass} ${className}`}
+      className={`group moto-hover-elevated flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-300 ${chromeClass} ${className}`}
     >
       {content}
     </button>

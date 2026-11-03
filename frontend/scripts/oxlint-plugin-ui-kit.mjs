@@ -200,7 +200,6 @@ function collectClassTemplateLiterals(
       if (
         definition.type !== "Variable" ||
         definition.node.type !== "VariableDeclarator" ||
-        definition.parent?.kind !== "const" ||
         !definition.node.init
       )
         continue;
@@ -944,6 +943,7 @@ const noWhiteOnWarmFill = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
 
     const check = (node, text) => {
       if (whiteOnWarmFill(text)) {
@@ -970,7 +970,11 @@ const noWhiteOnWarmFill = {
         const chunks = [];
         collectStaticStrings(node.value, chunks);
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const combos = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
         if (rendered !== undefined) check(node, rendered);
       },
