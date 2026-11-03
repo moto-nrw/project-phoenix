@@ -246,7 +246,6 @@ for (const change of ['skip', 'missing', 'duplicate', 'package-outcome']) {
 test('backend profiles pin explicit uncached package selections without changing frontend arrays', () => {
   const manifest = JSON.parse(readFileSync(new URL('./test-perf-workloads.json', import.meta.url), 'utf8'));
   assert.deepEqual(Object.fromEntries(Object.entries(manifest).filter(([name]) => name.startsWith('backend-'))), {
-    'backend-full-worker3': { runner: 'go', args: ['-count=1', './...'], treatment: 'darwin-worker3-v1' },
     'backend-api-full': { runner: 'go', args: ['-count=1', './api'] },
     'backend-api-auth': { runner: 'go', args: ['-count=1', './api', '-run', '^(TestPasswordFailuresLockAccountAcrossPortals|TestPasswordLoginLockExpiresAndSuccessfulCredentialsResetAllPortals|TestConcurrentPasswordFailuresCannotLoseAttemptsOrLockOtherIdentities|TestPasswordLoginRefusalsDoNotEnumerateAccountsAcrossPortals|TestOperatorMFAAuditSharesTriggeringTransaction|TestOperatorMFAAuditFailureRollsBackEnrollment|TestSchoolLoginHandler_PortalRoleGate|TestSchoolPortalTokenMatrix|TestSchoolMiddleware_RejectsOtherScopes|TestSchoolMiddleware_ZeroTenantID_Unauthorized|TestTenantMiddleware_RejectsSchoolScope)$'] },
     'backend-full': { runner: 'go', args: ['-count=1', './...'] },

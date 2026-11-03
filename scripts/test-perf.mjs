@@ -149,54 +149,7 @@ function context(root, cacheState) {
   };
 }
 
-// Only this versioned, full-suite experiment classifies the worker policy as
-// treatment. All other profiles keep it in their strict shared wrapper context.
-const WORKER3_PROFILE = 'backend-full-worker3';
-const WORKER3_FILE = 'scripts/go-package-workers.sh';
-const WORKER3_HASHES = Object.freeze({
-  B: '05abbd3c24bf528f05b0f0bdab3980ee59d65150aae54a2066270104ef652dcf',
-  W: '81d4b08115e9df87b12cc936fa75db77fb5799deb4ec926d6b8970b9aa6df5b6',
-});
-const WORKER3_WORKLOAD = Object.freeze({ runner: 'go', args: ['-count=1', './...'], treatment: 'darwin-worker3-v1' });
-
-function worker3Workload(profile, workload) {
-  if (profile !== WORKER3_PROFILE) {
-    assert.ok(!workload.treatment, 'Treatment is restricted to backend-full-worker3');
-    return false;
-  }
-  assert.deepEqual(workload, WORKER3_WORKLOAD, 'Worker3 requires the exact versioned full workload; no overrides');
-  return true;
-}
-
-function worker3Observation(root, evidence) {
-  const hash = hashFile(join(root, WORKER3_FILE));
-  const side = Object.keys(WORKER3_HASHES).find(side => WORKER3_HASHES[side] === hash);
-  evidence.sha256 = hash;
-  assert.ok(side, 'Unknown worker3 policy source');
-  // Use the same pinned PATH/environment as test-backend.sh, not the caller's
-  // possibly different getconf/sysctl. This is a read-only default resolution.
-  const output = execFileSync(join(root, 'scripts/run-go-toolchain.sh'), [join(root, WORKER3_FILE)], {
-    cwd: root, encoding: 'utf8',
-  }).trim();
-  evidence.defaultWorkers = /^[1-9][0-9]*$/.test(output) ? Number(output) : null;
-  assert.equal(hashFile(join(root, WORKER3_FILE)), hash, 'Worker3 policy changed while resolving');
-  assert.equal(output, side === 'B' ? '2' : '3', 'Worker3 requires a host resolving B=2 and W=3');
-  return { version: 'darwin-worker3-v1', file: WORKER3_FILE, side, sha256: hash, defaultWorkers: Number(output) };
-}
-
-function validateWorker3(sample) {
-  assert.deepEqual(sample.treatmentBefore, sample.treatmentAfter, 'Treatment changed during trial');
-  const observation = sample.treatmentBefore;
-  assert.ok(observation && Object.hasOwn(WORKER3_HASHES, observation.side), 'Missing worker3 treatment');
-  assert.deepEqual(observation, {
-    version: 'darwin-worker3-v1', file: WORKER3_FILE, side: observation.side,
-    sha256: WORKER3_HASHES[observation.side], defaultWorkers: observation.side === 'B' ? 2 : 3,
-  }, 'Invalid worker3 treatment');
-  assert.equal(sample.workload, sha(JSON.stringify(WORKER3_WORKLOAD)), 'Non-equivalent worker3 workload');
-  assert.ok(!sample.context.wrappers.some(([file]) => file === WORKER3_FILE), 'Worker3 policy misclassified');
-}
-
-function backendContext(root, cacheState, worker3 = false) {
+function backendContext(root, cacheState) {
   const files = ['backend/go.mod', 'backend/go.sum', 'backend/tools/go.mod', 'backend/tools/go.sum',
     'go.work', 'go.work.sum', 'backend/go.work', 'backend/go.work.sum', 'devbox.json', 'devbox.lock'];
   const wrappers = ['scripts/run-go-toolchain.sh', 'scripts/test-backend.sh', 'scripts/go-test-workspace.sh',
@@ -208,7 +161,7 @@ function backendContext(root, cacheState, worker3 = false) {
       cwd: join(root, 'backend'), encoding: 'utf8',
     }).trim(),
     locks: files.map(file => [file, hashFile(join(root, file))]),
-    wrappers: wrappers.filter(file => !worker3 || file !== WORKER3_FILE).map(file => [file, hashFile(join(root, file))]),
+    wrappers: wrappers.map(file => [file, hashFile(join(root, file))]),
     // Both ratchets and the architecture wrapper consume the shared base,
     // not the moving target tip. Preserve that semantic input for comparison.
     gitReferenceInputs: backendGitReferenceInputs(root).basis,
@@ -271,11 +224,10 @@ async function run(profile, label, root, cacheState) {
   const out = mkdtempSync(join(base, `${label}-${profile}-`));
   const workload = workloads[profile];
   const backend = !Array.isArray(workload) && workload.runner === 'go';
-  const worker3 = worker3Workload(profile, workload);
   assert.ok(Array.isArray(workload) || (backend && Array.isArray(workload.args)), 'Unsupported workload');
   const report = join(out, backend ? 'go.jsonl' : 'vitest.json');
   const args = backend ? workload.args : ['run', ...workload, '--cache=false', '--reporter=default', '--reporter=json', `--outputFile.json=${report}`];
-  const trialContext = () => backend ? backendContext(root, cacheState, worker3) : context(root, cacheState);
+  const trialContext = () => backend ? backendContext(root, cacheState) : context(root, cacheState);
   const state = sourceState(root);
   const metadata = {
     schema: 1, id: basename(out), profile, label, root, started: new Date().toISOString(), state,
@@ -291,24 +243,13 @@ async function run(profile, label, root, cacheState) {
   const meter = join(out, 'measure');
   const gate = process.env.AGENT_HEAVY || join(homedir(), 'bin/agent-heavy');
   // One trial per meter invocation keeps logs distinct even for paired runs.
-  const bench = ['--root', root, '--out', meter, ...(existsSync(gate) ? [profile === 'quick' || (backend && profile !== 'backend-full' && !worker3) ? '--light' : '--heavy'] : []), '--', profile, ...metadata.command];
+  const bench = ['--root', root, '--out', meter, ...(existsSync(gate) ? [profile === 'quick' || (backend && profile !== 'backend-full') ? '--light' : '--heavy'] : []), '--', profile, ...metadata.command];
   const summary = { ...metadata, valid: false };
   try {
     if (backend) assert.ok(process.env.TEST_DB_DSN?.trim(), 'Backend trials require inherited TEST_DB_DSN');
-    if (worker3) {
-      summary.treatmentBeforeRaw = {};
-      summary.treatmentBefore = worker3Observation(root, summary.treatmentBeforeRaw);
-      metadata.treatmentBefore = summary.treatmentBefore;
-      save(join(out, 'metadata.json'), metadata);
-    }
     const exit = await execute('bash', [join(here, 'dev-bench.sh'), ...bench], root,
       backend ? { ...process.env, GOTESTSUM_JSONFILE: report } : process.env);
     summary.exit = exit;
-    if (worker3) {
-      summary.treatmentAfterRaw = {};
-      summary.treatmentAfter = worker3Observation(root, summary.treatmentAfterRaw);
-      assert.deepEqual(summary.treatmentAfter, summary.treatmentBefore, 'Treatment changed during trial');
-    }
     assert.equal(exit.code, 0, `Measurement failed (${exit.code ?? exit.signal})`);
     assert.deepEqual(sourceState(root), state, 'Checkout changed during trial');
     if (backend) summary.gitReferenceObservationAfter = backendGitReferenceInputs(root);
@@ -362,8 +303,6 @@ export function compare(baselines, candidates) {
     assert.equal(sample.schema, 1, 'Unknown result schema');
     assert.equal(sample.valid, true, 'Invalid trial');
     assert.notEqual(sample.context.cacheState, 'uncontrolled', 'Declare comparable cache state before timing');
-    if (sample.profile === WORKER3_PROFILE) validateWorker3(sample);
-    else assert.ok(!sample.treatmentBefore && !sample.treatmentAfter, 'Treatment is restricted to backend-full-worker3');
     for (const key of ['profile', 'evaluator', 'workload', 'context', 'inventory']) {
       assert.deepEqual(sample[key], reference[key], `Non-equivalent ${key}; inspect/rebaseline, do not count missing work as a win`);
     }
@@ -374,12 +313,7 @@ export function compare(baselines, candidates) {
   for (const group of [baselines, candidates]) {
     for (const sample of group) {
       assert.deepEqual(sample.state, group[0].state, 'Source state changed within sample group');
-      if (reference.profile === WORKER3_PROFILE) assert.deepEqual(sample.treatmentBefore, group[0].treatmentBefore, 'Treatment changed within sample group');
     }
-  }
-  if (reference.profile === WORKER3_PROFILE) {
-    assert.equal(baselines[0].treatmentBefore.side, 'B', 'Worker3 baseline must be B');
-    assert.equal(candidates[0].treatmentBefore.side, 'W', 'Worker3 candidate must be W');
   }
   const metrics = {};
   for (const key of ['wallSeconds', 'queueSeconds', 'cpuSeconds', 'peakTreeMB']) {
@@ -391,7 +325,6 @@ export function compare(baselines, candidates) {
   }
   return {
     comparable: true, samplesPerSide: baselines.length, counts: reference.counts,
-    ...(reference.profile === WORKER3_PROFILE ? { treatment: { baseline: baselines[0].treatmentBefore, candidate: candidates[0].treatmentBefore } } : {}),
     speedup: metrics.wallSeconds.baseline.median / metrics.wallSeconds.candidate.median,
     pairedSpeedups: baselines.map((sample, i) => sample.metrics.wallSeconds / candidates[i].metrics.wallSeconds),
     metrics,

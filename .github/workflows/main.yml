@@ -412,9 +412,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Fetch source ratchet comparison ref
+      # The register ratchets compare against the merge base with development,
+      # which a depth-1 checkout cannot resolve. Unrelated refs and tags are
+      # not inputs.
+      - name: Fetch source ratchet comparison history
         if: matrix.suite == 'ratchets'
-        run: git fetch --no-tags --depth=1 origin development:refs/remotes/origin/development
+        run: git fetch --no-tags --unshallow origin "$(git rev-parse HEAD)" +refs/heads/development:refs/remotes/origin/development
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
