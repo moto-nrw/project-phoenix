@@ -364,6 +364,23 @@ func TestTraegerBueroUploadsAProofTheFamilyBroughtOnPaper(t *testing.T) {
 	assert.Equal(t, proofPNG, open.Body.Bytes(), "the office opens it like a proof of the parents")
 }
 
+// TestTraegerBueroCannotUploadAProofToACancelledRegistration pins that a
+// cancelled registration stays as it is (ADR 0114): the upload of a proof
+// is refused with the conflict of the other review actions and writes
+// neither a file nor an entry in the trail.
+func TestTraegerBueroCannotUploadAProofToACancelledRegistration(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Nachweis storniert")
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(f.again, "/cancel"), map[string]any{})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = uploadOfficeProof(t, f, f.office.token, f.again, "bescheid.pdf", proofPDF)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Equal(t, "enrollment.holiday_registration_state_conflict", refusalCode(t, rec))
+	assert.Zero(t, countProofs(t, f.holidayRegistrationFixture, f.office.organization, "TRUE"), "no file is stored")
+	assert.NotContains(t, f.auditActions(t), fmt.Sprintf("proof_upload:%d", f.again), "the trail records no upload")
+}
+
 func TestCostBearerListAndReimbursementListQueryBudgetsAreFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Kostenträger")

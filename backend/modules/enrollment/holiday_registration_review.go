@@ -330,7 +330,8 @@ type HolidayRegistrationReview interface {
 	// UploadHolidayRegistrationProof stores a proof of benefits the family
 	// brought on paper as a proof of the registration (#5627), with the
 	// limits of HolidayProofOptions; a file outside them is an
-	// UploadRejection, one more file than the limit ErrHolidayProofLimit.
+	// UploadRejection, one more file than the limit ErrHolidayProofLimit, a
+	// cancelled registration ErrHolidayRegistrationStateConflict.
 	UploadHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, upload HolidayProofUpload) (HolidayRegistrationDetail, error)
 	// HolidayProofRegistrations names the registrations of the period with
 	// at least one proof of benefits (#5627).

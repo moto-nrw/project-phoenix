@@ -14,7 +14,8 @@ import (
 // cost takeover.
 
 // UploadHolidayRegistrationProof stores the file as a proof of the
-// registration and records the upload in its history.
+// registration and records the upload in its history. A cancelled
+// registration refuses it with ErrHolidayRegistrationStateConflict.
 func (h *HolidayRegistrationReview) UploadHolidayRegistrationProof(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, upload enrollment.HolidayProofUpload) (enrollment.HolidayRegistrationDetail, error) {
 	options := enrollment.HolidayProofOptions
 	size := int64(len(upload.Content))
@@ -23,6 +24,12 @@ func (h *HolidayRegistrationReview) UploadHolidayRegistrationProof(ctx context.C
 	}
 	upload.Filename = uploadDisplayName(upload.Filename, upload.Extension)
 	return h.change(ctx, reviewer, periodID, registrationID, func(_ enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
+		// A cancelled registration stays as it is (ADR 0114). The status is
+		// read under the registration's lock, so a cancellation that commits
+		// while the file arrives is honoured.
+		if current.Status == enrollment.HolidayRegistrationCancelled {
+			return "", nil, enrollment.ErrHolidayRegistrationStateConflict
+		}
 		existing, err := h.store.ReadHolidayProofs(ctx, reviewer.OrganizationID, current.ID)
 		if err != nil {
 			return "", nil, fmt.Errorf("enrollment: read holiday registration proofs: %w", err)
