@@ -662,7 +662,6 @@ function IdentityFact({
                     type="button"
                     variant="outline"
                     size="md"
-                    className="max-sm:min-h-11"
                     onClick={() => setEditing(true)}
                   >
                     {t("requestEdit")}
@@ -938,7 +937,7 @@ function DepartureSection({
           />
           <FormErrorAlert message={submitError} />
           <EditActions
-            className="border-t border-gray-100 pt-4 max-sm:flex-col-reverse max-sm:[&>*]:min-h-11 max-sm:[&>*]:w-full"
+            className="border-t border-gray-100 pt-4 max-sm:flex-col-reverse max-sm:[&>*]:w-full"
             onCancel={cancelEditing}
             onSave={() => void submit()}
             saving={status === "saving"}
@@ -1489,10 +1488,9 @@ function SaveIndicator({
         {onRetry && (
           <Button
             type="button"
-            variant="ghost"
+            variant="ghost_tone"
             size="compact"
             onClick={onRetry}
-            className="text-moto-red-strong"
           >
             {t("unsaved.retry")}
           </Button>

@@ -590,15 +590,17 @@ export default function GuardianFormModal({
                     <h4 className="text-sm font-medium text-gray-700">
                       Person {index + 1}
                     </h4>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost_danger"
+                      size="compact"
                       onClick={() => removeEntry(entry.id)}
                       disabled={isLoading}
-                      className="text-moto-red hover:bg-moto-red-soft flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:opacity-50"
+                      className="gap-1"
                     >
                       <X className="h-3 w-3" />
                       Entfernen
-                    </button>
+                    </Button>
                   </div>
                 )}
 
@@ -837,15 +839,13 @@ export default function GuardianFormModal({
                         {/* Action Buttons */}
                         <div className="flex items-center gap-1">
                           {/* Primary Star */}
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
-                            disabled={isLoading || phone.isPrimary}
-                            className={`rounded p-1.5 transition-colors ${
-                              phone.isPrimary
-                                ? "text-moto-amber"
-                                : "hover:text-moto-amber text-gray-300"
-                            }`}
+                            disabled={isLoading}
+                            aria-pressed={phone.isPrimary}
                             title={
                               phone.isPrimary
                                 ? "Primär"
@@ -858,38 +858,41 @@ export default function GuardianFormModal({
                             }
                           >
                             <Star
-                              className="h-4 w-4"
+                              className={`h-4 w-4 ${phone.isPrimary ? "text-moto-amber" : ""}`}
                               fill={phone.isPrimary ? "currentColor" : "none"}
                             />
-                          </button>
+                          </Button>
 
                           {/* Delete Button */}
                           {entry.phoneNumbers.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               onClick={() => removePhone(entry.id, phone.id)}
                               disabled={isLoading}
-                              className="hover:bg-moto-red-soft hover:text-moto-red rounded p-1.5 text-gray-400 transition-colors"
                               title="Entfernen"
                               aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
                             >
                               <Trash2 className="h-4 w-4" />
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
                     ))}
 
                     {/* Add Phone Button */}
-                    <button
+                    <Button
                       type="button"
+                      variant="dashed"
+                      size="compact"
                       onClick={() => addPhone(entry.id)}
                       disabled={isLoading}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100 disabled:opacity-50"
+                      className="w-full gap-1.5"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Weitere Nummer hinzufügen
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -1068,11 +1071,13 @@ export default function GuardianFormModal({
 
             {/* Add More Button (only in create mode) */}
             {mode === "create" && (
-              <button
+              <Button
                 type="button"
+                variant="dashed"
+                size="md"
                 onClick={addEntry}
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                className="w-full gap-2"
               >
                 <svg
                   className="h-4 w-4"
@@ -1088,7 +1093,7 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Weiteren hinzufügen
-              </button>
+              </Button>
             )}
           </div>
           <SlideOverFooter className="flex-row items-center justify-between gap-2 md:gap-3">

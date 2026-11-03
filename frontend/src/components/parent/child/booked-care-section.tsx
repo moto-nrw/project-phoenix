@@ -403,7 +403,6 @@ export function BookedCareSection({
                   type="button"
                   variant="outline"
                   size="md"
-                  className="max-sm:min-h-11"
                   onClick={() => setEditRequest(pending.id)}
                 >
                   {t("careOfferings.edit")}
