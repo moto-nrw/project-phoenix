@@ -98,6 +98,12 @@ func TestDate_Comparisons(t *testing.T) {
 	if a != NewDate(2026, 6, 9) {
 		t.Error("== equality wrong")
 	}
+	// A day loop ending on the last four-digit date must terminate: the day
+	// after it has a five-digit year and is still later (#5643).
+	last := NewDate(9999, 12, 31)
+	if next := last.AddDays(1); !next.After(last) || !last.Before(next) {
+		t.Errorf("%s must be after %s", next, last)
+	}
 	// Comparable: usable as a map key.
 	set := map[Date]struct{}{a: {}, b: {}}
 	if len(set) != 2 {

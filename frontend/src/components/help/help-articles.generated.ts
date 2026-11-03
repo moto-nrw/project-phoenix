@@ -2065,7 +2065,9 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
       "Fehlt `Bearbeiten` oder `Wochenplan`? Fragen Sie Ihre Leitung nach den nötigen Rechten.",
       // #5618: care-schedule-manager.tsx (hiddenBookedPickup), Knopf im Tagesdialog.
-      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt für diesen Wochentag in jeder Woche.",
+      // #5643: Braucht ein früherer Tag die Zeit noch, lehnt das Backend ab
+      // (students.pickup_reset_still_needed) und nennt den Tag.
+      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt ab sofort für diesen Wochentag in jeder Woche, auch vor dem gewählten Tag. Braucht ein früherer Tag die eingetragene Zeit noch, nennt moto den Tag, ab dem das Übernehmen geht.",
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
