@@ -7,6 +7,7 @@ import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import { OwnWeekAgenda } from "~/components/time-tracking/own-week-agenda";
 import { OwnWeekHoursCard } from "~/components/time-tracking/own-week-hours-card";
 import { Button } from "~/components/ui/button";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -20,6 +21,7 @@ import {
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import {
   calendarWeekDays,
@@ -179,9 +181,18 @@ function OwnDienstplanContent() {
   // Leere Woche: in den Wochen danach nach der nächsten Schicht suchen, damit
   // niemand Woche für Woche weiterklickt (#5639).
   const ahead = lookaheadRange(weekTo);
-  const { data: aheadShifts } = useSWRAuth<StaffShift[]>(
+  const {
+    data: aheadShifts,
+    error: aheadError,
+    mutate: mutateAheadShifts,
+  } = useSWRAuth<StaffShift[]>(
     weekIsEmpty ? timeTrackingKeys.ownShiftsAhead(ahead.from, ahead.to) : null,
     () => ownShiftService.getOwnShifts(ahead.from, ahead.to),
+  );
+  const aheadLoadError = useSwrLoadError(
+    aheadError,
+    "die Suche nach der nächsten Schicht",
+    () => mutateAheadShifts(),
   );
   const nextShiftDate = aheadShifts ? earliestShiftDate(aheadShifts) : null;
 
@@ -224,6 +235,14 @@ function OwnDienstplanContent() {
                 ),
                 keepContent: true,
               }
+            : aheadLoadError
+              ? {
+                  message: aheadLoadError.message,
+                  action: errorAlertActions(aheadLoadError),
+                  // Der aktuelle Leerzustand ist bestätigt. Nur die
+                  // Vorausschau fehlt und darf ihn nicht ersetzen.
+                  keepContent: true,
+                }
             : null
       }
       empty={
@@ -293,8 +312,9 @@ function OwnDienstplanContent() {
 
 /**
  * Text des Leerzustands: wann die nächste Schicht kommt, sonst wer plant.
- * Solange die Suche läuft oder scheitert, bleibt es beim Hinweis auf die
- * Leitung; eine erfundene „keine weiteren Schichten" wäre schlimmer.
+ * Solange die Suche läuft, bleibt es beim Hinweis auf die Leitung. Scheitert
+ * sie, zeigt die Seite darüber einen Ladefehler mit Wiederholen; eine
+ * erfundene „keine weiteren Schichten" wäre schlimmer.
  */
 function emptyWeekDescription(
   aheadShifts: readonly StaffShift[] | undefined,
