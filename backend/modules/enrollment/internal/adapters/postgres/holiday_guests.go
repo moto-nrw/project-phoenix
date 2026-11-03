@@ -53,6 +53,7 @@ type holidayGuestRow struct {
 	EndsOn          calendar.Date   `bun:"ends_on"`
 	EndedOn         *calendar.Date  `bun:"ended_on"`
 	HomeSchoolID    *int64          `bun:"home_school_id"`
+	HomeSchoolName  string          `bun:"home_school_name"`
 	GuestSchoolName string          `bun:"guest_school_name"`
 	TimeModelName   string          `bun:"time_model_name"`
 	TimeModelStarts string          `bun:"time_model_starts_at"`
@@ -69,7 +70,7 @@ func (r *holidayGuestRow) guest() (enrollment.HolidayGuest, error) {
 	return enrollment.HolidayGuest{
 		ID: r.ID, OrganizationID: r.OrganizationID, WeekID: r.WeekID, ChildID: r.ChildID, StudentID: r.StudentID,
 		StartsOn: r.StartsOn, EndsOn: r.EndsOn, EndedOn: r.EndedOn, HomeSchoolID: r.HomeSchoolID,
-		GuestSchoolName: r.GuestSchoolName, TimeModelName: r.TimeModelName, TimeModelStarts: r.TimeModelStarts,
+		HomeSchoolName: r.HomeSchoolName, GuestSchoolName: r.GuestSchoolName, TimeModelName: r.TimeModelName, TimeModelStarts: r.TimeModelStarts,
 		TimeModelEnds: r.TimeModelEnds, Answers: answers, HealthSealed: r.HealthData,
 	}, nil
 }
@@ -110,7 +111,7 @@ type holidayGuestContactRow struct {
 
 const (
 	holidayGuestColumns = `id, organization_id, holiday_period_week_id, holiday_registration_child_id, student_id,
-		starts_on, ends_on, ended_on, home_school_id, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at,
+		starts_on, ends_on, ended_on, home_school_id, home_school_name, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at,
 		enrollment.holiday_guest_shared_answers(id) AS answers, health_data`
 	guestWeekQuery = `SELECT week.id, week.organization_id, week.starts_on, week.ends_on
 		FROM enrollment.holiday_period_weeks AS week
@@ -347,11 +348,11 @@ func (s *HolidayGuestStore) InsertGuest(ctx context.Context, schoolID int64, gue
 	}
 	var id int64
 	if err := db.NewRaw(`INSERT INTO enrollment.holiday_guests (tenant_id, organization_id, holiday_period_week_id,
-			holiday_registration_child_id, student_id, starts_on, ends_on, home_school_id, guest_school_name,
+			holiday_registration_child_id, student_id, starts_on, ends_on, home_school_id, home_school_name, guest_school_name,
 			time_model_name, time_model_starts_at, time_model_ends_at, answers, health_data)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING id`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING id`,
 		schoolID, guest.OrganizationID, guest.WeekID, guest.ChildID, guest.StudentID, guest.StartsOn, guest.EndsOn,
-		guest.HomeSchoolID, guest.GuestSchoolName, guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds, answers,
+		guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName, guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds, answers,
 		guest.HealthSealed,
 	).Scan(ctx, &id); err != nil {
 		return fmt.Errorf("enrollment postgres: insert holiday guest: %w", err)
@@ -371,10 +372,10 @@ func (s *HolidayGuestStore) UpdateGuest(ctx context.Context, schoolID int64, gue
 		return err
 	}
 	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests
-		SET starts_on = ?, ends_on = ?, home_school_id = ?, guest_school_name = ?, time_model_name = ?,
+		SET starts_on = ?, ends_on = ?, home_school_id = ?, home_school_name = ?, guest_school_name = ?, time_model_name = ?,
 			time_model_starts_at = ?, time_model_ends_at = ?, answers = ?::jsonb, health_data = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE tenant_id = ? AND id = ?`,
-		guest.StartsOn, guest.EndsOn, guest.HomeSchoolID, guest.GuestSchoolName, guest.TimeModelName,
+		guest.StartsOn, guest.EndsOn, guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName, guest.TimeModelName,
 		guest.TimeModelStarts, guest.TimeModelEnds, answers, guest.HealthSealed, schoolID, guest.ID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday guest: %w", err)
 	}
@@ -515,4 +516,28 @@ func (s *HolidayGuestStore) ReadGuest(ctx context.Context, schoolID, studentID i
 		appendContact(&guest.Emergency, &guest.Pickup, contact)
 	}
 	return guest, true, nil
+}
+
+// ListCurrentGuests lists the child and the school fields of every guest of
+// the school whose access has not ended early and whose week covers today
+// (#5630), in one statement for the whole school.
+func (s *HolidayGuestStore) ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error) {
+	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayGuestRow
+	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").
+		ColumnExpr("student_id, home_school_id, home_school_name, guest_school_name").
+		Where("tenant_id = ?", schoolID).Where("ended_on IS NULL").
+		Where("starts_on <= ?", today).Where("ends_on >= ?", today).
+		OrderExpr("student_id").Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: list current holiday guests: %w", err)
+	}
+	result := make([]enrollment.HolidayGuest, len(rows))
+	for i, row := range rows {
+		result[i] = enrollment.HolidayGuest{StudentID: row.StudentID, HomeSchoolID: row.HomeSchoolID,
+			HomeSchoolName: row.HomeSchoolName, GuestSchoolName: row.GuestSchoolName}
+	}
+	return result, nil
 }

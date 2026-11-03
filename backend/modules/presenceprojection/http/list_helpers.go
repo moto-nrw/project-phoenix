@@ -396,7 +396,19 @@ func (p *studentListParams) buildDirectoryFilter() peopleModule.StudentDirectory
 		IDs:          p.studentIDs,
 		CareStatus:   p.directoryCareStatus(),
 		CareStatusOn: peopleModule.RenderCalendarDate(&p.careStatusOn),
+		// The running view leaves the care end to the participation
+		// evaluator, which knows no start; a holiday guest joins the list
+		// with the first day of its week (#5630). Administrative views keep
+		// every child.
+		HolidayGuestsArrivedOn: p.holidayGuestsArrivedOn(),
 	}
+}
+
+func (p *studentListParams) holidayGuestsArrivedOn() string {
+	if p.careStatus != CareStatusRunning {
+		return ""
+	}
+	return peopleModule.RenderCalendarDate(&p.careStatusOn)
 }
 
 // directoryCareStatus keeps the running side out of SQL: the shared evaluator

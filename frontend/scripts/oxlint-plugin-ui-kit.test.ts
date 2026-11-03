@@ -17,6 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -1384,6 +1385,117 @@ describe("button ratchet baseline", () => {
     }
     for (const entry of buttonRatchetAllowlist) {
       expect(existsSync(resolve(entry.file)), entry.file).toBe(true);
+    }
+  });
+});
+
+describe.concurrent("ui-kit/no-important-override (#5581)", () => {
+  it("reports an important utility on a kit component", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      import { StatusBadge as Badge } from "~/components/ui/status-badge";
+      function Probe() {
+        return <>
+          <SectionCard className="!p-0">Inhalt</SectionCard>
+          <Badge label="Offen" tone="gray" className="md:!rounded-md" />
+          <SectionCard bodyClassName={\`mt-2 p-0!\`}>Inhalt</SectionCard>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-important-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows kit props, plain utilities and native elements", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <>
+          <SectionCard padding="none" className="mt-4">Inhalt</SectionCard>
+          <div className="!p-0">Kein Kit</div>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-important-override");
+  });
+});
+
+describe.concurrent("ui-kit/no-section-card-bleed (#5581)", () => {
+  it("reports negative margins that undo the SectionCard padding", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" bodyClassName="mt-4 -mx-5 -mb-5">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-section-card-bleed)");
+  });
+
+  it("allows flush and spacing in bodyClassName", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" flush bodyClassName="mt-4">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-section-card-bleed");
+  });
+});
+
+describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
+  it("fails a second override in a baselined file", async () => {
+    const result = await lintSource(
+      `
+      import { Input } from "~/components/ui/input";
+      function Probe() {
+        return <>
+          <Input aria-label="A" className="!h-11" />
+          <Input aria-label="B" className="px-3!" />
+        </>;
+      }
+      void Probe;
+    `,
+      "src/components/help/help-view.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-important-override)");
+  });
+});
+
+describe("ui-kit/no-important-override baseline is current (#5581)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
+  // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.
+  it("records exactly the findings each baselined file still has", async () => {
+    const previous = process.env.UI_KIT_IMPORTANT_OVERRIDE;
+    process.env.UI_KIT_IMPORTANT_OVERRIDE = "count";
+    try {
+      for (const [file, expected] of Object.entries(
+        importantOverrideBaseline,
+      )) {
+        const result = await lintSource(readFileSync(file, "utf8"), file);
+        const found =
+          result.output.match(/ui-kit\(no-important-override\)/g)?.length ?? 0;
+        expect({ file, found }).toEqual({ file, found: expected });
+      }
+    } finally {
+      if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
+      else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
     }
   });
 });

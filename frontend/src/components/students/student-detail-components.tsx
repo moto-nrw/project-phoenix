@@ -34,7 +34,6 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { InfoCard } from "~/components/ui/info-card";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -1216,16 +1215,7 @@ export function StudentHistorySection({
   const changeHistoryDisabled = readOnly || !canViewChangeHistory;
 
   return (
-    <InfoCard
-      title="Historien"
-      icon={
-        <MotoDuotoneIcon
-          icon={changeHistoryConcept.icon}
-          tone={changeHistoryConcept.tone}
-          size={20}
-        />
-      }
-    >
+    <SectionCard title="Historien" concept={changeHistoryConcept}>
       <div className="grid grid-cols-1 gap-2">
         <HistoryButton
           concept={roomsConcept}
@@ -1283,6 +1273,6 @@ export function StudentHistorySection({
           }
         />
       </div>
-    </InfoCard>
+    </SectionCard>
   );
 }

@@ -306,7 +306,7 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
         concept={messagesConcept}
         size="page"
         shape="round"
-        tone="blue"
+        iconTone="blue"
       />
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="flex min-w-0 items-center justify-between gap-2">

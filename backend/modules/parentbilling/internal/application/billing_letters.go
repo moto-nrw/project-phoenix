@@ -204,12 +204,9 @@ func (b *BillingLetters) material(ctx context.Context, reviewer parentbilling.Ho
 // prints a gap where the reference to pay with belongs (#5622). An invoice
 // of 0 € prints the fixed sentence without a reference.
 func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []parentbilling.BillingDocument) error {
-	if !strings.Contains(head.PaymentText, placeholderDebtorNumber) {
-		return nil
-	}
 	var missing []string
 	for _, document := range documents {
-		if document.TotalCents != 0 && strings.TrimSpace(document.DebtorNumber) == "" {
+		if lacksDebtorNumberForPaymentText(head.PaymentText, document) {
 			missing = append(missing, document.Number)
 		}
 	}
@@ -217,6 +214,15 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 		return &parentbilling.PaymentTextDebtorNumberMissingError{InvoiceNumbers: missing}
 	}
 	return nil
+}
+
+// lacksDebtorNumberForPaymentText reports whether the payment text names the
+// debtor number while the invoice asks for payment without one. The billing
+// run counts these invoices before the release, which copies the number and
+// locks it (#5621, #5622).
+func lacksDebtorNumberForPaymentText(paymentText string, document parentbilling.BillingDocument) bool {
+	return document.TotalCents != 0 && strings.TrimSpace(document.DebtorNumber) == "" &&
+		strings.Contains(paymentText, placeholderDebtorNumber)
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {

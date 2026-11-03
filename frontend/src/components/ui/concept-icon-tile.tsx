@@ -15,8 +15,8 @@ interface ConceptIconTileProps extends Omit<
 }
 
 /**
- * `IconTile` mit dem Symbol eines fachlichen Konzepts (siehe Header-Muster in
- * concept-section-header.tsx). Größe, Form, Fläche und Lage-Klassen gehen
+ * `IconTile` mit dem Symbol eines fachlichen Konzepts (siehe `SectionCard`
+ * und `ConceptPageHeader`). Größe, Form, Fläche und Lage-Klassen gehen
  * unverändert an `IconTile`.
  */
 export function ConceptIconTile({
