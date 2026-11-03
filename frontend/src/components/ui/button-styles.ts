@@ -7,6 +7,7 @@ export type ButtonVariant =
   | "warning"
   | "success"
   | "surface"
+  | "surface_success"
   | "ghost"
   | "ghost_danger"
   | "ghost_tone"
@@ -75,6 +76,10 @@ export function buttonStyles({
       "bg-moto-green-fill text-white shadow-md hover:bg-moto-green-fill-hover hover:shadow-lg active:bg-moto-green-fill-active",
     surface:
       "bg-white text-gray-700 ring-1 ring-gray-200 shadow-sm hover:bg-gray-50 hover:ring-gray-300 active:bg-gray-100",
+    // Erfolgsrückmeldung in einer sonst neutralen Werkzeugleiste, etwa nach
+    // dem Kopieren eines Links. Sie bleibt eine helle Fläche statt einer CTA.
+    surface_success:
+      "bg-moto-green/10 text-moto-green-strong ring-1 ring-moto-green/40 shadow-sm hover:bg-moto-green/15 hover:ring-moto-green/50 active:bg-moto-green/20",
     ghost:
       "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
     // Leiser roter Knopf: Entfernen in einer Zeile oder einem Formular, wo

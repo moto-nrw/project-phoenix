@@ -29,7 +29,7 @@ export function PublicLinkCopyButton({
   return (
     <Button
       type="button"
-      variant="surface"
+      variant={copied ? "surface_success" : "surface"}
       size="icon"
       className="shrink-0"
       onClick={(event) => {
@@ -42,7 +42,7 @@ export function PublicLinkCopyButton({
       title={accessibleLabel}
     >
       <Icon
-        className={copied ? "text-moto-green-strong h-4 w-4" : "h-4 w-4"}
+        className="h-4 w-4"
         aria-hidden="true"
       />
     </Button>
