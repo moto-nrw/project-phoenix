@@ -738,6 +738,15 @@ export function ChildEditor(
                   value: school.id,
                   label: school.name,
                 })),
+                ...(child.homeSchoolId !== null &&
+                !schools.some((school) => school.id === child.homeSchoolId)
+                  ? [
+                      {
+                        value: child.homeSchoolId,
+                        label: "Bisherige Schule (gelöscht)",
+                      },
+                    ]
+                  : []),
                 { value: GUEST, label: "Andere Schule (Feriengast)" },
               ]}
               onChange={(school) => set({ school })}

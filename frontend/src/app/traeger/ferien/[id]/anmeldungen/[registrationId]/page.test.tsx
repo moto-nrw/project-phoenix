@@ -746,6 +746,51 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
     );
   });
 
+  it.each([
+    { homeSchoolId: "99", label: "Bisherige Schule (gelöscht)", count: 4 },
+    { homeSchoolId: "31", label: "OGS Nord", count: 3 },
+    { homeSchoolId: null, label: "Andere Schule (Feriengast)", count: 3 },
+  ])(
+    "keeps the saved school $homeSchoolId selectable after a change",
+    async ({ homeSchoolId, label, count }) => {
+      const registration = {
+        ...HOLIDAY_REGISTRATION,
+        children: HOLIDAY_REGISTRATION.children.map((child) =>
+          child.id === "9" ? { ...child, homeSchoolId } : child,
+        ),
+      };
+      mockRegistration.mockResolvedValue(registration);
+      mockEdit.mockResolvedValueOnce(registration);
+      render(
+        <ToastProvider>
+          <TraegerHolidayRegistrationPage />
+        </ToastProvider>,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Angaben von Lia Muster ändern",
+        }),
+      );
+      const school = await screen.findByRole("combobox", { name: /^Schule/ });
+      expect(school).toHaveTextContent(label);
+      fireEvent.click(school);
+      expect(screen.getAllByRole("option")).toHaveLength(count);
+      fireEvent.click(screen.getByRole("option", { name: "OGS Süd" }));
+      expect(school).toHaveTextContent("OGS Süd");
+      fireEvent.click(school);
+      fireEvent.click(screen.getByRole("option", { name: label }));
+      expect(school).toHaveTextContent(label);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Änderung speichern" }),
+      );
+      await waitFor(() =>
+        expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+          child: expect.objectContaining({ id: "9", homeSchoolId }),
+        }),
+      );
+    },
+  );
+
   it("drops a contact entry whose fields are all empty", async () => {
     mockEdit.mockResolvedValueOnce(HOLIDAY_REGISTRATION);
     render(
