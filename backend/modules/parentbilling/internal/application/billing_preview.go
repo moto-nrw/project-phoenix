@@ -90,7 +90,8 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 	document := parentbilling.BillingDocument{
 		RegistrationID: registration.ID, RecipientFirstName: registration.GuardianFirstName,
 		RecipientLastName: registration.GuardianLastName, RecipientEmail: registration.GuardianEmail,
-		RecipientAddress: registration.GuardianAddress, Children: []parentbilling.BillingChild{},
+		RecipientAddress: registration.GuardianAddress, DebtorNumber: registration.DebtorNumber,
+		Children: []parentbilling.BillingChild{},
 	}
 	var from, until calendar.Date
 	for _, child := range registration.Children {

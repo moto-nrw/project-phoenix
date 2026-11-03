@@ -116,3 +116,41 @@ func TestOverviewNamesThePostalAddressOnlyWhenAnInvoiceHasOne(t *testing.T) {
 	assert.NotContains(t, table.Rows[2], "street", "an invoice without an address keeps the cells empty")
 	assert.Equal(t, before, columnIDs(billingRunOverview(run, documents[1:])), "the shared columns stay unchanged")
 }
+
+// TestOverviewNamesTheDebtorNumberOnlyWhenAnInvoiceHasOne pins the ADR 0122
+// addendum (#5621): the column "Debitorennummer" follows the recipient, on
+// the rows of the positions and on the sum of each invoice, when an invoice
+// of the run copied a debtor number; an invoice without one keeps the cell
+// empty, and before the address columns when both are there.
+func TestOverviewNamesTheDebtorNumberOnlyWhenAnInvoiceHasOne(t *testing.T) {
+	t.Parallel()
+	monday, friday := calendar.NewDate(2027, 1, 4), calendar.NewDate(2027, 1, 8)
+	run := parentbilling.BillingRun{PeriodName: "Winterferien 2027", ServiceFrom: monday, ServiceUntil: friday, Status: parentbilling.RunReleased}
+	position := []parentbilling.BillingPosition{{Kind: parentbilling.LineBase, AmountCents: 4500, TimeModelName: "bis 16 Uhr"}}
+	documents := []parentbilling.BillingDocument{
+		{Number: "FE-0001", RecipientFirstName: "Eva", RecipientLastName: "Muster", TotalCents: 4500, DebtorNumber: "10 4711",
+			Children: []parentbilling.BillingChild{{FirstName: "Lia", LastName: "Muster", Positions: position}}},
+		{Number: "FE-0002", RecipientFirstName: "Tom", RecipientLastName: "Beispiel", TotalCents: 4500,
+			Children: []parentbilling.BillingChild{{FirstName: "Mia", LastName: "Beispiel", Positions: position}}},
+	}
+	columnIDs := func(table ExportTable) []string {
+		ids := make([]string, len(table.Columns))
+		for i, column := range table.Columns {
+			ids[i] = column.ID
+		}
+		return ids
+	}
+
+	assert.Equal(t, []string{"number", "recipient", "child", "position", "amount"}, columnIDs(billingRunOverview(run, documents[1:])),
+		"no debtor number, the columns of before")
+	table := billingRunOverview(run, documents)
+	assert.Equal(t, []string{"number", "recipient", "debtor_number", "child", "position", "amount"}, columnIDs(table))
+	assert.Equal(t, ExportColumn{ID: "debtor_number", Label: "Debitorennummer"}, table.Columns[2])
+	assert.Equal(t, "10 4711", table.Rows[0]["debtor_number"])
+	assert.Equal(t, "10 4711", table.Rows[1]["debtor_number"], "the sum of the invoice names the number too")
+	assert.NotContains(t, table.Rows[2], "debtor_number", "an invoice without a number keeps the cell empty")
+
+	documents[1].RecipientAddress = &parentbilling.PostalAddress{Street: "Musterweg 12", PostalCode: "01234", City: "Bissendorf"}
+	assert.Equal(t, []string{"number", "recipient", "debtor_number", "street", "postal_code", "city", "child", "position", "amount"},
+		columnIDs(billingRunOverview(run, documents)), "the debtor number comes right after the recipient, before the address")
+}

@@ -798,7 +798,7 @@
     {
       "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
-      "reason": "ADR 0115 (#4664): Consumer-port adapter of the Elternabrechnung's holiday registrations; it confirms through Enrollment's review in the caller's Träger transaction and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
+      "reason": "ADR 0115 (#4664), ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it confirms with the debtor number through Enrollment's review in the caller's Träger transaction and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0115",
@@ -809,6 +809,11 @@
       "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.ResolveHolidayLink",
       "reason": "ADR 0115 (#4664): Consumer-port adapter of the Elternabrechnung's holiday registrations; it resolves the public link through Enrollment in the caller's administrative transaction and keeps only the Träger and the period."
+    },
+    {
+      "decision": "0121",
+      "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
+      "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
     },
     {
       "decision": "0126",
@@ -824,6 +829,11 @@
       "decision": "0123",
       "id": "api/parentBillingLetterPost.SenderText",
       "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the letterhead text of the session's Träger through the Settings Platform in the caller's Träger transaction for the sender name of the mail."
+    },
+    {
+      "decision": "0121",
+      "id": "api/parentBillingSettings.AsksDebtorNumber",
+      "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
     },
     {
       "decision": "0113",

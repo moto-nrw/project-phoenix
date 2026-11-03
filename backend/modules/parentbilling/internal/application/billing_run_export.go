@@ -87,6 +87,10 @@ var billingRunOverviewColumns = []ExportColumn{
 	{ID: "amount", Label: "Betrag in Euro"},
 }
 
+// billingRunDebtorColumn follows the recipient when an invoice of the run
+// copied a debtor number (ADR 0122 addendum, #5621).
+var billingRunDebtorColumn = ExportColumn{ID: "debtor_number", Label: "Debitorennummer"}
+
 // billingRunAddressColumns follow the recipient when an invoice of the run
 // copied a postal address (ADR 0122 addendum, #5625).
 var billingRunAddressColumns = []ExportColumn{
@@ -97,8 +101,9 @@ var billingRunAddressColumns = []ExportColumn{
 
 // billingRunOverview is the general layout of the overview of a released
 // run. The recipient's mail address stays out; the Kämmerei needs who pays
-// what, not how to reach them. The postal address names the payer; its
-// columns appear only when an invoice of the run has one.
+// what, not how to reach them. The debtor number and the postal address
+// name the payer; their columns appear only when an invoice of the run has
+// one.
 func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.BillingDocument) ExportTable {
 	rows := []map[string]string{}
 	var total int64
@@ -127,9 +132,12 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 }
 
 // overviewRecipient is the recipient of an invoice in its rows: the name
-// and, when the invoice has one, the postal address.
+// and, when the invoice has them, the debtor number and the postal address.
 func overviewRecipient(document parentbilling.BillingDocument) map[string]string {
 	recipient := map[string]string{"recipient": strings.TrimSpace(document.RecipientLastName + ", " + document.RecipientFirstName)}
+	if number := strings.TrimSpace(document.DebtorNumber); number != "" {
+		recipient["debtor_number"] = number
+	}
 	if address := document.RecipientAddress; address != nil {
 		recipient["street"], recipient["postal_code"], recipient["city"] = address.Street, address.PostalCode, address.City
 	}
@@ -144,17 +152,26 @@ func withValues(from, row map[string]string) map[string]string {
 	return row
 }
 
-// overviewColumns are the columns of the overview, with the address
-// columns after the recipient when an invoice of the run has an address.
+// overviewColumns are the columns of the overview: after the recipient the
+// debtor number when an invoice of the run has one, then the address
+// columns when an invoice of the run has an address.
 func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
+	debtor, address := false, false
 	for _, document := range documents {
-		if document.RecipientAddress != nil {
-			columns := append([]ExportColumn{}, billingRunOverviewColumns[:2]...)
-			columns = append(columns, billingRunAddressColumns...)
-			return append(columns, billingRunOverviewColumns[2:]...)
-		}
+		debtor = debtor || strings.TrimSpace(document.DebtorNumber) != ""
+		address = address || document.RecipientAddress != nil
 	}
-	return billingRunOverviewColumns
+	if !debtor && !address {
+		return billingRunOverviewColumns
+	}
+	columns := append([]ExportColumn{}, billingRunOverviewColumns[:2]...)
+	if debtor {
+		columns = append(columns, billingRunDebtorColumn)
+	}
+	if address {
+		columns = append(columns, billingRunAddressColumns...)
+	}
+	return append(columns, billingRunOverviewColumns[2:]...)
 }
 
 // overviewLines are the facts of the run under the title.

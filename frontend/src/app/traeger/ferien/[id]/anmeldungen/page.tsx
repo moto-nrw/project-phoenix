@@ -40,6 +40,7 @@ import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resour
 import {
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
+  fetchHolidayConfirmationSettings,
   fetchHolidayRegistrations,
   type HolidayRegistrationFilter,
   type HolidayRegistrationList,
@@ -64,8 +65,25 @@ const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "cancelled", label: "Storniert" },
 ];
 
+/** The debtor number, only while the Träger asks for it (#5621). */
+const DEBTOR_NUMBER_COLUMN: DataTableColumn<HolidayRegistrationSummary> = {
+  key: "debtorNumber",
+  header: "Debitorennummer",
+  render: (registration) =>
+    registration.debtorNumber ? (
+      <span className="font-mono wrap-anywhere">
+        {registration.debtorNumber}
+      </span>
+    ) : (
+      "–"
+    ),
+  sortValue: (registration) => registration.debtorNumber,
+  stacked: "meta",
+};
+
 function columns(
   names: ReadonlyMap<string, string>,
+  debtorNumber: boolean,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -149,6 +167,7 @@ function columns(
       sortValue: (registration) => registration.status,
       stacked: "meta",
     },
+    ...(debtorNumber ? [DEBTOR_NUMBER_COLUMN] : []),
   ];
 }
 
@@ -193,6 +212,27 @@ export default function TraegerHolidayRegistrationsPage() {
   const listLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = listLoad;
   const { show: showActionError } = useApiErrorDisplay();
+  // Whether the Träger asks for the debtor number (#5621); the column shows
+  // only then.
+  const [debtorNumberColumn, setDebtorNumberColumn] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    fetchHolidayConfirmationSettings()
+      .then((settings) => {
+        if (current) setDebtorNumberColumn(settings.debtorNumberRequired);
+      })
+      .catch((err: unknown) => {
+        // The list stays complete without the column; the detail of each
+        // registration still names its number.
+        logger.warn("traeger_holiday_confirmation_settings_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
 
   const filter = useMemo<HolidayRegistrationFilter>(
     () => ({
@@ -402,7 +442,7 @@ export default function TraegerHolidayRegistrationsPage() {
         />
       ) : null}
       <DataTable
-        columns={columns(names)}
+        columns={columns(names, debtorNumberColumn)}
         rows={[...(list?.registrations ?? [])]}
         getRowKey={(registration) => registration.id}
         isLoading={loading && list === null}

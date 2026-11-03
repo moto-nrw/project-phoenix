@@ -310,6 +310,7 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "address_city", Label: "Ort"},
 	{ID: "second_guardian", Label: "Zweites Elternteil"},
 	{ID: "second_guardian_phone", Label: "Telefon zweites Elternteil"},
+	{ID: "debtor_number", Label: "Debitorennummer"},
 	{ID: "duplicate", Label: "Mögliche Doppelanmeldung"},
 }
 
@@ -353,6 +354,7 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
 			"second_guardian": secondName, "second_guardian_phone": secondPhone,
+			"debtor_number": row.Registration.DebtorNumber,
 		}
 		addHolidayAddress(values, row.GuardianAddress)
 		addHolidayAnswers(values, row.AnswerFields, row.Answers)

@@ -97,7 +97,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	var calls []string
 	var period map[string]any
 	var registrations []map[string]any
-	var correction, release map[string]any
+	var correction, release, confirmation map[string]any
 	var proofs int
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
@@ -137,6 +137,11 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			}
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"preview_count":1,"preview_cents":11250,` +
 				`"documents":[{"registration_id":9,"children":[{"child_id":91,"total_cents":4500}]}]}}`))
+		case "/traeger/holiday-contributions/5/registrations/9/confirm":
+			raw, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.NoError(t, json.Unmarshal(raw, &confirmation))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 		case "/traeger/billing-runs/9/release":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -167,6 +172,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key/uploads ",
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
+		"PUT /traeger/settings/values/parent_billing.debtor_number_on_confirm Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		"POST /traeger/billing-runs/ Bearer traeger-token",
@@ -179,6 +185,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")
 	assert.Equal(t, map[string]any{"document_count": float64(1), "total_cents": float64(11250)}, release,
 		"the release names the preview it checked")
+	assert.Equal(t, map[string]any{"benefits_exemption": false, "debtor_number": "10 4711"}, confirmation,
+		"the Träger-Büro asks for the debtor number and confirms the siblings with theirs (#5621)")
 	weeks, ok := period["weeks"].([]any)
 	require.True(t, ok)
 	require.Len(t, weeks, 2)

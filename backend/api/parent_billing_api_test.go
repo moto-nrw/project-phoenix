@@ -55,6 +55,8 @@ type contributionBody struct {
 	BenefitsExemption  bool    `json:"benefits_exemption"`
 	Frozen             bool    `json:"frozen"`
 	ConfirmedAt        *string `json:"confirmed_at"`
+	// Invoiced reports an issued invoice of the registration (#5621).
+	Invoiced bool `json:"invoiced"`
 }
 
 type confirmationBody struct {

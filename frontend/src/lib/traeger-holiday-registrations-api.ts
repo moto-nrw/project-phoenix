@@ -34,7 +34,7 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook";
+  HolidayRegistrationAction | "confirm" | "rebook" | "debtor_number";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -87,6 +87,11 @@ export interface HolidayRegistrationSummary {
   readonly guardianPhone: string;
   /** The parents state that they receive benefits (#4664). */
   readonly benefitsDeclared: boolean;
+  /**
+   * The family's number in the finance system of the Träger, entered at the
+   * confirmation (#5621); empty without one.
+   */
+  readonly debtorNumber: string;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -154,6 +159,14 @@ export interface HolidayRegistrationEvent {
   readonly childId: string;
   readonly before: readonly HolidayBookingChange[];
   readonly after: readonly HolidayBookingChange[];
+  /**
+   * The debtor number before and after, when a confirmation entered it or a
+   * change changed it (#5621); null otherwise.
+   */
+  readonly debtorNumber: {
+    readonly before: string;
+    readonly after: string;
+  } | null;
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -242,6 +255,7 @@ interface BackendSummary {
   guardian_email: string;
   guardian_phone: string;
   benefits_declared?: boolean;
+  debtor_number?: string;
   children?: BackendChild[] | null;
 }
 
@@ -294,6 +308,7 @@ interface BackendDetail extends BackendSummary {
           child_id?: number;
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
+          debtor_number?: { before: string; after: string } | null;
         } | null;
       }[]
     | null;
@@ -321,6 +336,7 @@ function summaryFromBackend(
     guardianEmail: registration.guardian_email,
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
+    debtorNumber: registration.debtor_number ?? "",
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -397,6 +413,7 @@ function detailFromBackend(
       childId: event.details?.child_id ? String(event.details.child_id) : "",
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
+      debtorNumber: event.details?.debtor_number ?? null,
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
@@ -589,4 +606,21 @@ export async function downloadHolidayRegistrations(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+/**
+ * What a confirmation of the Träger needs (#5621). It lives here, not in the
+ * contributions client, because the list reads it for its column too and
+ * should not load that client.
+ */
+export interface HolidayConfirmationSettings {
+  /** The Träger asks for the debtor number of the family. */
+  readonly debtorNumberRequired: boolean;
+}
+
+export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
+  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
+    "/api/traeger/holiday-contributions/confirmation-settings",
+  );
+  return { debtorNumberRequired: settings.debtor_number_required };
 }

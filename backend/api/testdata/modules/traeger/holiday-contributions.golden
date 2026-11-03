@@ -1,2 +1,4 @@
+GET /traeger/holiday-contributions/confirmation-settings -> basis
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId} -> basis
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm -> basis
+PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number -> basis

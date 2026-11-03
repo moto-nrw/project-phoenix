@@ -18,6 +18,8 @@ const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
+const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
+const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
 const CodeParentBillingInvoiceNumberTaken = "parent_billing.invoice_number_taken"
 const CodeParentBillingLetterMailPending = "parent_billing.letter_mail_pending"
@@ -45,6 +47,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},
+	{CodeParentBillingDebtorNumberInvalid, "input"},
+	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
 	{CodeParentBillingInvoiceNumberTaken, "business_rejection"},
 	{CodeParentBillingLetterMailPending, "business_rejection"},

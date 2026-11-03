@@ -26,9 +26,15 @@ vi.mock("~/lib/traeger-api", () => ({
   fetchHolidayPeriod: () => Promise.resolve(HOLIDAY_PERIOD),
   fetchTraegerSchools: () => Promise.resolve(HOLIDAY_SCHOOLS),
 }));
-const { mockRegistration, mockHealth, sessionPermissions } = vi.hoisted(() => ({
+const {
+  mockRegistration,
+  mockHealth,
+  mockConfirmationSettings,
+  sessionPermissions,
+} = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
   mockHealth: vi.fn(),
+  mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
@@ -37,6 +43,7 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   >()),
   fetchHolidayRegistration: () => mockRegistration(),
   fetchHolidayRegistrationHealth: () => mockHealth(),
+  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
@@ -47,6 +54,7 @@ import TraegerHolidayRegistrationPage from "./page";
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
     mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
     sessionPermissions.current = [];
@@ -82,6 +90,70 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
+  it("asks for the debtor number at the confirmation while the switch is on (#5621)", async () => {
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: true });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("textbox", { name: /Debitorennummer/ }),
+    ).toBeRequired();
+  });
+
+  it("shows and changes the debtor number of a confirmed registration with its history (#5621)", async () => {
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: true });
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      status: "confirmed",
+      debtorNumber: "10 4711",
+      history: [
+        {
+          action: "confirm",
+          occurredAt: "2026-09-04T08:00:00Z",
+          from: "received",
+          childId: "",
+          before: [],
+          after: [],
+          debtorNumber: { before: "", after: "10 4710" },
+        },
+        {
+          action: "debtor_number",
+          occurredAt: "2026-09-05T08:00:00Z",
+          from: "",
+          childId: "",
+          before: [],
+          after: [],
+          debtorNumber: { before: "10 4710", after: "10 4711" },
+        },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const card = (
+      await screen.findByRole("heading", { name: "Status" })
+    ).closest("section");
+    expect(card).not.toBeNull();
+    expect(within(card!).getByText("10 4711")).toBeInTheDocument();
+    expect(
+      within(card!).getByRole("button", { name: "Debitorennummer ändern" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/Debitorennummer 10 4710$/)).toBeInTheDocument();
+    expect(screen.getByText("Debitorennummer geändert")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Debitorennummer vorher 10 4710, jetzt 10 4711/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: /Debitorennummer/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens the uploaded proofs of benefits from their own card (#5238)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,
