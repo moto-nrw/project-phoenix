@@ -272,7 +272,7 @@ describe("small timetable components", () => {
     const onApply = vi.fn();
     const onArchive = vi.fn();
 
-    render(
+    const { container } = render(
       <TemplateCard
         template={{
           ...template,
@@ -291,6 +291,7 @@ describe("small timetable components", () => {
     expect(screen.getByText("Keine Zeiten hinterlegt")).toBeInTheDocument();
     expect(screen.getByText("Kein Raum")).toBeInTheDocument();
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
+    expect(container.querySelector("article")).toHaveClass("hover:shadow-md!");
   });
 
   it("renders class targets without duplicating their prefix", () => {

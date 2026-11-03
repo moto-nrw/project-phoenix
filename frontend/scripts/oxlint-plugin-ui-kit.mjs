@@ -150,6 +150,63 @@ function collectStaticStrings(node, chunks, seen = new WeakSet()) {
   }
 }
 
+function collectClassTemplateLiterals(node, templates, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+
+  if (node.type === "TemplateLiteral") {
+    templates.push(node);
+    return;
+  }
+
+  if (
+    node.type === "JSXExpressionContainer" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TypeCastExpression"
+  ) {
+    collectClassTemplateLiterals(node.expression, templates, seen);
+    return;
+  }
+
+  if (node.type === "ConditionalExpression") {
+    collectClassTemplateLiterals(node.consequent, templates, seen);
+    collectClassTemplateLiterals(node.alternate, templates, seen);
+    return;
+  }
+
+  if (node.type === "LogicalExpression") {
+    if (node.operator !== "&&") {
+      collectClassTemplateLiterals(node.left, templates, seen);
+    }
+    collectClassTemplateLiterals(node.right, templates, seen);
+    return;
+  }
+
+  if (node.type === "CallExpression") {
+    for (const argument of node.arguments) {
+      collectClassTemplateLiterals(argument, templates, seen);
+    }
+    return;
+  }
+
+  if (node.type === "ArrayExpression") {
+    for (const element of node.elements) {
+      collectClassTemplateLiterals(element, templates, seen);
+    }
+    return;
+  }
+
+  if (node.type === "ObjectExpression") {
+    for (const property of node.properties) {
+      if (property.type === "Property" && property.computed) {
+        collectClassTemplateLiterals(property.key, templates, seen);
+      }
+    }
+  }
+}
+
 const MAX_CLASS_COMBINATIONS = 64;
 
 function crossJoin(left, right) {
@@ -626,18 +683,30 @@ const noDynamicColorClass = {
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
 
+    const check = (node) => {
+      // Die letzte Quasi folgt auf keinen Ausdruck mehr.
+      for (const quasi of node.quasis.slice(0, -1)) {
+        const match = DYNAMIC_COLOR_PREFIX_RE.exec(quasi.value.raw);
+        if (!match) continue;
+        context.report({
+          node: quasi,
+          messageId: "dynamicColorClass",
+          data: { prefix: match[0].trim() },
+        });
+      }
+    };
+
     return {
-      TemplateLiteral(node) {
-        // Die letzte Quasi folgt auf keinen Ausdruck mehr.
-        for (const quasi of node.quasis.slice(0, -1)) {
-          const match = DYNAMIC_COLOR_PREFIX_RE.exec(quasi.value.raw);
-          if (!match) continue;
-          context.report({
-            node: quasi,
-            messageId: "dynamicColorClass",
-            data: { prefix: match[0].trim() },
-          });
-        }
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const templates = [];
+        collectClassTemplateLiterals(node.value, templates);
+        for (const template of templates) check(template);
       },
     };
   },

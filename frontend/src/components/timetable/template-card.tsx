@@ -108,7 +108,7 @@ export function TemplateCard({
 
   return (
     <article
-      className={`${timetableSurface} relative flex flex-col transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
+      className={`${timetableSurface} relative flex flex-col transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md!`}
     >
       {/* The card itself must not clip: the roster-maintenance tooltip has to
           leave it. Only this layer clips, so the colour bar follows the card's

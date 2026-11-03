@@ -164,12 +164,14 @@ describe("ui-kit/no-dynamic-color-class", () => {
     expect(count, output).toBe(4);
   });
 
-  it("accepts ids and static class strings", () => {
+  it("ignores non-class template literals and accepts static class strings", () => {
     const { count, output } = ruleHits(
       `
       function Probe({ id, cls }: { id: string; cls: string }) {
         return <>
-          <textarea id={\`legal-block-text-\${id}\`} />
+          <textarea id={\`text-\${id}\`} />
+          <p>{\`bg-\${id}\`}</p>
+          <div className={id === \`ring-\${id}\` ? "selected" : ""} />
           <div className={\`text-sm \${cls}\`} />
         </>;
       }
