@@ -17,8 +17,9 @@ import (
 //
 // The release issues one invoice per confirmed registration not yet billed,
 // numbered from the Träger's number range of the service without a gap. An
-// issued invoice keeps its own copy of the recipient, the children and every
-// position and never changes.
+// issued invoice keeps its own copy of the recipient with the postal address
+// when the registration has one (#5625), the children and every position and
+// never changes.
 
 // States of a run.
 const (
@@ -116,8 +117,17 @@ type BillingChild struct {
 	TotalCents  int64               `json:"total_cents"`
 }
 
+// PostalAddress is the postal address of the recipient of an invoice: all
+// three parts (#5625).
+type PostalAddress struct {
+	Street     string `json:"street"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
+}
+
 // BillingDocument is the invoice of one family: in a calculated run the
 // draft without a number, in a released run the issued invoice.
+// RecipientAddress is nil when the registration has no postal address.
 type BillingDocument struct {
 	ID                 int64          `json:"id"`
 	Number             string         `json:"number"`
@@ -126,6 +136,7 @@ type BillingDocument struct {
 	RecipientFirstName string         `json:"recipient_first_name"`
 	RecipientLastName  string         `json:"recipient_last_name"`
 	RecipientEmail     string         `json:"recipient_email"`
+	RecipientAddress   *PostalAddress `json:"recipient_address"`
 	ServiceFrom        calendar.Date  `json:"service_from"`
 	ServiceUntil       calendar.Date  `json:"service_until"`
 	Children           []BillingChild `json:"children"`
@@ -193,12 +204,14 @@ type HolidayBillingChild struct {
 }
 
 // HolidayBillingRegistration is a confirmed registration with the parent
-// who registered, the recipient of its invoice.
+// who registered, the recipient of its invoice, and the parent's postal
+// address when the form asked for it (#5625).
 type HolidayBillingRegistration struct {
 	ID                int64
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
+	GuardianAddress   *PostalAddress
 	Children          []HolidayBillingChild
 }
 

@@ -16,10 +16,11 @@ import (
 // statement runs in the Träger transaction of the Träger it names.
 
 type holidayPeriodFormRow struct {
-	LegalBlocks []enrollment.FormLegalBlock `bun:"legal_blocks,type:jsonb"`
-	Version     int                         `bun:"version"`
-	Fields      json.RawMessage             `bun:"fields,type:jsonb"`
-	CreatedAt   time.Time                   `bun:"created_at"`
+	LegalBlocks        []enrollment.FormLegalBlock          `bun:"legal_blocks,type:jsonb"`
+	Version            int                                  `bun:"version"`
+	Fields             json.RawMessage                      `bun:"fields,type:jsonb"`
+	AddressRequirement enrollment.HolidayAddressRequirement `bun:"address_requirement"`
+	CreatedAt          time.Time                            `bun:"created_at"`
 }
 
 func (row holidayPeriodFormRow) form() (enrollment.HolidayPeriodForm, error) {
@@ -27,25 +28,28 @@ func (row holidayPeriodFormRow) form() (enrollment.HolidayPeriodForm, error) {
 	if err := json.Unmarshal(row.Fields, &fields); err != nil {
 		return enrollment.HolidayPeriodForm{}, fmt.Errorf("enrollment postgres: decode holiday form version %d: %w", row.Version, err)
 	}
-	return enrollment.HolidayPeriodForm{Version: row.Version, Fields: fields, LegalBlocks: row.LegalBlocks, CreatedAt: row.CreatedAt}, nil
+	return enrollment.HolidayPeriodForm{
+		Version: row.Version, Fields: fields, LegalBlocks: row.LegalBlocks,
+		AddressRequirement: row.AddressRequirement, CreatedAt: row.CreatedAt,
+	}, nil
 }
 
 const (
-	currentHolidayPeriodFormQuery = `SELECT version, fields, legal_blocks, created_at FROM enrollment.holiday_period_forms
+	currentHolidayPeriodFormQuery = `SELECT version, fields, legal_blocks, address_requirement, created_at FROM enrollment.holiday_period_forms
 		WHERE organization_id = ? AND holiday_period_id = ?
 		ORDER BY version DESC LIMIT 1`
-	holidayPeriodFormVersionsQuery = `SELECT version, fields, legal_blocks, created_at FROM enrollment.holiday_period_forms
+	holidayPeriodFormVersionsQuery = `SELECT version, fields, legal_blocks, address_requirement, created_at FROM enrollment.holiday_period_forms
 		WHERE organization_id = ? AND holiday_period_id = ? AND (? OR version = ANY(?::int[]))
 		ORDER BY version`
 	// insertHolidayPeriodFormQuery adds the next version. The caller holds
 	// the period's row, so two saves of one period run one after the other;
 	// the unique key on the version is the backstop.
 	insertHolidayPeriodFormQuery = `INSERT INTO enrollment.holiday_period_forms
-			(organization_id, holiday_period_id, version, fields, legal_blocks, created_by)
-		SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?::jsonb, ?::jsonb, ?
+			(organization_id, holiday_period_id, version, fields, legal_blocks, address_requirement, created_by)
+		SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?::jsonb, ?::jsonb, ?, ?
 		FROM enrollment.holiday_period_forms
 		WHERE organization_id = ? AND holiday_period_id = ?
-		RETURNING version, fields, legal_blocks, created_at`
+		RETURNING version, fields, legal_blocks, address_requirement, created_at`
 )
 
 // CurrentHolidayPeriodForm reads the newest version of a period's form.
@@ -88,8 +92,9 @@ func (s *HolidayPeriodStore) HolidayPeriodForms(ctx context.Context, organizatio
 }
 
 // InsertHolidayPeriodForm adds the next version of a period's form. A zero
-// createdBy leaves the author empty, as for the template of a new period.
-func (s *HolidayPeriodStore) InsertHolidayPeriodForm(ctx context.Context, organizationID, periodID, createdBy int64, fields []enrollment.HolidayFormField, blocks []enrollment.FormLegalBlock) (enrollment.HolidayPeriodForm, error) {
+// createdBy leaves the author empty, as for the template of a new period;
+// an empty address asks for no address.
+func (s *HolidayPeriodStore) InsertHolidayPeriodForm(ctx context.Context, organizationID, periodID, createdBy int64, fields []enrollment.HolidayFormField, blocks []enrollment.FormLegalBlock, address enrollment.HolidayAddressRequirement) (enrollment.HolidayPeriodForm, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return enrollment.HolidayPeriodForm{}, err
@@ -112,8 +117,11 @@ func (s *HolidayPeriodStore) InsertHolidayPeriodForm(ctx context.Context, organi
 	if createdBy > 0 {
 		author = &createdBy
 	}
+	if address == "" {
+		address = enrollment.HolidayAddressOff
+	}
 	var row holidayPeriodFormRow
-	if err := db.NewRaw(insertHolidayPeriodFormQuery, organizationID, periodID, string(encoded), string(legal), author,
+	if err := db.NewRaw(insertHolidayPeriodFormQuery, organizationID, periodID, string(encoded), string(legal), string(address), author,
 		organizationID, periodID).Scan(ctx, &row); err != nil {
 		return enrollment.HolidayPeriodForm{}, fmt.Errorf("enrollment postgres: insert holiday form version: %w", err)
 	}

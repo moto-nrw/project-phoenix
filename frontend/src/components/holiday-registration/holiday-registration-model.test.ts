@@ -493,3 +493,79 @@ describe("unified contacts (#5469)", () => {
     ).toEqual({});
   });
 });
+
+describe("postal address of the parent (#5625)", () => {
+  const asking = (addressRequirement: "off" | "optional" | "required") => ({
+    ...offer,
+    form: { ...offer.form, addressRequirement },
+  });
+  const withAddress = (
+    street: string,
+    postalCode: string,
+    city: string,
+  ): RegistrationDraft => ({
+    ...complete(),
+    guardianAddress: { street, postalCode, city },
+  });
+
+  it("asks nothing and sends nothing when the form does not ask", () => {
+    const draft = withAddress("Musterweg 12", "49143", "Bissendorf");
+    expect(validateRegistration(draft, asking("off"))).toEqual({});
+    expect(payloadFromDraft(draft, asking("off"), "t")).not.toHaveProperty(
+      "guardian_address",
+    );
+    expect(
+      payloadFromDraft(draft, asking("off"), "t").guardian.first_name,
+    ).toBe("Eva");
+  });
+
+  it("takes no address or all three parts when it is optional", () => {
+    expect(validateRegistration(complete(), asking("optional"))).toEqual({});
+    expect(
+      payloadFromDraft(complete(), asking("optional"), "t"),
+    ).not.toHaveProperty("guardian_address");
+    expect(
+      payloadFromDraft(complete(), asking("optional"), "t").form_version,
+    ).toBe(1);
+    expect(
+      validateRegistration(
+        withAddress("Musterweg 12", "", ""),
+        asking("optional"),
+      ),
+    ).toEqual({
+      "guardian_address.postal_code": "required",
+      "guardian_address.city": "required",
+    });
+  });
+
+  it("requires all three parts when it is required", () => {
+    expect(validateRegistration(complete(), asking("required"))).toEqual({
+      "guardian_address.street": "required",
+      "guardian_address.postal_code": "required",
+      "guardian_address.city": "required",
+    });
+  });
+
+  it("refuses a postal code without five digits in both settings", () => {
+    for (const requirement of ["optional", "required"] as const) {
+      expect(
+        validateRegistration(
+          withAddress("Musterweg 12", "4914", "Bissendorf"),
+          asking(requirement),
+        ),
+      ).toEqual({ "guardian_address.postal_code": "postalCode" });
+    }
+  });
+
+  it("sends the trimmed address", () => {
+    const draft = withAddress(" Musterweg 12 ", " 01234 ", " Bissendorf ");
+    expect(validateRegistration(draft, asking("required"))).toEqual({});
+    expect(
+      payloadFromDraft(draft, asking("required"), "t").guardian_address,
+    ).toEqual({
+      street: "Musterweg 12",
+      postal_code: "01234",
+      city: "Bissendorf",
+    });
+  });
+});

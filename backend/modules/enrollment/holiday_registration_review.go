@@ -200,6 +200,10 @@ type HolidayRegistrationAnswers struct {
 // only the detail names them.
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
+	// GuardianAddress is the postal address of the parent who registered,
+	// when the form asked for it (#5625). Only the detail and the export
+	// name it, not the list.
+	GuardianAddress  *HolidayAddress              `json:"guardian_address"`
 	LegalAcceptances map[string]time.Time         `json:"legal_acceptances"`
 	SecondGuardian   *HolidayGuardianInput        `json:"second_guardian,omitempty"`
 	Form             *HolidayPeriodForm           `json:"form"`
@@ -228,12 +232,20 @@ type HolidayRegistrationDetail struct {
 // export's Columns, never to a question with health information (#5198).
 // AnswerFields keeps their definitions from the submitted form version.
 type HolidayRegistrationExportRow struct {
-	SecondGuardian *HolidayGuardianInput
-	Registration   HolidayRegistrationSummary
-	Child          HolidayRegistrationChild
-	Booking        HolidayRegistrationBooking
-	Answers        HolidayAnswers
-	AnswerFields   []HolidayFormField
+	GuardianAddress *HolidayAddress
+	SecondGuardian  *HolidayGuardianInput
+	Registration    HolidayRegistrationSummary
+	Child           HolidayRegistrationChild
+	Booking         HolidayRegistrationBooking
+	Answers         HolidayAnswers
+	AnswerFields    []HolidayFormField
+}
+
+// HolidayRegistrationRecipient is a registration with the postal address of
+// the parent who registered, the recipient of its invoice (#4668, #5625).
+type HolidayRegistrationRecipient struct {
+	HolidayRegistrationSummary
+	GuardianAddress *HolidayAddress
 }
 
 // HolidayRegistrationExport is the export of a period: its rows and one
@@ -258,6 +270,11 @@ type HolidayReviewer struct {
 // a failed audit entry fails the operation.
 type HolidayRegistrationReview interface {
 	ListHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter) (HolidayRegistrationList, error)
+	// ListHolidayRegistrationRecipients lists the registrations of the
+	// filter with the postal address of the parent who registered, for the
+	// invoices of the Elternabrechnung (#5625). It records the read like the
+	// list.
+	ListHolidayRegistrationRecipients(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter) ([]HolidayRegistrationRecipient, error)
 	HolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistrationDetail, error)
 	// HolidayRegistrationHealth opens the health information of one
 	// registration and records the read (#4722). The route lets only the

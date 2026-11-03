@@ -371,6 +371,7 @@ func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enr
 		child.HealthNotes = strings.TrimSpace(child.HealthNotes)
 		children[i] = child
 	}
+	input.GuardianAddress = normalizeHolidayAddress(input.GuardianAddress)
 	input.SecondGuardian = normalizeHolidaySecondGuardian(input.SecondGuardian)
 	input.Children = children
 	input.EmergencyContacts = normalizeHolidayContacts(input.EmergencyContacts)
@@ -409,6 +410,9 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	errs := validation.Errors{}
 	if guardianErrs := validateHolidayGuardian(input.Guardian); len(guardianErrs) > 0 {
 		errs["guardian"] = guardianErrs
+	}
+	if addressErrs := validateHolidayAddress(form.AddressRequirement, input.GuardianAddress); len(addressErrs) > 0 {
+		errs["guardian_address"] = addressErrs
 	}
 	if input.SecondGuardian != nil {
 		if guardianErrs := validateHolidaySecondGuardian(*input.SecondGuardian); len(guardianErrs) > 0 {

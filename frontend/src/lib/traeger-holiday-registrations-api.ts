@@ -166,6 +166,15 @@ interface HolidayRegistrationProof {
 }
 
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
+  /**
+   * Postal address of the parent, when the form asked for it (#5625). Only
+   * the detail and the export name it, the list does not.
+   */
+  readonly guardianAddress: {
+    readonly street: string;
+    readonly postalCode: string;
+    readonly city: string;
+  } | null;
   readonly secondGuardian: {
     readonly firstName: string;
     readonly lastName: string;
@@ -248,6 +257,11 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
+  guardian_address?: {
+    street: string;
+    postal_code: string;
+    city: string;
+  } | null;
   second_guardian?: {
     first_name: string;
     last_name: string;
@@ -344,6 +358,13 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
+    guardianAddress: registration.guardian_address
+      ? {
+          street: registration.guardian_address.street,
+          postalCode: registration.guardian_address.postal_code,
+          city: registration.guardian_address.city,
+        }
+      : null,
     secondGuardian: registration.second_guardian
       ? {
           firstName: registration.second_guardian.first_name,

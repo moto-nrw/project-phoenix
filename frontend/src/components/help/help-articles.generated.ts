@@ -6063,6 +6063,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` ein.",
+        "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",
         "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
         "Tragen Sie unter `Kontakte` jede weitere Person einmal ein. Wählen Sie `Notfallkontakt`, `Darf die Kinder abholen` oder beides. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
         "Setzen Sie die Haken unter `Einverständnis`. Dazu gehört das Sorgerecht: Sie sind allein sorgeberechtigt, oder die andere sorgeberechtigte Person ist einverstanden.",
@@ -9786,6 +9787,7 @@ export const traegerBillingRunTopic =
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
         "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
+        "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -9990,10 +9992,18 @@ export const traegerHolidayFormTopic =
           ],
         },
         {
+          title: "Anschrift abfragen",
+          steps: [
+            "Wählen Sie unter `Anschrift`, ob Eltern Straße, PLZ und Ort angeben: `Nicht abfragen`, `Freiwillig` oder `Pflicht`.",
+            "Wählen Sie `Als neue Version speichern`.",
+            "Rechnung und Bestätigungsschreiben übernehmen die Anschrift der Familie.",
+          ],
+        },
+        {
           title: "Standardvorlage einfügen",
           steps: [
             "Wählen Sie `Standardvorlage einfügen`.",
-            "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz und Ausflüge.",
+            "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz, Ausflüge und Klasse.",
             "Ändern oder entfernen Sie Fragen, die Sie nicht brauchen.",
             "Wählen Sie `Als neue Version speichern`.",
           ],
@@ -10013,6 +10023,7 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+        "Ein neuer Ferienzeitraum fragt keine Anschrift ab. Ältere Versionen fragen auch keine ab. Bei `Freiwillig` geben Eltern alle drei Angaben an oder keine.",
         "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
@@ -10181,6 +10192,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Gesundheitsangaben sieht in der Einzelansicht nur die Rolle Verwaltung. Jedes Öffnen steht im `Zugriffsprotokoll` des Trägers.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
+        "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",

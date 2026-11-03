@@ -34,6 +34,7 @@ func TestHolidayFormTemplateMarksEveryQuestionForHealthExplicitly(t *testing.T) 
 		"koerperliche_einschraenkungen":    true,
 		"darf_allein_nach_hause":           false,
 		"darf_an_ausfluegen_teilnehmen":    false,
+		"klasse":                           false,
 	}, health)
 	require.NoError(t, ValidateHolidayFormFields(HolidayFormTemplate()), "the template passes its own checks")
 
@@ -50,6 +51,7 @@ func TestHolidayFormTemplateMarksEveryQuestionForHealthExplicitly(t *testing.T) 
 		"koerperliche_einschraenkungen":    true,
 		"darf_allein_nach_hause":           true,
 		"darf_an_ausfluegen_teilnehmen":    true,
+		"klasse":                           true,
 	}, shared, "the template shares every question with the hosting school; health answers only with the consent (#4722)")
 }
 
@@ -76,4 +78,43 @@ func TestHolidayFormFieldSharesHealthQuestionsButNoInformationBlock(t *testing.T
 		"a health question may go to the hosting school")
 	require.NoError(t, ValidateHolidayFormFields([]HolidayFormField{question(FormFieldBoolean, false, true)}),
 		"a question without health information may go to the hosting school")
+}
+
+// TestHolidayFormTemplateAsksTheClassPerChild pins #5625: the template asks
+// the class of each child as an optional text without health information.
+func TestHolidayFormTemplateAsksTheClassPerChild(t *testing.T) {
+	t.Parallel()
+	for _, field := range HolidayFormTemplate() {
+		if field.Key != "klasse" {
+			continue
+		}
+		assert.Equal(t, "Klasse", field.Label)
+		assert.Equal(t, FormFieldText, field.Type)
+		assert.True(t, field.AppliesToCh, "per child")
+		assert.False(t, field.Required, "optional")
+		assert.False(t, field.Health)
+		assert.True(t, field.ShareWithHost)
+		return
+	}
+	t.Fatal("the template asks no class")
+}
+
+// TestHolidayAddressRequirementTakesThreeSettings pins the building block
+// "Anschrift" (#5625): an empty setting asks nothing, the three settings
+// stay, anything else is refused at its path.
+func TestHolidayAddressRequirementTakesThreeSettings(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[HolidayAddressRequirement]HolidayAddressRequirement{
+		"": HolidayAddressOff, HolidayAddressOff: HolidayAddressOff,
+		HolidayAddressOptional: HolidayAddressOptional, HolidayAddressRequired: HolidayAddressRequired,
+	} {
+		got, err := ValidateHolidayAddressRequirement(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got)
+	}
+	_, err := ValidateHolidayAddressRequirement("always")
+	var rejection *InvalidInputError
+	require.True(t, errors.As(err, &rejection), "%v", err)
+	assert.Equal(t, "address_requirement", rejection.Field)
+	assert.Equal(t, CodeHolidayFormFieldNotAllowed, rejection.Code)
 }

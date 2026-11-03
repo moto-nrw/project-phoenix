@@ -298,6 +298,13 @@ export default function TraegerHolidayRegistrationPage() {
               <DataField label="E-Mail" fullWidth>
                 {registration.guardianEmail}
               </DataField>
+              {registration.guardianAddress ? (
+                <DataField label="Anschrift" fullWidth>
+                  {registration.guardianAddress.street},{" "}
+                  {registration.guardianAddress.postalCode}{" "}
+                  {registration.guardianAddress.city}
+                </DataField>
+              ) : null}
               <DataField label="Datenschutz zugestimmt">
                 {consentText(registration.privacyConsentAt)}
               </DataField>

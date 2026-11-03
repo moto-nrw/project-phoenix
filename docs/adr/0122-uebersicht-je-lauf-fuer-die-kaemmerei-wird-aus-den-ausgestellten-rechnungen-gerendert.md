@@ -79,3 +79,12 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
   `billingRunOverview`, ohne die Route zu ändern.
 - Die Finanz-Exporte (SEPA, DATEV, Sollstellung) sind eigene Formate des
   Owners und nicht diese Übersicht.
+
+## Nachtrag 2026-11-03: Anschriftspalten (#5625)
+
+Punkt 2 bekommt nach „Empfänger“ die Spalten „Straße und Hausnummer“, „PLZ“
+und „Ort“ aus der Kopie der Rechnung (ADR 0121 Nachtrag vom 03.11.2026), in
+PDF, Excel und CSV. Die Spalten erscheinen nur, wenn mindestens eine
+Rechnung des Laufs eine Anschrift hat; sonst bleibt die Übersicht bei den
+Spalten von bisher. Die Zeile mit der Summe einer Rechnung nennt die
+Anschrift wie ihre Positionen. Die Mail-Adresse fehlt weiter.

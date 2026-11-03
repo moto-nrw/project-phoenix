@@ -251,6 +251,40 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the postal address with the contact details of the parent (#5625)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      guardianAddress: {
+        street: "Musterweg 12",
+        postalCode: "01234",
+        city: "Bissendorf",
+      },
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", { name: "Eltern" });
+    const parents = within(heading.closest("section")!);
+    expect(parents.getByText("Anschrift")).toBeInTheDocument();
+    expect(
+      parents.getByText("Musterweg 12, 01234 Bissendorf"),
+    ).toBeInTheDocument();
+  });
+
+  it("names no address when the registration has none (#5625)", async () => {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", { name: "Eltern" });
+    const parents = within(heading.closest("section")!);
+    expect(parents.getByText("eva@example.org")).toBeInTheDocument();
+    expect(parents.queryByText("Anschrift")).not.toBeInTheDocument();
+  });
+
   it("reads the health information only with the right „Gesundheitsangaben sehen“ (#4722)", async () => {
     render(
       <ToastProvider>

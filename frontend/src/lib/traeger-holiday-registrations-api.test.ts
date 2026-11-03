@@ -152,6 +152,34 @@ describe("traeger-holiday-registrations-api", () => {
     ).not.toHaveProperty("secondGuardian");
   });
 
+  it("maps the postal address on details, null without one (#5625)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          ...BACKEND_DETAIL,
+          guardian_address: {
+            street: "Musterweg 12",
+            postal_code: "01234",
+            city: "Bissendorf",
+          },
+        },
+      }),
+    );
+    expect((await fetchHolidayRegistration("5", "7")).guardianAddress).toEqual({
+      street: "Musterweg 12",
+      postalCode: "01234",
+      city: "Bissendorf",
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: { ...BACKEND_DETAIL, guardian_address: null },
+      }),
+    );
+    expect(
+      (await fetchHolidayRegistration("5", "7")).guardianAddress,
+    ).toBeNull();
+  });
+
   it("maps the detail with contacts and history, without health information", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),

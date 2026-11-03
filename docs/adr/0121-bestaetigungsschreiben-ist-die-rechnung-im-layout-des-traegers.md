@@ -139,3 +139,41 @@ Design von moto drucken, aber keinen Brief.
 - Alle Schreiben eines Laufs gesammelt drucken (Story 79) fehlt noch.
 - Mit dem Zahler kommen Anschrift und Kundennummer ins Anschriftfeld; Storno
   und Neuausstellung (Story 72) bekommen eigene Schreiben.
+
+## Nachtrag 2026-11-03: Anschrift aus der Ferienanmeldung (#5625)
+
+Nach der Rückmeldung der Gemeinde vom 03.11.2026 ersetzt dieser Nachtrag die
+Anschrift-Regel in Punkt 5 und die verworfene Option „Anschrift in der
+Ferienanmeldung ergänzen“:
+
+- **Schaltbar je Formularversion.** Das Anmeldeformular eines Zeitraums hat
+  den festen Baustein „Anschrift“ mit „Nicht abfragen“, „Freiwillig“ und
+  „Pflicht“ (`enrollment.holiday_period_forms.address_requirement`, Standard
+  `off`). Er ist keine Frage des Baukastens, weil die Abrechnung die
+  Anschrift als feste Struktur braucht. Bestehende Versionen fragen nichts
+  ab. Ob der Fachdienst Finanzen die Anschrift braucht, klärt der Termin am
+  11.11.2026; bis dahin steht der Schalter für neue Zeiträume auf „Nicht
+  abfragen“.
+- **An der Anmeldung.** Straße und Hausnummer, PLZ (fünf Ziffern) und Ort
+  stehen an `enrollment.holiday_registrations`, alle drei oder keine (CHECK).
+  Der Server prüft gegen die Version, mit der die Anmeldung kommt. Die
+  Anschrift geht mit der Anmeldung nach 92 Tagen (ADR 0118 Punkt 1).
+- **Kopie in der Rechnung.** Die Freigabe kopiert die Anschrift wie Name und
+  E-Mail in `parent_billing.documents.recipient_address_*` (ADR 0118
+  Punkt 2, ADR 0119); derselbe CHECK gilt, der Trigger gegen Änderungen
+  bleibt. Die Elternabrechnung liest sie über den Port
+  `HolidayBillingRegistrations`, den die Wurzel an Enrollments
+  `ListHolidayRegistrationRecipients` bindet; der Lesezugriff steht wie die
+  Liste im Protokoll des Zeitraums (ADR 0114).
+- **Anschriftfeld.** Hat die Rechnung eine Anschrift, nennt das Feld
+  „Familie Nachname“, Vor- und Nachname, Straße und Hausnummer, PLZ und Ort.
+  Sonst bleibt es bei den zwei Zeilen. Der Renderer bleibt unverändert
+  (Punkt 6); `TestConfirmationLetterFollowsTheBissendorfTemplate` deckt
+  beide Fälle ab. Schon erzeugte Schreiben und ausgestellte Rechnungen
+  bleiben, wie sie sind (Punkt 3).
+- **Nicht in diesem Schritt:** keine Vorbefüllung aus den Stammdaten
+  (ADR 0113), keine Anschrift der zweiten sorgeberechtigten Person, keine
+  Auslandsanschrift und kein Adresszusatz. Der Zahler mit eigener Anschrift
+  und Kundennummer kommt weiter mit der Elternabrechnung (ADR 0088 §4).
+  Teilnehmerliste der OGS (ADR 0116), Feriengast-Kopie (ADR 0120) und
+  Eingangsbestätigung bekommen keine Anschrift.
