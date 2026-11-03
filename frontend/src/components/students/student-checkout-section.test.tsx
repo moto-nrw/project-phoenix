@@ -243,6 +243,25 @@ describe("StudentExcusedReportSection", () => {
 });
 
 describe("StudentStatusActionsMenu", () => {
+  it("renders its floating actions in the popover surface", () => {
+    render(
+      <StudentStatusActionsMenu
+        isClassTrip={false}
+        onPlanClassTrip={vi.fn()}
+        isLoading={false}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Statusaktionen" }),
+    );
+
+    expect(screen.getByRole("menu")).toHaveClass(
+      "moto-popover-surface",
+      "rounded-xl",
+    );
+  });
+
   it("elevates the interactive card on hover", () => {
     render(
       <StudentStatusActionsMenu

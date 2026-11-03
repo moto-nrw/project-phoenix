@@ -165,7 +165,7 @@ export function LateInviteModal({
         ) : null}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" size="md" onClick={onClose}>
+          <Button type="button" variant="outline" size="md" onClick={onClose}>
             Schließen
           </Button>
           <Button

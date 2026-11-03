@@ -1763,6 +1763,9 @@ function buttonRatchetImports(node, bindings) {
   for (const specifier of node.specifiers) {
     if (specifier.type === "ImportDefaultSpecifier" && defaultAction) {
       bindings.actionComponents.add(specifier.local.name);
+      if (NAVIGATION_ROWS.has(defaultAction)) {
+        bindings.navigationRows.add(specifier.local.name);
+      }
       continue;
     }
     if (specifier.type !== "ImportSpecifier") continue;
@@ -1772,6 +1775,9 @@ function buttonRatchetImports(node, bindings) {
         : String(specifier.imported.value);
     if (ACTION_COMPONENTS.has(imported)) {
       bindings.actionComponents.add(specifier.local.name);
+    }
+    if (NAVIGATION_ROWS.has(imported)) {
+      bindings.navigationRows.add(specifier.local.name);
     }
     if (KIT_BUTTON_EXPORTS.has(imported)) {
       if (imported === "buttonClassName") {
@@ -1836,6 +1842,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
         actionComponents: new Set(ACTION_COMPONENTS),
         buttonClassNames: new Set(["buttonClassName"]),
         kitButtons: new Set(KIT_BUTTONS),
+        navigationRows: new Set(NAVIGATION_ROWS),
       };
       const findings = [];
       const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
@@ -1938,6 +1945,118 @@ const noButtonOverride = makeButtonRatchetRule({
   }),
 });
 
+// --- ui-kit/no-grey-button-fill (#5574) -------------------------------------
+//
+// Knöpfe sind weiß (outline, surface, ghost), schwarz (primary) oder farbig.
+// Ein hellgrau gefüllter Ruhezustand (bg-gray-100 bis -300) passt in keine
+// Rangstufe und stand oft in zweitem Grauton neben einem anderen. Die Regel
+// prüft jedes Element, das no-hand-rolled-button oder no-button-override
+// prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
+// (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
+// Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
+// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
+// Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
+
+const GREY_REST_FILL_RE = /^bg-gray-[123]00(?:\/[\w.[\]]+)?$/;
+const NOT_BUTTON_ROLES = new Set([
+  "switch",
+  "tab",
+  "menuitem",
+  "menuitemradio",
+  "menuitemcheckbox",
+  "option",
+  "radio",
+]);
+const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+
+function isNavigationOrControl(node, name, bindings) {
+  const role = staticAttributeValue(jsxAttribute(node, "role"));
+  if (role && NOT_BUTTON_ROLES.has(role)) return true;
+  if (
+    jsxAttribute(node, "aria-pressed") ||
+    jsxAttribute(node, "aria-selected")
+  ) {
+    return true;
+  }
+  if (jsxAttribute(node, "aria-current")) return true;
+  return bindings.navigationRows.has(name);
+}
+
+const INTERACTION_STATE_VARIANTS = new Set([
+  "active",
+  "autofill",
+  "checked",
+  "disabled",
+  "enabled",
+  "focus",
+  "focus-visible",
+  "focus-within",
+  "hover",
+  "indeterminate",
+  "invalid",
+  "open",
+  "placeholder-shown",
+  "read-only",
+  "required",
+  "target",
+  "user-invalid",
+  "user-valid",
+  "valid",
+  "visited",
+]);
+
+function isInteractionStateVariant(variant) {
+  return (
+    INTERACTION_STATE_VARIANTS.has(variant) ||
+    /^(?:aria|data|group|has|peer)-/.test(variant)
+  );
+}
+
+function hasGreyRestFill(text) {
+  return text.split(/\s+/).some((token) => {
+    const variants = token.split(":");
+    const hasInteractionState = variants
+      .slice(0, -1)
+      .some(isInteractionStateVariant);
+    return (
+      token && !hasInteractionState && GREY_REST_FILL_RE.test(bareToken(token))
+    );
+  });
+}
+
+const noGreyButtonFill = makeButtonRatchetRule({
+  ruleName: "no-grey-button-fill",
+  description:
+    "Disallow a light-grey resting fill on buttons; neutral actions are outline, surface or ghost.",
+  message:
+    "Kein hellgrauer Knopf: neutrale Aktionen sind outline, surface oder ghost, die Hauptaktion primary, Löschen outline_danger oder danger (#5574, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      const name = jsxName(node.name) ?? "";
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name) ||
+        bindings.actionComponents.has(name) ||
+        bindings.kitButtons.has(name) ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button";
+      if (!isAction || isNavigationOrControl(node, name, bindings)) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (hasGreyRestFill(textOf(className.value))) found(node);
+    },
+    CallExpression(node) {
+      if (
+        node.callee?.type !== "Identifier" ||
+        !bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return;
+      }
+      const value = classNameProperty(node.arguments[0]);
+      if (value && hasGreyRestFill(textOf(value))) found(node);
+    },
+  }),
+});
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -1946,6 +2065,7 @@ export default {
     "no-dead-surface-utility": noDeadSurfaceUtility,
     "no-dynamic-color-class": noDynamicColorClass,
     "no-generic-brand-colors": noGenericBrandColors,
+    "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
