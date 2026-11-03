@@ -402,14 +402,21 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       await route.continue();
     });
     let deleted!: Promise<boolean>;
-    let revoked!: Promise<Response>;
-    const ending = endSession(tab1, () => {
-      deleted = waitForSessionCookieDeletion(tab1);
-      revoked = tab1.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === "/api/auth/logout" &&
-          response.status() === 204,
-      );
+    let ending!: Promise<void>;
+    // endSession calls the hook only after its menu clicks; wait for the hook
+    // before awaiting the response, or `revoked` is still undefined.
+    const revoked = new Promise<Response>((resolveRevoked, rejectRevoked) => {
+      ending = endSession(tab1, () => {
+        deleted = waitForSessionCookieDeletion(tab1);
+        tab1
+          .waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === "/api/auth/logout" &&
+              response.status() === 204,
+          )
+          .then(resolveRevoked, rejectRevoked);
+      });
+      ending.catch(rejectRevoked);
     });
     await revoked;
     // The revocation committed; the cookie is still there (CSRF stalls).
