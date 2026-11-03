@@ -275,6 +275,7 @@ function selectedIndexForValue<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
   value: K,
 ): number {
+  if (options.length === 0) return -1;
   const selectedIndex = options.findIndex((option) => option.value === value);
   return selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options);
 }
@@ -387,6 +388,7 @@ export function ListboxDropdown<K extends string>({
   // it once a search field or a slot is in play.
   const menuRef = useRef<HTMLElement | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const previousOptionsRef = useRef(options);
   const typeaheadBufferRef = useRef("");
   const typeaheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pointer-driven focus (hover) must not scroll the menu — re-centering under
@@ -434,6 +436,30 @@ export function ListboxDropdown<K extends string>({
       : ((portalScopeSelector
           ? buttonRef.current?.closest(portalScopeSelector)
           : null) ?? document.body);
+
+  // A search replaces the visible option array. Keep focus attached to the
+  // option value rather than its former array position, or fall back to the
+  // selected/first visible option when that value is filtered out.
+  useLayoutEffect(() => {
+    const previousOptions = previousOptionsRef.current;
+    previousOptionsRef.current = options;
+    if (previousOptions === options) return;
+
+    const focusedValue = previousOptions[focusIndex]?.value;
+    const remappedFocusIndex =
+      focusedValue === undefined
+        ? -1
+        : options.findIndex((option) => option.value === focusedValue);
+    const nextFocusIndex =
+      remappedFocusIndex >= 0
+        ? remappedFocusIndex
+        : options.length === 0
+          ? -1
+          : selectedIndex;
+
+    if (nextFocusIndex < 0) setOptionsFocused(false);
+    if (nextFocusIndex !== focusIndex) setFocusIndex(nextFocusIndex);
+  }, [focusIndex, options, selectedIndex]);
 
   useEffect(() => {
     if (!open) return;
@@ -992,7 +1018,9 @@ export function ListboxDropdown<K extends string>({
         // back from the portaled options to this trigger; activedescendant
         // keeps the highlighted option announced in that trigger-focused mode.
         aria-activedescendant={
-          open ? `${listboxId}-option-${focusIndex}` : undefined
+          open && focusIndex >= 0
+            ? `${listboxId}-option-${focusIndex}`
+            : undefined
         }
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}

@@ -160,6 +160,38 @@ describe("MultiSelect", () => {
       expect(screen.queryByRole("option", { name: "Fußball-AG" })).toBeNull();
     });
 
+    it("keeps keyboard focus on an option when filtering changes its index", () => {
+      const onChange = vi.fn();
+      render(<Controlled searchable onChange={onChange} />);
+      openMenu();
+
+      const search = screen.getByRole("textbox", { name: "Suchen" });
+      fireEvent.keyDown(search, { key: "ArrowDown" });
+      fireEvent.keyDown(screen.getByRole("option", { name: "Bärengruppe" }), {
+        key: "ArrowDown",
+      });
+      fireEvent.keyDown(screen.getByRole("option", { name: "Sternengruppe" }), {
+        key: "ArrowDown",
+      });
+      fireEvent.keyDown(screen.getByRole("option", { name: "Sonnengruppe" }), {
+        key: "ArrowDown",
+      });
+
+      fireEvent.change(search, { target: { value: "fußball" } });
+
+      const focusedOption = screen.getByRole("option", {
+        name: "Fußball-AG",
+      });
+      expect(focusedOption).toHaveFocus();
+      expect(trigger()).toHaveAttribute(
+        "aria-activedescendant",
+        focusedOption.id,
+      );
+
+      fireEvent.keyDown(focusedOption, { key: "Enter" });
+      expect(onChange).toHaveBeenCalledWith(["4"]);
+    });
+
     it("shows an empty state for no matches", () => {
       render(<Controlled searchable />);
       openMenu();
@@ -168,6 +200,7 @@ describe("MultiSelect", () => {
       });
 
       expect(screen.getByText("Keine Treffer.")).toBeInTheDocument();
+      expect(trigger()).not.toHaveAttribute("aria-activedescendant");
     });
 
     it("selects all filtered options", () => {

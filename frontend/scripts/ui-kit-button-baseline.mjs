@@ -41,7 +41,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/listbox-dropdown.tsx",
-    lines: [969],
+    lines: [995],
     reason:
       "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
   },
