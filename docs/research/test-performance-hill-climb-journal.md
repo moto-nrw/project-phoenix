@@ -940,7 +940,7 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 ### Runde B-test (backend/test): Paket verworfen, Deadline-Test behalten
 - Delegate-Kandidat (direkte Deadline-Prüfung, AST-Graph-Dedup, Hermetik-/Counter-Feinschliff): Paket n=3 30,7 → 28,7 s (−6,6 %), verworfen. Profil (13 s Wand, 34 CPU-s): API-Builder-Routengraph 6,6 CPU-s, Kalender-Scan 2,8, Hermetik-Global-State 2,4 CPU-s; QueryCounters-Unterfälle ≤ 0,01 s, ~19,6 s des Elternwerts sind Scheduler-Warten. Untergrenze: vollständige AST-Scans über alle Backend-Dateien; ihre Wandzeit > CPU ist Konkurrenz im eigenen Paket.
 - Parent-Variante nur für TestSessionFixturesGiveEachWriteItsOwnDeadline: drei Subtests mit `t.Parallel()`, echte 3-s-Trigger bleiben. Isoliert n=3: 19,23/18,91/19,16 → 6,93/6,81/6,91 s (Median 19,16 → 6,91, −64 %).
-- Mutation „Deadline in CreateTestActivityGroup vor den verschachtelten Fixtures“: vorher/nachher rot an `Failed to create test activity group: context deadline exceeded`. Inventar unverändert (4 Läufe/Subtests).
+- Mutation „Deadline in CreateTestActivityGroup vor den verschachtelten Fixtures“: vorher/nachher rot an `Failed to create test activity group: context deadline exceeded`. Inventar unverändert (1 Test, 3 Subtests). Review Sol: OK (2 Race-Läufe grün).
 
 ### Runde F-wizard (Wizard-/Timetable-Komponententests): 3 behalten, 1 Untergrenze
 - Ursache: echte Tour-Wartezeiten (200-ms-Suche, 250/800/1500 ms) und Vorschlags-Debounce 400 ms plus echtes `setTimeout(600)`. Änderung: dateiweite Fake-Timer mit `jest`-Brücke für Testing Library (findBy/waitFor rücken Fake-Zeit vor, Budgets bleiben), Restore in afterAll.
