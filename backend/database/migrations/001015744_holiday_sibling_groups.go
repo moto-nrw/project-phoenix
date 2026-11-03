@@ -15,7 +15,7 @@ func init() {
 		Description: "Elternabrechnung: Geschwister aus getrennten Ferienanmeldungen und Fassungen des festgehaltenen Beitrags (#5628)",
 		DependsOn: []string{
 			parentBillingDocumentCorrectionsVersion,  // the last migration before this one
-			holidayDebtorNumberVersion,               // the audit actions this extends
+			holidayRegistrationEditVersion,           // the audit actions this extends
 			parentBillingHolidayContributionsVersion, // the frozen contributions this versions
 		},
 	})
@@ -110,7 +110,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
 		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number',
-			'sibling_merge', 'sibling_split'));
+			'edit', 'sibling_merge', 'sibling_split'));
 `
 
 // holidaySiblingGroupsDownSQL drops the groups and every version but the
@@ -121,7 +121,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT chk_holiday_registration_audit_action;
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
-		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number'));
+		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit'));
 DROP TABLE IF EXISTS parent_billing.holiday_sibling_group_members;
 DROP TABLE IF EXISTS parent_billing.holiday_sibling_groups;
 DROP FUNCTION IF EXISTS parent_billing.drop_lone_holiday_sibling_group();

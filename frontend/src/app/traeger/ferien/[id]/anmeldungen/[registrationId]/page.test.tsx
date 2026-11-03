@@ -31,13 +31,17 @@ vi.mock("~/lib/traeger-api", () => ({
 const {
   mockRegistration,
   mockHealth,
+  mockEdit,
   mockConfirmationSettings,
   sessionPermissions,
+  contributionOverride,
 } = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
   mockHealth: vi.fn(),
+  mockEdit: vi.fn(),
   mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
+  contributionOverride: { current: null as unknown },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   ...(await importOriginal<
@@ -45,11 +49,17 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   >()),
   fetchHolidayRegistration: () => mockRegistration(),
   fetchHolidayRegistrationHealth: () => mockHealth(),
+  editHolidayRegistration: (...args: unknown[]) => mockEdit(...args),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
-  fetchHolidayContribution: () => mockContribution(),
+  // A test sets the contribution through the override (#5629) or the
+  // mock (#5628).
+  fetchHolidayContribution: () =>
+    contributionOverride.current
+      ? Promise.resolve(contributionOverride.current)
+      : mockContribution(),
 }));
 
 const { mockSplit } = vi.hoisted(() => ({ mockSplit: vi.fn() }));
@@ -67,6 +77,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
+    mockEdit.mockReset();
     sessionPermissions.current = [];
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
     // The Träger portal has no school: no TenantProvider above the page.
@@ -667,6 +678,379 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       evidence.getByRole("button", { name: "Ferienbrief herunterladen" }),
     ).toHaveTextContent("Herunterladen");
+  });
+});
+
+describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
+  beforeEach(() => {
+    mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
+    mockEdit.mockReset();
+    sessionPermissions.current = [];
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
+    vi.mocked(useTenantSlugSafe).mockReturnValue(null);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
+  });
+
+  async function openParentsEdit() {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Angaben der Eltern ändern" }),
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Angaben ändern",
+    });
+    return within(heading.closest("section")!);
+  }
+
+  it("changes the parents in place, shows a refused field at the field and the entry in the history", async () => {
+    const edit = await openParentsEdit();
+    expect(
+      await edit.findByText(
+        "Die Änderung steht im Verlauf. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist.",
+      ),
+    ).toBeInTheDocument();
+    // Only one card is edited at a time.
+    expect(
+      screen.queryByRole("button", {
+        name: "Notfallkontakte und Abholung ändern",
+      }),
+    ).not.toBeInTheDocument();
+    expect(edit.getByLabelText(/^Telefon/)).toHaveValue("0151 2345678");
+
+    mockEdit.mockRejectedValueOnce(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "guardian.email", reason: "invalid" }],
+      }),
+    );
+    fireEvent.change(edit.getByLabelText(/^E-Mail/), {
+      target: { value: "eva@" },
+    });
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(edit.getByLabelText(/^E-Mail/)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+    expect(edit.getByLabelText(/^Telefon/)).not.toHaveAttribute("aria-invalid");
+
+    mockEdit.mockResolvedValueOnce({
+      ...HOLIDAY_REGISTRATION,
+      guardianEmail: "eva.muster@example.org",
+      guardianPhone: "0151 9999999",
+      history: [
+        {
+          action: "edit",
+          occurredAt: "2026-11-03T10:12:00Z",
+          from: "",
+          childId: "",
+          before: [],
+          after: [],
+          fields: ["guardian.email", "guardian.phone", "children.0.last_name"],
+        },
+      ],
+    });
+    fireEvent.change(edit.getByLabelText(/^E-Mail/), {
+      target: { value: "eva.muster@example.org" },
+    });
+    fireEvent.change(edit.getByLabelText(/^Telefon/), {
+      target: { value: "0151 9999999" },
+    });
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+
+    expect(
+      await screen.findByText(
+        ": E-Mail des Elternteils, Telefon des Elternteils, Nachname von Kind 1",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Angaben geändert")).toBeInTheDocument();
+    expect(mockEdit).toHaveBeenLastCalledWith("5", "7", {
+      guardians: {
+        guardian: {
+          firstName: "Eva",
+          lastName: "Muster",
+          email: "eva.muster@example.org",
+          phone: "0151 9999999",
+        },
+        address: null,
+        secondGuardian: null,
+      },
+    });
+    // Back in the display: the card shows the saved values.
+    expect(screen.getByText("0151 9999999")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Angaben ändern" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("changes one child and sends no health answer", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      form: {
+        version: 2,
+        fields: [
+          {
+            key: "tetanus",
+            label: "Tetanus-Impfschutz",
+            type: "select",
+            applies_to_child: true,
+            health: true,
+            sort_order: 0,
+            options: [{ label: "Ja", value: "ja" }],
+          },
+          {
+            key: "lieblingsessen",
+            label: "Lieblingsessen",
+            type: "text",
+            applies_to_child: true,
+            sort_order: 1,
+          },
+          {
+            key: "abholdatum",
+            label: "Erster Abholtag",
+            type: "date",
+            applies_to_child: true,
+            help_text: "Der Tag, ab dem jemand anders abholt.",
+            sort_order: 3,
+          },
+          {
+            key: "gruppe",
+            label: "Wunschgruppe",
+            type: "select",
+            applies_to_child: true,
+            sort_order: 2,
+            options: [{ label: "Bären", value: "baeren" }],
+          },
+        ],
+      },
+      childAnswers: { "9": { lieblingsessen: "Nudeln" } },
+    });
+    mockEdit.mockResolvedValueOnce(HOLIDAY_REGISTRATION);
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Angaben von Lia Muster ändern",
+      }),
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Angaben ändern",
+    });
+    const edit = within(heading.closest("section")!);
+    // Anker: the editor has loaded and asks the child's own question.
+    expect(await edit.findByLabelText(/^Lieblingsessen/)).toHaveValue("Nudeln");
+    expect(edit.queryByText("Tetanus-Impfschutz")).not.toBeInTheDocument();
+    // A date question keeps its help text and loads the kit date picker.
+    expect(
+      edit.getByText("Der Tag, ab dem jemand anders abholt."),
+    ).toBeInTheDocument();
+    expect(await edit.findByLabelText(/^Erster Abholtag/)).toBeInTheDocument();
+    // An unanswered choice asks in German, not with the key of its text.
+    expect(edit.getByText("Bitte wählen")).toBeInTheDocument();
+    expect(edit.queryByText("fields.choose")).not.toBeInTheDocument();
+    fireEvent.change(edit.getByLabelText(/^Nachname/), {
+      target: { value: "Mustermann" },
+    });
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+        child: {
+          id: "9",
+          firstName: "Lia",
+          lastName: "Mustermann",
+          birthDate: "2018-03-01",
+          homeSchoolId: "31",
+          guestSchoolName: "",
+          answers: { lieblingsessen: "Nudeln" },
+        },
+      }),
+    );
+  });
+
+  it.each([
+    { homeSchoolId: "99", label: "Bisherige Schule (gelöscht)", count: 4 },
+    { homeSchoolId: "31", label: "OGS Nord", count: 3 },
+    { homeSchoolId: null, label: "Andere Schule (Feriengast)", count: 3 },
+  ])(
+    "keeps the saved school $homeSchoolId selectable after a change",
+    async ({ homeSchoolId, label, count }) => {
+      const registration = {
+        ...HOLIDAY_REGISTRATION,
+        children: HOLIDAY_REGISTRATION.children.map((child) =>
+          child.id === "9" ? { ...child, homeSchoolId } : child,
+        ),
+      };
+      mockRegistration.mockResolvedValue(registration);
+      mockEdit.mockResolvedValueOnce(registration);
+      render(
+        <ToastProvider>
+          <TraegerHolidayRegistrationPage />
+        </ToastProvider>,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Angaben von Lia Muster ändern",
+        }),
+      );
+      const school = await screen.findByRole("combobox", { name: /^Schule/ });
+      expect(school).toHaveTextContent(label);
+      fireEvent.click(school);
+      expect(screen.getAllByRole("option")).toHaveLength(count);
+      fireEvent.click(screen.getByRole("option", { name: "OGS Süd" }));
+      expect(school).toHaveTextContent("OGS Süd");
+      fireEvent.click(school);
+      fireEvent.click(screen.getByRole("option", { name: label }));
+      expect(school).toHaveTextContent(label);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Änderung speichern" }),
+      );
+      await waitFor(() =>
+        expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+          child: expect.objectContaining({ id: "9", homeSchoolId }),
+        }),
+      );
+    },
+  );
+
+  it("drops a contact entry whose fields are all empty", async () => {
+    mockEdit.mockResolvedValueOnce(HOLIDAY_REGISTRATION);
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Notfallkontakte und Abholung ändern",
+      }),
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Angaben ändern",
+    });
+    const edit = within(heading.closest("section")!);
+    fireEvent.click(
+      await edit.findByRole("button", { name: "Abholperson hinzufügen" }),
+    );
+    expect(
+      edit.getByRole("group", { name: "Abholberechtigte" }),
+    ).toContainElement(
+      within(
+        edit.getByRole("group", { name: "Abholberechtigte" }),
+      ).getByLabelText(/^Name/),
+    );
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+        contacts: {
+          emergency: [
+            {
+              name: "Oma Muster",
+              phone: "05402 1234",
+              relationship: "Großmutter",
+            },
+          ],
+          pickup: [],
+        },
+      }),
+    );
+  });
+
+  it("changes the postal address with the rules of its form and says an invoice keeps the old one (#5625)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      status: "confirmed",
+      guardianAddress: {
+        street: "Musterweg 12",
+        postalCode: "01234",
+        city: "Bissendorf",
+      },
+      form: { ...HOLIDAY_REGISTRATION.form, addressRequirement: "required" },
+    });
+    contributionOverride.current = { ...HOLIDAY_CONTRIBUTION, invoiced: true };
+    mockEdit.mockResolvedValueOnce({
+      ...HOLIDAY_REGISTRATION,
+      history: [
+        {
+          action: "edit",
+          occurredAt: "2026-11-03T10:12:00Z",
+          from: "",
+          childId: "",
+          before: [],
+          after: [],
+          debtorNumber: null,
+          fields: ["guardian_address"],
+        },
+      ],
+    });
+    const edit = await openParentsEdit();
+    expect(
+      await edit.findByText(
+        "Für diese Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die bisherige Anschrift.",
+      ),
+    ).toBeInTheDocument();
+    expect(edit.getByLabelText(/^Straße und Hausnummer/)).toHaveValue(
+      "Musterweg 12",
+    );
+    expect(edit.getByLabelText(/^PLZ/)).toBeRequired();
+    fireEvent.change(edit.getByLabelText(/^PLZ/), {
+      target: { value: "49143" },
+    });
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+        guardians: {
+          guardian: {
+            firstName: "Eva",
+            lastName: "Muster",
+            email: "eva@example.org",
+            phone: "0151 2345678",
+          },
+          address: {
+            street: "Musterweg 12",
+            postalCode: "49143",
+            city: "Bissendorf",
+          },
+          secondGuardian: null,
+        },
+      }),
+    );
+    expect(
+      await screen.findByText(": Anschrift", { exact: false }),
+    ).toBeInTheDocument();
+    contributionOverride.current = null;
+  });
+
+  it("offers no „Ändern“ on a cancelled registration and says why", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      status: "cancelled",
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findByText(
+        "Die Anmeldung ist storniert. Die Angaben lassen sich nicht mehr ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /ändern$/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
