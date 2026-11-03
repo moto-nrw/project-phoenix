@@ -211,4 +211,77 @@ describe("TraegerBeitraegePage", () => {
       }),
     );
   });
+
+  it("changes a cost bearer in its row, one row at a time, without a dialog", async () => {
+    const social: CostBearer = {
+      id: "5",
+      name: "Sozialamt Musterstadt",
+      address: "",
+      fileReference: "",
+      active: true,
+      inUse: false,
+    };
+    api.fetchCostBearers.mockResolvedValue([YOUTH_OFFICE, social]);
+    api.saveCostBearer.mockResolvedValue(YOUTH_OFFICE);
+    renderPage();
+    await screen.findAllByText(YOUTH_OFFICE.name);
+
+    const openChange = async (name: string) => {
+      fireEvent.click(
+        screen.getAllByRole("button", { name: `Aktionen für ${name}` })[0]!,
+      );
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
+    };
+
+    await openChange(YOUTH_OFFICE.name);
+    const form = await screen.findByRole("form", {
+      name: `${YOUTH_OFFICE.name} ändern`,
+    });
+    expect(form.closest("li")).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByDisplayValue("FJ 51-2027")).toBeInTheDocument();
+    expect(screen.getByText("Sozialamt Musterstadt")).toBeInTheDocument();
+
+    // Opening another row closes the first one.
+    await openChange(social.name);
+    expect(
+      await screen.findByRole("form", { name: "Sozialamt Musterstadt ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("form", { name: `${YOUTH_OFFICE.name} ändern` }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      screen.queryByRole("form", { name: "Sozialamt Musterstadt ändern" }),
+    ).toBeNull();
+    expect(screen.getByText("Sozialamt Musterstadt")).toBeInTheDocument();
+
+    await openChange(YOUTH_OFFICE.name);
+    const name = await screen.findByDisplayValue(YOUTH_OFFICE.name);
+    fireEvent.change(name, { target: { value: " " } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte geben Sie den Namen ein."),
+    ).toBeInTheDocument();
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(api.saveCostBearer).not.toHaveBeenCalled();
+
+    fireEvent.change(name, { target: { value: "Jugendamt Musterstadt" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(api.saveCostBearer).toHaveBeenCalledWith(
+        "4",
+        expect.objectContaining({
+          name: "Jugendamt Musterstadt",
+          address: YOUTH_OFFICE.address,
+          fileReference: "FJ 51-2027",
+          active: true,
+        }),
+      ),
+    );
+    await waitFor(() => expect(api.fetchCostBearers).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("form", { name: "Jugendamt Musterstadt ändern" }),
+    ).toBeNull();
+  });
 });
