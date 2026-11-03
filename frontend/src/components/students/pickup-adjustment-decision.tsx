@@ -356,7 +356,7 @@ function ExceptionAction({
       </Button>
       <p className="mt-2 text-xs leading-5 text-gray-500">
         {canSave
-          ? "Das gebuchte Angebot bleibt unverändert. Bei einer Abweichung steht in der Kinderkartei „Andere Zeit als im Angebot“."
+          ? "Das gebuchte Angebot bleibt unverändert. Weicht die Zeit von der Buchung ab, zeigt die Kinderkartei unter „Betreuungszeiten“ die gebuchte Zeit daneben."
           : "Eine dauerhafte Ausnahme gilt ab heute. Bearbeiten Sie die aktuelle Woche."}
       </p>
     </div>

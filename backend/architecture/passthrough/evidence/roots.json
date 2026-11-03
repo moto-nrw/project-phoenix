@@ -3866,14 +3866,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (p bookingPickup) OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error) {\n\treturn p.baselines.OfferingPickupForDate(ctx, studentID, date)\n}",
-      "form": "forward-debt",
-      "id": "roots/owners/bookingPickup.OfferingPickupForDate",
+      "evidence": "func (p bookingPickup) OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error) {\n\treturn p.baselines.Project(ctx, []int64{studentID}, from, to)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingPickup.OfferingPickupsBetween",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {\n\trows, err := p.rows.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {\n\trows, err := p.rows.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday, PickupTime: row.PickupTime.Format(\"15:04\"), Manual: row.Source != careplan.ScheduleSourceCareOffering})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingPickup.WeekdayRows",
       "owner": "roots"

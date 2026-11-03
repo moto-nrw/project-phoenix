@@ -146,11 +146,50 @@ func (s *pickupScheduleService) UpsertStudentPickupSchedule(
 	row *careplan.PickupSchedule,
 ) error {
 	if s.autoExcusal == nil {
-		return s.upsertSchedule(ctx, row)
+		return s.upsertUnlessBooked(ctx, row)
 	}
 	return s.withWeeklyResync(ctx, row.StudentID, func(txCtx context.Context) error {
-		return s.upsertSchedule(txCtx, row)
+		return s.upsertUnlessBooked(txCtx, row)
 	})
+}
+
+// upsertUnlessBooked stores one weekday as a staff override, like the weekly
+// editor's manualRowsForReplacement: a time without notes that only repeats
+// the booked offering's pickup time stays a projection. Then the weekday's
+// stored override is removed instead, so a later booking change applies to
+// that day (an approved parent request kept 14:30 over a new 16:00 booking).
+func (s *pickupScheduleService) upsertUnlessBooked(ctx context.Context, row *careplan.PickupSchedule) error {
+	if s.PickupBaselineReader == nil || row == nil || !emptyOptionalPickupNotes(row.Notes) {
+		return s.upsertSchedule(ctx, row)
+	}
+	// An invalid row must fail as on the plain upsert, before it can remove
+	// a stored override.
+	if err := row.Validate(); err != nil {
+		return &careplan.ScheduleError{Op: "upsert student pickup schedule", Err: err}
+	}
+	date := nextISOWeekday(calendar.TodayDate(), row.Weekday)
+	projection, err := s.Project(ctx, []int64{row.StudentID}, date, date)
+	if err != nil {
+		return &careplan.ScheduleError{Op: "upsert student pickup schedule", Err: err}
+	}
+	offering := projection.OfferingForDate(row.StudentID, date)
+	if offering == nil || !samePickupMinute(offering, row) {
+		return s.upsertSchedule(ctx, row)
+	}
+	existing, err := s.scheduleRepo.FindByStudentID(ctx, row.StudentID)
+	if err != nil {
+		return &careplan.ScheduleError{Op: "upsert student pickup schedule", Err: err}
+	}
+	if stored := staffPickupRowsByWeekday(existing)[row.Weekday]; stored != nil {
+		return s.deleteSchedule(ctx, stored.ID)
+	}
+	return nil
+}
+
+// nextISOWeekday is the first date on or after from that falls on the ISO
+// weekday (1 = Monday).
+func nextISOWeekday(from calendar.Date, weekday int) calendar.Date {
+	return from.AddDays((weekday - domain.ISOWeekday(from) + 7) % 7)
 }
 
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(

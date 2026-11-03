@@ -662,9 +662,15 @@ describe("CarePlanEditorModal", () => {
       .mockResolvedValueOnce(undefined);
     renderEditor({ onResetPickupToOffering });
 
+    // Der Dialog heißt „Ausnahme“; das Übernehmen ändert aber jeden Montag.
+    expect(
+      screen.getByText(
+        /Übernehmen gilt jeden Montag, nicht nur an diesem Tag\./,
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Abholung auf Angebots-Gehzeit zurücksetzen",
+        name: "Gebuchte Abholzeit übernehmen",
       }),
     );
 
