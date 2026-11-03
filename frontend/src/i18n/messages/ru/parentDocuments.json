@@ -4,6 +4,8 @@
   "emptyTitle": "Пока нет документов",
   "emptyDescription": "Когда организация отправит вам письмо, вы найдёте его здесь. Вы также получите его по электронной почте.",
   "confirmationLetter": "Подтверждение: {period}",
+  "cancellationLetter": "Аннулирование: {period}",
+  "creditLetter": "Кредит-нота: {period}",
   "sender": "От: {traeger}",
   "children": "Для",
   "amount": "Сумма",
