@@ -241,7 +241,7 @@ const WeekChart = memo(function WeekChart({
         ) : (
           <ChartContainer
             config={weekChartConfig}
-            className="!aspect-auto min-h-0 flex-1"
+            className="aspect-auto min-h-0 flex-1"
           >
             <WeekChartPlot chartData={chartData} isMobile={isMobile} />
           </ChartContainer>

@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+
 import { SectionCard } from "./section-card";
 
 describe("SectionCard Kopfzeilen-Aktionen", () => {
@@ -209,5 +211,90 @@ describe("SectionCard Überschrift", () => {
       screen.getByRole("heading", { level: 2, name: "Ablauf" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+});
+
+describe("SectionCard als einzige Kopfkarte (#5581)", () => {
+  it("zeigt mit concept das Konzeptsymbol vor dem Titel", () => {
+    render(
+      <SectionCard
+        title="Nachrichten mit den Eltern"
+        concept={parentConversationsConcept}
+      >
+        Inhalt
+      </SectionCard>,
+    );
+
+    const heading = screen.getByRole("heading", {
+      name: "Nachrichten mit den Eltern",
+    });
+    const card = heading.closest("section");
+    expect(
+      card?.querySelector('[data-moto-duotone-tone="blue"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt die Fußzone unter dem Inhalt und blendet sie mit der Karte ein und aus", async () => {
+    const user = userEvent.setup();
+    render(
+      <SectionCard
+        title="Block"
+        collapsible
+        footer={<button type="button">Kinder</button>}
+      >
+        Inhalt
+      </SectionCard>,
+    );
+
+    expect(screen.getByRole("button", { name: "Kinder" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Block einklappen" }));
+    expect(
+      screen.queryByRole("button", { name: "Kinder" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Block ausklappen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt beim Laden einen Ladehinweis statt des Inhalts, der Kopf bleibt", () => {
+    render(
+      <SectionCard title="Vorschau" loading>
+        <p>Werden übernommen</p>
+      </SectionCard>,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Vorschau" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAccessibleName(
+      "Vorschau wird geladen",
+    );
+    expect(screen.queryByText("Werden übernommen")).not.toBeInTheDocument();
+  });
+
+  it("legt ohne Polster keinen Innenabstand an die Fläche", () => {
+    render(
+      <SectionCard padding="none" testId="karte">
+        Inhalt
+      </SectionCard>,
+    );
+
+    const card = screen.getByTestId("karte");
+    expect(card.className).not.toMatch(/(?:^|\s)p-5(?:\s|$)/);
+    expect(card.className).toContain("rounded-2xl");
+  });
+
+  it("lässt den Rumpf mit flush bis an die Seiten- und Unterkante laufen", () => {
+    render(
+      <SectionCard title="Verlauf" flush testId="karte">
+        <table aria-label="Verlauf" />
+      </SectionCard>,
+    );
+
+    const body = screen.getByRole("table", { name: "Verlauf" }).parentElement;
+    const card = screen.getByTestId("karte");
+    // Der Kopf behält sein Polster, der Rumpf liegt direkt an der Fläche.
+    expect(card.className).not.toMatch(/(?:^|\s)p-5(?:\s|$)/);
+    expect(body?.className).not.toMatch(/(?:^|\s)-m[xb]-/);
   });
 });

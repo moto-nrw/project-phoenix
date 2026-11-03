@@ -14,7 +14,8 @@ import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker"
 import { Button } from "~/components/ui/button";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { SectionCard } from "~/components/ui/section-card";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
 import germanEnrollmentFormMessages from "~/i18n/messages/de/enrollmentForm.json";
@@ -2046,43 +2047,34 @@ export function EnrollmentForm({
                 .filter((offering) => child.offering_ids.has(offering.id))
                 .map((offering) => offering.name);
               return (
-                <InfoCard
+                <SectionCard
                   key={child.clientId}
                   title={name || tr("structured.child")}
-                  icon={
-                    <Lock
-                      className="h-5 w-5 text-gray-600"
-                      aria-hidden="true"
-                    />
-                  }
+                  icon={Lock}
+                  bodyClassName="compact:mt-3 mt-4 space-y-3"
                 >
                   <StatusBadge label={tr("locked.badge")} tone="green" />
-                  <InfoItem
-                    label={tr("locked.birthday")}
-                    value={
-                      child.date_of_birth
+                  <DataGrid columns={1}>
+                    <DataField label={tr("locked.birthday")}>
+                      {child.date_of_birth
                         ? formatDate(child.date_of_birth, false, activeLocale)
-                        : "-"
-                    }
-                  />
-                  {collectGradeLevel && child.target_grade_level ? (
-                    <InfoItem
-                      label={tr("locked.grade")}
-                      value={tr("fields.grade", {
-                        grade: child.target_grade_level,
-                      })}
-                    />
-                  ) : null}
-                  <InfoItem
-                    label={tr("locked.care")}
-                    value={
-                      booked.length > 0
+                        : "-"}
+                    </DataField>
+                    {collectGradeLevel && child.target_grade_level ? (
+                      <DataField label={tr("locked.grade")}>
+                        {tr("fields.grade", {
+                          grade: child.target_grade_level,
+                        })}
+                      </DataField>
+                    ) : null}
+                    <DataField label={tr("locked.care")}>
+                      {booked.length > 0
                         ? booked.join(", ")
                         : child.offering_ids.size > 0
                           ? "-"
-                          : tr("locked.noCare")
-                    }
-                  />
+                          : tr("locked.noCare")}
+                    </DataField>
+                  </DataGrid>
                   <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
                     {tr("locked.hint", {
                       name: name || tr("structured.child"),
@@ -2090,7 +2082,7 @@ export function EnrollmentForm({
                     <br />
                     {tr("locked.noAccess")}
                   </p>
-                </InfoCard>
+                </SectionCard>
               );
             }
             return (

@@ -5,7 +5,19 @@ import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { DataFieldSkeleton } from "~/components/ui/data-field";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
+
+// Das eine Kartenpolster (ADR 0149, Entscheidung 9): 20 px, auf dem Telefon
+// und in der kompakten Ansicht 16 px. Mit `flush` oder `footer` liegt es auf
+// den Zonen statt auf der Fläche, damit Rumpf und Fußzone bis an den Rand
+// laufen können, ohne das Polster per Negativrand wieder aufzuheben.
+const CARD_PADDING = "compact:p-4 p-5 max-sm:p-4";
+const ZONE_PADDING_X = "compact:px-4 px-5 max-sm:px-4";
+const ZONE_PADDING_TOP = "compact:pt-4 pt-5 max-sm:pt-4";
+const ZONE_PADDING_BOTTOM = "compact:pb-4 pb-5 max-sm:pb-4";
 
 /**
  * The disclosure toggle of a collapsible `SectionCard`. Exported for a
@@ -121,9 +133,11 @@ export function SectionCollapseHead({
  * title, a muted description and an action slot on the right.
  *
  * Use this instead of hand-rolling `<section className="rounded-2xl border …">`
- * with a local header component. `InfoCard` stays the right choice for the
- * denser icon + title stat cards; this one is for page sections that carry a
- * heading, an explanation and actions.
+ * with a local header component. It is the only card head in the kit (#5581):
+ * `concept` draws the concept icon tile, `flush` lets a table or list run to
+ * the card edge, `footer` adds a bottom zone, `padding="none"` drops the
+ * surface padding for content that brings its own rows, and `loading` shows
+ * field-shaped bars under the real head.
  *
  * `collapsible` opts into the disclosure toggle the staff Stammdaten tab uses
  * (many sections on one long page). Sections that are already short — the
@@ -138,6 +152,7 @@ export function SectionCard({
   titleBadge,
   description,
   icon: Icon,
+  concept,
   leading,
   action,
   actions,
@@ -155,6 +170,11 @@ export function SectionCard({
   className = "",
   /** `visible` lässt Dropdowns aus der Kopfzeile über den Kartenrand ragen. */
   overflow = "hidden",
+  flush = false,
+  footer,
+  padding = "default",
+  loading = false,
+  loadingRows = 3,
   children,
   id,
 }: Readonly<{
@@ -169,6 +189,8 @@ export function SectionCard({
   titleBadge?: ReactNode;
   description?: ReactNode;
   icon?: LucideIcon;
+  /** Concept icon tile of a fachliches Konzept (`lib/concepts/`). */
+  concept?: MotoConcept;
   /** Existing icon tile or other leading visual for non-Lucide icon systems. */
   leading?: ReactNode;
   /** Single header action. `actions` is the multi-element form. */
@@ -211,6 +233,21 @@ export function SectionCard({
   bodyClassName?: string;
   className?: string;
   overflow?: "hidden" | "visible";
+  /**
+   * Rumpf ohne Seiten- und Unterrand: eine Tabelle oder Liste mit eigener
+   * Zellpolsterung läuft bis an die Kartenkante. Der Kopf behält sein Polster.
+   */
+  flush?: boolean;
+  /**
+   * Fußzone unter dem Rumpf, randlos mit Trennlinie (Aufklapper, Aktionen
+   * zum Inhalt). Sie klappt mit der Karte ein.
+   */
+  footer?: ReactNode;
+  /** `none`: Fläche ohne Polster, wenn der Inhalt eigene Zeilen mitbringt. */
+  padding?: "default" | "none";
+  /** Zeigt Balken in Feldform statt des Inhalts; der Kopf bleibt echt. */
+  loading?: boolean;
+  loadingRows?: number;
   children?: ReactNode;
   id?: string;
 }>) {
@@ -220,16 +257,36 @@ export function SectionCard({
   const headingId = useId();
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5";
   const headerActions = actions ?? action;
-  const hasBody = children != null && children !== false && children !== "";
-  const showBody = hasBody && !(collapsible && collapsed);
+  const open = !(collapsible && collapsed);
+  const hasBody =
+    loading || (children != null && children !== false && children !== "");
+  const showBody = hasBody && open;
+  const showFooter = footer != null && footer !== false && open;
+  const leadingVisual =
+    leading ??
+    (concept ? <ConceptIconTile concept={concept} variant="section" /> : null);
   const hasHeader =
     title != null ||
     kicker != null ||
     description != null ||
-    leading != null ||
+    leadingVisual != null ||
     Icon != null ||
     headerActions != null ||
     collapsible;
+  // Zonen tragen das Polster, wenn ein Teil bis an den Rand laufen soll.
+  const zoned = !bare && padding === "default" && (flush || footer != null);
+  let surfacePadding = "";
+  if (padding === "default" && !zoned) surfacePadding = CARD_PADDING;
+  const bodySpacing =
+    hasHeader && !bare ? (bodyClassName ?? "compact:mt-3 mt-4") : bodyClassName;
+  const bodyClasses = zoned
+    ? cn(
+        !flush && ZONE_PADDING_X,
+        !flush && !hasHeader && ZONE_PADDING_TOP,
+        !flush && !showFooter && ZONE_PADDING_BOTTOM,
+        bodySpacing,
+      )
+    : bodySpacing;
 
   return (
     <section
@@ -239,7 +296,12 @@ export function SectionCard({
       className={
         bare
           ? cn("space-y-4", className)
-          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} compact:p-4 rounded-2xl border p-5 max-sm:p-4 ${className}`
+          : cn(
+              "moto-content-surface rounded-2xl border",
+              overflow === "hidden" ? "overflow-hidden" : "overflow-visible",
+              surfacePadding,
+              className,
+            )
       }
     >
       {hasHeader && (
@@ -247,7 +309,13 @@ export function SectionCard({
         // dem Telefon in der Titelzeile, nur die Aktionen brechen als volle
         // Zeile um (dev-Fix "keep SectionCard collapse chevron on the title
         // row on mobile").
-        <SectionCollapseHead className="flex flex-wrap items-start gap-3">
+        <SectionCollapseHead
+          className={cn(
+            "flex flex-wrap items-start gap-3",
+            zoned && cn(ZONE_PADDING_X, ZONE_PADDING_TOP),
+            zoned && !showBody && !showFooter && ZONE_PADDING_BOTTOM,
+          )}
+        >
           {/* Ohne Kicker und Beschreibung ist der Titel eine Zeile neben einer
               40px-Symbolfläche: oben bündig liegen die beiden Mitten 8px
               auseinander und der Titel wirkt zu hoch. Mit Beschreibung bleibt
@@ -259,7 +327,7 @@ export function SectionCard({
               !description && !kicker && "items-center",
             )}
           >
-            {leading ??
+            {leadingVisual ??
               (Icon && (
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
                   <Icon className="h-5 w-5" aria-hidden="true" />
@@ -334,15 +402,36 @@ export function SectionCard({
         </SectionCollapseHead>
       )}
       {showBody && (
+        <div id={collapsible ? bodyId : undefined} className={bodyClasses}>
+          {loading ? (
+            // Wie SkeletonRegion, ohne page-skeletons: das zöge die DataTable
+            // in jede Seite mit einer Karte.
+            <output
+              aria-label={`${title ?? "Inhalt"} wird geladen`}
+              aria-live="polite"
+              aria-busy="true"
+              className="block w-full"
+            >
+              <dl className="space-y-3">
+                {Array.from({ length: loadingRows }, (_, index) => (
+                  <DataFieldSkeleton key={index} />
+                ))}
+              </dl>
+            </output>
+          ) : (
+            children
+          )}
+        </div>
+      )}
+      {showFooter && (
         <div
-          id={collapsible ? bodyId : undefined}
-          className={
-            hasHeader && !bare
-              ? (bodyClassName ?? "compact:mt-3 mt-4")
-              : bodyClassName
-          }
+          className={cn(
+            "border-t border-gray-100 bg-gray-50/70 py-3",
+            ZONE_PADDING_X,
+            (hasHeader || showBody) && "compact:mt-3 mt-4",
+          )}
         >
-          {children}
+          {footer}
         </div>
       )}
     </section>

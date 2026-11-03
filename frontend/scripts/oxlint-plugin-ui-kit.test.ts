@@ -1318,3 +1318,92 @@ describe("button ratchet baseline", () => {
     }
   });
 });
+
+describe.concurrent("ui-kit/no-important-override (#5581)", () => {
+  it("reports an important utility on a kit component", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      import { StatusBadge as Badge } from "~/components/ui/status-badge";
+      function Probe() {
+        return <>
+          <SectionCard className="!p-0">Inhalt</SectionCard>
+          <Badge label="Offen" tone="gray" className="md:!rounded-md" />
+          <SectionCard bodyClassName={\`mt-2 p-0!\`}>Inhalt</SectionCard>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-important-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows kit props, plain utilities and native elements", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <>
+          <SectionCard padding="none" className="mt-4">Inhalt</SectionCard>
+          <div className="!p-0">Kein Kit</div>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-important-override");
+  });
+});
+
+describe.concurrent("ui-kit/no-section-card-bleed (#5581)", () => {
+  it("reports negative margins that undo the SectionCard padding", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" bodyClassName="mt-4 -mx-5 -mb-5">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-section-card-bleed)");
+  });
+
+  it("allows flush and spacing in bodyClassName", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" flush bodyClassName="mt-4">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-section-card-bleed");
+  });
+});
+
+describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
+  it("fails a second override in a baselined file", async () => {
+    const result = await lintSource(
+      `
+      import { Input } from "~/components/ui/input";
+      function Probe() {
+        return <>
+          <Input aria-label="A" className="!h-11" />
+          <Input aria-label="B" className="px-3!" />
+        </>;
+      }
+      void Probe;
+    `,
+      "src/components/help/help-view.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-important-override)");
+  });
+});

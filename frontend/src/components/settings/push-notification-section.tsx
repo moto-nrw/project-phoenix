@@ -13,7 +13,7 @@ import { useTranslations } from "next-intl";
 import { PushInstallSteps } from "~/components/settings/push-install-steps";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
   OverflowMenu,
@@ -296,22 +296,24 @@ export function PushNotificationSection({
   // freier Absatz darunter. Hinweise, die einen Schritt außerhalb der App
   // verlangen (Installation, blockierte Browser-Berechtigung), bleiben ein
   // Alert mit der zugehörigen Aktion.
+  // SectionCard setzt die Beschreibung in ein <p>; der zweite Absatz ist
+  // deshalb ein Block-span statt eines eigenen <p>.
   const headerSubtitle =
     state === "unsupported" ? (
-      <p className="max-w-2xl text-sm leading-6 text-pretty">
+      <span className="text-sm leading-6 text-pretty">
         {t("unsupportedBody")}
-      </p>
+      </span>
     ) : state === "unsubscribed" ? (
       <>
-        <p className="max-w-2xl text-sm leading-6 text-pretty">
+        <span className="block text-sm leading-6 text-pretty">
           {t("offBody")}
-        </p>
-        <p className="mt-1 max-w-2xl text-sm leading-6 text-pretty">
+        </span>
+        <span className="mt-1 block text-sm leading-6 text-pretty">
           {t("permissionHint")}
-        </p>
+        </span>
       </>
     ) : state === "subscribed" ? (
-      <p className="max-w-2xl text-sm leading-6 text-pretty">{t("onBody")}</p>
+      <span className="text-sm leading-6 text-pretty">{t("onBody")}</span>
     ) : undefined;
 
   const primaryAction =
@@ -394,7 +396,6 @@ export function PushNotificationSection({
       </>
     ) : null;
 
-  // Ohne Karteninhalt darf der Kopf keinen Abstand nach unten aufspannen.
   const hasBody =
     testing ||
     state === "needs-install-ios" ||
@@ -404,126 +405,134 @@ export function PushNotificationSection({
     installed !== null;
 
   return (
+    // Die Hülle trägt nur den Anker der Eltern-Tour; SectionCard reicht keine
+    // data-Attribute durch.
     <div
       data-parent-tour={portal === "parent" ? "notification-device" : undefined}
-      className="moto-content-surface rounded-2xl border p-4 md:p-6"
     >
-      <ConceptSectionHeader
-        className={hasBody ? "mb-4" : undefined}
+      <SectionCard
         // Geschwisterkarten auf /profile und /parents/settings sind h3.
-        level={3}
+        headingLevel={3}
         title={t("title")}
         concept={notificationsConcept}
-        subtitle={headerSubtitle}
+        description={headerSubtitle}
         actions={headerActions}
-        actionsClassName="ms-auto flex flex-wrap items-center gap-2"
-      />
-
-      {/* Die Testaktion liegt im Menü und kann dort keinen Ladezustand zeigen.
+      >
+        {/* Ohne Karteninhalt darf der Kopf keinen Abstand nach unten
+            aufspannen. */}
+        {hasBody ? (
+          <>
+            {/* Die Testaktion liegt im Menü und kann dort keinen Ladezustand zeigen.
           Ohne sichtbare Rückmeldung wirkte der Tipp folgenlos, bis die
           Erfolgsmeldung kam. */}
-      {testing && (
-        <div className="mb-3">
-          <Alert type="info" message={t("testing")} />
-        </div>
-      )}
+            {testing && (
+              <div className="mb-3">
+                <Alert type="info" message={t("testing")} />
+              </div>
+            )}
 
-      {installed !== null && (
-        <div className="mb-4">
-          <DataGrid>
-            <DataField inline label={t("statusInstallLabel")}>
-              <StatusBadge
-                label={installed ? t("statusInstallYes") : t("statusInstallNo")}
-                tone={installed ? "green" : "orange"}
-              />
-            </DataField>
-            <DataField inline label={t("statusPermissionLabel")}>
-              <StatusBadge
-                label={
-                  permission === "granted"
-                    ? t("statusPermissionYes")
-                    : permission === "denied"
-                      ? t("statusPermissionBlocked")
-                      : t("statusPermissionNo")
-                }
-                tone={
-                  permission === "granted"
-                    ? "green"
-                    : permission === "denied"
-                      ? "red"
-                      : "orange"
-                }
-              />
-            </DataField>
-          </DataGrid>
-        </div>
-      )}
+            {installed !== null && (
+              <div className="mb-4">
+                <DataGrid>
+                  <DataField inline label={t("statusInstallLabel")}>
+                    <StatusBadge
+                      label={
+                        installed ? t("statusInstallYes") : t("statusInstallNo")
+                      }
+                      tone={installed ? "green" : "orange"}
+                    />
+                  </DataField>
+                  <DataField inline label={t("statusPermissionLabel")}>
+                    <StatusBadge
+                      label={
+                        permission === "granted"
+                          ? t("statusPermissionYes")
+                          : permission === "denied"
+                            ? t("statusPermissionBlocked")
+                            : t("statusPermissionNo")
+                      }
+                      tone={
+                        permission === "granted"
+                          ? "green"
+                          : permission === "denied"
+                            ? "red"
+                            : "orange"
+                      }
+                    />
+                  </DataField>
+                </DataGrid>
+              </div>
+            )}
 
-      {/* Ein "Nein" ohne nächsten Schritt ist eine Sackgasse. Wo weder eine
+            {/* Ein "Nein" ohne nächsten Schritt ist eine Sackgasse. Wo weder eine
           Anleitung noch ein Installationsangebot folgt, gehört die Entwarnung
           dazu: auf diesem Gerät ist die Installation keine Bedingung. */}
-      {installed === false &&
-        !desktopInstallOffer &&
-        state !== "needs-install-ios" &&
-        state !== "needs-install-android" && (
-          <p className="mb-4 max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-            {t("installNotNeeded")}
-          </p>
-        )}
+            {installed === false &&
+              !desktopInstallOffer &&
+              state !== "needs-install-ios" &&
+              state !== "needs-install-android" && (
+                <p className="mb-4 max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+                  {t("installNotNeeded")}
+                </p>
+              )}
 
-      {desktopInstallOffer && (
-        <Alert
-          type="info"
-          message={t("installOffer")}
-          action={
-            <Button
-              type="button"
-              variant="surface"
-              size="md"
-              isLoading={busy}
-              loadingText={setupT("installing")}
-              onClick={() => void install()}
-            >
-              {t("installOfferAction")}
-            </Button>
-          }
-        />
-      )}
+            {desktopInstallOffer && (
+              <Alert
+                type="info"
+                message={t("installOffer")}
+                action={
+                  <Button
+                    type="button"
+                    variant="surface"
+                    size="md"
+                    isLoading={busy}
+                    loadingText={setupT("installing")}
+                    onClick={() => void install()}
+                  >
+                    {t("installOfferAction")}
+                  </Button>
+                }
+              />
+            )}
 
-      {state === "needs-install-ios" && <PushInstallSteps compact />}
+            {state === "needs-install-ios" && <PushInstallSteps compact />}
 
-      {state === "needs-install-android" &&
-        (installPromptReady ? (
-          <Alert
-            type="info"
-            title={setupT("installAndroidTitle")}
-            message={setupT("installAndroidIntro")}
-          />
-        ) : (
-          // Ohne Ein-Tipp-Installation dieselbe nummerierte Anleitung wie auf
-          // iPhone und iPad, statt eines Fließtextes (#2831).
-          <PushInstallSteps compact platform="android" />
-        ))}
+            {state === "needs-install-android" &&
+              (installPromptReady ? (
+                <Alert
+                  type="info"
+                  title={setupT("installAndroidTitle")}
+                  message={setupT("installAndroidIntro")}
+                />
+              ) : (
+                // Ohne Ein-Tipp-Installation dieselbe nummerierte Anleitung wie auf
+                // iPhone und iPad, statt eines Fließtextes (#2831).
+                <PushInstallSteps compact platform="android" />
+              ))}
 
-      {state === "denied" && (
-        <Alert
-          type="warning"
-          title={t("blockedTitle")}
-          message={t("blockedBody")}
-          action={
-            <Button
-              type="button"
-              variant="surface"
-              size="md"
-              disabled={busy}
-              onClick={() => void refresh()}
-            >
-              {t("checkAgain")}
-            </Button>
-          }
-        />
-      )}
-
+            {state === "denied" && (
+              <Alert
+                type="warning"
+                title={t("blockedTitle")}
+                message={t("blockedBody")}
+                action={
+                  <Button
+                    type="button"
+                    variant="surface"
+                    size="md"
+                    disabled={busy}
+                    onClick={() => void refresh()}
+                  >
+                    {t("checkAgain")}
+                  </Button>
+                }
+              />
+            )}
+          </>
+        ) : null}
+      </SectionCard>
+      {/* Außerhalb des Karteninhalts: der Dialog öffnet auch, wenn die Karte
+          keinen Inhalt hat. */}
       {accountId !== undefined && restartToken > 0 && (
         <NotificationSetupDialog
           portal={portal}
@@ -540,7 +549,7 @@ function PushNotificationSkeleton() {
   return (
     <div
       data-testid="push-notification-skeleton"
-      className="moto-content-surface rounded-2xl border p-4 md:p-6"
+      className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
       aria-hidden="true"
     >
       <div className="flex items-center gap-3">

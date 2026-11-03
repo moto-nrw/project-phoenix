@@ -20,7 +20,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
-import { InfoItem } from "~/components/ui/info-card";
+import { DataField } from "~/components/ui/detail-modal-components";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -283,35 +283,29 @@ export function FilesPage() {
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
             {canManage && overview && overview.maxBytes > 0 && (
-              <div className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
-                <InfoItem
-                  label="Speicherplatz"
-                  value={
-                    <span className="tabular-nums">
-                      {formatBytes(overview.usedBytes)} von{" "}
-                      {formatBytes(overview.maxBytes)} belegt
-                    </span>
-                  }
-                />
-                <div className="space-y-1">
-                  <InfoItem
-                    label="Dateien hochladen"
-                    value={
-                      overview.staffUploadEnabled
-                        ? "Leitung und Team"
-                        : "Nur Leitung"
-                    }
-                  />
+              <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                <DataField label="Speicherplatz">
+                  <span className="tabular-nums">
+                    {formatBytes(overview.usedBytes)} von{" "}
+                    {formatBytes(overview.maxBytes)} belegt
+                  </span>
+                </DataField>
+                <DataField label="Dateien hochladen">
+                  {overview.staffUploadEnabled
+                    ? "Leitung und Team"
+                    : "Nur Leitung"}
                   {canChangeUploadPermission && (
-                    <Link
-                      href="/settings?tab=operations&highlight=files.staff_upload_enabled"
-                      className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
-                    >
-                      Berechtigung ändern
-                    </Link>
+                    <span className="mt-1 block">
+                      <Link
+                        href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                        className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                      >
+                        Berechtigung ändern
+                      </Link>
+                    </span>
                   )}
-                </div>
-              </div>
+                </DataField>
+              </dl>
             )}
           </aside>
 
