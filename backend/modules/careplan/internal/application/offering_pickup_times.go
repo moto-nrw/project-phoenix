@@ -112,8 +112,8 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 }
 
 // refuseResetWhileEarlierDaysNeedRow checks the days of the row's weekday
-// from today up to (excluding) the reset date. The date has a booking, so the
-// projected range ends inside the student's care period.
+// from today up to (excluding) the reset date, latest first, and names the
+// last one that still needs the stored time.
 func (m *BookingMaterialization) refuseResetWhileEarlierDaysNeedRow(
 	ctx context.Context, studentID int64, row ports.PickupWeekdayRow, date calendar.Date,
 ) error {
@@ -123,12 +123,44 @@ func (m *BookingMaterialization) refuseResetWhileEarlierDaysNeedRow(
 	if !row.Manual || !first.Before(date) {
 		return nil
 	}
-	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, first, date.AddDays(-1))
+	var until calendar.Date
+	err := m.eachPickupWindowBackward(ctx, studentID, first, date.AddDays(-1),
+		func(projection *careplan.PickupBaselineProjection, windowFrom, windowTo calendar.Date) bool {
+			until, _ = lastDayNeedingStoredPickup(projection, studentID, row, nextWeekdayFrom(windowFrom, row.Weekday), windowTo.AddDays(1))
+			return !until.IsZero()
+		})
 	if err != nil {
 		return fmt.Errorf("load offering pickup before reset date: %w", err)
 	}
-	if until, needed := lastDayNeedingStoredPickup(projection, studentID, row, first, date); needed {
+	if !until.IsZero() {
 		return &careplan.PickupResetStillNeededError{NeededUntil: until, PossibleFrom: until.AddDays(1)}
+	}
+	return nil
+}
+
+// pickupProjectionWindowDays bounds one projection of booked pickup times.
+// The projection holds a map per calendar day, so a check over a longer range
+// walks it in windows and memory stays bounded however far the date lies.
+const pickupProjectionWindowDays = 731
+
+// eachPickupWindowBackward projects [from, to] in windows of at most
+// pickupProjectionWindowDays, latest first, and stops once visit returns
+// true. Checks for the last day that still needs a stored row usually end in
+// the first window.
+func (m *BookingMaterialization) eachPickupWindowBackward(
+	ctx context.Context, studentID int64, from, to calendar.Date,
+	visit func(projection *careplan.PickupBaselineProjection, windowFrom, windowTo calendar.Date) bool,
+) error {
+	for windowTo := to; !windowTo.Before(from); {
+		windowFrom := max(windowTo.AddDays(1-pickupProjectionWindowDays), from)
+		projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, windowFrom, windowTo)
+		if err != nil {
+			return err
+		}
+		if visit(projection, windowFrom, windowTo) {
+			return nil
+		}
+		windowTo = windowFrom.AddDays(-1)
 	}
 	return nil
 }
