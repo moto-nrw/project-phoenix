@@ -3,6 +3,7 @@ package architecture
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -217,10 +218,16 @@ func TestCompositionRatchetWrapperFromGitHook(t *testing.T) {
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "backend layout")
 	runGit(t, repo, "update-ref", "refs/remotes/origin/development", "HEAD")
-	gitDir := strings.TrimSpace(runGit(t, repo, "rev-parse", "--absolute-git-dir"))
-	environment = append(environment, "GIT_DIR="+gitDir, "GIT_WORK_TREE=.")
-	output, err := processOutput(repo, environment, wrapper, "check")
-	if err != nil || !strings.Contains(string(output), "composition surface passed:") {
-		t.Fatalf("hook-local Git environment broke base comparison: %v\n%s", err, output)
+	// A linked worktree has a .git file and a GIT_DIR below .git/worktrees;
+	// hooks run there as well as in the main checkout.
+	linked := filepath.Join(t.TempDir(), "linked")
+	runGit(t, repo, "worktree", "add", "-q", "--detach", linked, "HEAD")
+	for _, checkout := range []string{repo, linked} {
+		gitDir := strings.TrimSpace(runGit(t, checkout, "rev-parse", "--absolute-git-dir"))
+		hookEnvironment := append(slices.Clone(environment), "GIT_DIR="+gitDir, "GIT_WORK_TREE=.")
+		output, err := processOutput(checkout, hookEnvironment, wrapper, "check")
+		if err != nil || !strings.Contains(string(output), "composition surface passed:") {
+			t.Fatalf("%s: hook-local Git environment broke base comparison: %v\n%s", checkout, err, output)
+		}
 	}
 }
