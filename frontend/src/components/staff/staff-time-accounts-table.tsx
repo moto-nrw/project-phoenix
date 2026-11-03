@@ -361,7 +361,7 @@ export function StaffTimeAccountsTable({
             <Button
               type="button"
               size="compact"
-              variant="secondary"
+              variant="outline"
               onClick={onCloseMonth}
               disabled={!monthIsOver}
               title={

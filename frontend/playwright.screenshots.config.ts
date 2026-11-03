@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Produkt-Screenshots (#3759): fotografiert den laufenden lokalen Stack und
 // rahmt die Bilder. Eigene Config, damit der Lauf nie Teil der normalen
@@ -12,6 +13,8 @@ import { defineConfig } from "@playwright/test";
 // Runner, weil er TypeScript ohne eigenen Build lädt. Die Dateien heißen
 // `.pw.ts`, damit vitest sie nicht aufgreift.
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
+  use: secureChromeUse(),
   testDir: "./scripts/product-screenshots",
   testMatch: "*.pw.ts",
   // Dev-Server kompilieren Routen beim ersten Aufruf; ein Lauf fotografiert

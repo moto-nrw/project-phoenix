@@ -146,18 +146,22 @@ func TestInternalReachEpochGrantsOnlyTheReach(t *testing.T) {
 	if err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("%s was rejected: %v", accepted.ID, err)
 	}
-	for _, rule := range []Rule{
+	extraRules := []Rule{
 		{ID: "timetable-activities.application.transaction-runtime-application", Description: "test", SourceOwner: "timetable-activities", SourceRole: "application", TargetOwner: "transaction-runtime", TargetRole: "application", Scopes: production},
 		{ID: "student-presence.application.timetable-activities.public", Description: "test", SourceOwner: "student-presence", SourceRole: "application", TargetOwner: "timetable-activities", TargetRole: "public", Scopes: production},
 		{ID: "people-directory.application.care-plan.public", Description: "test", SourceOwner: "people-directory", SourceRole: "application", TargetOwner: "care-plan", TargetRole: "public", Scopes: production},
 		{ID: "timetable-activities.application.delivery-public", Description: "test", SourceOwner: "timetable-activities", SourceRole: "application", TargetOwner: "delivery-platform", TargetRole: "public", Scopes: production},
 		{ID: "class-day-view.postgres.tenant-runtime", Description: "test", SourceOwner: "class-day-view", SourceRole: "postgres", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: production},
-	} {
-		widened := *candidate
-		widened.Rules = append(slices.Clone(candidate.Rules), rule)
-		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
-		if err == nil || !strings.Contains(err.Error(), rule.ID) {
-			t.Fatalf("%s escaped the guard: %v", rule.ID, err)
-		}
+	}
+	batch := *candidate
+	batch.Rules = append(slices.Clone(candidate.Rules), extraRules...)
+	err := comparePolicyStrictness(&base, &batch, noCreated(), noCreated(), noCreated(), noCreated(), nil)
+	for _, rule := range extraRules {
+		t.Run(rule.ID, func(t *testing.T) {
+			if err == nil || !strings.Contains(err.Error(), rule.ID) {
+				t.Fatalf("%s escaped the guard: %v", rule.ID, err)
+			}
+			assertIsolatedRuleLoosening(t, &base, candidate, rule)
+		})
 	}
 }

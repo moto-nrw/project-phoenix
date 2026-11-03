@@ -233,10 +233,16 @@ func TestOrganizationTableDeniesTwoTenantRoles(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	for _, rawTenantID := range []int64{testpkg.Tenant(t), otherTenantID} {
-		tenantID, tenantErr := tenant.NewTenantID(rawTenantID)
+	for _, tc := range []struct {
+		name string
+		id   int64
+	}{
+		{name: "own-tenant", id: testpkg.Tenant(t)},
+		{name: "other-tenant", id: otherTenantID},
+	} {
+		tenantID, tenantErr := tenant.NewTenantID(tc.id)
 		require.NoError(t, tenantErr)
-		t.Run(fmt.Sprintf("tenant-%d", rawTenantID), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			tenantCtx := testpkg.WithTestTenantRuntime(t, context.Background())
 			readErr := tenant.WithinTenant(tenantCtx, tenantID, func(txCtx context.Context) error {
 				raw, ok := tenant.TransactionFromContext(txCtx)
@@ -279,10 +285,16 @@ func TestSchoolTablePreservesTwoTenantRolePermissions(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	for _, rawTenantID := range []int64{testpkg.Tenant(t), otherTenantID} {
-		tenantID, tenantErr := tenant.NewTenantID(rawTenantID)
+	for _, tc := range []struct {
+		name string
+		id   int64
+	}{
+		{name: "own-tenant", id: testpkg.Tenant(t)},
+		{name: "other-tenant", id: otherTenantID},
+	} {
+		tenantID, tenantErr := tenant.NewTenantID(tc.id)
 		require.NoError(t, tenantErr)
-		t.Run(fmt.Sprintf("tenant-%d", rawTenantID), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			tenantCtx := testpkg.WithTestTenantRuntime(t, context.Background())
 			readErr := tenant.WithinTenant(tenantCtx, tenantID, func(txCtx context.Context) error {
 				raw, ok := tenant.TransactionFromContext(txCtx)

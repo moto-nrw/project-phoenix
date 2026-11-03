@@ -64,6 +64,35 @@ func runDependencies(args []string) error {
 	return writeProjectionArtifacts(options.output, artifacts)
 }
 
+// runProjections generates the diagram and focused dependencies from one fresh
+// policy/graph snapshot. The individual commands retain their existing behavior.
+func runProjections(args []string) error {
+	options, err := parseProjectionOptions("projections", args, true)
+	if err != nil {
+		return err
+	}
+	inputs, err := loadProjectionCommandInputs(options)
+	if err != nil {
+		return err
+	}
+	projection, err := DependenciesProjection(inputs.policy, inputs.graph, inputs.baseline, options.focus)
+	if err != nil {
+		return err
+	}
+	artifacts, err := diagramArtifacts(inputs.policy, TargetProjection(inputs.policy), MigrationProjection(inputs.policy, inputs.graph, inputs.baseline))
+	if err != nil {
+		return err
+	}
+	dependencies, err := dependencyArtifacts(inputs.policy, inputs.graph, projection, options.focus)
+	if err != nil {
+		return err
+	}
+	for name, contents := range dependencies {
+		artifacts[name] = contents
+	}
+	return writeProjectionArtifacts(options.output, artifacts)
+}
+
 func parseProjectionOptions(command string, args []string, requireFocus bool) (projectionOptions, error) {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	project := flags.String("project", ".", "Go project directory")
@@ -78,7 +107,7 @@ func parseProjectionOptions(command string, args []string, requireFocus bool) (p
 		return projectionOptions{}, fmt.Errorf("%s: unexpected arguments: %v", command, flags.Args())
 	}
 	if requireFocus && *focus == "" {
-		return projectionOptions{}, fmt.Errorf("dependencies requires --focus")
+		return projectionOptions{}, fmt.Errorf("%s requires --focus", command)
 	}
 	if !requireFocus && *focus != "" {
 		return projectionOptions{}, fmt.Errorf("diagram does not accept --focus; use dependencies")

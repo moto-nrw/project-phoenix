@@ -6,11 +6,12 @@
 getrennte Playwright-Suite mit dem echten Next.js-Frontend und synthetischer
 API auf localhost. Docker, Seed-Daten und echte Konten sind nicht nötig.
 Voraussetzungen: installierte Devbox-Pakete, `pnpm install --frozen-lockfile`
-in `frontend`, installiertes Playwright-Chromium und freie Ports 13843/18443 (änderbar mit
+in `frontend`, ein aktuelles Google Chrome und freie Ports 13843/18443 (änderbar mit
 `NETWORK_E2E_PORT`/`NETWORK_E2E_API_PORT`, siehe
 [Synthetic network E2E suites](../agents/operations.md#synthetic-network-e2e-suites)).
-Bei fehlendem Browser einmal `cd frontend && pnpm exec playwright install chromium`
-ausführen. Die Browserinstallation ist Vorbereitung, nicht Teil des Nachweises.
+Playwright startet das installierte Chrome mit Sandbox, nicht sein eigenes
+Chromium (#5612, [Browser](../agents/operations.md#browser-for-playwright)).
+Die Browserinstallation ist Vorbereitung, nicht Teil des Nachweises.
 
 Die Bereitschaftsprüfung läuft in Node über
 `http://127.0.0.1:<Frontend-Port>/api/health` (Standard 13843), nicht über einen Portalhost. Sie benötigt

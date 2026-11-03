@@ -7,7 +7,7 @@
 # Results print as a table and land in tmp/dev-bench/ with a metadata file
 # (revision, dirty diff, toolchain, load, heavy-slot state).
 #
-#   scripts/dev-bench.sh [--root DIR] [--heavy] [--repeat N]
+#   scripts/dev-bench.sh [--root DIR] [--out DIR] [--heavy|--light] [--repeat N]
 #                        [--simulate-ram-gb N] [stage...]
 #   scripts/dev-bench.sh [--root DIR] [--heavy] [--repeat N] -- NAME COMMAND...
 #
@@ -35,7 +35,8 @@
 # --root runs the stages against another checkout (for before/after
 # comparisons from one copy of this script). --heavy runs each measured
 # command through ~/bin/agent-heavy (or $AGENT_HEAVY) and reports the time
-# spent waiting for a slot separately from the run. --repeat N measures each
+# spent waiting for a slot separately from the run. --light uses the gate's
+# light admission for narrow workloads. --repeat N measures each
 # stage N times for medians. --simulate-ram-gb makes
 # scripts/total-memory-gb.sh report N GB, so a large machine runs the test
 # scripts with the parallelism a 16 GB laptop would get; it does not create
@@ -57,13 +58,15 @@ set -euo pipefail
 die() { echo "dev-bench: $*" >&2; exit 1; }
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-SIM_RAM="" HEAVY="" REPEAT=1
+SIM_RAM="" HEAVY="" GATE_LIGHT="" REPEAT=1 OUTPUT=""
 STAGES=() CUSTOM=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) ROOT=$(cd "$2" && pwd); shift 2 ;;
+    --out) OUTPUT=$2; shift 2 ;;
     --simulate-ram-gb) SIM_RAM=$2; shift 2 ;;
-    --heavy) HEAVY=${AGENT_HEAVY:-$HOME/bin/agent-heavy}; shift ;;
+    --heavy) HEAVY=${AGENT_HEAVY:-$HOME/bin/agent-heavy}; GATE_LIGHT=""; shift ;;
+    --light) HEAVY=${AGENT_HEAVY:-$HOME/bin/agent-heavy}; GATE_LIGHT=1; shift ;;
     --repeat) REPEAT=$2; shift 2 ;;
     --) shift; CUSTOM=("$@"); break ;;
     -h | --help) sed -n '2,/^set -euo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
@@ -85,8 +88,9 @@ GO_CENTRAL=${DEV_BENCH_GO_CENTRAL:-sharedkernel/calendar}
 FE_FILE=${DEV_BENCH_FE_FILE:-src/lib/date-helpers.ts}
 E2E_SPEC=${DEV_BENCH_E2E_SPEC:-e2e/planung-navigation.spec.ts}
 
-OUT="$ROOT/tmp/dev-bench"
+OUT=${OUTPUT:-"$ROOT/tmp/dev-bench"}
 mkdir -p "$OUT"
+OUT=$(cd "$OUT" && pwd)
 STAMP=$(date +%Y%m%d-%H%M%S)
 RESULTS="$OUT/$STAMP.tsv"
 META="$OUT/$STAMP.meta"
@@ -94,6 +98,7 @@ printf 'stage\twall_s\tqueue_s\tcpu_s\tpeak_tree_mb\tdisk_mb\tdocker_mb\tstatus\
 FAILURES=0
 
 SHIM="" MEASURED="" PROBE_FILES=() RESTORE_SRC="" RESTORE_BACKUP="" TSBUILD_BACKUP="" FRESH=""
+MEASURE_TIME="" MEASURE_ADMIT="" MEASURE_ARTIFACT="" MEASURE_SEQUENCE=0
 # TERM a process and all its descendants (an interrupted measured command).
 kill_tree() {
   local pids
@@ -105,8 +110,29 @@ kill_tree() {
 }
 
 cleanup() {
-  local f
+  local original_status=$? cleanup_status=0 f kind
+  # Finish all owned cleanup, but never replace a test/error/signal exit by 0.
+  set +e
   if [ -n "$MEASURED" ]; then kill_tree "$MEASURED"; wait "$MEASURED" 2>/dev/null || true; fi
+  # These exact paths were allocated by this invocation, before dispatch.
+  # Preserve raw partial/empty files after stopping writers, without parsing
+  # missing timing/admission values into a successful measurement.
+  for kind in time admission; do
+    if [ "$kind" = time ]; then f=$MEASURE_TIME; else f=$MEASURE_ADMIT; fi
+    [ -n "$f" ] || continue
+    if [ -f "$f" ]; then
+      if ! cp "$f" "$MEASURE_ARTIFACT.$kind.raw"; then
+        echo "dev-bench: could not preserve $kind raw file: $f" >&2
+        cleanup_status=1
+      fi
+    fi
+    if rm -f "$f"; then
+      printf 'measure_cleanup_removed=%s\n' "$f" >>"$META" || cleanup_status=1
+    else
+      echo "dev-bench: could not remove owned $kind file: $f" >&2
+      cleanup_status=1
+    fi
+  done
   # Remove untracked probes, restore the edited frontend file and the
   # incremental TypeScript state even when the run is interrupted.
   for f in ${PROBE_FILES[@]+"${PROBE_FILES[@]}"}; do rm -f "$f"; done
@@ -119,6 +145,8 @@ cleanup() {
   fi
   if [ -n "$FRESH" ]; then git -C "$ROOT" worktree remove --force "$FRESH" >/dev/null 2>&1 || true; fi
   [ -z "$SHIM" ] || rm -rf "$SHIM"
+  if [ "$original_status" -ne 0 ]; then return "$original_status"; fi
+  return "$cleanup_status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -187,7 +215,14 @@ fail_row() { # stage reason
 measure() { # stage dir command...
   local stage=$1 dir=$2 timef admitf log start pid peak=0 kb status disk0 load0
   shift 2
-  timef=$(mktemp) admitf=$(mktemp)
+  MEASURE_SEQUENCE=$((MEASURE_SEQUENCE + 1))
+  MEASURE_ARTIFACT="$OUT/$STAMP-measure-$MEASURE_SEQUENCE"
+  printf 'measure_owner_pid=%s\nmeasure_sequence=%s\n' "$$" "$MEASURE_SEQUENCE" >>"$META"
+  MEASURE_TIME=$(mktemp)
+  printf 'measure_time_path=%s\n' "$MEASURE_TIME" >>"$META"
+  MEASURE_ADMIT=$(mktemp)
+  printf 'measure_admission_path=%s\n' "$MEASURE_ADMIT" >>"$META"
+  timef=$MEASURE_TIME admitf=$MEASURE_ADMIT
   log="$OUT/$STAMP-$stage.log"
   disk0=$(disk_kb "$ROOT")
   load0=$(load1)
@@ -195,7 +230,7 @@ measure() { # stage dir command...
   if [ -n "$HEAVY" ] && [ -z "${LIGHT:-}" ]; then
     # The slot is held from the admit timestamp until the command exits.
     # shellcheck disable=SC2016 # expanded by the inner shell.
-    (cd "$dir" && exec "$HEAVY" -- /bin/sh -c \
+    (cd "$dir" && exec "$HEAVY" ${GATE_LIGHT:+--light} -- /bin/sh -c \
       'perl -MTime::HiRes=time -e "printf q(%.2f), time" >"$1"; shift; exec "$@"' \
       sh "$admitf" /usr/bin/time -p -o "$timef" "$@") >"$log" 2>&1 </dev/null &
   else
@@ -221,6 +256,7 @@ measure() { # stage dir command...
   cpu=$(awk '/^user|^sys/ { t += $2 } END { printf "%.1f", t }' "$timef")
   disk=$(awk -v a="$disk0" -v b="$(disk_kb "$ROOT")" 'BEGIN { printf "%.0f", (b - a) / 1024 }')
   rm -f "$timef" "$admitf"
+  MEASURE_TIME="" MEASURE_ADMIT="" MEASURE_ARTIFACT=""
   note="load ${load0}"
   if [ -n "${NOTE_FN:-}" ]; then note="$note, $("$NOTE_FN" "$log")"; fi
   if [ "$status" -eq 0 ]; then

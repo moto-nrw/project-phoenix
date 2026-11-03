@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Button, ButtonLink, buttonClassName } from "./button";
+import type { ButtonVariant } from "./button-styles";
 
 describe("Button", () => {
   it("renders children correctly", () => {
@@ -55,14 +56,6 @@ describe("Button", () => {
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-gray-900");
     expect(button.className).toContain("text-white");
-  });
-
-  it("applies secondary variant styles", () => {
-    render(<Button variant="secondary">Secondary</Button>);
-
-    const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-gray-200");
-    expect(button.className).toContain("text-gray-800");
   });
 
   it("applies outline variant styles", () => {
@@ -210,16 +203,44 @@ describe("Button", () => {
         "border",
         "border-dashed",
         "border-gray-300",
-        "bg-gray-50",
-        "hover:bg-gray-100",
+        "bg-transparent",
+        "hover:bg-gray-50",
       ]),
     );
+  });
+
+  // #5574: Knöpfe sind weiß, schwarz oder farbig. Ein hellgrau gefüllter
+  // Ruhezustand passt in keine Rangstufe; Zustände (hover:, active:) dürfen
+  // grau tönen.
+  it("rests no variant on a grey fill", () => {
+    // Record statt Liste: eine neue Variante fehlt hier sonst still.
+    const allVariants: Record<ButtonVariant, true> = {
+      primary: true,
+      outline: true,
+      outline_danger: true,
+      danger: true,
+      warning: true,
+      success: true,
+      surface: true,
+      surface_success: true,
+      ghost: true,
+      ghost_danger: true,
+      ghost_tone: true,
+      link: true,
+      fab: true,
+      dashed: true,
+    };
+    for (const variant of Object.keys(allVariants) as ButtonVariant[]) {
+      const greyRest = buttonClassName({ variant, size: "md", className: "" })
+        .split(" ")
+        .filter((token) => /^bg-gray-[1-4]00$/.test(token));
+      expect({ variant, greyRest }).toEqual({ variant, greyRest: [] });
+    }
   });
 
   it("drops every scale animation from the kit", () => {
     const variants = [
       "primary",
-      "secondary",
       "outline",
       "outline_danger",
       "danger",

@@ -212,7 +212,9 @@ func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
 func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "welcome-revoke-creator")

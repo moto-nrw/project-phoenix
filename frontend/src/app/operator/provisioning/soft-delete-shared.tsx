@@ -255,7 +255,7 @@ export function TrashToggleButton({
   return (
     <Button
       type="button"
-      variant={active ? "outline_danger" : "secondary"}
+      variant={active ? "outline_danger" : "outline"}
       size="compact"
       aria-pressed={active}
       onClick={onToggle}

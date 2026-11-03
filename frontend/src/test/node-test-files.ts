@@ -17,6 +17,7 @@ export const nodeLogicTestFiles = [
   "scripts/product-screenshots/publish.test.ts",
   "scripts/product-screenshots/quality.test.ts",
   "scripts/product-screenshots/reference-time.test.ts",
+  "scripts/secure-chrome.test.ts",
   "src/app/[tenant]/(protected)/messages/[threadId]/page.test.ts",
   "src/app/[tenant]/(protected)/ogs-groups/components/group-overflow-items.test.ts",
   "src/app/[tenant]/(protected)/ogs-groups/ogs-group-helpers.test.ts",

@@ -14,7 +14,7 @@ Use the real fixture setup and behavior tests as examples:
 and [fixture helpers](../../backend/test/fixtures.go).
 Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 
-- **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
+- **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`. Tests that run DB I/O inside a `testing/synctest` bubble use it too, so `database/sql` wait channels never cross the bubble; warm the pool with fixtures before `synctest.Test`.
 - **No hand-written cleanup deletes**: the AST-based gate
   `no_ignored_cleanup_deletes` rejects DB deletes with a discarded error in
   `t.Cleanup`, deferred calls, cleanup closures, `wipe*`/`cleanup*`/`teardown*`
