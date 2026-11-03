@@ -23,9 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Launch system Chrome with sandbox via Playwright 1.64.1
+      - name: Install current stable Chrome, launch with sandbox via Playwright 1.64.1
         run: |
           mkdir /tmp/p && cd /tmp/p && npm init -y >/dev/null && npm i --silent playwright-core@1.64.1
+          npx playwright-core install --force chrome 2>&1 | tail -5
+          google-chrome --version
           cat > probe.mjs <<'JS'
           import { chromium } from "playwright-core";
           for (const headless of [true, false]) {
