@@ -17,6 +17,13 @@ import {
   type RegistrationDraft,
 } from "./holiday-registration-model";
 
+type TranslatedKey =
+  | "privacyConsent"
+  | "healthConsent"
+  | "bindingConfirmed"
+  | "custodyConfirmed"
+  | "declarationText";
+
 type DeclarationDraft = Pick<
   RegistrationDraft,
   | "privacyConsent"
@@ -27,30 +34,13 @@ type DeclarationDraft = Pick<
 >;
 
 /**
- * A binding German text and, in another language, its translation. The
- * translation belongs to HOLIDAY_CONSENT_VERSION; for other texts it stays
- * away rather than translate something else.
+ * Whether the translations of this locale fit the texts of the offer. They
+ * belong to HOLIDAY_CONSENT_VERSION; for other texts they stay away rather
+ * than translate something else.
  */
-function DeclarationText({
-  text,
-  translation,
-  version,
-}: Readonly<{ text: string; translation: string; version: number }>) {
-  const t = useTranslations("holidayRegistration");
+function useReadingAid(version: number): string | null {
   const locale = useLocale();
-  if (locale === "de" || version !== HOLIDAY_CONSENT_VERSION) {
-    return <span lang="de">{text}</span>;
-  }
-  return (
-    <>
-      <span lang="de" className="block">
-        {text}
-      </span>
-      <span lang={locale} className="mt-1 block text-sm text-gray-600">
-        {t("translationNote")} {translation}
-      </span>
-    </>
-  );
+  return locale !== "de" && version === HOLIDAY_CONSENT_VERSION ? locale : null;
 }
 
 export function HolidayRegistrationDeclaration({
@@ -69,13 +59,16 @@ export function HolidayRegistrationDeclaration({
   onChange: (patch: Partial<DeclarationDraft>) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const text = (german: string, translation: string) => (
-    <DeclarationText
-      text={german}
-      translation={translation}
-      version={texts.version}
-    />
-  );
+  const readingAid = useReadingAid(texts.version);
+  // The German text binds; in another language the translation stands below
+  // it as a reading aid.
+  const german = (text: string) => <span lang="de">{text}</span>;
+  const translation = (key: TranslatedKey) =>
+    readingAid ? (
+      <span lang={readingAid}>
+        {t("translationNote")} {t(key)}
+      </span>
+    ) : undefined;
   return (
     <>
       <SectionCard title={t("consentTitle")}>
@@ -83,7 +76,8 @@ export function HolidayRegistrationDeclaration({
           <ConsentCheckbox
             required
             name="privacy_consent"
-            label={text(texts.privacyConsent, t("privacyConsent"))}
+            label={german(texts.privacyConsent)}
+            description={translation("privacyConsent")}
             checked={draft.privacyConsent}
             error={fieldError("privacy_consent")}
             onChange={(privacyConsent) => onChange({ privacyConsent })}
@@ -92,7 +86,8 @@ export function HolidayRegistrationDeclaration({
             <ConsentCheckbox
               required
               name="health_consent"
-              label={text(texts.healthConsent, t("healthConsent"))}
+              label={german(texts.healthConsent)}
+              description={translation("healthConsent")}
               checked={draft.healthConsent}
               error={fieldError("health_consent")}
               onChange={(healthConsent) => onChange({ healthConsent })}
@@ -102,7 +97,8 @@ export function HolidayRegistrationDeclaration({
             <ConsentCheckbox
               required
               name="binding_confirmed"
-              label={text(texts.bindingConfirmed, t("bindingConfirmed"))}
+              label={german(texts.bindingConfirmed)}
+              description={translation("bindingConfirmed")}
               checked={draft.bindingConfirmed}
               error={fieldError("binding_confirmed")}
               onChange={(bindingConfirmed) => onChange({ bindingConfirmed })}
@@ -111,7 +107,8 @@ export function HolidayRegistrationDeclaration({
           <ConsentCheckbox
             required
             name="custody_confirmed"
-            label={text(texts.custodyConfirmed, t("custodyConfirmed"))}
+            label={german(texts.custodyConfirmed)}
+            description={translation("custodyConfirmed")}
             checked={draft.custodyConfirmed}
             error={fieldError("custody_confirmed")}
             onChange={(custodyConfirmed) => onChange({ custodyConfirmed })}
@@ -120,7 +117,16 @@ export function HolidayRegistrationDeclaration({
       </SectionCard>
       <SectionCard
         title={t("declarationTitle")}
-        description={text(texts.declarationName, t("declarationText"))}
+        description={
+          <>
+            {german(texts.declarationName)}
+            {readingAid ? (
+              <span className="mt-1 block">
+                {translation("declarationText")}
+              </span>
+            ) : null}
+          </>
+        }
       >
         <Input
           name="declaration_name"
