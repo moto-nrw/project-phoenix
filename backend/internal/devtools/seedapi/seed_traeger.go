@@ -272,7 +272,30 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution, a possible duplicate waits for review")
+	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings); err != nil {
+		return "", err
+	}
 	return token, nil
+}
+
+// seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
+// registration (#5629): the family called with a new phone number and an
+// added emergency contact. The history then shows the change by its fields.
+func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64) error {
+	path := fmt.Sprintf("/traeger/holiday-periods/%d/registrations/%d/details", periodID, registrationID)
+	if _, err := rt.Client.PutWithAuth(auth, path, map[string]any{
+		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000009"},
+		"second_guardian": map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
+		"emergency_contacts": []map[string]any{
+			{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"},
+			{"name": "Karin Ferienkind", "phone": "05402 000003", "relationship": "Tante"},
+		},
+		"pickup_persons": []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
+	}); err != nil {
+		return fmt.Errorf("change the details of the holiday registration: %w", err)
+	}
+	fmt.Println("  Träger-Büro: changed the phone number and added an emergency contact")
+	return nil
 }
 
 // seedHolidayRegistrationPrefill reads the prefill of the holiday link as the
