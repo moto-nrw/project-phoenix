@@ -431,8 +431,11 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
 
-    // Das Menü bleibt nach einer Auswahl offen; ein zweiter Klick auf den
-    // Auslöser würde es schließen.
+    // Während die Auswertung neu lädt, ist der Angebotsfilter deaktiviert und
+    // schließt sein Menü. Danach lässt sich die letzte Option erneut öffnen.
+    fireEvent.click(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    );
     fireEvent.click(screen.getByRole("option", { name: /Kurzbetreuung/ }));
 
     await waitFor(() => {
