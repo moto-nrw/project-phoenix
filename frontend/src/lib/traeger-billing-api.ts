@@ -37,7 +37,7 @@ export type BillingDocumentKind = "invoice" | "cancellation" | "credit";
  * A document of the history of an invoice: its Storno, its Gutschriften and
  * the invoice that replaces it, which may belong to another run.
  */
-export interface BillingDocumentLink {
+interface BillingDocumentLink {
   readonly id: string;
   readonly runId: string;
   readonly kind: BillingDocumentKind;

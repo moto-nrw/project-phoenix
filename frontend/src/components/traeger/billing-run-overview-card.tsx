@@ -59,7 +59,7 @@ function rowKey(document: BillingDocument): string {
  * What an issued invoice still asks for one child: the child's amount
  * minus the Gutschriften of the run for that child (#4690).
  */
-export function leftForChild(
+function leftForChild(
   run: BillingRunDetail,
   invoice: BillingDocument,
   child: BillingChild,
