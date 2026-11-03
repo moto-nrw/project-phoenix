@@ -263,8 +263,11 @@ export function AggregatedRequestList({
     return [...items, ...held];
   }, [items, heldItems, heldScope]);
   const openCases = useMemo(
-    () => (view === "open" ? groupOpenCases(shownItems, withdrawals) : []),
-    [shownItems, view, withdrawals],
+    () =>
+      view === "open"
+        ? groupOpenCases(shownItems, withdrawals, heldDecisions)
+        : [],
+    [shownItems, view, withdrawals, heldDecisions],
   );
   const buckets = useMemo(() => bucketCases(openCases), [openCases]);
 

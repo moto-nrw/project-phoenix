@@ -213,7 +213,7 @@ export function RequestDecisionRow({
             </p>
           ) : null}
         </div>
-        {request.bulk_eligible ? (
+        {held ? null : request.bulk_eligible ? (
           <label
             htmlFor={`bulk-request-${key}`}
             className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium text-gray-600 sm:min-h-8"

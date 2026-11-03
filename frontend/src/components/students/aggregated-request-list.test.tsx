@@ -3157,6 +3157,44 @@ describe("AggregatedRequestList", () => {
     expect(mockListOpen.mock.calls.length).toBe(callsBefore);
   });
 
+  // Die gehaltene Karte zeigt nur noch die Auswirkung: Kind und Kopf zählen
+  // sie nicht mehr als offen, und gemeinsam freigeben lässt sie sich nicht.
+  it("bietet eine gehaltene Freigabe nicht mehr als offen an", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Erstes Kind",
+          expected_version: "v5",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "5" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Erstes Kind/ }),
+    );
+    expect(
+      await screen.findByLabelText("Gemeinsam freigeben: Erstes Kind"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+
+    expect(
+      await screen.findByText("gehalten: Freigegeben."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Freigegeben").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/offene Anfrage/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Gemeinsam freigeben: Erstes Kind"),
+    ).not.toBeInTheDocument();
+  });
+
   // Wechselt die OGS zu einem anderen Kind und zurück, kommt die Karte mit
   // dem Ergebnis der Freigabe wieder, nicht als offene Anfrage.
   it("zeigt eine gehaltene Freigabe nach einem Kindwechsel wieder", async () => {

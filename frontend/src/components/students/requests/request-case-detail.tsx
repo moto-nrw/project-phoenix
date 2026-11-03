@@ -18,6 +18,7 @@ import {
   caseTypeLabels,
   conflictedItemKeys,
   itemKey,
+  decidedRequestCount,
   openRequestCount,
   pastRequestCount,
   type OpenCase,
@@ -112,9 +113,11 @@ export function RequestCaseDetail({
           <p className="text-sm font-medium text-gray-600">
             {requestCount > 0 || expired === 0 ? (
               <span>
-                {requestCount === 1
-                  ? "1 offene Anfrage"
-                  : `${requestCount} offene Anfragen`}
+                {requestCount === 0 && decidedRequestCount(childCase) > 0
+                  ? "Freigegeben"
+                  : requestCount === 1
+                    ? "1 offene Anfrage"
+                    : `${requestCount} offene Anfragen`}
               </span>
             ) : null}
             {expired > 0
