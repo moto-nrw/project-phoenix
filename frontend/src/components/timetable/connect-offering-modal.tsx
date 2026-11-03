@@ -233,6 +233,11 @@ export function ConnectOfferingModal({
             disabled={saving}
             placeholder="Angebote wählen"
             unavailableLabel="Keine Optionen verfügbar"
+            // The selected offerings define which children join the rule, so
+            // their concrete names stay visible in the trigger.
+            summaryLabel={(_count, selected) =>
+              selected.map((option) => option.label).join(", ")
+            }
           />
           {phaseLocked ? (
             <p className="text-xs text-gray-500">
