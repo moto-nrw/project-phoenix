@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { frontendPort } from "./e2e/frontend-port";
 import { assertPortServesThisCheckout } from "./e2e/own-server";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 function loadLocalEnv(): void {
   for (const file of [
@@ -65,6 +66,7 @@ const webServerEnvPrefix = Object.entries(webServerEnv)
 
 /** @public Loaded by the Playwright CLI rather than imported by application code. */
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./e2e",
   // Serverlose Layouttests laufen über playwright.layout.config.ts.
   testIgnore: ["layout/**", "network/**"],
@@ -82,6 +84,7 @@ export default defineConfig({
       ]
     : "html",
   use: {
+    ...secureChromeUse(),
     baseURL: `http://localhost:${frontendPort}`,
     screenshot: "only-on-failure",
   },
