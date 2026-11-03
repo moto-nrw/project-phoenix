@@ -130,19 +130,18 @@ export function PasswordField({
       <div className="flex flex-wrap items-center gap-1.5">
         {/* Pill with value + eye toggle inside */}
         <span
-          className={`inline-flex items-center gap-1 rounded-lg bg-gray-100 py-1 pr-1 pl-3 text-sm tabular-nums ${showValue && revealedValue ? "font-mono tracking-widest text-gray-900" : "text-gray-500"}`}
+          className={`inline-flex items-center gap-1 rounded-lg bg-gray-100 pr-1 pl-3 text-sm tabular-nums ${showValue && revealedValue ? "font-mono tracking-widest text-gray-900" : "text-gray-500"}`}
         >
           {isRevealing ? (
-            <SpinnerIcon className="my-1.5 h-3.5 w-3.5" />
+            <SpinnerIcon className="my-2 h-3.5 w-3.5" />
           ) : (
-            <span className="py-1">{displayText}</span>
+            <span className="py-1.5">{displayText}</span>
           )}
           {hasValue && !disabled ? (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 text-gray-400"
               onClick={() => void handleRevealToggle()}
               aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
             >
@@ -213,7 +212,7 @@ export function PasswordField({
             variant="ghost"
             size="icon"
             onClick={() => setShowValue(!showValue)}
-            className="absolute inset-y-0 right-1 my-auto h-7 text-gray-400"
+            className="absolute top-1/2 right-1 -translate-y-1/2"
             tabIndex={-1}
             aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
           >

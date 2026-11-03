@@ -31,7 +31,7 @@ export function EnrollmentStatTile({
   return (
     // Mittig ausgerichtet, damit eine Kachel ohne Zusatzwert neben einer
     // umbrochenen Nachbarkachel nicht oben klebt.
-    <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3 shadow-sm">
+    <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {Icon || leading ? (
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-500 shadow-sm">

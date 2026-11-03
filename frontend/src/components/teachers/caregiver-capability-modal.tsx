@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -342,44 +343,43 @@ export function CaregiverCapabilityModal({
       error={step === "resolve" ? null : formErrors.error}
       footer={
         step === "resolve" ? (
-          <button
+          <Button
             type="button"
             onClick={() => {
               setStep("overview");
               void loadState();
             }}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="md"
           >
             Zurück zur Übersicht
-          </button>
+          </Button>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
+            <Button type="button" onClick={onClose} variant="outline" size="md">
               Schließen
-            </button>
+            </Button>
             {canDisable ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => void handleDisable()}
                 disabled={saving || loading || state?.disableBlocked}
-                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                variant="outline_danger"
+                size="md"
               >
                 Betreuung deaktivieren
-              </button>
+              </Button>
             ) : null}
             {showEnableButton ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => void handleEnable()}
                 disabled={saving || loading}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                variant="primary"
+                size="md"
               >
                 {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
-              </button>
+              </Button>
             ) : null}
           </>
         )
@@ -497,13 +497,14 @@ export function CaregiverCapabilityModal({
                 ))}
               </ul>
               <div className="mt-3">
-                <button
+                <Button
                   type="button"
                   onClick={() => setStep("resolve")}
-                  className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+                  variant="warning"
+                  size="md"
                 >
                   Zuordnungen auflösen
-                </button>
+                </Button>
               </div>
             </InfoSection>
           ) : null}

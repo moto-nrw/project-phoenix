@@ -43,7 +43,7 @@ export function DatabaseListLayout({
     >
       <div
         className={cn(
-          "moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm",
+          "moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border",
           !isMobile && "moto-scroll-surface",
         )}
       >

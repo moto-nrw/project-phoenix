@@ -446,7 +446,7 @@ function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
             ariaLabel="Unterhaltungen filtern"
             value={onlyUnread ? "unread" : "all"}
             onChange={(next) => setOnlyUnread(next === "unread")}
-            triggerClassName="moto-content-surface h-10 w-48 hover:border-gray-300"
+            triggerClassName="moto-content-surface h-10 w-48"
             options={[
               { value: "all", label: "Alle Unterhaltungen" },
               { value: "unread", label: "Nur ungelesen" },

@@ -223,7 +223,7 @@ export function ParentStartPage() {
           {loading ? (
             <StartChildCardSkeleton />
           ) : data.children.length === 0 && !loadError ? (
-            <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+            <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
               {t("noChildren")}
             </p>
           ) : (
@@ -307,7 +307,7 @@ function StartChildCardSkeleton() {
     <article
       role="status"
       data-testid="parent-start-child-skeleton"
-      className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
+      className="moto-content-surface overflow-hidden rounded-2xl border"
     >
       <span className="sr-only">{t("childrenLoading")}</span>
       <div aria-hidden="true" className="space-y-5 p-5 sm:p-6">
@@ -457,7 +457,7 @@ function StartTodoSkeleton() {
     <section
       role="status"
       data-testid="parent-start-todo-skeleton"
-      className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+      className="moto-content-surface rounded-2xl border p-5"
     >
       <span className="sr-only">{t("todo.loading")}</span>
       <div aria-hidden="true">

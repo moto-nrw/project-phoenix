@@ -6,7 +6,7 @@ export default async function EnrollSubmittedPage() {
   const t = await getTranslations("enrollmentPublic");
   return (
     <PublicEnrollmentPageShell>
-      <section className="moto-content-surface mx-auto max-w-4xl rounded-2xl border p-6 text-center shadow-sm sm:p-10">
+      <section className="moto-content-surface mx-auto max-w-4xl rounded-2xl border p-6 text-center sm:p-10">
         <div className="bg-moto-green/15 text-moto-green-strong mx-auto flex h-14 w-14 items-center justify-center rounded-xl">
           <Check className="h-7 w-7" />
         </div>

@@ -101,7 +101,7 @@ export function SelectField({
         triggerClassName={
           disabled
             ? "h-10 w-auto min-w-[8rem] max-w-full border-gray-200 sm:max-w-xs"
-            : "moto-content-surface h-10 w-auto min-w-[8rem] max-w-full hover:border-gray-300 sm:max-w-xs"
+            : "moto-content-surface h-10 w-auto min-w-[8rem] max-w-full sm:max-w-xs"
         }
       />
     </div>

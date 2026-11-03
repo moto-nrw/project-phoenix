@@ -399,7 +399,7 @@ export function StudentDokumenteTab({
                 // base class carries a colorless `border` — without
                 // moto-content-surface the Tailwind-4 default (currentColor)
                 // paints it black.
-                triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+                triggerClassName="moto-content-surface h-9 w-56"
               />
             </div>
 
@@ -425,9 +425,8 @@ export function StudentDokumenteTab({
                 Datei hierher ziehen oder{" "}
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="compact"
-                  className="text-moto-blue"
+                  variant="link"
+                  size="md"
                   disabled={uploading || !effectiveUploadCategory}
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -466,7 +465,7 @@ export function StudentDokumenteTab({
               value={filter}
               options={filterItems}
               onChange={setFilter}
-              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+              triggerClassName="moto-content-surface h-9 w-56"
             />
           </div>
         )}

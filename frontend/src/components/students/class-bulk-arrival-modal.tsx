@@ -317,16 +317,24 @@ export function FilteredBulkArrivalModal({
       footer={
         <div className="flex items-center justify-end gap-2 p-4">
           {showDayView ? (
-            <Button variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" size="md" onClick={onClose}>
               Schließen
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={onClose} disabled={saving}>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+                disabled={saving}
+              >
                 Abbrechen
               </Button>
               <Button
+                type="button"
                 variant="success"
+                size="md"
                 onClick={handleSubmit}
                 disabled={
                   saving ||

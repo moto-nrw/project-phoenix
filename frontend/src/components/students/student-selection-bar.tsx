@@ -38,7 +38,7 @@ export function StudentSelectionBar({
 
   return (
     <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2 shadow-sm"
+      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2"
       role="region"
       aria-label="Ausgewählte Kinder"
       aria-busy={isRunning}
@@ -59,7 +59,6 @@ export function StudentSelectionBar({
             type="button"
             variant="ghost"
             size="compact"
-            className="shadow-none"
             onClick={onClear}
             disabled={isRunning}
           >
@@ -69,7 +68,6 @@ export function StudentSelectionBar({
             type="button"
             variant="outline"
             size="compact"
-            className="rounded-lg shadow-none"
             onClick={onExport}
             disabled={isRunning}
           >
@@ -82,7 +80,6 @@ export function StudentSelectionBar({
                 type="button"
                 variant="success"
                 size="compact"
-                className="rounded-lg text-white shadow-none hover:shadow-none"
                 onClick={() => checkin.onAction("in")}
                 disabled={isRunning}
               >
@@ -97,7 +94,6 @@ export function StudentSelectionBar({
                 type="button"
                 variant="danger"
                 size="compact"
-                className="rounded-lg shadow-none hover:shadow-none"
                 onClick={() => checkin.onAction("out")}
                 disabled={isRunning}
               >

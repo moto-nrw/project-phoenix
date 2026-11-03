@@ -57,7 +57,6 @@ export function OpenWithdrawalCard({
             type="button"
             variant="outline"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => finish(row)}
           >
             Betreuung beenden
@@ -66,7 +65,6 @@ export function OpenWithdrawalCard({
             type="button"
             variant="outline_danger"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => openDeletionDialog(row)}
           >
             Kind sofort löschen

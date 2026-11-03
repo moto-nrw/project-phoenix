@@ -1,5 +1,6 @@
 import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
@@ -97,13 +98,15 @@ export function SetApiKeyModal({
                 <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs break-all">
                   {updatedDevice.apiKey}
                 </code>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="md"
                   onClick={() => void handleCopyApiKey()}
-                  className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="shrink-0"
                 >
                   {copied ? "Kopiert!" : "Kopieren"}
-                </button>
+                </Button>
               </div>
               <p className="text-xs text-gray-500">
                 Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.
@@ -113,13 +116,9 @@ export function SetApiKeyModal({
           )}
 
           <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-            >
+            <Button type="button" variant="primary" size="md" onClick={onClose}>
               Schließen
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -133,21 +132,25 @@ export function SetApiKeyModal({
       title={`API-Key ändern`}
       footer={
         <>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="flex-1"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="danger"
+            size="md"
             onClick={() => void handleSubmit()}
             disabled={isSaving}
-            className="bg-moto-red hover:bg-moto-red-hover flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1"
           >
             {isSaving ? "Wird geändert..." : "Übernehmen"}
-          </button>
+          </Button>
         </>
       }
     >

@@ -455,8 +455,10 @@ function PoolEntryRow({
   }
   return (
     <div
-      className={`rounded-xl border p-3 shadow-sm ${
-        danger ? "border-moto-red/20 bg-moto-red/10" : "moto-content-surface"
+      className={`rounded-xl border p-3 ${
+        danger
+          ? "border-moto-red/20 bg-moto-red/10 shadow-sm"
+          : "moto-content-surface"
       }`}
     >
       <div className="flex items-start justify-between gap-3">

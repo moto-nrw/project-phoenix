@@ -30,6 +30,7 @@ import {
 } from "~/lib/api-error";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Textarea } from "~/components/ui/textarea";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
@@ -1117,10 +1118,11 @@ export function SettingsField({
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
-          <button
+          <Button
             type="button"
+            variant="surface"
+            size="compact"
             onClick={handleReset}
-            className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
             title={
               restoresTraegerValue
                 ? "Auf den Wert des Trägers zurücksetzen"
@@ -1129,7 +1131,7 @@ export function SettingsField({
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="hidden sm:inline">Zurücksetzen</span>
-          </button>
+          </Button>
         )}
       </div>
 
@@ -1608,11 +1610,14 @@ function renderAGBSourceEditor({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
                 <label
-                  className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
-                    !canManageDocument || documentSaving
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }`}
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className:
+                      !canManageDocument || documentSaving
+                        ? "pointer-events-none cursor-pointer opacity-50"
+                        : "cursor-pointer",
+                  })}
                 >
                   <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
@@ -1633,7 +1638,11 @@ function renderAGBSourceEditor({
                   href={publicLegalDocumentURL(documentURL)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className: "",
+                  })}
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Öffnen</span>
@@ -1642,15 +1651,16 @@ function renderAGBSourceEditor({
               {hasDocument &&
                 canManageDocument &&
                 documentDeleteDisabledReason == null && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline_danger"
+                    size="compact"
                     onClick={onDocumentDelete}
                     disabled={documentSaving}
-                    className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/5 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Entfernen</span>
-                  </button>
+                  </Button>
                 )}
             </div>
           </div>
@@ -1752,15 +1762,17 @@ function renderEnrollmentLegalTextEditor(
               </p>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={onEdit}
             disabled={!writable}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0"
           >
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

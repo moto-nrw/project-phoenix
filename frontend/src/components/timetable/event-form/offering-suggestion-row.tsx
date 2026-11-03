@@ -43,8 +43,8 @@ export function OfferingSuggestionRow({
               key={choice.map((offering) => offering.id).join(",")}
               type="button"
               variant="outline"
-              size="compact"
-              className="h-auto min-h-8 max-w-full text-left break-words whitespace-normal"
+              size="md"
+              className="max-w-full text-left break-words whitespace-normal"
               onClick={() => onApply(choice.map((offering) => offering.id))}
             >
               {`${offeringSetNames(choice)} übernehmen`}
@@ -55,7 +55,7 @@ export function OfferingSuggestionRow({
         <Button
           type="button"
           variant="outline"
-          size="compact"
+          size="md"
           className="self-start"
           onClick={() =>
             onApply(suggestion.offerings.map((offering) => offering.id))

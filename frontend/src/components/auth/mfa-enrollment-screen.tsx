@@ -221,7 +221,7 @@ export function MFAEnrollmentScreen({
           <Button
             type="button"
             variant="primary"
-            size="base"
+            size="field"
             className="w-full"
             onClick={() => {
               const result = resultRef.current;
@@ -288,7 +288,7 @@ export function MFAEnrollmentScreen({
               <Button
                 type="button"
                 variant="primary"
-                size="base"
+                size="field"
                 className="w-full"
                 onClick={() => {
                   void handleStart();
@@ -321,16 +321,17 @@ export function MFAEnrollmentScreen({
               </p>
 
               <div className="flex items-center justify-center">
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="md"
                   onClick={() => {
                     void handleStart();
                   }}
                   disabled={isStarting || isConfirming}
-                  className="text-sm font-medium text-gray-700 underline-offset-2 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
                 >
                   Keinen Code erhalten? Erneut senden
-                </button>
+                </Button>
               </div>
             </div>
           )}

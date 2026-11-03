@@ -729,7 +729,7 @@ export function SupervisorsCard({
   if (supervisors.length === 0) return null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">

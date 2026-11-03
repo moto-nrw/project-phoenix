@@ -137,7 +137,7 @@ function LegalDetailsButton({
       aria-label={ariaLabel}
       title={title}
       onClick={onClick}
-      className="shrink-0 font-semibold"
+      className="shrink-0"
     >
       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
       <span>{label}</span>

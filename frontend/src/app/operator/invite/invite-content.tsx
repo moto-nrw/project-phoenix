@@ -1,13 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Check, Circle } from "lucide-react";
-import {
-  AuthShell,
-  OperatorBrand,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
@@ -28,6 +23,7 @@ import {
 import type { OperatorInvitationValidation } from "~/lib/operator/operator-invitation-helpers";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "OperatorInviteAcceptPage" });
 
@@ -224,12 +220,14 @@ export function InviteContent() {
               aria-hidden="true"
             />
           </div>
-          <Link
+          <ButtonLink
             href={operatorPath("/operator/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       </AuthShell>
     );
@@ -253,12 +251,14 @@ export function InviteContent() {
             error={invitationLoad.error}
             className="mb-4 text-left"
           />
-          <Link
+          <ButtonLink
             href={operatorPath("/operator/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       </AuthShell>
     );
@@ -405,7 +405,7 @@ export function InviteContent() {
           ) : null}
         </div>
 
-        <button
+        <Button
           ref={primaryRef}
           type="submit"
           disabled={
@@ -414,10 +414,12 @@ export function InviteContent() {
             !passwordsMatch ||
             !displayName.trim()
           }
-          className={authPrimaryButtonClassName}
+          variant="primary"
+          size="field"
+          className="w-full"
         >
           {state === "submitting" ? "Wird erstellt..." : "Konto erstellen"}
-        </button>
+        </Button>
       </form>
     </AuthShell>
   );

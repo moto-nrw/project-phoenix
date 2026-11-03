@@ -44,8 +44,8 @@ interface BeaconProps {
 export function SetupBeacon({ open, onOpen }: BeaconProps) {
   return (
     <div className={BEACON_POSITION}>
-      {/* Wie ein Helfer-Knopf zum Aufklappen: Symbol, runder Zähler, Pfeil
-          nach oben und ein Schatten, der ihn über die Seite hebt. */}
+      {/* Wie ein Helfer-Knopf zum Aufklappen: Symbol, runder Zähler und Pfeil
+          nach oben. Maße und Schatten bringt das Kit mit (#5534). */}
       <Button
         type="button"
         variant="success"
@@ -56,7 +56,7 @@ export function SetupBeacon({ open, onOpen }: BeaconProps) {
             ? "Erste Schritte öffnen, alles erledigt"
             : `Erste Schritte öffnen, ${open} offen`
         }
-        className="gap-2 rounded-full py-2.5 pr-3 pl-4 shadow-lg hover:shadow-xl"
+        className="gap-2"
       >
         <ListChecksIcon size={20} weight="bold" aria-hidden />
         <span>Erste Schritte</span>

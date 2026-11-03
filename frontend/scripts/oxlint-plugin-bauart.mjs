@@ -317,7 +317,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2043",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2008",
+      "Bedingung löschen@2006",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2523",
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1181",
+      "Bearbeiten@1182",
     ],
   }),
 );
@@ -1618,7 +1618,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@385",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@332",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@333",
     ],
   }),
 );

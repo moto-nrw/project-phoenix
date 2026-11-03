@@ -1021,7 +1021,7 @@ export default function StatisticsPage() {
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
                 className="w-full md:w-44"
-                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+                triggerClassName="moto-content-surface h-9 w-full"
               />
               <MultiSelect
                 ariaLabel="Gruppen"
@@ -1031,7 +1031,7 @@ export default function StatisticsPage() {
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
                 className="w-full md:w-56"
-                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+                triggerClassName="moto-content-surface h-9 w-full"
               />
             </div>
           }

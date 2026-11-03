@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
@@ -97,22 +98,24 @@ export function EnrollmentLinkPanel({ tab }: Props) {
           <code className="moto-content-surface flex-1 truncate rounded-lg border px-3 py-2 font-mono text-xs text-gray-800">
             {enrollUrl}
           </code>
-          <button
+          <Button
             type="button"
+            variant={copyState === "copied" ? "success" : "primary"}
+            size="compact"
             onClick={() => void handleCopy()}
-            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-              copyState === "copied"
-                ? "bg-moto-green-fill text-white"
-                : "bg-gray-900 text-white hover:bg-gray-800"
-            }`}
+            className="shrink-0"
           >
             {copyState === "copied" ? "Kopiert" : "Kopieren"}
-          </button>
+          </Button>
           <a
             href={enrollUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="moto-content-surface shrink-0 rounded-lg border px-3 py-2 text-center text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className={buttonClassName({
+              variant: "surface",
+              size: "compact",
+              className: "shrink-0",
+            })}
           >
             Öffnen
           </a>

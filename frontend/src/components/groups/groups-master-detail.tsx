@@ -206,7 +206,7 @@ function GroupSummary({ group }: { group: Group }) {
       : "Keine Gruppenleitung zugewiesen";
 
   return (
-    <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
           {group.room_name ?? "Kein Gruppenraum"}

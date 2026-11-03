@@ -109,15 +109,17 @@ function ConflictRow({
       </span>
       <span className="inline-flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {entry.instances.map((instance) => (
-          <button
+          <Button
             key={instance.id}
             type="button"
+            variant="surface"
+            size="compact"
             onClick={() => onJump(entry, instance.id)}
-            className="max-w-48 truncate rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="max-w-48"
             aria-label={`Termin „${instance.title}“ öffnen`}
           >
-            {instance.title}
-          </button>
+            <span className="truncate">{instance.title}</span>
+          </Button>
         ))}
       </span>
       {hidden ? (

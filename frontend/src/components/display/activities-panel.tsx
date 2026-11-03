@@ -15,7 +15,7 @@ interface ActivitiesPanelProps {
 
 export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
+    <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
       <div className="mb-5 flex items-center gap-4">
         <ConceptIconTile concept={activitiesConcept} variant="display" />
         <h2 className="text-3xl font-bold text-gray-900">Aktivitäten</h2>
@@ -32,7 +32,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
               {running.map((activity) => (
                 <li
                   key={activity.id}
-                  className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4 shadow-sm"
+                  className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4"
                 >
                   <span
                     className="h-4 w-4 shrink-0 animate-pulse rounded-full"
@@ -70,7 +70,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
                 {upcoming.map((activity) => (
                   <li
                     key={activity.id}
-                    className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4 shadow-sm"
+                    className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4"
                   >
                     <p
                       className="text-2xl font-bold tabular-nums"

@@ -24,7 +24,7 @@ export function PublicEnrollmentBrand({
 
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="moto-content-surface flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border shadow-sm sm:h-12 sm:w-12">
+      <div className="moto-content-surface flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border sm:h-12 sm:w-12">
         {logoUrl ? (
           <Image
             src={logoUrl}
@@ -172,7 +172,7 @@ export function PublicEnrollmentContentSkeleton({
 }: Readonly<{ sections?: number }>) {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5" aria-hidden="true">
-      <div className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-xl border p-5 sm:p-6">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-2 h-7 w-64 max-w-3/4" />
         <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
@@ -181,7 +181,7 @@ export function PublicEnrollmentContentSkeleton({
       {Array.from({ length: sections }, (_, sectionIndex) => (
         <div
           key={sectionIndex}
-          className="moto-content-surface overflow-hidden rounded-xl border shadow-sm"
+          className="moto-content-surface overflow-hidden rounded-xl border"
         >
           <div className="border-b border-gray-100 p-5 sm:p-6">
             <Skeleton className="h-5 w-48" />
@@ -210,10 +210,10 @@ export function PublicInfoCard({
   readonly children: React.ReactNode;
 }) {
   return (
-    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4">
       <div className="flex items-start gap-3">
         <span
-          className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm"
+          className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600"
           aria-hidden="true"
         >
           {icon}

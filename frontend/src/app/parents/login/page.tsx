@@ -20,7 +20,6 @@ import {
   AuthShell,
   AuthShellSkeleton,
   MotoBrand,
-  authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -34,6 +33,7 @@ import { parentPath } from "~/lib/parent-url";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "ParentLoginPage" });
 
@@ -377,26 +377,29 @@ function ParentLoginForm() {
             </div>
 
             <div className="text-center">
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="md"
                 disabled={isLoading || isSessionSettling}
                 onClick={() => setIsResetModalOpen(true)}
-                className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
               >
                 {t("forgotPassword")}
-              </button>
+              </Button>
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading || isSessionSettling}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             <span className="relative z-10">
               {isLoading ? t("submitting") : t("submit")}
             </span>
-          </button>
+          </Button>
         </form>
       </AuthShell>
 

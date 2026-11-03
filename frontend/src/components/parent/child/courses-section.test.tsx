@@ -69,7 +69,6 @@ describe("CoursesSection", () => {
       "moto-content-surface",
       "rounded-xl",
       "border",
-      "shadow-sm",
     );
     expect(screen.getByText("Noch 4 Plätze frei")).toBeInTheDocument();
     expect(

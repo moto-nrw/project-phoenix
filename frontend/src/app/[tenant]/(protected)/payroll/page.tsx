@@ -481,7 +481,7 @@ function lohnartColumns(
                 void onSave(cat.unitSettingKey, next);
               }
             }}
-            triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
+            triggerClassName="moto-content-surface h-9 w-full px-4 md:w-auto md:min-w-[10rem]"
           />
         ) : (
           <span className="text-sm text-gray-600">Stunden (fest)</span>
@@ -1100,7 +1100,7 @@ function WageTypesCard({
               saveWageType(wageType, { unit: next as WageTypeUnit });
             }
           }}
-          triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
+          triggerClassName="moto-content-surface h-9 w-full px-4 md:w-auto md:min-w-[10rem]"
         />
       ),
     },
@@ -1291,7 +1291,7 @@ function SurchargeRulesCard({
                 saveSurchargeRule(rule, { wageTypeId: next });
               }
             }}
-            triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[10rem]"
+            triggerClassName="moto-content-surface h-9 w-full px-4 md:w-auto md:min-w-[10rem]"
           />
         );
       },
@@ -1504,7 +1504,7 @@ function AbsenceTypeWageTypesCard({
               );
             }
           }}
-          triggerClassName="moto-content-surface h-9 w-full px-4 hover:border-gray-300 md:w-auto md:min-w-[12rem]"
+          triggerClassName="moto-content-surface h-9 w-full px-4 md:w-auto md:min-w-[12rem]"
         />
       ),
     },

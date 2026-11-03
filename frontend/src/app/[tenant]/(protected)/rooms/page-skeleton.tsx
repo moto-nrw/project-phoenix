@@ -9,7 +9,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border">
       <div className="bg-moto-blue absolute inset-0 rounded-2xl opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">

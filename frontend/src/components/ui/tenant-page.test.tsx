@@ -141,7 +141,6 @@ describe("TenantPage", () => {
       "moto-content-surface",
       "rounded-2xl",
       "border",
-      "shadow-sm",
       "max-sm:p-4",
     );
     expect(header).not.toHaveClass(

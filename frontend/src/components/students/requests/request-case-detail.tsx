@@ -77,7 +77,7 @@ export function RequestCaseDetail({
     <div
       ref={paneRef}
       tabIndex={-1}
-      className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm focus:outline-none"
+      className="moto-content-surface overflow-hidden rounded-2xl border focus:outline-none"
     >
       {narrow && (
         <div className="px-4 pt-3 sm:px-5">
@@ -85,7 +85,6 @@ export function RequestCaseDetail({
             type="button"
             variant="ghost"
             size="md"
-            className="max-sm:min-h-11"
             onClick={onBackToList}
           >
             Zur Liste

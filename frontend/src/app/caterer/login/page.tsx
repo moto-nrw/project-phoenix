@@ -13,8 +13,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
-  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -318,33 +316,36 @@ function LoginForm() {
               </div>
 
               <div className="text-center">
-                <button
+                <Button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className={authTextButtonClassName}
+                  variant="link"
+                  size="md"
                 >
                   Passwort vergessen?
-                </button>
+                </Button>
               </div>
             </div>
 
             <div className="mt-2">
-              <button
+              <Button
                 type="submit"
                 disabled={isSubmitting}
-                className={authPrimaryButtonClassName}
+                variant="primary"
+                size="field"
+                className="w-full"
               >
                 <span className="relative z-10">
                   {isSubmitting ? "Anmeldung läuft …" : "Anmelden"}
                 </span>
-              </button>
+              </Button>
             </div>
             {passkeySupported && (
               <Button
                 type="button"
-                variant="surface"
-                size="md"
+                variant="outline"
+                size="field"
                 className="w-full gap-2"
                 disabled={isSubmitting}
                 onClick={() => void loginWithCatererPasskey()}

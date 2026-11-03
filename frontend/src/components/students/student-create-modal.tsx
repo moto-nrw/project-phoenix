@@ -722,15 +722,17 @@ export function StudentCreateModal({
                                   </p>
                                 )}
                               </div>
-                              <button
+                              <Button
                                 type="button"
+                                variant="ghost_danger"
+                                size="icon"
                                 onClick={() => removeGuardian(index)}
                                 disabled={saveLoading}
                                 aria-label="Erziehungsberechtigte/n entfernen"
-                                className="text-moto-red hover:bg-moto-red-soft flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                className="shrink-0"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              </Button>
                             </li>
                           );
                         })}
@@ -748,24 +750,28 @@ export function StudentCreateModal({
                       />
                     ) : (
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <button
+                        <Button
                           type="button"
+                          variant="dashed"
+                          size="md"
                           onClick={() => setGuardianModalOpen(true)}
                           disabled={saveLoading}
-                          className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          className="flex-1 gap-2"
                         >
                           <Plus className="h-4 w-4" />
                           Neu anlegen
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="dashed"
+                          size="md"
                           onClick={() => setGuardianPickerOpen(true)}
                           disabled={saveLoading}
-                          className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          className="flex-1 gap-2"
                         >
                           <Search className="h-4 w-4" />
                           Vorhandene/n suchen
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </section>
@@ -799,32 +805,36 @@ export function StudentCreateModal({
                             {`${arrivalSchedules.length}× Ankunft · ${pickupSchedules.length}× Abholung`}
                           </p>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost_danger"
+                          size="icon"
                           onClick={() => {
                             setArrivalSchedules([]);
                             setPickupSchedules([]);
                           }}
                           disabled={saveLoading}
                           aria-label="Betreuungszeiten entfernen"
-                          className="text-moto-red hover:bg-moto-red-soft flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                          className="shrink-0"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     )}
 
-                    <button
+                    <Button
                       type="button"
+                      variant="dashed"
+                      size="md"
                       onClick={handleOpenCarePlan}
                       disabled={saveLoading}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                      className="w-full gap-2"
                     >
                       <Plus className="h-4 w-4" />
                       {hasCarePlan
                         ? "Wochenplan ändern"
                         : "Wochenplan hinzufügen"}
-                    </button>
+                    </Button>
                   </section>
 
                   {/* Common Form Sections */}

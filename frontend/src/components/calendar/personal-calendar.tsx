@@ -3,7 +3,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   SlideOver,
@@ -638,7 +638,7 @@ export function PersonalCalendar({
           </div>
         ) : null}
         {viewMode === "day" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
@@ -649,7 +649,7 @@ export function PersonalCalendar({
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
@@ -660,7 +660,7 @@ export function PersonalCalendar({
         ) : null}
 
         {viewMode === "month" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <div
               className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
             >
@@ -766,7 +766,7 @@ function MobileAgenda({
   }
 
   return (
-    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
           <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
@@ -1424,7 +1424,11 @@ function CalendarEventDetail({
                 event.appointment_id!,
               )}/ics`}
               download
-              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+              className={buttonClassName({
+                variant: "outline",
+                size: "md",
+                className: "w-full gap-1.5",
+              })}
             >
               <MotoConceptIcon concept={calendarPeriodsConcept} size={16} />
               Zum Kalender hinzufügen
@@ -1466,9 +1470,9 @@ function CalendarEventDetail({
               {onCancel && !cancelled ? (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="ghost_danger"
                   size="md"
-                  className="text-moto-red-strong gap-2"
+                  className="gap-2"
                   disabled={managing}
                   onClick={() => {
                     onCancel(event);
@@ -1482,9 +1486,9 @@ function CalendarEventDetail({
               {onDelete ? (
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="ghost_danger"
                   size="md"
-                  className="text-moto-red-strong gap-2"
+                  className="gap-2"
                   disabled={managing}
                   onClick={() => {
                     onDelete(event);
@@ -1568,7 +1572,7 @@ function EmptyCalendarState({
   viewMode,
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState title={calendarEmptyLabel(viewMode)} />
     </div>
   );
@@ -1665,9 +1669,8 @@ export function PersonalCalendarChrome({
       {viewMode !== "day" ? (
         <Button
           type="button"
-          variant={showWeekend ? "primary" : "outline"}
+          variant={showWeekend ? "primary" : "surface"}
           size="compact"
-          className={showWeekend ? "" : "bg-white"}
           aria-pressed={showWeekend}
           onClick={() => onShowWeekendChange(!showWeekend)}
         >
