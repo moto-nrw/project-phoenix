@@ -27,10 +27,34 @@ describe("useHolidayGuestLabels (#5630)", () => {
 
     renderHook(() => useHolidayGuestLabels([lia, ben]));
     expect(mocks.useSWRAuth).toHaveBeenLastCalledWith(
-      "holiday-guest-badges",
+      "holiday-guest-badges:5",
       fetchHolidayGuestBadges,
       expect.anything(),
     );
+  });
+
+  it("asks again when a live refresh brings another holiday guest (review #5642)", () => {
+    const { rerender } = renderHook(
+      ({ students }) => useHolidayGuestLabels(students),
+      { initialProps: { students: [ben, lia] } },
+    );
+    const before = mocks.useSWRAuth.mock.lastCall?.[0];
+
+    rerender({ students: [lia, ida, ben] });
+
+    expect(mocks.useSWRAuth.mock.lastCall?.[0]).not.toBe(before);
+    expect(mocks.useSWRAuth.mock.lastCall?.[0]).toBe(
+      "holiday-guest-badges:5,6",
+    );
+  });
+
+  it("asks again on its own while the list stays open, so a renamed school arrives (review #5642)", () => {
+    renderHook(() => useHolidayGuestLabels([ben]));
+
+    expect(mocks.useSWRAuth.mock.lastCall?.[2]).toMatchObject({
+      refreshInterval: 15 * 60_000,
+      keepPreviousData: true,
+    });
   });
 
   it("names the home school, says Feriengast without one and leaves own children alone", () => {

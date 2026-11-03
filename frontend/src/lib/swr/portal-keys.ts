@@ -331,5 +331,9 @@ export const catererKeys = {
 export const holidayKeys = {
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
-  guestBadges: () => "holiday-guest-badges",
+  /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */
+  guestBadges: (studentIds: readonly string[]) =>
+    `holiday-guest-badges:${[...studentIds]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .join(",")}`,
 };

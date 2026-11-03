@@ -19,10 +19,16 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { holidayKeys } from "~/lib/swr/portal-keys";
 
-// Die Heimatschule ändert sich höchstens mit dem stündlichen Abgleich.
+// Die Heimatschule ändert sich höchstens mit dem stündlichen Abgleich. Ein
+// neuer Gast in der Liste ändert den Schlüssel und fragt sofort; die
+// Viertelstunde (wie der Abgleich der Gruppenansicht) bringt eine umbenannte
+// Schule auch auf eine offene Seite. Bis die neue Antwort da ist, bleiben die
+// bisherigen Hinweise stehen (Review #5642).
 const HOLIDAY_GUEST_BADGES_OPTIONS = {
   revalidateOnFocus: false,
   dedupingInterval: 60_000,
+  refreshInterval: 15 * 60_000,
+  keepPreviousData: true,
 } as const;
 
 export interface HolidayGuestCandidate {
@@ -38,14 +44,15 @@ export interface HolidayGuestCandidate {
 export function useHolidayGuestLabels(
   students: readonly HolidayGuestCandidate[],
 ): (student: HolidayGuestCandidate) => string | undefined {
-  const hasGuest = students.some(
-    (student) => student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS,
-  );
+  const guestIds = students
+    .filter((student) => student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS)
+    .map((student) => String(student.id));
+  const hasGuest = guestIds.length > 0;
   // Scheitert das Laden (etwa ohne das Recht der Kinderliste), bleibt die
   // Zeile bei „Feriengast“ wie vor #5630: die Liste selbst ist geladen, der
   // Hinweis ergänzt sie nur, eine eigene Fehlermeldung hülfe niemandem.
   const { data } = useSWRAuth(
-    hasGuest ? holidayKeys.guestBadges() : null,
+    hasGuest ? holidayKeys.guestBadges(guestIds) : null,
     fetchHolidayGuestBadges,
     HOLIDAY_GUEST_BADGES_OPTIONS,
   );

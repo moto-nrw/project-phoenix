@@ -578,7 +578,7 @@ describe("StudentSearchPage", () => {
     } as ReturnType<typeof swrModule.useSWRAuth>);
     const students = vi.mocked(swrModule.useSWRAuth).getMockImplementation();
     vi.mocked(swrModule.useSWRAuth).mockImplementation((key, ...rest) =>
-      key === "holiday-guest-badges"
+      typeof key === "string" && key.startsWith("holiday-guest-badges:")
         ? ({
             data: [{ studentId: "9", schoolName: "OGS Am Park" }],
             isLoading: false,
