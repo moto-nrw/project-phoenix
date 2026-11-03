@@ -478,7 +478,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"emergency_contacts": []map[string]any{{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"}},
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
-		"consent_version": 2,
+		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
+		"consent_version": 3,
 		"captcha_token":   seedTurnstileTestToken,
 	}, nil
 }
@@ -499,6 +500,7 @@ func seedHolidayRegistrationByParent(rt *Runtime, registration map[string]any) {
 	guardian["email"] = rt.Parents[0].Email
 	if first, last, ok := strings.Cut(strings.TrimSpace(rt.Parents[0].Name), " "); ok && first != "" && last != "" {
 		guardian["first_name"], guardian["last_name"] = first, last
+		registration["declaration_name"] = first + " " + last
 	}
 }
 

@@ -137,10 +137,12 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
 	today := h.deps.Today()
+	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
 	return enrollment.HolidayRegistrationOffer{
 		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
 		Binding: period.Binding, Notes: period.Notes, Weeks: period.Weeks,
 		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
+		ConsentTexts: texts,
 	}, nil
 }
 
@@ -254,14 +256,17 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if err := h.claimHolidayProofs(ctx, link, receipt.ID, input.BenefitsProofTokens); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	if err := h.enqueueReceipt(ctx, link, period, input, receipt); err != nil {
+	if err := h.enqueueReceipt(ctx, link, period, form, input, receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return receipt, nil
 }
 
-func (h *HolidayRegistrations) enqueueReceipt(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod, input enrollment.HolidayRegistrationInput, receipt enrollment.HolidayRegistrationReceipt) error {
-	payload, err := json.Marshal(holidayReceiptMail(link.Traeger, period, input))
+func (h *HolidayRegistrations) enqueueReceipt(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
+	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, receipt enrollment.HolidayRegistrationReceipt) error {
+	mail := holidayReceiptMail(link.Traeger, period, input)
+	mail.Declaration = holidayMailDeclaration(period, form, input, receipt.SubmittedAt)
+	payload, err := json.Marshal(mail)
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday registration mail: %w", err)
 	}
@@ -316,7 +321,38 @@ func holidayReceiptMail(traeger enrollment.HolidayTraeger, period enrollment.Hol
 	}
 }
 
+// holidayMailDeclaration is the parent's copy of the declarations (#5626):
+// the typed name, when it was given, the version of the texts and each
+// declaration given in its words, then each confirmed notice of the Träger
+// from the form version the registration keeps. The texts name no health
+// information of the children.
+func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, givenAt time.Time) *enrollment.HolidayRegistrationMailDeclaration {
+	texts, ok := enrollment.HolidayConsentTextsOf(input.ConsentVersion)
+	if !ok {
+		return nil
+	}
+	statements := []enrollment.HolidayDeclarationStatement{{Title: "Datenschutz", Text: texts.PrivacyConsent}}
+	if input.HealthConsent {
+		statements = append(statements, enrollment.HolidayDeclarationStatement{Title: "Gesundheitsangaben", Text: texts.HealthConsent})
+	}
+	if period.Binding && input.BindingConfirmed {
+		statements = append(statements, enrollment.HolidayDeclarationStatement{Title: "Verbindliche Anmeldung", Text: texts.BindingConfirmed})
+	}
+	statements = append(statements, enrollment.HolidayDeclarationStatement{Title: "Sorgerecht", Text: texts.CustodyConfirmed})
+	for _, block := range form.LegalBlocks {
+		if block.Enabled && input.LegalAcceptances[block.Key] {
+			statements = append(statements, enrollment.HolidayDeclarationStatement{
+				Title: block.Title, Text: block.Label, Detail: strings.TrimSpace(block.Text),
+			})
+		}
+	}
+	return &enrollment.HolidayRegistrationMailDeclaration{
+		Name: input.DeclarationName, GivenAt: givenAt, ConsentVersion: texts.Version, Statements: statements,
+	}
+}
+
 func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enrollment.HolidayRegistrationInput {
+	input.DeclarationName = strings.TrimSpace(input.DeclarationName)
 	guardian := &input.Guardian
 	guardian.FirstName = strings.TrimSpace(guardian.FirstName)
 	guardian.LastName = strings.TrimSpace(guardian.LastName)
@@ -458,8 +494,15 @@ func validateHolidayConsents(input enrollment.HolidayRegistrationInput, period e
 	if period.Binding && !input.BindingConfirmed {
 		errs["binding_confirmed"] = errors.New("the binding registration must be confirmed")
 	}
-	if input.ConsentVersion != 0 && input.ConsentVersion != enrollment.HolidayConsentVersionHostHealth {
-		errs["consent_version"] = errors.New("the consent texts of this version are unknown")
+	// Every new registration gives the declarations of the current version
+	// (#5626): the custody and the typed name. The texts a parent agreed to
+	// must be named exactly, like the version of the form.
+	if !input.CustodyConfirmed {
+		errs["custody_confirmed"] = errors.New("the custody must be confirmed")
+	}
+	requireHolidayText(errs, "declaration_name", input.DeclarationName, enrollment.HolidayDeclarationNameMaxLength)
+	if input.ConsentVersion != enrollment.HolidayConsentVersionCurrent {
+		errs["consent_version"] = errors.New("the consent texts of this version are not the current ones")
 	}
 }
 

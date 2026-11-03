@@ -223,6 +223,14 @@ export function HolidayRegistrationSummary({
         </SectionCard>
       ) : null}
 
+      <SectionCard title={t("declarationTitle")} headingLevel={3}>
+        <DataGrid>
+          <DataField label={t("declarationName")}>
+            {draft.declarationName.trim()}
+          </DataField>
+        </DataGrid>
+      </SectionCard>
+
       {(offer.form.legalBlocks ?? []).some((b) => b.enabled) ? (
         <SectionCard title={t("legalTitle")}>
           <DataGrid>

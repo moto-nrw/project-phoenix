@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationEditVersion = "1.15.740"
+const holidayRegistrationEditVersion = "1.15.741"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayRegistrationEditVersion,
 		Description: "Ferienanmeldung: das Träger-Büro ändert die Angaben einer Anmeldung, der Verlauf hält es fest (#5629)",
 		DependsOn: []string{
-			unusedAccountErasureWithoutWaitVersion, // the last migration before this one
-			holidayHealthDataVersion,               // the audit actions this extends
+			holidayRegistrationDeclarationVersion, // the last migration before this one
+			holidayHealthDataVersion,              // the audit actions this extends
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationEditUp, holidayRegistrationEditDown)

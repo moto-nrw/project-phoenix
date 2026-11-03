@@ -23,6 +23,10 @@ import {
   editableQuestions,
 } from "~/components/traeger/holiday-registration-edit-fields";
 import {
+  HolidayDeclarationFields,
+  HolidayDeclarationTextsCard,
+} from "~/components/traeger/holiday-registration-declaration";
+import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
   HOLIDAY_REGISTRATION_STATUS_TONES,
   schoolNames,
@@ -370,9 +374,11 @@ export default function TraegerHolidayRegistrationPage() {
                 <DataField label="Verbindlich angemeldet">
                   {consentText(registration.bindingConfirmedAt)}
                 </DataField>
+                <HolidayDeclarationFields registration={registration} />
               </DataGrid>
             </SectionCard>
           )}
+          <HolidayDeclarationTextsCard registration={registration} />
           {registration.secondGuardian && editing !== "guardians" ? (
             <SectionCard
               title="Zweite sorgeberechtigte Person"

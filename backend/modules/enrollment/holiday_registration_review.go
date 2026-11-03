@@ -215,9 +215,15 @@ type HolidayRegistrationDetail struct {
 	HealthConsentAt  *time.Time                   `json:"health_consent_at"`
 	// ConsentVersion is the version of the consent texts the parents agreed
 	// to; 0 for a registration before #4722, which shares no health
-	// information with the hosting school.
-	ConsentVersion     int                        `json:"consent_version"`
-	BindingConfirmedAt *time.Time                 `json:"binding_confirmed_at"`
+	// information with the hosting school. ConsentTexts are the texts of
+	// that version, nil when they are not kept.
+	ConsentVersion     int                  `json:"consent_version"`
+	ConsentTexts       *HolidayConsentTexts `json:"consent_texts"`
+	BindingConfirmedAt *time.Time           `json:"binding_confirmed_at"`
+	// CustodyConfirmedAt and DeclarationName are the custody and the typed
+	// name of the declaration (#5626); a registration before has neither.
+	CustodyConfirmedAt *time.Time                 `json:"custody_confirmed_at"`
+	DeclarationName    string                     `json:"declaration_name"`
 	BenefitsProofs     []HolidayRegistrationProof `json:"benefits_proofs"`
 	History            []HolidayRegistrationEvent `json:"history"`
 }
