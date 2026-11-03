@@ -1,8 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { SectionHeader } from "~/components/ui/concept-section-header";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionCard } from "~/components/ui/section-card";
 import { TileCard } from "~/components/ui/tile-card";
 import { cn } from "~/lib/utils";
 import { transitConcept } from "~/lib/concepts/transit";
@@ -26,11 +25,14 @@ export function TransitAssignmentCard({
       href={href}
       className={cn("flex items-center justify-between gap-4", className)}
     >
-      <SectionHeader
+      <SectionCard
+        bare
         className="min-w-0 flex-1"
         title="Unterwegs"
-        icon={<MotoConceptIcon concept={transitConcept} size={22} />}
-        subtitle={
+        concept={transitConcept}
+        // Der Hinweis „Zuweisen“ bleibt auch auf dem Telefon neben dem Titel.
+        inlineActions
+        description={
           <>
             <span className="font-medium text-gray-900">{count}</span>{" "}
             {count === 1 ? "Kind" : "Kinder"} ohne Raumzuweisung
