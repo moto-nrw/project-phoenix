@@ -1,7 +1,7 @@
 "use client";
 
 import { Z_INDEX } from "./overlay-styles";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   useCallback,
   type CSSProperties,
@@ -1100,11 +1100,7 @@ export function ListboxDropdown<K extends string>({
                 onKeyDownCapture={handlePanelKeyDownCapture}
               >
                 {searchable ? (
-                  <div className="relative p-2 pb-1">
-                    <Search
-                      aria-hidden="true"
-                      className="pointer-events-none absolute top-1/2 left-4.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                    />
+                  <div className="p-2 pb-1">
                     <input
                       ref={searchRef}
                       type="text"
@@ -1114,7 +1110,7 @@ export function ListboxDropdown<K extends string>({
                       placeholder={searchPlaceholder}
                       aria-label={searchPlaceholder}
                       aria-controls={listboxId}
-                      className="h-9 w-full rounded-lg border border-gray-200 bg-white pr-3 pl-8 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
+                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
                     />
                   </div>
                 ) : null}
