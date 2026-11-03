@@ -10,7 +10,7 @@ import {
   type ListboxDropdownSize,
 } from "./listbox-dropdown";
 
-export interface MultiSelectOption {
+interface MultiSelectOption {
   readonly value: string;
   readonly label: string;
   readonly disabled?: boolean;
