@@ -211,9 +211,7 @@ export function MultiSelect({
       menuAlign={menuAlign}
       menuHeader={menuHeader}
       {...listboxProps}
-      renderOption={(option) => (
-        <MultiSelectOptionLabel label={option.label} badge={option.badge} />
-      )}
+      renderOption={MultiSelectOptionLabel}
       renderTrigger={({ open }) => (
         <ListboxTriggerContent
           label={triggerLabel}
@@ -225,17 +223,14 @@ export function MultiSelect({
   );
 }
 
-function MultiSelectOptionLabel({
-  label,
-  badge,
-}: Readonly<{ label: string; badge?: string }>) {
+function MultiSelectOptionLabel({ label, badge }: MultiSelectOption) {
   return (
     <span className="min-w-0 flex-1">
       <span className="block truncate" title={label}>
         {label}
       </span>
       {badge ? (
-        <span className="mt-1 block font-normal">
+        <span className="mt-1 block">
           <StatusBadge label={badge} tone="gray" compact />
         </span>
       ) : null}
