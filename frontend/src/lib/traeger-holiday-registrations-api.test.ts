@@ -200,6 +200,7 @@ describe("traeger-holiday-registrations-api", () => {
         childId: "9",
         before: [{ weekId: "52", timeModelId: "63" }],
         after: [{ weekId: "51", timeModelId: "61" }],
+        debtorNumber: null,
       },
       {
         action: "confirm",
@@ -208,7 +209,47 @@ describe("traeger-holiday-registrations-api", () => {
         childId: "",
         before: [],
         after: [],
+        debtorNumber: null,
       },
+    ]);
+  });
+
+  it("maps the debtor number of the registration and of its history (#5621)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          ...BACKEND_DETAIL,
+          debtor_number: "10 4711",
+          history: [
+            {
+              action: "confirm",
+              occurred_at: "2026-11-05T09:00:00Z",
+              details: {
+                from: "received",
+                debtor_number: { before: "", after: "10 4710" },
+              },
+            },
+            {
+              action: "debtor_number",
+              occurred_at: "2026-11-06T09:00:00Z",
+              details: {
+                debtor_number: { before: "10 4710", after: "10 4711" },
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    const detail = await fetchHolidayRegistration("5", "7");
+
+    expect(detail.debtorNumber).toBe("10 4711");
+    expect(
+      detail.history.map((event) => [event.action, event.debtorNumber]),
+    ).toEqual([
+      ["confirm", { before: "", after: "10 4710" }],
+      ["debtor_number", { before: "10 4710", after: "10 4711" }],
     ]);
   });
 

@@ -19,6 +19,8 @@ export const TAB_LABELS: Record<string, string> = {
   modules: "Module",
   // Briefkopf des Trägers (#4653); Schulen sehen ihn nur lesend.
   branding: "Briefkopf",
+  // Ferienbetreuung des Trägers (#5621); nur im Träger-Portal.
+  ferien: "Ferienbetreuung",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -58,6 +60,7 @@ export const categoryLabels: Record<string, string> = {
   elternportal: "Elternportal",
   essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
+  "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",
   "frueh-abgeholt": "Früh abgeholt",

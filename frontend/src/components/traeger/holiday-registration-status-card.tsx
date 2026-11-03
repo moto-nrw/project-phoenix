@@ -3,14 +3,17 @@
 // Status einer Ferienanmeldung und was das Träger-Büro damit tun kann
 // (#4663): bestätigen, stornieren, einfrieren und wieder öffnen. Die Karte
 // sagt, warum eine Aktion gerade fehlt. Das Bestätigen hält den Ferienbeitrag
-// fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664).
+// fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664). Fragt der
+// Träger die Debitorennummer ab, ist sie beim Bestätigen Pflicht (#5621).
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
-import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   confirmHolidayRegistration,
@@ -50,11 +53,19 @@ function benefitsText(
   return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.";
 }
 
+/** The hint under the debtor number, here and where it is changed. */
+export const DEBTOR_NUMBER_HINT =
+  "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.";
+
+/** The longest debtor number the backend keeps (#5621). */
+export const DEBTOR_NUMBER_MAX_LENGTH = 35;
+
 export function HolidayRegistrationStatusCard({
   periodId,
   registration,
   contribution,
   previewPending = false,
+  debtorNumberRequired = false,
   exemption,
   onExemptionChange,
   onChanged,
@@ -66,6 +77,8 @@ export function HolidayRegistrationStatusCard({
   contribution: HolidayContribution | null;
   /** The preview is computed again; the confirmation waits for it. */
   previewPending?: boolean;
+  /** The Träger asks for the debtor number at the confirmation (#5621). */
+  debtorNumberRequired?: boolean;
   /** The exemption the confirmation applies; the page shows its preview. */
   exemption: boolean;
   onExemptionChange: (exemption: boolean) => void;
@@ -77,23 +90,34 @@ export function HolidayRegistrationStatusCard({
     HolidayRegistrationAction | "confirm" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [debtorNumber, setDebtorNumber] = useState("");
+  const confirmRef = useRef<HTMLFormElement>(null);
+  const confirmErrors = useApiFormError(confirmRef);
   const errorDisplay = useApiErrorDisplay();
   const exemptionAvailable = contribution?.exemptionAvailable ?? false;
 
   const confirm = async () => {
+    confirmErrors.clear();
+    if (debtorNumberRequired && !debtorNumber.trim()) {
+      confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
+        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
+      });
+      return;
+    }
     setRunning("confirm");
     try {
       await confirmHolidayRegistration(
         periodId,
         registration.id,
         exemptionAvailable && exemption,
+        debtorNumber.trim(),
       );
       await onConfirmed();
     } catch (err) {
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void errorDisplay.show(err, { object: "die Anmeldung" });
+      void confirmErrors.show(err, { object: "die Anmeldung" });
     } finally {
       setRunning(null);
     }
@@ -129,6 +153,42 @@ export function HolidayRegistrationStatusCard({
         benefitsText(registration, contribution) ? (
           <p>{benefitsText(registration, contribution)}</p>
         ) : null}
+        {registration.status === "received" ? (
+          <form
+            ref={confirmRef}
+            noValidate
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirm();
+            }}
+          >
+            <FormErrorAlert message={confirmErrors.error} />
+            {debtorNumberRequired ? (
+              <div>
+                <Input
+                  id="holiday-registration-debtor-number"
+                  name="debtor_number"
+                  label="Debitorennummer"
+                  required
+                  autoComplete="off"
+                  controlSize="compact"
+                  maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+                  value={debtorNumber}
+                  aria-describedby="holiday-registration-debtor-number-hint"
+                  error={confirmErrors.fieldError("debtor_number") ?? undefined}
+                  onChange={(event) => setDebtorNumber(event.target.value)}
+                />
+                <p
+                  id="holiday-registration-debtor-number-hint"
+                  className="mt-1 text-xs text-gray-600"
+                >
+                  {DEBTOR_NUMBER_HINT}
+                </p>
+              </div>
+            ) : null}
+          </form>
+        ) : null}
         {registration.status === "received" && exemptionAvailable ? (
           <label
             htmlFor="holiday-registration-exemption"
@@ -157,7 +217,7 @@ export function HolidayRegistrationStatusCard({
                 disabled={
                   running !== null || contribution === null || previewPending
                 }
-                onClick={() => void confirm()}
+                onClick={() => confirmRef.current?.requestSubmit()}
               >
                 Bestätigen
               </Button>

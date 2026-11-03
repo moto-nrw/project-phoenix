@@ -75,7 +75,11 @@ export function BillingDocumentBreakdown({
                 Rechnung an {recipientName(document)}
               </SlideOverTitle>
               <SlideOverDescription>
-                {issuedText(document)} · {document.recipientEmail} · Betreuung{" "}
+                {issuedText(document)} · {document.recipientEmail}
+                {document.debtorNumber
+                  ? ` · Debitorennummer ${document.debtorNumber}`
+                  : ""}{" "}
+                · Betreuung{" "}
                 {formatDateRange(document.serviceFrom, document.serviceUntil)}
               </SlideOverDescription>
             </div>

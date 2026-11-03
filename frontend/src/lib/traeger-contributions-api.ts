@@ -134,17 +134,53 @@ export async function fetchHolidayContribution(
   );
 }
 
-/** Confirms the registration and freezes its contribution. */
+/**
+ * Confirms the registration and freezes its contribution, with the debtor
+ * number of the family (#5621); an empty one confirms without.
+ */
 export async function confirmHolidayRegistration(
   periodId: string,
   registrationId: string,
   benefitsExemption: boolean,
+  debtorNumber = "",
 ): Promise<HolidayContribution> {
   const confirmation = await traegerRequest<{
     contribution: BackendContribution;
   }>(`${registrationPath(periodId, registrationId)}/confirm`, {
     method: "POST",
-    body: { benefits_exemption: benefitsExemption },
+    body: {
+      benefits_exemption: benefitsExemption,
+      debtor_number: debtorNumber,
+    },
   });
   return contributionFromBackend(confirmation.contribution);
+}
+
+/** What a confirmation of the Träger needs (#5621). */
+export interface HolidayConfirmationSettings {
+  /** The Träger asks for the debtor number of the family. */
+  readonly debtorNumberRequired: boolean;
+}
+
+export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
+  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
+    "/api/traeger/holiday-contributions/confirmation-settings",
+  );
+  return { debtorNumberRequired: settings.debtor_number_required };
+}
+
+/**
+ * Changes the debtor number of a confirmed registration until an invoice
+ * bills it (#5621); returns the number the registration now has.
+ */
+export async function changeHolidayDebtorNumber(
+  periodId: string,
+  registrationId: string,
+  debtorNumber: string,
+): Promise<string> {
+  const changed = await traegerRequest<{ debtor_number: string }>(
+    `${registrationPath(periodId, registrationId)}/debtor-number`,
+    { method: "PUT", body: { debtor_number: debtorNumber } },
+  );
+  return changed.debtor_number;
 }

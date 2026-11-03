@@ -37,8 +37,19 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
           "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
           "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+          "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
           "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
           "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
+        ],
+      },
+      {
+        title: "Debitorennummer nachtragen oder ändern",
+        description:
+          "Das geht bei einer bestätigten Anmeldung, bis der Abrechnungslauf ihre Rechnung ausgestellt hat.",
+        steps: [
+          "Öffnen Sie die bestätigte Anmeldung.",
+          "Wählen Sie bei `Debitorennummer` den Knopf `Eintragen` oder `Ändern`.",
+          "Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
         ],
       },
       {
@@ -66,7 +77,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       },
     ],
     result:
-      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde.",
+      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher.",
     notes: [
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -77,13 +88,16 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
       "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
+      "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
+      "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie unter `Einstellungen` im Bereich `Ferienbetreuung` fest.",
     ],
     troubleshootingDetails: [
       "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
       "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
+      "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayRegistration,

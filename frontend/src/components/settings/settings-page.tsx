@@ -61,8 +61,10 @@ function tabLabel(tab: SchemaTab): string {
 // Payroll settings (#1417) have their own maintenance page under /payroll —
 // rendering the auto-generated tab here would create a second, worse surface
 // for the same values. The birthday switches (#3737) live on the hand-written
-// "Startseite für alle" tab next to the birthday card. Search skips both.
-const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite"]);
+// "Startseite für alle" tab next to the birthday card. The holiday settings
+// of the Träger (#5621) concern only the Träger-Büro and live in the
+// Träger-Portal. Search skips all three.
+const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite", "ferien"]);
 
 // Every field on "Geräte" configures the NFC tablets (#3735). A school without
 // NFC does not see the tab at all instead of an empty one.

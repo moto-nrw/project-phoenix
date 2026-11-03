@@ -34,6 +34,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (original) => ({
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
+  fetchHolidayConfirmationSettings: () =>
+    Promise.resolve({ debtorNumberRequired: false }),
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({

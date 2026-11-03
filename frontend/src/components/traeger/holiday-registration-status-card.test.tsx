@@ -9,9 +9,10 @@ import {
   HOLIDAY_REGISTRATION,
 } from "~/test/fixtures/holiday-registrations";
 
-const { mockChange, mockConfirm } = vi.hoisted(() => ({
+const { mockChange, mockConfirm, mockConfirmDebtorNumber } = vi.hoisted(() => ({
   mockChange: vi.fn(),
   mockConfirm: vi.fn(),
+  mockConfirmDebtorNumber: vi.fn(),
 }));
 
 vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
@@ -24,7 +25,11 @@ vi.mock("~/lib/traeger-contributions-api", () => ({
     periodId: string,
     id: string,
     benefitsExemption: boolean,
-  ) => mockConfirm(periodId, id, benefitsExemption),
+    debtorNumber?: string,
+  ) => {
+    mockConfirmDebtorNumber(debtorNumber);
+    return mockConfirm(periodId, id, benefitsExemption);
+  },
 }));
 
 import { HolidayRegistrationStatusCard } from "./holiday-registration-status-card";
@@ -56,6 +61,7 @@ describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
     mockChange.mockReset();
     mockConfirm.mockReset();
+    mockConfirmDebtorNumber.mockReset();
   });
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
@@ -208,5 +214,94 @@ describe("HolidayRegistrationStatusCard", () => {
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       ),
     ).toBeInTheDocument();
+  });
+
+  describe("debtor number (#5621)", () => {
+    function renderWithSwitch(debtorNumberRequired: boolean) {
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={HOLIDAY_CONTRIBUTION}
+            debtorNumberRequired={debtorNumberRequired}
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onConfirmed={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+    }
+
+    it("asks for no debtor number while the switch is off", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      renderWithSwitch(false);
+
+      expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+      expect(screen.queryByLabelText(/Debitorennummer/)).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() =>
+        expect(mockConfirm).toHaveBeenCalledWith("5", "7", false),
+      );
+      expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("");
+    });
+
+    it("requires the debtor number while the switch is on and marks the field", async () => {
+      renderWithSwitch(true);
+
+      const field = screen.getByLabelText(/Debitorennummer/);
+      expect(field).toBeRequired();
+      expect(field).toHaveAccessibleDescription(
+        "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.",
+      );
+      fireEvent.change(field, { target: { value: "   " } });
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      expect(
+        await screen.findByText("Bitte geben Sie die Debitorennummer ein."),
+      ).toBeInTheDocument();
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      await waitFor(() => expect(field).toHaveFocus());
+      expect(mockConfirm).not.toHaveBeenCalled();
+    });
+
+    it("confirms with the trimmed debtor number", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      renderWithSwitch(true);
+
+      fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+        target: { value: " 10 4711 " },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      await waitFor(() =>
+        expect(mockConfirm).toHaveBeenCalledWith("5", "7", false),
+      );
+      expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("10 4711");
+    });
+
+    it("puts the server's refusal at the field and focuses it", async () => {
+      mockConfirm.mockImplementation(() =>
+        Promise.reject(
+          new ApiError("invalid", 400, {
+            code: "parent_billing.debtor_number_invalid",
+            errors: [{ field: "debtor_number", reason: "must be one line" }],
+          }),
+        ),
+      );
+      renderWithSwitch(true);
+      const field = screen.getByLabelText(/Debitorennummer/);
+      fireEvent.change(field, { target: { value: "10 4711" } });
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      await waitFor(() =>
+        expect(field).toHaveAttribute("aria-invalid", "true"),
+      );
+      await waitFor(() => expect(field).toHaveFocus());
+      expect(
+        screen.getByText("Bitte prüfen Sie die Debitorennummer."),
+      ).toBeInTheDocument();
+    });
   });
 });
