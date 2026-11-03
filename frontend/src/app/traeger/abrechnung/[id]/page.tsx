@@ -54,6 +54,29 @@ function runDescription(run: BillingRunDetail): string {
   return "Vorschau mit allen bestätigten Anmeldungen, die noch keine Rechnung haben. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
+/** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
+function invoicesWithoutDebtorNumber(count: number): string {
+  return count === 1
+    ? "1 Rechnung mit Betrag hat keine Debitorennummer."
+    : `${count} Rechnungen mit Betrag haben keine Debitorennummer.`;
+}
+
+/**
+ * The warning before the release when the payment text names the debtor
+ * number and invoices with an amount have none (#5622): the release locks
+ * the number, and their letters are refused until the placeholder goes.
+ * The field to enter it shows at the registration only while the Träger
+ * asks for the number (#5621); then `missingDebtorNumbers` counts these
+ * invoices too, otherwise it is 0.
+ */
+function paymentTextWarning(run: BillingRunDetail): string {
+  const where =
+    run.missingDebtorNumbers > 0
+      ? "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein."
+      : "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn unter „Einstellungen“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.";
+  return `${invoicesWithoutDebtorNumber(run.paymentTextMissingDebtorNumbers)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. ${where}`;
+}
+
 export default function TraegerBillingRunPage() {
   const params = useParams<{ id: string }>();
   const runId = params?.id ?? "";
@@ -122,6 +145,7 @@ export default function TraegerBillingRunPage() {
 
   const preview = run?.status === "calculated";
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
   return (
     <TenantPage
@@ -168,7 +192,10 @@ export default function TraegerBillingRunPage() {
             <ConfirmationModal
               isOpen={confirmingRelease}
               title="Lauf freigeben?"
-              confirmText="Freigeben"
+              confirmText={
+                paymentTextGaps > 0 ? "Trotzdem freigeben" : "Freigeben"
+              }
+              confirmVariant={paymentTextGaps > 0 ? "warning" : "primary"}
               isConfirmLoading={releasing}
               loadingText="Wird freigegeben …"
               onClose={() => setConfirmingRelease(false)}
@@ -179,6 +206,13 @@ export default function TraegerBillingRunPage() {
                 {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach
                 lassen sie sich nicht mehr ändern.
               </p>
+              {paymentTextGaps > 0 ? (
+                <Alert
+                  type="warning"
+                  className="mt-3"
+                  message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
+                />
+              ) : null}
             </ConfirmationModal>
           </>
         ) : null
@@ -220,7 +254,14 @@ export default function TraegerBillingRunPage() {
               message="Bevor Sie freigeben: Legen Sie unter „Abrechnung“ das Muster der Rechnungsnummern fest."
             />
           ) : null}
-          {preview && run.missingDebtorNumbers > 0 ? (
+          {paymentTextGaps > 0 ? (
+            <Alert
+              type="warning"
+              title="Schreiben brauchen die Debitorennummer"
+              message={paymentTextWarning(run)}
+            />
+          ) : null}
+          {preview && run.missingDebtorNumbers > 0 && paymentTextGaps === 0 ? (
             <Alert
               type="warning"
               message={

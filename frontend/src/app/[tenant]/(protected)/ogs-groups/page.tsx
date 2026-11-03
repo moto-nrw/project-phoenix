@@ -104,6 +104,7 @@ import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
   GroupTransfer,
@@ -1017,6 +1018,7 @@ function OGSGroupPageContent() {
     },
     [pickupTimes, now],
   );
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -1040,12 +1042,18 @@ function OGSGroupPageContent() {
             />
           );
         }),
-        classColumn({ defaultVisible: false }),
+        classColumn({ defaultVisible: false, label: holidayGuestLabel }),
         arrivalColumn(ogsStudentDay),
         pickupColumn(ogsStudentDay),
         trackingColumn(trackingIndicators),
       ]),
-    [photosEnabled, currentGroup, ogsStudentDay, trackingIndicators],
+    [
+      photosEnabled,
+      currentGroup,
+      ogsStudentDay,
+      trackingIndicators,
+      holidayGuestLabel,
+    ],
   );
   const tableColumnDefaults = useMemo(
     () => columnDefaults(tableColumns),
@@ -1235,7 +1243,7 @@ function OGSGroupPageContent() {
                     <>
                       {student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS && (
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Feriengast
+                          {holidayGuestLabel(student)}
                         </StudentInfoRow>
                       )}
                       {student.pending_excused_note !== undefined && (

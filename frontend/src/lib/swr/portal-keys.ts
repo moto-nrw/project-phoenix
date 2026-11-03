@@ -333,9 +333,15 @@ export const catererKeys = {
 
 /**
  * Die Gesundheitsangaben aus der Ferienanmeldung bei einem eigenen Kind der
- * ausrichtenden OGS (#4722).
+ * ausrichtenden OGS (#4722) und die Hinweise „Gast aus …“ an den
+ * Feriengästen der Listen (#5630).
  */
 export const holidayKeys = {
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
+  /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */
+  guestBadges: (studentIds: readonly string[]) =>
+    `holiday-guest-badges:${[...studentIds]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .join(",")}`,
 };

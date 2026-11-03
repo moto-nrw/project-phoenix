@@ -5,6 +5,18 @@ import { SupervisionStudentGrid } from "./student-grid";
 import type { ActiveSupervisionStudent } from "./view-model";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 
+// The hint „Gast aus …“ (#5630) loads in its own hook, tested in
+// src/lib/hooks/use-holiday-guest-labels.test.tsx.
+vi.mock("~/lib/hooks/use-holiday-guest-labels", () => ({
+  useHolidayGuestLabels:
+    () => (student: { id: string | number; school_class?: string | null }) =>
+      student.school_class === "Feriengast"
+        ? student.id === "8"
+          ? "Gast aus OGS Am Park"
+          : "Feriengast"
+        : undefined,
+}));
+
 // #3889: without a block there is no list of expected or departed children,
 // so the room's search only knows who is in the room. A miss must say so
 // instead of looking like a broken search.
@@ -102,5 +114,41 @@ describe("SupervisionStudentGrid one-day change (#3946)", () => {
     expect(
       screen.getByRole("button", { name: "Ben Kurz - Details öffnen" }),
     ).not.toHaveAttribute("data-day-home-change");
+  });
+});
+
+// #5630: a holiday guest names its home school where other children show
+// their class.
+describe("SupervisionStudentGrid holiday guest (#5630)", () => {
+  it("shows the hint instead of the class Feriengast", () => {
+    const guest = {
+      id: "8",
+      first_name: "Ben",
+      second_name: "Muster",
+      school_class: "Feriengast",
+    } as unknown as ActiveSupervisionStudent;
+    const own = {
+      id: "9",
+      first_name: "Lia",
+      second_name: "Muster",
+      school_class: "2a",
+    } as unknown as ActiveSupervisionStudent;
+
+    render(
+      <SupervisionStudentGrid
+        students={[guest, own]}
+        filteredStudents={[guest, own]}
+        pickupTimesData={undefined}
+        arrivalTimesData={undefined}
+        trackingData={undefined}
+        myGroupIds={[]}
+        myGroupRooms={[]}
+        now={new Date()}
+        onOpenStudent={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Gast aus OGS Am Park")).toBeInTheDocument();
+    expect(screen.getByText("2a")).toBeInTheDocument();
   });
 });

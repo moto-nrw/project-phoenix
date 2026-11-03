@@ -398,7 +398,7 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.BillingRunDetail{}, err
 		}
 		detail.Documents, detail.Unbilled = current.documents, current.unbilled
-		if detail.MissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
+		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
 	}
@@ -464,20 +464,25 @@ func normalizeCorrection(input parentbilling.BillingCorrectionInput) (parentbill
 }
 
 // missingDebtorNumbers counts the draft invoices without a debtor number
-// when the Träger asks for one (#5621); the release stays possible.
-func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (int, error) {
+// when the Träger asks for one (#5621), and the draft invoices whose letter
+// the payment text would refuse once the release has copied them without a
+// number (#5622). The release stays possible: the page warns before it.
+func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (asked, forPaymentText int, err error) {
 	required, err := b.settings.AsksDebtorNumber(ctx, organizationID)
 	if err != nil {
-		return 0, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
+		return 0, 0, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
 	}
-	if !required {
-		return 0, nil
+	paymentText, err := b.settings.PaymentText(ctx, organizationID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parent billing: read the payment text of the Träger: %w", err)
 	}
-	missing := 0
 	for _, document := range documents {
-		if document.DebtorNumber == "" {
-			missing++
+		if required && document.DebtorNumber == "" {
+			asked++
+		}
+		if lacksDebtorNumberForPaymentText(paymentText, document) {
+			forPaymentText++
 		}
 	}
-	return missing, nil
+	return asked, forPaymentText, nil
 }

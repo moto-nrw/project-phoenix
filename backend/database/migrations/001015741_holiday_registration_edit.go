@@ -14,8 +14,8 @@ func init() {
 		Version:     holidayRegistrationEditVersion,
 		Description: "Ferienanmeldung: das Träger-Büro ändert die Angaben einer Anmeldung, der Verlauf hält es fest (#5629)",
 		DependsOn: []string{
-			holidayRegistrationDeclarationVersion, // the last migration before this one
-			holidayHealthDataVersion,              // the audit actions this extends
+			holidayGuestHomeSchoolNameVersion, // the last migration before this one
+			holidayDebtorNumberVersion,        // the audit actions this extends
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationEditUp, holidayRegistrationEditDown)
