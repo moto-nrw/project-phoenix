@@ -259,7 +259,11 @@ describe("SectionCard als einzige Kopfkarte (#5581)", () => {
       </SectionCard>,
     );
 
-    expect(screen.getByRole("button", { name: "Kinder" })).toBeInTheDocument();
+    const footer = screen.getByRole("button", {
+      name: "Kinder",
+    }).parentElement!;
+    expect(footer).toHaveClass("border-t");
+    expect(footer).not.toHaveClass("compact:mt-3", "mt-4");
     await user.click(screen.getByRole("button", { name: "Block einklappen" }));
     expect(
       screen.queryByRole("button", { name: "Kinder" }),

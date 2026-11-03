@@ -491,7 +491,6 @@ export function SectionCard({
           className={cn(
             "border-t border-gray-100 bg-gray-50/70 py-3",
             ZONE_PADDING_X,
-            (hasHeader || showBody) && "compact:mt-3 mt-4",
           )}
         >
           {footer}
