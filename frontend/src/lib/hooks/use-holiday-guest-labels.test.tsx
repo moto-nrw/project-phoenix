@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({ useSWRAuth: vi.fn() }));
 vi.mock("~/lib/swr", () => mocks);
 
 import { fetchHolidayGuestBadges } from "~/lib/holiday-host-api";
-import { useHolidayGuestLabels } from "./use-holiday-guest-labels";
+import {
+  type HolidayGuestCandidate,
+  useHolidayGuestLabels,
+} from "./use-holiday-guest-labels";
 
 const ben = { id: "5", school_class: "Feriengast" };
 const ida = { id: 6, school_class: "Feriengast" };
@@ -36,7 +39,11 @@ describe("useHolidayGuestLabels (#5630)", () => {
   it("asks again when a live refresh brings another holiday guest (review #5642)", () => {
     const { rerender } = renderHook(
       ({ students }) => useHolidayGuestLabels(students),
-      { initialProps: { students: [ben, lia] } },
+      {
+        initialProps: {
+          students: [ben, lia] as readonly HolidayGuestCandidate[],
+        },
+      },
     );
     const before = mocks.useSWRAuth.mock.lastCall?.[0];
 
