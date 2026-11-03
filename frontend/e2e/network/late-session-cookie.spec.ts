@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { networkPorts } from "./ports.mjs";
+import { ORIGIN_PAGE } from "./origin-page";
 
 // #5194, #5399: after a logout or a "Zur Schulanmeldung" in one tab, a
 // response of another tab that arrives late must neither write the old
@@ -223,7 +224,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       const tab1 = await context.newPage();
       await login(tab1);
       const tab2 = await context.newPage();
-      await tab2.goto(`${source}/api/health`);
+      await tab2.goto(`${source}${ORIGIN_PAGE}`);
       const before = await (await request.get(fixtureState)).json();
 
       // Tab 2's request still runs on the live session; its answer is held
@@ -257,7 +258,7 @@ async function expectSessionStaysEnded(context: BrowserContext) {
   expect(await sessionCookie(context)).toBeUndefined();
 
   const tab3 = await context.newPage();
-  await tab3.goto(`${source}/api/health`);
+  await tab3.goto(`${source}${ORIGIN_PAGE}`);
   const status = await tab3.evaluate(() =>
     fetch("/api/me/profile").then((r) => r.status),
   );
@@ -360,7 +361,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
     const tab1 = await context.newPage();
     await login(tab1);
     const tab2 = await context.newPage();
-    await tab2.goto(`${source}/api/health`);
+    await tab2.goto(`${source}${ORIGIN_PAGE}`);
     const pending = await holdRequest(
       tab2,
       "**/api/auth/session",
@@ -411,7 +412,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
 
     const tab3 = await context.newPage();
     const otherSchool = actionName === "logout" ? target : source;
-    await tab3.goto(`${otherSchool}/api/health`);
+    await tab3.goto(`${otherSchool}${ORIGIN_PAGE}`);
     const [read, body] = await Promise.all([
       tab3.waitForResponse(
         (response) => new URL(response.url()).pathname === "/api/auth/session",
@@ -448,7 +449,7 @@ test("Zur Schulanmeldung: a late renewal from the other school keeps the new ses
   const tab1 = await context.newPage();
   await login(tab1);
   const tab2 = await context.newPage();
-  await tab2.goto(`${source}/api/health`);
+  await tab2.goto(`${source}${ORIGIN_PAGE}`);
   const pending = await holdRequest(
     tab2,
     "**/api/auth/session",
@@ -491,7 +492,7 @@ test("logout: a renewal answered before the revocation and delivered after it op
   const tab1 = await context.newPage();
   await login(tab1);
   const tab2 = await context.newPage();
-  await tab2.goto(`${source}/api/health`);
+  await tab2.goto(`${source}${ORIGIN_PAGE}`);
   const pending = await holdResponse(
     tab2,
     "**/api/auth/session",
@@ -511,7 +512,7 @@ test("logout: a renewal answered before the revocation and delivered after it op
   expect(await pending.restored(context)).toBe(true);
 
   const tab3 = await context.newPage();
-  await tab3.goto(`${source}/api/health`);
+  await tab3.goto(`${source}${ORIGIN_PAGE}`);
   expect(
     await tab3.evaluate(() => fetch("/api/me/profile").then((r) => r.status)),
   ).toBe(401);

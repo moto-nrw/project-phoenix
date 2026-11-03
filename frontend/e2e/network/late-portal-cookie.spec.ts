@@ -7,6 +7,7 @@ import {
   type Route,
 } from "@playwright/test";
 import { networkPorts } from "./ports.mjs";
+import { ORIGIN_PAGE } from "./origin-page";
 
 const port = networkPorts("tenantSwitch").frontend;
 
@@ -82,7 +83,7 @@ async function isolate(context: BrowserContext) {
 async function signIn(page: Page, portal: Portal) {
   // Token handoff is server-only; use the public credentials contract.
   const password = randomBytes(24).toString("hex");
-  await page.goto(`${portal.origin}/api/health`);
+  await page.goto(`${portal.origin}${ORIGIN_PAGE}`);
   const status = await page.evaluate(
     async ({ basePath, provider, password }) => {
       const { csrfToken } = (await (
@@ -229,7 +230,8 @@ for (const portal of portals) {
         await signIn(tab1, portal);
         expect(await readStatus(tab1, portal.read)).toBe(200);
         const lateTab = tabs === "same tab" ? tab1 : await context.newPage();
-        if (lateTab !== tab1) await lateTab.goto(`${portal.origin}/api/health`);
+        if (lateTab !== tab1)
+          await lateTab.goto(`${portal.origin}${ORIGIN_PAGE}`);
 
         const source = makeSource(portal);
         const pending = await holdResponse(
@@ -250,7 +252,7 @@ for (const portal of portals) {
 
         // A fresh page of the portal reads nothing protected and no session.
         const fresh = await context.newPage();
-        await fresh.goto(`${portal.origin}/api/health`);
+        await fresh.goto(`${portal.origin}${ORIGIN_PAGE}`);
         expect(await readStatus(fresh, portal.read)).toBe(401);
         expect(
           await fresh.evaluate(
