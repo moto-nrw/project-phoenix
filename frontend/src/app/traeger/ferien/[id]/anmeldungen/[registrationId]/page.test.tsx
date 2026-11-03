@@ -45,8 +45,9 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayRegistrationHealth: () => mockHealth(),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
+const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
-  fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
+  fetchHolidayContribution: () => mockContribution(),
 }));
 
 import TraegerHolidayRegistrationPage from "./page";
@@ -54,6 +55,7 @@ import TraegerHolidayRegistrationPage from "./page";
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
     mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
@@ -65,6 +67,29 @@ describe("TraegerHolidayRegistrationPage", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
+  });
+
+  it("shows the siblings of another registration only when there are some (#5628)", async () => {
+    mockContribution.mockResolvedValue({
+      ...HOLIDAY_CONTRIBUTION,
+      siblings: [
+        {
+          registrationId: "8",
+          cancelled: false,
+          children: [{ id: "81", name: "Tom Muster" }],
+        },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Anmeldung Nr. 8" }),
+    ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
+    expect(screen.getByRole("button", { name: "Trennen" })).toBeInTheDocument();
   });
 
   it("names the parents in the title and keeps the number in the status line (#5146)", async () => {

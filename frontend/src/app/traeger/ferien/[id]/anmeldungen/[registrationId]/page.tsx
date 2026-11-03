@@ -6,9 +6,15 @@
 // „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
 
 import { useSession } from "next-auth/react";
-import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
 import {
   answeredQuestions,
@@ -62,13 +68,12 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 // The siblings of the registration (#5628) load only when it has some, so
-// the page carries no code for them otherwise.
-const HolidayRegistrationSiblingsCard = dynamic(
-  () =>
-    import("~/components/traeger/holiday-registration-siblings-card").then(
-      (module) => module.HolidayRegistrationSiblingsCard,
-    ),
-  { ssr: false },
+// the page carries no code for them otherwise. React.lazy, not next/dynamic:
+// the page then needs no loader of its own.
+const HolidayRegistrationSiblingsCard = lazy(() =>
+  import("~/components/traeger/holiday-registration-siblings-card").then(
+    (module) => ({ default: module.HolidayRegistrationSiblingsCard }),
+  ),
 );
 
 const PDF_LABELS: AttachmentLabels = {
@@ -301,13 +306,15 @@ export default function TraegerHolidayRegistrationPage() {
             onDebtorNumberChanged={load}
           />
           {contribution?.siblings?.length ? (
-            <HolidayRegistrationSiblingsCard
-              periodId={periodId}
-              registrationId={registration.id}
-              siblings={contribution.siblings}
-              invoiced={contribution.invoiced ?? false}
-              onSplit={load}
-            />
+            <Suspense fallback={null}>
+              <HolidayRegistrationSiblingsCard
+                periodId={periodId}
+                registrationId={registration.id}
+                siblings={contribution.siblings}
+                invoiced={contribution.invoiced ?? false}
+                onSplit={load}
+              />
+            </Suspense>
           ) : null}
           <HolidayRegistrationProofCard
             periodId={periodId}
