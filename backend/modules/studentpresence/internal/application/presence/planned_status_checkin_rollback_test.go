@@ -203,7 +203,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 			return svc.CreateVisit(checkinCtx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: groupID, EntryTime: time.Now()})
 		}
 		if mode == "batch" {
-			_, err := svc.ProcessSchoolCheckinBatch(ctx, []int64{student.ID}, staff.ID, activeService.SchoolCheckinActionIn)
+			_, err := svc.ProcessSchoolCheckinBatch(ctx, []int64{student.ID}, staff.ID, activeService.SchoolCheckinActionIn, "")
 			return err
 		}
 		_, err := svc.CheckInStudent(checkinCtx, student.ID, staff.ID, deviceID, true)

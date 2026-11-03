@@ -685,10 +685,7 @@ func (s *service) buildVisit(row VisitRecord, attendance map[int64]Attendance, f
 	if fullAccess {
 		if status, ok := attendance[row.StudentID]; ok {
 			visit.ActualArrivalTime = s.clock(status.CheckInTime)
-			// Leaving for class is no pickup (#5656).
-			if !status.InClass {
-				visit.ActualPickupTime = s.clock(status.CheckOutTime)
-			}
+			visit.ActualPickupTime = s.clock(status.CheckOutTime)
 		}
 	}
 	// Same full-access gate the single endpoint used: without it, avatar

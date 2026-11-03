@@ -121,7 +121,6 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []Attendance) {
 		if row.CheckOutTime == nil {
 			facts.CheckIn = berlinHHMM(row.CheckInTime)
 			facts.CheckOut = ""
-			facts.LeftForClass = false
 			return
 		}
 		if latestCheckOut == nil || row.CheckOutTime.After(*latestCheckOut) {

@@ -272,7 +272,7 @@ func newService(f *fakes) Query {
 	})
 }
 
-func TestCountNotHomeToday(t *testing.T) {
+func TestCountAtSchoolToday(t *testing.T) {
 	t.Parallel()
 	pickupPassed := fakeNow.Add(-time.Minute)
 	f := &fakes{
@@ -294,7 +294,7 @@ func TestCountNotHomeToday(t *testing.T) {
 		},
 	}
 
-	atSchool, inClass, err := newService(f).CountNotHomeToday(context.Background(), []int64{1, 2, 3, 4})
+	atSchool, inClass, err := newService(f).CountAtSchoolToday(context.Background(), []int64{1, 2, 3, 4})
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, atSchool)

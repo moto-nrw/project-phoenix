@@ -628,6 +628,9 @@ func dayLogCheckOutNote(rows []*studentpresence.Attendance) string {
 // dayLogClassPeriods reads the class times off a day's stays: each one starts
 // at a checkout to class and ends at the next check-in, if there is one.
 func dayLogClassPeriods(rows []*studentpresence.Attendance) []dayLogClassPeriod {
+	if !slices.ContainsFunc(rows, func(row *studentpresence.Attendance) bool { return row.LeftForClass() }) {
+		return nil
+	}
 	ordered := slices.Clone(rows)
 	sort.SliceStable(ordered, func(i, j int) bool {
 		return ordered[i].CheckInTime.Before(ordered[j].CheckInTime)

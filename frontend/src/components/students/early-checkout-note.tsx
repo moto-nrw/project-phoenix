@@ -112,6 +112,13 @@ export function useEarlyCheckoutDialog(
     [isEarly],
   );
 
+  const confirm = (checkoutNote: string, reason?: SchoolCheckoutReason) => {
+    if (!target) return;
+    if (reason) onConfirm(target.studentId, checkoutNote, reason);
+    else onConfirm(target.studentId, checkoutNote);
+    setTarget(null);
+  };
+
   const dialog = (
     <Modal
       isOpen={target !== null}
@@ -132,11 +139,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant="surface"
             size="md"
-            onClick={() => {
-              if (!target) return;
-              onConfirm(target.studentId, "", "class");
-              setTarget(null);
-            }}
+            onClick={() => confirm("", "class")}
           >
             Geht zum Unterricht
           </Button>
@@ -144,11 +147,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant={target?.room ? "danger" : "primary"}
             size="md"
-            onClick={() => {
-              if (!target) return;
-              onConfirm(target.studentId, note);
-              setTarget(null);
-            }}
+            onClick={() => confirm(note)}
           >
             Geht nach Hause
           </Button>

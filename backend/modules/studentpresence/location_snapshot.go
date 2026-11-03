@@ -108,7 +108,7 @@ func (s *StudentLocationSnapshot) resolveDetailedLocation(
 
 func detailedAttendanceLocation(status *DailyAttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	if status.Status == "checked_out" {
-		return checkedOutLocation(status, hasFullAccess)
+		return CheckedOutLocation(status, hasFullAccess)
 	}
 	if status.Status != "checked_in" {
 		return StudentLocationInfo{Location: "Abwesend"}
@@ -163,16 +163,16 @@ func ResolveBinaryLocation(status *DailyAttendanceStatus, hasFullAccess bool) St
 		}
 		return info
 	case "checked_out":
-		return checkedOutLocation(status, hasFullAccess)
+		return CheckedOutLocation(status, hasFullAccess)
 	default:
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
 }
 
-// checkedOutLocation names a checked-out child's location. Without full access
-// a child in class reads "Abwesend" like every other checkout, so the restricted
-// view learns nothing beyond attendance.
-func checkedOutLocation(status *DailyAttendanceStatus, hasFullAccess bool) StudentLocationInfo {
+// CheckedOutLocation names the location of a child without an open stay. Without
+// full access a child in class reads "Abwesend" like every other checkout, so the
+// restricted view learns nothing beyond attendance.
+func CheckedOutLocation(status *DailyAttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	if !hasFullAccess {
 		return StudentLocationInfo{Location: AbsentLocationLabel}
 	}

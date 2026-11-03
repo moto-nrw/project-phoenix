@@ -7,7 +7,6 @@ import (
 	slog "log/slog"
 	http "net/http"
 	strings "strings"
-	time "time"
 
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -253,14 +252,6 @@ func presentOrTransit(hasFullAccess bool) studentpresence.StudentLocationInfo {
 	return studentpresence.StudentLocationInfo{Location: "Anwesend"}
 }
 
-// absentInfo returns the "Abwesend" location, optionally with checkout time for full access users.
-func absentInfo(hasFullAccess bool, checkOutTime *time.Time) studentpresence.StudentLocationInfo {
-	if hasFullAccess && checkOutTime != nil {
-		return studentpresence.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
-	}
-	return studentpresence.StudentLocationInfo{Location: "Abwesend"}
-}
-
 // resolveStudentLocationWithTime determines a student's current location with timestamp.
 //
 // Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
@@ -290,10 +281,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Handle non-checked-in states (checked_out or other)
 	if attendanceStatus.Status != "checked_in" {
-		if hasFullAccess && attendanceStatus.IsInClass() {
-			return studentpresence.StudentLocationInfo{Location: studentpresence.InClassLocationLabel, Since: attendanceStatus.CheckOutTime}, nil
-		}
-		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime), nil
+		return studentpresence.CheckedOutLocation(attendanceStatus, hasFullAccess), nil
 	}
 
 	// Student is checked in - get current visit to check room assignment
@@ -546,12 +534,8 @@ func applyActualTimesFromAttendance(response *StudentResponse, status *studentpr
 	}
 
 	response.ActualArrivalTime = calendar.FormatBerlinClock(status.CheckInTime)
-	// Leaving for class is no pickup (#5656): the child is still expected back.
-	if status.IsInClass() {
-		return
-	}
-	response.ActualPickupTime = calendar.FormatBerlinClock(status.CheckOutTime)
-	if status.CheckOutTime != nil {
+	response.ActualPickupTime = calendar.FormatBerlinClock(status.PickupTime())
+	if status.PickupTime() != nil {
 		response.ActualPickupNote = status.CheckOutNote
 	}
 }

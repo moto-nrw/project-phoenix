@@ -157,6 +157,13 @@ export function useBulkCheckinActions(
     [selectedStudents, executeBulk],
   );
 
+  const confirmBulkCheckout = (reason?: SchoolCheckoutReason) => {
+    if (!pendingBulkCheckout) return;
+    const snapshot = pendingBulkCheckout.students;
+    setPendingBulkCheckout(null);
+    void executeBulk("out", snapshot, reason);
+  };
+
   const dialogs = (
     <>
       <Modal
@@ -178,12 +185,7 @@ export function useBulkCheckinActions(
               type="button"
               variant="surface"
               size="md"
-              onClick={() => {
-                if (!pendingBulkCheckout) return;
-                const snapshot = pendingBulkCheckout.students;
-                setPendingBulkCheckout(null);
-                void executeBulk("out", snapshot, "class");
-              }}
+              onClick={() => confirmBulkCheckout("class")}
             >
               Gehen zum Unterricht
             </Button>
@@ -191,12 +193,7 @@ export function useBulkCheckinActions(
               type="button"
               variant="danger"
               size="md"
-              onClick={() => {
-                if (!pendingBulkCheckout) return;
-                const snapshot = pendingBulkCheckout.students;
-                setPendingBulkCheckout(null);
-                void executeBulk("out", snapshot);
-              }}
+              onClick={() => confirmBulkCheckout()}
             >
               Gehen nach Hause
             </Button>

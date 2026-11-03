@@ -129,30 +129,12 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 		return nil, ErrNoAttendanceRecordForCheckout
 	}
 
-	if destination == "zuhause" || destination == "unterricht" {
-		details := checkoutDetails{}
-		if destination == "unterricht" {
-			details.reason = studentpresence.CheckoutReasonClass
-		}
-		switch currentStatus.Status {
-		case "checked_out":
-			s.getLogger().DebugContext(ctx, "student already checked out, skipping attendance toggle",
-				slog.Int64("student_id", studentID),
-			)
-		case "checked_in":
-			// CheckOutStudentFromDevice broadcasts the student_checkout /
-			// dashboard_counts_changed pair itself, after the request
-			// transaction commits (#2113) — the explicit BroadcastDailyCheckout
-			// that used to sit here fired before the commit and is now a
-			// duplicate.
-			if _, err := s.checkOutStudentFromDevice(ctx, studentID, deviceID, details); err != nil {
-				s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
-					slog.Int64("student_id", studentID),
-					slog.String("error", err.Error()),
-				)
-				return nil, err
-			}
-		}
+	if err := s.closeForDailyCheckout(ctx, currentStatus.Status, studentID, deviceID, destination); err != nil {
+		s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
 
 	action := "checked_out_daily"
@@ -170,4 +152,25 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 	)
 
 	return &DailyCheckoutResult{Action: action}, nil
+}
+
+// closeForDailyCheckout closes the open stay for the two destinations that end
+// it. A student already checked out stays as recorded; "unterwegs" keeps the
+// attendance open.
+//
+// The checkouts broadcast the student_checkout / dashboard_counts_changed pair
+// themselves, after the request transaction commits (#2113).
+func (s *service) closeForDailyCheckout(ctx context.Context, status string, studentID, deviceID int64, destination string) error {
+	if status != "checked_in" {
+		return nil
+	}
+	switch destination {
+	case "zuhause":
+		_, err := s.CheckOutStudentFromDevice(ctx, studentID, deviceID)
+		return err
+	case "unterricht":
+		return s.checkOutDeviceStudentToClass(ctx, studentID, deviceID)
+	default:
+		return nil
+	}
 }

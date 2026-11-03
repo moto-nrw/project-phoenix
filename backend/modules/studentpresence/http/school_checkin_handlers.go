@@ -237,12 +237,7 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var batch *studentpresence.SchoolCheckinBatchResult
-	if req.Reason == studentpresence.CheckoutReasonClass {
-		batch, err = rs.ActiveService.ProcessSchoolClassCheckoutBatch(r.Context(), studentIDs, staffID)
-	} else {
-		batch, err = rs.ActiveService.ProcessSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
-	}
+	batch, err := rs.ActiveService.ProcessSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action, req.Reason)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -330,7 +325,7 @@ func buildSchoolCheckinBatchResponse(action string, batch *studentpresence.Schoo
 			OK:        true,
 			Changed:   item.Changed,
 			Status:    item.Status,
-			Location:  batchItemLocation(item),
+			Location:  labelForAttendanceStatus(item.Status, item.InClass),
 		})
 	}
 	return resp
@@ -400,11 +395,7 @@ func (rs *Resource) applySchoolCheckinAction(
 		// transaction (issue #895 — see modules/studentpresence/internal/application/presence.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
-		if req.Reason == studentpresence.CheckoutReasonClass {
-			result, err = rs.ActiveService.CheckOutStudentToClass(ctx, student.ID, staffID, true)
-		} else {
-			result, err = rs.ActiveService.CheckOutStudentWithNote(ctx, student.ID, staffID, req.Note, true)
-		}
+		result, err = rs.ActiveService.CheckOutStudentWithNote(ctx, student.ID, staffID, req.Note, req.Reason, true)
 	}
 	if err != nil {
 		return nil, err
@@ -433,23 +424,16 @@ func buildSchoolCheckinResponse(studentID int64, status *studentpresence.DailyAt
 		YardSince:    status.YardSince,
 		Changed:      changed,
 	}
-	resp.Location = labelForAttendanceStatus(status.Status)
-	if status.IsInClass() {
-		resp.Location = studentpresence.InClassLocationLabel
-	}
+	resp.Location = labelForAttendanceStatus(status.Status, status.IsInClass())
 	return resp
-}
-
-func batchItemLocation(item studentpresence.SchoolCheckinBatchItem) string {
-	if item.InClass {
-		return studentpresence.InClassLocationLabel
-	}
-	return labelForAttendanceStatus(item.Status)
 }
 
 // labelForAttendanceStatus maps the tri-state status to the German presence
 // label used by the frontend PresenceBadge component.
-func labelForAttendanceStatus(status string) string {
+func labelForAttendanceStatus(status string, inClass bool) string {
+	if inClass {
+		return studentpresence.InClassLocationLabel
+	}
 	switch status {
 	case "checked_in":
 		return "Anwesend"

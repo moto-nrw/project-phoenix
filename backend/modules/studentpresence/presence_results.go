@@ -94,10 +94,19 @@ type DailyAttendanceStatus struct {
 	CheckOutReason *string `json:"check_out_reason,omitempty"`
 }
 
+// PickupTime is when the child left for the day. Leaving for class is no pickup
+// (#5656): the child is still expected back.
+func (s *DailyAttendanceStatus) PickupTime() *time.Time {
+	if s == nil || s.IsInClass() {
+		return nil
+	}
+	return s.CheckOutTime
+}
+
 // IsInClass reports a child whose last stay today ended with "Geht zum
 // Unterricht" and who has not come back yet (#5656).
 func (s *DailyAttendanceStatus) IsInClass() bool {
-	return s != nil && s.Status == "checked_out" && s.CheckOutReason != nil && *s.CheckOutReason == CheckoutReasonClass
+	return s != nil && s.Status == "checked_out" && isClassReason(s.CheckOutReason)
 }
 
 // IsCurrentlyPresent reports whether the attendance row represents a child

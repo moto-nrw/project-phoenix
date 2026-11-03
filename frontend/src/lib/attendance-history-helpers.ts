@@ -201,8 +201,10 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     deviceId: rec.device_id,
     sessions,
     checkOutNote: notes.length > 0 ? notes.join(" · ") : null,
-    leftForClassAt: sessions.flatMap((session) =>
-      session.leftForClassAt ? [session.leftForClassAt] : [],
+    leftForClassAt: (rec.sessions ?? []).flatMap((session) =>
+      session.check_out_reason === "class" && session.check_out_time
+        ? [new Date(session.check_out_time)]
+        : [],
     ),
   };
 }
@@ -217,10 +219,6 @@ function mapAttendanceSession(
       : null,
     durationMinutes: session.duration_minutes ?? null,
     checkOutNote: session.check_out_note ?? null,
-    leftForClassAt:
-      session.check_out_reason === "class" && session.check_out_time
-        ? new Date(session.check_out_time)
-        : null,
   };
 }
 

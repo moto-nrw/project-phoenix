@@ -1094,6 +1094,11 @@ function StudentDetailPageContent() {
     toast.success("Die Angaben sind gespeichert.");
   };
 
+  const closeCheckoutDialog = () => {
+    setShowConfirmCheckout(false);
+    dialogErrors.clear();
+  };
+
   const handleConfirmCheckout = async (reason?: SchoolCheckoutReason) => {
     if (!student) return;
 
@@ -1532,10 +1537,7 @@ function StudentDetailPageContent() {
           {/* Checkout Confirmation Modal */}
           <Modal
             isOpen={showConfirmCheckout}
-            onClose={() => {
-              setShowConfirmCheckout(false);
-              dialogErrors.clear();
-            }}
+            onClose={closeCheckoutDialog}
             title="Kind abmelden"
             mobileSheet
             footer={
@@ -1544,10 +1546,7 @@ function StudentDetailPageContent() {
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => {
-                    setShowConfirmCheckout(false);
-                    dialogErrors.clear();
-                  }}
+                  onClick={closeCheckoutDialog}
                 >
                   Abbrechen
                 </Button>

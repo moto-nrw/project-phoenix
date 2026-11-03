@@ -166,8 +166,6 @@ type VisitRecord struct {
 type Attendance struct {
 	CheckInTime  *time.Time
 	CheckOutTime *time.Time
-	// InClass reports a child who left for class and has not come back (#5656).
-	InClass bool
 }
 
 // Presence reads live presence facts.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -398,59 +399,36 @@ func seedManualAttendance(rt *Runtime, students map[string]SeedStudent) error {
 	}
 	for index, key := range keys[:8] {
 		student := students[key]
-		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
+		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", nil); err != nil {
 			return err
 		}
-		if index == 5 {
-			// One child leaves for class (#5656), so "Im Unterricht", its home
-			// tile row and the day log's class time show on every dev machine.
-			if err := postSchoolClassCheckout(rt, student.ID); err != nil {
-				return err
-			}
-			continue
-		}
-		if index >= 4 {
-			// One checkout carries the optional early-checkout note (#3324),
-			// so the detail header and the day log show it on every dev machine.
-			note := ""
-			if index == 4 {
-				note = "Arzttermin, die Mutter hat früher abgeholt"
-			}
-			if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", note); err != nil {
-				return err
-			}
+		if err := checkOutManualStudent(rt, student.ID, index); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func postSchoolClassCheckout(rt *Runtime, studentID int64) error {
-	path := fmt.Sprintf("/api/students/%d/school-checkin", studentID)
-	raw, err := rt.Client.Post(path, map[string]any{"action": "out", "reason": "class"})
-	if err != nil {
-		return fmt.Errorf("record class checkout for student %d: %w", studentID, err)
+// checkOutManualStudent leaves the first four children present. One child goes to
+// class (#5656), one checkout carries the optional early-checkout note (#3324),
+// so "Im Unterricht", the detail header and the day log show on every dev machine.
+func checkOutManualStudent(rt *Runtime, studentID int64, index int) error {
+	switch {
+	case index < 4:
+		return nil
+	case index == 4:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", map[string]any{"note": "Arzttermin, die Mutter hat früher abgeholt"})
+	case index == 5:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", map[string]any{"reason": "class"})
+	default:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", nil)
 	}
-	var envelope struct {
-		Data struct {
-			Status  string `json:"status"`
-			Changed bool   `json:"changed"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode class checkout for student %d: %w", studentID, err)
-	}
-	if envelope.Data.Status != "checked_out" || !envelope.Data.Changed {
-		return fmt.Errorf("class checkout for student %d: expected changed checked_out, got changed=%t status=%s", studentID, envelope.Data.Changed, envelope.Data.Status)
-	}
-	return nil
 }
 
-func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus, note string) error {
+func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus string, extra map[string]any) error {
 	path := fmt.Sprintf("/api/students/%d/school-checkin", studentID)
 	body := map[string]any{"action": action}
-	if note != "" {
-		body["note"] = note
-	}
+	maps.Copy(body, extra)
 	raw, err := rt.Client.Post(path, body)
 	if err != nil {
 		return fmt.Errorf("record web attendance for student %d: %w", studentID, err)

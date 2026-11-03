@@ -14,3 +14,9 @@ type SchoolStatus struct {
 	CheckOutNote                         *string
 	CheckOutReason                       *string
 }
+
+// IsInClass reports a child whose last stay of the day ended with "Geht zum
+// Unterricht" (#5656).
+func (s SchoolStatus) IsInClass() bool {
+	return s.Status == "checked_out" && isClassReason(s.CheckOutReason)
+}

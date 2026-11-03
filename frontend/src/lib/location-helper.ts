@@ -837,6 +837,12 @@ export function isInClassLocation(location?: string | null): boolean {
   return parseLocation(location).status === LOCATION_STATUSES.IN_CLASS;
 }
 
+const NOT_CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.AT_SCHOOL,
+  LOCATION_STATUSES.IN_CLASS,
+]);
+
 /**
  * Indicates whether the student has no open check-in: at home, still in class
  * before the first check-in, checked out to class, or without any location. Use
@@ -844,11 +850,7 @@ export function isInClassLocation(location?: string | null): boolean {
  */
 export function isNotCheckedInLocation(location?: string | null): boolean {
   if (!location?.trim()) return true;
-  return (
-    isHomeLocation(location) ||
-    isAtSchoolLocation(location) ||
-    isInClassLocation(location)
-  );
+  return NOT_CHECKED_IN_STATUSES.has(parseLocation(location).status);
 }
 
 /**

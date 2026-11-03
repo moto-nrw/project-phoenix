@@ -26,7 +26,7 @@ type PresenceOperations struct {
 // Unterricht" (#5656) right now. The day plan and care day end it needs live
 // outside the presence owner.
 type AtSchoolCounter interface {
-	CountNotHomeToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
+	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
 }
 
 // NewPresenceOperations wires a composed presence capability behind the
@@ -287,7 +287,7 @@ func (p PresenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 	return result, nil
 }
 
-func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64, logger *slog.Logger) (int, int, int) {
+func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64, logger *slog.Logger) (atSchool, inClass, remainingHome int) {
 	atSchool, inClass, remainingHome, err := splitAtSchoolFromHome(ctx, counter, home, candidates)
 	if err == nil {
 		return atSchool, inClass, remainingHome
@@ -300,11 +300,11 @@ func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home 
 // their own figures: "Schule" before the first check-in (#3260) and "Im
 // Unterricht" after a checkout to class (#5656). Without a counter or candidates
 // the home figure stays as it is; the result never drops below zero.
-func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64) (int, int, int, error) {
+func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64) (atSchool, inClass, remainingHome int, err error) {
 	if counter == nil || len(candidates) == 0 {
 		return 0, 0, home, nil
 	}
-	atSchool, inClass, err := counter.CountNotHomeToday(ctx, candidates)
+	atSchool, inClass, err = counter.CountAtSchoolToday(ctx, candidates)
 	if err != nil {
 		return 0, 0, 0, err
 	}

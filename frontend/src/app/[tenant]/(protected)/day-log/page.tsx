@@ -157,12 +157,10 @@ function studentDetailLine(student: DayLogStudent): string {
       : "";
     // Ohne Rückkehr endet der Tag mit dem Weg zum Unterricht, nicht mit „gegangen“.
     const leftForClass = student.class_periods?.some((p) => !p.until);
-    const range = !until
-      ? `Ankunft ${from} · noch anwesend`
-      : leftForClass
-        ? `Ankunft ${from} · zum Unterricht ${until}`
-        : `Ankunft ${from} · gegangen ${until}`;
-    const parts = [range];
+    const departure = leftForClass ? "zum Unterricht" : "gegangen";
+    const parts = [
+      `Ankunft ${from} · ${until ? `${departure} ${until}` : "noch anwesend"}`,
+    ];
     for (const period of student.class_periods ?? []) {
       if (period.until) {
         parts.push(

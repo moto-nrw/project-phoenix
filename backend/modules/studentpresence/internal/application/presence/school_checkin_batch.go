@@ -52,27 +52,11 @@ import (
 // would never commit, and reporting them per-student as OK would lie. Only
 // conditions detected without poisoning the transaction (unknown/foreign id,
 // graduation, both revalidated under the row lock) become OK=false items.
-func (s *service) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error) {
+func (s *service) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error) {
 	var result *SchoolCheckinBatchResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var err error
-		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, action, "")
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// ProcessSchoolClassCheckoutBatch is the "out" batch for children going to class
-// together (#5656): every stay it closes carries the class reason. A child who
-// is already checked out keeps the checkout that was recorded.
-func (s *service) ProcessSchoolClassCheckoutBatch(ctx context.Context, studentIDs []int64, staffID int64) (*SchoolCheckinBatchResult, error) {
-	var result *SchoolCheckinBatchResult
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, SchoolCheckinActionOut, studentpresence.CheckoutReasonClass)
+		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, action, reason)
 		return err
 	})
 	if err != nil {
@@ -85,8 +69,7 @@ func (s *service) processSchoolCheckinBatch(
 	ctx context.Context,
 	studentIDs []int64,
 	staffID int64,
-	action string,
-	reason string,
+	action, reason string,
 ) (*SchoolCheckinBatchResult, error) {
 	if action != SchoolCheckinActionIn && action != SchoolCheckinActionOut {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: fmt.Errorf("unknown action %q", action)}
@@ -248,7 +231,7 @@ func (s *service) refreshSchoolCheckinStatuses(ctx context.Context, actionable [
 	for _, row := range rows {
 		item := outcomes[row.StudentID]
 		item.Status = row.Status
-		item.InClass = row.Status == "checked_out" && row.CheckOutReason != nil && *row.CheckOutReason == studentpresence.CheckoutReasonClass
+		item.InClass = row.IsInClass()
 		outcomes[row.StudentID] = item
 	}
 	return nil

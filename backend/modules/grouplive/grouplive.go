@@ -36,7 +36,7 @@ type Query interface {
 // "Schule" before the first check-in (#3260), "Im Unterricht" after a checkout
 // to class (#5656).
 type AtSchoolCounter interface {
-	CountNotHomeToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
+	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
@@ -221,11 +221,11 @@ func (s *service) LiveGroup(ctx context.Context, requestedGroupID int64) (*Proje
 	return s.finishProjection(ctx, state)
 }
 
-// CountNotHomeToday applies the same planning, pre-check-in and in-class rules
+// CountAtSchoolToday applies the same planning, pre-check-in and in-class rules
 // as the live-group projection, without loading group membership or caller
 // access.
 // Its callers already provide the dashboard's tenant-scoped home candidates.
-func (s *service) CountNotHomeToday(ctx context.Context, studentIDs []int64) (int, int, error) {
+func (s *service) CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, int, error) {
 	if len(studentIDs) == 0 {
 		return 0, 0, nil
 	}
@@ -258,36 +258,64 @@ func (s *service) CountNotHomeToday(ctx context.Context, studentIDs []int64) (in
 		return 0, 0, fmt.Errorf("resolve care day end: %w", err)
 	}
 
+	in := notHomeInputs{presence, arrivals, pickups, timetable, careDayEnd, s.deps.Calendar.Now()}
 	atSchool, inClass := 0, 0
-	now := s.deps.Calendar.Now()
 	for _, studentID := range studentIDs {
-		attendance, _ := presence.Attendance(studentID)
-		if attendance.InClass {
-			if s.deps.Planning.InClassUntilCareDayEnd(careDayEnd, now) {
-				inClass++
-			}
-			continue
-		}
-		inputs := DayInputs{Present: attendance.Present, HasTimetable: timetable[studentID]}
-		if arrival, ok := arrivals[studentID]; ok {
-			inputs.Arrival = &arrival
-		}
-		var pickupTime *time.Time
-		if pickup, ok := pickups[studentID]; ok {
-			inputs.Pickup = &pickup
-			pickupTime = pickup.PickupTime
-		}
-		if s.deps.Planning.AtSchoolBeforeCheckIn(AtSchoolInputs{
-			Decision:   s.deps.Planning.DecideDay(inputs),
-			CheckedIn:  attendance.CheckInTime != nil,
-			PickupTime: pickupTime,
-			CareDayEnd: careDayEnd,
-			Now:        now,
-		}) {
+		switch s.notHomeReason(in, studentID) {
+		case notHomeAtSchool:
 			atSchool++
+		case notHomeInClass:
+			inClass++
 		}
 	}
 	return atSchool, inClass, nil
+}
+
+type notHomeReason int
+
+const (
+	notHomeNone notHomeReason = iota
+	notHomeAtSchool
+	notHomeInClass
+)
+
+type notHomeInputs struct {
+	presence   PresenceSnapshot
+	arrivals   map[int64]Arrival
+	pickups    map[int64]Pickup
+	timetable  map[int64]bool
+	careDayEnd string
+	now        time.Time
+}
+
+// notHomeReason says why a child without an open stay does not count as home.
+func (s *service) notHomeReason(in notHomeInputs, studentID int64) notHomeReason {
+	attendance, _ := in.presence.Attendance(studentID)
+	if attendance.InClass {
+		if s.deps.Planning.InClassUntilCareDayEnd(in.careDayEnd, in.now) {
+			return notHomeInClass
+		}
+		return notHomeNone
+	}
+	inputs := DayInputs{Present: attendance.Present, HasTimetable: in.timetable[studentID]}
+	if arrival, ok := in.arrivals[studentID]; ok {
+		inputs.Arrival = &arrival
+	}
+	var pickupTime *time.Time
+	if pickup, ok := in.pickups[studentID]; ok {
+		inputs.Pickup = &pickup
+		pickupTime = pickup.PickupTime
+	}
+	if s.deps.Planning.AtSchoolBeforeCheckIn(AtSchoolInputs{
+		Decision:   s.deps.Planning.DecideDay(inputs),
+		CheckedIn:  attendance.CheckInTime != nil,
+		PickupTime: pickupTime,
+		CareDayEnd: in.careDayEnd,
+		Now:        in.now,
+	}) {
+		return notHomeAtSchool
+	}
+	return notHomeNone
 }
 
 func (s *service) validateDependencies() error {

@@ -33,8 +33,10 @@ type Attendance struct {
 const CheckoutReasonClass = "class"
 
 // LeftForClass reports whether this stay ended because the child went to class.
-func (a Attendance) LeftForClass() bool {
-	return a.CheckOutReason != nil && *a.CheckOutReason == CheckoutReasonClass
+func (a Attendance) LeftForClass() bool { return isClassReason(a.CheckOutReason) }
+
+func isClassReason(reason *string) bool {
+	return reason != nil && *reason == CheckoutReasonClass
 }
 
 // IsOpen reports a school attendance that is checked in and not yet checked

@@ -17,7 +17,7 @@ type atSchoolCounterFake struct {
 	seen    []int64
 }
 
-func (f *atSchoolCounterFake) CountNotHomeToday(_ context.Context, ids []int64) (int, int, error) {
+func (f *atSchoolCounterFake) CountAtSchoolToday(_ context.Context, ids []int64) (int, int, error) {
 	f.seen = ids
 	return f.count, f.inClass, f.err
 }

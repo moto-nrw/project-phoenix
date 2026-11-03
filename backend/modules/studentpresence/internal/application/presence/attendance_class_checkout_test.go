@@ -25,7 +25,7 @@ func TestCheckOutStudentToClass_LabelsTheStayAndAllowsReturn(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "class-checkout-device-001")
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
 
-	result, err := service.CheckOutStudentToClass(ctx, student.ID, staff.ID, true)
+	result, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "", studentpresence.CheckoutReasonClass, true)
 	require.NoError(t, err)
 	require.True(t, result.Changed)
 
@@ -35,7 +35,7 @@ func TestCheckOutStudentToClass_LabelsTheStayAndAllowsReturn(t *testing.T) {
 	assert.True(t, status.IsInClass())
 
 	// A retry reports no change and cannot relabel the closed stay.
-	repeat, err := service.CheckOutStudentToClass(ctx, student.ID, staff.ID, true)
+	repeat, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "", studentpresence.CheckoutReasonClass, true)
 	require.NoError(t, err)
 	assert.False(t, repeat.Changed)
 
@@ -72,7 +72,7 @@ func TestCheckOutStudentToClass_DoesNotRelabelAHomeCheckout(t *testing.T) {
 
 	_, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
 	require.NoError(t, err)
-	repeat, err := service.CheckOutStudentToClass(ctx, student.ID, staff.ID, true)
+	repeat, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "", studentpresence.CheckoutReasonClass, true)
 	require.NoError(t, err)
 	assert.False(t, repeat.Changed)
 
@@ -99,7 +99,7 @@ func TestProcessSchoolClassCheckoutBatch_LabelsEveryClosedStay(t *testing.T) {
 	_, err := service.CheckOutStudent(ctx, wentHome.ID, staff.ID, true)
 	require.NoError(t, err)
 
-	result, err := service.ProcessSchoolClassCheckoutBatch(ctx, []int64{first.ID, second.ID, wentHome.ID}, staff.ID)
+	result, err := service.ProcessSchoolCheckinBatch(ctx, []int64{first.ID, second.ID, wentHome.ID}, staff.ID, "out", studentpresence.CheckoutReasonClass)
 	require.NoError(t, err)
 	require.Len(t, result.Results, 3)
 	assert.True(t, result.Results[0].InClass)

@@ -254,14 +254,15 @@ func (s *service) checkInStudent(ctx context.Context, studentID, staffID, device
 // timestamps for display. Any open room visit is ended as part of the same
 // operation (issue #895) — callers don't need a separate EndVisit call.
 func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
-	return s.CheckOutStudentWithNote(ctx, studentID, staffID, "", skipAuthCheck)
+	return s.CheckOutStudentWithNote(ctx, studentID, staffID, "", "", skipAuthCheck)
 }
 
 // CheckOutStudentWithNote is CheckOutStudent with the optional reason staff
-// leave when a child goes home earlier than planned (#3324). The note lands
+// leave when a child goes home earlier than planned (#3324) or, with reason
+// CheckoutReasonClass, for a child going to class (#5656). Note and reason land
 // on the stay this call closes; an idempotent retry stores nothing, so it can
-// never overwrite the note of a checkout someone else already made.
-func (s *service) CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error) {
+// never overwrite what a checkout someone else already made recorded.
+func (s *service) CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note, reason string, skipAuthCheck bool) (*AttendanceResult, error) {
 	note, err := studentpresence.NormalizeCheckoutNote(note)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckOutStudent", Err: err}
@@ -269,24 +270,7 @@ func (s *service) CheckOutStudentWithNote(ctx context.Context, studentID, staffI
 	var result *AttendanceResult
 	err = s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var err error
-		result, err = s.checkOutStudent(txCtx, studentID, staffID, checkoutDetails{note: note}, skipAuthCheck)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// CheckOutStudentToClass is CheckOutStudent for a child going to class (#5656):
-// the stay ends with the class reason, and the child reads "Im Unterricht" until
-// the next check-in. Like the note, the reason lands only on the stay this call
-// closes, so a retry cannot relabel a checkout someone else already made.
-func (s *service) CheckOutStudentToClass(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
-	var result *AttendanceResult
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = s.checkOutStudent(txCtx, studentID, staffID, checkoutDetails{reason: studentpresence.CheckoutReasonClass}, skipAuthCheck)
+		result, err = s.checkOutStudent(txCtx, studentID, staffID, checkoutDetails{note: note, reason: reason}, skipAuthCheck)
 		return err
 	})
 	if err != nil {
@@ -318,41 +302,59 @@ func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64,
 // A verified personal staff credential wins over the device session supervisor;
 // when neither exists, the authenticated device remains the audit principal.
 func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
-	return s.checkOutStudentFromDevice(ctx, studentID, deviceID, checkoutDetails{})
-}
-
-func (s *service) checkOutStudentFromDevice(ctx context.Context, studentID, deviceID int64, details checkoutDetails) (*AttendanceResult, error) {
-	staffID := int64(0)
-	principal := s.attendancePrincipal(ctx)
-	if principal.HasStaff {
-		staffID = principal.StaffID
-	} else {
-		_, err := s.getDeviceSupervisorID(ctx, deviceID)
-		if err != nil {
-			var unavailable *deviceSupervisorUnavailableError
-			if !errors.As(err, &unavailable) {
-				return nil, &ActiveError{
-					Op:  "ToggleStudentAttendance",
-					Err: fmt.Errorf("resolve daily checkout staff attribution: %w", err),
-				}
-			}
-			s.getLogger().DebugContext(ctx, "daily checkout has no staff attribution; using authenticated device",
-				slog.Int64("device_id", deviceID),
-				slog.String("reason", unavailable.Error()),
-			)
-		}
+	staffID, err := s.deviceCheckoutStaffID(ctx, deviceID)
+	if err != nil {
+		return nil, err
 	}
 	var result *AttendanceResult
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+	err = s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		now := time.Now()
 		var err error
-		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, calendar.DateFromTime(now), checkoutTypeDaily, details)
+		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, calendar.DateFromTime(now), checkoutTypeDaily, checkoutDetails{})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+// checkOutDeviceStudentToClass closes the stay with the class reason (#5656). It
+// joins the request transaction of ConfirmDailyCheckout.
+func (s *service) checkOutDeviceStudentToClass(ctx context.Context, studentID, deviceID int64) error {
+	staffID, err := s.deviceCheckoutStaffID(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	_, err = s.performCheckOut(ctx, studentID, staffID, deviceID, now, calendar.DateFromTime(now), checkoutTypeDaily, checkoutDetails{reason: studentpresence.CheckoutReasonClass})
+	return err
+}
+
+// deviceCheckoutStaffID attributes a device checkout: a verified personal staff
+// credential wins, otherwise the authenticated device stays the audit principal
+// and the result is 0.
+func (s *service) deviceCheckoutStaffID(ctx context.Context, deviceID int64) (int64, error) {
+	principal := s.attendancePrincipal(ctx)
+	if principal.HasStaff {
+		return principal.StaffID, nil
+	}
+	_, err := s.getDeviceSupervisorID(ctx, deviceID)
+	if err == nil {
+		return 0, nil
+	}
+	var unavailable *deviceSupervisorUnavailableError
+	if !errors.As(err, &unavailable) {
+		return 0, &ActiveError{
+			Op:  "ToggleStudentAttendance",
+			Err: fmt.Errorf("resolve daily checkout staff attribution: %w", err),
+		}
+	}
+	s.getLogger().DebugContext(ctx, "daily checkout has no staff attribution; using authenticated device",
+		slog.Int64("device_id", deviceID),
+		slog.String("reason", unavailable.Error()),
+	)
+	return 0, nil
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use

@@ -10,6 +10,7 @@ import (
 
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -154,10 +155,10 @@ func dayLogExportClassPeriods(periods []dayLogClassPeriod) []string {
 	for _, period := range periods {
 		from := exportOptionalTime(&period.From)
 		if period.Until != nil {
-			parts = append(parts, "Im Unterricht "+from+"–"+exportOptionalTime(period.Until))
+			parts = append(parts, studentpresence.InClassLocationLabel+" "+from+"–"+exportOptionalTime(period.Until))
 			continue
 		}
-		parts = append(parts, "Im Unterricht ab "+from)
+		parts = append(parts, studentpresence.InClassLocationLabel+" ab "+from)
 	}
 	return parts
 }
