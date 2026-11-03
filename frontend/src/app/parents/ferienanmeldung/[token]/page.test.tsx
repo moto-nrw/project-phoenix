@@ -6,6 +6,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import deMessages from "~/i18n/messages/de.generated";
 import type { HolidayRegistrationStep } from "~/components/holiday-registration/holiday-registration-form";
 import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Bissendorf",
@@ -18,6 +19,7 @@ const offer: HolidayRegistrationOffer = {
   weeks: [],
   schools: [],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 

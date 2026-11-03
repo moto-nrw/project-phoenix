@@ -17,6 +17,11 @@ import {
   type HolidayContribution,
 } from "~/lib/holiday-contribution";
 import { type NewUploadValue, postUpload } from "~/lib/enrollment-uploads";
+import {
+  type BackendConsentTexts,
+  consentTextsFromBackend,
+  type HolidayConsentTexts,
+} from "~/lib/holiday-consent-texts";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "HolidayRegistrationApi" });
@@ -57,6 +62,8 @@ export interface HolidayRegistrationOffer {
   readonly captchaSiteKey: string;
   /** The questions of the Träger in their current version (#5198). */
   readonly form: HolidayFormVersion;
+  /** The German texts of the declarations the form shows (#5626). */
+  readonly consentTexts: HolidayConsentTexts;
 }
 
 interface BackendOffer {
@@ -91,6 +98,7 @@ interface BackendOffer {
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
   } | null;
+  consent_texts?: BackendConsentTexts | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -123,6 +131,9 @@ export interface HolidayRegistrationPayload {
   readonly privacy_consent: boolean;
   readonly health_consent: boolean;
   readonly binding_confirmed: boolean;
+  /** The custody and the typed name of the declaration (#5626). */
+  readonly custody_confirmed: boolean;
+  readonly declaration_name: string;
   readonly benefits_declared: boolean;
   /** Tokens of the uploaded proofs of benefits (#5238). */
   readonly benefits_proof_tokens: readonly string[];
@@ -131,8 +142,8 @@ export interface HolidayRegistrationPayload {
   readonly legal_acceptances?: Readonly<Record<string, boolean>>;
   readonly form_version: number;
   /**
-   * Version of the consent texts the parent agreed to (#4722): 2 names the
-   * hosting OGS as a reader of the health information.
+   * Version of the consent texts the parent agreed to (#4722): from 2 on the
+   * hosting OGS reads the health information, 3 adds the declaration (#5626).
    */
   readonly consent_version: number;
   /** Answers to the questions per family, by key (#5198). */
@@ -177,6 +188,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       version: offer.form?.version ?? 0,
       fields: offer.form?.fields ?? [],
     },
+    consentTexts: consentTextsFromBackend(offer.consent_texts),
   };
 }
 
