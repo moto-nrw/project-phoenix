@@ -215,7 +215,13 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter directoryFilter)
 			return group.WhereOr(`"student".enrolled_until IS NULL`).
 				WhereOr(`"student".enrolled_until >= ?`, filter.CareStatusOn)
 		})
-		query = holidayGuestArrived(query, filter.CareStatusOn)
+		query = holidayGuestArrivedUnlessPresent(query, filter.CareStatusOn, filter.KeepAlumni)
+	}
+	// The child list's running view leaves the end of the care to Care
+	// Plan's participation and asks for every side here (#5630 review), so
+	// its caller names the arrival day of the holiday guests on its own.
+	if filter.HolidayGuestsArrivedOn != "" {
+		query = holidayGuestArrivedUnlessPresent(query, filter.HolidayGuestsArrivedOn, filter.KeepAlumni)
 	}
 
 	if len(filter.SchoolClasses) > 0 {

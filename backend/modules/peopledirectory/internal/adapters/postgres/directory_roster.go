@@ -98,9 +98,22 @@ func currentCare(query *bun.SelectQuery, today string) *bun.SelectQuery {
 // team prepares its first day. Filtered on the enrolment interval, like the
 // end of the care, so the list does not wait for the reconciliation.
 func holidayGuestArrived(query *bun.SelectQuery, today string) *bun.SelectQuery {
-	return query.Where(
-		`(COALESCE("student".school_class, '') <> ? OR "student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`,
-		directory.HolidayGuestSchoolClass, directoryDateParam(today))
+	return query.Where(holidayGuestArrivedSQL, directory.HolidayGuestSchoolClass, directoryDateParam(today))
+}
+
+const holidayGuestArrivedSQL = `(COALESCE("student".school_class, '') <> ? OR "student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`
+
+// holidayGuestArrivedUnlessPresent is holidayGuestArrived for the child
+// list: a child with a still-open presence stays, as a graduate in
+// KeepAlumni does, so the list never hides a child someone checked in.
+func holidayGuestArrivedUnlessPresent(query *bun.SelectQuery, day string, present []int64) *bun.SelectQuery {
+	if len(present) == 0 {
+		return holidayGuestArrived(query, day)
+	}
+	return query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+		group = group.WhereOr(`"student".id IN (?)`, bun.List(present))
+		return group.WhereOr(holidayGuestArrivedSQL, directory.HolidayGuestSchoolClass, directoryDateParam(day))
+	})
 }
 
 // ListRosterByGroups is the live roster of the given groups.

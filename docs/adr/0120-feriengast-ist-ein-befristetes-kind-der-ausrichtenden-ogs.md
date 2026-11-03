@@ -244,9 +244,14 @@ Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
   `enrolled_from` nach dem Kalendertag des Lesers liegt (People Directory
   `holidayGuestArrived`, neben `currentCare`). Wie beim Ende nach der Woche
   zählt das Betreuungsintervall, nicht der Status, damit die Listen nicht auf
-  den stündlichen Abgleich warten. Vor der Woche sieht die Leitung den Gast
-  nur auf der Seite „Ferienwochen“. Eigene Kinder mit späterem Start bleiben,
-  wie sie sind. Ein Test vor der Änderung hat gezeigt, dass ein wartender
+  den stündlichen Abgleich warten. Die laufende Ansicht der Kinderliste
+  (`GET /api/students`) überlässt das Ende der Betreuung der Teilnahme von
+  Care Plan und fragt das People Directory deshalb ohne Zeitgrenze; sie
+  nennt den Tag der Liste im Filterfeld `HolidayGuestsArrivedOn`. Ein Kind,
+  das gerade anwesend ist, bleibt dort stehen; die Ansichten aller und
+  beendeter Betreuungen bleiben unbeschränkt. Vor der Woche sieht die
+  Leitung den Gast nur auf der Seite „Ferienwochen“. Eigene Kinder mit
+  späterem Start bleiben, wie sie sind. Ein Test vor der Änderung hat gezeigt, dass ein wartender
   Gast vorher in Kinderliste und Tablet-Liste stand.
 - **Zu Punkt 4: Name der Heimatschule an der Kopie.** Die Kopie trägt neben
   `home_school_id` und `guest_school_name` den Namen der Heimatschule
