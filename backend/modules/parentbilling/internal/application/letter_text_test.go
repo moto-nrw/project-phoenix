@@ -65,16 +65,23 @@ func goldenLetterContent(t *testing.T) letterContent {
 // field. The template's merge fields and fixed texts map like this:
 //
 //	«Familienname» in the address field  → Recipient "Familie Beispiel"
-//	«Anschrift», «PLZ_Ort»               → none: a holiday registration has no
-//	                                         postal address (ADR 0121); the
-//	                                         person who registered instead
+//	«Anschrift», «PLZ_Ort»               → the person who registered, then
+//	                                         street and postal code with city
+//	                                         when the invoice copied an address
+//	                                         from the registration (ADR 0121
+//	                                         addendum, #5625); without one the
+//	                                         two lines of before
 //	Infoblock (Sachbearbeiterin, phone)  → Facts Ansprechperson, Telefon, E-Mail
 //	Datum                                → Facts Datum (issue date of the invoice)
 //	Betreff                              → Subject with the period
 //	"Sehr geehrte Familie «Familienname»"→ Salutation
 //	«Vorname_Kind»                       → the first names in the confirmation
 //	«Gesamtbeitrag»                      → Gesamtbetrag, after every position
-//	«Adressnummer» as payment reference  → the invoice number
+//	«Adressnummer» as payment reference  → the debtor number the invoice
+//	                                         copied from the registration, in
+//	                                         the facts under the invoice number
+//	                                         (ADR 0121 addendum, #5621); without
+//	                                         one the invoice number
 //	Zahlungsfrist                        → the payment date of the run
 //	Konto bei der Sparkasse              → Footer Bankverbindung (default account)
 //	Packliste, Krankheitsregel           → the free text of the run
@@ -129,6 +136,22 @@ func TestConfirmationLetterFollowsTheBissendorfTemplate(t *testing.T) {
 		},
 	}
 	assert.Equal(t, want, confirmationLetter(goldenLetterContent(t)))
+
+	withAddress := goldenLetterContent(t)
+	withAddress.document.RecipientAddress = &parentbilling.PostalAddress{Street: "Musterweg 12", PostalCode: "49143", City: "Bissendorf"}
+	want.Recipient = []string{"Familie Beispiel", "Erika Beispiel", "Musterweg 12", "49143 Bissendorf"}
+	assert.Equal(t, want, confirmationLetter(withAddress), "the address field names the postal address in four lines")
+
+	withDebtor := goldenLetterContent(t)
+	withDebtor.document.DebtorNumber = "10 4711"
+	want.Recipient = []string{"Familie Beispiel", "Erika Beispiel"}
+	want.Facts = append([]LetterFact{want.Facts[0], {Label: "Debitorennummer", Value: "10 4711"}}, want.Facts[1:]...)
+	want.Blocks[2] = LetterBlock{
+		Text: "Bitte überweisen Sie 92,50 € bis zum 15.12.2026 auf das Konto unten. Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an.",
+		Bold: true,
+	}
+	assert.Equal(t, want, confirmationLetter(withDebtor),
+		"the debtor number stands under the invoice number and is the reference to pay with")
 }
 
 // A family that pays nothing gets no payment date and no request to pay;

@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "./overlay-styles";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HandPointingIcon } from "@phosphor-icons/react";
@@ -13,7 +14,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
  * anklickt.
  *
  * Ohne Ziel (Stelle gerade nicht sichtbar) steht die Sprechblase mittig.
- * Liegt über geöffneten Fenstern (`Modal` nutzt z-[9999]).
+ * Liegt über geöffneten Fenstern (`Z_LAYER.coach` über `Z_LAYER.modal`).
  */
 interface CoachMarkProps {
   readonly target: Element | null;
@@ -303,7 +304,7 @@ export function CoachMark({
   }
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-[10000]">
+    <div className={`pointer-events-none fixed inset-0 ${Z_LAYER.coach}`}>
       {box ? (
         <>
           <div

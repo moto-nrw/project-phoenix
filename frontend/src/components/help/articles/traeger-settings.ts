@@ -29,6 +29,7 @@ export function traegerSettingsTopic(): HelpTopic {
       "`Zurücksetzen` entfernt Ihren Wert. Dann gilt wieder der Standard.",
       "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
+      "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
     ],
     differences: [
       "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",

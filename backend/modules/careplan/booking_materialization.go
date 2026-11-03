@@ -249,6 +249,27 @@ type RosterImpact struct {
 	// hand roster row, a Klasse/Jahrgang/Gruppe target or an occurrence
 	// roster. Only weekdays no remaining booking feeds there are listed.
 	NotAdjusted []ManualRosterTemplate
+	// PickupOverrides are the weekdays on which a stored staff pickup time
+	// hides the booked offering's pickup time from the date on. The office
+	// may reset them to the booking.
+	PickupOverrides []PickupOverride
+}
+
+// PickupOverride is one weekday whose stored staff pickup time differs from
+// the pickup time the bookings set from Date on.
+type PickupOverride struct {
+	// Weekday is the ISO weekday (1 = Monday).
+	Weekday int
+	// Date is the first day from the change's date on that falls on the
+	// weekday; a reset to the booking uses it.
+	Date calendar.Date
+	// StoredTime and BookedTime are "HH:MM".
+	StoredTime string
+	BookedTime string
+	// ResetNow says whether removing the stored time today keeps every day
+	// before Date unchanged. A stored row has no dates; for a change still
+	// ahead it may only go when the earlier days already use the same time.
+	ResetNow bool
 }
 
 // AdjustedRosterTemplate is one Regeltermin series the change rewrote.

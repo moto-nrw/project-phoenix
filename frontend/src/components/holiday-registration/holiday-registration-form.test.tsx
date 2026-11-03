@@ -904,6 +904,138 @@ describe("second guardian card", () => {
   );
 });
 
+describe("address card (#5625)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  const asking = (
+    addressRequirement: "off" | "optional" | "required",
+  ): HolidayRegistrationOffer => ({
+    ...offer,
+    form: { ...offer.form, addressRequirement },
+  });
+
+  function addressCard(title: string) {
+    const heading = screen.getByRole("heading", { name: title });
+    return within(heading.closest("section")!);
+  }
+
+  async function send() {
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    return mockSubmit.mock.calls[0]![1] as Record<string, unknown>;
+  }
+
+  it("shows no address card when the form does not ask", () => {
+    renderForm(null, asking("off"));
+    expect(
+      screen.getByRole("heading", { name: "Ihre Angaben" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /^Anschrift/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets parents leave an optional address blank", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, asking("optional"));
+    const card = addressCard("Anschrift (freiwillig)");
+    expect(card.getByLabelText("Straße und Hausnummer")).not.toBeRequired();
+    expect(card.getByLabelText("PLZ")).not.toBeRequired();
+    expect(card.getByLabelText("Ort")).not.toBeRequired();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect((await send()).guardian_address).toBeUndefined();
+  });
+
+  it("marks every part of a required address and a short postal code", async () => {
+    renderForm(null, asking("required"));
+    fillRegistration();
+    const card = addressCard("Anschrift");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    for (const label of ["Straße und Hausnummer", "PLZ", "Ort"]) {
+      await waitFor(() =>
+        expect(card.getByLabelText(label)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+    }
+    type(card.getByLabelText("Straße und Hausnummer"), "Musterweg 12");
+    type(card.getByLabelText("PLZ"), "4914");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await card.findByText("Bitte geben Sie eine PLZ mit 5 Ziffern ein."),
+    ).toBeInTheDocument();
+    expect(card.getByLabelText("PLZ")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows the address in the summary and sends it", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, asking("required"));
+    fillRegistration();
+    const card = addressCard("Anschrift");
+    expect(card.getByLabelText("PLZ")).toBeRequired();
+    type(card.getByLabelText("Straße und Hausnummer"), " Musterweg 12 ");
+    type(card.getByLabelText("PLZ"), "01234");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(
+      screen.getByText("Musterweg 12, 01234 Bissendorf"),
+    ).toBeInTheDocument();
+    expect((await send()).guardian_address).toEqual({
+      street: "Musterweg 12",
+      postal_code: "01234",
+      city: "Bissendorf",
+    });
+  });
+
+  it("puts the refusal of the server at the address field", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [
+          { field: "guardian_address.postal_code", reason: "five digits" },
+        ],
+      }),
+    );
+    renderForm(null, asking("optional"));
+    fillRegistration();
+    const card = addressCard("Anschrift (freiwillig)");
+    type(card.getByLabelText("Straße und Hausnummer"), "Musterweg 12");
+    type(card.getByLabelText("PLZ"), "49143");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    await send();
+    await waitFor(() =>
+      expect(
+        addressCard("Anschrift (freiwillig)").getByLabelText("PLZ"),
+      ).toHaveAttribute("aria-invalid", "true"),
+    );
+  });
+});
+
 /** The Träger's questions (#5198): per child and per family. */
 const offerWithQuestions: HolidayRegistrationOffer = {
   ...offer,

@@ -32,10 +32,22 @@ func (c confirmedRegistration) HolidayRegistration(context.Context, parentbillin
 	return c.registration, nil
 }
 
-func (c confirmedRegistration) ConfirmHolidayRegistration(context.Context, parentbilling.HolidayReviewer, int64, int64) (parentbilling.HolidayRegistration, error) {
+func (c confirmedRegistration) ConfirmHolidayRegistration(_ context.Context, _ parentbilling.HolidayReviewer, _, _ int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {
 	confirmed := c.registration
 	confirmed.Status = parentbilling.HolidayRegistrationConfirmed
+	confirmed.DebtorNumber = debtorNumber
 	return confirmed, nil
+}
+
+func (c confirmedRegistration) SetHolidayDebtorNumber(context.Context, parentbilling.HolidayReviewer, int64, int64, string) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
+// settingsDouble is the Träger's switch for the debtor number (#5621).
+type settingsDouble struct{ asksDebtorNumber bool }
+
+func (s settingsDouble) AsksDebtorNumber(context.Context, int64) (bool, error) {
+	return s.asksDebtorNumber, nil
 }
 
 func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) {
@@ -67,7 +79,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		}}},
 	}}
 	rules := compose.NewContributionRules()
-	contributions := compose.NewHolidayContributions(enrollment)
+	contributions := compose.NewHolidayContributions(enrollment, settingsDouble{})
 	reviewer := parentbilling.HolidayReviewer{OrganizationID: organization, AccountID: account.ID}
 
 	var exemption parentbilling.ContributionRule
@@ -81,7 +93,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {

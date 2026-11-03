@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
 import type { StaffShift } from "~/lib/shift-helpers";
 import type { DayProjection } from "~/lib/time-tracking-helpers";
 
@@ -17,6 +18,9 @@ const state = vi.hoisted(() => ({
   // useSWRAuth meldet isLoading=false, solange es den Abruf bis zur Session
   // zurückhält.
   shiftsHeldBack: false,
+  // Suche nach der nächsten Schicht in den Wochen nach einer leeren Woche.
+  aheadShifts: undefined as StaffShift[] | undefined,
+  aheadError: undefined as Error | undefined,
   projection: undefined as ReadonlyMap<string, DayProjection> | undefined,
   projectionError: undefined as Error | undefined,
   permissionReady: true,
@@ -27,12 +31,21 @@ const state = vi.hoisted(() => ({
   keys: [] as (string | null)[],
   updateParams: vi.fn(),
   mutate: vi.fn(() => Promise.resolve(undefined)),
+  mutateAhead: vi.fn(() => Promise.resolve(undefined)),
   mutateProjection: vi.fn(() => Promise.resolve(undefined)),
 }));
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null): SwrResult => {
     state.keys.push(key);
+    if (key?.startsWith("time-tracking-own-shifts-week-ahead-")) {
+      return {
+        data: state.aheadShifts,
+        error: state.aheadError,
+        isLoading: false,
+        mutate: state.mutateAhead,
+      };
+    }
     if (key?.startsWith("time-tracking-own-shifts-week-")) {
       return {
         data: state.shifts,
@@ -142,6 +155,8 @@ describe("OwnDienstplanView", () => {
     state.shifts = undefined;
     state.shiftsError = undefined;
     state.shiftsHeldBack = false;
+    state.aheadShifts = undefined;
+    state.aheadError = undefined;
     state.projection = undefined;
     state.projectionError = undefined;
     state.permissionReady = true;
@@ -151,6 +166,7 @@ describe("OwnDienstplanView", () => {
     state.keys = [];
     state.updateParams.mockClear();
     state.mutate.mockClear();
+    state.mutateAhead.mockClear();
     state.mutateProjection.mockClear();
   });
 
@@ -266,17 +282,112 @@ describe("OwnDienstplanView", () => {
     expect(screen.queryByText("Differenz")).not.toBeInTheDocument();
   });
 
-  it("explains an empty week and who plans it", () => {
+  it("explains an empty week and who plans it while the search runs", () => {
     state.shifts = [];
 
     render(<OwnDienstplanView />);
 
     expect(
-      screen.getByText(/Keine Schichten in dieser Woche\./),
+      screen.getByText("Keine Schichten in dieser Woche"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Ihre Schichten plant die Leitung im Dienstplan/),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur nächsten Schicht" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("searches the eight weeks after an empty week for the next shift", () => {
+    state.shifts = [];
+
+    render(<OwnDienstplanView />);
+
+    expect(state.keys).toContain(
+      "time-tracking-own-shifts-week-ahead-2026-09-14-2026-11-08",
+    );
+  });
+
+  it("does not search ahead while the week has shifts", () => {
+    state.shifts = [shift()];
+
+    render(<OwnDienstplanView />);
+
+    expect(state.keys.some((key) => key?.includes("-week-ahead-"))).toBe(false);
+  });
+
+  it("names the next shift after an empty week and jumps to it", () => {
+    state.shifts = [];
+    state.aheadShifts = [
+      shift({ id: "2", date: "2026-10-01" }),
+      shift({ id: "3", date: "2026-09-22", cancelled: true }),
+      shift({ id: "4", date: "2026-09-29" }),
+    ];
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      screen.getByText(
+        "Ihre nächste Schicht nach dieser Woche ist am Dienstag, 29. September 2026.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zur nächsten Schicht" }),
+    );
+    expect(state.updateParams).toHaveBeenCalledWith({ d: "2026-09-29" });
+  });
+
+  it("says who to ask when no shift follows in the next eight weeks", () => {
+    state.shifts = [];
+    state.aheadShifts = [];
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      screen.getByText(
+        /Auch in den 8 Wochen danach ist keine Schicht eingetragen\. Ihre Schichten plant die Leitung\. Fragen Sie dort nach/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur nächsten Schicht" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains when only cancelled shifts follow in the next eight weeks", () => {
+    state.shifts = [];
+    state.aheadShifts = [
+      shift({ id: "2", date: "2026-09-22", cancelled: true }),
+    ];
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      screen.getByText(
+        /In den 8 Wochen danach sind nur ausgefallene Schichten eingetragen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur nächsten Schicht" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the failed look-ahead search and offers a retry", async () => {
+    state.shifts = [];
+    state.aheadError = new ApiError("unavailable", 503);
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      await screen.findByText(
+        "Die Suche nach der nächsten Schicht ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    // Die aktuelle Woche ist bereits bestätigt leer und bleibt sichtbar.
+    expect(
+      screen.getByText("Keine Schichten in dieser Woche"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(state.mutateAhead).toHaveBeenCalledTimes(1);
   });
 
   it("keeps loading instead of claiming an empty week before the session", () => {

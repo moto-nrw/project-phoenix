@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -43,8 +44,10 @@ func (rs *HolidayResource) TraegerRouter(protectedTraegerRoutes func(chi.Router,
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		manage := r.With(rs.requireManage, withTx)
+		manage.Get("/confirmation-settings", rs.confirmationSettings)
 		manage.Get("/{periodId}/registrations/{registrationId}", rs.contribution)
 		manage.Post("/{periodId}/registrations/{registrationId}/confirm", rs.confirm)
+		manage.Put("/{periodId}/registrations/{registrationId}/debtor-number", rs.changeDebtorNumber)
 	})
 	return r
 }
@@ -61,13 +64,26 @@ func (rs *HolidayResource) QuoteRouter() chi.Router {
 // HolidayConfirmRequest is the body of POST
 // /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm.
 // benefits_exemption applies the exemption for families receiving benefits;
-// an empty body confirms without it.
+// debtor_number is the number of the family in the finance system of the
+// Träger (#5621). An empty body confirms without either.
 type HolidayConfirmRequest struct {
-	BenefitsExemption bool `json:"benefits_exemption"`
+	BenefitsExemption bool   `json:"benefits_exemption"`
+	DebtorNumber      string `json:"debtor_number"`
 }
 
-// Bind accepts the body.
+// Bind accepts the body; the owners check the debtor number.
 func (req *HolidayConfirmRequest) Bind(*http.Request) error { return nil }
+
+// HolidayDebtorNumberRequest is the body of PUT
+// /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number
+// (#5621): the new debtor number; an empty one removes it where the Träger
+// does not ask for it.
+type HolidayDebtorNumberRequest struct {
+	DebtorNumber string `json:"debtor_number"`
+}
+
+// Bind accepts the body; the owners check the debtor number.
+func (req *HolidayDebtorNumberRequest) Bind(*http.Request) error { return nil }
 
 type holidayQuoteBookingRequest struct {
 	WeekID      int64 `json:"week_id"`
@@ -166,13 +182,50 @@ func (rs *HolidayResource) confirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	confirmation, err := rs.contributions.ConfirmHolidayRegistration(r.Context(), reviewer, periodID, registrationID, req.BenefitsExemption)
+	confirmation, err := rs.contributions.ConfirmHolidayRegistration(r.Context(), reviewer, periodID, registrationID, req.BenefitsExemption, req.DebtorNumber)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, confirmation, "Holiday registration confirmed successfully")
+}
+
+// confirmationSettings answers what a confirmation of the session's Träger
+// needs (#5621).
+func (rs *HolidayResource) confirmationSettings(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	settings, err := rs.contributions.HolidayConfirmationSettings(r.Context(), reviewer)
+	if err != nil {
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, settings, "Holiday confirmation settings retrieved successfully")
+}
+
+// changeDebtorNumber changes the debtor number of a confirmed registration
+// until an issued invoice bills it (#5621). Any refusal rolls the Träger
+// transaction back.
+func (rs *HolidayResource) changeDebtorNumber(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	req := &HolidayDebtorNumberRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	changed, err := rs.contributions.ChangeHolidayDebtorNumber(r.Context(), reviewer, periodID, registrationID, req.DebtorNumber)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, changed, "Holiday debtor number changed successfully")
 }
 
 // quote resolves the link in the administrative transaction and computes
@@ -217,7 +270,12 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 // renderHolidayError answers a refused contribution. The registration
 // refusals keep the codes of the registration review (ADR 0114).
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
+	var fields validation.Errors
 	switch {
+	case errors.As(err, &fields):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingDebtorNumberInvalid))
+	case errors.Is(err, capability.ErrDebtorNumberLocked):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingDebtorNumberLocked))
 	case errors.Is(err, capability.ErrHolidayLinkNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationNotFound))
 	case errors.Is(err, capability.ErrHolidayPeriodNotFound):

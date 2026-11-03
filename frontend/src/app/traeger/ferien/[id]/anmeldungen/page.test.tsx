@@ -16,6 +16,9 @@ import {
   HOLIDAY_SCHOOLS,
 } from "~/test/fixtures/holiday-registrations";
 
+const { mockConfirmationSettings } = vi.hoisted(() => ({
+  mockConfirmationSettings: vi.fn(),
+}));
 const { mockPush, mockFetchList, mockDownload, mockDownloadBlob } = vi.hoisted(
   () => ({
     mockPush: vi.fn(),
@@ -46,6 +49,7 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     filter: HolidayRegistrationFilter,
     format: string,
   ) => mockDownload(periodId, filter, format),
+  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
@@ -68,6 +72,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     mockDownload.mockReset();
     mockDownloadBlob.mockReset();
     mockFetchList.mockResolvedValue(HOLIDAY_REGISTRATION_LIST);
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -112,6 +117,39 @@ describe("TraegerHolidayRegistrationsPage", () => {
       weekId: "",
       timeModel: "",
     });
+  });
+
+  it("shows the debtor number column only while the Träger asks for it (#5621)", async () => {
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: [
+        {
+          ...HOLIDAY_REGISTRATION_LIST.registrations[0]!,
+          debtorNumber: "10 4711",
+        },
+      ],
+    });
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: true });
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    expect(
+      await table.findByRole("columnheader", { name: /Debitorennummer/ }),
+    ).toBeInTheDocument();
+    expect(table.getByText("10 4711")).toBeInTheDocument();
+  });
+
+  it("leaves the debtor number column out while the switch is off (#5621)", async () => {
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    expect(
+      table.getByRole("columnheader", { name: /Status/ }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(mockConfirmationSettings).toHaveBeenCalled());
+    expect(
+      table.queryByRole("columnheader", { name: /Debitorennummer/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("filters by status, school, week and time model", async () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import { useCallback, useId, useRef, useState } from "react";
 
@@ -196,7 +197,7 @@ export function MultiCheckboxSelect({
           aria-label={ariaLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            "moto-popover-surface absolute top-full z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            `moto-popover-surface absolute top-full ${Z_LAYER.dropdown} mt-1 min-w-full overflow-hidden rounded-xl border py-2`,
             menuAlign === "end" ? "right-0" : "left-0",
             menuClassName,
           )}

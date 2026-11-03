@@ -433,6 +433,104 @@ describe.concurrent("ui-kit/no-rounded-3xl", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-rounded-3xl per side", () => {
+  it("reports the per-side and per-corner forms (#5579)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <>
+            <div className="rounded-t-3xl" />
+            <div className="sm:rounded-br-3xl" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-rounded-3xl\)/g)).toHaveLength(2);
+  });
+
+  it("accepts rounded-t-2xl", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="rounded-t-2xl" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-rounded-3xl");
+  });
+});
+
+describe.concurrent("ui-kit/no-shadcn-tokens", () => {
+  it("reports shadcn theme tokens, also inside the kit", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <div className="bg-background focus-visible:ring-ring">
+            <span className="text-muted-foreground" />
+          </div>
+        );
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-shadcn-tokens\)/g)).toHaveLength(3);
+  });
+
+  it("accepts the kit's white and gray scale", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="bg-white text-gray-500 ring-moto-blue border-gray-200" />;
+      }
+      void Probe;`,
+      "src/probe.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-shadcn-tokens");
+  });
+});
+
+describe.concurrent("ui-kit/no-raw-z-index", () => {
+  it("reports a stacking number inside the kit", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="fixed inset-0 z-[9999]" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
+  it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
+    const [layers, outside] = await Promise.all([
+      lintSource(
+        `export const Z_LAYER = { modal: "z-[9999]" } as const;`,
+        "src/components/ui/overlay-styles.ts",
+      ),
+      lintSource(
+        `export const layer = "z-[60]";`,
+        "src/components/students/probe.ts",
+      ),
+    ]);
+
+    for (const result of [layers, outside]) {
+      expect(result.status, result.output).toBe(0);
+      expect(result.output).not.toContain("no-raw-z-index");
+    }
+  });
+});
+
 describe.concurrent("ui-kit/no-tenant-kicker", () => {
   const kickerSource = `function SectionCard(_: { kicker?: string; title: string }) {
       return null;
@@ -1153,6 +1251,8 @@ describe("button ratchet baseline", () => {
         },
       }),
     );
+    // Eine Ausnahme für die graue Ruhefläche steht auf derselben Zeile wie
+    // die für den handgebauten Knopf; ihr Fund trifft deshalb beide Regeln.
     const findingAt: Record<string, string> = {
       "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
       "no-button-override": `<Button className="h-10">A</Button>`,

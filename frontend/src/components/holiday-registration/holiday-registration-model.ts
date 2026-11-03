@@ -72,6 +72,12 @@ export interface ContactDraft {
   readonly relationship: string;
 }
 
+export interface AddressDraft {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+}
+
 export interface RegistrationDraft {
   readonly guardian: {
     readonly firstName: string;
@@ -79,6 +85,8 @@ export interface RegistrationDraft {
     readonly email: string;
     readonly phone: string;
   };
+  /** Postal address of the parent, when the form asks for it (#5625). */
+  readonly guardianAddress: AddressDraft;
   readonly secondGuardian: RegistrationDraft["guardian"];
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
@@ -122,7 +130,8 @@ export type FieldErrorKey =
   | "emergencyRequired"
   | "emergencyLimit"
   | "pickupLimit"
-  | "contactLimit";
+  | "contactLimit"
+  | "postalCode";
 
 let keyCounter = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
@@ -157,6 +166,7 @@ export function emptyContact(): ContactDraft {
 export function emptyRegistration(): RegistrationDraft {
   return {
     guardian: { firstName: "", lastName: "", email: "", phone: "" },
+    guardianAddress: { street: "", postalCode: "", city: "" },
     secondGuardian: { firstName: "", lastName: "", email: "", phone: "" },
     children: [emptyChild()],
     contacts: [emptyContact()],
@@ -424,6 +434,41 @@ export function hasSecondGuardian(draft: RegistrationDraft): boolean {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** A German postal code; the backend checks the same (#5625). */
+const POSTAL_CODE = /^[0-9]{5}$/;
+
+/** Whether the form asks for the address of the parent (#5625). */
+export function asksForAddress(form: HolidayFormVersion): boolean {
+  return (form.addressRequirement ?? "off") !== "off";
+}
+
+/** Whether the parent filled in some part of the address. */
+export function hasAddress(draft: RegistrationDraft): boolean {
+  return Object.values(draft.guardianAddress).some(
+    (value) => value.trim() !== "",
+  );
+}
+
+/**
+ * Checks the address against the form: all three parts or none, all three
+ * when it is required, and a postal code of five digits.
+ */
+function validateAddress(
+  errors: Record<string, FieldErrorKey>,
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+) {
+  if (!asksForAddress(form)) return;
+  if (form.addressRequirement !== "required" && !hasAddress(draft)) return;
+  const address = draft.guardianAddress;
+  requireText(errors, "guardian_address.street", address.street);
+  const postalCode = address.postalCode.trim();
+  if (postalCode === "") errors["guardian_address.postal_code"] = "required";
+  else if (!POSTAL_CODE.test(postalCode))
+    errors["guardian_address.postal_code"] = "postalCode";
+  requireText(errors, "guardian_address.city", address.city);
+}
+
 function requireText(
   errors: Record<string, FieldErrorKey>,
   field: string,
@@ -510,6 +555,7 @@ export function validateRegistration(
       draft.guardian.email.trim() === "" ? "required" : "email";
   }
   requireText(errors, "guardian.phone", draft.guardian.phone);
+  validateAddress(errors, draft, offer.form);
   if (hasSecondGuardian(draft)) {
     const second = draft.secondGuardian;
     requireText(errors, "second_guardian.first_name", second.firstName);
@@ -578,6 +624,15 @@ export function payloadFromDraft(
       email: draft.guardian.email.trim(),
       phone: draft.guardian.phone.trim(),
     },
+    ...(asksForAddress(offer.form) && hasAddress(draft)
+      ? {
+          guardian_address: {
+            street: draft.guardianAddress.street.trim(),
+            postal_code: draft.guardianAddress.postalCode.trim(),
+            city: draft.guardianAddress.city.trim(),
+          },
+        }
+      : {}),
     ...(hasSecondGuardian(draft)
       ? {
           second_guardian: {

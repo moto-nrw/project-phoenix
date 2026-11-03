@@ -115,18 +115,22 @@ vi.mock("~/components/ui/alert", () => ({
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
   dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
+  // FormModal renders through Modal (#5579), so the stub keeps its footer.
   Modal: ({
     isOpen,
     children,
     title,
+    footer,
   }: {
     isOpen: boolean;
     children: React.ReactNode;
     title: string;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="modal" data-title={title}>
         {children}
+        {footer}
       </div>
     ) : null,
   ConfirmationModal: ({

@@ -29,6 +29,7 @@ import type {
   HolidayRegistrationWeek,
 } from "~/lib/holiday-registration-api";
 import {
+  type AddressDraft,
   type ChildDraft,
   type ContactDraft,
   emptyContact,
@@ -564,6 +565,70 @@ export function SecondGuardianCard({
           error={fieldError("second_guardian.phone")}
           onChange={(event) =>
             onChange({ ...guardian, phone: event.target.value })
+          }
+        />
+      </div>
+    </SectionCard>
+  );
+}
+
+/**
+ * The postal address of the parent who registers (#5625), when the form of
+ * the period asks for it. Optional takes all three parts or none.
+ */
+export function GuardianAddressCard({
+  address,
+  required,
+  fieldError,
+  onChange,
+}: Readonly<{
+  address: AddressDraft;
+  required: boolean;
+  fieldError: FieldError;
+  onChange: (address: AddressDraft) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  return (
+    <SectionCard
+      title={required ? t("addressTitle") : t("addressTitleOptional")}
+      description={required ? t("addressText") : t("addressOptionalText")}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)]">
+        <Input
+          name="guardian_address.street"
+          required={required}
+          label={t("street")}
+          autoComplete="street-address"
+          maxLength={100}
+          value={address.street}
+          error={fieldError("guardian_address.street")}
+          onChange={(event) =>
+            onChange({ ...address, street: event.target.value })
+          }
+        />
+        <Input
+          name="guardian_address.postal_code"
+          required={required}
+          label={t("postalCode")}
+          autoComplete="postal-code"
+          inputMode="numeric"
+          maxLength={5}
+          value={address.postalCode}
+          error={fieldError("guardian_address.postal_code")}
+          onChange={(event) =>
+            onChange({ ...address, postalCode: event.target.value })
+          }
+        />
+        <Input
+          name="guardian_address.city"
+          required={required}
+          label={t("city")}
+          autoComplete="address-level2"
+          maxLength={100}
+          value={address.city}
+          error={fieldError("guardian_address.city")}
+          onChange={(event) =>
+            onChange({ ...address, city: event.target.value })
           }
         />
       </div>
