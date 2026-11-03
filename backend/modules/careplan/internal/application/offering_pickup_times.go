@@ -70,10 +70,11 @@ func (m *BookingMaterialization) offeringStudentIDs(ctx context.Context, offerin
 // before the date. A future date is refused while such an earlier day still
 // needs the stored time (#5643).
 func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, date calendar.Date) error {
-	weekday := int(date.Weekday())
-	if weekday < 1 || weekday > 5 {
-		return errors.New("pickup reset date must be Monday through Friday")
+	first, err := m.pickupResetFirstDay(date)
+	if err != nil {
+		return err
 	}
+	weekday := int(date.Weekday())
 	// Match care end: class -> recurrence before the student and pickup rows.
 	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
@@ -81,8 +82,6 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
-	// The earlier days the reset reaches start at the weekday's next date.
-	first := nextWeekdayFrom(m.todayDate(), weekday)
 	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, min(first, date), date)
 	if err != nil {
 		return fmt.Errorf("load offering pickup for reset: %w", err)
@@ -114,6 +113,26 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	}
 	return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
 }
+
+// pickupResetFirstDay validates the reset date and returns the first day of
+// its weekday the reset reaches: the weekday's next date from today. The
+// reset projects every day from there to the date, so a date beyond the
+// horizon is refused before any lock is taken.
+func (m *BookingMaterialization) pickupResetFirstDay(date calendar.Date) (calendar.Date, error) {
+	weekday := int(date.Weekday())
+	if weekday < 1 || weekday > 5 {
+		return "", errors.New("pickup reset date must be Monday through Friday")
+	}
+	today := m.todayDate()
+	if date.After(today.AddDays(pickupResetHorizonDays)) {
+		return "", careplan.ErrPickupResetBeyondHorizon
+	}
+	return nextWeekdayFrom(today, weekday), nil
+}
+
+// pickupResetHorizonDays is how far ahead a reset date may lie: a year covers
+// every booking change staff can plan in the care plan editor.
+const pickupResetHorizonDays = 366
 
 // pickupWeekdayRow is the student's stored row of the weekday; nil when there
 // is none.

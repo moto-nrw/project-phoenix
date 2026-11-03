@@ -34,6 +34,7 @@ func TestDecisionErrorTexts(t *testing.T) {
 		{careplan.ErrCourseAlreadyBooked, "enrollment: course is already booked"},
 		{careplan.ErrCourseRequestNotOwn, "enrollment: not an own course request"},
 		{careplan.ErrPickupResetNoOffering, "für diesen Tag gibt es keine Angebots-Gehzeit"},
+		{careplan.ErrPickupResetBeyondHorizon, "pickup reset: date is beyond the planning horizon"},
 		{careplan.ErrPickupAdjustmentInvalid, "pickup adjustment: invalid input"},
 		{careplan.ErrPickupAdjustmentResolutionRequired, "pickup adjustment: explicit resolution is required"},
 		{careplan.ErrPickupAdjustmentStale, "pickup adjustment: preview is stale"},

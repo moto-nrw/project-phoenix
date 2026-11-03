@@ -66,6 +66,9 @@ var (
 	// ErrPickupResetNoOffering protects a manual pickup row when no
 	// booking-derived pickup time would replace it on the requested date.
 	ErrPickupResetNoOffering = errors.New("für diesen Tag gibt es keine Angebots-Gehzeit")
+	// ErrPickupResetBeyondHorizon refuses a reset date further ahead than
+	// the days the reset projects from today (#5643).
+	ErrPickupResetBeyondHorizon = errors.New("pickup reset: date is beyond the planning horizon")
 
 	ErrPickupAdjustmentInvalid            = errors.New("pickup adjustment: invalid input")
 	ErrPickupAdjustmentResolutionRequired = errors.New("pickup adjustment: explicit resolution is required")

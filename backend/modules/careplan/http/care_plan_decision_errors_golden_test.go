@@ -85,8 +85,12 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 
 	t.Run("pickup reset", func(t *testing.T) {
 		t.Parallel()
-		tt := decisionErrorGolden{careplan.ErrPickupResetNoOffering, http.StatusConflict, "students.pickup_reset_requires_offering", "für diesen Tag gibt es keine Angebots-Gehzeit"}
-		assertDecisionErrorGolden(t, tt, rendererStatus(t, pickupResetErrorRenderer(tt.err)))
+		for _, tt := range []decisionErrorGolden{
+			{careplan.ErrPickupResetNoOffering, http.StatusConflict, "students.pickup_reset_requires_offering", "für diesen Tag gibt es keine Angebots-Gehzeit"},
+			{careplan.ErrPickupResetBeyondHorizon, http.StatusBadRequest, "", "pickup reset: date is beyond the planning horizon"},
+		} {
+			assertDecisionErrorGolden(t, tt, rendererStatus(t, pickupResetErrorRenderer(tt.err)))
+		}
 	})
 
 	t.Run("parent request conflict resolution", func(t *testing.T) {

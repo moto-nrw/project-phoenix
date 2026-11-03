@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -85,4 +86,19 @@ func TestOfferingPickupReset_FutureDayAllowedWhenEarlierDaysMatchBooking(t *test
 	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, stored)
+}
+
+// The reset projects every day from today to the requested date, so a date
+// far in the future is refused before anything is loaded or locked.
+func TestOfferingPickupReset_RefusesDateBeyondHorizon(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, env.db, "Gehzeit", "Horizont", "1a")
+
+	farAway := calendar.NewDate(9999, 12, 31)
+	require.Equal(t, time.Friday, farAway.Weekday())
+	err := pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, student.ID, farAway)
+	require.ErrorIs(t, err, careplan.ErrPickupResetBeyondHorizon)
 }
