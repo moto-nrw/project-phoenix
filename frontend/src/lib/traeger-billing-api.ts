@@ -105,6 +105,8 @@ export interface BillingLettersInput {
 
 export interface BillingLetters extends BillingLettersInput {
   readonly createdAt: string;
+  /** Version der Vorlage, mit der die Schreiben entstanden; 0 = Standardvorlage (#4677). */
+  readonly templateVersion: number;
 }
 
 export interface BillingPeriod {
@@ -193,6 +195,7 @@ interface BackendLetters {
   notes: string;
   emergency_contacts?: { name: string; phone: string }[] | null;
   created_at: string;
+  template_version?: number | null;
 }
 
 function lettersFromBackend(letters: BackendLetters): BillingLetters {
@@ -204,6 +207,7 @@ function lettersFromBackend(letters: BackendLetters): BillingLetters {
       phone: contact.phone,
     })),
     createdAt: letters.created_at,
+    templateVersion: letters.template_version ?? 0,
   };
 }
 

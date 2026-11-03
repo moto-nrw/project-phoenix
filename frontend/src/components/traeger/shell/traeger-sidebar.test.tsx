@@ -76,7 +76,12 @@ describe("TraegerSidebar", () => {
       "href",
       "/accounts",
     );
-    for (const name of ["Briefkopf", "Einstellungen", "Zugriffsprotokoll"]) {
+    for (const name of [
+      "Briefkopf",
+      "Vorlagen",
+      "Einstellungen",
+      "Zugriffsprotokoll",
+    ]) {
       expect(mainNav().queryByRole("link", { name })).toBeNull();
     }
 
@@ -99,6 +104,7 @@ describe("TraegerSidebar", () => {
     ).toHaveAttribute("href", "/access-log");
     expect(settingsLinks()).toEqual([
       "Briefkopf",
+      "Vorlagen",
       "Einstellungen",
       "Zugriffsprotokoll",
     ]);
@@ -111,7 +117,7 @@ describe("TraegerSidebar", () => {
   it("shows only the entries the rights open", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = render(<TraegerSidebar />);
-    expect(settingsLinks()).toEqual(["Briefkopf", "Einstellungen"]);
+    expect(settingsLinks()).toEqual(["Briefkopf", "Vorlagen", "Einstellungen"]);
     unmount();
 
     sessionUser.permissions = ["traeger_access_log:read"];

@@ -15,6 +15,7 @@ import { billingConcept } from "~/lib/concepts/billing";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { peopleConcept } from "~/lib/concepts/people";
@@ -30,8 +31,8 @@ const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
- * Das Recht, das die Einstellungen (ADR 0086, #4652) und den Briefkopf
- * (#4653) öffnet.
+ * Das Recht, das die Einstellungen (ADR 0086, #4652), den Briefkopf
+ * (#4653) und die Vorlagen (#4677) öffnet.
  */
 const OVERVIEW_RIGHT = "traeger_overview:read";
 
@@ -101,6 +102,13 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     href: "/traeger/briefkopf",
     label: "Briefkopf",
     concept: documentsConcept,
+    right: OVERVIEW_RIGHT,
+  },
+  {
+    key: "vorlagen",
+    href: "/traeger/vorlagen",
+    label: "Vorlagen",
+    concept: documentTemplatesConcept,
     right: OVERVIEW_RIGHT,
   },
   {

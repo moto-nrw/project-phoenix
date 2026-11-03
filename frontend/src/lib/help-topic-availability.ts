@@ -259,6 +259,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.traegerAccessLog]: "traeger",
   [HELP_TOPICS.traegerSettings]: "traeger",
   [HELP_TOPICS.traegerBriefkopf]: "traeger",
+  [HELP_TOPICS.traegerDocumentTemplates]: "traeger",
   [HELP_TOPICS.traegerSchoolSwitch]: "traeger",
   [HELP_TOPICS.teacherSettings]: "teacher",
   [HELP_TOPICS.teacherClassDay]: "teacher",

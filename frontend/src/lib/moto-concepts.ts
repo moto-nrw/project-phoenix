@@ -77,6 +77,7 @@ import { birthdaysConcept } from "~/lib/concepts/birthdays";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { requestsConcept } from "~/lib/concepts/requests";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { filesConcept } from "~/lib/concepts/files";
 import { rfidConcept } from "~/lib/concepts/rfid";
 import { helpConcept } from "~/lib/concepts/help";
@@ -159,6 +160,7 @@ const registry = {
   changeHistory: changeHistoryConcept,
   requests: requestsConcept,
   documents: documentsConcept,
+  documentTemplates: documentTemplatesConcept,
   files: filesConcept,
   rfid: rfidConcept,
   help: helpConcept,

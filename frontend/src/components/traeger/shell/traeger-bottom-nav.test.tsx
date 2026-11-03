@@ -48,7 +48,13 @@ describe("TraegerBottomNav", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     render(<TraegerBottomNav />);
 
-    for (const name of ["Schulen", "Briefkopf", "Einstellungen", "Hilfe"]) {
+    for (const name of [
+      "Schulen",
+      "Briefkopf",
+      "Vorlagen",
+      "Einstellungen",
+      "Hilfe",
+    ]) {
       expect(bar().getByRole("link", { name })).toBeInTheDocument();
     }
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
