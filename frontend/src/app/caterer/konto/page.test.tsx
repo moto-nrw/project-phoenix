@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -98,6 +104,10 @@ describe("Caterer-Konto (#4496)", () => {
   });
 
   it("sends the change to the caterer route and signs out afterwards", async () => {
+    // The dialog signs out 2 s after the success message. Fake timers that
+    // keep advancing with real time leave waitFor and findBy as they are and
+    // skip that pause instead of waiting it out.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     global.fetch = reply(204);
     render(<CatererAccountPage />, { wrapper: ToastProvider });
 
@@ -112,6 +122,9 @@ describe("Caterer-Konto (#4496)", () => {
     expect(
       await screen.findByText("Passwort erfolgreich geändert!"),
     ).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
     await waitFor(() => expect(logout).toHaveBeenCalledTimes(1), {
       timeout: 3000,
     });
