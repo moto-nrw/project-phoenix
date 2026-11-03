@@ -102,7 +102,7 @@ describe("HolidayFormEditor (#5198)", () => {
       screen.getByText("Keine Fragen oder Infos zum Kind"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Keine Fragen oder Infos zur Familie"),
+      screen.getByText("Keine allgemeinen Fragen oder Infos"),
     ).toBeInTheDocument();
   });
 
@@ -163,7 +163,7 @@ describe("HolidayFormEditor (#5198)", () => {
 
     expect(
       screen.getByText(
-        "Eine Frage zur Familie kann nicht von einer Frage je Kind abhängen. Legen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie an. Schreiben Sie auch den Fragetext dazu.",
+        "Eine allgemeine Frage kann nicht von einer Frage pro Kind abhängen. Legen Sie eine andere allgemeine Ja/Nein- oder Auswahlfrage an. Schreiben Sie auch den Fragetext dazu.",
       ),
     ).toBeInTheDocument();
   });

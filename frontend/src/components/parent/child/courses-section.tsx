@@ -401,7 +401,6 @@ function CourseAction({
         type="button"
         variant="outline"
         size="md"
-        className="max-sm:min-h-11"
         disabled={busy}
         onClick={onWithdraw}
       >
@@ -415,7 +414,6 @@ function CourseAction({
       type="button"
       variant="surface"
       size="md"
-      className="max-sm:min-h-11"
       disabled={busy || reasonMissing}
       onClick={onRequest}
     >

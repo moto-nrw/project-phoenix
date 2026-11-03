@@ -1454,7 +1454,7 @@ export function PickupTimeModal({
             type="button"
             variant="outline"
             size="md"
-            className="hidden whitespace-nowrap shadow-sm sm:inline-flex"
+            className="hidden whitespace-nowrap sm:inline-flex"
             onClick={onClose}
           >
             {t("cancel")}
@@ -1463,7 +1463,7 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap shadow-sm max-sm:min-h-11 sm:w-auto"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
               onClick={() => void handleSaveEdit()}
               disabled={submitting || todayLocked}
             >
@@ -1476,7 +1476,7 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap shadow-sm sm:w-auto"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={
                 submitting ||
@@ -1583,7 +1583,6 @@ export function PickupTimeModal({
                 type="button"
                 variant="outline"
                 size="md"
-                className="max-sm:min-h-11"
                 onClick={() => setEditing(true)}
               >
                 {t("pickup.edit")}
@@ -1979,7 +1978,6 @@ export function SickStatusSummary({
                 type="button"
                 variant="outline"
                 size="md"
-                className="max-sm:min-h-11"
                 onClick={() => setEditing(r)}
               >
                 {t("summary.edit")}

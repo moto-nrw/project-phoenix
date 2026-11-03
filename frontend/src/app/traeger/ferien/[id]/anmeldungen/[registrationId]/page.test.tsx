@@ -271,7 +271,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(screen.getByText("Nein")).toBeInTheDocument();
     // Ben answered nothing: only Lia's card lists answers.
     expect(screen.getAllByText("Weitere Angaben")).toHaveLength(1);
-    expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
+    expect(screen.getByText("Allgemeine Angaben")).toBeInTheDocument();
   });
   it("shows pinned legal acknowledgements with Berlin time and German PDF actions", async () => {
     mockRegistration.mockResolvedValue({

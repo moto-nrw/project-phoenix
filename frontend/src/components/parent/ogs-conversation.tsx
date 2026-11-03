@@ -12,6 +12,7 @@ import {
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "~/lib/api-error";
+import { Button } from "~/components/ui/button";
 import { BackLink } from "~/components/ui/back-link";
 import NavigationLink from "~/components/ui/navigation-link";
 import { parentPath } from "~/lib/parent-url";
@@ -890,11 +891,13 @@ function QuickActionPill({
         })
     : careT(`actions.${action.key}.shortLabel`);
   return (
-    <button
+    <Button
       type="button"
+      variant="surface"
+      size="md"
       onClick={() => onPick(action.key)}
       title={careT(`actions.${action.key}.hint`)}
-      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-100 sm:px-3.5"
+      className="shrink-0 gap-1.5"
     >
       {action.key === "sick" ? (
         <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
@@ -915,7 +918,7 @@ function QuickActionPill({
         )}
       </span>
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </Button>
   );
 }
 

@@ -33,7 +33,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Bestätigen oder stornieren",
         steps: [
-          "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
+          "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, allgemeine Antworten unter `Allgemeine Angaben`.",
           "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
           "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
           "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",

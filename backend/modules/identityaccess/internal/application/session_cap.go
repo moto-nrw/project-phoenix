@@ -9,8 +9,9 @@ import (
 
 // capSessionsUnlessDemo enforces the session cap for every account except one
 // a demo access signed in: all visitors of the public demo share that
-// account, so the cap would end the demo of an earlier visitor (#3462).
-func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accountID int64, portalScope string) error {
+// account, so the cap would end the demo of an earlier visitor (#3462). The
+// session just minted always stays; the cap evicts among the others.
+func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accountID int64, minted domain.AccountSession) error {
 	demo, err := s.store.DemoAccountExists(ctx, accountID)
 	if err != nil {
 		return fmt.Errorf("check demo account before session cap: %w", err)
@@ -18,7 +19,7 @@ func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accou
 	if demo {
 		return nil
 	}
-	evicted, err := s.enforcePortalSessionCap(ctx, accountID, portalScope)
+	evicted, err := s.enforcePortalSessionCap(ctx, accountID, minted)
 	if err != nil {
 		return err
 	}
@@ -28,8 +29,8 @@ func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accou
 
 // enforcePortalSessionCap keeps at most five active sessions in this portal
 // group; other portals keep their own sessions.
-func (s *AccountAuthentication) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]domain.AccountSession, error) {
-	capped, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
+func (s *AccountAuthentication) enforcePortalSessionCap(ctx context.Context, accountID int64, minted domain.AccountSession) ([]domain.AccountSession, error) {
+	capped, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, minted.PortalScope, domain.MaxActiveSessionsPerPortal, minted.ID)
 	if err != nil {
 		return nil, fmt.Errorf("enforce active session cap: %w", err)
 	}

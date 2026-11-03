@@ -8,6 +8,7 @@ import {
   useRef,
 } from "react";
 import { Eye, Loader2, Plus, Search } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import GuardianPickerPanel from "./guardian-picker-panel";
@@ -679,25 +680,29 @@ export default function StudentGuardianManager({
             )}
             {!readOnly && (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="surface"
+                  size="md"
                   onClick={() => setIsPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="gap-1"
                   title="Vorhandene/n Erziehungsberechtigte/n suchen"
                 >
                   <Search className="h-4 w-4" />
                   <span className="hidden sm:inline">Vorhandene/n suchen</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="primary"
+                  size="md"
                   onClick={handleOpenCreateModal}
                   data-setup-tour="guardian-add"
-                  className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                  className="gap-1"
                   title="Erziehungsberechtigte/n hinzufügen"
                 >
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Hinzufügen</span>
-                </button>
+                </Button>
               </>
             )}
           </div>
