@@ -100,6 +100,11 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		"bookings": []map[string]any{{"week_id": offer.Weeks[0].ID, "time_model_id": offer.Weeks[0].TimeModels[0].ID}},
 	}}
 	submit(tom)
+	// Both stand for registrations from before the consent texts of version 2
+	// (#4722): they share no health information with the hosting school.
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations
+		SET consent_version = NULL, custody_confirmed_at = NULL, declaration_name = NULL WHERE holiday_period_id = ?`, created.ID)
+	require.NoError(t, err)
 
 	today := &atomic.Value{}
 	today.Store(calendar.NewDate(2099, 7, 1))
