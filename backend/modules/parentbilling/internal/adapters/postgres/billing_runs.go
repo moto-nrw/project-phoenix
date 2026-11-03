@@ -468,9 +468,11 @@ func (s *Store) MarkRunReleased(ctx context.Context, organizationID, runID int64
 	return row.run(), nil
 }
 
-// RunDocuments reads the issued documents of a run in the order of their
-// numbers, the positions grouped by child: its invoices, then the
-// cancellations and credits issued later (#4690).
+// RunDocuments reads the issued documents of a run in the order they were
+// issued, the positions grouped by child: its invoices in the order of their
+// numbers, then the cancellations and credits issued later (#4690). The
+// order is not the number order: a pattern without a year counts from 1 and
+// would sort a later credit before its invoice.
 func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, error) {
 	return s.selectDocuments(ctx, organizationID, func(query *bun.SelectQuery) *bun.SelectQuery {
 		return query.Where("document_row.run_id = ?", runID)
@@ -478,7 +480,8 @@ func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) (
 }
 
 // selectDocuments reads the documents of the Träger that where selects, in
-// the order of their numbers, with the number of the document each one
+// the order they were issued (the IDs: a release inserts its invoices in the
+// order of their numbers), with the number of the document each one
 // references.
 func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where func(*bun.SelectQuery) *bun.SelectQuery) ([]parentbilling.BillingDocument, error) {
 	db, err := traegerDB(ctx, organizationID)
@@ -490,7 +493,7 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		ColumnExpr(`(SELECT reference.number FROM parent_billing.documents AS reference
 			WHERE reference.organization_id = document_row.organization_id AND reference.id = document_row.reference_document_id) AS reference_number`).
 		Where("document_row.organization_id = ?", organizationID)
-	if err := where(query).OrderExpr("document_row.number_year, document_row.number_sequence, document_row.id").Scan(ctx); err != nil {
+	if err := where(query).OrderExpr("document_row.id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	documents := make([]parentbilling.BillingDocument, len(rows))

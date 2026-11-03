@@ -107,7 +107,9 @@ func (b *BillingLetters) CreateBillingLetters(ctx context.Context, reviewer pare
 }
 
 // PreviewBillingLetter renders the letter of the first invoice of a
-// released run with the input and stores nothing but the read.
+// released run with the input and stores nothing but the read. It picks an
+// invoice, never a Storno or a Gutschrift, and builds the letter as the
+// creation does, so preview and letter agree (#4690).
 func (b *BillingLetters) PreviewBillingLetter(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, input parentbilling.BillingLetterInput) (parentbilling.BillingLetterFile, error) {
 	input, err := b.prepare(reviewer, input)
 	if err != nil {
@@ -121,11 +123,15 @@ func (b *BillingLetters) PreviewBillingLetter(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	file, err := b.render(letterContent{run: run, document: documents[0], input: input, letterhead: head})
+	invoice, ok := firstInvoice(documents)
+	if !ok {
+		return parentbilling.BillingLetterFile{}, parentbilling.ErrBillingRunEmpty
+	}
+	file, err := b.render(runLetterContent(run, documents, invoice, input, head))
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	if err := b.recordRead(ctx, reviewer, run.ID, documents[0].ID, "preview"); err != nil {
+	if err := b.recordRead(ctx, reviewer, run.ID, invoice.ID, "preview"); err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
 	return file, nil
@@ -161,6 +167,16 @@ func (b *BillingLetters) prepare(reviewer parentbilling.HolidayReviewer, input p
 		return input, err
 	}
 	return normalizeLetterInput(input, b.today())
+}
+
+// firstInvoice is the first invoice among the documents of a run.
+func firstInvoice(documents []parentbilling.BillingDocument) (parentbilling.BillingDocument, bool) {
+	for _, document := range documents {
+		if document.Kind == parentbilling.DocumentInvoice || document.Kind == "" {
+			return document, true
+		}
+	}
+	return parentbilling.BillingDocument{}, false
 }
 
 // releasedRun reads a run that has issued its invoices; lock holds it.

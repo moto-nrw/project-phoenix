@@ -295,3 +295,44 @@ func TestStornoBeforeTheLettersGetsItsLetterWithTheLettersOfTheRun(t *testing.T)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, `attachment; filename="storno-fe-0003.pdf"`, rec.Header().Get("Content-Disposition"))
 }
+
+// TestCorrectionsAfterAPatternWithoutYearStayBehindTheirInvoice switches the
+// number pattern from one with a year to one without after the release. A
+// later Gutschrift then has number_year 0 and would sort before its invoice
+// by number. The run, the preview of the letters and the overview for the
+// Kämmerei keep the order of issuance: the invoice first, then its
+// Gutschrift, and the preview shows the invoice.
+func TestCorrectionsAfterAPatternWithoutYearStayBehindTheirInvoice(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Storno Muster")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "confirm").Code)
+	setNumberRange(t, f, billing, "FE-{JJJJ}-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	invoice := correctedRun(t, f, billing, run.ID).Documents[0]
+	require.True(t, strings.HasPrefix(invoice.Number, "FE-2"), invoice.Number)
+
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, creditPath(run.ID, invoice.ID),
+		map[string]any{"child_id": invoice.Children[0].ChildID, "amount_cents": 100, "reason": "Krank"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	credit := decodeSchoolPortalData[correctedDocumentBody](t, rec.Body.Bytes())
+	assert.Equal(t, "FE-0001", credit.Number, "the pattern without a year counts on its own")
+
+	detail := correctedRun(t, f, billing, run.ID)
+	require.Len(t, detail.Documents, 2)
+	assert.Equal(t, []string{invoice.Number, "FE-0001"}, []string{detail.Documents[0].Number, detail.Documents[1].Number},
+		"the run lists the invoice before its Gutschrift")
+
+	brandTraeger(t, f)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/letters/preview"), lettersBody("2099-01-15"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, fmt.Sprintf(`inline; filename="bestaetigung-%s.pdf"`, strings.ToLower(invoice.Number)),
+		rec.Header().Get("Content-Disposition"), "the preview shows the letter of an invoice")
+
+	lines := strings.Split(strings.TrimSpace(exportCSV(t, f, billing, run.ID)), "\n")
+	require.Greater(t, len(lines), 2)
+	assert.True(t, strings.HasPrefix(lines[1], invoice.Number+";Rechnung;"), lines[1])
+}
