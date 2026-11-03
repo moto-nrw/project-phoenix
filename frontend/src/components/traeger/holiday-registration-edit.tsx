@@ -312,9 +312,6 @@ function ContactFields({
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-semibold text-gray-900">{title}</legend>
-      <p className="text-sm text-gray-700">
-        Einen Eintrag entfernen Sie, indem Sie alle seine Felder leeren.
-      </p>
       {/* A missing emergency contact names the list, not one entry. */}
       <FieldErrorHint id={`${prefix}-error`} message={fieldError(prefix)} />
       {contacts.map((contact, index) => {
@@ -427,6 +424,9 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
     >
       {(fieldError) => (
         <>
+          <p className="text-sm text-gray-700">
+            Einen Eintrag entfernen Sie, indem Sie alle seine Felder leeren.
+          </p>
           <ContactFields
             title="Notfallkontakte"
             label="Notfallkontakt"

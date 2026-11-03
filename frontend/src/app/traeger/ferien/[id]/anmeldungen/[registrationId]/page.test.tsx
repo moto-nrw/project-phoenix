@@ -611,6 +611,49 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
     );
   });
 
+  it("drops a contact entry whose fields are all empty", async () => {
+    mockEdit.mockResolvedValueOnce(HOLIDAY_REGISTRATION);
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Notfallkontakte und Abholung ändern",
+      }),
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Angaben ändern",
+    });
+    const edit = within(heading.closest("section")!);
+    fireEvent.click(
+      await edit.findByRole("button", { name: "Abholperson hinzufügen" }),
+    );
+    expect(
+      edit.getByRole("group", { name: "Abholberechtigte" }),
+    ).toContainElement(
+      within(
+        edit.getByRole("group", { name: "Abholberechtigte" }),
+      ).getByLabelText(/^Name/),
+    );
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+        contacts: {
+          emergency: [
+            {
+              name: "Oma Muster",
+              phone: "05402 1234",
+              relationship: "Großmutter",
+            },
+          ],
+          pickup: [],
+        },
+      }),
+    );
+  });
+
   it("offers no „Ändern“ on a cancelled registration and says why", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,
