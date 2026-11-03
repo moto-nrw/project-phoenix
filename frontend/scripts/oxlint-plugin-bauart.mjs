@@ -320,8 +320,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Bedingung löschen@1999",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2516",
-      "Auswahlzeit entfernen@3439",
+      "abweichend bearbeiten@2513",
+      "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@593",

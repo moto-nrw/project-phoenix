@@ -149,9 +149,7 @@ export function AnnouncementModal() {
       onClose={handleClose}
       title={header.subtitle}
       icon={
-        <IconTile
-          icon={<MotoDuotoneIcon icon={header.icon} tone="amber" size={22} />}
-        />
+        <IconTile icon={<MotoDuotoneIcon icon={header.icon} tone="amber" />} />
       }
       description={
         <>

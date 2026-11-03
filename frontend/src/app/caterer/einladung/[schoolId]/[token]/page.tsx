@@ -286,7 +286,7 @@ function AcceptForm({
           shape="round"
           tone="inverse"
           className="mb-6"
-          icon={<Check className="h-6 w-6 text-white" aria-hidden="true" />}
+          icon={<Check className="text-white" aria-hidden="true" />}
         />
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           {existing ? "Schule hinzugefügt" : "Konto erstellt"}

@@ -799,9 +799,9 @@ function EnrollmentStatusHero({
             tone={statusIconTone}
             icon={
               justSubmitted ? (
-                <Check className="h-7 w-7" aria-hidden="true" />
+                <Check aria-hidden="true" />
               ) : (
-                <Clock className="h-7 w-7" aria-hidden="true" />
+                <Clock aria-hidden="true" />
               )
             }
           />
@@ -1386,10 +1386,7 @@ function WithdrawAllSection({
     <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <IconTile
-            tone="red"
-            icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
-          />
+          <IconTile tone="red" icon={<AlertTriangle aria-hidden="true" />} />
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {t("manageEyebrow")}

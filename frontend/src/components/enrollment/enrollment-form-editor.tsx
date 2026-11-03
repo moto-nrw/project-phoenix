@@ -1492,10 +1492,7 @@ function BaseTemplateOverviewRow() {
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <IconTile
-            size="xs"
-            icon={<Lock className="h-4 w-4" aria-hidden="true" />}
-          />
+          <IconTile size="xs" icon={<Lock aria-hidden="true" />} />
           <h4 className="truncate text-sm font-semibold text-gray-900">
             Basisformular
           </h4>
@@ -3313,9 +3310,9 @@ function TargetSuggestions({
                 className="mt-0.5"
                 icon={
                   selected ? (
-                    <Check className="h-4 w-4" aria-hidden="true" />
+                    <Check aria-hidden="true" />
                   ) : (
-                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    <Plus aria-hidden="true" />
                   )
                 }
               />

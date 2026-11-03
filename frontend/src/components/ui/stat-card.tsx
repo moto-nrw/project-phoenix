@@ -206,8 +206,8 @@ export function StatCard(props: StatCardProps | StatTileProps) {
             // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
             // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
             // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
-            // Auf dem Telefon die kleinere Stufe der Kartenkopf-Kachel, damit
-            // das Label daneben Platz behält.
+            // Kartenkopf-Kachel wie bei SectionCard: auf dem Telefon 36 px
+            // statt 40 px, damit das Label daneben Platz behält.
             <IconTile icon={icon} />
           ) : null}
         </div>

@@ -4116,7 +4116,7 @@ function TimeTrackingContent() {
                 className="mx-auto mb-4"
                 icon={
                   <svg
-                    className="text-moto-orange-strong h-6 w-6"
+                    className="text-moto-orange-strong"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

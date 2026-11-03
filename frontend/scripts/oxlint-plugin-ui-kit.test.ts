@@ -98,6 +98,9 @@ describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
           <span className={\`flex h-8 w-8 items-center justify-center rounded-xl \${done ? "bg-moto-green/15" : "bg-gray-100"}\`}>
             <BellIcon />
           </span>
+          <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-gray-100">
+            <BellIcon />
+          </span>
         </>;
       }
       void Probe;
@@ -105,7 +108,7 @@ describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
       "no-hand-rolled-icon-tile",
     );
 
-    expect(count, output).toBe(3);
+    expect(count, output).toBe(4);
   });
 
   it("reports a hand-rolled tile inside the kit outside IconTile", async () => {
@@ -135,6 +138,7 @@ describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
           <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><BellIcon /></button>
           <span className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100"><BellIcon /></span>
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100"><BellIcon /></span>
+          <div className="flex h-10 w-full items-center justify-center rounded-lg bg-gray-100"><BellIcon /></div>
           <IconTile icon={<BellIcon />} />
         </>;
       }

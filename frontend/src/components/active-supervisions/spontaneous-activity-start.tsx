@@ -383,7 +383,7 @@ export function SpontaneousActivityStart({
           <IconTile
             shape="round"
             tone="greenFill"
-            icon={<Plus className="h-5 w-5" aria-hidden="true" />}
+            icon={<Plus aria-hidden="true" />}
           />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-gray-900">

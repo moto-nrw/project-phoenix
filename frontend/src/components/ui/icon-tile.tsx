@@ -55,7 +55,10 @@ interface IconTileProps extends Omit<
   readonly size?: IconTileSize;
   readonly shape?: IconTileShape;
   readonly tone?: IconTileTone;
-  /** Nur Lage und Abstand (`mx-auto`, `mb-4`, `mt-0.5`), nie Maß oder Farbe. */
+  /**
+   * Nur Lage und Abstand (`mx-auto`, `mb-4`, `mt-0.5`), nie Maß oder Farbe.
+   * Ausnahme: `print:`-Maße für gedruckte Seiten (NFC-Anleitung).
+   */
   readonly className?: string;
 }
 

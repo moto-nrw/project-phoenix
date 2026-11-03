@@ -219,7 +219,7 @@ export function InvitationAcceptForm({
           className="mb-6"
           icon={
             <svg
-              className="h-6 w-6 text-white"
+              className="text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

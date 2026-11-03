@@ -444,7 +444,7 @@ function TestimonialCard({
             size="page"
             shape="round"
             tone="inverse"
-            icon={<Quote className="h-5 w-5" aria-hidden="true" />}
+            icon={<Quote aria-hidden="true" />}
           />
           <span className="bg-moto-green-soft text-moto-green-strong rounded-full px-3 py-1 text-xs font-semibold">
             {testimonial.metric}

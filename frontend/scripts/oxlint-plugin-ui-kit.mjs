@@ -1115,7 +1115,7 @@ const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@193
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1336 text-[11px]@1336 text-[10px]@1340 text-[10px]@1349 text-[11px]@1349
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@282
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
@@ -2112,15 +2112,17 @@ const noGreyButtonFill = makeButtonRatchetRule({
 //
 // Eine Icon-Kachel (zentriertes Symbol auf grauer oder getönter Fläche) kommt
 // aus `IconTile` / `ConceptIconTile`. Erkannt wird die Klassenkette
-// `flex h-(8–12) w-… items-center justify-center rounded-(lg|xl|2xl|full)
-// bg-(gray|moto)-…` an einem Element, dessen Kind ein Symbol ist. Kreise mit
+// `flex h-(8–12) w-(8–12)` (oder `size-(8–12)`) `items-center justify-center
+// rounded-(lg|xl|2xl|full) bg-(gray|moto)-…` an einem Element, dessen Kind ein Symbol ist. Kreise mit
 // Initialen oder Schrittnummern (Text als Kind) und Schaltflächen bleiben frei.
 
 const ICON_TILE_FILE = "src/components/ui/icon-tile.tsx";
+// `size-10` steht für `h-10 w-10`; `inline-flex` baut dieselbe Kachel.
+const ICON_TILE_BOX_RE =
+  /(?:^|\s)(?:size-(?:8|9|10|11|12)|h-(?:8|9|10|11|12)\s(?:\S+\s)*?w-(?:8|9|10|11|12)|w-(?:8|9|10|11|12)\s(?:\S+\s)*?h-(?:8|9|10|11|12))(?=\s|$)/;
 const ICON_TILE_TOKENS = [
-  /(?:^|\s)flex(?=\s|$)/,
-  /(?:^|\s)h-(?:8|9|10|11|12)(?=\s|$)/,
-  /(?:^|\s)w-\S+/,
+  /(?:^|\s)(?:inline-)?flex(?=\s|$)/,
+  ICON_TILE_BOX_RE,
   /(?:^|\s)items-center(?=\s|$)/,
   /(?:^|\s)justify-center(?=\s|$)/,
   /(?:^|\s)rounded-(?:lg|xl|2xl|full)(?=\s|$)/,
@@ -2149,7 +2151,8 @@ function expressionNamesIcon(expression) {
       /icon/i.test(expression.property.name)
     );
   }
-  if (expression.type === "JSXElement") return true;
+  if (expression.type === "JSXElement" || expression.type === "JSXFragment")
+    return true;
   if (expression.type === "ConditionalExpression") {
     return (
       expressionNamesIcon(expression.consequent) ||

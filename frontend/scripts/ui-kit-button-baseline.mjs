@@ -125,7 +125,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3143],
+    lines: [3140],
     reason: "Schalter (role=switch)",
   },
   {

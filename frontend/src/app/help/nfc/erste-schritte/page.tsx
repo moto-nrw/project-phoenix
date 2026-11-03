@@ -244,12 +244,7 @@ export default function NfcQuickstartPage() {
                   size="page"
                   tone="green"
                   className="print:h-10 print:w-10 print:[&>svg]:size-5"
-                  icon={
-                    <BookOpen
-                      className="h-6 w-6 print:h-5 print:w-5"
-                      aria-hidden="true"
-                    />
-                  }
+                  icon={<BookOpen aria-hidden="true" />}
                 />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-[19px] leading-tight font-semibold tracking-normal print:text-[17px]">

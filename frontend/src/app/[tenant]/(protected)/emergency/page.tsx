@@ -4,7 +4,6 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Printer } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -13,7 +12,7 @@ import {
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
 import { emergencyConcept } from "~/lib/concepts/emergency";
-import { IconTile } from "~/components/ui/icon-tile";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
@@ -65,12 +64,7 @@ export default function EmergencyPage() {
             hinterlegten Gesundheitsinfos.
           </>
         }
-        leading={
-          <IconTile
-            tone="red"
-            icon={<MotoConceptIcon concept={emergencyConcept} size={24} />}
-          />
-        }
+        leading={<ConceptIconTile concept={emergencyConcept} tone="red" />}
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Button

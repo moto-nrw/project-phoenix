@@ -38,9 +38,7 @@ export function EnrollmentStatTile({
           <IconTile
             size="sm"
             shape="round"
-            icon={
-              Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : leading
-            }
+            icon={Icon ? <Icon aria-hidden="true" /> : leading}
           />
         ) : null}
         <span className="min-w-0">
