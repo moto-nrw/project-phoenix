@@ -888,7 +888,7 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Kandidaten: Frontend 26 Dateien = 50 % Testdauer (gruppiert), Frontend-Overhead, 7 Go-Pakete > 20 s und ihre Top-Level-Tests > 10 s.
 
 ### Runde B-import (dataimport/importtest): behalten
-- Ursache: sieben Staff-Replays warteten je 1 s + 5 s auf Mail-Retries des verweigernden Default-Mailers. Änderung: `ImportTestOptions.Mailer` reicht einen Capture-Mailer an das Auth-Testmodul (Review-Auflage statt neuer testhooks-Naht/Policy-Kante), plus zwei Mail-Assertions.
+- Ursache: sieben Staff-Replays warteten je 1 s + 5 s auf Mail-Retries des verweigernden Default-Mailers. Änderung: `NewImportTestModuleWithAuth(..., WithAuthTestMailer)` reicht einen Capture-Mailer an das Auth-Testmodul (Review-Auflage statt testhooks-Naht; ein Optionsfeld hätte die Composition-Surface vergrößert), plus zwei Mail-Assertions.
 - Paket n=3: 47,6/55,0/54,3 → 4,0/4,5/5,7 s, Median 54,3 → 4,5 s (−92 %). Die drei 43–46-s-Tests fielen auf 0,7–4,6 s (Clone-Slots frei).
 - Mutation (Person separat committet): vorher/nachher rot an `all earlier owner writes must roll back` ([1 1 1 …] vs [2 1 1 …]). Inventar 29/26/1 Skip unverändert. Cross-Review Opus: OK mit Auflage (umgesetzt).
 
