@@ -108,9 +108,10 @@ func TestSiblingRuleRanksAcrossTheRegistrationsOfAGroup(t *testing.T) {
 	t.Parallel()
 	half := &parentbilling.ContributionRule{Kind: parentbilling.RuleSibling, SiblingFromChild: new(2), DiscountBasisPoints: new(5000)}
 
+	laterChild := chainChild(2, 1, 10000)
 	tie := computeHolidaySiblings([]holidayMember{
 		{children: []parentbilling.HolidayChild{chainChild(1, 1, 10000)}},
-		{children: []parentbilling.HolidayChild{chainChild(2, 1, 10000)}},
+		{children: []parentbilling.HolidayChild{laterChild}},
 	}, holidayRules{sibling: half})
 	require.Len(t, tie, 2)
 	require.Len(t, tie[0].Children, 1)
@@ -121,7 +122,7 @@ func TestSiblingRuleRanksAcrossTheRegistrationsOfAGroup(t *testing.T) {
 	require.Len(t, tie[1].Children[0].Lines, 2)
 	assert.Equal(t, parentbilling.LineSibling, tie[1].Children[0].Lines[1].Kind)
 	assert.Equal(t, 2, *tie[1].Children[0].Lines[1].ChildRank)
-	assert.Equal(t, int64(2), tie[1].Children[0].ChildID, "a registration holds only its own child")
+	assert.Equal(t, laterChild.ID, tie[1].Children[0].ChildID, "a registration holds only its own child")
 
 	dearer := computeHolidaySiblings([]holidayMember{
 		{children: []parentbilling.HolidayChild{chainChild(1, 1, 10000)}},
