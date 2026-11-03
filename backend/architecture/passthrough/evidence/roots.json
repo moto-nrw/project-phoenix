@@ -1171,6 +1171,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingPaymentText], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.PaymentText",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {\n\tlink, err := l.registrations.ResolveHolidayRegistrationLink(ctx, token)\n\tif errors.Is(err, enrollmentOwner.ErrHolidayRegistrationNotFound) {\n\t\treturn 0, nil, parentAPI.ErrHolidayRegistrationLinkNotFound\n\t}\n\tif err != nil {\n\t\treturn 0, nil, err\n\t}\n\tschoolIDs := make([]int64, 0, len(link.Traeger.Schools))\n\tfor _, school := range link.Traeger.Schools {\n\t\tschoolIDs = append(schoolIDs, school.ID)\n\t}\n\treturn link.OrganizationID, schoolIDs, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
