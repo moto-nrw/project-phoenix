@@ -34,7 +34,12 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook" | "debtor_number";
+  | HolidayRegistrationAction
+  | "confirm"
+  | "rebook"
+  | "debtor_number"
+  | "sibling_merge"
+  | "sibling_split";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -167,6 +172,8 @@ export interface HolidayRegistrationEvent {
     readonly before: string;
     readonly after: string;
   } | null;
+  /** The other registrations of a sibling merge or split (#5628). */
+  readonly siblings: readonly string[];
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -309,6 +316,7 @@ interface BackendDetail extends BackendSummary {
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
           debtor_number?: { before: string; after: string } | null;
+          siblings?: number[] | null;
         } | null;
       }[]
     | null;
@@ -414,6 +422,7 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
       debtorNumber: event.details?.debtor_number ?? null,
+      siblings: (event.details?.siblings ?? []).map(String),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {

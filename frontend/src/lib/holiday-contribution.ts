@@ -44,6 +44,19 @@ export interface HolidayContribution {
    * (#5621). Only the Träger read of a frozen contribution sets it.
    */
   readonly invoiced?: boolean;
+  /**
+   * The other registrations of the sibling group (#5628), with their
+   * children; empty outside a group and in a quote.
+   */
+  readonly siblings?: readonly HolidaySibling[];
+  /** The debtor number the sibling group already has. */
+  readonly siblingDebtorNumber?: string;
+}
+
+export interface HolidaySibling {
+  readonly registrationId: string;
+  readonly cancelled: boolean;
+  readonly children: readonly { readonly id: string; readonly name: string }[];
 }
 
 interface BackendLine {
@@ -73,6 +86,16 @@ export interface BackendContribution {
   frozen: boolean;
   confirmed_at: string | null;
   invoiced?: boolean;
+  siblings?:
+    | {
+        registration_id: number;
+        status: string;
+        children?:
+          | { id: number; first_name: string; last_name: string }[]
+          | null;
+      }[]
+    | null;
+  sibling_debtor_number?: string;
 }
 
 /** Maps a contribution of the backend. */
@@ -102,5 +125,14 @@ export function contributionFromBackend(
     frozen: contribution.frozen,
     confirmedAt: contribution.confirmed_at,
     invoiced: contribution.invoiced ?? false,
+    siblings: (contribution.siblings ?? []).map((sibling) => ({
+      registrationId: String(sibling.registration_id),
+      cancelled: sibling.status === "cancelled",
+      children: (sibling.children ?? []).map((child) => ({
+        id: String(child.id),
+        name: `${child.first_name} ${child.last_name}`,
+      })),
+    })),
+    siblingDebtorNumber: contribution.sibling_debtor_number ?? "",
   };
 }

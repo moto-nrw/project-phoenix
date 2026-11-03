@@ -2,7 +2,8 @@
 
 // Verlauf einer Ferienanmeldung (#4663): jede Änderung des Träger-Büros mit
 // Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, bei der
-// Debitorennummer die Nummer vorher und nachher (#5621). Nur zum Lesen.
+// Debitorennummer die Nummer vorher und nachher (#5621), bei Geschwistern
+// die anderen Anmeldungen (#5628). Nur zum Lesen.
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -23,6 +24,8 @@ const ACTION_LABELS: Readonly<
   reopen: "Wieder geöffnet",
   rebook: "Umgebucht",
   debtor_number: "Debitorennummer geändert",
+  sibling_merge: "Als Geschwister zusammengeführt",
+  sibling_split: "Von Geschwistern getrennt",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -64,6 +67,9 @@ function eventDetail(
   registration: HolidayRegistrationDetail,
 ): string | null {
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
+  if (event.siblings.length > 0) {
+    return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(
     (entry) => entry.id === event.childId,
