@@ -252,7 +252,7 @@ interface ListboxDropdownProps<K extends string> {
    */
   readonly renderOption?: (
     option: ListboxDropdownOption<K>,
-    state: { readonly selected: boolean },
+    selected: boolean,
   ) => ReactNode;
 }
 
@@ -976,7 +976,7 @@ export function ListboxDropdown<K extends string>({
                     checked={isActive}
                     disabled={option.disabled}
                   />
-                  {renderOption?.(option, { selected: isActive }) ?? (
+                  {renderOption?.(option, isActive) ?? (
                     <OptionLabel option={option} />
                   )}
                 </>
@@ -985,7 +985,7 @@ export function ListboxDropdown<K extends string>({
                 // row carries actions: as a bare flex child its min-width stays
                 // auto, so one long custom name widens the option past the menu
                 // and scrolls the list sideways on narrow viewports.
-                (renderOption?.(option, { selected: isActive }) ?? (
+                (renderOption?.(option, isActive) ?? (
                   <OptionLabel option={option} />
                 ))
               )}

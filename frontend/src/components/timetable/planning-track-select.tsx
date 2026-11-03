@@ -100,7 +100,7 @@ export function PlanningTrackSelect({
           <ListboxChevron open={open} />
         </>
       )}
-      renderOption={(option, { selected: isSelected }) => {
+      renderOption={(option, isSelected) => {
         const track = visibleTracks.find((item) => item.id === option.value);
         return (
           <>
