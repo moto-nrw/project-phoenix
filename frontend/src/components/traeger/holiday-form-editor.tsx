@@ -24,6 +24,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 // Die Vorschau nennt die Abschnitte wie das Elternformular (#5467).
@@ -49,7 +50,7 @@ import {
   getStableObjectKey,
 } from "~/lib/stable-object-key";
 import {
-  HolidayFormAddress,
+  HOLIDAY_ADDRESS_CHOICES,
   holidayAddressPreviewFields,
 } from "./holiday-form-address";
 import {
@@ -323,11 +324,25 @@ export function HolidayFormEditor({
                   Infotext hinzufügen
                 </Button>
               </div>
-              <HolidayFormAddress
-                value={address}
-                onChange={setAddress}
-                disabled={saving || uploads > 0}
-              />
+              <SectionCard
+                title="Anschrift"
+                headingLevel={3}
+                namedRegion
+                description="Eltern geben Straße, PLZ und Ort an. Rechnung und Bestätigungsschreiben übernehmen die Anschrift."
+              >
+                {/* Unter sm untereinander: drei Segmente nebeneinander sind breiter
+                    als ein 320-px-Telefon abzüglich der beiden Kartenränder. */}
+                <SegmentedControl
+                  className="max-sm:grid max-sm:w-full max-sm:grid-flow-row"
+                  ariaLabel="Anschrift abfragen"
+                  items={HOLIDAY_ADDRESS_CHOICES.map((item) => ({
+                    ...item,
+                    disabled: saving || uploads > 0,
+                  }))}
+                  value={address}
+                  onChange={setAddress}
+                />
+              </SectionCard>
               <LegalBlocksSection
                 blocks={legalBlocks}
                 standardBlocks={[]}
