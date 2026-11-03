@@ -134,12 +134,8 @@ func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID 
 func pickupResetKeepsEarlierDays(
 	projection *careplan.PickupBaselineProjection, studentID int64, row ports.PickupWeekdayRow, day, first calendar.Date,
 ) bool {
-	for ; day.Before(first); day = day.AddDays(7) {
-		if offeringPickupClock(projection, studentID, day) != row.PickupTime {
-			return false
-		}
-	}
-	return true
+	_, needed := lastDayNeedingStoredPickup(projection, studentID, row, day, first)
+	return !needed
 }
 
 // offeringPickupClock is the booked pickup time on the date as "HH:MM";

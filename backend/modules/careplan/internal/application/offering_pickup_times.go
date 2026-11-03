@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -63,6 +64,11 @@ func (m *BookingMaterialization) offeringStudentIDs(ctx context.Context, offerin
 	return studentIDs, nil
 }
 
+// ResetStudentPickupDayToOffering removes the staff pickup row of the date's
+// weekday so the booked pickup time applies. The row has no validity period:
+// removing it applies to every remaining day of the weekday, also to those
+// before the date. A future date is refused while such an earlier day still
+// needs the stored time (#5643).
 func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, date calendar.Date) error {
 	weekday := int(date.Weekday())
 	if weekday < 1 || weekday > 5 {
@@ -75,19 +81,31 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
-	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, date, date)
+	// The earlier days the reset reaches start at the weekday's next date.
+	first := nextWeekdayFrom(m.todayDate(), weekday)
+	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, min(first, date), date)
 	if err != nil {
 		return fmt.Errorf("load offering pickup for reset: %w", err)
 	}
-	offering := projection.OfferingForDate(studentID, date)
-	if offering == nil {
+	if projection.OfferingForDate(studentID, date) == nil {
 		return careplan.ErrPickupResetNoOffering
 	}
-	removed, err := m.deletePickupWeekdayRow(ctx, studentID, weekday)
+	row, err := m.pickupWeekdayRow(ctx, studentID, weekday)
 	if err != nil {
 		return err
 	}
-	if removed && m.deps.ClearPickupWeekdayExtension != nil {
+	if row == nil {
+		return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
+	}
+	if row.Manual {
+		if until, needed := lastDayNeedingStoredPickup(projection, studentID, *row, first, date); needed {
+			return &careplan.PickupResetStillNeededError{NeededUntil: until, PossibleFrom: until.AddDays(1)}
+		}
+	}
+	if err := m.deps.Pickup.DeleteWeekdayRow(ctx, row.ID); err != nil {
+		return fmt.Errorf("delete pickup schedule override: %w", err)
+	}
+	if m.deps.ClearPickupWeekdayExtension != nil {
 		if err := m.deps.ClearPickupWeekdayExtension(ctx, studentID, weekday); err != nil {
 			return fmt.Errorf("clear pickup weekday extension: %w", err)
 		}
@@ -95,23 +113,34 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
 }
 
-// deletePickupWeekdayRow removes the student's stored row of the weekday and
-// reports whether there was one.
-func (m *BookingMaterialization) deletePickupWeekdayRow(ctx context.Context, studentID int64, weekday int) (bool, error) {
+// pickupWeekdayRow is the student's stored row of the weekday; nil when there
+// is none.
+func (m *BookingMaterialization) pickupWeekdayRow(ctx context.Context, studentID int64, weekday int) (*ports.PickupWeekdayRow, error) {
 	rows, err := m.deps.Pickup.WeekdayRows(ctx, studentID)
 	if err != nil {
-		return false, fmt.Errorf("load pickup schedules: %w", err)
+		return nil, fmt.Errorf("load pickup schedules: %w", err)
 	}
-	for _, row := range rows {
-		if row.Weekday != weekday {
-			continue
+	for i := range rows {
+		if rows[i].Weekday == weekday {
+			return &rows[i], nil
 		}
-		if err := m.deps.Pickup.DeleteWeekdayRow(ctx, row.ID); err != nil {
-			return false, fmt.Errorf("delete pickup schedule override: %w", err)
-		}
-		return true, nil
 	}
-	return false, nil
+	return nil, nil
+}
+
+// lastDayNeedingStoredPickup is the last day from day up to (excluding)
+// until on which the bookings do not set the stored time, so that removing
+// the row would change that day; false when there is none.
+func lastDayNeedingStoredPickup(
+	projection *careplan.PickupBaselineProjection, studentID int64, row ports.PickupWeekdayRow, day, until calendar.Date,
+) (calendar.Date, bool) {
+	var last calendar.Date
+	for ; day.Before(until); day = day.AddDays(7) {
+		if offeringPickupClock(projection, studentID, day) != row.PickupTime {
+			last = day
+		}
+	}
+	return last, last != ""
 }
 
 // lockPickupStudents takes the students' care locks BEFORE a weekly pickup

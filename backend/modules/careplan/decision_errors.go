@@ -1,6 +1,11 @@
 package careplan
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 // The error contract of the Care Plan decisions on offering changes, course
 // requests, pickup adjustments and offering adjustments (#3558). Handlers
@@ -70,3 +75,18 @@ var (
 	ErrPickupAdjustmentUnauthorized       = errors.New("pickup adjustment: student is not authorized")
 	ErrPickupAdjustmentStudentNotFound    = errors.New("pickup adjustment: student not found")
 )
+
+// PickupResetStillNeededError refuses removing a staff pickup row from a
+// future day while an earlier day of the weekday still needs it: the row has
+// no validity period, so the reset would also apply on those days, where the
+// booking then in force sets another time (#5643). NeededUntil is the last
+// such day; PossibleFrom, the day after it, is the first day on which the
+// reset changes no earlier day.
+type PickupResetStillNeededError struct {
+	NeededUntil  calendar.Date
+	PossibleFrom calendar.Date
+}
+
+func (e *PickupResetStillNeededError) Error() string {
+	return fmt.Sprintf("pickup reset: the stored pickup time is still needed until %s", e.NeededUntil)
+}

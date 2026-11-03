@@ -491,14 +491,16 @@ export function CarePlanEditorModal({
               pickupDay.offeringSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
                 // Der Dialog gilt sonst nur für diesen Tag; das Übernehmen
-                // ändert aber den Wochenplan. Der Satz sagt das und nennt die
-                // gebuchte Zeit (#5618).
+                // ändert aber den Wochenplan ab sofort, also auch vor diesem
+                // Tag. Der Satz sagt das und nennt die gebuchte Zeit (#5618).
+                // Braucht ein früherer Tag die Zeit noch, lehnt moto ab und
+                // nennt den Tag, ab dem es geht (#5643).
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-gray-600">
                     Gebucht:{" "}
                     {formatPickupTime(pickupDay.offeringSchedule.pickupTime)}{" "}
-                    Uhr. Übernehmen gilt {weeklyAdverb(pickupDay.weekday)},
-                    nicht nur an diesem Tag.
+                    Uhr. Übernehmen gilt ab sofort{" "}
+                    {weeklyAdverb(pickupDay.weekday)}, nicht nur an diesem Tag.
                   </p>
                   <Button
                     type="button"
