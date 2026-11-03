@@ -1312,6 +1312,19 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /vorlagen and /vorlagen/{kind} to /traeger/vorlagen (#4677)", () => {
+      for (const path of ["/vorlagen", "/vorlagen/bestaetigung"]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",
