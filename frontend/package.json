@@ -132,6 +132,7 @@
       "scripts/perf/*.node-test.mjs",
       "scripts/perf/*.perf.ts",
       "scripts/generate-guides.ts",
+      "scripts/secure-chrome.setup.ts",
       "scripts/product-screenshots/*.pw.ts",
       "playwright*.config.ts",
       "e2e/**/*.ts",

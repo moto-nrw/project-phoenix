@@ -1040,20 +1040,17 @@ describe.concurrent("ui-kit/no-button-override", () => {
 });
 
 describe("ui-kit/no-grey-button-fill", () => {
-  const lint = (body: string) => {
-    const result = lintSource(body, "src/components/probe.tsx");
+  const lint = async (body: string) => {
+    const result = await lintSource(body, "src/components/probe.tsx");
     return {
       status: result.status,
-      count: (
-        `${result.stdout}${result.stderr}`.match(
-          /ui-kit\(no-grey-button-fill\)/g,
-        ) ?? []
-      ).length,
+      count: (result.output.match(/ui-kit\(no-grey-button-fill\)/g) ?? [])
+        .length,
     };
   };
 
-  it("fails a grey resting fill on native buttons, links and kit buttons", () => {
-    const result = lint(
+  it("fails a grey resting fill on native buttons, links and kit buttons", async () => {
+    const result = await lint(
       `import Link from "next/link";
       import { Button, buttonClassName } from "~/components/ui/button";
       const idle = "bg-gray-100 text-gray-700 hover:bg-gray-200";
@@ -1074,8 +1071,8 @@ describe("ui-kit/no-grey-button-fill", () => {
     expect(result.count).toBe(4);
   });
 
-  it("fails gray-300 and responsive grey resting fills", () => {
-    const result = lint(
+  it("fails gray-300 and responsive grey resting fills", async () => {
+    const result = await lint(
       `function Probe() {
         return (
           <>
@@ -1091,8 +1088,8 @@ describe("ui-kit/no-grey-button-fill", () => {
     expect(result.count).toBe(2);
   });
 
-  it("accepts state tints, tracks, switches and navigation rows", () => {
-    const result = lint(
+  it("accepts state tints, tracks, switches and navigation rows", async () => {
+    const result = await lint(
       `import { NavLink as SideLink } from "~/components/ui/nav-link";
       function Probe({ on }: { on: boolean }) {
         return (
@@ -1152,12 +1149,14 @@ describe("button ratchet baseline", () => {
         rules: {
           "ui-kit/no-hand-rolled-button": "error",
           "ui-kit/no-button-override": "error",
+          "ui-kit/no-grey-button-fill": "error",
         },
       }),
     );
     const findingAt: Record<string, string> = {
       "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
       "no-button-override": `<Button className="h-10">A</Button>`,
+      "no-grey-button-fill": `<button type="button" className="rounded-lg bg-gray-100 px-4 py-2">A</button>`,
     };
     const sources = new Map<string, string[]>();
     for (const entry of buttonRatchetAllowlist) {
