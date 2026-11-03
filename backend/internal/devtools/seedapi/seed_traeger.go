@@ -324,9 +324,10 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
 // registration (#5629): the family called with a new phone number and an
-// added emergency contact. Name and e-mail stay those of the registration,
-// so the confirmation letter still reaches the seeded parent's inbox. The
-// history then shows the change by its fields.
+// added emergency contact. Name, e-mail and address stay those of the
+// registration, so the confirmation letter still reaches the seeded
+// parent's inbox with its address. The history then shows the change by its
+// fields.
 func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64, registration map[string]any) error {
 	guardian := map[string]any{}
 	if registered, ok := registration["guardian"].(map[string]any); ok {
@@ -335,8 +336,9 @@ func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrati
 	guardian["phone"] = "0151 0000009"
 	path := fmt.Sprintf("/traeger/holiday-periods/%d/registrations/%d/details", periodID, registrationID)
 	if _, err := rt.Client.PutWithAuth(auth, path, map[string]any{
-		"guardian":        guardian,
-		"second_guardian": registration["second_guardian"],
+		"guardian":         guardian,
+		"guardian_address": registration["guardian_address"],
+		"second_guardian":  registration["second_guardian"],
 		"emergency_contacts": []map[string]any{
 			{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"},
 			{"name": "Karin Ferienkind", "phone": "05402 000003", "relationship": "Tante"},
