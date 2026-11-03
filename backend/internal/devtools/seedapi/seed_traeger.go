@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -272,7 +273,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution, a possible duplicate waits for review")
-	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings); err != nil {
+	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return "", err
 	}
 	return token, nil
@@ -280,12 +281,19 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
 // registration (#5629): the family called with a new phone number and an
-// added emergency contact. The history then shows the change by its fields.
-func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64) error {
+// added emergency contact. Name and e-mail stay those of the registration,
+// so the confirmation letter still reaches the seeded parent's inbox. The
+// history then shows the change by its fields.
+func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64, registration map[string]any) error {
+	guardian := map[string]any{}
+	if registered, ok := registration["guardian"].(map[string]any); ok {
+		maps.Copy(guardian, registered)
+	}
+	guardian["phone"] = "0151 0000009"
 	path := fmt.Sprintf("/traeger/holiday-periods/%d/registrations/%d/details", periodID, registrationID)
 	if _, err := rt.Client.PutWithAuth(auth, path, map[string]any{
-		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000009"},
-		"second_guardian": map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
+		"guardian":        guardian,
+		"second_guardian": registration["second_guardian"],
 		"emergency_contacts": []map[string]any{
 			{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"},
 			{"name": "Karin Ferienkind", "phone": "05402 000003", "relationship": "Tante"},
