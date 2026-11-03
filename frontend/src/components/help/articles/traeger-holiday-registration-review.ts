@@ -6,9 +6,10 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerHolidayRegistrationReview,
     title: "Ferienanmeldungen prüfen",
-    question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
+    question:
+      "Wie bestätige, ändere, storniere und buche ich Ferienanmeldungen um?",
     summary:
-      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um.",
     image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
     imageAlt:
       "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -42,6 +43,16 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         ],
       },
       {
+        title: "Angaben ändern",
+        description:
+          "Zum Beispiel eine neue Telefonnummer oder ein falsch geschriebener Name.",
+        steps: [
+          "Wählen Sie bei der Karte `Ändern`: bei `Eltern`, beim Kind, bei `Notfallkontakte und Abholung` oder bei `Allgemeine Angaben`.",
+          "Ändern Sie die Angaben. Es gelten dieselben Regeln wie im Formular der Eltern.",
+          "Wählen Sie `Änderung speichern`.",
+        ],
+      },
+      {
         title: "Umbuchen",
         steps: [
           "Wählen Sie beim Kind `Umbuchen`.",
@@ -66,7 +77,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       },
     ],
     result:
-      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde.",
+      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Bei einer Änderung steht dort, welche Angaben sich geändert haben, aber nicht die Werte.",
     notes: [
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -76,6 +87,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
       "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
+      "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist.",
+      "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`.",
+      "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
@@ -83,6 +97,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     troubleshootingDetails: [
       "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
       "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
+      "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayRegistration,

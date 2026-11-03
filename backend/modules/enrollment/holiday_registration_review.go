@@ -46,6 +46,9 @@ const (
 	// HolidayAuditHealth records a read of the health information of a
 	// registration (#4722).
 	HolidayAuditHealth = "health"
+	// HolidayAuditEdit records a change of the details the family entered
+	// (#5629). It names the changed fields, never their values.
+	HolidayAuditEdit = "edit"
 )
 
 var (
@@ -159,12 +162,14 @@ type HolidayBookingChange struct {
 
 // HolidayRegistrationEventDetails name what a change changed: the status
 // before a confirmation or cancellation, the child and its bookings before
-// and after a rebooking.
+// and after a rebooking, the changed fields of an edit as field paths such as
+// "guardian.phone" or "children.0.last_name" (#5629).
 type HolidayRegistrationEventDetails struct {
 	From    string                 `json:"from,omitempty"`
 	ChildID int64                  `json:"child_id,omitempty"`
 	Before  []HolidayBookingChange `json:"before,omitempty"`
 	After   []HolidayBookingChange `json:"after,omitempty"`
+	Fields  []string               `json:"fields,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.
@@ -239,6 +244,49 @@ type HolidayRegistrationExport struct {
 	Columns []HolidayFormField
 }
 
+// HolidayRegistrationEdit is a change of the details a family entered, made
+// by the Träger-Büro (#5629). A nil section, and a child the edit does not
+// name, stays as it is. Children are neither added nor removed, bookings,
+// benefits, consents and health information do not change here.
+type HolidayRegistrationEdit struct {
+	// Guardians replaces the registering parent and the second guardian.
+	Guardians *HolidayGuardiansEdit
+	// Children replaces the details and the answers of the named children.
+	Children []HolidayChildEdit
+	// Contacts replaces the emergency contacts and the pickup persons.
+	Contacts *HolidayContactsEdit
+	// CustomData replaces the family's answers to the questions of the form
+	// without health information.
+	CustomData *HolidayAnswers
+}
+
+// HolidayGuardiansEdit are the parent who registered and the optional
+// second guardian; a nil SecondGuardian removes it.
+type HolidayGuardiansEdit struct {
+	Guardian       HolidayGuardianInput
+	SecondGuardian *HolidayGuardianInput
+}
+
+// HolidayChildEdit are the details of one child of the registration. A zero
+// HomeSchoolID makes the child a holiday guest. CustomData are its answers to
+// the questions of the form without health information.
+type HolidayChildEdit struct {
+	ChildID         int64
+	FirstName       string
+	LastName        string
+	BirthDate       calendar.Date
+	HomeSchoolID    int64
+	GuestSchoolName string
+	CustomData      HolidayAnswers
+}
+
+// HolidayContactsEdit are the emergency contacts and the persons allowed to
+// collect the children.
+type HolidayContactsEdit struct {
+	EmergencyContacts []HolidayContactInput
+	PickupPersons     []HolidayContactInput
+}
+
 // HolidayReviewer is the person of the Träger-Büro who reviews: the Träger
 // and the account of the session.
 type HolidayReviewer struct {
@@ -268,6 +316,13 @@ type HolidayRegistrationReview interface {
 	// RebookHolidayChild replaces the bookings of one child: one time model
 	// per week, at least one week.
 	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingInput) (HolidayRegistrationDetail, error)
+	// EditHolidayRegistration changes the details a family entered (#5629)
+	// with the checks of the public form; the answers are checked against the
+	// form version of the registration, and schools are the Träger's
+	// undeleted schools. A cancelled registration refuses with
+	// ErrHolidayRegistrationStateConflict; an edit without a change writes
+	// nothing.
+	EditHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, edit HolidayRegistrationEdit, schools []HolidaySchool) (HolidayRegistrationDetail, error)
 	// OpenHolidayRegistrationProof returns one proof of benefits of a
 	// registration with its bytes (#5238).
 	OpenHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, proofID int64) (HolidayProofFile, error)

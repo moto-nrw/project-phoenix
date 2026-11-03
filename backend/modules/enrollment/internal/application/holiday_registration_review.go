@@ -55,6 +55,13 @@ type HolidayReviewStore interface {
 	SetHolidayRegistrationStatus(ctx context.Context, organizationID, registrationID int64, status string) error
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
 	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
+	// WriteHolidayRegistrationDetails writes the details of a locked
+	// registration (#5629): both guardians, the family's answers, the
+	// details and answers of each child (childIDs in the order of
+	// details.Children) and the contacts. The answers carry no health
+	// information; the bookings, the consents and the sealed health
+	// information stay as they are.
+	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, childIDs []int64, details enrollment.HolidayRegistrationInput) error
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -356,8 +363,10 @@ func holidayChild(read []enrollment.HolidayRegistrationDetail, childID int64) (e
 }
 
 // change locks the period and the registration, runs apply and records the
-// change it names. The period lock orders the change after a running change
-// of the period's weeks.
+// change it names; an empty action records nothing, for an edit that
+// changed nothing (#5629). The period lock orders the change after a running
+// change of the period's weeks, the registration lock one change of a
+// registration after the other.
 func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64,
 	apply func(enrollment.HolidayPeriod, holidayRegistrationState) (string, any, error),
 ) (enrollment.HolidayRegistrationDetail, error) {
@@ -379,8 +388,10 @@ func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollm
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	if err := h.audit(ctx, reviewer, periodID, registrationID, action, details); err != nil {
-		return enrollment.HolidayRegistrationDetail{}, err
+	if action != "" {
+		if err := h.audit(ctx, reviewer, periodID, registrationID, action, details); err != nil {
+			return enrollment.HolidayRegistrationDetail{}, err
+		}
 	}
 	return h.detail(ctx, reviewer, period, registrationID)
 }

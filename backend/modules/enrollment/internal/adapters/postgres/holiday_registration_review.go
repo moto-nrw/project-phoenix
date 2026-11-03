@@ -226,7 +226,7 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen')
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'edit')
 		ORDER BY occurred_at, id`
 )
 

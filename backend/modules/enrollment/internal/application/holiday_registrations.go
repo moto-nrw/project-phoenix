@@ -390,7 +390,8 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	case len(input.Children) > enrollment.HolidayRegistrationMaxChildren:
 		errs["children"] = fmt.Errorf("at most %d children", enrollment.HolidayRegistrationMaxChildren)
 	default:
-		childErrs := validateHolidayChildren(input.Children, period, schools, today)
+		childErrs := validateHolidayChildren(input.Children, schools, today)
+		addHolidayBookingErrors(childErrs, input.Children, period)
 		addHolidayChildAnswerErrors(childErrs, form, answers, byKey)
 		if len(childErrs) > 0 {
 			errs["children"] = childErrs
@@ -412,6 +413,28 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	return errs
 }
 
+// addHolidayBookingErrors adds the refused bookings of each child below its
+// other errors, as "children.<i>.bookings". The Träger-Büro's edit of the
+// details checks no bookings: only a rebooking changes them (#5629).
+func addHolidayBookingErrors(childErrs validation.Errors, children []enrollment.HolidayChildInput, period enrollment.HolidayPeriod) {
+	for i, child := range children {
+		if bookingErr := validateHolidayBookings(child.Bookings, period); bookingErr != nil {
+			nestHolidayChildError(childErrs, i, "bookings", bookingErr)
+		}
+	}
+}
+
+// nestHolidayChildError adds err as "children.<i>.<field>".
+func nestHolidayChildError(childErrs validation.Errors, i int, field string, err error) {
+	key := fmt.Sprint(i)
+	nested, _ := childErrs[key].(validation.Errors)
+	if nested == nil {
+		nested = validation.Errors{}
+	}
+	nested[field] = err
+	childErrs[key] = nested
+}
+
 // addHolidayChildAnswerErrors adds the refused answers of each child below
 // its other errors, as "children.<i>.custom_data.<key>".
 func addHolidayChildAnswerErrors(childErrs validation.Errors, form enrollment.HolidayPeriodForm, answers holidayAnswerSet, byKey map[string]*enrollment.FormField) {
@@ -419,16 +442,9 @@ func addHolidayChildAnswerErrors(childErrs validation.Errors, form enrollment.Ho
 		answerErrs := validateHolidayAnswers(form, true, child, fieldVisibilityContext{
 			guardianAnswers: answers.family, childAnswers: child, fieldsByKey: byKey,
 		})
-		if len(answerErrs) == 0 {
-			continue
+		if len(answerErrs) > 0 {
+			nestHolidayChildError(childErrs, i, "custom_data", answerErrs)
 		}
-		key := fmt.Sprint(i)
-		nested, _ := childErrs[key].(validation.Errors)
-		if nested == nil {
-			nested = validation.Errors{}
-		}
-		nested["custom_data"] = answerErrs
-		childErrs[key] = nested
 	}
 }
 
@@ -461,7 +477,11 @@ func validateHolidayGuardian(guardian enrollment.HolidayGuardianInput) validatio
 	return errs
 }
 
-func validateHolidayChildren(children []enrollment.HolidayChildInput, period enrollment.HolidayPeriod, schools []enrollment.HolidaySchool, today calendar.Date) validation.Errors {
+// validateHolidayChildren checks the details of each child: names, date of
+// birth, school and the lengths of the free texts. The bookings are checked
+// apart (addHolidayBookingErrors), so the Träger-Büro's edit of the details
+// reuses this check without them (#5629).
+func validateHolidayChildren(children []enrollment.HolidayChildInput, schools []enrollment.HolidaySchool, today calendar.Date) validation.Errors {
 	errs := validation.Errors{}
 	known := map[int64]bool{}
 	for _, school := range schools {
@@ -483,9 +503,6 @@ func validateHolidayChildren(children []enrollment.HolidayChildInput, period enr
 		limitHolidayText(childErrs, "allergies", child.Allergies, holidayHealthFieldMaxLength)
 		limitHolidayText(childErrs, "medication", child.Medication, holidayHealthFieldMaxLength)
 		limitHolidayText(childErrs, "health_notes", child.HealthNotes, holidayHealthNotesMaxLength)
-		if bookingErr := validateHolidayBookings(child.Bookings, period); bookingErr != nil {
-			childErrs["bookings"] = bookingErr
-		}
 		if len(childErrs) > 0 {
 			errs[fmt.Sprint(i)] = childErrs
 		}

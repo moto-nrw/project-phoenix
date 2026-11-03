@@ -29,7 +29,7 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook";
+  HolidayRegistrationAction | "confirm" | "rebook" | "edit";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -149,6 +149,8 @@ export interface HolidayRegistrationEvent {
   readonly childId: string;
   readonly before: readonly HolidayBookingChange[];
   readonly after: readonly HolidayBookingChange[];
+  /** The fields an edit changed, as paths like "guardian.phone" (#5629). */
+  readonly fields: readonly string[];
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -261,6 +263,7 @@ interface BackendDetail extends BackendSummary {
           child_id?: number;
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
+          fields?: string[] | null;
         } | null;
       }[]
     | null;
@@ -351,6 +354,7 @@ function detailFromBackend(
       childId: event.details?.child_id ? String(event.details.child_id) : "",
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
+      fields: event.details?.fields ?? [],
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
@@ -511,6 +515,108 @@ export async function rebookHolidayChild(
           })),
         },
       },
+    ),
+  );
+}
+
+/** A person of the registration as the Träger-Büro edits it (#5629). */
+export interface HolidayRegistrationPersonEdit {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email: string;
+  readonly phone: string;
+}
+
+/** An emergency contact or a person allowed to collect the children. */
+export interface HolidayRegistrationContactEdit {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+/** The details of one child; a null school makes it a holiday guest. */
+export interface HolidayRegistrationChildEdit {
+  readonly id: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: string;
+  readonly homeSchoolId: string | null;
+  readonly guestSchoolName: string;
+  /** Its answers to the questions without health information. */
+  readonly answers: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One change of the details (#5629). A section that is absent stays as it
+ * is; a null `secondGuardian` removes the second guardian.
+ */
+export interface HolidayRegistrationEdit {
+  readonly guardians?: {
+    readonly guardian: HolidayRegistrationPersonEdit;
+    readonly secondGuardian: HolidayRegistrationPersonEdit | null;
+  };
+  readonly child?: HolidayRegistrationChildEdit;
+  readonly contacts?: {
+    readonly emergency: readonly HolidayRegistrationContactEdit[];
+    readonly pickup: readonly HolidayRegistrationContactEdit[];
+  };
+  /** The family's answers to the questions without health information. */
+  readonly answers?: Readonly<Record<string, unknown>>;
+}
+
+function personBody(person: HolidayRegistrationPersonEdit) {
+  return {
+    first_name: person.firstName,
+    last_name: person.lastName,
+    email: person.email,
+    phone: person.phone,
+  };
+}
+
+/** The request body; the field names are those of the public form. */
+export function holidayRegistrationEditBody(
+  edit: HolidayRegistrationEdit,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (edit.guardians) {
+    body.guardian = personBody(edit.guardians.guardian);
+    body.second_guardian = edit.guardians.secondGuardian
+      ? personBody(edit.guardians.secondGuardian)
+      : null;
+  }
+  if (edit.child) {
+    body.children = [
+      {
+        id: Number(edit.child.id),
+        first_name: edit.child.firstName,
+        last_name: edit.child.lastName,
+        birth_date: edit.child.birthDate,
+        home_school_id: edit.child.homeSchoolId
+          ? Number(edit.child.homeSchoolId)
+          : 0,
+        guest_school_name: edit.child.guestSchoolName,
+        custom_data: edit.child.answers,
+      },
+    ];
+  }
+  if (edit.contacts) {
+    body.emergency_contacts = edit.contacts.emergency;
+    body.pickup_persons = edit.contacts.pickup;
+  }
+  if (edit.answers) body.custom_data = edit.answers;
+  return body;
+}
+
+/** Changes the details a family entered (#5629). */
+export async function editHolidayRegistration(
+  periodId: string,
+  registrationId: string,
+  edit: HolidayRegistrationEdit,
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/details`,
+      { method: "PUT", body: holidayRegistrationEditBody(edit) },
     ),
   );
 }

@@ -2,9 +2,9 @@
 
 // Ein Kind einer Ferienanmeldung (#4663): Schule, gebuchte Wochen,
 // Gesundheitsangaben und der Hinweis auf eine mögliche Doppelanmeldung. Hier
-// bucht das Träger-Büro das Kind um.
+// bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -39,6 +39,7 @@ import {
   answeredQuestions,
   HolidayRegistrationAnswers,
 } from "./holiday-registration-answers";
+import { EDIT_TITLE } from "./holiday-registration-edit-fields";
 import {
   childSchoolLabel,
   formatHolidayWeek,
@@ -54,6 +55,8 @@ export function HolidayRegistrationChildCard({
   healthHidden = false,
   names,
   onChanged,
+  onEdit,
+  editor,
 }: Readonly<{
   period: HolidayPeriod;
   registration: HolidayRegistrationDetail;
@@ -66,6 +69,10 @@ export function HolidayRegistrationChildCard({
   healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
   onChanged: (registration: HolidayRegistrationDetail) => void;
+  /** Opens the edit of the child's details; absent, the card offers none. */
+  onEdit?: () => void;
+  /** The edit state of the child's details, in place of the card's body. */
+  editor?: ReactNode;
 }>) {
   const [draft, setDraft] = useState<HolidayRebookingDraft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -97,8 +104,8 @@ export function HolidayRegistrationChildCard({
   };
 
   const bookings = draft ? rebookingBookings(period, draft) : [];
-  const action =
-    draft || cancelled || registration.frozen ? undefined : (
+  const rebook =
+    draft || cancelled || registration.frozen ? null : (
       <Button
         type="button"
         variant="outline"
@@ -108,12 +115,42 @@ export function HolidayRegistrationChildCard({
         Umbuchen
       </Button>
     );
+  const edit =
+    draft || !onEdit ? null : (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        aria-label={`Angaben von ${child.firstName} ${child.lastName} ändern`}
+        onClick={onEdit}
+      >
+        Ändern
+      </Button>
+    );
+
+  if (editor) {
+    return (
+      <SectionCard
+        title={EDIT_TITLE}
+        description={`${child.firstName} ${child.lastName}`}
+      >
+        {editor}
+      </SectionCard>
+    );
+  }
 
   return (
     <SectionCard
       title={`${child.firstName} ${child.lastName}`}
       description={`Geboren am ${formatDate(child.birthDate)} · ${childSchoolLabel(child, names)}`}
-      action={action}
+      action={
+        edit || rebook ? (
+          <span className="flex flex-wrap gap-2">
+            {edit}
+            {rebook}
+          </span>
+        ) : undefined
+      }
     >
       <div className="space-y-4">
         {child.duplicateRegistrationIds.length > 0 ? (

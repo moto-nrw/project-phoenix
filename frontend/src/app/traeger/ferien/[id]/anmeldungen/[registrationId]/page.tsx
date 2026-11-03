@@ -3,9 +3,12 @@
 // Eine Ferienanmeldung prüfen (#4663): alles, was die Eltern angegeben
 // haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Die
 // Gesundheitsangaben lädt die Seite getrennt und nur mit dem Recht
-// „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
+// „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll. Die
+// Karten der Angaben wechseln mit „Ändern“ an Ort und Stelle in den
+// Bearbeiten-Zustand (#5629); dessen Formulare lädt die Seite erst dann.
 
 import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
@@ -14,6 +17,11 @@ import {
   HolidayRegistrationAnswers,
 } from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
+import {
+  CANCELLED_EDIT_TEXT,
+  EDIT_TITLE,
+  editableQuestions,
+} from "~/components/traeger/holiday-registration-edit-fields";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
   HOLIDAY_REGISTRATION_STATUS_TONES,
@@ -31,6 +39,7 @@ import {
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
 import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
+import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -65,6 +74,21 @@ const PDF_LABELS: AttachmentLabels = {
 };
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
+
+// The edit states load with the first „Ändern“, not with the page.
+const editors = () => import("~/components/traeger/holiday-registration-edit");
+const GuardiansEditor = dynamic(() =>
+  editors().then((module) => module.GuardiansEditor),
+);
+const ChildEditor = dynamic(() =>
+  editors().then((module) => module.ChildEditor),
+);
+const ContactsEditor = dynamic(() =>
+  editors().then((module) => module.ContactsEditor),
+);
+const FamilyAnswersEditor = dynamic(() =>
+  editors().then((module) => module.FamilyAnswersEditor),
+);
 
 function consentText(at: string | null): string {
   return at ? `Ja, am ${formatBerlinDate(at)}` : "Nein";
@@ -119,6 +143,9 @@ export default function TraegerHolidayRegistrationPage() {
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
+  // The card in its edit state: "guardians", "contacts", "answers" or
+  // "child:<id>"; one at a time.
+  const [editing, setEditing] = useState<string | null>(null);
   const {
     schools,
     error: schoolsError,
@@ -198,6 +225,14 @@ export default function TraegerHolidayRegistrationPage() {
     [exemption, refreshContribution],
   );
 
+  const saved = useCallback(
+    (next: HolidayRegistrationDetail) => {
+      setEditing(null);
+      changed(next);
+    },
+    [changed],
+  );
+
   const changeExemption = useCallback(
     (next: boolean) => {
       setExemption(next);
@@ -225,6 +260,28 @@ export default function TraegerHolidayRegistrationPage() {
   const pickup = (registration?.contacts ?? []).filter(
     (contact) => contact.kind === "pickup",
   );
+
+  const cancelled = registration?.status === "cancelled";
+  const editAction = (section: string, label: string) =>
+    cancelled || editing ? undefined : (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        aria-label={label}
+        onClick={() => setEditing(section)}
+      >
+        Ändern
+      </Button>
+    );
+  const editorProps = registration
+    ? {
+        periodId,
+        registration,
+        onSaved: saved,
+        onCancel: () => setEditing(null),
+      }
+    : null;
 
   // Der Titel nennt die Eltern, nicht die Datenbanknummer. Die Nummer bleibt
   // in der Statuszeile: Export und Hinweis auf Doppelanmeldungen verweisen
@@ -283,30 +340,47 @@ export default function TraegerHolidayRegistrationPage() {
               registration={registration}
             />
           ) : null}
-          <SectionCard title="Eltern">
-            <DataGrid>
-              <DataField label="Name">
-                {registration.guardianFirstName} {registration.guardianLastName}
-              </DataField>
-              <DataField label="Telefon">
-                {registration.guardianPhone}
-              </DataField>
-              <DataField label="E-Mail" fullWidth>
-                {registration.guardianEmail}
-              </DataField>
-              <DataField label="Datenschutz zugestimmt">
-                {consentText(registration.privacyConsentAt)}
-              </DataField>
-              <DataField label="Gesundheitsangaben zugestimmt">
-                {consentText(registration.healthConsentAt)}
-              </DataField>
-              <DataField label="Verbindlich angemeldet">
-                {consentText(registration.bindingConfirmedAt)}
-              </DataField>
-            </DataGrid>
-          </SectionCard>
-          {registration.secondGuardian ? (
-            <SectionCard title="Zweite sorgeberechtigte Person">
+          {editing === "guardians" && editorProps ? (
+            <SectionCard title={EDIT_TITLE} description="Eltern">
+              <GuardiansEditor {...editorProps} />
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Eltern"
+              description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
+              action={editAction("guardians", "Angaben der Eltern ändern")}
+            >
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.guardianFirstName}{" "}
+                  {registration.guardianLastName}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.guardianPhone}
+                </DataField>
+                <DataField label="E-Mail" fullWidth>
+                  {registration.guardianEmail}
+                </DataField>
+                <DataField label="Datenschutz zugestimmt">
+                  {consentText(registration.privacyConsentAt)}
+                </DataField>
+                <DataField label="Gesundheitsangaben zugestimmt">
+                  {consentText(registration.healthConsentAt)}
+                </DataField>
+                <DataField label="Verbindlich angemeldet">
+                  {consentText(registration.bindingConfirmedAt)}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          )}
+          {registration.secondGuardian && editing !== "guardians" ? (
+            <SectionCard
+              title="Zweite sorgeberechtigte Person"
+              action={editAction(
+                "guardians",
+                "Angaben der zweiten sorgeberechtigten Person ändern",
+              )}
+            >
               <DataGrid>
                 <DataField label="Name">
                   {registration.secondGuardian.firstName}{" "}
@@ -335,12 +409,39 @@ export default function TraegerHolidayRegistrationPage() {
               }
               names={names}
               onChanged={changed}
+              onEdit={
+                cancelled || editing
+                  ? undefined
+                  : () => setEditing(`child:${child.id}`)
+              }
+              editor={
+                editing === `child:${child.id}` && editorProps ? (
+                  <ChildEditor
+                    {...editorProps}
+                    child={
+                      registration.children.find(
+                        (entry) => entry.id === child.id,
+                      ) ?? child
+                    }
+                    schools={schools}
+                  />
+                ) : undefined
+              }
             />
           ))}
-          {registration.form.fields.length > 0 ? (
+          {editing === "answers" && editorProps ? (
+            <SectionCard title={EDIT_TITLE} description="Allgemeine Angaben">
+              <FamilyAnswersEditor {...editorProps} />
+            </SectionCard>
+          ) : registration.form.fields.length > 0 ? (
             <SectionCard
               title="Allgemeine Angaben"
               description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+              action={
+                editableQuestions(registration.form.fields, false).length > 0
+                  ? editAction("answers", "Allgemeine Angaben ändern")
+                  : undefined
+              }
             >
               {answeredQuestions(registration.form.fields, false, view.answers)
                 .length > 0 ? (
@@ -397,25 +498,40 @@ export default function TraegerHolidayRegistrationPage() {
               </div>
             </SectionCard>
           ) : null}
-          <SectionCard title="Notfallkontakte und Abholung">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  Notfallkontakte
-                </p>
-                <ContactList contacts={emergency} empty="Keine Angabe." />
+          {editing === "contacts" && editorProps ? (
+            <SectionCard
+              title={EDIT_TITLE}
+              description="Notfallkontakte und Abholung"
+            >
+              <ContactsEditor {...editorProps} />
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Notfallkontakte und Abholung"
+              action={editAction(
+                "contacts",
+                "Notfallkontakte und Abholung ändern",
+              )}
+            >
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Notfallkontakte
+                  </p>
+                  <ContactList contacts={emergency} empty="Keine Angabe." />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Abholberechtigte
+                  </p>
+                  <ContactList
+                    contacts={pickup}
+                    empty="Keine Angabe. Dann holen nur die Eltern ab."
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  Abholberechtigte
-                </p>
-                <ContactList
-                  contacts={pickup}
-                  empty="Keine Angabe. Dann holen nur die Eltern ab."
-                />
-              </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+          )}
           <HolidayRegistrationHistory
             period={period}
             registration={registration}
