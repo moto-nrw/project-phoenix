@@ -139,7 +139,7 @@ function OperatorPersonsPageContent() {
             {schoolPersons.map((person) => (
               <div
                 key={person.id}
-                className="moto-content-surface flex items-center justify-between rounded-xl border p-4 shadow-sm"
+                className="moto-content-surface flex items-center justify-between rounded-xl border p-4"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-gray-900">

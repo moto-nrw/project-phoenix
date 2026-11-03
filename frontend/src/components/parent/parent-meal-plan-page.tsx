@@ -197,7 +197,7 @@ function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
 
 function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border">
       <div
         className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
         aria-hidden="true"
@@ -780,7 +780,7 @@ function ParticipationWeek({
     );
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-gray-900">
           {t("participationTitle", { name: childName })}
@@ -1504,14 +1504,14 @@ export function ParentMealPlanPage() {
           icon={<Utensils className="h-10 w-10" />}
           title={t("noLinkedChildrenTitle")}
           description={t("noLinkedChildren")}
-          className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
+          className="moto-content-surface rounded-2xl border px-5"
         />
       ) : schools.length === 0 ? (
         <EmptyState
           icon={<Utensils className="h-10 w-10" />}
           title={t("emptyTitle")}
           description={t("empty")}
-          className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
+          className="moto-content-surface rounded-2xl border px-5"
         />
       ) : selectedSchool?.registrationEnabled ? (
         <ParticipationWeek
@@ -1532,7 +1532,7 @@ export function ParentMealPlanPage() {
           onEditingChange={setParticipationEditing}
         />
       ) : (
-        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <section className="moto-content-surface overflow-hidden rounded-2xl border">
           <WeekNavigation
             weekOffset={weekOffset}
             lastWeek={LAST_MEAL_PLAN_WEEK}

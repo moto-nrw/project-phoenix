@@ -114,7 +114,7 @@ function SupervisionIntro({
     startState === "startable" || startState === "too_early";
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface rounded-2xl border p-5">
       {back ? <div className="mb-3">{back}</div> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">

@@ -664,7 +664,7 @@ export default function StudentGuardianManager({
   }
 
   return (
-    <div className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface relative z-10 rounded-2xl border p-4 sm:p-6">
       <ConceptSectionHeader
         className="mb-4"
         title="Erziehungsberechtigte"

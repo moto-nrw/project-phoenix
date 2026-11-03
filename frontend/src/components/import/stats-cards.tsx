@@ -20,7 +20,7 @@ interface StatCardProps {
 
 function StatCard({ title, value, icon }: StatCardProps) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-2xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-gray-600">{title}</p>

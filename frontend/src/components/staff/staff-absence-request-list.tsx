@@ -258,7 +258,7 @@ export function StaffAbsenceRequestList({
     return (
       <>
         {revalidationError}
-        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+        <div className="moto-content-surface overflow-hidden rounded-2xl border">
           <RequestRowHeader view="history" />
           {rows.map((row) => (
             <RequestReviewCard
@@ -293,7 +293,7 @@ export function StaffAbsenceRequestList({
   return (
     <>
       {revalidationError}
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
+      <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <AbsenceRequestRow

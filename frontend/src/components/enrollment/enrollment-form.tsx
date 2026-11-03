@@ -1656,7 +1656,7 @@ export function EnrollmentForm({
 
   if (loading) {
     return (
-      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 sm:p-6">
         {tr("loading")}
       </div>
     );
@@ -1688,7 +1688,7 @@ export function EnrollmentForm({
         />
 
         {!restrictToOfferings && (
-          <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
+          <section className="moto-content-surface space-y-5 rounded-xl border p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <SectionHeading
                 title={tr("sections.guardianTitle")}
@@ -1760,7 +1760,7 @@ export function EnrollmentForm({
             {additionalGuardians.map((g, i) => (
               <div
                 key={getStableObjectKey(g, "additional-guardian")}
-                className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
+                className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -1838,7 +1838,7 @@ export function EnrollmentForm({
 
         {!restrictToOfferings &&
           schema?.fields.some((f) => !f.applies_to_child) && (
-            <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+            <section className="moto-content-surface space-y-4 rounded-xl border p-4 sm:p-5">
               <SectionHeading
                 title={tr("sections.extraTitle")}
                 description={tr("sections.extraDescription")}
@@ -1867,7 +1867,7 @@ export function EnrollmentForm({
             </section>
           )}
 
-        <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
+        <section className="moto-content-surface space-y-5 rounded-xl border p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <SectionHeading
               title={tr(
@@ -2096,7 +2096,7 @@ export function EnrollmentForm({
             return (
               <div
                 key={child.clientId}
-                className="moto-content-surface space-y-5 rounded-xl border p-3 shadow-sm sm:p-4"
+                className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
@@ -2621,7 +2621,7 @@ export function EnrollmentForm({
         </section>
 
         {legalBlocks.length > 0 && !restrictToOfferings && (
-          <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+          <section className="moto-content-surface space-y-4 rounded-xl border p-4 sm:p-5">
             <SectionHeading
               title={tr("sections.consentTitle")}
               description={tr("sections.consentDescription")}
@@ -2671,7 +2671,7 @@ export function EnrollmentForm({
         )}
 
         {signatureRequired && (
-          <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+          <section className="moto-content-surface space-y-4 rounded-xl border p-4 sm:p-5">
             <SectionHeading
               title={tr("signature.title")}
               description={tr("signature.description")}

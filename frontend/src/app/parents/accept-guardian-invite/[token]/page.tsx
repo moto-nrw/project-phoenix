@@ -202,7 +202,7 @@ function SchoolBrandMark({
     .join("");
 
   return (
-    <div className="moto-content-surface flex h-20 min-w-20 items-center justify-center overflow-hidden rounded-2xl border px-4 shadow-sm">
+    <div className="moto-content-surface flex h-20 min-w-20 items-center justify-center overflow-hidden rounded-2xl border px-4">
       {schoolLogoUrl ? (
         <Image
           src={schoolLogoUrl}

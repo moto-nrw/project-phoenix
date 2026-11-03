@@ -149,7 +149,7 @@ export function ParentNewsPage() {
       ) : loadError ? (
         <LoadErrorAlert error={loadError} />
       ) : items.length === 0 ? (
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
           {t("empty")}
         </p>
       ) : (
@@ -212,7 +212,7 @@ function NewsListSkeleton() {
       {[0, 1].map((item) => (
         <div
           key={item}
-          className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
+          className="moto-content-surface rounded-2xl border p-4 sm:p-5"
         >
           <div className="flex gap-3">
             <Skeleton className="size-10 shrink-0 rounded-xl" />

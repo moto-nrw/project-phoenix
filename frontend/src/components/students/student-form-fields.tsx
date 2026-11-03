@@ -298,7 +298,7 @@ function TextareaField({
   onChange,
   placeholder = "",
   rows = 3,
-  iconColor = "blue-600",
+  iconClassName = "text-moto-blue",
   iconPath,
   parentVisibleHint,
 }: Readonly<{
@@ -307,7 +307,9 @@ function TextareaField({
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
-  iconColor?: string;
+  /** Ganze Farbklasse des Symbols; Tailwind erzeugt nur vollständig
+   *  ausgeschriebene Klassen (#5577). */
+  iconClassName?: string;
   iconPath: string;
   /** Set when the parent portal mirrors this field (see parent-visible-fields). */
   parentVisibleHint?: string;
@@ -316,7 +318,7 @@ function TextareaField({
     <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
       <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
-          className={`h-3.5 w-3.5 text-${iconColor} md:h-4 md:w-4`}
+          className={`h-3.5 w-3.5 md:h-4 md:w-4 ${iconClassName}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -335,7 +337,7 @@ function TextareaField({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="moto-content-surface focus:border-moto-blue focus:ring-moto-blue block w-full resize-none rounded-lg border px-3 py-2 text-xs transition-colors focus:ring-1 md:text-sm"
+        className="focus:border-moto-blue focus:ring-moto-blue block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:ring-1 md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />
@@ -360,7 +362,7 @@ export function HealthInfoSection({
       onChange={onChange}
       placeholder="Allergien, Medikamente, gesundheitliche Einschränkungen..."
       parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
-      iconColor="red-600"
+      iconClassName="text-moto-red"
       iconPath="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
     />
   );
@@ -379,7 +381,7 @@ export function AdditionalInfoSection({
       value={value}
       onChange={onChange}
       placeholder="Weitere Informationen über das Kind..."
-      iconColor="blue-600"
+      iconClassName="text-moto-blue"
       iconPath="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
     />
   );

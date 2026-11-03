@@ -145,7 +145,7 @@ function EnrollmentPreviewPageContent() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
+          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
             <BackLink
               href={tenantPath("/enrollment-form")}
               label="Zurück zu den Anmeldeformularen"
@@ -173,7 +173,7 @@ function EnrollmentPreviewPageContent() {
           </div>
 
           {loading ? (
-            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600">
               Vorschau wird geladen…
             </div>
           ) : loadError || missingSchema || gradeLevelMax === null ? (
@@ -199,7 +199,7 @@ function EnrollmentPreviewPageContent() {
         </section>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+          <section className="moto-content-surface rounded-2xl border p-5">
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
               Vorschau
             </p>

@@ -311,7 +311,7 @@ export function CarePlanView({
   }, [error, showLoadError, clearLoadError]);
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
+    <section className="moto-content-surface overflow-hidden rounded-xl border sm:rounded-2xl">
       <>
         <ConceptSectionHeader
           className="border-b border-gray-100 p-4 sm:p-5"

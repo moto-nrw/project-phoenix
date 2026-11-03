@@ -1094,7 +1094,7 @@ function ClassRosterExportPanel({
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
   return (
-    <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface relative z-10 rounded-2xl border p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0 md:w-72">
           <SelectField
@@ -1200,7 +1200,7 @@ function DeploymentPlanningStats({
         {CARE_USAGE_WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
+            className="moto-content-surface rounded-xl border px-3 py-2"
           >
             <p className="text-xs font-semibold text-gray-500">
               {DAY_LABELS[day]}
@@ -1275,7 +1275,7 @@ function ReportExportCard({
   return (
     // Unter xl eine eigene Zeile: Der Knopf ist breiter als eine Kachel und
     // ragte sonst über die Seite hinaus, die dann seitlich scrollte (#4975).
-    <div className="moto-content-surface col-span-full flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md xl:col-span-1">
+    <div className="moto-content-surface col-span-full flex flex-col gap-1 rounded-xl border px-3 py-2 xl:col-span-1">
       <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
       <ExportMenu
         label="Auswertung exportieren"

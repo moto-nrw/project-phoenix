@@ -771,7 +771,7 @@
     box-shadow 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.moto-hover-elevated:hover {
+.moto-hover-elevated:not(:disabled):hover {
   border-color: #d1d5db;
   background-color: rgb(249 250 251 / 0.4);
   box-shadow:

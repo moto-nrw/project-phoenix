@@ -433,7 +433,7 @@ function SelectionBar({
   const disabled = count === 0;
   return (
     <div
-      className="moto-content-surface border-moto-green/30 sticky top-0 z-20 shrink-0 border-x-0 border-b px-2 py-2 shadow-sm"
+      className="moto-content-surface sticky top-0 z-20 shrink-0 border-x-0 border-b px-2 py-2"
       role="region"
       aria-label="Auswahl"
     >

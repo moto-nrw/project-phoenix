@@ -236,9 +236,8 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1512, 1555],
-    reason:
-      "Abwesenheits- und Wochentagskarte, öffnen Dialog bzw. Editor: Kacheln",
+    lines: [1555],
+    reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",

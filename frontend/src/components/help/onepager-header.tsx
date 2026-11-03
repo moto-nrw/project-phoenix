@@ -23,7 +23,7 @@ export function OnepagerHeader({
 }) {
   return (
     <header className="sticky top-3 z-30 print:hidden">
-      <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border p-3 shadow-sm sm:relative sm:p-4">
+      <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border p-3 sm:relative sm:p-4">
         <Link
           href="/help"
           className={buttonStyles({

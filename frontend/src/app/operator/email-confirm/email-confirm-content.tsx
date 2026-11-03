@@ -109,7 +109,7 @@ export function EmailConfirmContent() {
   if (state === "idle") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center shadow-sm">
+        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
             <Mail className="h-8 w-8 text-gray-600" aria-hidden="true" />
           </div>
@@ -147,7 +147,7 @@ export function EmailConfirmContent() {
   if (state === "success") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center shadow-sm">
+        <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
             <Check className="text-moto-green h-8 w-8" aria-hidden="true" />
           </div>
@@ -179,7 +179,7 @@ export function EmailConfirmContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center shadow-sm">
+      <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100">
           <X className="text-moto-red h-8 w-8" aria-hidden="true" />
         </div>

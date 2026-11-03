@@ -61,7 +61,7 @@ export function ParentPageHeader({
   prominent?: boolean;
 }>) {
   return (
-    <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <header className="moto-content-surface space-y-3 rounded-2xl border p-5">
       {backHref && backLabel && <BackLink href={backHref} label={backLabel} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-0 gap-3">
@@ -110,7 +110,7 @@ export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
     <ParentPage>
       <div
         data-testid="parent-page-header-skeleton"
-        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+        className="moto-content-surface rounded-2xl border p-5"
         role="status"
       >
         <span className="sr-only">{t("sectionLoading")}</span>
@@ -144,7 +144,7 @@ export function ParentSectionSkeleton({
   return (
     <div
       data-testid="parent-page-section-skeleton"
-      className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm ${className}`}
+      className={`moto-content-surface overflow-hidden rounded-2xl border ${className}`}
       role={announce ? "status" : undefined}
       aria-hidden={announce ? undefined : true}
     >

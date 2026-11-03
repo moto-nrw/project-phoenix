@@ -37,7 +37,7 @@ export function TransitAssignmentCard({
           </>
         }
         actions={
-          <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
+          <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors">
             Zuweisen
             <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
           </span>

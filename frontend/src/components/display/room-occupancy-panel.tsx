@@ -30,7 +30,7 @@ function occupancyColor(
 
 export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
+    <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <ConceptIconTile concept={roomsConcept} variant="display" />
@@ -61,7 +61,7 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
             return (
               <li
                 key={room.name}
-                className="moto-content-surface rounded-2xl border p-5 shadow-sm"
+                className="moto-content-surface rounded-2xl border p-5"
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="truncate text-2xl font-semibold text-gray-900">

@@ -5,6 +5,7 @@ import {
   StudentCheckinSection,
   StudentSickReportSection,
   StudentExcusedReportSection,
+  StudentStatusActionsMenu,
 } from "./student-checkout-section";
 
 describe("StudentCheckoutSection", () => {
@@ -28,6 +29,14 @@ describe("StudentCheckoutSection", () => {
 
     expect(mockOnClick).toHaveBeenCalledTimes(1);
   });
+
+  it("elevates the interactive card on hover", () => {
+    render(<StudentCheckoutSection onCheckoutClick={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /^Abmelden/ })).toHaveClass(
+      "moto-hover-elevated",
+    );
+  });
 });
 
 describe("StudentCheckinSection", () => {
@@ -50,6 +59,14 @@ describe("StudentCheckinSection", () => {
     fireEvent.click(screen.getByText("Anmelden"));
 
     expect(mockOnClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("elevates the interactive card on hover", () => {
+    render(<StudentCheckinSection onCheckinClick={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /^Anmelden/ })).toHaveClass(
+      "moto-hover-elevated",
+    );
   });
 });
 
@@ -120,6 +137,14 @@ describe("StudentSickReportSection", () => {
       <StudentSickReportSection {...defaultProps} isLoading={true} />,
     );
     expect(container.querySelector(".animate-spin")).toBeInTheDocument();
+  });
+
+  it("elevates the interactive card on hover", () => {
+    render(<StudentSickReportSection {...defaultProps} />);
+
+    expect(screen.getByRole("button", { name: /^Krank melden/ })).toHaveClass(
+      "moto-hover-elevated",
+    );
   });
 
   it("does not show spinner when not loading", () => {
@@ -199,6 +224,14 @@ describe("StudentExcusedReportSection", () => {
     expect(container.querySelector(".animate-spin")).toBeInTheDocument();
   });
 
+  it("elevates the interactive card on hover", () => {
+    render(<StudentExcusedReportSection {...defaultProps} />);
+
+    expect(screen.getByRole("button", { name: /^Entschuldigen/ })).toHaveClass(
+      "moto-hover-elevated",
+    );
+  });
+
   it("does not show spinner when not loading", () => {
     const { container } = render(
       <StudentExcusedReportSection {...defaultProps} />,
@@ -206,5 +239,21 @@ describe("StudentExcusedReportSection", () => {
     // Anker: die Karte mit ihrem Titel ist gerendert.
     expect(screen.getByText("Entschuldigen")).toBeInTheDocument();
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentStatusActionsMenu", () => {
+  it("elevates the interactive card on hover", () => {
+    render(
+      <StudentStatusActionsMenu
+        isClassTrip={false}
+        onPlanClassTrip={vi.fn()}
+        isLoading={false}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Weitere Statusaktionen" }),
+    ).toHaveClass("moto-hover-elevated");
   });
 });

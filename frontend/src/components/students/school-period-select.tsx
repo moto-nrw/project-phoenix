@@ -49,7 +49,7 @@ export function SchoolPeriodSelect({
       ariaLabel={ariaLabel}
       placeholder="Nach Schulstunde"
       disabled={disabled}
-      triggerClassName="moto-content-surface h-8 w-full text-xs hover:border-gray-300"
+      triggerClassName="moto-content-surface h-8 w-full text-xs"
     />
   );
 }

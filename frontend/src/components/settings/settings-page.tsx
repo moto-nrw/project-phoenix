@@ -240,7 +240,7 @@ function SettingsTabContent({
 
       {isFiltering ? (
         hits.length === 0 ? (
-          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
             <EmptyState
               variant="compact"
               icon={<SearchX className="h-5 w-5" aria-hidden="true" />}
@@ -294,10 +294,7 @@ function SettingsSkeleton() {
         <Skeleton className="h-8 w-32 rounded-md" />
       </div>
       {Array.from({ length: 5 }).map((_, idx) => (
-        <div
-          key={idx}
-          className="moto-content-surface rounded-2xl border p-5 shadow-sm"
-        >
+        <div key={idx} className="moto-content-surface rounded-2xl border p-5">
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-40 rounded" />

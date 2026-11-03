@@ -259,7 +259,7 @@ export function FilesPage() {
       <div className="flex min-h-[28rem] flex-col gap-4">
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           {/* Folder list: a panel on desktop, a select on small screens */}
-          <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
+          <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
             <label
               htmlFor="dateien-ordner"
               className="mb-1.5 block text-xs font-medium text-gray-600"
@@ -274,10 +274,10 @@ export function FilesPage() {
                 label: `${folder.name} (${folder.fileCount})`,
               }))}
               onChange={(value) => setSelectedId(value)}
-              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+              triggerClassName="moto-content-surface h-9 w-full"
             />
           </div>
-          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 shadow-sm lg:flex">
+          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
             <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
               Ordner
             </p>

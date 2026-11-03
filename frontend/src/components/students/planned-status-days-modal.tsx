@@ -949,12 +949,12 @@ export function PlannedStatusDaysModal({
                             type="button"
                             onClick={() => toggleDate(date)}
                             disabled={existingDay !== undefined}
-                            className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
+                            className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 sm:px-2 ${
                               isSelected
-                                ? "border-gray-900 bg-gray-900 text-white"
+                                ? "border-gray-900 bg-gray-900 text-white shadow-sm"
                                 : existingDay
-                                  ? "border-gray-100 bg-gray-50 text-gray-400"
-                                  : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                                  ? "border-gray-100 bg-gray-50 text-gray-400 shadow-sm"
+                                  : "moto-content-surface text-gray-700"
                             } disabled:cursor-not-allowed`}
                             title={
                               existingDay
@@ -1089,7 +1089,7 @@ export function PlannedStatusDaysModal({
                     {removableExistingDays.map((day) => (
                       <div
                         key={day.id}
-                        className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
+                        className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700"
                       >
                         <span>
                           <span className="block">
@@ -1150,7 +1150,7 @@ export function PlannedStatusDaysModal({
                     {existingPartialAbsences.map((absence) => (
                       <div
                         key={absence.id}
-                        className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        className="moto-content-surface flex flex-col gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <span className="min-w-0 flex-1 break-words">
                           <span className="block">

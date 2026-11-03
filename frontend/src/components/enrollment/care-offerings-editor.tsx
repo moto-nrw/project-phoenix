@@ -1128,7 +1128,7 @@ function CareOfferingToolbar({
   onCreate: () => void;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface rounded-2xl border p-4">
       {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
           alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
           Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
@@ -1219,7 +1219,7 @@ function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
@@ -1249,7 +1249,7 @@ function NoPhaseState() {
 
 function EmptyCareOfferingState() {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">

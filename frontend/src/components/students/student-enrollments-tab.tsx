@@ -104,7 +104,7 @@ export function StudentEnrollmentsTab({
   });
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-sm sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <ConceptSectionHeader
         className="mb-4"
         // Die Phasenkarten darunter bringen h4 und h5 mit; als h2 entstuende
@@ -167,7 +167,7 @@ function EnrollmentRequestCard({
   });
 
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <article className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h4 className="text-base font-semibold text-gray-900">

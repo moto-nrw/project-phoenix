@@ -60,7 +60,7 @@ export function EntityHeaderCard({
   }
 
   return (
-    <section className="moto-content-surface rounded-xl border p-6 shadow-sm">
+    <section className="moto-content-surface rounded-xl border p-6">
       {back ? (
         <BackLink href={back.href} label={back.label} className="mb-2" />
       ) : null}
