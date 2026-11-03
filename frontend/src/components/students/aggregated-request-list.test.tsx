@@ -3124,6 +3124,39 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Erledigt.")).toBeInTheDocument();
   });
 
+  // Die gehaltene Karte ist entschieden: Sie bleibt sichtbar, zählt aber
+  // sofort nicht mehr als offene Anfrage, nicht erst nach dem Neuladen.
+  it("zählt eine gehaltene Freigabe nicht mehr als offen", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        stampedItem("offering", "5", "2026-08-29T10:00:00Z"),
+        stampedItem("master_data", "6", "2026-08-29T09:00:00Z"),
+      ],
+    });
+    const onCountChange = vi.fn();
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        onCountChange={onCountChange}
+      />,
+    );
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(onCountChange).toHaveBeenLastCalledWith(2, false),
+    );
+    const callsBefore = mockListOpen.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+
+    await waitFor(() =>
+      expect(onCountChange).toHaveBeenLastCalledWith(1, false),
+    );
+    expect(screen.getByText("offering-item-5")).toBeInTheDocument();
+    expect(mockListOpen.mock.calls.length).toBe(callsBefore);
+  });
+
   // Wechselt die OGS zu einem anderen Kind und zurück, kommt die Karte mit
   // dem Ergebnis der Freigabe wieder, nicht als offene Anfrage.
   it("zeigt eine gehaltene Freigabe nach einem Kindwechsel wieder", async () => {

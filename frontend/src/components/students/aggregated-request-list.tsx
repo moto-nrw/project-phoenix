@@ -197,8 +197,22 @@ export function AggregatedRequestList({
           scope: heldScope,
         }),
       );
+      // Entschieden ist sie schon: aus den offenen Anfragen (und damit aus
+      // der Zahl) heraus, gezeigt wird sie über den Halt.
+      const key = itemKey(request);
+      setItems((prev) =>
+        prev.some((item) => itemKey(item) === key)
+          ? prev.filter((item) => itemKey(item) !== key)
+          : prev,
+      );
+      setSelectedForBulk((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     },
-    [heldScope],
+    [heldScope, setItems],
   );
   const heldDecisions = useMemo(
     () =>

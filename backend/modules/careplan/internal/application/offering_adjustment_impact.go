@@ -47,7 +47,14 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 		NotAdjusted: []careplan.ManualRosterTemplate{}, PickupOverrides: []careplan.PickupOverride{},
 	}
 	var err error
-	if impact.PickupOverrides, err = m.pickupOverrides(ctx, *work.child.CreatedStudentID, from); err != nil {
+	// The new booking applies from the later of the change and the phase's
+	// first service day: a change without a date for a phase that starts in
+	// a month books nothing before then.
+	bookedFrom := from
+	if work.selectionDate.After(bookedFrom) {
+		bookedFrom = work.selectionDate
+	}
+	if impact.PickupOverrides, err = m.pickupOverrides(ctx, *work.child.CreatedStudentID, bookedFrom); err != nil {
 		return impact, err
 	}
 	after, err := m.adjustedRosterRows(ctx, work)
