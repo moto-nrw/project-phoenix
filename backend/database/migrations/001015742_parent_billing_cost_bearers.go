@@ -14,9 +14,10 @@ func init() {
 		Version:     parentBillingCostBearersVersion,
 		Description: "Elternabrechnung: Kostenübernahme durch einen Kostenträger in der Ferienabrechnung (#5627)",
 		DependsOn: []string{
-			holidayDebtorNumberVersion,       // the last migration before this one and the audit actions this extends
-			parentBillingHolidayRunsVersion,  // the invoice positions this extends
-			holidayRegistrationProofsVersion, // the proofs the Träger-Büro now uploads too
+			holidayGuestHomeSchoolNameVersion, // the last migration before this one
+			holidayDebtorNumberVersion,        // the audit actions this extends
+			parentBillingHolidayRunsVersion,   // the invoice positions this extends
+			holidayRegistrationProofsVersion,  // the proofs the Träger-Büro now uploads too
 		},
 	})
 	Migrations.MustRegister(parentBillingCostBearersUp, parentBillingCostBearersDown)

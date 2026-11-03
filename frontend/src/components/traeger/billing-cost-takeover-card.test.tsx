@@ -72,6 +72,7 @@ const RUN: BillingRunDetail = {
   previewCents: 0,
   unbilled: 0,
   missingDebtorNumbers: 0,
+  paymentTextMissingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
   letters: null,
