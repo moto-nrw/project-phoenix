@@ -175,6 +175,8 @@ func positionLabel(position parentbilling.BillingPosition) string {
 		return "Ermäßigung für Geschwister"
 	case parentbilling.LineBenefitsExemption:
 		return "Befreiung bei Leistungsbezug"
+	case parentbilling.LineCostTakeover:
+		return "Kosten übernimmt: " + strings.TrimSpace(position.CostBearerName)
 	case parentbilling.LineCorrection:
 		return "Korrektur: " + strings.TrimSpace(position.Note)
 	}
@@ -197,11 +199,15 @@ const (
 
 // paymentText asks for the transfer. A Träger's own payment text replaces
 // the built-in sentence with its placeholders filled in (ADR 0121 addendum,
-// #5622); an invoice of 0 € keeps the fixed sentence. The reference to pay
-// with of the built-in sentence is the debtor number of the family when the
-// invoice has one (ADR 0121 addendum, #5621), otherwise the invoice number.
+// #5622); an invoice of 0 € keeps the fixed sentence, which names the cost
+// bearer when one takes the costs over (#5627). The reference to pay with of
+// the built-in sentence is the debtor number of the family when the invoice
+// has one (ADR 0121 addendum, #5621), otherwise the invoice number.
 func paymentText(content letterContent) string {
 	if content.document.TotalCents == 0 {
+		if bearer := costBearerName(content.document); bearer != "" {
+			return "Sie müssen nichts bezahlen. Die Kosten übernimmt: " + bearer + "."
+		}
 		return "Sie müssen für diese Betreuung nichts bezahlen."
 	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
@@ -218,6 +224,19 @@ func paymentText(content letterContent) string {
 	}
 	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck %s an.",
 		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), reference)
+}
+
+// costBearerName is the name of the cost bearer of the first cost takeover
+// of the invoice, or empty without one.
+func costBearerName(document parentbilling.BillingDocument) string {
+	for _, child := range document.Children {
+		for _, position := range child.Positions {
+			if position.Kind == parentbilling.LineCostTakeover {
+				return strings.TrimSpace(position.CostBearerName)
+			}
+		}
+	}
+	return ""
 }
 
 func questionText(head parentbilling.Letterhead) string {

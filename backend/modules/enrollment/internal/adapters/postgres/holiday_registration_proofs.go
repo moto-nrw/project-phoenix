@@ -36,6 +36,12 @@ const (
 	readHolidayProofQuery = `SELECT filename, content_type, content
 		FROM enrollment.holiday_registration_proofs
 		WHERE organization_id = ? AND holiday_period_id = ? AND holiday_registration_id = ? AND id = ?`
+	// insertClaimedHolidayProofQuery stores a proof the Träger-Büro uploads
+	// as claimed by the registration at once; it never had a token.
+	insertClaimedHolidayProofQuery = `INSERT INTO enrollment.holiday_registration_proofs
+			(organization_id, holiday_period_id, holiday_registration_id, claimed_at, filename, content_type, size_bytes, content)
+		VALUES (?, ?, ?, statement_timestamp(), ?, ?, ?, ?)
+		RETURNING id`
 	deleteUnclaimedHolidayProofsQuery = `DELETE FROM enrollment.holiday_registration_proofs
 		WHERE holiday_registration_id IS NULL AND created_at < ?`
 )
@@ -69,6 +75,21 @@ func (s *HolidayRegistrationStore) ClaimHolidayProofs(ctx context.Context, organ
 		return 0, fmt.Errorf("enrollment postgres: claim holiday proofs: %w", err)
 	}
 	return claimed, nil
+}
+
+// InsertClaimedHolidayProof stores a proof the Träger-Büro uploads for a
+// registration of the period (#5627).
+func (s *HolidayRegistrationStore) InsertClaimedHolidayProof(ctx context.Context, organizationID, periodID, registrationID int64, proof enrollment.HolidayProofUpload) (int64, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	if err := db.NewRaw(insertClaimedHolidayProofQuery, organizationID, periodID, registrationID, proof.Filename,
+		proof.ContentType, proof.SizeBytes, proof.Content).Scan(ctx, &id); err != nil {
+		return 0, fmt.Errorf("enrollment postgres: insert claimed holiday proof: %w", err)
+	}
+	return id, nil
 }
 
 // ReadHolidayProofs reads the claimed proofs of a registration without

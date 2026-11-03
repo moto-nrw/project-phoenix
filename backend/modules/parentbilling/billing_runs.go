@@ -92,7 +92,8 @@ type BillingCorrection struct {
 }
 
 // BillingPosition is one position of an invoice: a line of the frozen
-// contribution or a correction of the run, whose Note is its reason.
+// contribution, with the cost bearer of a cost takeover (#5627), or a
+// correction of the run, whose Note is its reason.
 type BillingPosition struct {
 	Kind                string         `json:"kind"`
 	AmountCents         int64          `json:"amount_cents"`
@@ -103,6 +104,8 @@ type BillingPosition struct {
 	DiscountBasisPoints *int           `json:"discount_basis_points"`
 	DiscountCents       *int64         `json:"discount_cents"`
 	Note                string         `json:"note"`
+	CostBearerID        *int64         `json:"cost_bearer_id"`
+	CostBearerName      string         `json:"cost_bearer_name"`
 }
 
 // BillingChild is a child of an invoice with its positions and the history
@@ -246,6 +249,10 @@ type HolidayBillingRegistrations interface {
 	HolidayBillingPeriods(ctx context.Context, reviewer HolidayReviewer) ([]HolidayBillingPeriod, error)
 	HolidayBillingPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) (HolidayBillingPeriod, error)
 	ConfirmedHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayBillingRegistration, error)
+	// HolidayProofRegistrations names the registrations of the period with
+	// a proof of benefits, whatever their status now: an invoice outlives a
+	// cancellation of its registration, and so does the proof (#5627).
+	HolidayProofRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) (map[int64]bool, error)
 }
 
 // BillingRuns lets the Abrechnung of a Träger start, check, correct and
@@ -266,6 +273,11 @@ type BillingRuns interface {
 	// ExportBillingRun renders the overview of a released run for the
 	// Kämmerei as a PDF, an Excel or a CSV file (#4672, ADR 0122).
 	ExportBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, format string) (ExportFile, error)
+	// ExportCostTakeovers renders the list of a released run for the
+	// reimbursement by one cost bearer as a PDF, an Excel or a CSV file:
+	// every child whose invoice the cost bearer pays, with the sum (#5627).
+	// A cost bearer of another Träger is ErrCostBearerNotFound.
+	ExportCostTakeovers(ctx context.Context, reviewer HolidayReviewer, runID, costBearerID int64, format string) (ExportFile, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]NumberRange, error)
 	SetNumberRange(ctx context.Context, organizationID int64, service, pattern string) (NumberRange, error)
 }

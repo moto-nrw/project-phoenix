@@ -49,6 +49,9 @@ type HolidayReviewStore interface {
 	// ReadHolidayProof reads one claimed proof of a registration of the
 	// period with its bytes.
 	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
+	// InsertClaimedHolidayProof stores a proof of the registration the
+	// Träger-Büro uploads and returns its ID (#5627).
+	InsertClaimedHolidayProof(ctx context.Context, organizationID, periodID, registrationID int64, proof enrollment.HolidayProofUpload) (int64, error)
 	// LockHolidayRegistration reads the status, the freeze override and the
 	// debtor number of a registration and holds its row.
 	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override, debtorNumber string, found bool, err error)
@@ -130,6 +133,7 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrationRecipients(ctx contex
 	for i, registration := range matching {
 		recipients[i] = enrollment.HolidayRegistrationRecipient{
 			HolidayRegistrationSummary: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+			HasBenefitsProof: registration.BenefitsProofAttached,
 		}
 	}
 	return recipients, nil

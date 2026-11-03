@@ -26,6 +26,7 @@ const ACTION_LABELS: Readonly<
   rebook: "Umgebucht",
   debtor_number: "Debitorennummer geändert",
   edit: "Angaben geändert",
+  proof_upload: "Nachweis hochgeladen",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {

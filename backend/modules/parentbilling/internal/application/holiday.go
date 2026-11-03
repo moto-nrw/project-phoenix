@@ -77,17 +77,22 @@ func (h *HolidayContributions) QuoteHolidayContribution(ctx context.Context, lin
 	if err != nil {
 		return parentbilling.HolidayContribution{}, err
 	}
-	return h.compute(ctx, link.OrganizationID, priced, benefitsDeclared)
+	return h.compute(ctx, link.OrganizationID, priced, benefitsDeclared, nil)
 }
 
 // HolidayContribution reads the registration through Enrollment, which
 // checks that it belongs to the period of the session's Träger and records
 // the read, and shows its frozen contribution, with whether an issued
-// invoice bills it (#5621), or a preview with the exemption the Träger-Büro
-// is about to choose.
-func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (parentbilling.HolidayContribution, error) {
+// invoice bills it (#5621), or a preview with the exemption or the cost
+// bearer the Träger-Büro is about to choose (#5627). A chosen cost bearer
+// replaces the parents' statement on benefits.
+func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool, costBearerID int64) (parentbilling.HolidayContribution, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
+	}
+	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption != nil && *benefitsExemption, costBearerID, false)
+	if err != nil {
+		return parentbilling.HolidayContribution{}, err
 	}
 	registration, err := h.registrations.HolidayRegistration(ctx, reviewer, periodID, registrationID)
 	if err != nil {
@@ -105,23 +110,28 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 		frozen.Invoiced = issued[registration.ID]
 		return frozen, nil
 	}
-	exemption := registration.BenefitsDeclared
+	exemption := registration.BenefitsDeclared && bearer == nil
 	if benefitsExemption != nil {
 		exemption = *benefitsExemption
 	}
-	return h.compute(ctx, reviewer.OrganizationID, registration.Children, exemption)
+	return h.compute(ctx, reviewer.OrganizationID, registration.Children, exemption, bearer)
 }
 
 // ConfirmHolidayRegistration confirms the registration through Enrollment
 // with the debtor number and freezes the contribution it computes from the
 // confirmed bookings, in the caller's Träger transaction. Enrollment holds
 // the period and the registration, so no change of a price or a booking
-// runs in between. A missing debtor number the Träger asks for refuses the
-// confirmation before anything is written. The caller rolls the
+// runs in between. A missing debtor number the Träger asks for, a cost
+// bearer together with the exemption, an unknown or a switched-off cost
+// bearer refuse the confirmation before anything is written (#5627). The caller rolls the
 // transaction back when this fails after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
+	}
+	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID, true)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
@@ -133,7 +143,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if registration.Status != parentbilling.HolidayRegistrationConfirmed {
 		return parentbilling.HolidayConfirmation{}, parentbilling.ErrHolidayRegistrationStateConflict
 	}
-	contribution, err := h.compute(ctx, reviewer.OrganizationID, registration.Children, benefitsExemption)
+	contribution, err := h.compute(ctx, reviewer.OrganizationID, registration.Children, benefitsExemption, bearer)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
@@ -154,12 +164,42 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 }
 
 // compute runs the chain with the rules valid on the first booked day.
-func (h *HolidayContributions) compute(ctx context.Context, organizationID int64, children []parentbilling.HolidayChild, exemption bool) (parentbilling.HolidayContribution, error) {
+func (h *HolidayContributions) compute(ctx context.Context, organizationID int64, children []parentbilling.HolidayChild, exemption bool, bearer *parentbilling.CostBearer) (parentbilling.HolidayContribution, error) {
 	rules, err := h.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceHoliday)
 	if err != nil {
 		return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read contribution rules: %w", err)
 	}
-	return computeHolidayContribution(children, validHolidayRules(rules, firstHolidayDay(children)), exemption), nil
+	return computeHolidayContribution(children, validHolidayRules(rules, firstHolidayDay(children)), exemption, bearer), nil
+}
+
+// chosenCostBearer reads the cost bearer the Träger-Büro chose (#5627):
+// none for zero, otherwise an active cost bearer of the Träger, and never
+// together with the exemption. A confirmation holds the cost bearer's row
+// in a shared lock until it commits the lines that name it, so a parallel
+// deletion waits and then refuses (DeleteCostBearer).
+func (h *HolidayContributions) chosenCostBearer(ctx context.Context, organizationID int64, exemption bool, costBearerID int64, confirm bool) (*parentbilling.CostBearer, error) {
+	switch {
+	case costBearerID == 0:
+		return nil, nil
+	case exemption:
+		return nil, parentbilling.ErrCostTakeoverWithExemption
+	case costBearerID < 0:
+		return nil, parentbilling.ErrCostBearerNotFound
+	}
+	read := h.store.CostBearer
+	if confirm {
+		read = func(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error) {
+			return h.store.LockCostBearer(ctx, organizationID, costBearerID, false)
+		}
+	}
+	bearer, err := read(ctx, organizationID, costBearerID)
+	if err != nil {
+		return nil, err
+	}
+	if !bearer.Active {
+		return nil, parentbilling.ErrCostBearerInactive
+	}
+	return &bearer, nil
 }
 
 // quotedChildren prices the bookings of the form with the period's time
