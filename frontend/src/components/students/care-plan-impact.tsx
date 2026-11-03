@@ -7,17 +7,23 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
+import { resetStudentPickupToOffering } from "~/lib/pickup-schedule-api";
 import {
   describeAdjustment,
   formatRemovalSpan,
   formatWeekdayAdverbs,
   lastGapDay,
   type ManualRosterTemplate,
+  type PickupOverride,
   removeStudentTemplateDays,
   type RosterImpact,
 } from "~/lib/roster-impact";
@@ -60,8 +66,10 @@ export function CarePlanImpact({
   const toast = useToast();
   const tenantPath = useTenantAwarePath();
   const stichtag = formatDate(impact.effectiveFrom);
+  const noRosterChange =
+    impact.adjusted.length === 0 && impact.notAdjusted.length === 0;
 
-  if (impact.adjusted.length === 0 && impact.notAdjusted.length === 0) {
+  if (noRosterChange && impact.pickupOverrides.length === 0) {
     return (
       <p className="text-sm text-gray-600">
         Im Betreuungsplan musste kein Regeltermin angepasst werden.
@@ -124,6 +132,17 @@ export function CarePlanImpact({
       titleClassName="text-sm"
       bodyClassName="mt-3 flex flex-col gap-5"
     >
+      {noRosterChange ? (
+        <p className="text-sm text-gray-600">
+          Kein Regeltermin musste angepasst werden.
+        </p>
+      ) : null}
+      {impact.pickupOverrides.length > 0 ? (
+        <PickupOverrides
+          overrides={impact.pickupOverrides}
+          studentId={studentId}
+        />
+      ) : null}
       {impact.adjusted.length > 0 ? (
         <SectionCard
           title="Automatisch angepasst"
@@ -294,6 +313,109 @@ function ManualTemplateEntry({
       </div>
     </li>
   );
+}
+
+/**
+ * Wochentage, an denen eine von Hand eingetragene Abholzeit die gebuchte
+ * überdeckt. Ein Klick übernimmt für alle die gebuchte Zeit; der Server
+ * löscht dafür die eingetragene Zeit des Wochentags.
+ */
+function PickupOverrides({
+  overrides,
+  studentId,
+}: Readonly<{
+  overrides: readonly PickupOverride[];
+  studentId?: string;
+}>) {
+  const { data: session } = useSession();
+  const canReset =
+    studentId !== undefined && hasPermission(session, "users:update");
+  const [resetting, setResetting] = useState(false);
+  const [done, setDone] = useState<ReadonlySet<number>>(new Set());
+  const errors = useApiErrorDisplay();
+  const toast = useToast();
+  const open = overrides.filter((override) => !done.has(override.weekday));
+
+  const takeBookedTimes = async () => {
+    if (studentId === undefined) return;
+    setResetting(true);
+    try {
+      for (const override of open) {
+        await resetStudentPickupToOffering(
+          studentId,
+          override.weekday,
+          override.date,
+        );
+        setDone((current) => new Set(current).add(override.weekday));
+      }
+      toast.success("Jetzt gelten die gebuchten Abholzeiten.");
+    } catch (err) {
+      logger.warn("care_plan_impact_pickup_reset_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await errors.show(err, { object: "die Abholzeit" });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="Abholzeit weicht von der Buchung ab"
+      description={
+        open.length > 0
+          ? "An diesen Tagen gilt noch die eingetragene Zeit."
+          : undefined
+      }
+      headingLevel={5}
+      titleClassName="text-sm font-medium text-gray-600"
+      bare
+      className="space-y-3"
+      action={
+        canReset && open.length > 0 ? (
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            disabled={resetting}
+            onClick={() => void takeBookedTimes()}
+          >
+            {resetting ? "Wird übernommen …" : "Gebuchte Zeiten übernehmen"}
+          </Button>
+        ) : undefined
+      }
+    >
+      <ul className="divide-y divide-gray-100 text-sm text-gray-700">
+        {overrides.map((override) => (
+          <li
+            key={override.weekday}
+            className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
+          >
+            <span>
+              <span className="font-medium text-gray-900">
+                {capitalize(formatWeekdayAdverbs([override.weekday]))}
+              </span>
+              {done.has(override.weekday)
+                ? `: jetzt ${override.bookedTime} Uhr wie gebucht.`
+                : `: eingetragen ${override.storedTime} Uhr, gebucht ${override.bookedTime} Uhr.`}
+            </span>
+            {done.has(override.weekday) ? (
+              <StatusBadge tone="green" label="Übernommen" />
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {studentId !== undefined && !canReset && open.length > 0 ? (
+        <p className="mt-3 text-xs text-gray-500">
+          Ändern kann nur, wer Kinder bearbeiten darf.
+        </p>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Eine Zeile je Regeltermin und Ende der Lücke (#5497). */

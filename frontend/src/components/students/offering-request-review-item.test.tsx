@@ -260,6 +260,36 @@ describe("OfferingRequestReviewItem", () => {
     );
   });
 
+  // Schule am Berg, November 2026: Montag 14:30 Uhr von Hand verdeckte die
+  // neue Buchung bis 16:00 Uhr, ohne dass die OGS davon erfuhr.
+  it("keeps the card open while an entered pickup time hides the booking", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [],
+      not_adjusted: [],
+      pickup_overrides: [
+        {
+          weekday: 1,
+          date: "2027-02-01",
+          stored_time: "14:30",
+          booked_time: "16:00",
+        },
+      ],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    expect(
+      await screen.findByText("Abholzeit weicht von der Buchung ab"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/eingetragen 14:30 Uhr, gebucht 16:00 Uhr/),
+    ).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
+  });
+
   it("requires a reason before rejecting", async () => {
     renderItem();
 

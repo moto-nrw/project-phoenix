@@ -14,6 +14,7 @@ import { CarePlanImpact } from "./care-plan-impact";
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   removeStudentTemplateDays: vi.fn(),
+  resetStudentPickupToOffering: vi.fn(),
   berlinToday: { current: "2026-09-09" },
 }));
 
@@ -22,12 +23,16 @@ vi.mock("~/lib/roster-impact", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/roster-impact")>()),
   removeStudentTemplateDays: mocks.removeStudentTemplateDays,
 }));
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  resetStudentPickupToOffering: mocks.resetStudentPickupToOffering,
+}));
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => mocks.berlinToday.current,
 }));
 
 const impact: RosterImpact = {
   effectiveFrom: "2027-05-31",
+  pickupOverrides: [],
   adjusted: [
     {
       templateId: "7",
@@ -50,6 +55,7 @@ const impact: RosterImpact = {
 // Klassen-Regeltermin: Entfernen hält nicht, der Weg ist „Mit Angebot verbinden“.
 const classImpact: RosterImpact = {
   effectiveFrom: "2027-05-31",
+  pickupOverrides: [],
   adjusted: [],
   notAdjusted: [
     {
@@ -65,6 +71,7 @@ const classImpact: RosterImpact = {
 // Zwei Zielgruppen-Regeltermine und eine Hand-Liste: der Hinweis steht einmal.
 const twoClassesImpact: RosterImpact = {
   effectiveFrom: "2027-05-31",
+  pickupOverrides: [],
   adjusted: [],
   notAdjusted: [
     {
@@ -106,6 +113,35 @@ function renderImpact(
       <CarePlanImpact impact={value} studentId={studentId} />
     </ToastProvider>,
   );
+}
+
+// Schule am Berg, November 2026: Montag und Donnerstag hatten 14:30 Uhr von
+// Hand, die neue Buchung setzt 16:00 Uhr.
+const pickupImpact: RosterImpact = {
+  effectiveFrom: "2026-10-30",
+  adjusted: [],
+  notAdjusted: [],
+  pickupOverrides: [
+    {
+      weekday: 1,
+      date: "2026-11-02",
+      storedTime: "14:30",
+      bookedTime: "16:00",
+    },
+    {
+      weekday: 4,
+      date: "2026-11-05",
+      storedTime: "14:30",
+      bookedTime: "16:00",
+    },
+  ],
+};
+
+function grantPermissions(permissions: string[]) {
+  mocks.useSession.mockReturnValue({
+    data: { user: { id: "1", token: "t", permissions } },
+    status: "authenticated",
+  });
 }
 
 function grantPlanEditing(granted: boolean) {
@@ -190,6 +226,7 @@ describe("CarePlanImpact", () => {
     mocks.removeStudentTemplateDays.mockResolvedValue(undefined);
     renderImpact({
       effectiveFrom: "2027-05-31",
+      pickupOverrides: [],
       adjusted: [],
       notAdjusted: [
         {
@@ -233,6 +270,7 @@ describe("CarePlanImpact", () => {
   it("does not offer removal when the reported gap ends tomorrow", () => {
     renderImpact({
       effectiveFrom: "2026-09-09",
+      pickupOverrides: [],
       adjusted: [],
       notAdjusted: [
         {
@@ -256,6 +294,7 @@ describe("CarePlanImpact", () => {
   it("updates the removal boundary after Berlin midnight", () => {
     const boundedImpact: RosterImpact = {
       effectiveFrom: "2026-09-09",
+      pickupOverrides: [],
       adjusted: [],
       notAdjusted: [
         {
@@ -457,6 +496,7 @@ describe("CarePlanImpact", () => {
   it("confirms briefly when nothing in the plan changed", () => {
     renderImpact({
       effectiveFrom: "2027-05-31",
+      pickupOverrides: [],
       adjusted: [],
       notAdjusted: [],
     });
@@ -471,5 +511,93 @@ describe("CarePlanImpact", () => {
         "Im Betreuungsplan musste kein Regeltermin angepasst werden.",
       ),
     ).toBeVisible();
+  });
+
+  describe("entered pickup times that hide the booking", () => {
+    it("lists each weekday with the entered and the booked time", () => {
+      grantPermissions(["users:update"]);
+      renderImpact(pickupImpact);
+
+      const section = screen.getByRole("region", {
+        name: /Auswirkung auf den Betreuungsplan/,
+      });
+      expect(
+        within(section).getByText("Kein Regeltermin musste angepasst werden."),
+      ).toBeInTheDocument();
+      expect(
+        within(section).getByText("Abholzeit weicht von der Buchung ab"),
+      ).toBeInTheDocument();
+      expect(section).toHaveTextContent(
+        "Montags: eingetragen 14:30 Uhr, gebucht 16:00 Uhr.",
+      );
+      expect(section).toHaveTextContent(
+        "Donnerstags: eingetragen 14:30 Uhr, gebucht 16:00 Uhr.",
+      );
+    });
+
+    it("takes the booked time for every weekday with one click", async () => {
+      grantPermissions(["users:update"]);
+      mocks.resetStudentPickupToOffering.mockResolvedValue({});
+      renderImpact(pickupImpact);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("Jetzt gelten die gebuchten Abholzeiten."),
+        ).toBeInTheDocument(),
+      );
+      expect(mocks.resetStudentPickupToOffering.mock.calls).toEqual([
+        ["42", 1, "2026-11-02"],
+        ["42", 4, "2026-11-05"],
+      ]);
+      expect(screen.getAllByText("Übernommen")).toHaveLength(2);
+      expect(screen.getByText(/Montags/).closest("li")).toHaveTextContent(
+        "Montags: jetzt 16:00 Uhr wie gebucht.",
+      );
+      expect(
+        screen.queryByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the weekdays that failed open and says so", async () => {
+      grantPermissions(["users:update"]);
+      mocks.resetStudentPickupToOffering
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce(new Error("boom"));
+      renderImpact(pickupImpact);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByRole("alert")).toBeInTheDocument(),
+      );
+      expect(screen.getAllByText("Übernommen")).toHaveLength(1);
+      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
+        "Donnerstags: eingetragen 14:30 Uhr, gebucht 16:00 Uhr.",
+      );
+      expect(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      ).toBeEnabled();
+    });
+
+    it("says who may change the time when the person may not", () => {
+      grantPermissions(["schedules:manage"]);
+      renderImpact(pickupImpact);
+
+      expect(
+        screen.getByText("Ändern kann nur, wer Kinder bearbeiten darf."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Abholzeit weicht von der Buchung ab"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

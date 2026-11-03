@@ -233,9 +233,13 @@ export function OfferingRequestReviewItem({
       const notice = approve
         ? approvalNotice(impact)
         : "Die Anfrage zum Angebot ist abgelehnt.";
-      if (impact && impact.notAdjusted.length > 0) {
-        // Von Hand gepflegte Regeltermine behalten das Kind (#5102): die
-        // Karte bleibt stehen, bis die OGS sie geprüft hat.
+      if (
+        impact &&
+        (impact.notAdjusted.length > 0 || impact.pickupOverrides.length > 0)
+      ) {
+        // Von Hand gepflegte Regeltermine behalten das Kind (#5102), von
+        // Hand eingetragene Abholzeiten überdecken die Buchung: die Karte
+        // bleibt stehen, bis die OGS sie geprüft hat.
         setApprovalPreview(null);
         setBusy(false);
         setApplied({ notice, impact });

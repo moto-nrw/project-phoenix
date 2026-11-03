@@ -179,6 +179,18 @@ type RosterImpact struct {
 	// NotAdjusted are hand-maintained Regeltermine that keep the child on a
 	// weekday the change took away.
 	NotAdjusted []ManualRosterTemplate
+	// PickupOverrides are weekdays whose stored staff pickup time hides the
+	// booked pickup time from the date on.
+	PickupOverrides []PickupOverride
+}
+
+// PickupOverride is one weekday whose stored staff pickup time differs from
+// the booked pickup time from Date on; times are "HH:MM".
+type PickupOverride struct {
+	Weekday    int
+	Date       calendar.Date
+	StoredTime string
+	BookedTime string
 }
 
 // AdjustedRosterTemplate is one Regeltermin the booking change rewrote.

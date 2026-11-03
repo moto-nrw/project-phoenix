@@ -3873,7 +3873,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {\n\trows, err := p.rows.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {\n\trows, err := p.rows.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday, PickupTime: row.PickupTime.Format(\"15:04\"), Manual: row.Source != careplan.ScheduleSourceCareOffering})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingPickup.WeekdayRows",
       "owner": "roots"

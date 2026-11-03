@@ -34,6 +34,7 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
       "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
       "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
+      "Unter `Abholzeit weicht von der Buchung ab` gilt an einem Tag noch eine von Hand eingetragene Abholzeit. Mit `Gebuchte Zeiten übernehmen` gilt die gebuchte Zeit.",
       // #5497
       "Steht dort ein Enddatum, gibt es danach wieder eine passende Buchung. Das Kind wird dann nur bis zu diesem Tag herausgenommen.",
       "Haben Sie die Seite schon verlassen? Der Hinweis bleibt im `Betreuungsplan` unter `Ohne passende Buchung eingeplant`.",

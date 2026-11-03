@@ -42,7 +42,14 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	ctx context.Context, work *offeringAdjustmentWork, before []ports.RosterEnrollment,
 ) (careplan.RosterImpact, error) {
 	from := m.enrollmentRewriteBoundary(work.effectiveFrom)
-	impact := careplan.RosterImpact{EffectiveFrom: from, Adjusted: []careplan.AdjustedRosterTemplate{}, NotAdjusted: []careplan.ManualRosterTemplate{}}
+	impact := careplan.RosterImpact{
+		EffectiveFrom: from, Adjusted: []careplan.AdjustedRosterTemplate{},
+		NotAdjusted: []careplan.ManualRosterTemplate{}, PickupOverrides: []careplan.PickupOverride{},
+	}
+	var err error
+	if impact.PickupOverrides, err = m.pickupOverrides(ctx, *work.child.CreatedStudentID, from); err != nil {
+		return impact, err
+	}
 	after, err := m.adjustedRosterRows(ctx, work)
 	if err != nil {
 		return impact, err
@@ -63,6 +70,39 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	}
 	impact.NotAdjusted = append(impact.NotAdjusted, manual...)
 	return impact, nil
+}
+
+// pickupOverrides lists the weekdays on which a stored staff pickup time
+// differs from the pickup time the bookings set from the date on. The
+// projection lets the staff row win, so without a hint the old time stays
+// in force after the booking changed.
+func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID int64, from calendar.Date) ([]careplan.PickupOverride, error) {
+	result := []careplan.PickupOverride{}
+	if m.deps.Pickup == nil {
+		return result, nil
+	}
+	rows, err := m.deps.Pickup.WeekdayRows(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load pickup schedules for roster impact: %w", err)
+	}
+	for _, row := range rows {
+		if !row.Manual || row.Weekday < 1 || row.Weekday > 5 {
+			continue
+		}
+		date := from.AddDays((row.Weekday - int(from.Weekday()) + 7) % 7)
+		offering, lookupErr := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("decision: load offering pickup for roster impact: %w", lookupErr)
+		}
+		if offering == nil {
+			continue
+		}
+		if booked := offering.PickupTime.Format("15:04"); booked != row.PickupTime {
+			result = append(result, careplan.PickupOverride{Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Weekday < result[j].Weekday })
+	return result, nil
 }
 
 // bookingDayChange summarizes what the change did to the child's weekdays.

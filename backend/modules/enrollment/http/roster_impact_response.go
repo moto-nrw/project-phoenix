@@ -13,6 +13,16 @@ type rosterImpactResponse struct {
 	EffectiveFrom string                           `json:"effective_from"`
 	Adjusted      []adjustedRosterTemplateResponse `json:"adjusted"`
 	NotAdjusted   []manualRosterTemplateResponse   `json:"not_adjusted"`
+	// PickupOverrides are weekdays whose stored staff pickup time hides the
+	// booked pickup time; the office can reset them to the booking.
+	PickupOverrides []pickupOverrideResponse `json:"pickup_overrides"`
+}
+
+type pickupOverrideResponse struct {
+	Weekday    int    `json:"weekday"`
+	Date       string `json:"date"`
+	StoredTime string `json:"stored_time"`
+	BookedTime string `json:"booked_time"`
 }
 
 type adjustedRosterTemplateResponse struct {
@@ -34,9 +44,15 @@ type manualRosterTemplateResponse struct {
 
 func newRosterImpactResponse(impact RosterImpact) rosterImpactResponse {
 	out := rosterImpactResponse{
-		EffectiveFrom: impact.EffectiveFrom.String(),
-		Adjusted:      make([]adjustedRosterTemplateResponse, 0, len(impact.Adjusted)),
-		NotAdjusted:   make([]manualRosterTemplateResponse, 0, len(impact.NotAdjusted)),
+		EffectiveFrom:   impact.EffectiveFrom.String(),
+		Adjusted:        make([]adjustedRosterTemplateResponse, 0, len(impact.Adjusted)),
+		NotAdjusted:     make([]manualRosterTemplateResponse, 0, len(impact.NotAdjusted)),
+		PickupOverrides: make([]pickupOverrideResponse, 0, len(impact.PickupOverrides)),
+	}
+	for _, override := range impact.PickupOverrides {
+		out.PickupOverrides = append(out.PickupOverrides, pickupOverrideResponse{
+			Weekday: override.Weekday, Date: override.Date.String(), StoredTime: override.StoredTime, BookedTime: override.BookedTime,
+		})
 	}
 	for _, template := range impact.Adjusted {
 		out.Adjusted = append(out.Adjusted, adjustedRosterTemplateResponse{

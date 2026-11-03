@@ -584,7 +584,10 @@ func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]care
 	}
 	result := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday})
+		result = append(result, careplanCompose.PickupWeekdayRow{
+			ID: row.ID, Weekday: row.Weekday, PickupTime: row.PickupTime.Format("15:04"),
+			Manual: row.Source != careplan.ScheduleSourceCareOffering,
+		})
 	}
 	return result, nil
 }

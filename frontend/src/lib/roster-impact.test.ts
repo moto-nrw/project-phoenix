@@ -44,7 +44,31 @@ describe("mapRosterImpact", () => {
           until: null,
         },
       ],
+      pickupOverrides: [],
     });
+  });
+
+  it("maps the weekdays whose entered pickup time hides the booking", () => {
+    expect(
+      mapRosterImpact({
+        effective_from: "2026-10-30",
+        pickup_overrides: [
+          {
+            weekday: 1,
+            date: "2026-11-02",
+            stored_time: "14:30",
+            booked_time: "16:00",
+          },
+        ],
+      })?.pickupOverrides,
+    ).toEqual([
+      {
+        weekday: 1,
+        date: "2026-11-02",
+        storedTime: "14:30",
+        bookedTime: "16:00",
+      },
+    ]);
   });
 
   it("maps the end of the gap a later booking closes (#5497)", () => {
