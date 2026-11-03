@@ -8,6 +8,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -33,10 +34,13 @@ type ImportTestModule struct {
 // ImportTestOptions decorate the owner ports of the composed import.
 // WrapGuardians lets a test inject an owner failure at a chosen row, so the
 // per-row savepoint and the batch rollback are observable without a
-// contrived data shape.
+// contrived data shape. Mailer replaces the auth module's mail transport,
+// so staff invitations of an import can be accepted and counted instead of
+// waiting out the default refusing transport's retries.
 type ImportTestOptions struct {
 	WrapGuardians importPorts.GuardianPortDecorator
 	Clock         func() time.Time
+	Mailer        email.Mailer
 }
 
 // NewImportTestModule composes the Data Import over the real owners
@@ -66,7 +70,11 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	auth, err := NewAuthTestModule(db, unit)
+	var authOptions []AuthTestOption
+	if options.Mailer != nil {
+		authOptions = append(authOptions, WithAuthTestMailer(options.Mailer))
+	}
+	auth, err := NewAuthTestModule(db, unit, authOptions...)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}

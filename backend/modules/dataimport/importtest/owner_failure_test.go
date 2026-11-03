@@ -87,7 +87,11 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 	for _, table := range tables {
 		t.Run(table, func(t *testing.T) {
 			tenantID := testpkg.OwnTenant(t)
-			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+			// The default mailer refuses delivery and spends 1s + 5s retrying
+			// each successful replay. Keep the real invitation owner and worker,
+			// but accept its mail: this test verifies owner rollback, not SMTP.
+			mailer := testpkg.NewCapturingMailer()
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{Mailer: mailer})
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", tenantID)
@@ -130,6 +134,7 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 			assert.Equal(t, "creation_failed", blocking[0].Code)
 			assert.Contains(t, blocking[0].Message, "injected owner write failure")
 			assert.Equal(t, before, counts(), "all earlier owner writes must roll back")
+			assert.Empty(t, mailer.Messages(), "a rolled-back invitation must not send mail")
 			removeFailure()
 			replay, err := run()
 			require.NoError(t, err)
@@ -138,6 +143,7 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 			for i, count := range counts() {
 				assert.Equal(t, before[i]+1, count, "%s is created exactly once after retry", tables[i])
 			}
+			assert.Len(t, mailer.Messages(), 1, "only the committed invitation sends mail")
 		})
 	}
 }
