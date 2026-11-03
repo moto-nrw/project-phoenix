@@ -2,7 +2,7 @@
 
 import { cn } from "~/lib/utils";
 
-import { Button } from "./button";
+import { buttonClassName } from "./button";
 import {
   ListboxDropdown,
   ListboxTriggerContent,
@@ -169,14 +169,17 @@ export function MultiSelect({
   const menuHeader =
     selectAll && selectableVisible.length > 0 ? (
       <div className="border-b border-gray-100 px-4 pt-1 pb-2">
-        <Button
+        <button
           type="button"
-          variant="link"
-          size="md"
+          className={buttonClassName({
+            variant: "link",
+            size: "md",
+            className: "",
+          })}
           onClick={toggleAllVisible}
         >
           {selectAllLabel}
-        </Button>
+        </button>
       </div>
     ) : undefined;
 
