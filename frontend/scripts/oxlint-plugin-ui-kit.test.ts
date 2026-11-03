@@ -17,6 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -1233,6 +1234,7 @@ describe("button ratchet baseline", () => {
     mkdirSync(join(directory, "scripts"));
     for (const file of [
       "ui-kit-button-baseline-update.mjs",
+      "ui-kit-ratchet-baseline.mjs",
       "ui-kit-button-baseline.mjs",
       "ui-kit-button-baseline.json",
     ]) {
@@ -1317,6 +1319,170 @@ describe("button ratchet baseline", () => {
     }
     for (const entry of buttonRatchetAllowlist) {
       expect(existsSync(resolve(entry.file)), entry.file).toBe(true);
+    }
+  });
+});
+
+// #5584: Pillen-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
+// je Datei fest und darf nur sinken.
+describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
+  const handRolled = (count: number) =>
+    `function Probe() {
+      return <div>${Array.from(
+        { length: count },
+        (_, index) =>
+          `<span key="${index}" className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Entwurf</span>`,
+      ).join("")}</div>;
+    }
+    void Probe;`;
+
+  it("fails a tinted span with pill shape outside the kit", async () => {
+    const result = await lintSource(handRolled(1), "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-hand-rolled-pill\)/g)).toHaveLength(
+      1,
+    );
+    expect(result.output).toContain("StatusBadge");
+  });
+
+  it("fails a pill whose surface comes from the style prop", async () => {
+    const result = await lintSource(
+      `function Probe({ color }: { color: string }) {
+        return <span className="rounded-md px-1.5 py-px text-[10px] uppercase" style={{ backgroundColor: color }}>Neu</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-pill)");
+  });
+
+  it("accepts kit pills, text without a surface and tooltips", async () => {
+    const result = await lintSource(
+      `import { StatusBadge } from "~/components/ui/status-badge";
+      function Probe() {
+        return (
+          <>
+            <StatusBadge label="Entwurf" tone="outline" size="xs" />
+            <span className="rounded-full px-2 py-0.5 text-xs text-gray-600">Ohne Fläche</span>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm">Größere Schrift</span>
+            <span role="tooltip" className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</span>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-pill");
+  });
+
+  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
+    const [file, count] = Object.entries(
+      pillRatchetBaseline["no-hand-rolled-pill"] ?? {},
+    ).find(([candidate]) => candidate.endsWith(".tsx"))!;
+    const [equal, more, fewer] = await Promise.all([
+      lintSource(handRolled(count), file),
+      lintSource(handRolled(count + 1), file),
+      lintSource(handRolled(count - 1), file),
+    ]);
+    expect(equal.output).not.toContain("no-hand-rolled-pill");
+
+    expect(more.status).toBe(1);
+    expect(more.output).toContain("ui-kit(no-hand-rolled-pill)");
+
+    expect(fewer.output).not.toContain("no-hand-rolled-pill");
+  });
+});
+
+describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a pill (#2476)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+            Keine Lücken
+          </span>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-pill-dot\)/g)).toHaveLength(1);
+  });
+
+  it("accepts an icon inside a pill and a dot outside of one", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <>
+            <span className="inline-flex gap-1 rounded-full px-2.5 py-0.5 text-xs">
+              <svg className="h-3 w-3" aria-hidden />
+              Erledigt
+            </span>
+            <div className="flex gap-2">
+              <span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />
+              Legende
+            </div>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-pill-dot");
+  });
+});
+
+describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
+  it("fails a hex alpha tint in a pill's style", async () => {
+    const result = await lintSource(
+      `function Probe({ color }: { color: string }) {
+        return <span className="rounded-full px-2.5 py-0.5 text-xs" style={{ backgroundColor: \`\${color}1A\`, color }}>Übernommen</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hex-alpha-tint)");
+  });
+
+  it("accepts a kit tone value in the style", async () => {
+    const result = await lintSource(
+      `function Probe({ tone }: { tone: { bg: string } }) {
+        return <span className="rounded-full px-2.5 py-0.5 text-xs" style={{ backgroundColor: tone.bg, borderColor: \`\${tone.bg}33\` }}>A</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hex-alpha-tint");
+  });
+});
+
+describe("pill ratchet baseline", () => {
+  it("matches the current findings exactly", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-pill-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+
+  it("names only files that exist and positive counts", () => {
+    for (const [rule, files] of Object.entries(pillRatchetBaseline)) {
+      for (const [file, count] of Object.entries(files)) {
+        expect(existsSync(resolve(file)), `${rule}: ${file}`).toBe(true);
+        expect(count).toBeGreaterThan(0);
+      }
     }
   });
 });
