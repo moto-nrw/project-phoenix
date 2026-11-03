@@ -304,13 +304,13 @@ func parentBillingPeriod(period enrollmentOwner.HolidayPeriod) parentbilling.Hol
 }
 
 func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayBillingRegistration, error) {
-	list, err := b.review.ListHolidayRegistrations(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+	confirmed, err := b.review.ListHolidayRegistrationRecipients(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
 		enrollmentOwner.HolidayRegistrationFilter{Status: enrollmentOwner.HolidayRegistrationConfirmed})
 	if err != nil {
 		return nil, parentBillingHolidayError(err)
 	}
-	registrations := make([]parentbilling.HolidayBillingRegistration, len(list.Registrations))
-	for i, registration := range list.Registrations {
+	registrations := make([]parentbilling.HolidayBillingRegistration, len(confirmed))
+	for i, registration := range confirmed {
 		children := make([]parentbilling.HolidayBillingChild, len(registration.Children))
 		for j, child := range registration.Children {
 			children[j] = parentbilling.HolidayBillingChild{ID: child.ID, FirstName: child.FirstName, LastName: child.LastName}
@@ -318,6 +318,9 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 		registrations[i] = parentbilling.HolidayBillingRegistration{
 			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,
 			GuardianEmail: registration.GuardianEmail, Children: children,
+		}
+		if address := registration.GuardianAddress; address != nil {
+			registrations[i].GuardianAddress = &parentbilling.PostalAddress{Street: address.Street, PostalCode: address.PostalCode, City: address.City}
 		}
 	}
 	return registrations, nil

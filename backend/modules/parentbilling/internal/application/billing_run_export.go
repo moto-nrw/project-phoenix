@@ -87,35 +87,74 @@ var billingRunOverviewColumns = []ExportColumn{
 	{ID: "amount", Label: "Betrag in Euro"},
 }
 
+// billingRunAddressColumns follow the recipient when an invoice of the run
+// copied a postal address (ADR 0122 addendum, #5625).
+var billingRunAddressColumns = []ExportColumn{
+	{ID: "street", Label: "Straße und Hausnummer"},
+	{ID: "postal_code", Label: "PLZ"},
+	{ID: "city", Label: "Ort"},
+}
+
 // billingRunOverview is the general layout of the overview of a released
 // run. The recipient's mail address stays out; the Kämmerei needs who pays
-// what, not how to reach them.
+// what, not how to reach them. The postal address names the payer; its
+// columns appear only when an invoice of the run has one.
 func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.BillingDocument) ExportTable {
 	rows := []map[string]string{}
 	var total int64
 	for _, document := range documents {
-		recipient := strings.TrimSpace(document.RecipientLastName + ", " + document.RecipientFirstName)
+		recipient := overviewRecipient(document)
 		for _, child := range document.Children {
 			name := strings.TrimSpace(child.FirstName + " " + child.LastName)
 			for _, position := range child.Positions {
-				rows = append(rows, map[string]string{
-					"number": document.Number, "recipient": recipient, "child": name,
+				rows = append(rows, withValues(recipient, map[string]string{
+					"number": document.Number, "child": name,
 					"position": overviewPositionLabel(position), "amount": formatAmount(position.AmountCents),
-				})
+				}))
 			}
 		}
-		rows = append(rows, map[string]string{
-			"number": document.Number, "recipient": recipient, "position": "Summe der Rechnung",
-			"amount": formatAmount(document.TotalCents),
-		})
+		rows = append(rows, withValues(recipient, map[string]string{
+			"number": document.Number, "position": "Summe der Rechnung", "amount": formatAmount(document.TotalCents),
+		}))
 		total += document.TotalCents
 	}
 	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatAmount(total)})
 	return ExportTable{
 		Title: "Abrechnungsanordnung", Subtitle: run.PeriodName,
-		Lines: overviewLines(run, documents, total), Columns: billingRunOverviewColumns, Rows: rows,
+		Lines: overviewLines(run, documents, total), Columns: overviewColumns(documents), Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
+}
+
+// overviewRecipient is the recipient of an invoice in its rows: the name
+// and, when the invoice has one, the postal address.
+func overviewRecipient(document parentbilling.BillingDocument) map[string]string {
+	recipient := map[string]string{"recipient": strings.TrimSpace(document.RecipientLastName + ", " + document.RecipientFirstName)}
+	if address := document.RecipientAddress; address != nil {
+		recipient["street"], recipient["postal_code"], recipient["city"] = address.Street, address.PostalCode, address.City
+	}
+	return recipient
+}
+
+// withValues adds the values of from to row.
+func withValues(from, row map[string]string) map[string]string {
+	for id, value := range from {
+		row[id] = value
+	}
+	return row
+}
+
+// overviewColumns are the columns of the overview, with the address
+// columns after the recipient when an invoice of the run has an address.
+func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
+	for _, document := range documents {
+		if document.RecipientAddress != nil {
+			columns := append([]ExportColumn{}, billingRunOverviewColumns[:2]...)
+			columns = append(columns, billingRunAddressColumns...)
+			return append(columns, billingRunOverviewColumns[2:]...)
+		}
+	}
+	return billingRunOverviewColumns
 }
 
 // overviewLines are the facts of the run under the title.

@@ -99,6 +99,15 @@ type HolidayGuardianInput struct {
 	Phone     string `json:"phone"`
 }
 
+// HolidayAddress is the postal address of the parent who registers
+// (#5625): all three parts or none. The form of the period decides whether
+// it is asked.
+type HolidayAddress struct {
+	Street     string `json:"street"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
+}
+
 // HolidayBookingInput is the time model a child books in one week.
 type HolidayBookingInput struct {
 	WeekID      int64
@@ -139,8 +148,11 @@ type HolidayContactInput struct {
 // claims; they need BenefitsDeclared. FormVersion names
 // the version of the period's form the parent filled in (0 when the client
 // does not say); CustomData are the answers per family (#5198).
+// GuardianAddress is the postal address of the parent who registers, when
+// the form asks for it (#5625).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
+	GuardianAddress   *HolidayAddress
 	SecondGuardian    *HolidayGuardianInput
 	Children          []HolidayChildInput
 	EmergencyContacts []HolidayContactInput

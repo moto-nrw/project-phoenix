@@ -31,6 +31,9 @@ type holidayReviewRegistrationRow struct {
 	SecondGuardianLastName  string     `bun:"second_guardian_last_name"`
 	SecondGuardianEmail     string     `bun:"second_guardian_email"`
 	SecondGuardianPhone     string     `bun:"second_guardian_phone"`
+	AddressStreet           string     `bun:"guardian_address_street"`
+	AddressPostalCode       string     `bun:"guardian_address_postal_code"`
+	AddressCity             string     `bun:"guardian_address_city"`
 	PrivacyConsentAt        time.Time  `bun:"privacy_consent_at"`
 	HealthConsentAt         *time.Time `bun:"health_consent_at"`
 	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
@@ -62,7 +65,8 @@ const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
-			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
+			guardian_address_street, guardian_address_postal_code, guardian_address_city
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -156,6 +160,11 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 		}
 		if row.ConsentVersion != nil {
 			details[i].ConsentVersion = *row.ConsentVersion
+		}
+		if row.AddressStreet != "" {
+			details[i].GuardianAddress = &enrollment.HolidayAddress{
+				Street: row.AddressStreet, PostalCode: row.AddressPostalCode, City: row.AddressCity,
+			}
 		}
 		if row.SecondGuardianFirstName != "" {
 			details[i].SecondGuardian = &enrollment.HolidayGuardianInput{

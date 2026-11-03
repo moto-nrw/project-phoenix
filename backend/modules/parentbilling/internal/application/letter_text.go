@@ -14,8 +14,9 @@ import (
 // the children, the total, the reference to pay with, the payment date,
 // the bank account of the Träger, the free text of the run (packing list,
 // rule on illness), the emergency numbers of the hosting OGS and whom to
-// ask. The registration has no postal address, so the address field names
-// the family and the person who registered; the invoice number is the
+// ask. The address field names the family and the person who registered,
+// then the postal address the invoice copied from the registration when the
+// form asked for it (ADR 0121 addendum, #5625); the invoice number is the
 // reference to pay with, as the Bissendorf address number was.
 
 // Letter is a confirmation letter as the Elternabrechnung writes it: every
@@ -74,7 +75,7 @@ func confirmationLetter(content letterContent) Letter {
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      sender,
-		Recipient:   nonBlank("Familie "+document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)),
+		Recipient:   recipientLines(document),
 		Facts:       letterFacts(content),
 		Subject:     "Bestätigung und Rechnung: " + content.run.PeriodName,
 		Salutation:  "Sehr geehrte Familie " + strings.TrimSpace(document.RecipientLastName) + ",",
@@ -82,6 +83,17 @@ func confirmationLetter(content letterContent) Letter {
 		Closing:     nonBlank("Mit freundlichen Grüßen", firstLine(sender)),
 		Footer:      nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
 	}
+}
+
+// recipientLines are the lines of the address field: the family, the
+// person who registered and, when the invoice has one, the street and the
+// postal code with the city.
+func recipientLines(document parentbilling.BillingDocument) []string {
+	lines := []string{"Familie " + document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)}
+	if address := document.RecipientAddress; address != nil {
+		lines = append(lines, address.Street, strings.TrimSpace(address.PostalCode)+" "+strings.TrimSpace(address.City))
+	}
+	return nonBlank(lines...)
 }
 
 func letterFacts(content letterContent) []LetterFact {

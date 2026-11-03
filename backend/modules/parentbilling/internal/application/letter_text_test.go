@@ -65,9 +65,12 @@ func goldenLetterContent(t *testing.T) letterContent {
 // field. The template's merge fields and fixed texts map like this:
 //
 //	«Familienname» in the address field  → Recipient "Familie Beispiel"
-//	«Anschrift», «PLZ_Ort»               → none: a holiday registration has no
-//	                                         postal address (ADR 0121); the
-//	                                         person who registered instead
+//	«Anschrift», «PLZ_Ort»               → the person who registered, then
+//	                                         street and postal code with city
+//	                                         when the invoice copied an address
+//	                                         from the registration (ADR 0121
+//	                                         addendum, #5625); without one the
+//	                                         two lines of before
 //	Infoblock (Sachbearbeiterin, phone)  → Facts Ansprechperson, Telefon, E-Mail
 //	Datum                                → Facts Datum (issue date of the invoice)
 //	Betreff                              → Subject with the period
@@ -129,6 +132,11 @@ func TestConfirmationLetterFollowsTheBissendorfTemplate(t *testing.T) {
 		},
 	}
 	assert.Equal(t, want, confirmationLetter(goldenLetterContent(t)))
+
+	withAddress := goldenLetterContent(t)
+	withAddress.document.RecipientAddress = &parentbilling.PostalAddress{Street: "Musterweg 12", PostalCode: "49143", City: "Bissendorf"}
+	want.Recipient = []string{"Familie Beispiel", "Erika Beispiel", "Musterweg 12", "49143 Bissendorf"}
+	assert.Equal(t, want, confirmationLetter(withAddress), "the address field names the postal address in four lines")
 }
 
 // A family that pays nothing gets no payment date and no request to pay;

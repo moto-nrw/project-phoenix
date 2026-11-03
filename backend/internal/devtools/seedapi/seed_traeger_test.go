@@ -160,6 +160,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",
+		"GET /traeger/holiday-periods/5/form Bearer traeger-token",
+		"PUT /traeger/holiday-periods/5/form Bearer traeger-token",
 		"POST /traeger/holiday-quotes/link-key ",
 		"POST /traeger/holiday-registrations/link-key ",
 		"POST /traeger/holiday-registrations/link-key/uploads ",
@@ -187,6 +189,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	children, ok := registration["children"].([]any)
 	require.True(t, ok)
 	require.Len(t, children, 2)
+	assert.Equal(t, map[string]any{"street": "Sonnenweg 7", "postal_code": "49143", "city": "Bissendorf"}, registration["guardian_address"],
+		"the form asks for the postal address and the family names it (#5625)")
 	assert.Equal(t, float64(31), children[0].(map[string]any)["home_school_id"])
 	assert.Equal(t, float64(0), children[1].(map[string]any)["home_school_id"], "the second sibling is a holiday guest")
 	assert.Equal(t, []any{

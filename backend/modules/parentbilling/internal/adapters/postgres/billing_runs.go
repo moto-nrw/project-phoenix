@@ -109,6 +109,9 @@ type documentRow struct {
 	RecipientFirstName    string        `bun:"recipient_first_name"`
 	RecipientLastName     string        `bun:"recipient_last_name"`
 	RecipientEmail        string        `bun:"recipient_email"`
+	RecipientStreet       *string       `bun:"recipient_address_street"`
+	RecipientPostalCode   *string       `bun:"recipient_address_postal_code"`
+	RecipientCity         *string       `bun:"recipient_address_city"`
 	ServiceFrom           calendar.Date `bun:"service_from,type:date"`
 	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
 	TotalCents            int64         `bun:"total_cents"`
@@ -380,6 +383,9 @@ func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run pa
 			RecipientEmail: document.RecipientEmail, ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil,
 			TotalCents: document.TotalCents,
 		}
+		if address := document.RecipientAddress; address != nil {
+			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
+		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		if constraintOf(err) == invoiceNumberConstraint {
@@ -467,10 +473,19 @@ func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) (
 			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, RegistrationID: row.HolidayRegistrationID,
 			RecipientFirstName: row.RecipientFirstName, RecipientLastName: row.RecipientLastName, RecipientEmail: row.RecipientEmail,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, Children: issuedChildren(byDocument[row.ID]),
-			TotalCents: row.TotalCents,
+			TotalCents: row.TotalCents, RecipientAddress: row.recipientAddress(),
 		}
 	}
 	return documents, nil
+}
+
+// recipientAddress is the copied postal address of an invoice, nil when the
+// registration had none (#5625).
+func (row documentRow) recipientAddress() *parentbilling.PostalAddress {
+	if row.RecipientStreet == nil || row.RecipientPostalCode == nil || row.RecipientCity == nil {
+		return nil
+	}
+	return &parentbilling.PostalAddress{Street: *row.RecipientStreet, PostalCode: *row.RecipientPostalCode, City: *row.RecipientCity}
 }
 
 // issuedChildren groups the positions of an invoice by child, in the order

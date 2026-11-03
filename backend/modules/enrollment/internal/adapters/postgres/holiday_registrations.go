@@ -98,12 +98,13 @@ const (
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			form_version, custom_data, legal_acceptances, consent_version)
+			form_version, custom_data, legal_acceptances, consent_version,
+			guardian_address_street, guardian_address_postal_code, guardian_address_city)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
 			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
 			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)),
-			NULLIF(?, 0))
+			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))
 		RETURNING id, submitted_at`
 	setHolidayFamilyHealthQuery = `UPDATE enrollment.holiday_registrations SET health_data = ?
 		WHERE organization_id = ? AND id = ?`
@@ -174,6 +175,10 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if input.SecondGuardian != nil {
 		second = *input.SecondGuardian
 	}
+	address := enrollment.HolidayAddress{}
+	if input.GuardianAddress != nil {
+		address = *input.GuardianAddress
+	}
 	answers, err := encodeAnswers(input.CustomData)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
@@ -181,7 +186,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
 		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances)),
-		input.ConsentVersion).Scan(ctx, &receipt); err != nil {
+		input.ConsentVersion, address.Street, address.PostalCode, address.City).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	sealed, err := storeHolidayFamilyHealth(ctx, db, organizationID, receipt.ID, len(input.Children), seal)

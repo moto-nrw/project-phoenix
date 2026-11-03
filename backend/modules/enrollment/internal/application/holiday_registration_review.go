@@ -87,27 +87,61 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
-// status counts of the whole period, and records the read.
+// status counts of the whole period, and records the read. The list names
+// no postal address (#5625).
 func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayRegistrationList, error) {
-	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
+	all, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
 	if err != nil {
 		return enrollment.HolidayRegistrationList{}, err
 	}
 	list := enrollment.HolidayRegistrationList{
-		Registrations: []enrollment.HolidayRegistrationSummary{}, Total: len(all), StatusCounts: map[string]int{},
+		Registrations: make([]enrollment.HolidayRegistrationSummary, 0, len(matching)), Total: len(all), StatusCounts: map[string]int{},
 	}
 	for _, registration := range all {
 		list.StatusCounts[registration.Status]++
+	}
+	for _, registration := range matching {
+		list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
+	}
+	return list, nil
+}
+
+// ListHolidayRegistrationRecipients lists the registrations of the filter
+// with the postal address of the parent who registered, for the invoices of
+// the Elternabrechnung (#5625), and records the read like the list.
+func (h *HolidayRegistrationReview) ListHolidayRegistrationRecipients(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationRecipient, error) {
+	_, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
+	if err != nil {
+		return nil, err
+	}
+	recipients := make([]enrollment.HolidayRegistrationRecipient, len(matching))
+	for i, registration := range matching {
+		recipients[i] = enrollment.HolidayRegistrationRecipient{
+			HolidayRegistrationSummary: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+		}
+	}
+	return recipients, nil
+}
+
+// listPeriod reads every registration of the period and those of the
+// filter, and records the read in the trail.
+func (h *HolidayRegistrationReview) listPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationDetail, []enrollment.HolidayRegistrationDetail, error) {
+	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	matching := []enrollment.HolidayRegistrationDetail{}
+	for _, registration := range all {
 		if holidayRegistrationMatches(registration.HolidayRegistrationSummary, filter) {
-			list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
+			matching = append(matching, registration)
 		}
 	}
 	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditList, map[string]any{
-		"filter": holidayFilterDetails(filter), "registrations": len(list.Registrations),
+		"filter": holidayFilterDetails(filter), "registrations": len(matching),
 	}); err != nil {
-		return enrollment.HolidayRegistrationList{}, err
+		return nil, nil, err
 	}
-	return list, nil
+	return all, matching, nil
 }
 
 // ExportHolidayRegistrations lists one row per booking of the filter with
@@ -604,7 +638,10 @@ func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, regi
 	}
 	for _, booking := range child.Bookings {
 		if holidayBookingMatches(booking, filter) {
-			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration.HolidayRegistrationSummary, SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking})
+			rows = append(rows, enrollment.HolidayRegistrationExportRow{
+				Registration: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+				SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking,
+			})
 		}
 	}
 	return rows
