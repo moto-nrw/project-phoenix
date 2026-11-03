@@ -121,7 +121,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     // Die Filter stehen in der Filterzeile des Seitenkopfs (#5146); jeder
     // Auslöser nennt seinen aktuellen Wert.
     fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Bestätigt" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bestätigt" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -130,7 +130,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Feriengäste" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -140,12 +140,12 @@ describe("TraegerHolidayRegistrationsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Alle Wochen" }));
     fireEvent.click(
-      await screen.findByRole("button", {
+      await screen.findByRole("option", {
         name: "11.01. bis 15.01.2027, OGS Süd",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Alle Zeitmodelle" }));
-    fireEvent.click(await screen.findByRole("button", { name: "bis 13 Uhr" }));
+    fireEvent.click(await screen.findByRole("option", { name: "bis 13 Uhr" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith("5", {
         status: "confirmed",

@@ -722,4 +722,139 @@ describe("CustomSelect", () => {
     expect(option.querySelector(".truncate")).toBeNull();
     expect(option.querySelector(".whitespace-normal")).toHaveTextContent(long);
   });
+
+  describe("field API", () => {
+    it("names the field by its visible label and marks it required", () => {
+      render(
+        <CustomSelect
+          label="Raum"
+          required
+          value=""
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Raum" });
+      expect(trigger).toHaveAttribute("aria-required", "true");
+      expect(screen.getByText("*")).toBeInTheDocument();
+    });
+
+    it("shows the error under the field and marks the trigger invalid", () => {
+      render(
+        <CustomSelect
+          label="Raum"
+          error="Bitte einen Raum wählen."
+          value=""
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Raum" });
+      expect(trigger).toHaveAttribute("aria-invalid", "true");
+      expect(trigger).toHaveAccessibleDescription("Bitte einen Raum wählen.");
+    });
+
+    it("describes the field with its hint", () => {
+      render(
+        <CustomSelect
+          label="Raum"
+          hint="Nur freie Räume."
+          value=""
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("combobox", { name: "Raum" }),
+      ).toHaveAccessibleDescription("Nur freie Räume.");
+    });
+
+    it("filters a searchable list and keeps the chosen label on the trigger", () => {
+      const onChange = vi.fn();
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          searchable
+          value="first"
+          options={options}
+          onChange={onChange}
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+      fireEvent.click(trigger);
+      fireEvent.change(screen.getByRole("textbox", { name: "Suchen" }), {
+        target: { value: "zweite" },
+      });
+
+      expect(screen.queryByRole("option", { name: "Erste Option" })).toBeNull();
+      expect(trigger).toHaveTextContent("Erste Option");
+
+      fireEvent.click(screen.getByRole("option", { name: "Zweite Option" }));
+      expect(onChange).toHaveBeenCalledWith("second");
+    });
+
+    it("says so when the search finds nothing", () => {
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          searchable
+          value=""
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Suchen" }), {
+        target: { value: "xyz" },
+      });
+
+      expect(screen.getByText("Keine Treffer.")).toBeInTheDocument();
+    });
+
+    it("steps from the search field into the list and selects with Enter", () => {
+      const onChange = vi.fn();
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          searchable
+          value="first"
+          options={options}
+          onChange={onChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Suchen" }), {
+        key: "ArrowDown",
+      });
+      const focused = screen.getByRole("option", { name: "Zweite Option" });
+      expect(focused).toHaveFocus();
+      fireEvent.keyDown(focused, { key: "Enter" });
+
+      expect(onChange).toHaveBeenCalledWith("second");
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+
+    it("keeps a disabled trigger on the grey disabled fill", () => {
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          disabled
+          value="first"
+          options={options}
+          onChange={vi.fn()}
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+      expect(trigger).toBeDisabled();
+      // moto-content-surface is unlayered and would paint over the grey fill.
+      expect(trigger.className).not.toContain("moto-content-surface");
+    });
+  });
 });

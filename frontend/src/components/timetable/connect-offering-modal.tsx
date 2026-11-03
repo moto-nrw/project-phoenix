@@ -15,7 +15,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useOfferingPreview } from "~/lib/hooks/use-offering-preview";
@@ -224,17 +224,15 @@ export function ConnectOfferingModal({
           >
             Angebote
           </label>
-          <MultiCheckboxSelect
+          <MultiSelect
             id={OFFERINGS_FIELD_ID}
             ariaLabel="Angebote"
             value={offeringIds}
             options={options}
             onChange={setOfferingIds}
             disabled={saving}
-            emptyLabel="Angebote wählen"
-            summaryLabel={(selected) =>
-              selected.map((option) => option.label).join(", ")
-            }
+            placeholder="Angebote wählen"
+            unavailableLabel="Keine Optionen verfügbar"
           />
           {phaseLocked ? (
             <p className="text-xs text-gray-500">

@@ -274,7 +274,7 @@ export function FilesPage() {
                 label: `${folder.name} (${folder.fileCount})`,
               }))}
               onChange={(value) => setSelectedId(value)}
-              triggerClassName="moto-content-surface h-9 w-full"
+              controlSize="compact"
             />
           </div>
           <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">

@@ -367,18 +367,18 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    const offeringMenu = screen.getByRole("dialog", {
+    const offeringMenu = screen.getByRole("listbox", {
       name: /Berücksichtigte Angebote/,
     });
     expect(
-      within(offeringMenu).getByRole("checkbox", { name: /Kurzbetreuung/ }),
-    ).toBeChecked();
+      within(offeringMenu).getByRole("option", { name: /Kurzbetreuung/ }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(
-      within(offeringMenu).getByRole("checkbox", { name: /OGS Ganztag/ }),
-    ).toBeChecked();
+      within(offeringMenu).getByRole("option", { name: /OGS Ganztag/ }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(
-      within(offeringMenu).getByRole("checkbox", { name: /Randstunde/ }),
-    ).not.toBeChecked();
+      within(offeringMenu).getByRole("option", { name: /Randstunde/ }),
+    ).toHaveAttribute("aria-selected", "false");
     expect(
       within(offeringMenu).getByText("Zählt nicht als Betreuungstag"),
     ).toBeVisible();
@@ -392,7 +392,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
+    fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
@@ -423,7 +423,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
+    fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
@@ -433,7 +433,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     // Das Menü bleibt nach einer Auswahl offen; ein zweiter Klick auf den
     // Auslöser würde es schließen.
-    fireEvent.click(screen.getByRole("checkbox", { name: /Kurzbetreuung/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Kurzbetreuung/ }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
@@ -578,12 +578,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
       screen.getByRole("button", { name: "Alle Betreuungstage" }),
     );
     expect(
-      screen.queryByRole("button", { name: "6 Tage" }),
+      screen.queryByRole("option", { name: "6 Tage" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "7 Tage" }),
+      screen.queryByRole("option", { name: "7 Tage" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "0 Tage" }));
+    fireEvent.click(screen.getByRole("option", { name: "0 Tage" }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
@@ -615,7 +615,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
+    fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
 
     expect(
       await screen.findByText(

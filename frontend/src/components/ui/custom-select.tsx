@@ -1,10 +1,15 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "~/lib/utils";
-import { ListboxDropdown } from "./listbox-dropdown";
+import { FieldErrorHint } from "./field-error-hint";
+import { FieldLabel } from "./field-label";
+import {
+  ListboxDropdown,
+  ListboxTriggerContent,
+  type ListboxDropdownSize,
+} from "./listbox-dropdown";
 
 interface CustomSelectOption {
   readonly value: string;
@@ -18,17 +23,36 @@ interface CustomSelectProps {
   readonly onChange: (value: string) => void;
   readonly id?: string;
   readonly name?: string;
+  /**
+   * Visible label above the field. Renders the kit `FieldLabel` (with the
+   * star when `required`) and names the field by it. Without it, name the
+   * field through `ariaLabel` or `ariaLabelledBy`.
+   */
+  readonly label?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
   readonly ariaDescribedBy?: string;
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly required?: boolean;
+  /** Marks the field as failed without a message of its own. */
   readonly invalid?: boolean;
+  /** Message under the field; marks it as failed (`aria-invalid`). */
+  readonly error?: string | null;
+  /** Gray help line under the field. */
+  readonly hint?: string;
+  /**
+   * Filter field at the top of the menu for long lists (all children, all
+   * absence types). Typeahead switches off while it is there.
+   */
+  readonly searchable?: boolean;
+  readonly searchPlaceholder?: string;
+  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  readonly controlSize?: ListboxDropdownSize;
+  /** Layout classes for the trigger (width, flex). The look is the kit's. */
   readonly className?: string;
+  /** Layout classes for the menu, e.g. a minimum width. */
   readonly menuClassName?: string;
-  /** Replaces the default surface/size trigger classes (moto-content-surface h-10 w-full …) for non-standard widths/heights. */
-  readonly triggerClassName?: string;
   /** Keep long labels fully visible in both the trigger and the menu. */
   readonly wrapLabels?: boolean;
   readonly testId?: string;
@@ -56,14 +80,15 @@ const VALIDATION_SELECT_STYLE: CSSProperties = {
   pointerEvents: "none",
 };
 
-const TRIGGER_BASE_CLASS =
-  "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
+// A search field inside a dialog: the dialog's focus trap (Radix FocusScope)
+// pulls focus out of everything portaled to document.body, so the field could
+// be clicked but not typed into. Outside a dialog the selector matches nothing
+// and the menu portals to the body as usual.
+export const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
 
-const DEFAULT_TRIGGER_CLASS =
-  "moto-content-surface moto-hover-elevated h-10 w-full";
-// `moto-content-surface` is unlayered and beats the red border and tint, so
-// an invalid trigger drops it (frontend-ui-kit: neutral branch only).
-const INVALID_TRIGGER_CLASS = "h-10 w-full";
+export function normalizeSearch(value: string): string {
+  return value.trim().toLocaleLowerCase("de");
+}
 
 export function CustomSelect({
   value,
@@ -71,6 +96,7 @@ export function CustomSelect({
   onChange,
   id,
   name,
+  label,
   ariaLabel,
   ariaLabelledBy,
   ariaDescribedBy,
@@ -78,16 +104,39 @@ export function CustomSelect({
   disabled = false,
   required = false,
   invalid = false,
+  error,
+  hint,
+  searchable = false,
+  searchPlaceholder = "Suchen",
+  controlSize = "default",
   className = "",
   menuClassName = "",
-  triggerClassName,
   wrapLabels = false,
   testId,
 }: CustomSelectProps) {
+  const generatedId = useId();
+  const fieldId = id ?? (label || error || hint ? generatedId : undefined);
+  const labelId = label ? `${fieldId}-label` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
+  const hintId = hint ? `${fieldId}-hint` : undefined;
+  const describedBy =
+    [ariaDescribedBy, errorId, hintId].filter(Boolean).join(" ") || undefined;
+  const isInvalid = invalid || Boolean(error);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const validationRef = useRef<HTMLSelectElement | null>(null);
   const [form, setForm] = useState<HTMLFormElement | null>(null);
+  const [query, setQuery] = useState("");
   const hasEmptyOption = options.some((option) => option.value === "");
+  const selectedOption = options.find((option) => option.value === value);
+
+  const needle = normalizeSearch(query);
+  const visibleOptions =
+    searchable && needle
+      ? options.filter((option) =>
+          normalizeSearch(option.label).includes(needle),
+        )
+      : options;
 
   useEffect(() => {
     if (!required) {
@@ -110,7 +159,7 @@ export function CustomSelect({
     select.style.width = `${rect.width}px`;
   };
 
-  return (
+  const field = (
     <>
       {name ? (
         // Mirror a disabled native <select>: a disabled control is excluded
@@ -119,31 +168,47 @@ export function CustomSelect({
       ) : null}
       <ListboxDropdown
         containerNodeRef={containerRef}
-        id={id}
+        id={fieldId}
         value={value}
-        options={options}
+        options={visibleOptions}
         onChange={onChange}
         ariaLabel={ariaLabel}
-        ariaLabelledBy={ariaLabelledBy}
-        ariaDescribedBy={ariaDescribedBy}
+        ariaLabelledBy={ariaLabelledBy ?? labelId}
+        ariaDescribedBy={describedBy}
         required={required}
-        invalid={invalid}
+        invalid={isInvalid}
         disabled={disabled}
         placeholder={placeholder}
         triggerRole="combobox"
         testId={testId}
+        size={controlSize}
         className={cn(
-          TRIGGER_BASE_CLASS,
-          triggerClassName ??
-            (invalid ? INVALID_TRIGGER_CLASS : DEFAULT_TRIGGER_CLASS),
-          invalid && "border-moto-red! bg-moto-red/5!",
-          wrapLabels && "h-auto min-h-10 py-2",
+          "w-full",
+          wrapLabels &&
+            (controlSize === "compact"
+              ? "h-auto min-h-9 py-2"
+              : "h-auto min-h-10 py-2"),
           className,
         )}
-        menuClassName={`scrollbar-thin overflow-y-auto moto-popover-surface rounded-xl border py-1 ${menuClassName}`}
-        optionClassName="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-        activeOptionClassName="flex w-full items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors"
-        disabledOptionClassName="flex w-full cursor-not-allowed items-center gap-2 px-4 py-2 text-left text-sm text-gray-400 transition-colors"
+        menuClassName={menuClassName}
+        {...(searchable
+          ? {
+              searchValue: query,
+              onSearchChange: setQuery,
+              searchPlaceholder,
+              onOpenChange: (open: boolean) => {
+                if (!open) setQuery("");
+              },
+              portalScopeSelector: SEARCHABLE_PORTAL_SCOPE,
+              emptyState: (
+                <li role="presentation">
+                  <p className="px-4 py-2 text-sm text-gray-500">
+                    Keine Treffer.
+                  </p>
+                </li>
+              ),
+            }
+          : {})}
         renderOption={
           wrapLabels
             ? (option) => (
@@ -153,24 +218,15 @@ export function CustomSelect({
               )
             : undefined
         }
-        renderTrigger={({ selectedLabel, open }) => (
-          <>
-            <span
-              className={`min-w-0 flex-1 ${wrapLabels ? "wrap-anywhere whitespace-normal" : "truncate"} ${
-                options.some((option) => option.value === value)
-                  ? "text-gray-900"
-                  : "text-gray-500"
-              }`}
-            >
-              {selectedLabel}
-            </span>
-            <ChevronDown
-              aria-hidden="true"
-              className={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform ${
-                open ? "rotate-180" : ""
-              }`}
-            />
-          </>
+        renderTrigger={({ open }) => (
+          // The label comes from the FULL list: while a search narrows the
+          // menu, the trigger must keep showing what is chosen.
+          <ListboxTriggerContent
+            label={selectedOption?.label ?? placeholder}
+            placeholderShown={selectedOption === undefined}
+            open={open}
+            wrap={wrapLabels}
+          />
         )}
       />
       {form
@@ -186,7 +242,7 @@ export function CustomSelect({
               disabled={disabled}
               aria-hidden="true"
               tabIndex={-1}
-              data-validation-mirror={id ?? name ?? true}
+              data-validation-mirror={fieldId ?? name ?? true}
               style={VALIDATION_SELECT_STYLE}
             >
               {/* A required select is only "missing" while the selected
@@ -202,5 +258,24 @@ export function CustomSelect({
           )
         : null}
     </>
+  );
+
+  if (!label && !error && !hint) return field;
+
+  return (
+    <div className="min-w-0">
+      {label ? (
+        <FieldLabel id={labelId} required={required} invalid={isInvalid}>
+          {label}
+        </FieldLabel>
+      ) : null}
+      {field}
+      {errorId ? <FieldErrorHint id={errorId} message={error} /> : null}
+      {hint && hintId ? (
+        <p id={hintId} className="mt-1 text-xs text-gray-500">
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }

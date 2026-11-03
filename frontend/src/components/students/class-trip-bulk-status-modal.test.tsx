@@ -308,8 +308,13 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
-    expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
-    expect(screen.getByLabelText("Ben Ausflug")).toBeChecked();
+    expect(
+      screen.getByRole("option", { name: "Anna Ausflug" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: "Ben Ausflug" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
 
     fireEvent.click(screen.getByLabelText("Ben Ausflug"));
     fireEvent.change(screen.getByLabelText("Bis"), {
@@ -462,7 +467,9 @@ describe("ClassTripBulkStatusModal date defaults in moto schule (#4799)", () => 
     expect(screen.getByLabelText("Bis")).toHaveValue("2026-09-12");
     expect(screen.queryByLabelText(/Rückkehrzeit/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
-    expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
+    expect(
+      screen.getByRole("option", { name: "Anna Ausflug" }),
+    ).toHaveAttribute("aria-selected", "true");
 
     fireEvent.change(screen.getByLabelText("Von"), {
       target: { value: "2026-09-14" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { Z_INDEX } from "./overlay-styles";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import {
   useCallback,
   type CSSProperties,
@@ -18,10 +18,88 @@ import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
 
+import { CheckboxIndicator } from "./checkbox";
+import { StatusBadge } from "./status-badge";
+
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
   readonly label: string;
   readonly disabled?: boolean;
+  /** Short gray note under the label ("Zählt nicht als Betreuungstag"). */
+  readonly badge?: string;
+}
+
+/**
+ * The look of every select in the kit (#5580). Trigger, menu, option and
+ * checkbox come from here; callers choose a `size` and pass layout classes
+ * (width, flex) only. `ui-kit/no-select-override` keeps frame, fill, height
+ * and radius out of their class props.
+ */
+const TRIGGER_BASE_CLASS =
+  "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
+const TRIGGER_HEIGHT_CLASS = { default: "h-10", compact: "h-9" } as const;
+// `moto-content-surface` is unlayered: it beats the red invalid tint and the
+// grey disabled fill, so it sits on the neutral, enabled branch only.
+const TRIGGER_SURFACE_CLASS = "moto-content-surface moto-hover-elevated";
+const TRIGGER_DISABLED_CLASS = "border-gray-200";
+const TRIGGER_INVALID_CLASS = "border-moto-red! bg-moto-red/5!";
+
+const MENU_SURFACE_CLASS = "moto-popover-surface rounded-xl border";
+const LIST_SCROLL_CLASS = "scrollbar-thin overflow-y-auto py-1";
+
+const OPTION_BASE_CLASS =
+  "flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors";
+const OPTION_IDLE_CLASS = "text-gray-700 hover:bg-gray-50";
+const OPTION_ACTIVE_CLASS = "bg-gray-50 font-medium text-gray-900";
+const OPTION_DISABLED_CLASS = "cursor-not-allowed text-gray-400";
+
+export type ListboxDropdownSize = keyof typeof TRIGGER_HEIGHT_CLASS;
+
+/**
+ * Label and chevron of the kit trigger. `CustomSelect` and `MultiSelect`
+ * render it with their own label text (a summary, the full-list label while a
+ * search narrows the menu); a caller with its own trigger content keeps the
+ * same chevron next to it.
+ */
+export function ListboxTriggerContent({
+  label,
+  placeholderShown,
+  open,
+  wrap = false,
+}: Readonly<{
+  label: ReactNode;
+  /** The trigger shows the placeholder, not a chosen value: quieter text. */
+  placeholderShown: boolean;
+  open: boolean;
+  /** Let a long label wrap instead of cutting it off. */
+  wrap?: boolean;
+}>) {
+  return (
+    <>
+      <span
+        className={cn(
+          "min-w-0 flex-1",
+          wrap ? "wrap-anywhere whitespace-normal" : "truncate",
+          placeholderShown ? "text-gray-500" : "text-gray-900",
+        )}
+      >
+        {label}
+      </span>
+      <ListboxChevron open={open} />
+    </>
+  );
+}
+
+export function ListboxChevron({ open }: Readonly<{ open: boolean }>) {
+  return (
+    <ChevronDown
+      aria-hidden="true"
+      className={cn(
+        "h-4 w-4 shrink-0 text-gray-400 transition-transform",
+        open && "rotate-180",
+      )}
+    />
+  );
 }
 
 interface ListboxDropdownProps<K extends string> {
@@ -53,7 +131,20 @@ interface ListboxDropdownProps<K extends string> {
   readonly portalScopeSelector?: string;
   /** Receives the wrapper node, e.g. to locate the surrounding <form>. */
   readonly containerNodeRef?: RefObject<HTMLDivElement | null>;
+  /**
+   * Layout classes for the trigger (width, flex, font weight). Frame, fill,
+   * height and radius come from the kit; pick `size` instead.
+   */
   readonly className?: string;
+  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  readonly size?: ListboxDropdownSize;
+  /**
+   * Kit-internal only: the caller draws the whole trigger itself (the filter
+   * chip of `DesktopFilters`). Outside `src/components/ui` the field look is
+   * binding; `ui-kit/no-select-override` rejects this prop there.
+   */
+  readonly unstyledTrigger?: boolean;
+  /** Layout classes for the menu, e.g. a minimum width. */
   readonly menuClassName?: string;
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
@@ -64,9 +155,6 @@ interface ListboxDropdownProps<K extends string> {
    * or the menu opens behind it.
    */
   readonly menuZIndex?: number;
-  readonly optionClassName?: string;
-  readonly activeOptionClassName?: string;
-  readonly disabledOptionClassName?: string;
   readonly disabled?: boolean;
   readonly required?: boolean;
   readonly invalid?: boolean;
@@ -100,8 +188,6 @@ interface ListboxDropdownProps<K extends string> {
   readonly menuHeader?: ReactNode;
   /** Slot under the option list, e.g. a row that adds the typed name. */
   readonly menuFooter?: ReactNode;
-  /** Classes for the scrollable option list in search/slot mode. */
-  readonly listClassName?: string;
   /** Content shown inside the listbox when filtering leaves no options. */
   readonly emptyState?: ReactNode;
   /**
@@ -112,9 +198,10 @@ interface ListboxDropdownProps<K extends string> {
     option: ListboxDropdownOption<K>,
   ) => ReactNode;
   /**
-   * Visual content for a single-select option. The option keeps its standard
-   * role and accessible name from {@link ListboxDropdownOption.label}; use
-   * this only for supplementary presentation such as a color marker.
+   * Visual content for an option (next to the checkbox in multi mode). The
+   * option keeps its standard role and accessible name from
+   * {@link ListboxDropdownOption.label}; use this only for supplementary
+   * presentation such as a color marker.
    */
   readonly renderOption?: (
     option: ListboxDropdownOption<K>,
@@ -220,12 +307,11 @@ export function ListboxDropdown<K extends string>({
   portalScopeSelector,
   containerNodeRef,
   className = "",
+  size = "default",
+  unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",
   menuZIndex = Z_INDEX.menu,
-  optionClassName = "",
-  activeOptionClassName = "",
-  disabledOptionClassName = "",
   disabled = false,
   required = false,
   invalid = false,
@@ -241,7 +327,6 @@ export function ListboxDropdown<K extends string>({
   onSearchKeyDown,
   menuHeader,
   menuFooter,
-  listClassName = "",
   emptyState,
   renderOptionActions,
   renderOption,
@@ -717,7 +802,11 @@ export function ListboxDropdown<K extends string>({
           ? undefined
           : (menuStyle ?? { position: "fixed", visibility: "hidden" })
       }
-      className={hasPanel ? `min-h-0 flex-1 ${listClassName}` : menuClassName}
+      className={
+        hasPanel
+          ? cn("min-h-0 flex-1", LIST_SCROLL_CLASS)
+          : cn(LIST_SCROLL_CLASS, MENU_SURFACE_CLASS, menuClassName)
+      }
       // The menu is portaled to document.body, so it sits OUTSIDE the
       // modal's [data-modal-content] subtree. useScrollLock cancels every
       // wheel/touchmove outside that subtree, which would make an open
@@ -783,29 +872,24 @@ export function ListboxDropdown<K extends string>({
               // space inside the appended string — which silently glued
               // "text-gray-700" and "min-w-0" together before.
               className={cn(
+                OPTION_BASE_CLASS,
                 option.disabled
-                  ? disabledOptionClassName
+                  ? OPTION_DISABLED_CLASS
                   : isActive || isFocused
-                    ? activeOptionClassName
-                    : optionClassName,
+                    ? OPTION_ACTIVE_CLASS
+                    : OPTION_IDLE_CLASS,
                 actions && "min-w-0 flex-1",
               )}
             >
               {isMulti ? (
                 <>
-                  <span
-                    aria-hidden="true"
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                      isActive
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-300 bg-white"
-                    }`}
-                  >
-                    {isActive ? <Check className="h-3 w-3" /> : null}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {option.label}
-                  </span>
+                  <CheckboxIndicator
+                    checked={isActive}
+                    disabled={option.disabled}
+                  />
+                  {renderOption?.(option, { selected: isActive }) ?? (
+                    <OptionLabel option={option} />
+                  )}
                 </>
               ) : (
                 // The label must be able to shrink and clip whether or not the
@@ -813,12 +897,7 @@ export function ListboxDropdown<K extends string>({
                 // auto, so one long custom name widens the option past the menu
                 // and scrolls the list sideways on narrow viewports.
                 (renderOption?.(option, { selected: isActive }) ?? (
-                  <span
-                    className="min-w-0 flex-1 truncate"
-                    title={option.label}
-                  >
-                    {option.label}
-                  </span>
+                  <OptionLabel option={option} />
                 ))
               )}
             </button>
@@ -874,19 +953,30 @@ export function ListboxDropdown<K extends string>({
         aria-invalid={invalid || undefined}
         role={triggerRole === "combobox" ? "combobox" : undefined}
         disabled={disabled}
-        className={className}
+        className={
+          unstyledTrigger
+            ? className
+            : cn(
+                TRIGGER_BASE_CLASS,
+                TRIGGER_HEIGHT_CLASS[size],
+                invalid
+                  ? TRIGGER_INVALID_CLASS
+                  : disabled
+                    ? TRIGGER_DISABLED_CLASS
+                    : TRIGGER_SURFACE_CLASS,
+                className,
+              )
+        }
         data-testid={testId}
       >
         {renderTrigger ? (
           renderTrigger({ selectedLabel, open })
         ) : (
-          <>
-            <span className="min-w-0 truncate">{selectedLabel}</span>
-            <ChevronDown
-              className="h-4 w-4 shrink-0 text-gray-400"
-              aria-hidden
-            />
-          </>
+          <ListboxTriggerContent
+            label={selectedLabel}
+            placeholderShown={selectedOption === undefined}
+            open={open}
+          />
         )}
       </button>
       {open && portalContainer
@@ -904,7 +994,11 @@ export function ListboxDropdown<K extends string>({
                   display: "flex",
                   flexDirection: "column",
                 }}
-                className={menuClassName}
+                className={cn(
+                  MENU_SURFACE_CLASS,
+                  "overflow-hidden",
+                  menuClassName,
+                )}
                 data-modal-content="true"
                 // A pure container: the search field, the listbox and the slot
                 // content carry the semantics, this element only positions
@@ -928,7 +1022,7 @@ export function ListboxDropdown<K extends string>({
                       placeholder={searchPlaceholder}
                       aria-label={searchPlaceholder}
                       aria-controls={listboxId}
-                      className="h-9 w-full rounded-md border border-gray-200 bg-white pr-3 pl-8 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
+                      className="h-9 w-full rounded-lg border border-gray-200 bg-white pr-3 pl-8 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
                     />
                   </div>
                 ) : null}
@@ -943,5 +1037,31 @@ export function ListboxDropdown<K extends string>({
           )
         : null}
     </div>
+  );
+}
+
+// The label must be able to shrink and clip whether or not the row carries
+// actions: as a bare flex child its min-width stays auto, so one long custom
+// name widens the option past the menu and scrolls the list sideways on
+// narrow viewports.
+function OptionLabel<K extends string>({
+  option,
+}: Readonly<{ option: ListboxDropdownOption<K> }>) {
+  if (!option.badge) {
+    return (
+      <span className="min-w-0 flex-1 truncate" title={option.label}>
+        {option.label}
+      </span>
+    );
+  }
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="block truncate" title={option.label}>
+        {option.label}
+      </span>
+      <span className="mt-1 block font-normal">
+        <StatusBadge label={option.badge} tone="gray" compact />
+      </span>
+    </span>
   );
 }

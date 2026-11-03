@@ -308,10 +308,10 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     expect(trigger).toBeEnabled();
     fireEvent.click(trigger);
 
-    const entry = screen.getByRole("checkbox", {
+    const entry = screen.getByRole("option", {
       name: "Nicht mehr verfügbares Angebot (ID 42)",
     });
-    expect(entry).toBeChecked();
+    expect(entry).toHaveAttribute("aria-selected", "true");
     fireEvent.click(entry);
     expect(changeSourceOfferings).toHaveBeenCalledWith([]);
   });
@@ -371,8 +371,8 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
       screen.queryByText(/Nicht mehr verfügbares Angebot/),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("checkbox", { name: /Betreuung bis 14:30/ }),
-    ).toBeChecked();
+      screen.getByRole("option", { name: /Betreuung bis 14:30/ }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   it("renders the phase-start warning supplied by the form", () => {

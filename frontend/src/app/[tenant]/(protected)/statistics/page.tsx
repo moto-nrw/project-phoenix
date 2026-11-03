@@ -1020,8 +1020,8 @@ export default function StatisticsPage() {
                 onChange={setSchoolClasses}
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
-                className="w-full md:w-44"
-                triggerClassName="moto-content-surface h-9 w-full"
+                controlSize="compact"
+                className="md:w-44"
               />
               <MultiSelect
                 ariaLabel="Gruppen"
@@ -1030,8 +1030,8 @@ export default function StatisticsPage() {
                 onChange={setGroupIds}
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
-                className="w-full md:w-56"
-                triggerClassName="moto-content-surface h-9 w-full"
+                controlSize="compact"
+                className="md:w-56"
               />
             </div>
           }

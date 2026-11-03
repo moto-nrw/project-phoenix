@@ -30,15 +30,7 @@ const meta: Meta<typeof ControlledListboxDropdown> = {
     initialValue: "apple",
     options: fruitOptions,
     ariaLabel: "Frucht auswählen",
-    className:
-      "flex items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm",
-    menuClassName:
-      "overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg",
-    optionClassName: "block w-full rounded-md px-3 py-2 text-left text-sm",
-    activeOptionClassName:
-      "block w-full rounded-md bg-gray-100 px-3 py-2 text-left text-sm",
-    disabledOptionClassName:
-      "block w-full rounded-md px-3 py-2 text-left text-sm text-gray-400",
+    className: "w-64",
   },
 };
 
@@ -47,6 +39,12 @@ export default meta;
 type Story = StoryObj<typeof ControlledListboxDropdown>;
 
 export const Default: Story = {};
+
+export const Compact: Story = {
+  args: {
+    size: "compact",
+  },
+};
 
 export const Disabled: Story = {
   args: {

@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 import { useState } from "react";
 
 import {
+  ListboxChevron,
   ListboxDropdown,
   type ListboxDropdownOption,
 } from "~/components/ui/listbox-dropdown";
@@ -72,9 +73,7 @@ export function PlanningTrackSelect({
       onOpenChange={(open) => {
         if (!open) setQuery("");
       }}
-      className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 disabled:opacity-80"
-      menuClassName="moto-popover-surface flex max-h-72 flex-col overflow-hidden rounded-xl border"
-      listClassName="scrollbar-thin overflow-y-auto py-1"
+      className="w-full"
       emptyState={
         <li role="presentation">
           <p className="px-3 py-4 text-center text-sm text-gray-500">
@@ -82,8 +81,6 @@ export function PlanningTrackSelect({
           </p>
         </li>
       }
-      optionClassName="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none"
-      activeOptionClassName="flex min-h-10 w-full items-center gap-2 bg-gray-50 px-3 py-2 text-left text-sm text-gray-900 focus-visible:outline-none"
       renderTrigger={({ open }) => (
         <>
           <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -100,12 +97,7 @@ export function PlanningTrackSelect({
                 : "Keine Planungsspur"}
             </span>
           </span>
-          <ChevronDown
-            className={`size-4 shrink-0 text-gray-400 transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-            aria-hidden="true"
-          />
+          <ListboxChevron open={open} />
         </>
       )}
       renderOption={(option, { selected: isSelected }) => {
