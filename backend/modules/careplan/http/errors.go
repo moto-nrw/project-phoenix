@@ -80,14 +80,17 @@ var pickupResetErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 // pickup time and the first day the reset works (#5643).
 func renderPickupResetStillNeeded(err error) render.Renderer {
 	var stillNeeded *careplan.PickupResetStillNeededError
-	errors.As(err, &stillNeeded)
+	if !errors.As(err, &stillNeeded) {
+		return common.ErrorInternalServer(err)
+	}
 	return common.ErrorConflictWithDetails(err, common.CodeStudentsPickupResetStillNeeded, map[string]any{
 		"needed_until":  stillNeeded.NeededUntil.Format(pickupResetDateLayout),
 		"possible_from": stillNeeded.PossibleFrom.Format(pickupResetDateLayout),
 	})
 }
 
-// pickupResetDateLayout is the German date the catalog text shows.
+// pickupResetDateLayout is the German date the catalog text shows; the
+// catalog inserts details verbatim (as timetable.RefusalDateLayout).
 const pickupResetDateLayout = "02.01.2006"
 
 // renderExceptionWriteError maps the sentinel errors a pickup/arrival exception

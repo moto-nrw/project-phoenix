@@ -97,6 +97,8 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if row == nil {
 		return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
 	}
+	// A legacy care_offering row is no override: the projection ignores it,
+	// so removing it changes no earlier day.
 	if row.Manual {
 		if until, needed := lastDayNeedingStoredPickup(projection, studentID, *row, first, date); needed {
 			return &careplan.PickupResetStillNeededError{NeededUntil: until, PossibleFrom: until.AddDays(1)}
@@ -140,7 +142,7 @@ func lastDayNeedingStoredPickup(
 			last = day
 		}
 	}
-	return last, last != ""
+	return last, !last.IsZero()
 }
 
 // lockPickupStudents takes the students' care locks BEFORE a weekly pickup
