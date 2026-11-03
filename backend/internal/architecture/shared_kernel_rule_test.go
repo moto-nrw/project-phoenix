@@ -1,7 +1,7 @@
 package architecture
 
 import (
-	"path/filepath"
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -40,11 +40,15 @@ func TestReviewedSharedKernelRuleShape(t *testing.T) {
 
 func repositoryPolicy(t *testing.T) *Policy {
 	t.Helper()
-	policy, err := LoadPolicy(filepath.Join("..", "..", "architecture", "policy.json"))
+	data, err := repositoryPolicyJSON()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return policy
+	var policy Policy
+	if err := json.Unmarshal(data, &policy); err != nil {
+		t.Fatal(err)
+	}
+	return &policy
 }
 
 // sharedKernelPolicies removes the shared-kernel grant from an older base.
@@ -80,18 +84,22 @@ func TestSharedKernelRulePassesOnlyInAReviewedEpoch(t *testing.T) {
 
 func TestSharedKernelEpochGrantsNothingElse(t *testing.T) {
 	t.Parallel()
-	for _, extra := range []Rule{
+	base, candidate := sharedKernelPolicies(t)
+	extraRules := []Rule{
 		{ID: "every-role.legacy-date", Description: "test", Scopes: everyScope, TargetOwner: "legacy-shared", TargetRole: "domain"},
 		{ID: "every-role.tenant-http", Description: "test", Scopes: everyScope, TargetOwner: "tenant-runtime", TargetRole: "http"},
 		{ID: "every-role.domain-contracts", Description: "test", Scopes: everyScope, TargetOwnerKind: "domain", TargetRole: "contract"},
-	} {
-		base, candidate := sharedKernelPolicies(t)
-		widened := *candidate
-		widened.Rules = append(slices.Clone(candidate.Rules), extra)
-		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
-		if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID+" ") {
-			t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-kernel shape: %v", extra.ID, err)
-		}
+	}
+	batch := *candidate
+	batch.Rules = append(slices.Clone(candidate.Rules), extraRules...)
+	err := comparePolicyStrictness(base, &batch, noCreated(), noCreated(), noCreated(), noCreated(), nil)
+	for _, extra := range extraRules {
+		t.Run(extra.ID, func(t *testing.T) {
+			if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID+" ") {
+				t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-kernel shape: %v", extra.ID, err)
+			}
+			assertIsolatedRuleLoosening(t, base, candidate, extra)
+		})
 	}
 }
 

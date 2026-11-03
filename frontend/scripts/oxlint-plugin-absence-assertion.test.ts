@@ -1,24 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-
-const temporaryDirectories: string[] = [];
+import { afterAll, describe, expect, it } from "vitest";
+import {
+  lintSource as lintProbe,
+  removeProbeDirectories,
+} from "./oxlint-probe";
 
 function lintSource(source: string, relativePath = "src/probe.test.tsx") {
-  const directory = mkdtempSync(join(tmpdir(), "absence-assertion-"));
-  temporaryDirectories.push(directory);
-  const sourcePath = join(directory, relativePath);
-  mkdirSync(dirname(sourcePath), { recursive: true });
-  writeFileSync(sourcePath, source);
-
-  const result = spawnSync(
-    resolve("node_modules/.bin/oxlint"),
-    ["-c", resolve(".oxlintrc.json"), sourcePath],
-    { encoding: "utf8" },
-  );
-  return { ...result, output: `${result.stdout}${result.stderr}` };
+  return lintProbe(source, relativePath);
 }
 
 function count(output: string, rule: string): number {
@@ -27,15 +14,11 @@ function count(output: string, rule: string): number {
   );
 }
 
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
+afterAll(removeProbeDirectories);
 
-describe("absence-assertion/needs-anchor", () => {
-  it("reports a test whose only DOM assertions are absences", () => {
-    const result = lintSource(`
+describe.concurrent("absence-assertion/needs-anchor", () => {
+  it("reports a test whose only DOM assertions are absences", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { expect, it } from "vitest";
 
@@ -53,8 +36,8 @@ describe("absence-assertion/needs-anchor", () => {
     expect(result.output).toContain("hides the admin entry for staff");
   });
 
-  it("does not count mock assertions as positive DOM evidence", () => {
-    const result = lintSource(`
+  it("does not count mock assertions as positive DOM evidence", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { expect, it } from "vitest";
 
@@ -68,8 +51,8 @@ describe("absence-assertion/needs-anchor", () => {
     expect(count(result.output, "needs-anchor")).toBe(1);
   });
 
-  it("accepts an anchor in the test, a hook or a same-file helper", () => {
-    const result = lintSource(`
+  it("accepts an anchor in the test, a hook or a same-file helper", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { beforeEach, describe, expect, it } from "vitest";
 
@@ -119,8 +102,8 @@ describe("absence-assertion/needs-anchor", () => {
     expect(count(result.output, "no-early-wait-for")).toBe(0);
   });
 
-  it("does not let a hook of a sibling describe anchor the test", () => {
-    const result = lintSource(`
+  it("does not let a hook of a sibling describe anchor the test", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { beforeEach, describe, expect, it } from "vitest";
 
@@ -143,7 +126,7 @@ describe("absence-assertion/needs-anchor", () => {
 
   it.each([false, true])(
     "resolves sibling helpers lexically (reverse: %s)",
-    (reverse) => {
+    async (reverse) => {
       const groups = [
         `describe("anchored", () => {
         function load() { screen.getByText("Loaded"); }
@@ -161,7 +144,7 @@ describe("absence-assertion/needs-anchor", () => {
       });`,
       ];
       if (reverse) groups.reverse();
-      const result = lintSource(`
+      const result = await lintSource(`
       import { screen, waitFor } from "@testing-library/react";
       import { describe, expect, it } from "vitest";
       function load() { screen.getByText("Outer"); }
@@ -192,8 +175,8 @@ describe("absence-assertion/needs-anchor", () => {
     'expect(screen.queryByText("Loaded")).toBeDefined()',
     'expect(screen.queryByText("Loaded")).not.toBeUndefined()',
     "expect(document.body).not.toBeEmptyDOMElement()",
-  ])("does not accept empty-tolerant evidence: %s", (assertion) => {
-    const result = lintSource(`
+  ])("does not accept empty-tolerant evidence: %s", async (assertion) => {
+    const result = await lintSource(`
       import { screen, waitFor } from "@testing-library/react";
       import { expect, it } from "vitest";
       it("has no anchor", async () => {
@@ -218,8 +201,8 @@ describe("absence-assertion/needs-anchor", () => {
     'expect(screen.queryAllByRole("row")).not.toEqual([])',
     'expect(screen.queryAllByRole("row")).not.toStrictEqual([])',
     'expect(screen.queryByText("Loaded")).toBeTruthy()',
-  ])("accepts nonempty evidence: %s", (assertion) => {
-    const result = lintSource(`
+  ])("accepts nonempty evidence: %s", async (assertion) => {
+    const result = await lintSource(`
       import { screen, waitFor } from "@testing-library/react";
       import { expect, it } from "vitest";
       it("has an anchor", async () => {
@@ -235,8 +218,8 @@ describe("absence-assertion/needs-anchor", () => {
 
   it.each(["toBe", "toEqual", "toStrictEqual"])(
     "treats %s(null) as an absence without another absence matcher",
-    (matcher) => {
-      const result = lintSource(`
+    async (matcher) => {
+      const result = await lintSource(`
         import { screen, waitFor } from "@testing-library/react";
         import { expect, it } from "vitest";
         it("has no loaded content", async () => {
@@ -251,8 +234,8 @@ describe("absence-assertion/needs-anchor", () => {
     },
   );
 
-  it("exempts the exact empty-render contract", () => {
-    const result = lintSource(`
+  it("exempts the exact empty-render contract", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { expect, it } from "vitest";
 
@@ -282,9 +265,9 @@ describe("absence-assertion/needs-anchor", () => {
     "expect(container.textContent).toHaveLength(0)",
   ])(
     "treats empty text as an absence, not an empty render: %s",
-    (assertion) => {
+    async (assertion) => {
       // A skeleton of bare boxes has no text either.
-      const result = lintSource(`
+      const result = await lintSource(`
       import { render } from "@testing-library/react";
       import { expect, it } from "vitest";
       it("renders no text", () => {
@@ -297,8 +280,8 @@ describe("absence-assertion/needs-anchor", () => {
     },
   );
 
-  it("covers it.each and test.skip variants", () => {
-    const result = lintSource(`
+  it("covers it.each and test.skip variants", async () => {
+    const result = await lintSource(`
       import { render, screen } from "@testing-library/react";
       import { expect, it, test } from "vitest";
 
@@ -317,9 +300,9 @@ describe("absence-assertion/needs-anchor", () => {
   });
 });
 
-describe("absence-assertion/no-early-wait-for", () => {
-  it("reports a waitFor that checks an absence before any positive state", () => {
-    const result = lintSource(`
+describe.concurrent("absence-assertion/no-early-wait-for", () => {
+  it("reports a waitFor that checks an absence before any positive state", async () => {
+    const result = await lintSource(`
       import { render, screen, waitFor } from "@testing-library/react";
       import { expect, it } from "vitest";
 
@@ -338,13 +321,13 @@ describe("absence-assertion/no-early-wait-for", () => {
 
   it.each([false, true])(
     "accepts positive evidence anywhere in the same callback (absence first: %s)",
-    (absenceFirst) => {
+    async (absenceFirst) => {
       const assertions = [
         'expect(screen.queryByText("Loaded")).not.toBeNull();',
         'expect(screen.queryByRole("alert")).toBeNull();',
       ];
       if (absenceFirst) assertions.reverse();
-      const result = lintSource(`
+      const result = await lintSource(`
         import { screen, waitFor } from "@testing-library/react";
         import { expect, it } from "vitest";
         it("waits for loaded content without an alert", async () => {
@@ -358,8 +341,8 @@ describe("absence-assertion/no-early-wait-for", () => {
     },
   );
 
-  it("accepts a waitFor after the loaded state or a positive check inside it", () => {
-    const result = lintSource(`
+  it("accepts a waitFor after the loaded state or a positive check inside it", async () => {
+    const result = await lintSource(`
       import { render, screen, waitFor } from "@testing-library/react";
       import { expect, it } from "vitest";
 

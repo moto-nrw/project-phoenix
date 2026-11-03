@@ -4,10 +4,16 @@ import {
   render as renderComponent,
   renderHook,
   screen,
-  waitFor,
+  waitFor as waitForCheck,
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Most waits here end on SWR hook state or a mock call, which changes no DOM
+// node: waitFor then re-checks only on its 50 ms interval. Re-check every
+// 5 ms instead; the timeout stays as it was.
+const waitFor: typeof waitForCheck = (callback, options) =>
+  waitForCheck(callback, { interval: 5, ...options });
 
 import {
   AggregatedRequestList,

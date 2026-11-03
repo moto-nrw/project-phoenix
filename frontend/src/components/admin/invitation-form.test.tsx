@@ -64,6 +64,15 @@ vi.mock("~/lib/auth-helpers", () => {
 // debounce explicitly where they wait for the lookup.
 const LOOKUP_DEBOUNCE_MS = 400;
 
+// The fake clock follows real time in 1 ms steps instead of the default
+// 20 ms. Testing Library ends every waitFor and findBy with a setTimeout(0),
+// which on fake timers only fires at the next step; with 20 ms steps each
+// query waited up to 20 ms for nothing.
+const FOLLOW_REAL_TIME = {
+  shouldAdvanceTime: true,
+  advanceTimeDelta: 1,
+} as const;
+
 function skipLookupDebounce() {
   act(() => {
     vi.advanceTimersByTime(LOOKUP_DEBOUNCE_MS);
@@ -80,7 +89,7 @@ describe("InvitationForm", () => {
   const mockOnCreated = vi.fn();
 
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers(FOLLOW_REAL_TIME);
     vi.clearAllMocks();
     mockGetRoles.mockResolvedValue(mockRoles);
     mockCreateInvitation.mockResolvedValue({
@@ -623,7 +632,7 @@ describe("InvitationForm", () => {
 // back (ADR 0021, #3402).
 describe("InvitationForm former employment hint", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers(FOLLOW_REAL_TIME);
     vi.clearAllMocks();
     mockGetRoles.mockResolvedValue(mockRoles);
     mockFindFormerEmployment.mockResolvedValue(null);
@@ -848,7 +857,7 @@ describe("InvitationForm former employment hint", () => {
 
 describe("InvitationForm employment choice", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers(FOLLOW_REAL_TIME);
     vi.clearAllMocks();
     mockGetRoles.mockResolvedValue(mockRoles);
     mockCreateInvitation.mockResolvedValue({
