@@ -202,13 +202,17 @@ type HolidayRegistrations interface {
 }
 
 // HolidayBillingSettings is the Träger level of the settings system as the
-// Elternabrechnung reads it (#5621). The root binds it; it reads in the
+// Elternabrechnung reads it (#5621, #5622). The root binds it; it reads in the
 // caller's Träger transaction.
 type HolidayBillingSettings interface {
 	// AsksDebtorNumber reports whether the Träger enters the debtor number
 	// of the family when it confirms a holiday registration: the Träger's
 	// value of parent_billing.debtor_number_on_confirm or its default.
 	AsksDebtorNumber(ctx context.Context, organizationID int64) (bool, error)
+	// PaymentText is the Träger's own payment sentence of the confirmation
+	// letter with its placeholders, empty for the built-in sentence: its
+	// value of parent_billing.payment_text or the default (#5622).
+	PaymentText(ctx context.Context, organizationID int64) (string, error)
 }
 
 // HolidayConfirmationSettings is what the Träger-Büro needs to know before

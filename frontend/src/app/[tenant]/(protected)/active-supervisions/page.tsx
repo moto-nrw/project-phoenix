@@ -91,6 +91,7 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import {
@@ -607,6 +608,7 @@ function MeinRaumPageContent() {
   // Aufsicht und der offenen Räume; die Stundenplan-Liste hat ihre eigene
   // Form und bleibt, wie sie ist.
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       buildSupervisionTableColumns({
@@ -619,6 +621,7 @@ function MeinRaumPageContent() {
         photosEnabled,
         hrefFor: (student) =>
           `/students/${student.id}?from=/active-supervisions`,
+        classLabel: holidayGuestLabel,
       }),
     [
       dashboard.pickupTimesData,
@@ -628,6 +631,7 @@ function MeinRaumPageContent() {
       dashboard.myGroupRooms,
       now,
       photosEnabled,
+      holidayGuestLabel,
     ],
   );
   const tableColumnDefaults = useMemo(
