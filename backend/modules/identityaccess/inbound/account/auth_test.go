@@ -58,9 +58,9 @@ func setupAuthRoute(t *testing.T) *testContext {
 	}
 }
 
-func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
+func setupAuthDependenciesRoute(t *testing.T, options ...api.AuthTestOption) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
-	db, resource, _ := setupAuthDependenciesRouteWithSettings(t)
+	db, resource, _ := setupAuthDependenciesRouteWithSettings(t, options...)
 	return db, resource
 }
 
@@ -75,9 +75,9 @@ type tenantSettingsWriter interface {
 // setupAuthDependenciesRouteWithSettings composes the resource the way the
 // root does and also returns the settings service it reads, so a test can
 // store tenant overrides.
-func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
+func setupAuthDependenciesRouteWithSettings(t *testing.T, options ...api.AuthTestOption) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
-	db, svc := setupAuthModule(t)
+	db, svc := setupAuthModule(t, options...)
 	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, settings)
 	resource.RoleGrants = api.AccountRoleGrantPolicy()
@@ -1915,7 +1915,7 @@ func TestListTenants(t *testing.T) {
 func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
-	db, authRoute := setupAuthDependenciesRoute(t)
+	db, authRoute := setupAuthDependenciesRoute(t, api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	return &testContext{
