@@ -9,6 +9,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -208,17 +209,16 @@ export default function OperatorSchoolsPage() {
         <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <button
+            <Button
               type="button"
+              variant={schoolDelete.showTrash ? "outline_danger" : "outline"}
+              size="compact"
+              aria-pressed={schoolDelete.showTrash}
               onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                schoolDelete.showTrash
-                  ? "bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
             >
-              Papierkorb ({deletedSummaries.length})
-            </button>
+              {" "}
+              Papierkorb ({deletedSummaries.length}){" "}
+            </Button>
           </div>
         )}
 

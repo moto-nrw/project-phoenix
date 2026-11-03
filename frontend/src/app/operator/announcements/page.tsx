@@ -16,6 +16,10 @@ import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import {
+  SegmentedControl,
+  type SegmentedControlItem,
+} from "~/components/ui/segmented-control";
 import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Textarea } from "~/components/ui/textarea";
@@ -54,6 +58,10 @@ import { Alert } from "~/components/ui/alert";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
+
+const TYPE_ITEMS: readonly SegmentedControlItem<AnnouncementType>[] = (
+  Object.entries(TYPE_LABELS) as [AnnouncementType, string][]
+).map(([value, label]) => ({ value, label }));
 
 interface FormData {
   title: string;
@@ -657,36 +665,15 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Type */}
           <div>
-            <span
-              id="announcement-type-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
+            <span className="mb-1 block text-sm font-medium text-gray-700">
               Typ
             </span>
-            <div
-              className="flex flex-wrap gap-2"
-              role="group"
-              aria-labelledby="announcement-type-label"
-            >
-              {(
-                Object.entries(TYPE_LABELS) as [AnnouncementType, string][]
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, type: value }))
-                  }
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    formData.type === value
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabel="Typ"
+              items={TYPE_ITEMS}
+              value={formData.type}
+              onChange={(type) => setFormData((prev) => ({ ...prev, type }))}
+            />
           </div>
 
           {/* Severity */}

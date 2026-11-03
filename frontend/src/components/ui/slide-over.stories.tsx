@@ -40,7 +40,7 @@ export const Default: Story = {
         </div>
         <SlideOverFooter>
           <DrawerPrimitive.Close asChild>
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="outline">
               Schließen
             </Button>
           </DrawerPrimitive.Close>

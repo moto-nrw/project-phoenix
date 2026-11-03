@@ -1439,7 +1439,7 @@ function AnnouncementFormModal({
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="md"
           onClick={() => void handleSubmit(false)}
           isLoading={submitting === "draft"}

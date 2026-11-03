@@ -29,7 +29,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
-    lines: [217],
+    lines: [222],
     reason: "Auswahloptionen eines Filters, kein Knopf",
   },
   {
@@ -149,7 +149,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [854, 887, 987, 1156],
+    lines: [855, 888, 988, 1157],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -282,5 +282,34 @@ export const buttonRatchetAllowlist = [
     file: "src/components/timetable/period-switcher-dropdown.tsx",
     lines: [277],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+  },
+  // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
+  // Navigation, nicht als Ruhezustand eines Knopfs.
+  {
+    rule: "no-grey-button-fill",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1312],
+    reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
+  },
+  {
+    rule: "no-grey-button-fill",
+    file: "src/components/timetable/period-switcher-dropdown.tsx",
+    lines: [277],
+    reason:
+      "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
+  },
+  {
+    rule: "no-grey-button-fill",
+    file: "src/components/dashboard/mobile-bottom-nav.tsx",
+    lines: [1538],
+    reason:
+      "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
+  },
+  {
+    rule: "no-grey-button-fill",
+    file: "src/components/parent/shell/parent-bottom-nav.tsx",
+    lines: [215],
+    reason:
+      "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },
 ];

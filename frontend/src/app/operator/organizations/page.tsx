@@ -266,17 +266,16 @@ export default function OperatorOrganizationsPage() {
         <LoadErrorAlert error={orgsLoadError} className="mb-4" />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <button
+            <Button
               type="button"
+              variant={orgDelete.showTrash ? "outline_danger" : "outline"}
+              size="compact"
+              aria-pressed={orgDelete.showTrash}
               onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                orgDelete.showTrash
-                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
             >
-              Papierkorb ({deletedOrganizations.length})
-            </button>
+              {" "}
+              Papierkorb ({deletedOrganizations.length}){" "}
+            </Button>
           </div>
         )}
 

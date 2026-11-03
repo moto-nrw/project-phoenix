@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Schreibt scripts/ui-kit-button-baseline.json neu (#5531): Funde je Datei der
-// Regeln ui-kit/no-hand-rolled-button und ui-kit/no-button-override, ohne die
+// Regeln ui-kit/no-hand-rolled-button, ui-kit/no-button-override und
+// ui-kit/no-grey-button-fill (#5574, immer leer), ohne die
 // Ausnahmen der Allowlist. Nur nach dem Abbau von Funden ausführen; die
 // Baseline darf nur sinken. `--check` schreibt nichts und meldet Abweichungen.
 import { spawnSync } from "node:child_process";
@@ -15,7 +16,13 @@ const baselinePath = resolve(
   process.env.UI_KIT_BUTTON_BASELINE_PATH ??
     resolve(frontend, "scripts/ui-kit-button-baseline.json"),
 );
-const rules = ["no-hand-rolled-button", "no-button-override"];
+// no-grey-button-fill (#5574) ist hart null: Die Zeile hier prüft nur ihre
+// Allowlist; ein Fund außerhalb davon hebt die Baseline nicht, er schlägt fehl.
+const rules = [
+  "no-hand-rolled-button",
+  "no-button-override",
+  "no-grey-button-fill",
+];
 
 const result = spawnSync(
   resolve(frontend, "node_modules/.bin/oxlint"),

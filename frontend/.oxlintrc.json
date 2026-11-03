@@ -52,6 +52,7 @@
     "ui-kit/no-hand-rolled-surface": "error",
     "ui-kit/no-hand-rolled-button": "error",
     "ui-kit/no-button-override": "error",
+    "ui-kit/no-grey-button-fill": "error",
     "ui-kit/no-raw-input": "error",
     "ui-kit/require-checkbox-label": "error",
     "ui-kit/no-rounded-3xl": "error",
@@ -97,7 +98,15 @@
     "jsx-a11y/prefer-tag-over-role": "off",
     "jsx-a11y/no-redundant-roles": "off",
     "no-underscore-dangle": "off",
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_", "destructuredArrayIgnorePattern": "^_" }],
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ],
     "react/set-state-in-effect": "off",
     "react/exhaustive-effect-dependencies": "off",
     "react/immutability": "off",

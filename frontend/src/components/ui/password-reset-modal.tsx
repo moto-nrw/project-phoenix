@@ -319,7 +319,7 @@ export function PasswordResetModal({
               <div className="flex justify-center gap-3 pt-2">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="md"
                   onClick={handleClose}
                   disabled={isLoading}

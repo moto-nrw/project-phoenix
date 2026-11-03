@@ -823,6 +823,63 @@ describe("ui-kit/no-button-override", () => {
   });
 });
 
+describe("ui-kit/no-grey-button-fill", () => {
+  const lint = (body: string) => {
+    const result = lintSource(body, "src/components/probe.tsx");
+    return {
+      status: result.status,
+      count: (
+        `${result.stdout}${result.stderr}`.match(
+          /ui-kit\(no-grey-button-fill\)/g,
+        ) ?? []
+      ).length,
+    };
+  };
+
+  it("fails a grey resting fill on native buttons, links and kit buttons", () => {
+    const result = lint(
+      `import Link from "next/link";
+      import { Button, buttonClassName } from "~/components/ui/button";
+      const idle = "bg-gray-100 text-gray-700 hover:bg-gray-200";
+      function Probe({ open }: { open: boolean }) {
+        return (
+          <>
+            <button type="button" className={open ? "bg-moto-red-soft" : idle}>A</button>
+            <Link href="/a" className="bg-gray-200 text-gray-800">B</Link>
+            <Button className="bg-gray-100">C</Button>
+            <a href="/d" className={buttonClassName({ variant: "outline", size: "md", className: "bg-gray-200" })}>D</a>
+          </>
+        );
+      }
+      void Probe;`,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.count).toBe(4);
+  });
+
+  it("accepts state tints, tracks, switches and navigation rows", () => {
+    const result = lint(
+      `import { NavLink as SideLink } from "~/components/ui/nav-link";
+      function Probe({ on }: { on: boolean }) {
+        return (
+          <>
+            <button type="button" className="rounded-md px-3 py-2 hover:bg-gray-100 active:bg-gray-200">A</button>
+            <div className="rounded-lg bg-gray-100 p-1"><button type="button" aria-pressed={on}>B</button></div>
+            <button type="button" role="switch" aria-checked={on} className={on ? "bg-gray-900" : "bg-gray-200"} />
+            <a href="/c" aria-current={on ? "page" : undefined} className={on ? "bg-gray-100" : ""}>C</a>
+            <SideLink href="/d" className="bg-gray-100">D</SideLink>
+            <button type="button" className="bg-gray-50 rounded-md px-2">E</button>
+          </>
+        );
+      }
+      void Probe;`,
+    );
+
+    expect(result.count).toBe(0);
+  });
+});
+
 describe("button ratchet baseline", () => {
   // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
   // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.

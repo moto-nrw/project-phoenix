@@ -233,7 +233,7 @@ function ModalFooter(props: {
       <Button
         type="button"
         size="md"
-        variant="secondary"
+        variant="outline"
         onClick={props.onClose}
         disabled={props.isSaving}
       >

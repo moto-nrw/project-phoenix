@@ -22,6 +22,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
@@ -2731,16 +2732,13 @@ function EditSessionModal({
                 </FieldLabel>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {EDIT_REASON_PRESETS.map((reason) => (
-                    <Button
+                    <ToggleChip
                       key={reason}
-                      type="button"
-                      variant={notes === reason ? "primary" : "secondary"}
-                      size="compact"
-                      aria-pressed={notes === reason}
-                      onClick={() => setNotes(reason)}
+                      pressed={notes === reason}
+                      onPressedChange={() => setNotes(reason)}
                     >
                       {reason}
-                    </Button>
+                    </ToggleChip>
                   ))}
                 </div>
                 <Textarea

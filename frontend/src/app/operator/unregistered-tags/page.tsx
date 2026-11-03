@@ -337,7 +337,7 @@ export function ResolveScanModal({
     <>
       <Button
         type="button"
-        variant="secondary"
+        variant="outline"
         size="md"
         onClick={onClose}
         disabled={loading}

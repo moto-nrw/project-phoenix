@@ -194,7 +194,7 @@ function PickupExtensionStep({
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="md"
             disabled={busy !== null || stale}
             isLoading={busy === "none"}

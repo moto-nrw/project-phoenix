@@ -1844,7 +1844,7 @@ export function ChildOfferingAdjustment({
               {hasSelectedCareDays ? (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline_danger"
                   onClick={removeAllCareDays}
                 >
                   Alle Betreuungstage entfernen

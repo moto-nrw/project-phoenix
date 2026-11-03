@@ -217,7 +217,7 @@ export function useBulkCheckinActions(
           <div className="flex justify-end gap-2">
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="md"
               onClick={() => setBulkFailures(null)}
             >

@@ -161,7 +161,7 @@ export function PickupRequestDetailModal({
       mobileSheet
       footer={
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="secondary" size="md" onClick={onClose}>
+          <Button type="button" variant="outline" size="md" onClick={onClose}>
             Schließen
           </Button>
           {pending && onOpenQueue && (

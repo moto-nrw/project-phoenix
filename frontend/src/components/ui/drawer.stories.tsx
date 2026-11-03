@@ -34,7 +34,7 @@ export const BottomSheet: Story = {
         </DrawerHeader>
         <div className="p-4">
           <DrawerClose asChild>
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="outline">
               Schließen
             </Button>
           </DrawerClose>
@@ -59,7 +59,7 @@ export const RightSidePanel: Story = {
         </DrawerHeader>
         <div className="p-4">
           <DrawerClose asChild>
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="outline">
               Schließen
             </Button>
           </DrawerClose>

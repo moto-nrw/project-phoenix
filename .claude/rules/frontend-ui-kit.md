@@ -7,9 +7,9 @@ paths:
 
 **RULE: All new frontend UI MUST be built from the shared kit in `frontend/src/components/ui/` (and `frontend/src/components/ui/page-header/`). Do NOT hand-roll a button, card, tab bar, modal, input, badge, table, or menu when a kit component exists. Do NOT import React components from the `@moto-nrw/design-system` package — that package is consumed for CSS tokens only.**
 
-This kit is the de-facto MOTO design system for project-phoenix — the visual language the team converged on (much of it built by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Reusing it is how every screen ends up looking the same. Hand-rolling chrome with ad-hoc `rounded-*` and generic Tailwind colors is exactly the drift this rule exists to stop.
+This kit is the de-facto MOTO design system for project-phoenix — the visual language the team converged on (much of it built by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome with ad-hoc `rounded-*` and generic Tailwind colors is exactly the drift this rule exists to stop.
 
-> The published `@moto-nrw/design-system` npm package ships components too, but project-phoenix is **not** on them yet — it only imports the package's CSS/tokens (`@import "@moto-nrw/design-system/tailwind"` in `globals.css`). Until the team explicitly migrates, the local `ui/` kit is the single source of truth. Don't import the package's components, and don't introduce a third component system.
+> The published `@moto-nrw/design-system` npm package ships components too, but project-phoenix is **not** on them yet — it only imports the package's CSS/tokens (`@import "@moto-nrw/design-system/tailwind"` in `globals.css`). Until the team explicitly migrates, the local `ui/` kit is the single source of truth. No third component system.
 
 Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here.
 
@@ -160,7 +160,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 | Variant | Use for |
 |---|---|
-| `primary` (gray-900), `secondary`, `outline`, `surface`, `ghost` | Neutral actions |
+| `primary` (gray-900), `outline`, `surface`, `ghost` | Neutral actions |
 | `ghost_tone` | Quiet action on a coloured notice (toast, alert): takes the notice's text colour |
 | `success` | Green confirm, every import submit |
 | `danger`, `outline_danger`, `ghost_danger` (quiet red) | Destructive |
@@ -169,13 +169,15 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 | `fab` | Floating create button, round, 56 px, green |
 | `dashed` | Dashed add surface |
 
+**No grey buttons (#5574).** No light-grey fill at rest. Value choice: `SegmentedControl`; on/off: `ToggleChip`; removal: `outline_danger`.
+
 **Finger rule.** Under `pointer: coarse` every kit button is at least 44 px high, `icon` 44 × 44 px; with a mouse nothing changes. The kit does this for every portal; no `min-h-11` overrides, no `touch` size.
 
 **Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`; on a coloured notice (toast) `ghost_tone` `icon`.
 
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
 
-**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings are counted per file in `frontend/scripts/ui-kit-button-baseline.json`; more fails, fewer fails until lowered (`pnpm run ui-kit:button-baseline`). The exceptions above live with their reason in the allowlist in `ui-kit-button-baseline.mjs`, never in the baseline.
+**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings are counted per file in `frontend/scripts/ui-kit-button-baseline.json`; more fails, fewer fails until lowered (`pnpm run ui-kit:button-baseline`). The exceptions above live with their reason in the allowlist in `ui-kit-button-baseline.mjs`, never in the baseline. `ui-kit/no-grey-button-fill` (hard-zero) fails a resting `bg-gray-100`/`-200`; switches, tabs, menus, nav rows exempt.
 
 ## Several notices of the same kind
 
@@ -274,7 +276,7 @@ Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedCont
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
-- **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
+- **`NavigationTabs` collapses to a dropdown on mobile** — page-level navigation only; a value switcher is `SegmentedControl`.
 
 ## UI skills: this rule outranks all of them
 

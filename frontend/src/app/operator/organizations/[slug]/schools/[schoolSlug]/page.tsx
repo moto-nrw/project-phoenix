@@ -33,7 +33,7 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
@@ -467,16 +467,17 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         >
           <DataTableStatusBadge active={school?.active ?? false} />
         </button>
-        <button
-          type="button"
-          onClick={() => setEditSchoolOpen(true)}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        >
-          Bearbeiten
-        </button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
+          size="compact"
+          onClick={() => setEditSchoolOpen(true)}
+        >
+          Bearbeiten
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
           size="compact"
           onClick={() => setChildQuotaOpen(true)}
         >
@@ -490,21 +491,26 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 )}`
               : "#"
           }
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          className={buttonClassName({
+            variant: "outline",
+            size: "compact",
+            className: "",
+          })}
         >
           Einstellungen
         </Link>
-        <button
+        <Button
           type="button"
+          variant="outline_danger"
+          size="compact"
           onClick={() => {
             if (school) {
               schoolDelete.setDeleteTarget(school);
             }
           }}
-          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
-        </button>
+        </Button>
       </>
     ),
     [handleToggleSchoolActive, school, schoolDelete, schoolSlug, slug],
@@ -514,35 +520,38 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     if (activeTab === "konten") {
       return (
         <>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setCreateAccountOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
           >
             <PlusIcon />
             Konto erstellen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={() => setInviteOpen(true)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Admin einladen
-          </button>
+          </Button>
         </>
       );
     }
 
     if (activeTab === "geraete") {
       return (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={() => setCreateDeviceOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
         >
           <PlusIcon />
           Neues Gerät
-        </button>
+        </Button>
       );
     }
 

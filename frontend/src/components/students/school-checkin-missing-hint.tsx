@@ -61,7 +61,7 @@ export function SchoolCheckinMissingHint({
             <Button
               key={status}
               type="button"
-              variant="secondary"
+              variant="surface"
               size="compact"
               onClick={() => onShowStatus(status)}
             >
