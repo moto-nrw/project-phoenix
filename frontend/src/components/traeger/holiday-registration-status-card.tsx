@@ -239,7 +239,11 @@ export function HolidayRegistrationStatusCard({
     HolidayRegistrationAction | "confirm" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [debtorNumber, setDebtorNumber] = useState("");
+  // A sibling group pays with one number (#5628): its number is the
+  // proposal, which the Träger-Büro may change.
+  const [debtorNumber, setDebtorNumber] = useState(
+    contribution?.siblingDebtorNumber ?? "",
+  );
   const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
   const confirmRef = useRef<HTMLFormElement>(null);
   const confirmErrors = useApiFormError(confirmRef);

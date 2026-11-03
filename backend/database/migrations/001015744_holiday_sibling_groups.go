@@ -14,7 +14,8 @@ func init() {
 		Version:     holidaySiblingGroupsVersion,
 		Description: "Elternabrechnung: Geschwister aus getrennten Ferienanmeldungen und Fassungen des festgehaltenen Beitrags (#5628)",
 		DependsOn: []string{
-			holidayDebtorNumberVersion,               // the last migration before this one and the audit actions this extends
+			holidayGuestHomeSchoolNameVersion,        // the last migration before this one
+			holidayDebtorNumberVersion,               // the audit actions this extends
 			parentBillingHolidayContributionsVersion, // the frozen contributions this versions
 		},
 	})

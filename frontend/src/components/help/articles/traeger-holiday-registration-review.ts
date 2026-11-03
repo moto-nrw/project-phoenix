@@ -8,7 +8,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     title: "Ferienanmeldungen prüfen",
     question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
     summary:
-      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
     image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
     imageAlt:
       "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -54,6 +54,26 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         ],
       },
       {
+        title: "Geschwister zusammenführen",
+        description:
+          "Eltern melden Geschwister manchmal in zwei Anmeldungen an. Führen Sie die Anmeldungen zusammen, zählen die Kinder beim Ferienbeitrag zusammen. moto führt nie von selbst zusammen.",
+        steps: [
+          "In der Spalte `Geschwister` steht ein Hinweis wie `Vielleicht Geschwister: gleiche E-Mail` oder `Vielleicht Geschwister: gleicher Nachname`. Der Hinweis ändert nichts.",
+          "Prüfen Sie, ob die Kinder wirklich Geschwister sind.",
+          "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie.",
+          "Wählen Sie `Als Geschwister zusammenführen`.",
+          "In der Spalte `Geschwister` steht jetzt `Geschwister` mit den Nummern der anderen Anmeldungen.",
+        ],
+      },
+      {
+        title: "Geschwister trennen",
+        steps: [
+          "Öffnen Sie die Anmeldung.",
+          "Wählen Sie in der Karte `Geschwister` den Knopf `Trennen`.",
+          "Bestätigen Sie mit `Trennen`.",
+        ],
+      },
+      {
         title: "Umbuchen",
         steps: [
           "Wählen Sie beim Kind `Umbuchen`.",
@@ -78,7 +98,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       },
     ],
     result:
-      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher.",
+      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher, und jedes Zusammenführen und Trennen von Geschwistern.",
     notes: [
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -90,6 +110,10 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
       "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
+      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Bei gleichem Beitrag zählt die früher eingegangene Anmeldung zuerst.",
+      "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
+      "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
+      "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
@@ -99,6 +123,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
       "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
       "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
+      "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",
+      "Eine stornierte Anmeldung können Sie nicht zusammenführen. Trennen geht.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayRegistration,

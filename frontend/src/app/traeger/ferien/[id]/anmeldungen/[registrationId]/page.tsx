@@ -6,6 +6,7 @@
 // „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
 
 import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
@@ -59,6 +60,16 @@ import {
   withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+// The siblings of the registration (#5628) load only when it has some, so
+// the page carries no code for them otherwise.
+const HolidayRegistrationSiblingsCard = dynamic(
+  () =>
+    import("~/components/traeger/holiday-registration-siblings-card").then(
+      (module) => module.HolidayRegistrationSiblingsCard,
+    ),
+  { ssr: false },
+);
 
 const PDF_LABELS: AttachmentLabels = {
   open: "Öffnen",
@@ -289,6 +300,15 @@ export default function TraegerHolidayRegistrationPage() {
             onConfirmed={load}
             onDebtorNumberChanged={load}
           />
+          {contribution?.siblings?.length ? (
+            <HolidayRegistrationSiblingsCard
+              periodId={periodId}
+              registrationId={registration.id}
+              siblings={contribution.siblings}
+              invoiced={contribution.invoiced ?? false}
+              onSplit={load}
+            />
+          ) : null}
           <HolidayRegistrationProofCard
             periodId={periodId}
             registration={registration}

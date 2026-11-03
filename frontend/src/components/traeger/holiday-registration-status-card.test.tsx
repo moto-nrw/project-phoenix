@@ -281,6 +281,34 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(mockConfirm).not.toHaveBeenCalled();
     });
 
+    it("proposes the debtor number of the sibling group (#5628)", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={{
+              ...HOLIDAY_CONTRIBUTION,
+              siblingDebtorNumber: "10 4711",
+            }}
+            debtorNumberRequired
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onConfirmed={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+
+      expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("10 4711");
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() =>
+        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("10 4711"),
+      );
+    });
+
     it("confirms with the trimmed debtor number", async () => {
       mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
       renderWithSwitch(true);
