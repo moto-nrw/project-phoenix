@@ -7,6 +7,7 @@ import type {
   HolidayRegistrationList,
 } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
+import { HOLIDAY_CONSENT_TEXTS } from "./holiday-consent-texts";
 
 export const HOLIDAY_SCHOOLS: TraegerSchool[] = [
   { id: "31", name: "OGS Nord", slug: "nord", subdomain: "nord", city: "" },
@@ -75,6 +76,8 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   guardianEmail: "eva@example.org",
   guardianPhone: "0151 2345678",
   benefitsDeclared: false,
+  debtorNumber: "",
+  guardianAddress: null,
   secondGuardian: null,
   children: [
     {
@@ -127,6 +130,10 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   privacyConsentAt: "2026-09-03T08:00:00Z",
   healthConsentAt: "2026-09-03T08:00:00Z",
   bindingConfirmedAt: "2026-09-03T08:00:00Z",
+  custodyConfirmedAt: "2026-09-03T08:00:00Z",
+  declarationName: "Eva Muster",
+  consentVersion: 3,
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   benefitsProofs: [],
   history: [],
   form: { version: 1, fields: [] },

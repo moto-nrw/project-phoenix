@@ -43,15 +43,6 @@ vi.mock("~/components/ui/collection-grid", () => ({
   CollectionGrid: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("~/components/ui/info-card", () => ({
-  InfoCard: ({ children, title }: { children: ReactNode; title: string }) => (
-    <article>
-      <h3>{title}</h3>
-      {children}
-    </article>
-  ),
-}));
-
 vi.mock("~/components/ui/navigation-link", () => ({
   default: ({ children, href }: { children: ReactNode; href: string }) => (
     <a href={href}>{children}</a>

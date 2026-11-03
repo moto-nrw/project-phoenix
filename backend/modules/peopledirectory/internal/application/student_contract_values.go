@@ -19,7 +19,8 @@ func toDomainStudentDirectoryFilter(filter peopledirectory.StudentDirectoryFilte
 		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
 		KeepAlumni: filter.KeepAlumni,
 		CareStatus: filter.CareStatus, CareStatusOn: filter.CareStatusOn,
-		Page: filter.Page, PageSize: filter.PageSize,
+		HolidayGuestsArrivedOn: filter.HolidayGuestsArrivedOn,
+		Page:                   filter.Page, PageSize: filter.PageSize,
 	}
 }
 

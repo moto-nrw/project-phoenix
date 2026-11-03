@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -429,13 +429,15 @@ export function AccountTenantAccessModal({
               gilt jeweils nur für die dort aufgeführte Schule.
             </p>
 
-            <section className="space-y-2">
-              <ConceptSectionHeader
-                title="Aktive Zugänge"
-                concept={schoolsConcept}
-                // FormModal rendert seinen Titel als h3.
-                level={4}
-              />
+            <SectionCard
+              bare
+              className="space-y-2"
+              bodyClassName="space-y-2"
+              title="Aktive Zugänge"
+              concept={schoolsConcept}
+              // FormModal rendert seinen Titel als h3.
+              headingLevel={4}
+            >
               {activeEntries.length === 0 ? (
                 <EmptyState
                   icon={<MotoConceptIcon concept={schoolsConcept} size={22} />}
@@ -514,7 +516,7 @@ export function AccountTenantAccessModal({
                   ))}
                 </ul>
               )}
-            </section>
+            </SectionCard>
 
             <section
               ref={grantFormRef}
@@ -626,13 +628,15 @@ export function AccountTenantAccessModal({
             </section>
 
             {formerEntries.length > 0 && (
-              <section className="space-y-2">
-                <ConceptSectionHeader
-                  title="Frühere Zugänge"
-                  concept={changeHistoryConcept}
-                  // FormModal rendert seinen Titel als h3.
-                  level={4}
-                />
+              <SectionCard
+                bare
+                className="space-y-2"
+                bodyClassName="space-y-2"
+                title="Frühere Zugänge"
+                concept={changeHistoryConcept}
+                // FormModal rendert seinen Titel als h3.
+                headingLevel={4}
+              >
                 <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
                   {formerEntries.map((entry) => (
                     <li
@@ -654,7 +658,7 @@ export function AccountTenantAccessModal({
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SectionCard>
             )}
           </div>
         )}

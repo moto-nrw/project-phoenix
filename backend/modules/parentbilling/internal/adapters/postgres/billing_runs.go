@@ -109,6 +109,10 @@ type documentRow struct {
 	RecipientFirstName    string        `bun:"recipient_first_name"`
 	RecipientLastName     string        `bun:"recipient_last_name"`
 	RecipientEmail        string        `bun:"recipient_email"`
+	RecipientStreet       *string       `bun:"recipient_address_street"`
+	RecipientPostalCode   *string       `bun:"recipient_address_postal_code"`
+	RecipientCity         *string       `bun:"recipient_address_city"`
+	DebtorNumber          *string       `bun:"debtor_number"`
 	ServiceFrom           calendar.Date `bun:"service_from,type:date"`
 	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
 	TotalCents            int64         `bun:"total_cents"`
@@ -260,6 +264,20 @@ func (s *Store) IssuedRegistrations(ctx context.Context, organizationID int64, s
 	return issued, nil
 }
 
+// LockPeriodBilling takes a transaction lock on the invoices of the service
+// and period of a Träger (#5621). The release of a run and a change of the
+// debtor number of a registration of the period take it, so one waits for
+// the other's commit and then sees the invoices it issued.
+func (s *Store) LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('parent_billing.period_billing:' || ?::text || ':' || ? || ':' || ?::text, 0))`,
+		organizationID, service, periodID).Exec(ctx)
+	return err
+}
+
 // RunCorrections lists the corrections of a run in their order.
 func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingCorrection, error) {
 	db, err := traegerDB(ctx, organizationID)
@@ -372,14 +390,7 @@ func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run pa
 	}
 	rows := make([]documentRow, len(documents))
 	for i, document := range documents {
-		rows[i] = documentRow{
-			OrganizationID: organizationID, RunID: run.ID, Service: run.Service, Number: document.Number,
-			NumberYear: year, NumberSequence: first + int64(i), IssuedOn: *document.IssuedOn,
-			HolidayPeriodID: run.HolidayPeriodID, HolidayRegistrationID: document.RegistrationID,
-			RecipientFirstName: document.RecipientFirstName, RecipientLastName: document.RecipientLastName,
-			RecipientEmail: document.RecipientEmail, ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil,
-			TotalCents: document.TotalCents,
-		}
+		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		if constraintOf(err) == invoiceNumberConstraint {
@@ -467,10 +478,42 @@ func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) (
 			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, RegistrationID: row.HolidayRegistrationID,
 			RecipientFirstName: row.RecipientFirstName, RecipientLastName: row.RecipientLastName, RecipientEmail: row.RecipientEmail,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, Children: issuedChildren(byDocument[row.ID]),
-			TotalCents: row.TotalCents,
+			TotalCents: row.TotalCents, RecipientAddress: row.recipientAddress(),
+		}
+		if row.DebtorNumber != nil {
+			documents[i].DebtorNumber = *row.DebtorNumber
 		}
 	}
 	return documents, nil
+}
+
+// issuedDocumentRow is the row of an issued invoice with its own copy of the
+// recipient, the postal address (#5625) and the debtor number (#5621).
+func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year int, sequence int64, document parentbilling.BillingDocument) documentRow {
+	row := documentRow{
+		OrganizationID: organizationID, RunID: run.ID, Service: run.Service, Number: document.Number,
+		NumberYear: year, NumberSequence: sequence, IssuedOn: *document.IssuedOn,
+		HolidayPeriodID: run.HolidayPeriodID, HolidayRegistrationID: document.RegistrationID,
+		RecipientFirstName: document.RecipientFirstName, RecipientLastName: document.RecipientLastName,
+		RecipientEmail: document.RecipientEmail, ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil,
+		TotalCents: document.TotalCents,
+	}
+	if address := document.RecipientAddress; address != nil {
+		row.RecipientStreet, row.RecipientPostalCode, row.RecipientCity = &address.Street, &address.PostalCode, &address.City
+	}
+	if document.DebtorNumber != "" {
+		row.DebtorNumber = &document.DebtorNumber
+	}
+	return row
+}
+
+// recipientAddress is the copied postal address of an invoice, nil when the
+// registration had none (#5625).
+func (row documentRow) recipientAddress() *parentbilling.PostalAddress {
+	if row.RecipientStreet == nil || row.RecipientPostalCode == nil || row.RecipientCity == nil {
+		return nil
+	}
+	return &parentbilling.PostalAddress{Street: *row.RecipientStreet, PostalCode: *row.RecipientPostalCode, City: *row.RecipientCity}
 }
 
 // issuedChildren groups the positions of an invoice by child, in the order

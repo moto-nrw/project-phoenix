@@ -31,6 +31,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (original) => ({
   >()),
   fetchHolidayRegistrations: () => Promise.resolve(HOLIDAY_REGISTRATION_LIST),
   fetchHolidayRegistration: () => Promise.resolve(HOLIDAY_REGISTRATION),
+  fetchHolidayConfirmationSettings: () =>
+    Promise.resolve({ debtorNumberRequired: false }),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),

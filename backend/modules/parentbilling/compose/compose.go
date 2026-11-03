@@ -17,14 +17,14 @@ func NewContributionRules() parentbilling.ContributionRules {
 
 // NewHolidayContributions builds the holiday contribution (#4664, ADR 0115)
 // over Enrollment's holiday registrations, which the root binds.
-func NewHolidayContributions(registrations parentbilling.HolidayRegistrations) parentbilling.HolidayContributions {
-	return application.NewHolidayContributions(postgres.NewStore(), registrations)
+func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.HolidayContributions {
+	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
 }
 
 // NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) over the
 // holiday registrations the root binds and Document Rendering's lists.
-func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) parentbilling.BillingRuns {
-	return application.NewBillingRuns(postgres.NewStore(), registrations, rendering.NewRenderer(), calendar.TodayDate)
+func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.BillingRuns {
+	return application.NewBillingRuns(postgres.NewStore(), registrations, settings, rendering.NewRenderer(), calendar.TodayDate)
 }
 
 // NewBillingLetterMail builds the mail and print of the letters (#4670,

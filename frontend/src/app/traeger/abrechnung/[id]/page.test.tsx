@@ -55,6 +55,8 @@ const PREVIEW: BillingRunDetail = {
   previewCount: 1,
   previewCents: 11250,
   unbilled: 1,
+  missingDebtorNumbers: 0,
+  paymentTextMissingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
   letters: null,
@@ -67,6 +69,7 @@ const PREVIEW: BillingRunDetail = {
       recipientFirstName: "Eva",
       recipientLastName: "Muster",
       recipientEmail: "eva@example.org",
+      debtorNumber: "",
       serviceFrom: "2027-01-04",
       serviceUntil: "2027-01-15",
       totalCents: 11250,
@@ -276,6 +279,87 @@ describe("TraegerBillingRunPage", () => {
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(api.fetchBillingRun).toHaveBeenCalledTimes(2));
+  });
+
+  it("names the invoices without a debtor number only while the Träger asks for it (#5621)", async () => {
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      missingDebtorNumbers: 3,
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "3 Anmeldungen haben noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lauf freigeben" }),
+    ).toBeEnabled();
+  });
+
+  it("shows no debtor number hint when the switch is off (#5621)", async () => {
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      missingDebtorNumbers: 0,
+    });
+    renderPage();
+
+    expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(screen.queryByText(/Debitorennummer/)).not.toBeInTheDocument();
+  });
+
+  it("warns before the release when the payment text needs missing debtor numbers (#5622)", async () => {
+    const run = {
+      ...PREVIEW,
+      missingDebtorNumbers: 3,
+      paymentTextMissingDebtorNumbers: 2,
+    };
+    api.fetchBillingRun.mockResolvedValue(run);
+    api.releaseBillingRun.mockResolvedValue({ ...run, status: "released" });
+    renderPage();
+
+    const warning = await screen.findByText(
+      "2 Rechnungen mit Betrag haben keine Debitorennummer. Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein.",
+    );
+    expect(warning.closest('[role="alert"]')).toHaveTextContent(
+      "Schreiben brauchen die Debitorennummer",
+    );
+    expect(
+      screen.queryByText(/3 Anmeldungen haben noch keine Debitorennummer/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "2 Rechnungen mit Betrag haben keine Debitorennummer. Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Trotzdem freigeben" }),
+    );
+    await waitFor(() =>
+      expect(api.releaseBillingRun).toHaveBeenCalledWith(run),
+    );
+  });
+
+  it("names the switch when the payment text needs a number the registrations do not ask for (#5622)", async () => {
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      paymentTextMissingDebtorNumbers: 1,
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "1 Rechnung mit Betrag hat keine Debitorennummer. Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn unter „Einstellungen“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
+    expect(
+      await screen.findByRole("button", { name: "Trotzdem freigeben" }),
+    ).toBeEnabled();
   });
 
   it("shows issued invoices without a way to change them", async () => {

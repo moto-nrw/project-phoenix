@@ -52,6 +52,10 @@ var (
 	// ErrInvalidHolidayQuote reports bookings of a quote that the period does
 	// not offer.
 	ErrInvalidHolidayQuote = errors.New("invalid holiday contribution quote")
+	// ErrDebtorNumberLocked reports a change of the debtor number of a
+	// registration an issued invoice already bills: the invoice keeps its
+	// copy (#5621, ADR 0119).
+	ErrDebtorNumberLocked = errors.New("an issued invoice keeps the debtor number of the registration")
 )
 
 // HolidayContributionLine is one position of a contribution. A base line
@@ -82,7 +86,8 @@ type HolidayChildContribution struct {
 // HolidayContribution is the contribution of a registration or a quote.
 // ExemptionAvailable reports a valid exemption rule, BenefitsExemption that
 // the exemption applies. A frozen contribution carries the time and the
-// account of its confirmation.
+// account of its confirmation; Invoiced reports that an issued invoice
+// bills the registration, which then keeps its debtor number (#5621).
 type HolidayContribution struct {
 	Children           []HolidayChildContribution `json:"children"`
 	TotalCents         int64                      `json:"total_cents"`
@@ -90,6 +95,7 @@ type HolidayContribution struct {
 	BenefitsExemption  bool                       `json:"benefits_exemption"`
 	Frozen             bool                       `json:"frozen"`
 	ConfirmedAt        *time.Time                 `json:"confirmed_at"`
+	Invoiced           bool                       `json:"invoiced"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -120,11 +126,13 @@ type HolidayChild struct {
 }
 
 // HolidayRegistration is a holiday registration as the contribution needs
-// it: its state, the parents' statement on benefits and the children.
+// it: its state, the parents' statement on benefits, the debtor number of
+// the family (#5621) and the children.
 type HolidayRegistration struct {
 	ID               int64
 	Status           string
 	BenefitsDeclared bool
+	DebtorNumber     string
 	Children         []HolidayChild
 }
 
@@ -159,14 +167,51 @@ type HolidayReviewer struct {
 // HolidayRegistrations is Enrollment as the holiday contribution reads and
 // confirms a registration. The root binds it. ResolveHolidayLink runs in
 // the caller's administrative transaction, everything else in the Träger
-// transaction of the Träger; HolidayRegistration and
-// ConfirmHolidayRegistration record themselves in the registration's audit
-// trail and refuse a period or registration of another Träger.
+// transaction of the Träger; HolidayRegistration,
+// ConfirmHolidayRegistration and SetHolidayDebtorNumber record themselves in
+// the registration's audit trail and refuse a period or registration of
+// another Träger. Enrollment trims the debtor number and refuses one that
+// is too long or has a line break as a validation error on debtor_number
+// (#5621).
 type HolidayRegistrations interface {
 	ResolveHolidayLink(ctx context.Context, token string) (HolidayLink, error)
 	HolidayWeeks(ctx context.Context, link HolidayLink) ([]HolidayWeek, error)
 	HolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
-	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
+	// ConfirmHolidayRegistration confirms the registration with the debtor
+	// number; a blank one confirms without.
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+	// SetHolidayDebtorNumber changes the debtor number of a confirmed
+	// registration; a blank one removes it.
+	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+}
+
+// HolidayBillingSettings is the Träger level of the settings system as the
+// Elternabrechnung reads it (#5621, #5622). The root binds it; it reads in the
+// caller's Träger transaction.
+type HolidayBillingSettings interface {
+	// AsksDebtorNumber reports whether the Träger enters the debtor number
+	// of the family when it confirms a holiday registration: the Träger's
+	// value of parent_billing.debtor_number_on_confirm or its default.
+	AsksDebtorNumber(ctx context.Context, organizationID int64) (bool, error)
+	// PaymentText is the Träger's own payment sentence of the confirmation
+	// letter with its placeholders, empty for the built-in sentence: its
+	// value of parent_billing.payment_text or the default (#5622).
+	PaymentText(ctx context.Context, organizationID int64) (string, error)
+}
+
+// HolidayConfirmationSettings is what the Träger-Büro needs to know before
+// it confirms a registration (#5621).
+type HolidayConfirmationSettings struct {
+	// DebtorNumberRequired reports that a confirmation needs the debtor
+	// number of the family.
+	DebtorNumberRequired bool `json:"debtor_number_required"`
+}
+
+// HolidayDebtorNumber is the debtor number of a registration after a
+// change; empty means none.
+type HolidayDebtorNumber struct {
+	RegistrationID int64  `json:"id"`
+	DebtorNumber   string `json:"debtor_number"`
 }
 
 // HolidayQuoteBooking is a booking of the public form.
@@ -197,6 +242,16 @@ type HolidayContributions interface {
 	HolidayContribution(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (HolidayContribution, error)
 	// ConfirmHolidayRegistration confirms the registration and freezes its
 	// contribution in the same transaction. benefitsExemption applies the
-	// exemption rule.
-	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool) (HolidayConfirmation, error)
+	// exemption rule. debtorNumber is the number of the family; when the
+	// Träger asks for it, a blank one is a validation error on
+	// debtor_number before anything is written (#5621).
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, debtorNumber string) (HolidayConfirmation, error)
+	// HolidayConfirmationSettings reports what a confirmation of the
+	// session's Träger needs (#5621).
+	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)
+	// ChangeHolidayDebtorNumber changes the debtor number of a confirmed
+	// registration until an issued invoice bills it; then it is
+	// ErrDebtorNumberLocked (#5621). When the Träger asks for the number, a
+	// blank one is a validation error on debtor_number.
+	ChangeHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayDebtorNumber, error)
 }

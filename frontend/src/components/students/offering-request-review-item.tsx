@@ -19,7 +19,10 @@ import {
   type RosterImpact,
   type RosterImpactWire,
 } from "~/lib/roster-impact";
-import { CarePlanImpact } from "~/components/students/care-plan-impact";
+import {
+  CarePlanImpact,
+  type CarePlanImpactProgress,
+} from "~/components/students/care-plan-impact";
 import {
   RequestWaitlistPlaces,
   useCourseWaitlistRefresh,
@@ -120,6 +123,16 @@ function conflictDays(days: readonly string[]): string {
 }
 
 /**
+ * Eine freigegebene Anfrage, deren Karte noch ihre Auswirkung zeigt. Die
+ * Liste hält sie, damit die Karte nach einem Wechsel so wiederkommt.
+ */
+export interface HeldOfferingDecision {
+  readonly notice: string;
+  readonly impact: RosterImpact;
+  readonly progress?: CarePlanImpactProgress;
+}
+
+/**
  * Eine offene Angebots-Anfrage als entscheidbare Karte, inklusive der
  * Mitbuchungs-Abwahl mit Vorschau-Kaskade (#2370). Ablehnen verlangt eine
  * Begründung; nach der Entscheidung meldet onDecided den Hinweistext und der
@@ -132,9 +145,18 @@ export function OfferingRequestReviewItem({
   expectedVersion,
   decisionDisabledReason,
   approveReasonRequired = false,
+  held,
+  onHold,
 }: Readonly<{
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
+  /**
+   * Die Freigabe ist gespeichert, die Karte zeigt aber noch ihre Auswirkung.
+   * Die Liste behält die Anfrage dann, auch wenn sie im Hintergrund neu lädt.
+   */
+  onHold?: (decision: HeldOfferingDecision) => void;
+  /** Schon gehaltene Freigabe: die Karte zeigt sofort ihre Auswirkung. */
+  held?: HeldOfferingDecision;
   grouped?: boolean;
   /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
   expectedVersion?: string;
@@ -178,10 +200,9 @@ export function OfferingRequestReviewItem({
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   // Die Freigabe ist gespeichert, aber von Hand gepflegte Regeltermine
   // planen das Kind weiter ein (#5102).
-  const [applied, setApplied] = useState<{
-    notice: string;
-    impact: RosterImpact;
-  } | null>(null);
+  const [applied, setApplied] = useState<HeldOfferingDecision | null>(
+    held ?? null,
+  );
 
   const approvalNotice = (impact: RosterImpact | null) => {
     const base = `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}.`;
@@ -233,12 +254,17 @@ export function OfferingRequestReviewItem({
       const notice = approve
         ? approvalNotice(impact)
         : "Die Anfrage zum Angebot ist abgelehnt.";
-      if (impact && impact.notAdjusted.length > 0) {
-        // Von Hand gepflegte Regeltermine behalten das Kind (#5102): die
-        // Karte bleibt stehen, bis die OGS sie geprüft hat.
+      if (
+        impact &&
+        (impact.notAdjusted.length > 0 || impact.pickupOverrides.length > 0)
+      ) {
+        // Von Hand gepflegte Regeltermine behalten das Kind (#5102), von
+        // Hand eingetragene Abholzeiten überdecken die Buchung: die Karte
+        // bleibt stehen, bis die OGS sie geprüft hat.
         setApprovalPreview(null);
         setBusy(false);
         setApplied({ notice, impact });
+        onHold?.({ notice, impact });
         return;
       }
       onDecided(notice);
@@ -408,7 +434,12 @@ export function OfferingRequestReviewItem({
     return (
       <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
         <Alert type="success" message={applied.notice} />
-        <CarePlanImpact impact={applied.impact} studentId={row.student_id} />
+        <CarePlanImpact
+          impact={applied.impact}
+          studentId={row.student_id}
+          progress={applied.progress}
+          onProgress={(progress) => onHold?.({ ...applied, progress })}
+        />
         <div>
           <Button
             type="button"

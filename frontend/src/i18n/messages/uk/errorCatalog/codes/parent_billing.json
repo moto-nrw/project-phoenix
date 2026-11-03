@@ -16,6 +16,8 @@
   "contribution_rule_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "contribution_rule_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "contribution_rule_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "debtor_number_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "debtor_number_locked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
   "invoice_number_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "letter_mail_pending": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -23,5 +25,6 @@
   "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "parent_document_not_found": "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+  "payment_text_debtor_number_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

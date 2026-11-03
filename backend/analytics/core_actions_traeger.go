@@ -56,6 +56,9 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/contribution-rules/{id}"}:                                               notCaptured,
 	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm"}: notCaptured,
 	{http.MethodPost, "/traeger/holiday-quotes/{token}"}:                                                  notCaptured,
+	// The debtor number of a confirmed registration (#5621) belongs to the
+	// Träger as well.
+	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number"}: notCaptured,
 	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
 	// Träger: no school to count it for.
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,

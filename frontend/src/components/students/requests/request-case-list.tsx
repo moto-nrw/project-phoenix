@@ -13,6 +13,7 @@ import { formatDate } from "~/lib/date-helpers";
 import {
   caseDates,
   caseTypeLabels,
+  decidedRequestCount,
   openRequestCount,
   pastRequestCount,
   type CaseBuckets,
@@ -32,6 +33,7 @@ function countLabel(childCase: OpenCase): string {
       : `${count} abgelaufene Anfragen`;
   }
   const count = openRequestCount(childCase);
+  if (count === 0 && decidedRequestCount(childCase) > 0) return "Freigegeben";
   return count === 1 ? "1 offene Anfrage" : `${count} offene Anfragen`;
 }
 

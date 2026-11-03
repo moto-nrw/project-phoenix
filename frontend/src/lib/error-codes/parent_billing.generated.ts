@@ -17,6 +17,8 @@ export const codes = [
   "parent_billing.contribution_rule_invalid",
   "parent_billing.contribution_rule_not_found",
   "parent_billing.contribution_rule_overlap",
+  "parent_billing.debtor_number_invalid",
+  "parent_billing.debtor_number_locked",
   "parent_billing.holiday_quote_invalid",
   "parent_billing.invoice_number_taken",
   "parent_billing.letter_mail_pending",
@@ -24,6 +26,7 @@ export const codes = [
   "parent_billing.number_range_invalid",
   "parent_billing.number_range_missing",
   "parent_billing.parent_document_not_found",
+  "parent_billing.payment_text_debtor_number_missing",
   "parent_billing.recipient_email_missing",
 ] as const;
 
@@ -45,6 +48,8 @@ export const classes = {
   "parent_billing.contribution_rule_invalid": "input",
   "parent_billing.contribution_rule_not_found": "business_rejection",
   "parent_billing.contribution_rule_overlap": "business_rejection",
+  "parent_billing.debtor_number_invalid": "input",
+  "parent_billing.debtor_number_locked": "business_rejection",
   "parent_billing.holiday_quote_invalid": "input",
   "parent_billing.invoice_number_taken": "business_rejection",
   "parent_billing.letter_mail_pending": "business_rejection",
@@ -52,6 +57,7 @@ export const classes = {
   "parent_billing.number_range_invalid": "input",
   "parent_billing.number_range_missing": "business_rejection",
   "parent_billing.parent_document_not_found": "business_rejection",
+  "parent_billing.payment_text_debtor_number_missing": "business_rejection",
   "parent_billing.recipient_email_missing": "business_rejection",
 } as const;
 
@@ -73,6 +79,8 @@ export const parameters = {
   "parent_billing.contribution_rule_invalid": [],
   "parent_billing.contribution_rule_not_found": [],
   "parent_billing.contribution_rule_overlap": [],
+  "parent_billing.debtor_number_invalid": [],
+  "parent_billing.debtor_number_locked": [],
   "parent_billing.holiday_quote_invalid": [],
   "parent_billing.invoice_number_taken": [],
   "parent_billing.letter_mail_pending": [],
@@ -80,5 +88,6 @@ export const parameters = {
   "parent_billing.number_range_invalid": [],
   "parent_billing.number_range_missing": [],
   "parent_billing.parent_document_not_found": [],
+  "parent_billing.payment_text_debtor_number_missing": ["count"],
   "parent_billing.recipient_email_missing": [],
 } as const;

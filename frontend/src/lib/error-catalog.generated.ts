@@ -759,6 +759,10 @@ export const ERROR_CATALOG = {
         "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_overlap":
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.debtor_number_invalid":
+        "Bitte prüfen Sie die Debitorennummer.",
+      "parent_billing.debtor_number_locked":
+        "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_number_taken":
@@ -773,6 +777,8 @@ export const ERROR_CATALOG = {
         "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.payment_text_debtor_number_missing":
+        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
       "pickup.bulk_exception_confirmation_required":

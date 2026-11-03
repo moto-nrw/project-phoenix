@@ -89,6 +89,9 @@ type HolidayRegistrationOffer struct {
 	Open                 bool
 	// Form is the current version of the period's form (#5198).
 	Form HolidayPeriodForm
+	// ConsentTexts are the German texts of the fixed declarations the form
+	// shows, in HolidayConsentVersionCurrent (#5626).
+	ConsentTexts HolidayConsentTexts
 }
 
 // HolidayGuardianInput holds the registering or optional second guardian’s contact details.
@@ -97,6 +100,15 @@ type HolidayGuardianInput struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
+}
+
+// HolidayAddress is the postal address of the parent who registers
+// (#5625): all three parts or none. The form of the period decides whether
+// it is asked.
+type HolidayAddress struct {
+	Street     string `json:"street"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
 }
 
 // HolidayBookingInput is the time model a child books in one week.
@@ -139,8 +151,14 @@ type HolidayContactInput struct {
 // claims; they need BenefitsDeclared. FormVersion names
 // the version of the period's form the parent filled in (0 when the client
 // does not say); CustomData are the answers per family (#5198).
+// CustodyConfirmed and DeclarationName are required for every registration:
+// the parent confirms the custody and gives the declarations with the typed
+// name (#5626).
+// GuardianAddress is the postal address of the parent who registers, when
+// the form asks for it (#5625).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
+	GuardianAddress   *HolidayAddress
 	SecondGuardian    *HolidayGuardianInput
 	Children          []HolidayChildInput
 	EmergencyContacts []HolidayContactInput
@@ -148,6 +166,8 @@ type HolidayRegistrationInput struct {
 	PrivacyConsent    bool
 	HealthConsent     bool
 	BindingConfirmed  bool
+	CustodyConfirmed  bool
+	DeclarationName   string
 	BenefitsDeclared  bool
 	// BenefitsProofTokens are the single-use tokens of the uploaded proofs.
 	BenefitsProofTokens []string
@@ -155,9 +175,9 @@ type HolidayRegistrationInput struct {
 	CustomData          HolidayAnswers
 	LegalAcceptances    map[string]bool
 	// ConsentVersion is the version of the consent texts the parent agreed
-	// to (#4722); 0 when the client does not say. Only
-	// HolidayConsentVersionHostHealth lets the hosting OGS see the health
-	// information.
+	// to (#4722). A new registration names HolidayConsentVersionCurrent
+	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
+	// the health information.
 	ConsentVersion int
 }
 
@@ -223,14 +243,16 @@ type HolidayRegistrationMailChild struct {
 }
 
 // HolidayRegistrationMail is the payload of the receipt mail. It carries no
-// health information and no date of birth.
+// health information and no date of birth. Declaration is the parent's copy
+// of the declarations (#5626); a mail enqueued before has none.
 type HolidayRegistrationMail struct {
-	Recipient    string                         `json:"recipient_email"`
-	GuardianName string                         `json:"guardian_name"`
-	TraegerName  string                         `json:"traeger_name"`
-	PeriodName   string                         `json:"period_name"`
-	Binding      bool                           `json:"binding"`
-	Children     []HolidayRegistrationMailChild `json:"children"`
+	Recipient    string                              `json:"recipient_email"`
+	GuardianName string                              `json:"guardian_name"`
+	TraegerName  string                              `json:"traeger_name"`
+	PeriodName   string                              `json:"period_name"`
+	Binding      bool                                `json:"binding"`
+	Children     []HolidayRegistrationMailChild      `json:"children"`
+	Declaration  *HolidayRegistrationMailDeclaration `json:"declaration,omitempty"`
 }
 
 // HolidayRegistrationRetentionDays is how long the registrations of a period

@@ -77,6 +77,9 @@
   --color-moto-blue-strong: #315c9b;
   --color-moto-blue-soft: #edf3fc;
   --color-moto-time-tracking-soft: #e0f2fe;
+  --color-moto-time-tracking-light: #7dd3fc;
+  --color-moto-time-tracking: #0ea5e9;
+  --color-moto-time-tracking-strong: #0369a1;
   --color-moto-orange: #f78c10;
   --color-moto-orange-hover: #e07400;
   --color-moto-orange-strong: #9b5609;
@@ -676,7 +679,7 @@
   > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface) {
   flex: 1 0 auto;
   /* Die Höhe kommt aus dem Wachsen, nie aus der Klasse. Mit `h-full` (die
-     `InfoCard`) war die Ausgangsgröße 100 % des ganzen Rumpfs; die Karte
+     frühere `InfoCard`) war die Ausgangsgröße 100 % des ganzen Rumpfs; die Karte
      stand dann um die Höhe aller Karten über ihr unter der Unterkante, und
      die Seite scrollte ins Leere (#3893). Eine Höhe im Inline-Stil gewinnt
      weiter. */

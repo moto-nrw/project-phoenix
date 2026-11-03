@@ -1265,23 +1265,43 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchool. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction. ADR 0120 Nachtrag (#5630): the reconciliation names the home school of each guest copy with the same read, in the school's tenant transaction, where the school role may read platform.schools.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction. ADR 0120 Nachtrag (#5630): the reconciliation names the home school of each guest copy with the same read, in the school's tenant transaction, where the school role may read platform.schools.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction. ADR 0120 Nachtrag (#5630): the reconciliation names the home school of each guest copy with the same read, in the school's tenant transaction, where the school role may read platform.schools.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization. ADR 0116 (#4665): the participant list of the hosting school names the home schools from the schools of its Träger, read in Organisation \u0026 Tenancy's own read unit before the route opens the school's tenant transaction. ADR 0120 Nachtrag (#5630): the reconciliation names the home school of each guest copy with the same read, in the school's tenant transaction, where the school role may read platform.schools.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
       "target_owner": "organization-tenancy"
     },
     {

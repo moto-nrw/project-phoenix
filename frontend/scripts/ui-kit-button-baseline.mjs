@@ -29,31 +29,31 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
-    lines: [222],
+    lines: [223],
     reason: "Auswahloptionen eines Filters, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [196],
+    lines: [197],
     reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [170],
+    lines: [171],
     reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [440],
+    lines: [441],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-range-picker.tsx",
-    lines: [81],
+    lines: [82],
     reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
   },
   {
@@ -65,7 +65,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [133],
+    lines: [134],
     reason: "Navigationszeile der unteren Leiste",
   },
   {
@@ -224,19 +224,19 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-plan-view.tsx",
-    lines: [507],
+    lines: [503],
     reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1312],
+    lines: [1318],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1555],
+    lines: [1561],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -248,7 +248,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [138],
+    lines: [135],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {
@@ -260,13 +260,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1176],
+    lines: [1175],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/time-tracking/betreuungsplan-heute-card.tsx",
-    lines: [386],
+    lines: [394],
     reason:
       "Zeile „Betreuungsplan heute“, verlinkt auf Heute: Navigationszeile",
   },
@@ -287,7 +287,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1312],
+    lines: [1318],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {

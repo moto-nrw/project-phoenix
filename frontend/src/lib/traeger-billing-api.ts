@@ -71,6 +71,8 @@ export interface BillingDocument {
   readonly recipientFirstName: string;
   readonly recipientLastName: string;
   readonly recipientEmail: string;
+  /** The family's debtor number the invoice copies; empty without (#5621). */
+  readonly debtorNumber: string;
   readonly serviceFrom: string;
   readonly serviceUntil: string;
   readonly children: readonly BillingChild[];
@@ -83,6 +85,17 @@ export interface BillingRunDetail extends BillingRun {
   readonly previewCents: number;
   /** Confirmed registrations without a frozen contribution. */
   readonly unbilled: number;
+  /**
+   * Draft invoices without a debtor number while the Träger asks for one
+   * (#5621); 0 otherwise.
+   */
+  readonly missingDebtorNumbers: number;
+  /**
+   * Draft invoices with an amount and without a debtor number while the
+   * payment text names it, whatever the switch (#5622): after the release
+   * their letters are refused until the placeholder goes.
+   */
+  readonly paymentTextMissingDebtorNumbers: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
   /** Set once the confirmation letters of the released run exist (#4669). */
@@ -154,6 +167,7 @@ interface BackendDocument {
   recipient_first_name: string;
   recipient_last_name: string;
   recipient_email: string;
+  debtor_number?: string;
   service_from: string;
   service_until: string;
   children?:
@@ -183,6 +197,8 @@ interface BackendRunDetail extends BackendRun {
   preview_count: number;
   preview_cents: number;
   unbilled: number;
+  missing_debtor_numbers?: number;
+  payment_text_missing_debtor_numbers?: number;
   number_pattern: string;
   number_range_set: boolean;
   letters?: BackendLetters | null;
@@ -245,6 +261,7 @@ function documentFromBackend(document: BackendDocument): BillingDocument {
     recipientFirstName: document.recipient_first_name,
     recipientLastName: document.recipient_last_name,
     recipientEmail: document.recipient_email,
+    debtorNumber: document.debtor_number ?? "",
     serviceFrom: document.service_from,
     serviceUntil: document.service_until,
     totalCents: document.total_cents,
@@ -273,6 +290,9 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     previewCount: run.preview_count,
     previewCents: run.preview_cents,
     unbilled: run.unbilled,
+    missingDebtorNumbers: run.missing_debtor_numbers ?? 0,
+    paymentTextMissingDebtorNumbers:
+      run.payment_text_missing_debtor_numbers ?? 0,
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,

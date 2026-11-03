@@ -14,6 +14,7 @@ import type {
   HolidayKnownFamily,
   HolidayRegistrationOffer,
 } from "~/lib/holiday-registration-api";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 const { mockSubmit, mockQuote, mockUpload } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
@@ -112,6 +113,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 
@@ -196,6 +198,10 @@ function fillRegistration() {
   fireEvent.click(
     screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
+  fireEvent.click(
+    screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+  );
+  type(screen.getByLabelText("Ihr Vor- und Nachname"), "Eva Maria Muster");
 }
 
 async function renderFilledForm() {
@@ -369,6 +375,92 @@ describe("HolidayRegistrationForm", () => {
       screen.queryByText("Bitte prüfen Sie Ihre Angaben"),
     ).not.toBeInTheDocument();
     expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("asks for the custody and the name, shows the name in the summary and sends the declaration (#5626)", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm();
+    fillRegistration();
+    const consents = within(
+      screen
+        .getByRole("heading", { name: "Einverständnis" })
+        .closest("section")!,
+    );
+    // The binding German texts come with the offer; no consent is asked twice.
+    expect(
+      consents.getByLabelText(`${HOLIDAY_CONSENT_TEXTS.privacyConsent} *`),
+    ).toBeChecked();
+    expect(consents.getAllByRole("checkbox")).toHaveLength(3);
+    expect(
+      screen.getByText(HOLIDAY_CONSENT_TEXTS.declarationName),
+    ).toBeInTheDocument();
+    for (const word of [/Unterschrift/i, /unterschreib/i, /schriftlich/i]) {
+      expect(document.body.textContent).not.toMatch(word);
+    }
+
+    const custody = screen.getByLabelText(
+      `${HOLIDAY_CONSENT_TEXTS.custodyConfirmed} *`,
+    );
+    fireEvent.click(custody);
+    const name = screen.getByLabelText("Ihr Vor- und Nachname");
+    type(name, "  ");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte bestätigen Sie, dass Sie die Anmeldung abgeben dürfen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte geben Sie Ihren Namen ein."),
+    ).toBeInTheDocument();
+    expect(custody).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(mockSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(custody);
+    type(name, " Eva Maria Muster ");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    const declaration = within(
+      (await screen.findByRole("heading", { name: "Ihre Erklärung" })).closest(
+        "section",
+      )!,
+    );
+    expect(declaration.getByText("Eva Maria Muster")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        privacy_consent: true,
+        binding_confirmed: true,
+        custody_confirmed: true,
+        declaration_name: "Eva Maria Muster",
+        consent_version: 3,
+      }),
+    );
+  });
+
+  it("shows the field of a declaration the server refuses (#5626)", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "declaration_name", reason: "is required" }],
+      }),
+    );
+    await renderFilledForm();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    const name = await screen.findByLabelText("Ihr Vor- und Nachname");
+    await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
   });
 
   it("registers a holiday guest after the summary", async () => {
@@ -652,6 +744,10 @@ describe("HolidayRegistrationForm", () => {
       screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
     );
     fireEvent.click(
+      screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+    );
+    type(screen.getByLabelText("Ihr Vor- und Nachname"), "Sabine Schneider");
+    fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
     );
     await screen.findByText("Bitte prüfen Sie Ihre Angaben");
@@ -808,6 +904,138 @@ describe("second guardian card", () => {
   );
 });
 
+describe("address card (#5625)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  const asking = (
+    addressRequirement: "off" | "optional" | "required",
+  ): HolidayRegistrationOffer => ({
+    ...offer,
+    form: { ...offer.form, addressRequirement },
+  });
+
+  function addressCard(title: string) {
+    const heading = screen.getByRole("heading", { name: title });
+    return within(heading.closest("section")!);
+  }
+
+  async function send() {
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    return mockSubmit.mock.calls[0]![1] as Record<string, unknown>;
+  }
+
+  it("shows no address card when the form does not ask", () => {
+    renderForm(null, asking("off"));
+    expect(
+      screen.getByRole("heading", { name: "Ihre Angaben" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /^Anschrift/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets parents leave an optional address blank", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, asking("optional"));
+    const card = addressCard("Anschrift (freiwillig)");
+    expect(card.getByLabelText("Straße und Hausnummer")).not.toBeRequired();
+    expect(card.getByLabelText("PLZ")).not.toBeRequired();
+    expect(card.getByLabelText("Ort")).not.toBeRequired();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect((await send()).guardian_address).toBeUndefined();
+  });
+
+  it("marks every part of a required address and a short postal code", async () => {
+    renderForm(null, asking("required"));
+    fillRegistration();
+    const card = addressCard("Anschrift");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    for (const label of ["Straße und Hausnummer", "PLZ", "Ort"]) {
+      await waitFor(() =>
+        expect(card.getByLabelText(label)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+    }
+    type(card.getByLabelText("Straße und Hausnummer"), "Musterweg 12");
+    type(card.getByLabelText("PLZ"), "4914");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await card.findByText("Bitte geben Sie eine PLZ mit 5 Ziffern ein."),
+    ).toBeInTheDocument();
+    expect(card.getByLabelText("PLZ")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows the address in the summary and sends it", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, asking("required"));
+    fillRegistration();
+    const card = addressCard("Anschrift");
+    expect(card.getByLabelText("PLZ")).toBeRequired();
+    type(card.getByLabelText("Straße und Hausnummer"), " Musterweg 12 ");
+    type(card.getByLabelText("PLZ"), "01234");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(
+      screen.getByText("Musterweg 12, 01234 Bissendorf"),
+    ).toBeInTheDocument();
+    expect((await send()).guardian_address).toEqual({
+      street: "Musterweg 12",
+      postal_code: "01234",
+      city: "Bissendorf",
+    });
+  });
+
+  it("puts the refusal of the server at the address field", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [
+          { field: "guardian_address.postal_code", reason: "five digits" },
+        ],
+      }),
+    );
+    renderForm(null, asking("optional"));
+    fillRegistration();
+    const card = addressCard("Anschrift (freiwillig)");
+    type(card.getByLabelText("Straße und Hausnummer"), "Musterweg 12");
+    type(card.getByLabelText("PLZ"), "49143");
+    type(card.getByLabelText("Ort"), "Bissendorf");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    await send();
+    await waitFor(() =>
+      expect(
+        addressCard("Anschrift (freiwillig)").getByLabelText("PLZ"),
+      ).toHaveAttribute("aria-invalid", "true"),
+    );
+  });
+});
+
 /** The Träger's questions (#5198): per child and per family. */
 const offerWithQuestions: HolidayRegistrationOffer = {
   ...offer,
@@ -959,7 +1187,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       "link-key",
       expect.objectContaining({
         form_version: 3,
-        consent_version: 2,
+        consent_version: 3,
         custom_data: { newsletter: "Aus der Zeitung" },
         health_consent: true,
         children: [

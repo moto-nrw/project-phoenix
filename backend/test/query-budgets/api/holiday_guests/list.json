@@ -1,0 +1,6 @@
+{
+  "scenario": "api.holiday_guests.list",
+  "max": 2,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-guests (#5630, ADR 0120 Nachtrag):\nthe tenant binding of the school's transaction, then the guests of today\nwith the school names their copies carry. No read of the Träger's schools.\nFlat in the number of guests."
+}

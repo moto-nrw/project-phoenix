@@ -1,7 +1,7 @@
 "use client";
 
 // Shared realistic loading skeletons. Each primitive mirrors the markup of
-// its real kit counterpart (DataTable, InfoCard, PageHeaderWithSearch,
+// its real kit counterpart (DataTable, SectionCard, PageHeaderWithSearch,
 // detail-modal-components) so the pulse state has the same silhouette as the
 // loaded screen and the swap causes no layout reshuffle.
 //
@@ -116,7 +116,7 @@ export function TenantPageHeaderSkeleton({
   );
 }
 
-/** One InfoCard-shaped card: icon tile, title, then label/value rows. */
+/** One card-shaped skeleton: icon tile, title, then label/value rows. */
 export function CardSkeleton({ rows = 3 }: Readonly<{ rows?: number }>) {
   return (
     <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 sm:p-6">
@@ -136,7 +136,7 @@ export function CardSkeleton({ rows = 3 }: Readonly<{ rows?: number }>) {
   );
 }
 
-/** Responsive grid of InfoCard-shaped cards (same breakpoints as the list pages). */
+/** Responsive grid of card-shaped skeletons (same breakpoints as the list pages). */
 export function CardGridSkeleton({
   cards = 6,
   rowsPerCard = 3,

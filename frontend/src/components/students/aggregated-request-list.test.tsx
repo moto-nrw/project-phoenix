@@ -138,8 +138,32 @@ vi.mock("~/components/students/care-request-review-item", () => ({
   ),
 }));
 vi.mock("~/components/students/offering-request-review-item", () => ({
-  OfferingRequestReviewItem: ({ row }: { row: { id: string } }) => (
-    <div>offering-item-{row.id}</div>
+  OfferingRequestReviewItem: ({
+    row,
+    onHold,
+    onDecided,
+    held,
+  }: {
+    row: { id: string };
+    onHold?: (decision: { notice: string; impact: unknown }) => void;
+    onDecided: (notice: string) => void;
+    held?: { notice: string };
+  }) => (
+    <div>
+      <span>offering-item-{row.id}</span>
+      {held ? <span>gehalten: {held.notice}</span> : null}
+      <button
+        type="button"
+        onClick={() =>
+          onHold?.({ notice: "Freigegeben.", impact: { effectiveFrom: "" } })
+        }
+      >
+        Auswirkung zeigen
+      </button>
+      <button type="button" onClick={() => onDecided("Erledigt.")}>
+        Fertig
+      </button>
+    </div>
   ),
 }));
 vi.mock("~/components/students/excused-request-review-item", () => ({
@@ -3069,4 +3093,185 @@ describe("AggregatedRequestList", () => {
       );
     },
   );
+
+  // #5102: nach der Freigabe zeigt die Karte noch ihre Auswirkung. Lädt die
+  // Liste im Hintergrund neu, fehlt die Anfrage dort; die Karte bleibt, bis
+  // die OGS „Fertig“ wählt.
+  it("behält eine freigegebene Karte mit Auswirkung beim Neuladen", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [stampedItem("offering", "5", "2026-08-29T10:00:00Z")],
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+    const callsBefore = mockListOpen.mock.calls.length;
+    mockListOpen.mockResolvedValue({ items: [] });
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() =>
+      expect(mockListOpen.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+
+    expect(screen.getByText("offering-item-5")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+    await waitFor(() =>
+      expect(screen.queryByText("offering-item-5")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Erledigt.")).toBeInTheDocument();
+  });
+
+  // Die gehaltene Karte ist entschieden: Sie bleibt sichtbar, zählt aber
+  // sofort nicht mehr als offene Anfrage, nicht erst nach dem Neuladen.
+  it("zählt eine gehaltene Freigabe nicht mehr als offen", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        stampedItem("offering", "5", "2026-08-29T10:00:00Z"),
+        stampedItem("master_data", "6", "2026-08-29T09:00:00Z"),
+      ],
+    });
+    const onCountChange = vi.fn();
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        onCountChange={onCountChange}
+      />,
+    );
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(onCountChange).toHaveBeenLastCalledWith(2, false),
+    );
+    const callsBefore = mockListOpen.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+
+    await waitFor(() =>
+      expect(onCountChange).toHaveBeenLastCalledWith(1, false),
+    );
+    expect(screen.getByText("offering-item-5")).toBeInTheDocument();
+    expect(mockListOpen.mock.calls.length).toBe(callsBefore);
+  });
+
+  // Die gehaltene Karte zeigt nur noch die Auswirkung: Kind und Kopf zählen
+  // sie nicht mehr als offen, und gemeinsam freigeben lässt sie sich nicht.
+  it("bietet eine gehaltene Freigabe nicht mehr als offen an", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Erstes Kind",
+          expected_version: "v5",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "5" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Erstes Kind/ }),
+    );
+    expect(
+      await screen.findByLabelText("Gemeinsam freigeben: Erstes Kind"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+
+    expect(
+      await screen.findByText("gehalten: Freigegeben."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Freigegeben").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/offene Anfrage/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Gemeinsam freigeben: Erstes Kind"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Wechselt die OGS zu einem anderen Kind und zurück, kommt die Karte mit
+  // dem Ergebnis der Freigabe wieder, nicht als offene Anfrage.
+  it("zeigt eine gehaltene Freigabe nach einem Kindwechsel wieder", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Erstes Kind",
+          expected_version: "v5",
+          urgent_today: false,
+          bulk_eligible: false,
+          data: { id: "5" },
+        },
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T09:00:00Z",
+          student_id: "20",
+          student_name: "Zweites Kind",
+          expected_version: "v6",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "6" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Erstes Kind/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Auswirkung zeigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Zweites Kind/ }));
+    expect(await screen.findByText("master-item-6")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Erstes Kind/ }));
+
+    expect(
+      await screen.findByText("gehalten: Freigegeben."),
+    ).toBeInTheDocument();
+  });
+
+  // Suche, Kind und Art filtert der Server. Eine gehaltene Freigabe gehört
+  // in die Liste, in der sie entschieden wurde, nicht in eine Suche nach
+  // einem anderen Kind; mit den alten Filtern kommt sie wieder.
+  it("zeigt eine gehaltene Freigabe nur unter ihren Filtern", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [stampedItem("offering", "5", "2026-08-29T10:00:00Z")],
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+    const callsBefore = mockListOpen.mock.calls.length;
+    mockListOpen.mockResolvedValue({ items: [] });
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, search: "Anderes Kind" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockListOpen.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("offering-item-5")).not.toBeInTheDocument(),
+    );
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+  });
 });

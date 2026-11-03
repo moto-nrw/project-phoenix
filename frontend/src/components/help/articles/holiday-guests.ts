@@ -5,7 +5,9 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
  * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
  * Abholung, die Antworten, die der Träger freigibt (#5202), und die
- * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
+ * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Der Hinweis
+ * „Gast aus …“ nennt die Heimatschule, und Gäste stehen erst ab dem ersten
+ * Tag ihrer Woche in den Listen (#5630).
  */
 export function holidayGuestsTopic(): HelpTopic {
   return {
@@ -23,10 +25,10 @@ export function holidayGuestsTopic(): HelpTopic {
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
-      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste noch nicht in der Gruppe.",
+      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste in keiner Liste, auch nicht unter `Alle Kinder`.",
     ],
     steps: [
-      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht `Feriengast`.",
+      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht seine Schule, zum Beispiel `Gast aus Grundschule am See`.",
       "Melden Sie Feriengäste an und ab wie jedes andere Kind.",
       "Öffnen Sie die Karte eines Feriengasts.",
       "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
@@ -37,6 +39,7 @@ export function holidayGuestsTopic(): HelpTopic {
     result:
       "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
     notes: [
+      "Denselben Hinweis `Gast aus …` sehen Sie unter `Alle Kinder`, in der Aufsicht und auf der Karte des Kindes. Steht nur `Feriengast` da, haben die Eltern keine Schule genannt.",
       "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
       "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",

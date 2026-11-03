@@ -55,6 +55,11 @@ export interface OpenCase {
   /** Alle Anfragen dieses Kindes betreffen nur vergangene Tage. */
   past: boolean;
   conflicts: ConflictGroup[];
+  /**
+   * Schon freigegebene Anfragen, die nur noch ihre Auswirkung zeigen
+   * (#5102). Sie stehen in `items`, sind aber nicht mehr offen.
+   */
+  decided?: Pick<ReadonlySet<string>, "has">;
 }
 
 export function itemKey(item: AnyItem): string {
@@ -229,12 +234,16 @@ export function conflictedItemKeys(
 export function groupOpenCases(
   items: readonly AnyItem[],
   withdrawals: readonly CareWithdrawalCompletion[],
+  decided: Pick<ReadonlySet<string>, "has"> = new Set(),
 ): OpenCase[] {
   const cases = new Map<string, OpenCase>();
   items.forEach((item) => addOpenItem(cases, item as AggregatedOpenRequest));
   withdrawals.forEach((row) => addWithdrawalCase(cases, row));
   for (const childCase of cases.values()) {
-    childCase.conflicts = buildConflictGroups(childCase.items);
+    childCase.conflicts = buildConflictGroups(
+      childCase.items.filter((item) => !decided.has(itemKey(item))),
+    );
+    childCase.decided = decided;
     childCase.past =
       childCase.withdrawals.length === 0 &&
       childCase.items.length > 0 &&
@@ -296,10 +305,20 @@ export function caseTypeLabels(childCase: OpenCase): string[] {
  * Wie viele Anfragen dieser Fall in der Arbeitsliste bedeutet. Abgelaufene
  * Anfragen zählen nicht mit: sie fordern keine Entscheidung mehr.
  */
+function isDecided(childCase: OpenCase, item: AnyItem): boolean {
+  return childCase.decided?.has(itemKey(item)) === true;
+}
+
+/** Freigegeben, aber noch mit sichtbarer Auswirkung (#5102). */
+export function decidedRequestCount(childCase: OpenCase): number {
+  return childCase.items.filter((item) => isDecided(childCase, item)).length;
+}
+
 export function openRequestCount(childCase: OpenCase): number {
   return (
-    childCase.items.filter((item) => !isPast(item)).length +
-    childCase.withdrawals.length
+    childCase.items.filter(
+      (item) => !isPast(item) && !isDecided(childCase, item),
+    ).length + childCase.withdrawals.length
   );
 }
 

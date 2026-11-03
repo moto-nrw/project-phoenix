@@ -110,7 +110,7 @@ export default function FeedbackHistoryChart({
   return (
     <ChartContainer
       config={feedbackChartConfig}
-      className="!aspect-auto h-[180px] w-full sm:h-[220px]"
+      className="aspect-auto h-[180px] w-full sm:h-[220px]"
     >
       <FeedbackPlot data={data} />
     </ChartContainer>

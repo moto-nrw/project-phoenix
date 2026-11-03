@@ -2,10 +2,8 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import {
-  MOTO_DUOTONE_TONES,
-  MotoDuotoneIcon,
-} from "~/components/ui/moto-duotone-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 import { NAV_SCENES } from "./nav-scenes";

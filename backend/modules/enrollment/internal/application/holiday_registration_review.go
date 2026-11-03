@@ -49,10 +49,13 @@ type HolidayReviewStore interface {
 	// ReadHolidayProof reads one claimed proof of a registration of the
 	// period with its bytes.
 	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
-	// LockHolidayRegistration reads the status and the freeze override of
-	// a registration and holds its row.
-	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override string, found bool, err error)
+	// LockHolidayRegistration reads the status, the freeze override and the
+	// debtor number of a registration and holds its row.
+	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override, debtorNumber string, found bool, err error)
 	SetHolidayRegistrationStatus(ctx context.Context, organizationID, registrationID int64, status string) error
+	// SetHolidayDebtorNumber writes the debtor number of a registration;
+	// an empty one stores none (#5621).
+	SetHolidayDebtorNumber(ctx context.Context, organizationID, registrationID int64, debtorNumber string) error
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
 	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
 	// AppendHolidayAudit writes one entry; details travel as JSON.
@@ -87,27 +90,61 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
-// status counts of the whole period, and records the read.
+// status counts of the whole period, and records the read. The list names
+// no postal address (#5625).
 func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayRegistrationList, error) {
-	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
+	all, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
 	if err != nil {
 		return enrollment.HolidayRegistrationList{}, err
 	}
 	list := enrollment.HolidayRegistrationList{
-		Registrations: []enrollment.HolidayRegistrationSummary{}, Total: len(all), StatusCounts: map[string]int{},
+		Registrations: make([]enrollment.HolidayRegistrationSummary, 0, len(matching)), Total: len(all), StatusCounts: map[string]int{},
 	}
 	for _, registration := range all {
 		list.StatusCounts[registration.Status]++
+	}
+	for _, registration := range matching {
+		list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
+	}
+	return list, nil
+}
+
+// ListHolidayRegistrationRecipients lists the registrations of the filter
+// with the postal address of the parent who registered, for the invoices of
+// the Elternabrechnung (#5625), and records the read like the list.
+func (h *HolidayRegistrationReview) ListHolidayRegistrationRecipients(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationRecipient, error) {
+	_, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
+	if err != nil {
+		return nil, err
+	}
+	recipients := make([]enrollment.HolidayRegistrationRecipient, len(matching))
+	for i, registration := range matching {
+		recipients[i] = enrollment.HolidayRegistrationRecipient{
+			HolidayRegistrationSummary: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+		}
+	}
+	return recipients, nil
+}
+
+// listPeriod reads every registration of the period and those of the
+// filter, and records the read in the trail.
+func (h *HolidayRegistrationReview) listPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationDetail, []enrollment.HolidayRegistrationDetail, error) {
+	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	matching := []enrollment.HolidayRegistrationDetail{}
+	for _, registration := range all {
 		if holidayRegistrationMatches(registration.HolidayRegistrationSummary, filter) {
-			list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
+			matching = append(matching, registration)
 		}
 	}
 	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditList, map[string]any{
-		"filter": holidayFilterDetails(filter), "registrations": len(list.Registrations),
+		"filter": holidayFilterDetails(filter), "registrations": len(matching),
 	}); err != nil {
-		return enrollment.HolidayRegistrationList{}, err
+		return nil, nil, err
 	}
-	return list, nil
+	return all, matching, nil
 }
 
 // ExportHolidayRegistrations lists one row per booking of the filter with
@@ -251,12 +288,11 @@ func (h *HolidayRegistrationReview) OpenHolidayRegistrationProof(ctx context.Con
 	return file, nil
 }
 
-// ChangeHolidayRegistration confirms, cancels, freezes or reopens a
-// registration.
+// ChangeHolidayRegistration cancels, freezes or reopens a registration.
+// ConfirmHolidayRegistration confirms one (#5621).
 func (h *HolidayRegistrationReview) ChangeHolidayRegistration(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, action string) (enrollment.HolidayRegistrationDetail, error) {
 	apply := map[string]func(context.Context, int64, enrollment.HolidayPeriod, holidayRegistrationState) (any, error){
-		enrollment.HolidayAuditConfirm: h.confirm, enrollment.HolidayAuditCancel: h.cancel,
-		enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
+		enrollment.HolidayAuditCancel: h.cancel, enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
 	}[action]
 	if apply == nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: unknown holiday registration action %q", action)
@@ -265,17 +301,6 @@ func (h *HolidayRegistrationReview) ChangeHolidayRegistration(ctx context.Contex
 		details, err := apply(ctx, reviewer.OrganizationID, period, current)
 		return action, details, err
 	})
-}
-
-// confirm confirms a received registration, frozen or not.
-func (h *HolidayRegistrationReview) confirm(ctx context.Context, organizationID int64, _ enrollment.HolidayPeriod, current holidayRegistrationState) (any, error) {
-	if current.Status != enrollment.HolidayRegistrationReceived {
-		return nil, enrollment.ErrHolidayRegistrationStateConflict
-	}
-	if err := h.store.SetHolidayRegistrationStatus(ctx, organizationID, current.ID, enrollment.HolidayRegistrationConfirmed); err != nil {
-		return nil, err
-	}
-	return enrollment.HolidayRegistrationEventDetails{From: current.Status}, nil
 }
 
 // cancel cancels a registration that is not frozen.
@@ -368,14 +393,16 @@ func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollm
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	status, override, found, err := h.store.LockHolidayRegistration(ctx, reviewer.OrganizationID, periodID, registrationID)
+	status, override, debtorNumber, found, err := h.store.LockHolidayRegistration(ctx, reviewer.OrganizationID, periodID, registrationID)
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: lock holiday registration: %w", err)
 	}
 	if !found {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	action, details, err := apply(period, holidayRegistrationState{ID: registrationID, Status: status, FreezeOverride: override})
+	action, details, err := apply(period, holidayRegistrationState{
+		ID: registrationID, Status: status, FreezeOverride: override, DebtorNumber: debtorNumber,
+	})
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
@@ -402,6 +429,7 @@ type holidayRegistrationState struct {
 	ID             int64
 	Status         string
 	FreezeOverride string
+	DebtorNumber   string
 }
 
 // frozen reports whether a registration is frozen: frozen on purpose, or
@@ -455,6 +483,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	}
 	h.complete(period, read, overrides)
 	detail := read[0]
+	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion); ok {
+		detail.ConsentTexts = &texts
+	}
 	if detail.Contacts, err = h.store.ReadHolidayContacts(ctx, reviewer.OrganizationID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration contacts: %w", err)
 	}
@@ -604,7 +635,10 @@ func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, regi
 	}
 	for _, booking := range child.Bookings {
 		if holidayBookingMatches(booking, filter) {
-			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration.HolidayRegistrationSummary, SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking})
+			rows = append(rows, enrollment.HolidayRegistrationExportRow{
+				Registration: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+				SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking,
+			})
 		}
 	}
 	return rows

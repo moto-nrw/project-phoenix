@@ -8,16 +8,27 @@ vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
     onClose,
+    title,
+    icon,
+    description,
     children,
     footer,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    title: string;
+    icon?: ReactNode;
+    description?: ReactNode;
     children: ReactNode;
     footer: ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="modal">
+        <div data-testid="modal-header">
+          {icon}
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
         <button type="button" data-testid="modal-close" onClick={onClose}>
           Close
         </button>
