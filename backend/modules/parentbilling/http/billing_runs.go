@@ -284,7 +284,11 @@ func (rs *BillingRunResource) setNumberRange(w http.ResponseWriter, r *http.Requ
 // refusals keep the codes of the holiday periods.
 func renderBillingError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var missingDebtor *capability.PaymentTextDebtorNumberMissingError
 	switch {
+	case errors.As(err, &missingDebtor):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingPaymentTextDebtorNumberMissing,
+			map[string]any{"count": len(missingDebtor.InvoiceNumbers), "invoice_numbers": missingDebtor.InvoiceNumbers}))
 	case errors.As(err, &fields) && fields["format"] != nil:
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.As(err, &fields):

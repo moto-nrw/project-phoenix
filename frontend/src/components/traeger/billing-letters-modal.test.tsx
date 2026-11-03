@@ -42,3 +42,30 @@ it.each(schoolDateCases("2026-05-27"))(
     ).toBeInTheDocument();
   },
 );
+
+// A payment text with the debtor number refuses letters of a run with
+// invoices without one (#5622); the form names how many and what to do.
+it("names the invoices without a debtor number the payment text needs", async () => {
+  createBillingLetters.mockRejectedValue(
+    new ApiError("missing", 409, {
+      code: "parent_billing.payment_text_debtor_number_missing",
+      details: { count: 3, invoice_numbers: ["FE-0002", "FE-0003", "FE-0004"] },
+    }),
+  );
+  render(
+    <ToastProvider>
+      <BillingLettersModal
+        runId="9"
+        isOpen
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    </ToastProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Schreiben erstellen" }));
+  expect(
+    await screen.findByText(
+      /^Rechnungen ohne Debitorennummer: 3\. Ihr Zahlungstext nennt aber die Debitorennummer\./,
+    ),
+  ).toBeInTheDocument();
+});

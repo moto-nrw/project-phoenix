@@ -25,5 +25,6 @@
   "number_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "parent_document_not_found": "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+  "payment_text_debtor_number_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "recipient_email_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

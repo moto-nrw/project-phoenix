@@ -182,12 +182,31 @@ func positionLabel(position parentbilling.BillingPosition) string {
 	return strings.TrimSuffix(label, ",")
 }
 
-// paymentText asks for the transfer. The reference to pay with is the
-// debtor number of the family when the invoice has one (ADR 0121 addendum,
-// #5621), otherwise the invoice number.
+// The placeholders of the payment text of a Träger (#5622). The settings
+// registry admits exactly these four (parent_billing.payment_text).
+const (
+	placeholderAmount        = "{Betrag}"
+	placeholderPaymentDueOn  = "{Zahlungsfrist}"
+	placeholderInvoiceNumber = "{Rechnungsnummer}"
+	placeholderDebtorNumber  = "{Debitorennummer}"
+)
+
+// paymentText asks for the transfer. A Träger's own payment text replaces
+// the built-in sentence with its placeholders filled in (ADR 0121 addendum,
+// #5622); an invoice of 0 € keeps the fixed sentence. The reference to pay
+// with of the built-in sentence is the debtor number of the family when the
+// invoice has one (ADR 0121 addendum, #5621), otherwise the invoice number.
 func paymentText(content letterContent) string {
 	if content.document.TotalCents == 0 {
 		return "Sie müssen für diese Betreuung nichts bezahlen."
+	}
+	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
+		return strings.NewReplacer(
+			placeholderAmount, formatEuro(content.document.TotalCents),
+			placeholderPaymentDueOn, germanDate(content.input.PaymentDueOn),
+			placeholderInvoiceNumber, content.document.Number,
+			placeholderDebtorNumber, strings.TrimSpace(content.document.DebtorNumber),
+		).Replace(text)
 	}
 	reference := "die Rechnungsnummer " + content.document.Number
 	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {

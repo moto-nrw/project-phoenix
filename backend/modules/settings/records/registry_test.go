@@ -288,6 +288,35 @@ func TestValidate_ValidPattern(t *testing.T) {
 	assert.NotNil(t, def.Validation.CompiledPattern)
 }
 
+// A length limit belongs to a text field and is positive (#5622).
+func TestValidate_MaxLength(t *testing.T) {
+	t.Parallel()
+
+	length := func(n int) *int { return &n }
+	for name, tc := range map[string]struct {
+		fieldType FieldType
+		max       int
+		wantErr   string
+	}{
+		"textarea":       {fieldType: FieldTextarea, max: 600},
+		"text":           {fieldType: FieldText, max: 35},
+		"number refused": {fieldType: FieldNumber, max: 10, wantErr: "only be set for text fields"},
+		"zero refused":   {fieldType: FieldTextarea, max: 0, wantErr: "must be positive"},
+	} {
+		def := Definition{
+			Key: "test.max_length", Type: tc.fieldType, Tab: "system", Category: "general",
+			Validation: &ValidationRules{MaxLength: length(tc.max)},
+		}
+		err := def.Validate()
+		if tc.wantErr == "" {
+			assert.NoError(t, err, name)
+			continue
+		}
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.wantErr, name)
+	}
+}
+
 func TestValidate_DefaultBelowMin(t *testing.T) {
 	t.Parallel()
 

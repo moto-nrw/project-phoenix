@@ -308,6 +308,9 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
 		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
 	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedPaymentTextSettingKey, map[string]any{"value": seedPaymentText}); err != nil {
+		return "", fmt.Errorf("write the payment text of the letters: %w", err)
+	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
 	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
@@ -350,6 +353,16 @@ func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrati
 // number of the family at the confirmation (#5621); the demo Träger works
 // like Bissendorf and switches it on.
 const seedDebtorNumberSettingKey = "parent_billing.debtor_number_on_confirm"
+
+// seedPaymentTextSettingKey is the payment text of the Träger in the
+// confirmation letter (#5622). The demo Träger writes the Bissendorf text
+// with the sentence for families with a direct debit mandate; the seeded
+// run confirms only the siblings, who have a debtor number.
+const seedPaymentTextSettingKey = "parent_billing.payment_text"
+
+const seedPaymentText = "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. " +
+	"Geben Sie als Verwendungszweck Ihre Debitorennummer {Debitorennummer} an. " +
+	"Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab."
 
 // seedHolidayDebtorNumber is the invented debtor number of the confirmed
 // siblings; the letter names it as the reference to pay with.

@@ -61,6 +61,7 @@ export const categoryLabels: Record<string, string> = {
   essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
   "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
+  "ferien-schreiben": "Schreiben an die Familien",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",
   "frueh-abgeholt": "Früh abgeholt",
