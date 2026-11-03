@@ -17,7 +17,7 @@ import {
   type BackendConsentTexts,
   consentTextsFromBackend,
   type HolidayConsentTexts,
-} from "./holiday-registration-api";
+} from "./holiday-consent-texts";
 import type {
   HolidayFormField,
   HolidayFormVersion,

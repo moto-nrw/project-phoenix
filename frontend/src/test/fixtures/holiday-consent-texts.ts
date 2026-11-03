@@ -1,6 +1,6 @@
 /** The German consent texts of version 3 as the offer sends them (#5626). */
 
-import type { HolidayConsentTexts } from "~/lib/holiday-registration-api";
+import type { HolidayConsentTexts } from "~/lib/holiday-consent-texts";
 
 export const HOLIDAY_CONSENT_TEXTS: HolidayConsentTexts = {
   version: 3,

@@ -9,7 +9,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
-import type { HolidayConsentTexts } from "~/lib/holiday-registration-api";
+import type { HolidayConsentTexts } from "~/lib/holiday-consent-texts";
 import {
   DECLARATION_NAME_MAX_LENGTH,
   type FieldError,
