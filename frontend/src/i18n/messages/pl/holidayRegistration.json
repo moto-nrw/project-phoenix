@@ -1,6 +1,13 @@
 {
   "secondGuardianTitle": "Drugi opiekun prawny",
   "secondGuardianText": "Opcjonalnie. Jeśli podasz dane, imię i nazwisko są wymagane.",
+  "addressTitle": "Adres",
+  "addressTitleOptional": "Adres (dobrowolnie)",
+  "addressText": "Adres pojawi się na rachunku.",
+  "addressOptionalText": "Jeśli podają Państwo adres, wymagane są ulica, kod pocztowy i miejscowość. Adres pojawi się wtedy na rachunku.",
+  "street": "Ulica i numer domu",
+  "postalCode": "Kod pocztowy",
+  "city": "Miejscowość",
   "emailOptional": "Adres e-mail (opcjonalnie)",
   "eyebrow": "Opieka w ferie",
   "loading": "Zgłoszenie się ładuje.",
@@ -102,7 +109,8 @@
     "emergencyRequired": "Wybierz co najmniej jedną osobę do kontaktu w nagłych wypadkach.",
     "emergencyLimit": "Możesz podać najwyżej trzy osoby do kontaktu w nagłych wypadkach.",
     "pickupLimit": "Możesz upoważnić najwyżej pięć osób do odbioru dzieci.",
-    "contactLimit": "Możesz podać najwyżej osiem osób."
+    "contactLimit": "Możesz podać najwyżej osiem osób.",
+    "postalCode": "Proszę podać kod pocztowy z 5 cyfr."
   },
   "childQuestionsTitle": "Pytania i informacje o dziecku",
   "familyQuestionsTitle": "Pytania i informacje ogólne",

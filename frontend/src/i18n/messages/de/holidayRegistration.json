@@ -1,6 +1,13 @@
 {
   "secondGuardianTitle": "Zweite sorgeberechtigte Person",
   "secondGuardianText": "Freiwillig. Bei Angaben sind Vorname und Nachname nötig.",
+  "addressTitle": "Anschrift",
+  "addressTitleOptional": "Anschrift (freiwillig)",
+  "addressText": "Die Anschrift steht auf der Rechnung.",
+  "addressOptionalText": "Bei Angaben sind Straße, PLZ und Ort nötig. Die Anschrift steht dann auf der Rechnung.",
+  "street": "Straße und Hausnummer",
+  "postalCode": "PLZ",
+  "city": "Ort",
   "emailOptional": "E-Mail-Adresse (freiwillig)",
   "eyebrow": "Ferienbetreuung",
   "loading": "Die Anmeldung wird geladen.",
@@ -102,7 +109,8 @@
     "emergencyRequired": "Bitte wählen Sie mindestens einen Notfallkontakt.",
     "emergencyLimit": "Sie können höchstens drei Notfallkontakte angeben.",
     "pickupLimit": "Sie können höchstens fünf Abholpersonen angeben.",
-    "contactLimit": "Sie können höchstens acht Personen angeben."
+    "contactLimit": "Sie können höchstens acht Personen angeben.",
+    "postalCode": "Bitte geben Sie eine PLZ mit 5 Ziffern ein."
   },
   "childQuestionsTitle": "Fragen und Infos zum Kind",
   "familyQuestionsTitle": "Allgemeine Fragen und Infos",

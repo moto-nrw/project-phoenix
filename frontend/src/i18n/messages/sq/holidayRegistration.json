@@ -1,6 +1,13 @@
 {
   "secondGuardianTitle": "Kujdestari i dytë ligjor",
   "secondGuardianText": "Opsionale. Nëse jepni të dhëna, emri dhe mbiemri janë të detyrueshëm.",
+  "addressTitle": "Adresa",
+  "addressTitleOptional": "Adresa (opsionale)",
+  "addressText": "Adresa shfaqet në faturë.",
+  "addressOptionalText": "Nëse jepni adresën, nevojiten rruga, kodi postar dhe vendi. Atëherë ajo shfaqet në faturë.",
+  "street": "Rruga dhe numri i shtëpisë",
+  "postalCode": "Kodi postar",
+  "city": "Vendi",
   "emailOptional": "Adresa e emailit (opsionale)",
   "eyebrow": "Kujdesi gjatë pushimeve",
   "loading": "Regjistrimi po ngarkohet.",
@@ -102,7 +109,8 @@
     "emergencyRequired": "Ju lutemi zgjidhni të paktën një kontakt urgjence.",
     "emergencyLimit": "Mund të shënoni deri në tre kontakte urgjence.",
     "pickupLimit": "Mund të autorizoni deri në pesë persona për të marrë fëmijët.",
-    "contactLimit": "Mund të shënoni deri në tetë persona."
+    "contactLimit": "Mund të shënoni deri në tetë persona.",
+    "postalCode": "Ju lutemi shkruani një kod postar me 5 shifra."
   },
   "childQuestionsTitle": "Pyetje dhe informacione për fëmijën",
   "familyQuestionsTitle": "Pyetje dhe informacione të përgjithshme",

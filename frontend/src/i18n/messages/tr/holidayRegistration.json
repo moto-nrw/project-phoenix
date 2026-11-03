@@ -1,6 +1,13 @@
 {
   "secondGuardianTitle": "İkinci yasal veli",
   "secondGuardianText": "İsteğe bağlı. Bilgi girerseniz ad ve soyad zorunludur.",
+  "addressTitle": "Adres",
+  "addressTitleOptional": "Adres (isteğe bağlı)",
+  "addressText": "Adres faturada yer alır.",
+  "addressOptionalText": "Adres girerseniz sokak, posta kodu ve şehir zorunludur. Adres o zaman faturada yer alır.",
+  "street": "Sokak ve bina numarası",
+  "postalCode": "Posta kodu",
+  "city": "Şehir",
   "emailOptional": "E-posta adresi (isteğe bağlı)",
   "eyebrow": "Tatil bakımı",
   "loading": "Kayıt yükleniyor.",
@@ -102,7 +109,8 @@
     "emergencyRequired": "Lütfen acil durumda aranacak en az bir kişi seçin.",
     "emergencyLimit": "Acil durumda aranacak en fazla üç kişi girebilirsiniz.",
     "pickupLimit": "Çocukları alabilecek en fazla beş kişi girebilirsiniz.",
-    "contactLimit": "En fazla sekiz kişi girebilirsiniz."
+    "contactLimit": "En fazla sekiz kişi girebilirsiniz.",
+    "postalCode": "Lütfen 5 haneli bir posta kodu girin."
   },
   "childQuestionsTitle": "Çocuk hakkında sorular ve bilgiler",
   "familyQuestionsTitle": "Genel sorular ve bilgiler",

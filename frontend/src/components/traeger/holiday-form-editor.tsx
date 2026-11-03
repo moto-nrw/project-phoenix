@@ -4,7 +4,8 @@
 // wie der Baukasten der Online-Anmeldung, beschränkt auf einfache Feldtypen
 // und Bedingungen auf andere Fragen. Jede Frage gilt je Familie oder je Kind
 // und kann eine Gesundheitsangabe sein. Eine Frage ohne Gesundheitsangabe kann
-// die ausrichtende OGS sehen (#5202). Speichern legt eine neue Version an.
+// die ausrichtende OGS sehen (#5202). Der feste Baustein „Anschrift“ fragt
+// die Anschrift ab (#5625). Speichern legt eine neue Version an.
 
 import { FileText, Plus, TextCursorInput } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -47,6 +48,10 @@ import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
+import {
+  HolidayFormAddress,
+  holidayAddressPreviewFields,
+} from "./holiday-form-address";
 import {
   holidayFieldsSignature,
   insertTemplateFields,
@@ -97,6 +102,7 @@ export function HolidayFormEditor({
   const [legalBlocks, setLegalBlocks] = useState<FormLegalBlock[]>(() => [
     ...(form.legalBlocks ?? []),
   ]);
+  const [address, setAddress] = useState(form.addressRequirement);
   const drafts = useRef(new Set<string>());
   const [uploads, setUploads] = useState(0);
   const adapter = useMemo(
@@ -139,7 +145,8 @@ export function HolidayFormEditor({
   );
   const dirty =
     holidayFieldsSignature(fields) !== holidayFieldsSignature(form.fields) ||
-    JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []);
+    JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []) ||
+    address !== form.addressRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
 
   const update = (index: number, patch: Partial<HolidayFormField>) =>
@@ -175,6 +182,7 @@ export function HolidayFormEditor({
         periodId,
         prepareHolidayFieldsForSave(fields),
         legalBlocks,
+        address,
       );
       for (const block of saved.legalBlocks ?? []) {
         for (const attachment of block.attachments ?? [])
@@ -183,6 +191,7 @@ export function HolidayFormEditor({
       await cleanup();
       setFields([...saved.fields]);
       setLegalBlocks([...(saved.legalBlocks ?? [])]);
+      setAddress(saved.addressRequirement);
       success(
         `Das Anmeldeformular ist als Version ${saved.version} gespeichert.`,
       );
@@ -314,6 +323,11 @@ export function HolidayFormEditor({
                   Infotext hinzufügen
                 </Button>
               </div>
+              <HolidayFormAddress
+                value={address}
+                onChange={setAddress}
+                disabled={saving || uploads > 0}
+              />
               <LegalBlocksSection
                 blocks={legalBlocks}
                 standardBlocks={[]}
@@ -334,6 +348,7 @@ export function HolidayFormEditor({
                   errorPath.clear();
                   void cleanup();
                   setLegalBlocks([...(form.legalBlocks ?? [])]);
+                  setAddress(form.addressRequirement);
                   // New row identities also discard row-local input drafts.
                   setFields(form.fields.map((field) => ({ ...field })));
                 }}
@@ -386,6 +401,16 @@ export function HolidayFormEditor({
                 title="Elternteil"
                 fields={["Vorname *", "Nachname *", "E-Mail *", "Telefon *"]}
               />
+              {address === "off" ? null : (
+                <PreviewSection
+                  title={
+                    address === "optional"
+                      ? germanMessages.addressTitleOptional
+                      : germanMessages.addressTitle
+                  }
+                  fields={holidayAddressPreviewFields(address)}
+                />
+              )}
               <PreviewFieldsSection
                 title={germanMessages.familyQuestionsTitle}
                 fields={familyFields}

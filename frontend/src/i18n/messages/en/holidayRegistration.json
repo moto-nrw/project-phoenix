@@ -1,6 +1,13 @@
 {
   "secondGuardianTitle": "Second legal guardian",
   "secondGuardianText": "Optional. If you enter any details, both names are required.",
+  "addressTitle": "Address",
+  "addressTitleOptional": "Address (optional)",
+  "addressText": "The address appears on the invoice.",
+  "addressOptionalText": "If you enter an address, street, postcode and town are required. It then appears on the invoice.",
+  "street": "Street and house number",
+  "postalCode": "Postcode",
+  "city": "Town",
   "emailOptional": "Email address (optional)",
   "eyebrow": "Holiday care",
   "loading": "Loading the registration.",
@@ -102,7 +109,8 @@
     "emergencyRequired": "Please select at least one emergency contact.",
     "emergencyLimit": "You can enter up to three emergency contacts.",
     "pickupLimit": "You can enter up to five people who may collect the children.",
-    "contactLimit": "You can enter up to eight people."
+    "contactLimit": "You can enter up to eight people.",
+    "postalCode": "Please enter a postcode with 5 digits."
   },
   "childQuestionsTitle": "Questions and info about the child",
   "familyQuestionsTitle": "General questions and info",

@@ -95,6 +95,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
       "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
+      "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",

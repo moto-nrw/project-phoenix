@@ -1,4 +1,5 @@
 import {
+  holidayAddressRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -90,6 +91,7 @@ interface BackendOffer {
     version: number;
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
+    address_requirement?: string | null;
   } | null;
 }
 
@@ -102,6 +104,12 @@ export interface HolidayRegistrationPayload {
     readonly phone: string;
   };
   readonly second_guardian?: HolidayRegistrationPayload["guardian"];
+  /** Only when the form asks for it and the parent filled it in (#5625). */
+  readonly guardian_address?: {
+    readonly street: string;
+    readonly postal_code: string;
+    readonly city: string;
+  };
   readonly children: readonly {
     readonly first_name: string;
     readonly last_name: string;
@@ -176,6 +184,9 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       legalBlocks: holidayLegalBlocks(offer.form?.legal_blocks),
       version: offer.form?.version ?? 0,
       fields: offer.form?.fields ?? [],
+      addressRequirement: holidayAddressRequirement(
+        offer.form?.address_requirement,
+      ),
     },
   };
 }
