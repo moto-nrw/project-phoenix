@@ -90,6 +90,54 @@ export function ListboxTriggerContent({
   );
 }
 
+// A search field inside a dialog: the dialog's focus trap (Radix FocusScope)
+// pulls focus out of everything portaled to document.body, so the field could
+// be clicked but not typed into. Outside a dialog the selector matches nothing
+// and the menu portals to the body as usual.
+const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLocaleLowerCase("de");
+}
+
+/**
+ * The search field of `CustomSelect` and `MultiSelect`: filters the options
+ * by label, empties itself when the menu closes, and says when nothing
+ * matches. Spread `listboxProps` onto the `ListboxDropdown`; render
+ * `visibleOptions` in it.
+ */
+export function useListboxSearch<O extends { readonly label: string }>(
+  options: readonly O[],
+  enabled: boolean,
+  searchPlaceholder: string,
+) {
+  const [query, setQuery] = useState("");
+  const needle = normalizeSearch(query);
+  const visibleOptions =
+    enabled && needle
+      ? options.filter((option) =>
+          normalizeSearch(option.label).includes(needle),
+        )
+      : options;
+  const listboxProps = enabled
+    ? {
+        searchValue: query,
+        onSearchChange: setQuery,
+        searchPlaceholder,
+        onOpenChange: (open: boolean) => {
+          if (!open) setQuery("");
+        },
+        portalScopeSelector: SEARCHABLE_PORTAL_SCOPE,
+        emptyState: (
+          <li role="presentation">
+            <p className="px-4 py-2 text-sm text-gray-500">Keine Treffer.</p>
+          </li>
+        ),
+      }
+    : {};
+  return { visibleOptions, searching: needle.length > 0, listboxProps };
+}
+
 export function ListboxChevron({ open }: Readonly<{ open: boolean }>) {
   return (
     <ChevronDown

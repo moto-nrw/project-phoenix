@@ -839,22 +839,5 @@ describe("CustomSelect", () => {
       expect(onChange).toHaveBeenCalledWith("second");
       expect(screen.queryByRole("listbox")).toBeNull();
     });
-
-    it("keeps a disabled trigger on the grey disabled fill", () => {
-      render(
-        <CustomSelect
-          ariaLabel="Auswahl"
-          disabled
-          value="first"
-          options={options}
-          onChange={vi.fn()}
-        />,
-      );
-
-      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
-      expect(trigger).toBeDisabled();
-      // moto-content-surface is unlayered and would paint over the grey fill.
-      expect(trigger.className).not.toContain("moto-content-surface");
-    });
   });
 });

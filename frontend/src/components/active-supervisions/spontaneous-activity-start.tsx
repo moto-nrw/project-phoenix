@@ -586,26 +586,19 @@ export function SpontaneousActivityStart({
             </div>
           ) : null}
 
-          <div>
-            <span className="mb-2 block text-sm font-medium text-gray-700">
-              Raum
-            </span>
-            <CustomSelect
-              value={roomId}
-              options={roomOptions}
-              onChange={setRoomId}
-              ariaLabel="Raum"
-              disabled={isLoadingRefs}
-              required
-              invalid={isSelectedRoomOccupied}
-              placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
-            />
-            {isSelectedRoomOccupied ? (
-              <span className="text-moto-red-hover mt-1 block text-xs">
-                Dieser Raum ist bereits belegt.
-              </span>
-            ) : null}
-          </div>
+          <CustomSelect
+            label="Raum"
+            value={roomId}
+            options={roomOptions}
+            onChange={setRoomId}
+            disabled={isLoadingRefs}
+            required
+            error={
+              isSelectedRoomOccupied ? "Dieser Raum ist bereits belegt." : null
+            }
+            errorLive
+            placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
+          />
 
           {isLoadingRefs || !staffLoaded ? null : (
             <div className="space-y-2">

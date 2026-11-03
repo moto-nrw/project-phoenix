@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
-
 import { cn } from "~/lib/utils";
 
 import { Button } from "./button";
-import { normalizeSearch, SEARCHABLE_PORTAL_SCOPE } from "./custom-select";
 import {
   ListboxDropdown,
   ListboxTriggerContent,
+  useListboxSearch,
   type ListboxDropdownSize,
 } from "./listbox-dropdown";
 
@@ -116,7 +114,6 @@ export function MultiSelect({
   selectAll = false,
   testId,
 }: MultiSelectProps) {
-  const [query, setQuery] = useState("");
   const selected = [...new Set(value)];
   const selectedSet = new Set(selected);
   const selectedOptions = options.filter((option) =>
@@ -137,13 +134,11 @@ export function MultiSelect({
     return selected.map(labelFor).join(", ");
   })();
 
-  const needle = normalizeSearch(query);
-  const visibleOptions =
-    searchable && needle
-      ? options.filter((option) =>
-          normalizeSearch(option.label).includes(needle),
-        )
-      : options;
+  const { visibleOptions, searching, listboxProps } = useListboxSearch(
+    options,
+    searchable,
+    searchPlaceholder,
+  );
   const selectableVisible = visibleOptions.filter((option) => !option.disabled);
   const allVisibleSelected =
     selectableVisible.length > 0 &&
@@ -167,10 +162,10 @@ export function MultiSelect({
   };
 
   const selectAllLabel = allVisibleSelected
-    ? needle
+    ? searching
       ? "Treffer abwählen"
       : "Auswahl aufheben"
-    : needle
+    : searching
       ? "Alle Treffer auswählen"
       : "Alle auswählen";
 
@@ -214,24 +209,7 @@ export function MultiSelect({
       menuClassName={menuClassName}
       menuAlign={menuAlign}
       menuHeader={menuHeader}
-      {...(searchable
-        ? {
-            searchValue: query,
-            onSearchChange: setQuery,
-            searchPlaceholder,
-            onOpenChange: (open: boolean) => {
-              if (!open) setQuery("");
-            },
-            portalScopeSelector: SEARCHABLE_PORTAL_SCOPE,
-            emptyState: (
-              <li role="presentation">
-                <p className="px-4 py-2 text-sm text-gray-500">
-                  Keine Treffer.
-                </p>
-              </li>
-            ),
-          }
-        : {})}
+      {...listboxProps}
       renderTrigger={({ open }) => (
         <ListboxTriggerContent
           label={triggerLabel}

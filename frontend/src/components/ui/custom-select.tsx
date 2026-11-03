@@ -8,6 +8,7 @@ import { FieldLabel } from "./field-label";
 import {
   ListboxDropdown,
   ListboxTriggerContent,
+  useListboxSearch,
   type ListboxDropdownSize,
 } from "./listbox-dropdown";
 
@@ -39,6 +40,12 @@ interface CustomSelectProps {
   readonly invalid?: boolean;
   /** Message under the field; marks it as failed (`aria-invalid`). */
   readonly error?: string | null;
+  /**
+   * Read the error out the moment it appears (`role="alert"`), for a check
+   * that runs while the person edits. A message after Speichern stays quiet:
+   * the form's `FormErrorAlert` announces the failure once.
+   */
+  readonly errorLive?: boolean;
   /** Gray help line under the field. */
   readonly hint?: string;
   /**
@@ -80,16 +87,6 @@ const VALIDATION_SELECT_STYLE: CSSProperties = {
   pointerEvents: "none",
 };
 
-// A search field inside a dialog: the dialog's focus trap (Radix FocusScope)
-// pulls focus out of everything portaled to document.body, so the field could
-// be clicked but not typed into. Outside a dialog the selector matches nothing
-// and the menu portals to the body as usual.
-export const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
-
-export function normalizeSearch(value: string): string {
-  return value.trim().toLocaleLowerCase("de");
-}
-
 export function CustomSelect({
   value,
   options,
@@ -105,6 +102,7 @@ export function CustomSelect({
   required = false,
   invalid = false,
   error,
+  errorLive = false,
   hint,
   searchable = false,
   searchPlaceholder = "Suchen",
@@ -120,23 +118,19 @@ export function CustomSelect({
   const errorId = error ? `${fieldId}-error` : undefined;
   const hintId = hint ? `${fieldId}-hint` : undefined;
   const describedBy =
-    [ariaDescribedBy, errorId, hintId].filter(Boolean).join(" ") || undefined;
+    [ariaDescribedBy, hintId, errorId].filter(Boolean).join(" ") || undefined;
   const isInvalid = invalid || Boolean(error);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const validationRef = useRef<HTMLSelectElement | null>(null);
   const [form, setForm] = useState<HTMLFormElement | null>(null);
-  const [query, setQuery] = useState("");
   const hasEmptyOption = options.some((option) => option.value === "");
   const selectedOption = options.find((option) => option.value === value);
-
-  const needle = normalizeSearch(query);
-  const visibleOptions =
-    searchable && needle
-      ? options.filter((option) =>
-          normalizeSearch(option.label).includes(needle),
-        )
-      : options;
+  const { visibleOptions, listboxProps } = useListboxSearch(
+    options,
+    searchable,
+    searchPlaceholder,
+  );
 
   useEffect(() => {
     if (!required) {
@@ -191,24 +185,7 @@ export function CustomSelect({
           className,
         )}
         menuClassName={menuClassName}
-        {...(searchable
-          ? {
-              searchValue: query,
-              onSearchChange: setQuery,
-              searchPlaceholder,
-              onOpenChange: (open: boolean) => {
-                if (!open) setQuery("");
-              },
-              portalScopeSelector: SEARCHABLE_PORTAL_SCOPE,
-              emptyState: (
-                <li role="presentation">
-                  <p className="px-4 py-2 text-sm text-gray-500">
-                    Keine Treffer.
-                  </p>
-                </li>
-              ),
-            }
-          : {})}
+        {...listboxProps}
         renderOption={
           wrapLabels
             ? (option) => (
@@ -265,16 +242,23 @@ export function CustomSelect({
   return (
     <div className="min-w-0">
       {label ? (
-        <FieldLabel id={labelId} required={required} invalid={isInvalid}>
+        <FieldLabel
+          id={labelId}
+          htmlFor={fieldId}
+          required={required}
+          invalid={isInvalid}
+        >
           {label}
         </FieldLabel>
       ) : null}
       {field}
-      {errorId ? <FieldErrorHint id={errorId} message={error} /> : null}
       {hint && hintId ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-500">
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
           {hint}
         </p>
+      ) : null}
+      {errorId ? (
+        <FieldErrorHint id={errorId} message={error} live={errorLive} />
       ) : null}
     </div>
   );
