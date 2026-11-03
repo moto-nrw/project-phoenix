@@ -549,7 +549,7 @@ export function ClassDayOverview({
         } as CSSProperties
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface rounded-2xl border p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">

@@ -1,12 +1,10 @@
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
-export const timetableSurface =
-  "moto-content-surface rounded-2xl border shadow-sm";
+export const timetableSurface = "moto-content-surface rounded-2xl border";
 
 export const timetableSurfacePadded = `${timetableSurface} p-4 sm:p-5`;
 
-export const timetableNestedSurface =
-  "moto-content-surface rounded-xl border shadow-sm";
+export const timetableNestedSurface = "moto-content-surface rounded-xl border";
 
 export const timetableMutedSurface =
   "rounded-xl border border-gray-200 bg-gray-50/70";

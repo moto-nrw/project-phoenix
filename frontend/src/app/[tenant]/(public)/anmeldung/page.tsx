@@ -95,9 +95,9 @@ export default function EnrollPhasePickerPage() {
     return (
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
-        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border shadow-sm">
+        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border">
           <div
-            className="moto-content-surface rounded-xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
+            className="moto-content-surface rounded-xl border px-5 py-4 text-sm font-medium text-gray-600"
             role="status"
             aria-live="polite"
           >
@@ -112,7 +112,7 @@ export default function EnrollPhasePickerPage() {
     <PublicEnrollmentPageShell withInlineSwitcher>
       <PhasePickerHeader tenant={tenant} />
 
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
@@ -144,7 +144,7 @@ export default function EnrollPhasePickerPage() {
                         href={tenantPath(
                           `/anmeldung/${encodeURIComponent(phase.id)}`,
                         )}
-                        className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                        className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left focus-visible:outline-2 focus-visible:outline-gray-400 sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">

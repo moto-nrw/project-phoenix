@@ -473,7 +473,7 @@ export function OgsConversation({
       ref={containerRef}
       className="flex min-h-[20rem] w-full flex-col gap-3 overflow-hidden"
     >
-      <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
+      <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
           {showBack ? <BackBar /> : null}
           {loading ? (
@@ -799,7 +799,7 @@ function RequestItem({
 }: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-2xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">
@@ -986,7 +986,7 @@ function ConversationComposerSkeleton() {
   return (
     <div
       data-testid="parent-conversation-composer-skeleton"
-      className="moto-content-surface rounded-xl border p-3 shadow-sm"
+      className="moto-content-surface rounded-xl border p-3"
       aria-hidden="true"
     >
       <Skeleton className="h-16 w-full rounded-lg" />

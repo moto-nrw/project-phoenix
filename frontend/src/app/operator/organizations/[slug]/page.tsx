@@ -623,7 +623,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     return (
       <div className="w-full">
         <BackLink {...ORGANIZATIONS_BACK} />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
       </div>

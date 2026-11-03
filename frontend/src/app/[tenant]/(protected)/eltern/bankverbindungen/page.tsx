@@ -10,6 +10,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ExportDialog } from "~/components/ui/export-dialog";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -161,9 +162,7 @@ function BankverbindungenContent() {
       header: "IBAN",
       render: (row) =>
         row.ibanMasked === "" ? (
-          <span className="text-sm" style={{ color: LOCATION_COLORS.WARNING }}>
-            Fehlt
-          </span>
+          <StatusColorBadge label="Fehlt" color={LOCATION_COLORS.WARNING} />
         ) : (
           <span className="font-mono text-sm text-gray-900">
             {row.ibanMasked}

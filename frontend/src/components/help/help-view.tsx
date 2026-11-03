@@ -434,7 +434,7 @@ function GroupOverview({
             <Link
               key={item.id}
               href={hrefFor(item.id)}
-              className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <MotoDuotoneIcon
                 icon={HELP_ICONS[item.icon]}
@@ -479,7 +479,7 @@ function RelatedTopics({
           <Link
             key={item.id}
             href={hrefFor(item.id)}
-            className="moto-content-surface group flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="moto-content-surface group flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
           >
             <span>
               <span className="block text-sm font-semibold text-gray-900">
@@ -769,7 +769,7 @@ function DocumentationArticle({
             {troubleshootingTopic && (
               <Link
                 href={hrefFor(troubleshootingTopic.id)}
-                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
               >
                 <span className="font-semibold text-gray-900">
                   {troubleshootingTopic.title}
@@ -1214,7 +1214,7 @@ function HelpDocumentationShell({
                     <Link
                       key={item.id}
                       href={hrefFor(item.id)}
-                      className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
                     >
                       <MotoDuotoneIcon
                         icon={HELP_ICONS[item.icon]}

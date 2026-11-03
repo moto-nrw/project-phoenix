@@ -400,7 +400,7 @@ export function NewMessageModal({
                       </span>
                       <span className="ml-2 flex flex-shrink-0 items-center gap-2">
                         {g.is_primary && (
-                          <span className="bg-moto-green/10 text-moto-green-vivid rounded-full px-2 py-0.5 text-xs font-medium">
+                          <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
                             primär
                           </span>
                         )}

@@ -349,7 +349,7 @@ export function VacationRequestModal({
               <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 Zeitraum
               </p>
-              <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
+              <div className="moto-content-surface overflow-hidden rounded-xl border">
                 <RangeCalendarInline
                   value={range}
                   onChange={(nextRange) => {
@@ -390,7 +390,7 @@ export function VacationRequestModal({
             {range?.from &&
               range?.to &&
               (isSingleDay ? (
-                <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3 shadow-sm">
+                <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
                   <div>
                     <p className="text-sm font-medium text-gray-800">
                       Halber Tag
@@ -413,7 +413,7 @@ export function VacationRequestModal({
                   <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                     Halbe Tage an den Rändern
                   </p>
-                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3 shadow-sm">
+                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-gray-800">
                         Erster Tag halbtags
@@ -429,7 +429,7 @@ export function VacationRequestModal({
                       }}
                     />
                   </div>
-                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3 shadow-sm">
+                  <div className="moto-content-surface flex items-center justify-between rounded-xl border px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-gray-800">
                         Letzter Tag halbtags

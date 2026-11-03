@@ -287,7 +287,7 @@ function NotificationPreferencesSectionContent({
   }, []);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 md:p-6">
       <ConceptSectionHeader
         className="mb-4"
         // Die Kanalgruppen darunter sind h4, und auf /parents/settings ist

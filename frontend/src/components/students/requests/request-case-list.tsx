@@ -139,7 +139,7 @@ export function RequestCaseList({
   onSelect: (childCase: OpenCase) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <CaseBucket
         id="request-group-urgent"
         title="Heute wichtig"

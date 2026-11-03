@@ -632,7 +632,7 @@ function PollChildCard({
   return (
     <fieldset
       disabled={poll.closed || poll.saving}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
+      className="moto-content-surface rounded-2xl border p-4 disabled:opacity-60"
     >
       <legend className="mb-3 w-full">
         <span className="flex items-center justify-between gap-3">
@@ -986,7 +986,7 @@ function NewsMessageSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+      className="moto-content-surface rounded-2xl border p-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">

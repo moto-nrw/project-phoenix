@@ -38,7 +38,7 @@ export function StudentSelectionBar({
 
   return (
     <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2 shadow-sm"
+      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2"
       role="region"
       aria-label="Ausgewählte Kinder"
       aria-busy={isRunning}

@@ -44,8 +44,7 @@ interface MultiSelectProps {
 const TRIGGER_BASE_CLASS =
   "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80";
 
-const DEFAULT_TRIGGER_CLASS =
-  "moto-content-surface h-10 w-full hover:border-gray-300";
+const DEFAULT_TRIGGER_CLASS = "moto-content-surface h-10 w-full";
 
 /**
  * MultiSelect: the kit's multi-value dropdown.

@@ -15,7 +15,7 @@ interface PickupTimesPanelProps {
  */
 export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-6 shadow-sm lg:p-8">
+    <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
       <div className="mb-5 flex items-center gap-4">
         <ConceptIconTile concept={pickupConcept} variant="display" />
         <h2 className="text-3xl font-bold text-gray-900">
@@ -32,7 +32,7 @@ export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
           {buckets.map((bucket) => (
             <li
               key={bucket.time}
-              className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 shadow-sm"
+              className="moto-content-surface flex items-center justify-between rounded-2xl border p-4"
             >
               <p
                 className="text-3xl font-bold tabular-nums"

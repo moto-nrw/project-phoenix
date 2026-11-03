@@ -92,7 +92,7 @@ export function TenantPageHeaderSkeleton({
   controls?: boolean;
 }> = {}) {
   return (
-    <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+    <header className="moto-content-surface rounded-2xl border p-5">
       {back}
       <div className="flex min-w-0 items-center gap-3">
         {leading && <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
@@ -119,7 +119,7 @@ export function TenantPageHeaderSkeleton({
 /** One InfoCard-shaped card: icon tile, title, then label/value rows. */
 export function CardSkeleton({ rows = 3 }: Readonly<{ rows?: number }>) {
   return (
-    <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
+    <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 sm:p-6">
       <div className="mb-4 flex items-center gap-3">
         <Skeleton className="h-9 w-9 flex-shrink-0 rounded-xl sm:h-10 sm:w-10" />
         <Skeleton className="h-5 w-36 rounded" />
@@ -159,7 +159,7 @@ export function DetailSectionSkeleton({
   fields = 4,
 }: Readonly<{ fields?: number }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <Skeleton className="mb-4 h-5 w-40 rounded" />
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         {Array.from({ length: fields }, (_, i) => (
@@ -190,7 +190,7 @@ export function DetailSkeleton({
 /** Mirrors a kit form: label + input pairs, footer action buttons. */
 export function FormSkeleton({ fields = 5 }: Readonly<{ fields?: number }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="space-y-5">
         {Array.from({ length: fields }, (_, i) => (
           <div key={i} className="space-y-1.5">
@@ -216,7 +216,7 @@ export function ListSkeleton({
   avatar = true,
 }: Readonly<{ rows?: number; avatar?: boolean }>) {
   return (
-    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
           {avatar && (

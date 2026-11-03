@@ -1374,7 +1374,7 @@ function PhaseForm(props: PhaseFormProps) {
     <form
       onSubmit={onSubmit}
       noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+      className="moto-content-surface space-y-5 rounded-2xl border p-6"
     >
       <h3 className="text-base font-semibold text-gray-900">
         {editing ? "Anmeldephase bearbeiten" : "Neue Anmeldephase"}

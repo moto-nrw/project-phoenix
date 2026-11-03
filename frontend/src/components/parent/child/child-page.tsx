@@ -135,7 +135,7 @@ export function ChildPage({
     return (
       <ParentPage>
         <ParentPageHeader title={t("sections.today")} />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
           {t("noChildren")}
         </p>
       </ParentPage>
@@ -165,7 +165,7 @@ export function ChildPage({
           backHref={parentPath("/parents/children")}
           backLabel={backT(children.length > 1 ? "back" : "backSingle")}
         />
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
           {t("notFound")}
         </p>
       </ParentPage>

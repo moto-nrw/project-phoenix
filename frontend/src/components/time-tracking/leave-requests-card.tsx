@@ -392,7 +392,7 @@ function AbsenceRequestItem({
       new Date(absence.dateStart).getTime() > currentTimestamp);
 
   return (
-    <li className="moto-content-surface rounded-xl border px-4 py-3 shadow-sm">
+    <li className="moto-content-surface rounded-xl border px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-800">
@@ -534,7 +534,7 @@ function Tile({
   // its darkened Alert foreground) — never generic Tailwind hues.
   const valueClass = {
     primary: "text-gray-900",
-    success: "text-moto-green-hover",
+    success: "text-moto-green-strong",
     amber: "text-moto-amber-strong",
     muted: "text-gray-400",
   }[tone];

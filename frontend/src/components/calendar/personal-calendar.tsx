@@ -638,7 +638,7 @@ export function PersonalCalendar({
           </div>
         ) : null}
         {viewMode === "day" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
@@ -649,7 +649,7 @@ export function PersonalCalendar({
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
@@ -660,7 +660,7 @@ export function PersonalCalendar({
         ) : null}
 
         {viewMode === "month" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
             <div
               className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
             >
@@ -766,7 +766,7 @@ function MobileAgenda({
   }
 
   return (
-    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
           <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
@@ -1572,7 +1572,7 @@ function EmptyCalendarState({
   viewMode,
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState title={calendarEmptyLabel(viewMode)} />
     </div>
   );
