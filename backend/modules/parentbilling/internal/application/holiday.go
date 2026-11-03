@@ -82,8 +82,9 @@ func (h *HolidayContributions) QuoteHolidayContribution(ctx context.Context, lin
 
 // HolidayContribution reads the registration through Enrollment, which
 // checks that it belongs to the period of the session's Träger and records
-// the read, and shows its frozen contribution or a preview with the
-// exemption the Träger-Büro is about to choose.
+// the read, and shows its frozen contribution, with whether an issued
+// invoice bills it (#5621), or a preview with the exemption the Träger-Büro
+// is about to choose.
 func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (parentbilling.HolidayContribution, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
@@ -97,6 +98,11 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 		return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read holiday contribution: %w", err)
 	}
 	if found {
+		issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+		if err != nil {
+			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
+		}
+		frozen.Invoiced = issued[registration.ID]
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared

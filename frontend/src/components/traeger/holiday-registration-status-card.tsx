@@ -165,7 +165,7 @@ export function HolidayRegistrationStatusCard({
           >
             <FormErrorAlert message={confirmErrors.error} />
             {debtorNumberRequired ? (
-              <div>
+              <div className="sm:max-w-md">
                 <Input
                   id="holiday-registration-debtor-number"
                   name="debtor_number"

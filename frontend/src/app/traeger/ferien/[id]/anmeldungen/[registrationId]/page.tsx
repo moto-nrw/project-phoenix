@@ -292,6 +292,7 @@ export default function TraegerHolidayRegistrationPage() {
               registrationId={registration.id}
               debtorNumber={registration.debtorNumber}
               required={confirmation?.debtorNumberRequired ?? false}
+              invoiced={contribution?.invoiced ?? false}
               onChanged={load}
             />
           ) : null}

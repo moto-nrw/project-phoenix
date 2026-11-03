@@ -182,8 +182,10 @@ func TestDebtorNumberChangesUntilAnInvoiceIsIssued(t *testing.T) {
 	askForDebtorNumber(t, f, false)
 	assert.Zero(t, billingRun(t, f, billing, run.ID).MissingDebtorNumbers, "without the switch the run counts nothing")
 	run = billingRun(t, f, billing, run.ID)
+	assert.False(t, f.contribution(t, f.siblings).Invoiced, "no invoice before the release")
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.True(t, f.contribution(t, f.siblings).Invoiced, "the contribution names the issued invoice, so the page offers no change")
 
 	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "99")
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())

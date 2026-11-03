@@ -15,7 +15,7 @@ vi.mock("~/lib/traeger-contributions-api", () => ({
 
 import { HolidayRegistrationDebtorNumberCard } from "./holiday-registration-debtor-number-card";
 
-function renderCard(debtorNumber: string, required = true) {
+function renderCard(debtorNumber: string, required = true, invoiced = false) {
   const onChanged = vi.fn(() => Promise.resolve());
   render(
     <ToastProvider>
@@ -24,6 +24,7 @@ function renderCard(debtorNumber: string, required = true) {
         registrationId="7"
         debtorNumber={debtorNumber}
         required={required}
+        invoiced={invoiced}
         onChanged={onChanged}
       />
     </ToastProvider>,
@@ -97,5 +98,17 @@ describe("HolidayRegistrationDebtorNumberCard (#5621)", () => {
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("offers no change once an issued invoice keeps the number", () => {
+    renderCard("10 4711", true, true);
+
+    expect(
+      screen.getByText(
+        "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("10 4711")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

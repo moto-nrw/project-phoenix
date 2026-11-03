@@ -23,11 +23,22 @@ const logger = createLogger({
   component: "HolidayRegistrationDebtorNumberCard",
 });
 
+/** What the card says, before and after the invoice is issued. */
+function cardDescription(set: boolean, invoiced: boolean): string {
+  if (!invoiced) {
+    return "Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist.";
+  }
+  return set
+    ? "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr."
+    : "Die Rechnung ist ohne Debitorennummer ausgestellt. Eintragen geht nicht mehr.";
+}
+
 export function HolidayRegistrationDebtorNumberCard({
   periodId,
   registrationId,
   debtorNumber,
   required,
+  invoiced,
   onChanged,
 }: Readonly<{
   periodId: string;
@@ -36,6 +47,8 @@ export function HolidayRegistrationDebtorNumberCard({
   debtorNumber: string;
   /** The Träger asks for the debtor number (#5621). */
   required: boolean;
+  /** An issued invoice bills the registration and keeps its number. */
+  invoiced: boolean;
   /** After a change; the page reads the registration again. */
   onChanged: () => Promise<unknown>;
 }>) {
@@ -81,16 +94,18 @@ export function HolidayRegistrationDebtorNumberCard({
   return (
     <SectionCard
       title="Debitorennummer"
-      description="Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist."
+      description={cardDescription(Boolean(debtorNumber), invoiced)}
       actions={
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => setOpen(true)}
-        >
-          {set ? "Ändern" : "Eintragen"}
-        </Button>
+        invoiced ? undefined : (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setOpen(true)}
+          >
+            {set ? "Ändern" : "Eintragen"}
+          </Button>
+        )
       }
     >
       {set ? (

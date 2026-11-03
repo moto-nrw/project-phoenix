@@ -86,7 +86,8 @@ type HolidayChildContribution struct {
 // HolidayContribution is the contribution of a registration or a quote.
 // ExemptionAvailable reports a valid exemption rule, BenefitsExemption that
 // the exemption applies. A frozen contribution carries the time and the
-// account of its confirmation.
+// account of its confirmation; Invoiced reports that an issued invoice
+// bills the registration, which then keeps its debtor number (#5621).
 type HolidayContribution struct {
 	Children           []HolidayChildContribution `json:"children"`
 	TotalCents         int64                      `json:"total_cents"`
@@ -94,6 +95,7 @@ type HolidayContribution struct {
 	BenefitsExemption  bool                       `json:"benefits_exemption"`
 	Frozen             bool                       `json:"frozen"`
 	ConfirmedAt        *time.Time                 `json:"confirmed_at"`
+	Invoiced           bool                       `json:"invoiced"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
