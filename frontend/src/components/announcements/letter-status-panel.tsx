@@ -13,7 +13,7 @@ import { AlertTriangle, BellRing, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -213,9 +213,10 @@ export function LetterStatusPanel({
     <div className="space-y-4">
       {/* The number a school acts on is "wie viele Kinder fehlen noch", so it
           leads. Everything else is supporting detail. */}
-      <InfoCard
+      <SectionCard
         title="Bestätigungen"
-        icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
+        icon={CheckCircle2}
+        bodyClassName="compact:mt-3 mt-4 space-y-3"
       >
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-3xl font-semibold text-gray-900 tabular-nums">
@@ -301,7 +302,7 @@ export function LetterStatusPanel({
             </span>
           </p>
         )}
-      </InfoCard>
+      </SectionCard>
 
       {canAct && (
         <div className="flex flex-wrap gap-2">
