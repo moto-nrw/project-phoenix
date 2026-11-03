@@ -915,3 +915,9 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 ### Runde F-hooks (supervision-context, use-unread-count, use-sse): behalten
 - Ursache: `waitFor` auf renderHook-Ergebnisse prüfte erst nach 50-ms-Intervall erneut; use-unread-count lief zusätzlich überall mit `shouldAdvanceTime`-Fake-Timern, die Testing Library nicht erkennt. Lokaler waitFor-Wrapper mit 5-ms-Intervall; Fake-Timer nur noch im Debounce-Test.
 - Wand n=3, Median: 4,02 → 1,62 s; 3,08 → 1,33 s; 2,87 → 1,34 s. Mutationen (Stale-Refetch gedrosselt, Focus-Listener fehlt, Backoff ×1000) vorher/nachher rot. Inventar 81/28/23 unverändert. Review Sol: OK.
+
+### Runde F-oxlint (8 oxlint-plugin-*.test.ts): behalten
+- Ursache: ui-kit startete zwei Volllint-Läufe über src (je ~4 s Wand, ~14,6 CPU-s); date-safety 24 serielle oxlint-Prozesse. Änderung: Schreibmodus-Test in Sandbox-Frontend (echtes oxlint/Plugin, kopiertes Skript), `--check`-Volllauf gegen echtes src bleibt; date-safety gebündelt/concurrent; `oxlint-probe.ts` mit optionaler Config.
+- Glob-Suite n=3: Wand 10,48/10,94/10,98 → 7,02/6,95/6,74 s (Median −36 %), CPU 38,2 → 23,0 s, Spannensumme der 8 Dateien 15,0 → 8,5 s (ui-kit 8,6 → 4,7; date-safety 3,1 → 0,2).
+- Mutationen A–E (Regel aus, Zählmodus leer, Sperre aus, todayISO-Erkennung aus, Stale-Baseline) vorher/nachher rot. Inventar 316 unverändert.
+- Review Sol: OK mit Auflage (Sandbox unterschied Ziel-/Standard-Baseline nicht); Parent-Fix `a9ae583b2a`: Zusatzfund in baselinierter Datei, Mutation „Env-Pfad ignoriert“ jetzt rot (`expected +0 to be 1`).
