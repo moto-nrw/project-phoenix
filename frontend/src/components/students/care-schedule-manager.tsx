@@ -1513,7 +1513,7 @@ function AbsencePlaceholder({
         type="button"
         onClick={() => onRequestDeleteStatusDay(statusDay)}
         disabled={isDeleting}
-        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:opacity-70"
+        className="moto-content-surface moto-hover-elevated group relative flex min-h-[134px] w-full items-center rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:opacity-70"
         aria-label={`${label} entfernen`}
       >
         <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">

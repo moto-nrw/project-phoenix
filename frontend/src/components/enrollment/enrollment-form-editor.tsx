@@ -1842,7 +1842,7 @@ function FormTemplateDetail({
                 )}
                 target="_blank"
                 rel="noreferrer"
-                className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-gray-400"
+                className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3409,7 +3409,7 @@ function FormPreview({
               href={previewHref}
               target="_blank"
               rel="noreferrer"
-              className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-gray-400"
+              className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3427,7 +3427,7 @@ function FormPreview({
             <button
               type="button"
               onClick={onPreviewClick}
-              className="moto-content-surface flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-gray-400"
+              className="moto-content-surface moto-hover-elevated flex w-full items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />

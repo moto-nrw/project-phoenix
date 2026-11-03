@@ -164,6 +164,21 @@ describe("ui-kit/no-dynamic-color-class", () => {
     expect(count, output).toBe(4);
   });
 
+  it("reports a const passed to className", () => {
+    const { count, output } = ruleHits(
+      `
+      function Probe({ color }: { color: string }) {
+        const iconClass = \`h-4 w-4 text-\${color}\`;
+        return <svg className={iconClass} />;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
   it("ignores non-class template literals and accepts static class strings", () => {
     const { count, output } = ruleHits(
       `

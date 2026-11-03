@@ -150,7 +150,23 @@ function collectStaticStrings(node, chunks, seen = new WeakSet()) {
   }
 }
 
-function collectClassTemplateLiterals(node, templates, seen = new WeakSet()) {
+function findVariable(sourceCode, identifier) {
+  let scope = sourceCode.getScope(identifier);
+  while (scope) {
+    const variable = scope.set.get(identifier.name);
+    if (variable) return variable;
+    scope = scope.upper;
+  }
+  return undefined;
+}
+
+function collectClassTemplateLiterals(
+  node,
+  templates,
+  sourceCode,
+  seen = new WeakSet(),
+  seenVariables = new Set(),
+) {
   if (!node || typeof node !== "object" || seen.has(node)) return;
   seen.add(node);
 
@@ -166,34 +182,99 @@ function collectClassTemplateLiterals(node, templates, seen = new WeakSet()) {
     node.type === "TSTypeAssertion" ||
     node.type === "TypeCastExpression"
   ) {
-    collectClassTemplateLiterals(node.expression, templates, seen);
+    collectClassTemplateLiterals(
+      node.expression,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    return;
+  }
+
+  if (node.type === "Identifier") {
+    const variable = findVariable(sourceCode, node);
+    if (!variable || seenVariables.has(variable)) return;
+    seenVariables.add(variable);
+    for (const definition of variable.defs) {
+      if (
+        definition.type !== "Variable" ||
+        definition.node.type !== "VariableDeclarator" ||
+        definition.parent?.kind !== "const" ||
+        !definition.node.init
+      )
+        continue;
+      collectClassTemplateLiterals(
+        definition.node.init,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
+    }
     return;
   }
 
   if (node.type === "ConditionalExpression") {
-    collectClassTemplateLiterals(node.consequent, templates, seen);
-    collectClassTemplateLiterals(node.alternate, templates, seen);
+    collectClassTemplateLiterals(
+      node.consequent,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    collectClassTemplateLiterals(
+      node.alternate,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
     return;
   }
 
   if (node.type === "LogicalExpression") {
     if (node.operator !== "&&") {
-      collectClassTemplateLiterals(node.left, templates, seen);
+      collectClassTemplateLiterals(
+        node.left,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
     }
-    collectClassTemplateLiterals(node.right, templates, seen);
+    collectClassTemplateLiterals(
+      node.right,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
     return;
   }
 
   if (node.type === "CallExpression") {
     for (const argument of node.arguments) {
-      collectClassTemplateLiterals(argument, templates, seen);
+      collectClassTemplateLiterals(
+        argument,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
     }
     return;
   }
 
   if (node.type === "ArrayExpression") {
     for (const element of node.elements) {
-      collectClassTemplateLiterals(element, templates, seen);
+      collectClassTemplateLiterals(
+        element,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
     }
     return;
   }
@@ -201,7 +282,13 @@ function collectClassTemplateLiterals(node, templates, seen = new WeakSet()) {
   if (node.type === "ObjectExpression") {
     for (const property of node.properties) {
       if (property.type === "Property" && property.computed) {
-        collectClassTemplateLiterals(property.key, templates, seen);
+        collectClassTemplateLiterals(
+          property.key,
+          templates,
+          sourceCode,
+          seen,
+          seenVariables,
+        );
       }
     }
   }
@@ -682,8 +769,12 @@ const noDynamicColorClass = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const checkedTemplates = new WeakSet();
 
     const check = (node) => {
+      if (checkedTemplates.has(node)) return;
+      checkedTemplates.add(node);
       // Die letzte Quasi folgt auf keinen Ausdruck mehr.
       for (const quasi of node.quasis.slice(0, -1)) {
         const match = DYNAMIC_COLOR_PREFIX_RE.exec(quasi.value.raw);
@@ -705,7 +796,7 @@ const noDynamicColorClass = {
           return;
 
         const templates = [];
-        collectClassTemplateLiterals(node.value, templates);
+        collectClassTemplateLiterals(node.value, templates, sourceCode);
         for (const template of templates) check(template);
       },
     };
