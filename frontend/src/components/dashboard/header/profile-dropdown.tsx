@@ -8,7 +8,6 @@ import { NavLink } from "~/components/ui/nav-link";
 import { useTranslations } from "next-intl";
 import { EyeIcon, UserIcon } from "@phosphor-icons/react";
 import { Avatar } from "~/components/ui/avatar";
-import { Button } from "~/components/ui/button";
 
 // UserAvatar is a thin compatibility wrapper around the shared <Avatar>.
 // Keeping the prop names (avatarUrl, userName) avoids touching every call
@@ -226,18 +225,15 @@ export function ProfileDropdownMenu({
         )}
 
         {onStartPreview && (
-          // Kit Button (ghost) with the dropdown's menu-item geometry layered
-          // on top, so the entry sits flush with its hand-rolled neighbours
-          // while keeping the kit's interaction contract (focus ring, states).
-          <Button
+          // Menüeintrag wie seine Nachbarn (Profil, Abmelden), kein
+          // Kit-Knopf: Menüeinträge sind keine Buttons im Sinne von #5529.
+          <button
             type="button"
-            variant="ghost"
-            size="md"
             onClick={() => {
               onClose();
               onStartPreview();
             }}
-            className="group w-full justify-start rounded-xl px-3 py-2.5 text-left font-medium text-gray-700 active:bg-gray-900 active:text-white"
+            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-900 active:text-white"
           >
             <EyeIcon
               aria-hidden="true"
@@ -245,7 +241,7 @@ export function ProfileDropdownMenu({
               className="mr-3 h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-600 group-active:text-white"
             />
             Ansicht eines Mitarbeitenden
-          </Button>
+          </button>
         )}
 
         {/* Divider */}

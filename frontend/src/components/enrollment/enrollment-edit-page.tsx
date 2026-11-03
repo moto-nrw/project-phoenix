@@ -192,7 +192,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
       />
 
       {isChangeRequestMode ? (
-        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
           <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             {t("changeRequestEyebrow")}
           </p>

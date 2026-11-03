@@ -108,5 +108,16 @@ describe("CompactStudentCard", () => {
     });
     expect(button).toHaveAttribute("data-testid", "compact-student-card-42");
     expect(button).toHaveAttribute("type", "button");
+    expect(button).toHaveClass("moto-hover-elevated");
+  });
+
+  it("does not elevate non-interactive cards on hover", () => {
+    render(
+      <CompactStudentCard studentId={42} firstName="Anna" lastName="Müller" />,
+    );
+
+    expect(screen.getByTestId("compact-student-card-42")).not.toHaveClass(
+      "moto-hover-elevated",
+    );
   });
 });

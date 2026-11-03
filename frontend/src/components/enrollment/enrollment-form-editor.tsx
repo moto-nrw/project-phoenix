@@ -55,7 +55,7 @@ import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { BackAction } from "~/components/ui/back-link";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -1156,7 +1156,7 @@ export function EnrollmentFormEditor({
     <AttachmentUploadContext.Provider value={attachmentLifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
-          <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+          <section className="moto-content-surface overflow-hidden rounded-2xl border">
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
               <BackAction
                 onClick={requestBackToOverview}
@@ -1383,7 +1383,7 @@ function EnrollmentFormsOverview({
       {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
           Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
           dorthin, statt über dem Kartenrand zu enden. */}
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-6 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1462,7 +1462,7 @@ function TemplateOverviewList({
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="divide-y divide-gray-100">
         <BaseTemplateOverviewRow />
         {templates.map((schema) => (
@@ -1514,7 +1514,11 @@ function BaseTemplateOverviewRow() {
           href={tenantPath("/anmeldung/preview?base=1")}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={buttonClassName({
+            variant: "outline",
+            size: "md",
+            className: "gap-2",
+          })}
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
           Vorschau
@@ -1727,7 +1731,7 @@ function FormTemplateDetail({
   return (
     // Flex-Spalte, siehe die Übersicht derselben Seite.
     <div className="flex flex-col space-y-5">
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
@@ -1838,7 +1842,7 @@ function FormTemplateDetail({
                 )}
                 target="_blank"
                 rel="noreferrer"
-                className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -1853,7 +1857,7 @@ function FormTemplateDetail({
                 </span>
               </a>
 
-              <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+              <div className="moto-content-surface rounded-2xl border p-4">
                 <h3 className="text-sm font-semibold text-gray-900">Status</h3>
                 <div className="mt-4 space-y-3">
                   <GuideStep
@@ -2175,7 +2179,7 @@ function FormMetric({
   label: string;
 }>) {
   return (
-    <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm">
+    <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-4 py-3">
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
         {icon}
       </span>
@@ -2215,7 +2219,7 @@ function BuilderTemplateSummary({
   ).length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-4">
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900">
@@ -2287,7 +2291,7 @@ function CoreFieldsSection({
   ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2333,7 +2337,7 @@ function SignatureRequirementSection({
   disabled: boolean;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2565,7 +2569,7 @@ export function LegalBlocksSection({
     return (
       <div
         key={`${block.key}-${index}-editor`}
-        className="moto-content-surface rounded-xl border p-4 shadow-sm"
+        className="moto-content-surface rounded-xl border p-4"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <StyledCheckboxButton
@@ -2588,7 +2592,7 @@ export function LegalBlocksSection({
                 disabled={disabled}
                 variant="ghost"
                 size="compact"
-                className="w-fit text-sm"
+                className="w-fit"
               >
                 Einstellungen wieder verwenden
               </Button>
@@ -2598,9 +2602,9 @@ export function LegalBlocksSection({
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                variant="ghost"
+                variant="ghost_danger"
                 size="compact"
-                className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong w-fit gap-2 text-sm"
+                className="w-fit gap-2"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
@@ -2749,7 +2753,7 @@ export function LegalBlocksSection({
   };
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2798,7 +2802,7 @@ export function LegalBlocksSection({
           return (
             <div
               key={`${block.key}-${index}`}
-              className="moto-content-surface rounded-xl border p-4 shadow-sm"
+              className="moto-content-surface rounded-xl border p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2930,6 +2934,7 @@ function AGBTemplateSourceEditor({
 }>) {
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
+  const documentPicker = useRef<HTMLInputElement>(null);
 
   return (
     <div className="mt-3 space-y-3">
@@ -3001,32 +3006,38 @@ function AGBTemplateSourceEditor({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label
-                className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
-                  disabled || documentSaving
-                    ? "pointer-events-none opacity-50"
-                    : ""
-                }`}
+              <Button
+                type="button"
+                variant="surface"
+                size="compact"
+                disabled={disabled || documentSaving}
+                onClick={() => documentPicker.current?.click()}
               >
                 <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="sr-only"
-                  disabled={disabled || documentSaving}
-                  onChange={(event) => {
-                    onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
+              </Button>
+              <input
+                ref={documentPicker}
+                type="file"
+                accept="application/pdf,.pdf"
+                aria-label={hasDocument ? "PDF ersetzen" : "PDF hochladen"}
+                hidden
+                disabled={disabled || documentSaving}
+                onChange={(event) => {
+                  onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
               {hasDocument ? (
                 <a
                   href={publicAGBDocumentURL(documentURL)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className: "",
+                  })}
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Öffnen</span>
@@ -3398,7 +3409,7 @@ function FormPreview({
               href={previewHref}
               target="_blank"
               rel="noreferrer"
-              className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3416,7 +3427,7 @@ function FormPreview({
             <button
               type="button"
               onClick={onPreviewClick}
-              className="moto-content-surface flex w-full items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="moto-content-surface moto-hover-elevated flex w-full items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3432,7 +3443,7 @@ function FormPreview({
               </span>
             </button>
           ) : (
-            <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70 shadow-sm">
+            <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </span>

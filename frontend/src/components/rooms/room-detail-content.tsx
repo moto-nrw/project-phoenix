@@ -400,7 +400,7 @@ export function RoomDetailContent({
                     return (
                       <div
                         key={session.sessionId}
-                        className="moto-content-surface rounded-xl border p-4 shadow-sm"
+                        className="moto-content-surface rounded-xl border p-4"
                       >
                         <div className="mb-2 flex items-start justify-between gap-2">
                           <h4 className="font-medium text-gray-900">

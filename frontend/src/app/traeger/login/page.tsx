@@ -14,8 +14,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
-  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -353,23 +351,26 @@ function LoginForm() {
               </div>
 
               <div className="text-center">
-                <button
+                <Button
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className={authTextButtonClassName}
+                  variant="link"
+                  size="md"
                 >
                   Passwort vergessen?
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           <div className="mt-2 space-y-3">
-            <button
+            <Button
               type="submit"
               disabled={isSubmitting || (choices !== null && !selectedId)}
-              className={authPrimaryButtonClassName}
+              variant="primary"
+              size="field"
+              className="w-full"
             >
               <span className="relative z-10">
                 {isSubmitting
@@ -378,12 +379,12 @@ function LoginForm() {
                     ? "Träger öffnen"
                     : "Anmelden"}
               </span>
-            </button>
+            </Button>
             {choices ? (
               <Button
                 type="button"
                 variant="ghost"
-                size="compact"
+                size="field"
                 disabled={isSubmitting}
                 onClick={backToCredentials}
                 className="w-full"

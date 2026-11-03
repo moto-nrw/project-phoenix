@@ -138,7 +138,7 @@ function AttachmentActions({
       {attachments.map((attachment) => (
         <li
           key={attachment.document_url}
-          className="moto-content-surface flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-3 py-2 shadow-sm"
+          className="moto-content-surface flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-3 py-2"
         >
           <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
             <FileTypeIcon

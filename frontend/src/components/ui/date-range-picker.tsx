@@ -491,7 +491,7 @@ export function RangeCalendarInline({
               day: "w-8 h-8 text-center text-sm p-0 relative",
               day_button:
                 "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
-              today: "font-bold text-[#70b525]",
+              today: "font-bold text-moto-blue-strong",
               outside: "text-gray-300",
               disabled: "text-gray-200 cursor-not-allowed",
             }}

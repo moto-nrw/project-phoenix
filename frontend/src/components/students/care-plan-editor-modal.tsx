@@ -603,7 +603,7 @@ function LegSection({
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
-    <section className="moto-content-surface rounded-xl border p-3 shadow-sm sm:rounded-2xl sm:p-4">
+    <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
           {icon}

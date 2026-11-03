@@ -60,7 +60,7 @@ export function ParentSurveySection({
   }, [announcementId, onUpdated, survey]);
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <section className="moto-content-surface rounded-2xl border p-4">
       <SurveyAnswerPanel
         load={load}
         submit={submit}

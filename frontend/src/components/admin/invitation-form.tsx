@@ -321,7 +321,7 @@ export function InvitationForm({
   const roleError = errors.fieldError("role_id");
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 md:p-6">
       <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="rounded-xl bg-gray-100 p-2">
           <Mail
@@ -461,7 +461,7 @@ export function InvitationForm({
           size="md"
           data-setup-tour="invite-submit"
           disabled={isSubmitting || isLoadingRoles || checkingAddress}
-          className="w-full py-2.5 font-semibold disabled:cursor-not-allowed"
+          className="w-full"
         >
           {isSubmitting
             ? "Wird gesendet…"

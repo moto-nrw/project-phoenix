@@ -24,8 +24,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
-  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
@@ -49,6 +47,7 @@ import {
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "TenantLoginPage" });
 
@@ -612,38 +611,43 @@ function LoginForm() {
 
                 {/* Forgot Password Link */}
                 <div className="text-center">
-                  <button
+                  <Button
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className={authTextButtonClassName}
+                    variant="link"
+                    size="md"
                   >
                     Passwort vergessen?
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <div className="mt-2">
-                <button
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className={authPrimaryButtonClassName}
+                  variant="primary"
+                  size="field"
+                  className="w-full"
                 >
                   <span className="relative z-10">
                     {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
                   </span>
-                </button>
+                </Button>
               </div>
               {passkeySupported && (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="field"
+                  className="w-full gap-2"
                   disabled={isSubmitting}
                   onClick={handlePasskeyLogin}
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <MotoConceptIcon concept={passkeysConcept} size={16} />
                   <span>Mit Passkey anmelden</span>
-                </button>
+                </Button>
               )}
             </form>
           )}

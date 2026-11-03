@@ -149,7 +149,7 @@ export function Monatskarte({
       <output
         aria-label="Monatskarte wird geladen"
         aria-live="polite"
-        className="moto-content-surface block rounded-2xl border p-4 shadow-sm sm:p-6"
+        className="moto-content-surface block rounded-2xl border p-4 sm:p-6"
       >
         <div className="mb-3 flex items-center">
           <Skeleton className="h-5 w-44 rounded" />
@@ -171,7 +171,7 @@ export function Monatskarte({
   }
   if (error) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
         <LoadErrorAlert error={error} />
       </div>
     );

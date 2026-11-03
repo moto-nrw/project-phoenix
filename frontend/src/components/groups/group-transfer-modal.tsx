@@ -250,7 +250,7 @@ export function GroupTransferModal({
               <p className="text-sm font-medium text-gray-700">
                 Aktuell übergeben an:
               </p>
-              <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
+              <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
                 {existingTransfers.map((transfer) => (
                   <li
                     key={transfer.substitutionId}

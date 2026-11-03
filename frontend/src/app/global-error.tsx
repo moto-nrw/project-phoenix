@@ -22,14 +22,18 @@ const MESSAGE_STYLE: CSSProperties = {
   color: "#666",
   marginBottom: "1.5rem",
 };
+// Bewusste Ausnahme (#5529): die Seite lädt kein CSS und bleibt bei
+// Inline-Stilen. Farbe, Radius und Schriftgewicht folgen Kit-`primary`
+// (Tailwind `gray-900`, `--radius-lg` 12 px, `font-medium`).
 const RETRY_BUTTON_STYLE: CSSProperties = {
   padding: "0.75rem 1.5rem",
-  backgroundColor: "#2563eb",
+  backgroundColor: "#101828",
   color: "white",
   border: "none",
-  borderRadius: "0.5rem",
+  borderRadius: "0.75rem",
   cursor: "pointer",
   fontSize: "1rem",
+  fontWeight: 500,
 };
 
 export default function GlobalError({

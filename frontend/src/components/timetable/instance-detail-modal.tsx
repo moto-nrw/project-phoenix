@@ -11,7 +11,6 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import Link from "~/components/ui/navigation-link";
 import {
   Check,
   CheckCircle2,
@@ -27,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -485,10 +484,9 @@ function AssignedStaffSection({
       {onOpenPool && (
         <Button
           type="button"
-          variant="ghost"
+          variant="surface"
           size="compact"
           onClick={() => onOpenPool(instance)}
-          className="border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
         >
           <span className="inline-flex items-center gap-1.5">
             {canManageStaffPool ? (
@@ -905,15 +903,17 @@ export function InstanceDetailModal({
           (instance.staff.some((row) => row.isAbsent) ||
             (instance.requiredStaffCount > 0 &&
               instance.assignedStaffCount < instance.requiredStaffCount)) && (
-            <Link
+            <ButtonLink
               href={tenantPath(
                 `/vertretung?d=${instance.date}&block=${instance.id}`,
               )}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              variant="outline"
+              size="md"
+              className="gap-2"
             >
               <MotoConceptIcon concept={substitutionConcept} size={18} />
               Vertretung eintragen
-            </Link>
+            </ButtonLink>
           )}
         {instance.status === "planned" && !editDeferred && onEdit && (
           <Button
@@ -1532,12 +1532,11 @@ interface IconActionButtonProps {
   disabled?: boolean;
 }
 
-const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
-  green:
-    "border-moto-green/20 bg-white text-moto-green-strong hover:border-moto-green/40 hover:bg-moto-green/10",
-  red: "border-moto-red/20 bg-white text-moto-red-strong hover:border-moto-red/40 hover:bg-moto-red/10",
-  slate:
-    "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+// Die Farbe trägt nur das Symbol; der Knopf selbst ist Kit-`surface`.
+const ICON_ACTION_TONE: Record<IconActionTone, string> = {
+  green: "text-moto-green-strong",
+  red: "text-moto-red-strong",
+  slate: "text-gray-600",
 };
 
 function IconActionButton({
@@ -1551,21 +1550,22 @@ function IconActionButton({
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant="surface"
       size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
       title={label}
       aria-label={label}
-      className={`rounded-full border ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
         <span
-          className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          className={`h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent ${ICON_ACTION_TONE[tone]}`}
           aria-hidden
         />
       ) : (
-        <span aria-hidden>{icon}</span>
+        <span className={ICON_ACTION_TONE[tone]} aria-hidden>
+          {icon}
+        </span>
       )}
     </Button>
   );

@@ -937,7 +937,7 @@ function PendingAbsences({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4 shadow-sm">
+      <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-5 py-4">
         <span className="bg-moto-green/15 text-moto-green-strong inline-flex h-7 w-7 items-center justify-center rounded-full">
           <Check className="h-4 w-4" aria-hidden />
         </span>
@@ -952,7 +952,7 @@ function PendingAbsences({
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
       <div className="mb-3 flex items-center gap-2">
         <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
           Eingehende Anfragen
@@ -1016,7 +1016,7 @@ function AbsenceRow({
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
   const canDelete = onDelete && row.status === "reported";
   return (
-    <li className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-sm">
+    <li className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
       {selection ? (
         <label className="flex cursor-pointer items-center">
           <Checkbox checked={selection.checked} onChange={selection.onToggle} />

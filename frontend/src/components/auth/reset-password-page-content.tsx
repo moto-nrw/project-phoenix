@@ -7,7 +7,6 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   AuthFieldError,
   AuthShell,
-  authPrimaryButtonClassName,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -24,6 +23,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -393,10 +393,12 @@ export function ResetPasswordPageContent({
           </ul>
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={isLoading || !token}
-          className={authPrimaryButtonClassName}
+          variant="primary"
+          size="field"
+          className="w-full"
         >
           {isLoading ? (
             <>
@@ -406,7 +408,7 @@ export function ResetPasswordPageContent({
           ) : (
             <span>{copy.submit}</span>
           )}
-        </button>
+        </Button>
 
         <div className="pt-2 text-center">
           <Link

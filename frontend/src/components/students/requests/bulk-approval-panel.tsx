@@ -26,7 +26,7 @@ export function BulkApprovalPanel({
   if (count === 0) return null;
   const blocked = count < 2 || (reasonRequired && reason.trim() === "");
   return (
-    <div className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-md">
+    <div className="moto-content-surface space-y-3 rounded-2xl border p-4">
       <div>
         <h2 className="font-semibold text-gray-900">Gemeinsam freigeben</h2>
         <p className="text-sm text-gray-600">
@@ -56,7 +56,6 @@ export function BulkApprovalPanel({
         type="button"
         variant="primary"
         size="md"
-        className="max-sm:min-h-11"
         disabled={blocked}
         onClick={open}
       >

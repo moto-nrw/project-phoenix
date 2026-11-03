@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "~/components/ui/button";
 import { useMemo } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { DataTable } from "~/components/ui/data-table";
@@ -124,14 +125,15 @@ export function PersonsTable({
             onKeyDown={(event) => event.stopPropagation()}
             role="presentation"
           >
-            <button
+            <Button
               type="button"
+              variant="ghost_danger"
+              size="compact"
               onClick={() => onDelete(row)}
-              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red rounded-lg border px-2 py-1 text-xs font-medium transition-colors"
               title="Person löschen"
             >
               Löschen
-            </button>
+            </Button>
           </div>
         ),
       });

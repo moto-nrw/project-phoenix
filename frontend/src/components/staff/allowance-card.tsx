@@ -95,7 +95,7 @@ export function AllowanceCard({
   return (
     <section
       aria-label={`${title} ${year}`}
-      className={`moto-content-surface space-y-3 rounded-xl border p-4 shadow-sm ${
+      className={`moto-content-surface space-y-3 rounded-xl border p-4 ${
         isEditing ? "lg:col-span-2" : ""
       }`}
     >

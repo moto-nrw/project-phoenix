@@ -351,14 +351,16 @@ export function FileUploadInput({
               <span className="shrink-0 text-xs text-gray-500">
                 {formatUploadSize(entry.size_bytes, locale)}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
                 onClick={() => dropFile(uploadValueKey(entry))}
                 aria-label={tr("upload.remove", { name: entry.filename })}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
-              </button>
+              </Button>
             </li>
           ))}
           {pending.map((entry) => (

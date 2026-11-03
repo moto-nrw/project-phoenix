@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -410,7 +409,7 @@ export function EnrollmentStatusView({
 
   if (notFound) {
     return (
-      <div className="moto-content-surface border-moto-red/30 bg-moto-red/5 rounded-xl border p-5 text-center shadow-sm sm:p-6">
+      <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-5 text-center shadow-sm sm:p-6">
         <h1 className="text-moto-red-strong text-xl font-semibold">
           {t("invalidTitle")}
         </h1>
@@ -640,7 +639,7 @@ function EnrollmentStatusContent({
       <LoadErrorAlert error={errors.load} />
 
       {allLocked ? (
-        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
+        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("lockedAllTitle")}
           </h2>
@@ -783,10 +782,10 @@ function EnrollmentStatusHero({
   const t = useTranslations("enrollmentStatus");
   const statusIconClass = justSubmitted
     ? "bg-moto-green/15 text-moto-green-strong"
-    : "moto-content-surface border text-gray-600 shadow-sm";
+    : "moto-content-surface border text-gray-600";
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="p-5 sm:p-8 lg:p-10">
           {backHref ? (
@@ -818,13 +817,15 @@ function EnrollmentStatusHero({
           </p>
           {allEditable || canRequestChange ? (
             <div className="mt-6">
-              <Link
+              <ButtonLink
                 href={editHref}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                variant="primary"
+                size="md"
+                className="gap-2"
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 {allEditable ? t("editFull") : t("requestChange")}
-              </Link>
+              </ButtonLink>
             </div>
           ) : null}
         </div>
@@ -913,7 +914,7 @@ function RenewalBanners({
   return (
     <>
       {showOptInBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("renewalRequiredTitle")}
           </h2>
@@ -948,7 +949,7 @@ function RenewalBanners({
         </section>
       ) : null}
       {showOptOutBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("autoRenewedTitle")}
           </h2>
@@ -1070,10 +1071,10 @@ function EnrollmentChildRow({
   };
 
   return (
-    <li className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <li className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border">
             <MotoConceptIcon concept={childrenConcept} size={20} />
           </span>
           <div className="min-w-0">
@@ -1137,7 +1138,7 @@ function EnrollmentChildrenSection({
 }>) {
   const t = useTranslations("enrollmentStatus");
   return (
-    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -1219,7 +1220,7 @@ function GuardianSection({
   };
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -1381,7 +1382,7 @@ function WithdrawAllSection({
   };
 
   return (
-    <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+    <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span className="border-moto-red/30 bg-moto-red/5 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
@@ -1405,7 +1406,7 @@ function WithdrawAllSection({
           size="md"
           onClick={handleWithdraw}
           disabled={withdrawingAll}
-          className="w-full shrink-0 font-semibold sm:w-auto"
+          className="w-full shrink-0 sm:w-auto"
         >
           {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
         </Button>
@@ -1500,10 +1501,10 @@ function ChangeRequestsPanel({
   );
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border">
             <MotoConceptIcon concept={parentConversationsConcept} size={20} />
           </span>
           <div>
@@ -1519,20 +1520,22 @@ function ChangeRequestsPanel({
           </div>
         </div>
         {canCreate ? (
-          <Link
+          <ButtonLink
             href={editHref}
-            className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+            variant="primary"
+            size="md"
+            className="w-full shrink-0 gap-2 sm:w-auto"
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("requestChange")}
-          </Link>
+          </ButtonLink>
         ) : null}
       </div>
 
       {loadError ? (
         <LoadErrorAlert error={loadError} />
       ) : requests.length === 0 ? (
-        <p className="moto-content-surface rounded-xl border p-4 text-sm text-gray-600 shadow-sm">
+        <p className="moto-content-surface rounded-xl border p-4 text-sm text-gray-600">
           {t("changeRequestsEmpty")}
         </p>
       ) : (
@@ -1544,7 +1547,7 @@ function ChangeRequestsPanel({
             return (
               <li
                 key={request.id}
-                className="moto-content-surface rounded-xl border p-4 shadow-sm"
+                className="moto-content-surface rounded-xl border p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1730,9 +1733,9 @@ function StatusSummaryCard({
   readonly value: string;
 }) {
   return (
-    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4">
       <div className="flex items-center gap-3">
-        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600">
           {icon}
         </span>
         <div className="min-w-0">

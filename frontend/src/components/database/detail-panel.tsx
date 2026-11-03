@@ -51,7 +51,7 @@ export function DetailPanel({
             <TabsContent
               key={tab.id}
               value={tab.id}
-              className="mt-0 p-6 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="mt-0 p-6 focus-visible:ring-offset-0 focus-visible:ring-inset"
             >
               {tab.content}
             </TabsContent>

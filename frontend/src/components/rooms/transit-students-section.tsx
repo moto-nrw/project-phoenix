@@ -37,8 +37,7 @@ import {
 } from "~/lib/tenant-context";
 import { transitConcept } from "~/lib/concepts/transit";
 
-const DETAIL_CARD_CLASS =
-  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
+const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 const EMPTY_ROOMS: Room[] = [];
 
@@ -475,9 +474,9 @@ export function TransitStudentsSection({
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="compact"
                     onClick={allSelected ? clearSelection : selectAllVisible}
-                    className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
+                    className="shrink-0"
                   >
                     {allSelected ? "Aufheben" : "Alle auswählen"}
                   </Button>
@@ -513,14 +512,14 @@ export function TransitStudentsSection({
                 <Button
                   type="button"
                   variant="primary"
-                  size="sm"
+                  size="md"
                   isLoading={submitting}
                   loadingText="Weise zu..."
                   onClick={() => void assignSelected()}
                   disabled={
                     !targetValue || selectedVisibleCount === 0 || submitting
                   }
-                  className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
+                  className="w-full sm:w-auto"
                 >
                   In Raum setzen
                 </Button>
@@ -535,7 +534,7 @@ export function TransitStudentsSection({
                 Kinder werden geladen...
               </div>
             ) : studentsError ? null : students.length === 0 ? (
-              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
+              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
                 Aktuell keine Kinder unterwegs.
               </div>
             ) : (
@@ -601,7 +600,7 @@ export function TransitStudentsSection({
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
+                      size="compact"
                       onClick={() =>
                         router.push(
                           `/students/${student.id}?from=${encodeURIComponent(
@@ -611,7 +610,7 @@ export function TransitStudentsSection({
                       }
                       aria-label={`${fullName} Profil öffnen`}
                       title="Profil öffnen"
-                      className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+                      className="shrink-0"
                     >
                       Profil
                       <ExternalLink

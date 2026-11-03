@@ -311,7 +311,7 @@ function ChangeRequestsOverview({
   const openCount = pending.length + waitingForParent.length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
@@ -427,7 +427,7 @@ function EnrollmentPhaseOverview({
 
   if (phases.length === 0) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
         {/* Leerzustand als EmptyState statt als loser Textblock mit Button. */}
         <EmptyState
           title="Noch keine Anmeldephase"
@@ -450,7 +450,7 @@ function EnrollmentPhaseOverview({
   return (
     <section
       id="enrollment-phase-overview"
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
+      className="moto-content-surface rounded-2xl border p-4 sm:p-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -496,7 +496,7 @@ function EnrollmentPhaseOverview({
           return (
             <article
               key={phase.id}
-              className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+              className="moto-content-surface rounded-2xl border p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -722,7 +722,7 @@ function EnrollmentSetupGuide({
   const contentExpanded = !setupComplete || expanded;
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border">
       {setupComplete && (
         <button
           type="button"

@@ -75,7 +75,7 @@ function StudentDetailSkeleton() {
       </div>
 
       <div className="mt-6 space-y-6 max-sm:mt-3 max-sm:space-y-3">
-        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
           <DataGrid>
             {Array.from({ length: 6 }, (_, field) => (

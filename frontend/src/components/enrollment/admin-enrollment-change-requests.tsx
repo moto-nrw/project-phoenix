@@ -233,7 +233,7 @@ export function AdminEnrollmentChangeRequestDetail({
         </div>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-5 p-5 sm:p-6">
             <p className="text-sm leading-6 text-gray-600">
@@ -259,7 +259,7 @@ export function AdminEnrollmentChangeRequestDetail({
 
           <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
-              <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+              <section className="moto-content-surface rounded-2xl border p-4">
                 <h2 className="text-base font-semibold text-gray-900">
                   Anmeldung
                 </h2>
@@ -302,7 +302,7 @@ export function AdminEnrollmentChangeRequestDetail({
               </section>
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+                <section className="moto-content-surface rounded-2xl border p-4">
                   <h2 className="text-base font-semibold text-gray-900">
                     Rückfrage
                   </h2>
@@ -340,7 +340,7 @@ export function AdminEnrollmentChangeRequestDetail({
               ) : null}
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+                <section className="moto-content-surface rounded-2xl border p-4">
                   <h2 className="text-base font-semibold text-gray-900">
                     Entscheidung
                   </h2>
@@ -407,7 +407,7 @@ function ChangeSummary({
   readonly request: AdminEnrollmentChangeRequest;
 }) {
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">
           {request.origin === "admin"
@@ -447,7 +447,7 @@ function MessageThread({
   const messages = request.messages ?? [];
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">Nachrichten</h2>
       </div>

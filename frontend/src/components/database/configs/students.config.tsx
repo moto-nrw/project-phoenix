@@ -287,7 +287,7 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   isSchoolyardLocation(student.current_location)
-                    ? "bg-moto-amber-soft text-moto-amber-strong"
+                    ? "bg-moto-orange-soft text-moto-orange-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
@@ -295,7 +295,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
                       isSchoolyardLocation(student.current_location)
-                        ? "bg-moto-amber"
+                        ? "bg-moto-orange"
                         : "bg-gray-300"
                     }`}
                   />

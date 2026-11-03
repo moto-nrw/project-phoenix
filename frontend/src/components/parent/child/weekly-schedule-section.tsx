@@ -151,7 +151,7 @@ function ScheduleDay({
       ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
       : t("careSchedule.notSet");
   return (
-    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4">
       <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
         <span>{t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`)}</span>
         <StatusBadge label={status} tone={scheduled ? "green" : "gray"} />

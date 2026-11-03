@@ -62,10 +62,9 @@ function NormalFooter({
         {!readOnly && (
           <Button
             type="button"
-            variant="ghost"
+            variant="ghost_danger"
             size="icon"
             onClick={onShowDeleteConfirm}
-            className="hover:text-moto-red text-gray-400"
             disabled={isSubmitting || isDeleting}
             aria-label="Aktivität löschen"
           >

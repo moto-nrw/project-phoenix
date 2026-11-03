@@ -471,21 +471,23 @@ export default function OperatorAnnouncementsPage() {
         filters={filterConfigs}
         actionButton={
           announcements && announcements.length > 0 ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={openCreateForm}
-              className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
             >
               Neue Ankündigung
-            </button>
+            </Button>
           ) : undefined
         }
         mobileActionButton={
           announcements && announcements.length > 0 ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="icon"
               onClick={openCreateForm}
-              className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
               aria-label="Neue Ankündigung"
             >
               <svg
@@ -501,7 +503,7 @@ export default function OperatorAnnouncementsPage() {
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-            </button>
+            </Button>
           ) : undefined
         }
       />
@@ -541,13 +543,15 @@ export default function OperatorAnnouncementsPage() {
             <p className="text-sm text-gray-500">
               Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.
             </p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={openCreateForm}
-              className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+              className="mt-2"
             >
               Neue Ankündigung
-            </button>
+            </Button>
           </div>
         )}
 
@@ -877,8 +881,10 @@ export default function OperatorAnnouncementsPage() {
                             className="flex items-center justify-between gap-2"
                           >
                             <span>{t.name}</span>
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost_tone"
+                              size="compact"
                               onClick={() =>
                                 setFormData((prev) => ({
                                   ...prev,
@@ -887,11 +893,10 @@ export default function OperatorAnnouncementsPage() {
                                   ),
                                 }))
                               }
-                              className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
                               aria-label={`${t.name} aus Zielen entfernen`}
                             >
                               Entfernen
-                            </button>
+                            </Button>
                           </li>
                         ))}
                       </ul>
@@ -907,8 +912,10 @@ export default function OperatorAnnouncementsPage() {
                             className="flex items-center justify-between gap-2"
                           >
                             <span>{t.name}</span>
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost_tone"
+                              size="compact"
                               onClick={() =>
                                 setFormData((prev) => ({
                                   ...prev,
@@ -917,11 +924,10 @@ export default function OperatorAnnouncementsPage() {
                                   ),
                                 }))
                               }
-                              className="text-moto-orange hover:bg-moto-orange/20 rounded px-2 py-0.5 text-xs font-medium"
                               aria-label={`${t.name} aus Zielen entfernen`}
                             >
                               Entfernen
-                            </button>
+                            </Button>
                           </li>
                         ))}
                       </ul>
@@ -1301,26 +1307,31 @@ function AnnouncementCard({
         {announcement.content}
       </p>
       {(isClamped || expanded) && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="compact"
           onClick={() => setExpanded((prev) => !prev)}
-          className="mt-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700"
+          aria-expanded={expanded}
+          className="mt-1 -ml-2.5"
         >
           {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
-        </button>
+        </Button>
       )}
 
       {/* Footer with publish button for drafts */}
       {announcement.status === "draft" && (
         <div className="mt-4 -mr-7 flex justify-end">
-          <button
+          <Button
             type="button"
+            variant="success"
+            size="md"
             onClick={() => onPublish(announcement)}
-            className="group bg-moto-green-fill hover:bg-moto-green-fill-hover flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg active:scale-[0.98]"
+            className="gap-2"
           >
             <span>Veröffentlichen</span>
-            <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
@@ -26,8 +27,11 @@ export function PublicLinkCopyButton({
   const accessibleLabel = copied ? "Link kopiert" : label;
 
   return (
-    <button
+    <Button
       type="button"
+      variant={copied ? "surface_success" : "surface"}
+      size="icon"
+      className="shrink-0"
       onClick={(event) => {
         event.stopPropagation();
         void copy(url).then((ok) => {
@@ -36,13 +40,11 @@ export function PublicLinkCopyButton({
       }}
       aria-label={accessibleLabel}
       title={accessibleLabel}
-      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-        copied
-          ? "border-moto-green/40 bg-moto-green/10 text-moto-green-strong"
-          : "border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-      }`}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-    </button>
+      <Icon
+        className="h-4 w-4"
+        aria-hidden="true"
+      />
+    </Button>
   );
 }

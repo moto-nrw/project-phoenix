@@ -158,9 +158,12 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     ) : (
       <div
         title={title}
-        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 shadow-sm max-sm:p-3 ${
+        // `shadow-md!`: moto-content-surface setzt seinen Schatten unlayered
+        // und schlägt jede normale Utility; nur `!important` hebt die
+        // verlinkte Kachel beim Überfahren an (#5577).
+        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-3 ${
           href
-            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
+            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md!"
             : ""
         }`}
       >

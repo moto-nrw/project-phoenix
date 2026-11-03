@@ -92,7 +92,7 @@ function Section({
 }>) {
   if (rows.length === 0) return null;
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
         <h3 className="text-sm font-semibold text-gray-900">
           {title} ({rows.length})

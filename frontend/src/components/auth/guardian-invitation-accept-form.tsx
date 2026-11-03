@@ -5,7 +5,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { authPrimaryButtonClassName } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -25,6 +24,7 @@ import {
 } from "~/lib/guardian-invitation-api";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -331,13 +331,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         </div>
       </div>
 
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         {isSubmitting ? t("submitting") : t("submit")}
-      </button>
+      </Button>
     </form>
   );
 }

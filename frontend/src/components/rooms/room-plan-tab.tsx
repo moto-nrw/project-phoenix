@@ -220,7 +220,7 @@ function RoomPlanDay({
       {rows.length === 0 ? (
         <EmptyState variant="compact" title="Keine Planungszeit" />
       ) : (
-        <ul className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-xl border shadow-sm">
+        <ul className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-xl border">
           {rows.map((row) =>
             row.kind === "free" ? (
               <li
