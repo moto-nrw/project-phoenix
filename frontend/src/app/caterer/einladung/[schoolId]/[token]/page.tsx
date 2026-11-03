@@ -12,14 +12,12 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check } from "lucide-react";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
@@ -47,6 +45,7 @@ import {
 import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -138,12 +137,14 @@ export default function CatererInvitationPage() {
       ) : (
         <div className="space-y-4">
           <LoadErrorAlert error={loadErrors.error} />
-          <Link
+          <ButtonLink
             href={catererPath("/caterer/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       )}
     </AuthShell>
@@ -390,15 +391,17 @@ function AcceptForm({
         </>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={submitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         <span className="relative z-10">
           {submitting ? "Wird übernommen…" : "Einladung akzeptieren"}
         </span>
-      </button>
+      </Button>
     </form>
   );
 }

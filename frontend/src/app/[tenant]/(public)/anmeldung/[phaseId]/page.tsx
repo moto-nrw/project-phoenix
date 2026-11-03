@@ -164,7 +164,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
+          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
             <BackLink
               href={tenantPath("/anmeldung")}
               label={t("backToPicker")}
@@ -181,7 +181,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
           </div>
 
           {loading ? (
-            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600">
               {t("detailsLoading")}
             </div>
           ) : loadError || gradeLevelMax === null ? (
@@ -199,7 +199,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
         </section>
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+          <section className="moto-content-surface rounded-2xl border p-5">
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
               {t("sideTitleFallback")}
             </p>

@@ -245,7 +245,7 @@ export function CoursesSection({
           {courses.items.map((course) => (
             <li
               key={course.id}
-              className="moto-content-surface flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 shadow-sm"
+              className="moto-content-surface flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">

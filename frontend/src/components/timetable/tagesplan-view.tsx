@@ -680,7 +680,7 @@ export function TagesplanView() {
         ) : null}
 
         {!isLoading && !listError && groups.length > 0 ? (
-          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+          <div className="moto-content-surface overflow-hidden rounded-2xl border">
             <ul>
               {groups.map((group, index) => (
                 <Fragment key={group.key}>

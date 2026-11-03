@@ -224,6 +224,7 @@ export function StudentPhotoSection({
           <Button
             type="button"
             variant="primary"
+            size="md"
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="mr-1.5 h-4 w-4" aria-hidden />
@@ -233,6 +234,7 @@ export function StudentPhotoSection({
             <Button
               type="button"
               variant="secondary"
+              size="md"
               onClick={handleRemoveClick}
             >
               <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />

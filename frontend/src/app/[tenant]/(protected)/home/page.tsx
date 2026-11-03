@@ -483,8 +483,8 @@ function HomeContent() {
         ) : (
           // Auf allen Breiten nur das Symbol (#4346): als Textknopf war
           // „Anpassen" größer als alles, wofür man die Startseite öffnet.
-          // Name und Tooltip sagen „Anpassen". `size="md"` statt `icon`
-          // hält Höhe und Radius von „Abbrechen" und „Fertig".
+          // Name und Tooltip sagen „Anpassen". Die Kopfkarte gibt dem
+          // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
           // `data-icon-only` an der Hülle hält ihn unter sm in der
           // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
           // rechten Rand sitzt.
@@ -497,8 +497,7 @@ function HomeContent() {
               <Button
                 type="button"
                 variant="outline"
-                size="md"
-                className="aspect-square px-0"
+                size="icon"
                 aria-label="Anpassen"
                 disabled={!homeLayoutReady}
                 onClick={startEditing}

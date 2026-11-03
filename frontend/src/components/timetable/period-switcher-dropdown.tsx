@@ -318,18 +318,18 @@ export function PeriodSwitcherDropdown({
 
           {/* Footer: create new */}
           {canManage && (
-            <Button
+            // Menüeintrag der Auswahl wie der Verwaltungslink darunter,
+            // kein Kit-Knopf (#5529: Menüeinträge sind keine Buttons).
+            <button
               type="button"
-              variant="ghost"
-              size="compact"
               onClick={() => {
                 setOpen(false);
                 onCreate();
               }}
-              className="w-full justify-start rounded-none border-t border-gray-100 px-4"
+              className="flex h-8 w-full items-center gap-1.5 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
             >
               <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-            </Button>
+            </button>
           )}
           {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
               Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt

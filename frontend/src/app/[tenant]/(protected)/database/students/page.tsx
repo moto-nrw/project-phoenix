@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
-import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
   ClipboardList,
@@ -43,8 +42,7 @@ import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { createClassListEntry } from "~/lib/class-list-entries-api";
-import { Button } from "~/components/ui/button";
-import { cn } from "~/lib/utils";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -530,26 +528,26 @@ function StudentsPageContent() {
                   options={STUDENTS_GROUPING_OPTIONS}
                   onChange={handleGroupingChange}
                 />
-                <Link
+                <ButtonLink
                   href={tenantPath("/database/students/import")}
                   data-setup-tour="student-import"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  variant="outline"
+                  size="md"
                 >
                   Importieren
-                </Link>
+                </ButtonLink>
               </>
             ) : null}
             {canUpdateStudents ? (
               <Button
                 type="button"
-                variant="outline"
+                // Gedrückt = Auswahl läuft: die gefüllte Kit-Variante zeigt
+                // den Zustand, ohne die Maße des Kit-Knopfs zu ändern.
+                variant={selectionMode ? "primary" : "outline"}
                 size="md"
                 aria-pressed={selectionMode}
                 data-setup-tour="student-select"
-                className={cn(
-                  "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
-                  selectionMode && "ring-gray-900 hover:ring-gray-900",
-                )}
+                className="gap-2"
                 onClick={() => {
                   if (selectionMode) {
                     finishSelection();

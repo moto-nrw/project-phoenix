@@ -710,7 +710,7 @@ export function DienstplanResourceGrid({
           die Anlege-Geste identisch. */}
       {isCompact && mobileColumn ? (
         <div>
-          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+          <div className="moto-content-surface overflow-hidden rounded-2xl border">
             <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
               {columns.map((column, index) => {
                 const isSelected = index === safeMobileDayIndex;

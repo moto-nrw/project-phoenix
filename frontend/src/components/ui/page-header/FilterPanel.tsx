@@ -296,7 +296,7 @@ export function FilterPanel({
               }
               triggerClassName={
                 isQuiet
-                  ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                  ? "moto-content-surface h-10 w-full font-medium"
                   : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
               }
               options={filter.options.map((option) => ({
@@ -318,7 +318,7 @@ export function FilterPanel({
             onChange={(next) => filter.onChange(next)}
             triggerClassName={
               isQuiet
-                ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                ? "moto-content-surface h-10 w-full font-medium"
                 : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
             }
             options={filter.options.map((option) => ({

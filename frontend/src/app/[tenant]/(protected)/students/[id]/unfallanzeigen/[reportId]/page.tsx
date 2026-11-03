@@ -149,6 +149,8 @@ export default function AccidentReportPage() {
           // A download, not a page: a plain anchor in the kit's button look.
           <a
             href={studentAccidentReportsService.pdfUrl(studentId, reportId)}
+            // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
+            data-button-link=""
             className={buttonClassName({
               variant: "outline",
               size: "md",
@@ -187,7 +189,7 @@ export default function AccidentReportPage() {
                 <ButtonLink
                   href={accidentReportPath(studentId, report.supersededById)}
                   variant="outline"
-                  size="md"
+                  size="compact"
                 >
                   Korrektur öffnen
                 </ButtonLink>

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -217,15 +218,16 @@ export function DeletedEntityCard({
           Gelöscht {deletedAt ? getRelativeTime(deletedAt) : ""}
         </p>
         <div className="flex flex-col items-end gap-1">
-          <button
+          <Button
             type="button"
+            variant="surface"
+            size="compact"
             onClick={onRestore}
             disabled={restoreDisabled}
             title={restoreDisabled ? restoreDisabledReason : undefined}
-            className="bg-moto-green/15 text-moto-green-strong hover:bg-moto-green/25 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100"
           >
             Wiederherstellen
-          </button>
+          </Button>
           {restoreDisabled && restoreDisabledReason && (
             <p className="max-w-[16rem] text-right text-[11px] text-gray-500">
               {restoreDisabledReason}
@@ -234,6 +236,32 @@ export function DeletedEntityCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Umschalter zwischen aktiver Liste und Papierkorb. Eine Stelle für alle
+ * Operator-Listen, damit Träger, Schulen und Träger-Schulen gleich aussehen.
+ */
+export function TrashToggleButton({
+  count,
+  active,
+  onToggle,
+}: Readonly<{
+  count: number;
+  active: boolean;
+  onToggle: () => void;
+}>) {
+  return (
+    <Button
+      type="button"
+      variant={active ? "outline_danger" : "secondary"}
+      size="compact"
+      aria-pressed={active}
+      onClick={onToggle}
+    >
+      Papierkorb ({count})
+    </Button>
   );
 }
 

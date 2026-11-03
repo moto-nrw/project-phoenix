@@ -653,10 +653,7 @@ export function StudentNotizenTab({
   };
 
   const renderNote = (note: StudentNote) => (
-    <li
-      key={note.id}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-    >
+    <li key={note.id} className="moto-content-surface rounded-2xl border p-4">
       {editing?.id === note.id ? (
         <NoteForm
           idPrefix={`note-${note.id}`}
@@ -736,7 +733,7 @@ export function StudentNotizenTab({
         <FormErrorAlert message={formErrors.error} />
 
         {composing ? (
-          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
             <NoteForm
               idPrefix="new-note"
               draft={draft}

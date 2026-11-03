@@ -277,9 +277,9 @@ describe("SchoolCheckinModeMobile", () => {
       expect(checkIn).toHaveClass(
         "bg-moto-green-fill",
         "text-white",
-        "rounded-lg",
+        "rounded-md",
       );
-      expect(checkOut).toHaveClass("bg-moto-red", "text-white", "rounded-lg");
+      expect(checkOut).toHaveClass("bg-moto-red", "text-white", "rounded-md");
 
       fireEvent.click(checkIn);
       fireEvent.click(checkOut);

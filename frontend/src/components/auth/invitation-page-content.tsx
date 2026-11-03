@@ -8,11 +8,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import {
-  AuthShell,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthShell } from "~/components/auth/auth-shell";
 import { InvitationAcceptForm } from "~/components/auth/invitation-accept-form";
 import { InvitationOwnerAcceptForm } from "~/components/auth/invitation-owner-accept-form";
 import { validateInvitation } from "~/lib/invitation-api";
@@ -24,6 +20,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
+import { ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "InvitationPageContent" });
 
@@ -162,9 +159,14 @@ export function InvitationPageContent({
       {error && (
         <div className="space-y-4">
           <LoadErrorAlert error={error} />
-          <Link href="/" className={authPrimaryButtonClassName}>
+          <ButtonLink
+            href="/"
+            variant="primary"
+            size="field"
+            className="w-full"
+          >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       )}
 

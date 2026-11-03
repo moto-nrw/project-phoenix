@@ -7,6 +7,7 @@ import {
   WrenchIcon,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useAnnouncements } from "~/lib/hooks/use-announcements";
@@ -130,13 +131,14 @@ export function AnnouncementModal() {
       <span className="flex-1 text-xs text-gray-500">
         {totalCount > 1 && `${currentIndex + 1} von ${totalCount}`}
       </span>
-      <button
+      <Button
         type="button"
+        variant="success"
+        size="md"
         onClick={() => void handleDismiss()}
-        className="bg-moto-green-fill hover:bg-moto-green-fill-hover rounded-xl px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
       >
         {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
-      </button>
+      </Button>
     </>
   );
 

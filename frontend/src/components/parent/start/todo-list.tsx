@@ -47,7 +47,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
     return (
       <section
         aria-labelledby="parent-todo-empty-heading"
-        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+        className="moto-content-surface rounded-2xl border p-5"
       >
         <h2
           id="parent-todo-empty-heading"
@@ -68,7 +68,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
   return (
     <section
       aria-labelledby="parent-todo-heading"
-      className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+      className="moto-content-surface overflow-hidden rounded-2xl border p-5"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">

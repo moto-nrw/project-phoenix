@@ -107,7 +107,7 @@ export function PhoneListInput({
         {phones.map((p, idx) => (
           <li
             key={getStableObjectKey(p, "phone")}
-            className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
+            className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
           >
             <Input
               id={`${inputName}-${idx}-number`}
@@ -233,7 +233,7 @@ export function ContactListInput({
     );
   return (
     <fieldset
-      className={`rounded-2xl border p-4 shadow-sm ${error ? "border-moto-red" : "moto-content-surface"}`}
+      className={`rounded-2xl border p-4 ${error ? "border-moto-red shadow-sm" : "moto-content-surface"}`}
       aria-invalid={error ? "true" : undefined}
       aria-describedby={error ? errorId : undefined}
     >

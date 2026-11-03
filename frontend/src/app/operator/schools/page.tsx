@@ -17,12 +17,14 @@ import {
 } from "~/lib/operator/provisioning-api";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
+import { Button } from "~/components/ui/button";
 import { DataTable } from "~/components/ui/data-table";
 import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
   DeletedEntityCard,
+  TrashToggleButton,
 } from "../provisioning/soft-delete-shared";
 import {
   SchoolRestoreModal,
@@ -157,24 +159,26 @@ export default function OperatorSchoolsPage() {
   );
 
   const actionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="md"
       onClick={() => setCreateSchoolOpen(true)}
-      className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
     >
       Neue Schule
-    </button>
+    </Button>
   );
 
   const mobileActionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="icon"
       onClick={() => setCreateSchoolOpen(true)}
-      className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
       aria-label="Neue Schule"
     >
       <PlusIcon />
-    </button>
+    </Button>
   );
 
   const handleRowClick = useCallback(
@@ -208,17 +212,13 @@ export default function OperatorSchoolsPage() {
         <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                schoolDelete.showTrash
-                  ? "bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Papierkorb ({deletedSummaries.length})
-            </button>
+            <TrashToggleButton
+              count={deletedSummaries.length}
+              active={schoolDelete.showTrash}
+              onToggle={() =>
+                schoolDelete.setShowTrash(!schoolDelete.showTrash)
+              }
+            />
           </div>
         )}
 

@@ -248,7 +248,7 @@ export function RolloverForm({
   const form = (
     <form
       onSubmit={handleSubmit}
-      className="moto-content-surface space-y-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
+      className="moto-content-surface space-y-5 rounded-2xl border p-4 sm:p-6"
     >
       {variant === "embedded" ? (
         <header className="border-b border-gray-100 pb-4">

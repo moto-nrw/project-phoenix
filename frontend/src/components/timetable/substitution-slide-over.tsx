@@ -625,7 +625,7 @@ export function SubstitutionSlideOver({
                     </legend>
                     <label
                       htmlFor="vp-action-edit"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3 shadow-sm"
+                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
                     >
                       <Radio
                         id="vp-action-edit"
@@ -645,7 +645,7 @@ export function SubstitutionSlideOver({
                     </label>
                     <label
                       htmlFor="vp-action-cancel"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3 shadow-sm"
+                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
                     >
                       <Radio
                         id="vp-action-cancel"

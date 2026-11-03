@@ -42,7 +42,7 @@ export function UploadSection({
     }
   };
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6">
       <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
         <svg
           className="text-moto-green-strong h-5 w-5"

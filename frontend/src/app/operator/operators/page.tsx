@@ -149,7 +149,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6">
       <SectionHeader
         title="Neuen Operator einladen"
         icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
@@ -266,7 +266,7 @@ function PendingInvitationsList({
   }, [revokeTarget, onMutate, toastSuccess, showRevokeError, clearRevokeError]);
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6">
       <SectionHeader
         title="Offene Einladungen"
         icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
@@ -298,22 +298,24 @@ function PendingInvitationsList({
               </p>
             </div>
             <div className="ml-4 flex gap-2">
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="compact"
                 disabled={actionLoading === inv.id}
                 onClick={() => void handleResend(inv.id)}
-                className="bg-moto-purple/15 text-moto-purple-strong hover:bg-moto-purple/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Erneut senden
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline_danger"
+                size="compact"
                 disabled={actionLoading === inv.id}
                 onClick={() => openRevoke(inv)}
-                className="bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Widerrufen
-              </button>
+              </Button>
             </div>
           </div>
         ))}
@@ -419,7 +421,7 @@ function OperatorsList({
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-6">
       <SectionHeader
         title="Bestehende Operatoren"
         icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}

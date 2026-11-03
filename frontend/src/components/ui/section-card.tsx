@@ -239,7 +239,7 @@ export function SectionCard({
       className={
         bare
           ? cn("space-y-4", className)
-          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} compact:p-4 rounded-2xl border p-5 shadow-sm backdrop-blur-md max-sm:p-4 ${className}`
+          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} compact:p-4 rounded-2xl border p-5 max-sm:p-4 ${className}`
       }
     >
       {hasHeader && (

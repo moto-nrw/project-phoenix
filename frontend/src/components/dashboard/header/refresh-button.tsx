@@ -63,11 +63,7 @@ export function RefreshButton({
       title={t("refresh")}
       variant="ghost"
       size={drawer ? "md" : "icon"}
-      className={
-        drawer
-          ? "w-full justify-start gap-3 px-4"
-          : "h-9 w-9 text-gray-500 hover:text-gray-700"
-      }
+      className={drawer ? "w-full justify-start gap-3" : ""}
     >
       <div className="relative h-5 w-5">
         <RotateCw

@@ -7,7 +7,6 @@ import { Button } from "~/components/ui/button";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { mutate } from "~/lib/swr";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { leaveForAnotherAccount } from "~/lib/personal-storage";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -65,8 +64,9 @@ function ActivePreviewBanner({
   return (
     <div
       role="status"
-      className="fixed inset-x-0 top-0 z-50 flex h-12 items-center justify-between gap-3 px-4 text-white shadow-md"
-      style={{ backgroundColor: LOCATION_COLORS.SCHOOLYARD }}
+      // Weiß auf dem Schulhof-Orange erreicht nur 2,4:1; der -strong-Ton
+      // derselben Farbe trägt weiße Schrift mit 5,6:1 (#5577).
+      className="bg-moto-orange-strong fixed inset-x-0 top-0 z-50 flex h-12 items-center justify-between gap-3 px-4 text-white shadow-md"
     >
       <p className="flex min-w-0 items-center gap-2 text-sm font-medium">
         <EyeIcon

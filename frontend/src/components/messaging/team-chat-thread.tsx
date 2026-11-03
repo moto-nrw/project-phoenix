@@ -602,7 +602,7 @@ function DefaultThreadFrame({
       ref={containerRef}
       className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
-      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 sm:p-6">
         <BackLink href={back.href} label={back.label} className="mb-2" />
         {(!loading || previewTitle) && (
           <div className="mb-4 flex items-start justify-between gap-3">

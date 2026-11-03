@@ -574,7 +574,7 @@ function TenantPageView({
           einer CSS-Layer stehen. */}
       <header
         ref={headRef}
-        className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4"
+        className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
       >
         {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">

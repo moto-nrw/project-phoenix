@@ -59,7 +59,7 @@ export function EnrollmentSignatureStatus({
   });
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
       <div>
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("signatureEyebrow")}

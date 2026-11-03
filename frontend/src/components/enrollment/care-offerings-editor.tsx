@@ -1128,7 +1128,7 @@ function CareOfferingToolbar({
   onCreate: () => void;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface rounded-2xl border p-4">
       {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
           alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
           Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
@@ -1204,10 +1204,10 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
       <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
       <Button
         type="button"
-        variant="outline"
+        variant="surface"
         size="md"
         onClick={onRetry}
-        className="shrink-0 bg-white"
+        className="shrink-0"
       >
         Erneut laden
       </Button>
@@ -1219,7 +1219,7 @@ function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
@@ -1249,7 +1249,7 @@ function NoPhaseState() {
 
 function EmptyCareOfferingState() {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
@@ -1985,29 +1985,27 @@ function CareOfferingAvailabilityFields({
                 <div className="flex gap-1">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="surface"
                     size="compact"
                     disabled={index === 0}
                     onClick={() => moveCondition(index, -1)}
-                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach oben`}
                   >
                     ↑
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="surface"
                     size="compact"
                     disabled={index === rule.conditions.length - 1}
                     onClick={() => moveCondition(index, 1)}
-                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach unten`}
                   >
                     ↓
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="outline_danger"
                     size="compact"
                     onClick={() =>
                       onChange({
@@ -2019,7 +2017,6 @@ function CareOfferingAvailabilityFields({
                         },
                       })
                     }
-                    className="border-moto-red/30 text-moto-red-strong bg-white"
                     aria-label={`Bedingung ${index + 1} löschen`}
                   >
                     Löschen
@@ -2101,7 +2098,7 @@ function CareOfferingAvailabilityFields({
           ))}
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="md"
             onClick={() =>
               onChange({
@@ -2114,7 +2111,7 @@ function CareOfferingAvailabilityFields({
                 },
               })
             }
-            className="gap-2 bg-white"
+            className="gap-2"
           >
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen

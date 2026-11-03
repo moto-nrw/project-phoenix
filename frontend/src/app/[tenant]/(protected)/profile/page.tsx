@@ -233,9 +233,10 @@ function ProfileContent() {
           isEditing ? undefined : (
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
+              variant="outline"
+              size="md"
               onClick={() => setIsEditing(true)}
+              className="gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />
               Bearbeiten

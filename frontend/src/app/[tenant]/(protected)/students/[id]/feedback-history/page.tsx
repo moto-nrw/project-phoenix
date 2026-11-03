@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSession } from "next-auth/react";
 import {
@@ -420,11 +421,14 @@ function StudentFeedbackHistoryPageContent() {
 
           {/* Expandable detail list; sie läuft randlos bis zur Kartenkante. */}
           {totalFeedback > 0 && (
-            <div className="-mx-5 mt-4 -mb-5">
-              <button
+            <div className="-mx-5 mt-4 -mb-5 border-t border-gray-100 p-2">
+              <Button
                 type="button"
+                variant="ghost"
+                size="compact"
                 onClick={() => setShowDetails((prev) => !prev)}
-                className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                aria-expanded={showDetails}
+                className="w-full gap-2"
               >
                 {showDetails ? (
                   <>
@@ -437,7 +441,7 @@ function StudentFeedbackHistoryPageContent() {
                     <ChevronDown className="h-4 w-4" />
                   </>
                 )}
-              </button>
+              </Button>
 
               {showDetails && (
                 <div className="border-t border-gray-100">

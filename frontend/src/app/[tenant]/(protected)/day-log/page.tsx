@@ -218,10 +218,10 @@ function GroupCard({
         </div>
         <Button
           type="button"
-          variant="outline"
+          variant="surface"
           size="md"
           onClick={onOpen}
-          className="shrink-0 gap-2 bg-white"
+          className="shrink-0 gap-2"
         >
           Details
           <ArrowRight className="h-4 w-4" aria-hidden="true" />

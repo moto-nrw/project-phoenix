@@ -22,6 +22,7 @@ import { sessionFetch } from "~/lib/session-cache";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PersonalizationTab" });
@@ -266,20 +267,21 @@ export function PersonalizationTab() {
               unoptimized
             />
             {canEdit && (
-              <button
+              <Button
                 type="button"
+                variant="outline_danger"
+                size="compact"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="border-moto-red/20 text-moto-red hover:bg-moto-red-soft inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
               >
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
-              </button>
+              </Button>
             )}
           </div>
         ) : loadError ? null : (
           // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
           // Vorschau sagt das, statt die Karte leer zu lassen (#3893).
-          <div className="moto-content-surface flex flex-col items-center gap-3 rounded-xl border p-6 shadow-sm">
+          <div className="moto-content-surface flex flex-col items-center gap-3 rounded-xl border p-6">
             <MotoBrand />
             <p className="text-center text-sm text-gray-600">
               Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.

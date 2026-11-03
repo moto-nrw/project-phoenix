@@ -76,7 +76,7 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -432,7 +432,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
@@ -630,7 +630,7 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <article className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
@@ -658,7 +658,11 @@ function ChildInformationCard({
             <>
               <NavigationLink
                 href={studentHref}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "gap-2",
+                })}
               >
                 Kind &amp; Einladung verwalten
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -785,7 +789,11 @@ function ReviewSidebar({
           href={statusHref}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={buttonClassName({
+            variant: "outline",
+            size: "md",
+            className: "mt-4 w-full gap-2",
+          })}
         >
           Statusseite öffnen
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -818,7 +826,7 @@ function ReviewSidebar({
         return (
           <section
             key={child.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1036,7 +1044,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Zusätzliche Angaben
       </h2>

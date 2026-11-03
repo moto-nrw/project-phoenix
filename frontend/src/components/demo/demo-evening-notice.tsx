@@ -77,9 +77,9 @@ export function DemoEveningRow({
       </span>
       <Button
         type="button"
-        variant="ghost"
+        variant="link"
         size="compact"
-        className="ml-auto h-6 shrink-0 text-xs underline underline-offset-2"
+        className="ml-auto shrink-0"
         onClick={show}
       >
         Warum?

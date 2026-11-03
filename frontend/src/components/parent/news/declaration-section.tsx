@@ -513,7 +513,7 @@ function DeclarationChildCard({
   const name = `${child.first_name} ${child.last_name}`.trim();
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-2xl border p-4">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-base font-semibold text-gray-900">
           {name}

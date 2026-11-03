@@ -14,7 +14,7 @@ export function UebersichtTabSkeleton() {
         {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
+            className="moto-content-surface rounded-2xl border p-4 sm:p-5"
           >
             <Skeleton className="h-3 w-24 rounded" />
             <Skeleton className="mt-2 h-7 w-20 rounded" />
@@ -27,7 +27,7 @@ export function UebersichtTabSkeleton() {
         {Array.from({ length: 2 }, (_, i) => (
           <div
             key={i}
-            className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm"
+            className="moto-content-surface overflow-hidden rounded-2xl border p-5"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <Skeleton className="h-6 w-40 rounded" />
@@ -38,7 +38,7 @@ export function UebersichtTabSkeleton() {
         ))}
       </div>
 
-      <div className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <Skeleton className="h-6 w-32 rounded" />
           <Skeleton className="h-9 w-40 rounded-lg" />

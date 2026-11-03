@@ -26,7 +26,7 @@ const DAY_COLUMN_INDEXES = Array.from(
 // composed under either wrapper without nesting two live regions.
 function GridSkeletonBody() {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="max-w-full overflow-clip rounded-2xl border border-gray-200">
         <div className="max-w-full overflow-x-auto">
           <table

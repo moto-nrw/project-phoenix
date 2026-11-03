@@ -406,7 +406,7 @@ export function PushNotificationSection({
   return (
     <div
       data-parent-tour={portal === "parent" ? "notification-device" : undefined}
-      className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6"
+      className="moto-content-surface rounded-2xl border p-4 md:p-6"
     >
       <ConceptSectionHeader
         className={hasBody ? "mb-4" : undefined}
@@ -540,7 +540,7 @@ function PushNotificationSkeleton() {
   return (
     <div
       data-testid="push-notification-skeleton"
-      className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6"
+      className="moto-content-surface rounded-2xl border p-4 md:p-6"
       aria-hidden="true"
     >
       <div className="flex items-center gap-3">

@@ -206,13 +206,7 @@ export function RequestHistoryItem({
   onCorrect?: () => void;
 }>) {
   const action = onCorrect ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="md"
-      className="max-sm:min-h-11"
-      onClick={onCorrect}
-    >
+    <Button type="button" variant="ghost" size="md" onClick={onCorrect}>
       Entscheidung korrigieren
     </Button>
   ) : undefined;

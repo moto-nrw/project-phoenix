@@ -71,6 +71,221 @@ describe.concurrent("ui-kit/no-tiny-text", () => {
   });
 });
 
+async function ruleHits(
+  source: string,
+  rule: string,
+  relativePath = "src/probe.tsx",
+) {
+  const { output } = await lintSource(source, relativePath);
+  return {
+    output,
+    count:
+      output.match(new RegExp(String.raw`ui-kit\(${rule}\)`, "g"))?.length ?? 0,
+  };
+}
+
+describe.concurrent("ui-kit/no-dead-surface-utility", () => {
+  it("reports colour, shadow, ring and blur utilities beside a kit surface", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe() {
+        return <>
+          <div className="moto-content-surface border-moto-red/30 bg-moto-red/5 rounded-xl border" />
+          <div className="moto-content-surface rounded-2xl border shadow-sm" />
+          <div className="moto-content-surface rounded-2xl border backdrop-blur-md" />
+          <div className="moto-content-surface rounded-2xl border focus-visible:ring-2" />
+          <button className="moto-content-surface h-10 hover:border-gray-300" />
+          <div className="moto-popover-surface rounded-xl border shadow-xl" />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-dead-surface-utility",
+    );
+
+    expect(count, output).toBe(6);
+  });
+
+  it("follows conditional className branches", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ href }: { href?: string }) {
+        return <div className={\`moto-content-surface rounded-2xl border \${href ? "group-hover:shadow-md" : ""}\`} />;
+      }
+      void Probe;
+    `,
+      "no-dead-surface-utility",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("follows const values passed to a className composer", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const cn: (...classes: string[]) => string;
+      const surface = "moto-content-surface";
+      const focus = "focus-visible:ring-2";
+      function Probe() {
+        return <div className={cn(surface, focus)} />;
+      }
+      void Probe;
+    `,
+      "no-dead-surface-utility",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("accepts layout, border widths, important overrides and popover blur", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe() {
+        return <>
+          <div className="moto-content-surface rounded-2xl border border-b-2 p-5 divide-y divide-gray-100" />
+          <div className="moto-content-surface rounded-2xl border border-dashed group-hover:shadow-md!" />
+          <div className="moto-popover-surface rounded-xl border backdrop-blur-sm" />
+          <div className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm" />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-dead-surface-utility",
+    );
+
+    expect(count, output).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/no-dynamic-color-class", () => {
+  it("reports colour utilities assembled from a template expression", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ color }: { color: string }) {
+        return <>
+          <svg className={\`h-4 w-4 text-\${color}\`} />
+          <div className={\`hover:bg-\${color}/10 border-t-\${color}\`} />
+          <div className={\`ring-\${color}\`} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(4);
+  });
+
+  it("reports a const passed to className", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ color }: { color: string }) {
+        const iconClass = \`h-4 w-4 text-\${color}\`;
+        return <svg className={iconClass} />;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("reports a mutable alias passed to className", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ color }: { color: string }) {
+        let iconClass = \`h-4 w-4 text-\${color}\`;
+        return <svg className={iconClass} />;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("ignores non-class template literals and accepts static class strings", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ id, cls }: { id: string; cls: string }) {
+        return <>
+          <textarea id={\`text-\${id}\`} />
+          <p>{\`bg-\${id}\`}</p>
+          <div className={id === \`ring-\${id}\` ? "selected" : ""} />
+          <div className={\`text-sm \${cls}\`} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-dynamic-color-class",
+    );
+
+    expect(count, output).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/no-white-on-warm-fill", () => {
+  it("reports white text on the orange and amber fills", async () => {
+    const { count, output } = await ruleHits(
+      `
+      import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+      function Probe() {
+        return <>
+          <div className="px-4 text-white" style={{ backgroundColor: LOCATION_COLORS.SCHOOLYARD }} />
+          <div className="text-white" style={{ background: LOCATION_COLORS.WARNING }} />
+          <span className="bg-moto-orange text-white" />
+          <span className="bg-moto-amber text-white" />
+          <div className="text-white" style={{ backgroundColor: MOTO_COLOR_PALETTE.orange.base }} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-white-on-warm-fill",
+    );
+
+    expect(count, output).toBe(5);
+  });
+
+  it("accepts dark text on warm fills and white on the strong tones", async () => {
+    const { count, output } = await ruleHits(
+      `
+      import { LOCATION_COLORS } from "~/lib/location-helper";
+      function Probe() {
+        return <>
+          <div className="text-gray-900" style={{ backgroundColor: LOCATION_COLORS.SCHOOLYARD }} />
+          <span className="bg-moto-orange-strong text-white" />
+          <span className="bg-moto-orange-soft text-moto-orange-strong" />
+          <div className="text-white" style={{ backgroundColor: LOCATION_COLORS.SICK }} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-white-on-warm-fill",
+    );
+
+    expect(count, output).toBe(0);
+  });
+
+  it("reports warm fills and white text composed from const values", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const cn: (...classes: string[]) => string;
+      const fill = "bg-moto-orange";
+      const text = "text-white";
+      function Probe() {
+        return <div className={cn(fill, text)} />;
+      }
+      void Probe;
+    `,
+      "no-white-on-warm-fill",
+    );
+
+    expect(count, output).toBe(1);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
   it("reports a hand-built card surface anywhere outside the kit", async () => {
     const result = await lintSource(
@@ -109,7 +324,7 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
       `
       function Probe() {
         return <>
-          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm" />
+          <div className="moto-content-surface rounded-2xl border p-4" />
           <div className="moto-popover-surface rounded-xl border py-1" />
           {/* Knopfform als <span>: ein natives <button> fiele unter
               no-hand-rolled-button (#5531); geprüft wird hier nur die Fläche. */}

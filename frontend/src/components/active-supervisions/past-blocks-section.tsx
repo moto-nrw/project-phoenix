@@ -214,9 +214,9 @@ function PastBlockCard({
         <Button
           type="button"
           variant="ghost"
-          size="compact"
+          size="md"
           onClick={toggleRoster}
-          className="w-full justify-between text-sm"
+          className="w-full justify-between"
           aria-expanded={expanded}
         >
           <span>Kinder</span>

@@ -83,7 +83,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
             {daySkeletonEvents.map((event) => (
               <div
                 key={`${event.top}-${event.height}`}
-                className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
+                className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
                 style={{
                   top: `${event.top}px`,
                   height: `${event.height}px`,
@@ -180,7 +180,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               {(weekSkeletonEvents[day] ?? []).map((event) => (
                 <div
                   key={`${day}-${event.top}-${event.height}-${event.width}`}
-                  className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
+                  className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
                   style={{
                     top: `${event.top}px`,
                     height: `${event.height}px`,
@@ -261,7 +261,7 @@ export function PlanningContextBarSkeleton({
       aria-label={announce ? ariaLabel : undefined}
       aria-hidden={announce ? undefined : true}
       data-testid={testId}
-      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 shadow-sm"
+      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5"
     >
       {announce ? <span className="sr-only">{ariaLabel}</span> : null}
       <div>
