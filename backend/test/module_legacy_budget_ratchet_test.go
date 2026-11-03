@@ -201,7 +201,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
 // ADR 0148: the demo school file erasure constructor of
 // modules/organizationtenancy/compose adds exactly 10 LOC.
-const moduleComposeBudgetTotal = 12800
+// ADR 0150: the document template constructor of
+// modules/organizationtenancy/compose adds exactly 6 LOC.
+const moduleComposeBudgetTotal = 12806
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -251,7 +253,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
-	"modules/organizationtenancy/compose": 293,
+	"modules/organizationtenancy/compose": 299,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).

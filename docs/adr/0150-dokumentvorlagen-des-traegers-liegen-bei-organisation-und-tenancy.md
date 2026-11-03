@@ -79,6 +79,9 @@ des Trägers, keine Träger-Werte der Einstellungen.
    Form an. Beide Quellen sind Domänen, das Ziel eine Plattform; kein Zyklus
    entsteht (ADR 0058). Zwischen Organisation & Tenancy und der
    Elternabrechnung gibt es keinen Import; die Root bindet den Port.
+   Der Konstruktor `compose.NewTraegerDocumentTemplates` vergrößert das
+   Compose-Budget von `modules/organizationtenancy/compose` um genau 6 LOC
+   (293 → 299, Summe 12800 → 12806).
 
 ## Folgen
 

@@ -90,13 +90,13 @@ export interface DocumentTemplateDetail {
   readonly versions: readonly DocumentTemplateVersion[];
 }
 
-export interface DocumentTemplatePreviewRow {
+interface DocumentTemplatePreviewRow {
   readonly label: string;
   readonly value: string;
   readonly bold: boolean;
 }
 
-export interface DocumentTemplatePreviewBlock {
+interface DocumentTemplatePreviewBlock {
   readonly heading: string;
   readonly text: string;
   readonly bold: boolean;

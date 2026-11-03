@@ -178,6 +178,17 @@ func Check(kind Kind, template Template) error {
 	if !Known(kind) {
 		return ErrUnknownKind
 	}
+	if fields := partErrors(template); len(fields) > 0 {
+		return &InvalidError{Fields: fields}
+	}
+	if names := unknownPlaceholders(kind, template); len(names) > 0 {
+		return &UnknownPlaceholdersError{Names: names}
+	}
+	return nil
+}
+
+// partErrors names the parts that are missing or too long.
+func partErrors(template Template) map[string]string {
 	fields := map[string]string{}
 	for _, part := range []struct {
 		name, text string
@@ -196,17 +207,17 @@ func Check(kind Kind, template Template) error {
 			fields[part.name] = "is too long"
 		}
 	}
-	if len(fields) > 0 {
-		return &InvalidError{Fields: fields}
-	}
+	return fields
+}
+
+// unknownPlaceholders lists, sorted and once each, the placeholders of the
+// template its kind does not know and every placeholder written wrongly.
+func unknownPlaceholders(kind Kind, template Template) []string {
 	unknown := map[string]bool{}
 	for _, text := range []string{template.Subject, template.Salutation, template.Body, template.Closing} {
 		for _, match := range placeholderPattern.FindAllStringSubmatch(text, -1) {
-			switch {
-			case match[1] == "":
-				unknown[match[0]] = true
-			case !knows(kind, match[1]):
-				unknown[match[1]] = true
+			if match[1] == "" || !knows(kind, match[1]) {
+				unknown[cmpOr(match[1], match[0])] = true
 			}
 		}
 		// A brace outside a complete placeholder is a placeholder written
@@ -215,15 +226,19 @@ func Check(kind Kind, template Template) error {
 			unknown[stray] = true
 		}
 	}
-	if len(unknown) > 0 {
-		names := make([]string, 0, len(unknown))
-		for name := range unknown {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		return &UnknownPlaceholdersError{Names: names}
+	names := make([]string, 0, len(unknown))
+	for name := range unknown {
+		names = append(names, name)
 	}
-	return nil
+	sort.Strings(names)
+	return names
+}
+
+func cmpOr(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 // Fill fills a template with the values of one document. A placeholder
@@ -310,46 +325,58 @@ func paragraphs(body string) [][]string {
 // because every placeholder in it is empty.
 func fillParagraph(paragraph []string, values map[string]Value) (Block, bool) {
 	var block Block
-	used, filled := 0, 0
-	count := func(text string) string {
-		result, empty := fillLine(text, values)
-		if placeholderPattern.MatchString(text) {
-			used++
-			if !empty {
-				filled++
-			}
-		}
-		return result
-	}
+	var count placeholderCount
 	if heading, ok := strings.CutPrefix(paragraph[0], "# "); ok {
-		block.Heading = strings.TrimSpace(count(heading))
+		block.Heading = strings.TrimSpace(count.fill(heading, values))
 		paragraph = paragraph[1:]
 	}
 	if n := len(paragraph); n > 0 {
 		if rows, ok := tableLine(paragraph[n-1], values); ok {
-			used++
-			if len(rows) > 0 {
-				filled++
-			}
+			count.add(len(rows) > 0)
 			block.Rows = rows
 			paragraph = paragraph[:n-1]
 		}
 	}
-	text := strings.TrimSpace(strings.Join(paragraph, "\n"))
-	if inner, ok := strings.CutPrefix(text, "**"); ok {
-		if inner, ok = strings.CutSuffix(inner, "**"); ok {
-			text, block.Bold = strings.TrimSpace(inner), true
-		}
-	}
-	block.Text = strings.TrimSpace(count(text))
-	if used > 0 && filled == 0 {
+	text, bold := boldText(strings.TrimSpace(strings.Join(paragraph, "\n")))
+	block.Text = strings.TrimSpace(count.fill(text, values))
+	block.Bold = bold && block.Text != ""
+	if count.allEmpty() || (block.Heading == "" && block.Text == "" && len(block.Rows) == 0) {
 		return Block{}, false
 	}
-	if block.Heading == "" && block.Text == "" && len(block.Rows) == 0 {
-		return Block{}, false
-	}
-	block.Bold = block.Bold && block.Text != ""
 	return block, true
+}
+
+// placeholderCount counts the placeholders of a paragraph and those that
+// print something.
+type placeholderCount struct{ used, filled int }
+
+func (c *placeholderCount) add(filled bool) {
+	c.used++
+	if filled {
+		c.filled++
+	}
+}
+
+func (c *placeholderCount) fill(text string, values map[string]Value) string {
+	result, empty := fillLine(text, values)
+	if placeholderPattern.MatchString(text) {
+		c.add(!empty)
+	}
+	return result
+}
+
+func (c placeholderCount) allEmpty() bool { return c.used > 0 && c.filled == 0 }
+
+// boldText strips the ** around a whole paragraph and reports it.
+func boldText(text string) (string, bool) {
+	inner, ok := strings.CutPrefix(text, "**")
+	if !ok {
+		return text, false
+	}
+	if inner, ok = strings.CutSuffix(inner, "**"); !ok {
+		return text, false
+	}
+	return strings.TrimSpace(inner), true
 }
 
 // tableLine reports a line that holds nothing but a table placeholder.
