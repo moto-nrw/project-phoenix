@@ -54,22 +54,19 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	return module, err
 }
 
-// NewImportTestModuleWithOwners is NewImportTestModuleWithOptions together
-// with the People Directory, guardian provider bound, and the School
-// Membership the import writes through, for suites that mount its routes.
-func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
-	return newImportTestModule(db, unit, options)
-}
-
 // NewImportTestModuleWithAuth is NewImportTestModuleWithOptions whose auth
-// module, which sends the staff invitations of an import, takes the given
-// options (for example WithAuthTestMailer to accept and count mail).
+// module takes the given options.
 func NewImportTestModuleWithAuth(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions, auth ...AuthTestOption) (ImportTestModule, error) {
-	module, _, _, err := newImportTestModule(db, unit, options, auth...)
+	module, _, _, err := NewImportTestModuleWithOwners(db, unit, options, auth...)
 	return module, err
 }
 
-func newImportTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions, authOptions ...AuthTestOption) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
+// NewImportTestModuleWithOwners is NewImportTestModuleWithOptions together
+// with the People Directory, guardian provider bound, and the School
+// Membership the import writes through, for suites that mount its routes.
+// The auth module, which sends the staff invitations of an import, takes
+// authOptions (for example WithAuthTestMailer to accept and count mail).
+func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions, authOptions ...AuthTestOption) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
 	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
