@@ -9880,7 +9880,7 @@ export const traegerHolidayContributionTopic =
       audience: "traeger",
       icon: "Landmark",
       requirements: [
-        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Beiträge`.",
+        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Ermäßigungen`.",
       ],
       steps: [],
       instructionGroups: [
@@ -9893,7 +9893,7 @@ export const traegerHolidayContributionTopic =
         {
           title: "Geschwisterregel anlegen",
           steps: [
-            "Wählen Sie in der Navigation `Beiträge`.",
+            "Wählen Sie in der Navigation `Ermäßigungen`.",
             "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
             "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
@@ -9920,7 +9920,7 @@ export const traegerHolidayContributionTopic =
         "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
       ],
       differences: [
-        "Sie sehen in der Navigation kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+        "Sie sehen in der Navigation kein `Ermäßigungen`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       ],
       troubleshootingDetails: [
         "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",
@@ -10019,7 +10019,7 @@ export const traegerHolidayFormTopic =
       troubleshootingDetails: [
         "Fehlt `Nur unter einer Bedingung anzeigen`? Sie brauchen eine andere Ja/Nein- oder Auswahlfrage mit Fragetext. Diese Frage kann dann von deren Antwort abhängen.",
         "Fehlt bei der anderen Frage noch der Fragetext? Schreiben Sie ihn zuerst dazu.",
-        "Gilt die andere Frage je Kind? Eine Familienfrage kann nicht davon abhängen. Nutzen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie. Schreiben Sie auch den Fragetext dazu.",
+        "Gilt die andere Frage pro Kind? Eine allgemeine Frage kann nicht davon abhängen. Nutzen Sie eine andere allgemeine Ja/Nein- oder Auswahlfrage. Schreiben Sie auch den Fragetext dazu.",
         "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
       ],
       related: [
@@ -10082,7 +10082,7 @@ export const traegerHolidayPeriodTopic =
       notes: [
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
-        "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
+        "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Ermäßigungen` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
@@ -10132,7 +10132,7 @@ export const traegerHolidayRegistrationReviewTopic =
         {
           title: "Bestätigen oder stornieren",
           steps: [
-            "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
+            "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, allgemeine Antworten unter `Allgemeine Angaben`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",

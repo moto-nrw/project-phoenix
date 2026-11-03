@@ -146,7 +146,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   readonly [path: string, title: string]
 > = [
   ["/ferien", "Ferien"],
-  ["/beitraege", "Beiträge"],
+  ["/beitraege", "Ermäßigungen"],
   ["/abrechnung", "Abrechnung"],
   ["/accounts", "Personen"],
   ["/access-log", "Zugriffsprotokoll"],
