@@ -215,6 +215,7 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter directoryFilter)
 			return group.WhereOr(`"student".enrolled_until IS NULL`).
 				WhereOr(`"student".enrolled_until >= ?`, filter.CareStatusOn)
 		})
+		query = holidayGuestArrived(query, filter.CareStatusOn)
 	}
 
 	if len(filter.SchoolClasses) > 0 {
