@@ -921,3 +921,7 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Glob-Suite n=3: Wand 10,48/10,94/10,98 → 7,02/6,95/6,74 s (Median −36 %), CPU 38,2 → 23,0 s, Spannensumme der 8 Dateien 15,0 → 8,5 s (ui-kit 8,6 → 4,7; date-safety 3,1 → 0,2).
 - Mutationen A–E (Regel aus, Zählmodus leer, Sperre aus, todayISO-Erkennung aus, Stale-Baseline) vorher/nachher rot. Inventar 316 unverändert.
 - Review Sol: OK mit Auflage (Sandbox unterschied Ziel-/Standard-Baseline nicht); Parent-Fix `a9ae583b2a`: Zusatzfund in baselinierter Datei, Mutation „Env-Pfad ignoriert“ jetzt rot (`expected +0 to be 1`).
+
+### Runde F-forms (9 Formular-/Seitentests): 3 behalten, 6 Untergrenze
+- Behalten (Dateispanne n=3, Median): caterer/konto 2,16 → 0,20 s (2-s-Logout-Timeout per Fake-Timer), invitation-form 2,11 → 0,51 s (`advanceTimeDelta: 1` statt 20-ms-Auto-Tick), aggregated-request-list 3,72 → 1,16 s (waitFor-Intervall 5 ms bei renderHook-Zustand). Mutationen (Logout entfernt, Delay 2000→60000, Standardaktion, Debounce, Seiten nicht angehängt) vorher/nachher rot; Inventar 8/37/82 gleich. Review Sol: OK.
+- Untergrenze (CPU-Profil): enrollment-form 4,56 s, enrollment-admin-editors 4,55 s, holiday-registration 2,47 s, time-tracking 2,61 s, sidebar 2,54 s, students/search 1,86 s: 42–53 % React-Dev-Render, 4–27 % DOM-Abfragen (`getByRole`/happy-dom `getComputedStyle`), auf 230–300 Aufrufstellen verteilt; Leerlauf ≥ 5 ms nur 0,2–0,36 s. Verworfen: scoped `chooseOption` (4,56 → 4,89 s), Fake-Timer für sidebar-240-ms-Transition (−8 %).
