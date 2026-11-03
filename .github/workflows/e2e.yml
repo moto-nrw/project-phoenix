@@ -29,6 +29,8 @@ on:
       - "frontend/playwright.config.ts"
       - "frontend/playwright.network.config.ts"
       - "frontend/playwright.tenant-switch.config.ts"
+      - "frontend/scripts/secure-chrome.ts"
+      - "frontend/scripts/secure-chrome.setup.ts"
       - "frontend/scripts/seed-state.ts"
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"

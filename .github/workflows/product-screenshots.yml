@@ -54,6 +54,8 @@ on:
       - ".github/workflows/product-screenshots.yml"
       - "frontend/scripts/product-screenshots/**"
       - "frontend/playwright.screenshots.config.ts"
+      - "frontend/scripts/secure-chrome.ts"
+      - "frontend/scripts/secure-chrome.setup.ts"
       - "backend/internal/devtools/seedapi/**"
       - "backend/internal/devtools/simulate/**"
       - "backend/cmd/devtools/**"
