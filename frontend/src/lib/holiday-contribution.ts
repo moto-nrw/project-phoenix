@@ -55,7 +55,7 @@ export interface HolidayContribution {
   readonly siblingsInvoiced?: boolean;
 }
 
-export interface HolidaySibling {
+interface HolidaySibling {
   readonly registrationId: string;
   readonly cancelled: boolean;
   readonly children: readonly { readonly id: string; readonly name: string }[];
