@@ -93,6 +93,12 @@ export interface BillingRunDetail extends BillingRun {
    * (#5621); 0 otherwise.
    */
   readonly missingDebtorNumbers: number;
+  /**
+   * Draft invoices with an amount and without a debtor number while the
+   * payment text names it, whatever the switch (#5622): after the release
+   * their letters are refused until the placeholder goes.
+   */
+  readonly paymentTextMissingDebtorNumbers: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
   /** Set once the confirmation letters of the released run exist (#4669). */
@@ -197,6 +203,7 @@ interface BackendRunDetail extends BackendRun {
   preview_cents: number;
   unbilled: number;
   missing_debtor_numbers?: number;
+  payment_text_missing_debtor_numbers?: number;
   number_pattern: string;
   number_range_set: boolean;
   letters?: BackendLetters | null;
@@ -293,6 +300,8 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     previewCents: run.preview_cents,
     unbilled: run.unbilled,
     missingDebtorNumbers: run.missing_debtor_numbers ?? 0,
+    paymentTextMissingDebtorNumbers:
+      run.payment_text_missing_debtor_numbers ?? 0,
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,

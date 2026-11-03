@@ -102,6 +102,9 @@ type StudentDirectoryFilter struct {
 	// CareStatusOn is the caller's frozen calendar day for that boundary, so
 	// a request crossing Berlin midnight keeps one notion of "today".
 	CareStatusOn string
+	// HolidayGuestsArrivedOn keeps a holiday guest before the first day of
+	// its week off the page (#5630); empty applies no such bound.
+	HolidayGuestsArrivedOn string
 	// Page is 1-based. A PageSize of 0 returns the whole selection, which is
 	// what the exports need.
 	Page     int

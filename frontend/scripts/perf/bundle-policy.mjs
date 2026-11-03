@@ -1,98 +1,61 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 
-export const BUDGET_FORMAT = "moto-bundle-budget/v1";
+export const CEILINGS_FORMAT = "moto-bundle-ceilings/v1";
+// A PR label, read fresh from the GitHub API on every (re-)run, approves one
+// PR's growth. The reason belongs in the PR description.
+export const GROWTH_APPROVAL_LABEL = "bundle-growth-approved";
 const TOLERANCE_RATIO = 0.02;
 const TOLERANCE_BYTES = 10 * 1024;
-// Cold repeat measurements and maintenance procedure: docs/perf/bundle-ratchet-5483.md.
-const STALE_REFERENCE_RATIO = 0.05;
-// A merge-base this close to its ceiling turns any PR that grows shared code by
-// a few bytes red (#5396: 4 of 5 bundle failures were 13 to 201 bytes over).
-// Such PRs are judged by their own delta; development pushes, the nightly and
-// release PRs still enforce the ceiling, so resetting it stays a reviewed
-// policy change.
+// A merge-base this close to a ceiling must not turn an unrelated PR red
+// (#5396: 4 of 5 bundle failures were 13 to 201 bytes over). Such PRs are
+// judged by their own delta; development pushes, the nightly and release PRs
+// still enforce the ceiling.
 export const NEAR_CEILING_BYTES = 1024;
 
-export function legacyCeiling(referenceBytes) {
-  return (
-    referenceBytes +
-    Math.max(TOLERANCE_BYTES, Math.round(referenceBytes * TOLERANCE_RATIO))
-  );
-}
-
-function portalForRoute(route) {
-  if (/^\/\[tenant\](\/|$)/.test(route)) return "tenant";
-  const portal = /^\/(operator|parents|school|caterer|traeger)(\/|$)/.exec(
-    route,
-  )?.[1];
-  return portal ?? "shared";
-}
-
-function budgetFileForRoute(route) {
-  const portal = portalForRoute(route);
-  const segments = route.split("/").filter(Boolean);
-  if (portal !== "shared") segments.shift();
-  const resource = (segments[0] ?? "index").replace(/[^a-zA-Z0-9_-]/g, "_");
-  return `${portal}/${resource}.json`;
-}
-
-function budgetFiles(directory, prefix = "") {
-  return readdirSync(join(directory, prefix), { withFileTypes: true })
-    .flatMap((entry) => {
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      return entry.isDirectory()
-        ? budgetFiles(directory, relative)
-        : entry.isFile() && entry.name.endsWith(".json")
-          ? [relative]
-          : [];
-    })
-    .sort();
+/** Growth a PR may add to one route without approval. */
+export function deltaTolerance(baseBytes) {
+  return Math.max(TOLERANCE_BYTES, Math.round(baseBytes * TOLERANCE_RATIO));
 }
 
 export function validBytes(value) {
   return Number.isSafeInteger(value) && value >= 0;
 }
 
-/** Policy is reviewed source. Measurement artifacts can never replace it. */
-export function readBudgets(directory) {
-  const budgets = new Map();
-  const files = budgetFiles(directory);
-  if (files.length === 0) throw new Error(`No bundle budgets in ${directory}`);
-  for (const file of files) {
-    const policy = JSON.parse(readFileSync(join(directory, file), "utf8"));
-    if (
-      policy?.format !== BUDGET_FORMAT ||
-      !policy.routes ||
-      Array.isArray(policy.routes)
-    ) {
-      throw new Error(`Invalid bundle budget policy: ${file}`);
-    }
-    for (const [route, budget] of Object.entries(policy.routes)) {
-      if (!route.startsWith("/") || file !== budgetFileForRoute(route)) {
-        throw new Error(
-          `Bundle budget ${route} belongs in ${budgetFileForRoute(route)}, not ${file}`,
-        );
-      }
-      if (
-        !budget ||
-        !validBytes(budget.referenceBytes) ||
-        !validBytes(budget.maxBytes) ||
-        budget.maxBytes < budget.referenceBytes
-      ) {
-        throw new Error(`Invalid byte budget for ${route} in ${file}`);
-      }
-      if (budgets.has(route))
-        throw new Error(`Duplicate bundle budget: ${route}`);
-      budgets.set(route, budget);
-    }
+/** Absolute ceilings for a few heavily used routes. Missing or malformed fails closed. */
+export function readCeilings(file) {
+  const policy = JSON.parse(readFileSync(file, "utf8"));
+  if (
+    policy?.format !== CEILINGS_FORMAT ||
+    !policy.routes ||
+    typeof policy.routes !== "object" ||
+    Array.isArray(policy.routes)
+  ) {
+    throw new Error(`Invalid bundle ceiling policy: ${file}`);
   }
-  if (budgets.size === 0)
-    throw new Error("Bundle budget policy contains no routes");
-  return budgets;
+  const ceilings = new Map();
+  for (const [route, maxBytes] of Object.entries(policy.routes)) {
+    if (!route.startsWith("/") || !validBytes(maxBytes))
+      throw new Error(`Invalid bundle ceiling for ${route} in ${file}`);
+    ceilings.set(route, maxBytes);
+  }
+  if (ceilings.size === 0)
+    throw new Error(`Bundle ceiling policy contains no routes: ${file}`);
+  return ceilings;
 }
 
-/** Reductions pass, but stale references warn so maintainers can ratchet down. */
-export function compareBudgets(budgets, measured, base = null) {
+const GROWTH_HINT = `Bundle verkleinern (Lazy Loading, leichtere Bibliothek) oder, wenn das Feature den Zuwachs braucht, Label \`${GROWTH_APPROVAL_LABEL}\` setzen, im PR-Text begründen und die fehlgeschlagenen Jobs neu starten.`;
+
+/**
+ * Feature PRs: each route's own delta against the merge-base is the gate; the
+ * approval label turns delta failures into warnings. Ceilings apply to every
+ * run and are not waived by the label.
+ */
+export function compareBundles(
+  ceilings,
+  measured,
+  base = null,
+  { growthApproved = false } = {},
+) {
   if (!(measured instanceof Map) || measured.size === 0)
     throw new Error("No measured bundle routes");
   const failures = [];
@@ -103,51 +66,40 @@ export function compareBudgets(budgets, measured, base = null) {
   )) {
     if (!validBytes(bytes))
       throw new Error(`Invalid measured bundle bytes for ${route}`);
-    const budget = budgets.get(route);
-    if (!budget) {
-      failures.push(
-        `Neue Route ohne genehmigtes Bundle-Budget: ${route}. Budget im passenden scripts/perf/bundle-budgets/<portal>/<resource>.json explizit prüfen und ergänzen.`,
-      );
-      continue;
-    }
     const baseBytes = base?.get(route);
     if (baseBytes !== undefined && !validBytes(baseBytes))
       throw new Error(`Invalid base bundle bytes for ${route}`);
+    const maxBytes = ceilings.get(route);
     rows.push({
       route,
       bytes,
-      referenceBytes: budget.referenceBytes,
-      maxBytes: budget.maxBytes,
       baseBytes,
+      maxBytes,
       delta: baseBytes === undefined ? null : bytes - baseBytes,
     });
-    if (baseBytes !== undefined && bytes > legacyCeiling(baseBytes)) {
-      failures.push(
-        `${route}: eigenes PR-Delta ${bytes - baseBytes} Bytes überschreitet die Toleranz ${legacyCeiling(baseBytes) - baseBytes} Bytes gegenüber der Merge-Basis (${baseBytes} Bytes). Bundle verkleinern; historische Referenzen ändern dieses Delta nicht.`,
-      );
+    if (baseBytes !== undefined && bytes - baseBytes > deltaTolerance(baseBytes)) {
+      const message = `${route}: PR-Zuwachs ${bytes - baseBytes} Bytes überschreitet die Toleranz ${deltaTolerance(baseBytes)} Bytes gegenüber der Merge-Basis (${baseBytes} Bytes).`;
+      if (growthApproved)
+        warnings.push(`${message} Freigegeben mit \`${GROWTH_APPROVAL_LABEL}\`.`);
+      else failures.push(`${message} ${GROWTH_HINT}`);
     }
-    if (
-      budget.referenceBytes - bytes >
-      budget.referenceBytes * STALE_REFERENCE_RATIO
-    ) {
-      warnings.push(
-        `${route}: Veraltete Referenz ${budget.referenceBytes} Bytes; gemessen ${bytes} Bytes, mehr als ${STALE_REFERENCE_RATIO * 100} % darunter. Kalte Linux-Messung wiederholen und Referenz samt Obergrenze nach Review nach unten nachziehen; niemals automatisch erhöhen.`,
-      );
-    }
-    if (bytes > budget.maxBytes) {
-      // A base over or just under the ceiling must not make an unrelated PR red.
+    if (maxBytes !== undefined && bytes > maxBytes) {
       const inherited =
-        baseBytes !== undefined &&
-        baseBytes > budget.maxBytes - NEAR_CEILING_BYTES;
-      const messages = inherited ? warnings : failures;
-      messages.push(
-        `${route}: ${bytes} Bytes überschreiten die genehmigte Obergrenze ${budget.maxBytes} Bytes. ${
+        baseBytes !== undefined && baseBytes > maxBytes - NEAR_CEILING_BYTES;
+      (inherited ? warnings : failures).push(
+        `${route}: ${bytes} Bytes überschreiten die Obergrenze ${maxBytes} Bytes in scripts/perf/bundle-ceilings.json. ${
           inherited
-            ? `Die Merge-Basis lag mit ${baseBytes} Bytes schon an der Obergrenze; für diese PR zählt nur ihr eigenes Delta. Die Obergrenze in einer eigenen, begründeten Policy-Änderung neu setzen.`
-            : "Bundle verkleinern oder eine begründete Policy-Änderung reviewen lassen; eine neue Messung erhöht kein Budget."
+            ? "Die Merge-Basis lag schon an der Obergrenze; für diese PR zählt nur ihr eigener Zuwachs."
+            : "Das Label gilt hier nicht: Bundle verkleinern oder die Obergrenze im PR begründet anheben."
         }`,
       );
     }
+  }
+  for (const route of ceilings.keys()) {
+    if (!measured.has(route))
+      failures.push(
+        `${route}: Obergrenze ohne gemessene Route. Eintrag in scripts/perf/bundle-ceilings.json auf die neue Route umstellen oder entfernen.`,
+      );
   }
   return { failures, warnings, rows };
 }

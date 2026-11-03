@@ -152,19 +152,22 @@ type BillingDocument struct {
 // preview of today: Unbilled counts the confirmed registrations without a
 // frozen contribution, which the run leaves out; MissingDebtorNumbers
 // counts its invoices without a debtor number when the Träger asks for one
-// (#5621). Letters is set once the letters of a released run are created
-// (#4669).
+// (#5621); PaymentTextMissingDebtorNumbers counts, whatever the switch, the
+// invoices with an amount and without a debtor number whose letter the
+// payment text of the Träger would refuse after the release (#5622).
+// Letters is set once the letters of a released run are created (#4669).
 type BillingRunDetail struct {
 	BillingRun
-	Documents            []BillingDocument `json:"documents"`
-	PreviewCount         int               `json:"preview_count"`
-	PreviewCents         int64             `json:"preview_cents"`
-	Unbilled             int               `json:"unbilled"`
-	MissingDebtorNumbers int               `json:"missing_debtor_numbers"`
-	NumberPattern        string            `json:"number_pattern"`
-	NumberRangeSet       bool              `json:"number_range_set"`
-	BilledInAdvance      bool              `json:"billed_in_advance"`
-	Letters              *BillingLetters   `json:"letters"`
+	Documents                       []BillingDocument `json:"documents"`
+	PreviewCount                    int               `json:"preview_count"`
+	PreviewCents                    int64             `json:"preview_cents"`
+	Unbilled                        int               `json:"unbilled"`
+	MissingDebtorNumbers            int               `json:"missing_debtor_numbers"`
+	PaymentTextMissingDebtorNumbers int               `json:"payment_text_missing_debtor_numbers"`
+	NumberPattern                   string            `json:"number_pattern"`
+	NumberRangeSet                  bool              `json:"number_range_set"`
+	BilledInAdvance                 bool              `json:"billed_in_advance"`
+	Letters                         *BillingLetters   `json:"letters"`
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a
