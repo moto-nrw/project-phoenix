@@ -18,7 +18,7 @@ import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
 
 // Shared a11y contract for all modal dialogs.
-export const dialogAriaProps = {
+const dialogAriaProps = {
   role: "dialog" as const,
   "aria-modal": true,
 };
