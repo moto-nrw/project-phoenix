@@ -502,8 +502,9 @@ export function CarePlanEditorModal({
                   </p>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="surface"
                     size="compact"
+                    className="ml-auto"
                     disabled={isResettingPickup}
                     onClick={() =>
                       void handleResetPickupToOffering(
