@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.activities.list",
+  "max": 21,
+  "exact": true,
+  "description": "GET /api/iot/activities;3→8 distinct activities with categories and mixed occupied/unoccupied sessions. Existing root composition, real device+PIN, cold-device heartbeat, existing request memos and tenant RLS; full request query tree, no count filtering."
+}

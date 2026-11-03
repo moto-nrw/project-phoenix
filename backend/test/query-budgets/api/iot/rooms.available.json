@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.rooms.available",
+  "max": 25,
+  "exact": true,
+  "description": "GET /api/iot/rooms/available?capacity=10;3→8 distinct occupied rooms, activities, supervisors and visitors. Existing root composition, real device+PIN, cold-device heartbeat, existing request memos and tenant RLS; full request query tree, no count filtering."
+}

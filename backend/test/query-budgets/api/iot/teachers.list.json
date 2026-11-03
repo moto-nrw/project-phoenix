@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.teachers.list",
+  "max": 19,
+  "exact": true,
+  "description": "GET /api/iot/teachers/ without PIN;3→8 distinct teacher/staff/person/account chains. Existing root composition, real API-key-only auth, cold-device heartbeat, existing request memos and tenant RLS; full request query tree, no count filtering."
+}
