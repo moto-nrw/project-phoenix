@@ -143,6 +143,11 @@ type StudentDirectoryFilter struct {
 	// CareStatusOn is the caller's frozen calendar day for that boundary, so
 	// a request crossing Berlin midnight keeps one notion of "today".
 	CareStatusOn string
+	// HolidayGuestsArrivedOn keeps a holiday guest whose week starts after
+	// this calendar day off the page (#5630, ADR 0120): the school cares for
+	// it only from the first day of its week. A child in KeepAlumni (still
+	// present) stays. Empty applies no such bound, whatever CareStatus says.
+	HolidayGuestsArrivedOn string
 	// Page is 1-based; a PageSize of 0 returns the whole selection, which is
 	// what the exports need.
 	Page     int
@@ -252,6 +257,11 @@ func NormalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDire
 	if filter.CareStatusOn != "" {
 		if _, err := time.Parse(BirthdayLayout, filter.CareStatusOn); err != nil {
 			return filter, invalidStudent("care status day must be a calendar date in YYYY-MM-DD format")
+		}
+	}
+	if filter.HolidayGuestsArrivedOn != "" {
+		if _, err := time.Parse(BirthdayLayout, filter.HolidayGuestsArrivedOn); err != nil {
+			return filter, invalidStudent("holiday guest arrival day must be a calendar date in YYYY-MM-DD format")
 		}
 	}
 	return filter, nil

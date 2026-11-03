@@ -14,19 +14,11 @@ import { formatDate } from "~/lib/date-helpers";
 import {
   fetchHolidayGuestSheet,
   formatHolidayHostAnswer,
+  holidayGuestLabel,
   type HolidayGuestContact,
-  type HolidayGuestSheet,
 } from "~/lib/holiday-host-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
-
-function schoolLine(sheet: HolidayGuestSheet): string {
-  if (sheet.homeSchoolId !== null)
-    return "Kind einer anderen Schule des Trägers";
-  if (sheet.guestSchoolName)
-    return `Ohne Schule beim Träger (${sheet.guestSchoolName})`;
-  return "Ohne Schule beim Träger";
-}
 
 function ContactList({
   contacts,
@@ -122,7 +114,7 @@ export function HolidayGuestSection({
                 {`${data.timeModelName} (${data.timeModelStartsAt} bis ${data.timeModelEndsAt} Uhr)`}
               </DataField>
               <DataField label="Schule" fullWidth>
-                {schoolLine(data)}
+                {holidayGuestLabel(data.schoolName)}
               </DataField>
             </DataGrid>
           </InfoSection>

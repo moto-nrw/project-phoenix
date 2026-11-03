@@ -303,6 +303,8 @@ export interface HolidayGuestSheet {
   /** `null` bei einem Kind ohne Schule des Trägers. */
   readonly homeSchoolId: string | null;
   readonly guestSchoolName: string;
+  /** Die Schule, die der Hinweis „Gast aus …“ nennt; leer für „Feriengast“ (#5630). */
+  readonly schoolName: string;
   readonly emergencyContacts: HolidayGuestContact[];
   readonly pickupContacts: HolidayGuestContact[];
   readonly answers: HolidayHostAnswer[];
@@ -321,6 +323,7 @@ interface BackendGuestSheet {
   time_model_ends_at: string;
   home_school_id: number | string | null;
   guest_school_name: string;
+  school_name?: string;
   emergency_contacts: HolidayGuestContact[] | null;
   pickup_contacts: HolidayGuestContact[] | null;
   answers?: HolidayHostAnswer[] | null;
@@ -330,6 +333,39 @@ interface BackendGuestSheet {
 
 /** Die Klasse, unter der ein Feriengast in der ausrichtenden OGS steht. */
 export const HOLIDAY_GUEST_SCHOOL_CLASS = "Feriengast";
+
+/**
+ * Der Hinweis an einem Feriengast (#5630), überall gleich: „Gast aus“ und die
+ * Heimatschule oder die Schule, die die Eltern genannt haben; ohne Schule
+ * „Feriengast“.
+ */
+export function holidayGuestLabel(schoolName: string): string {
+  const name = schoolName.trim();
+  return name ? `Gast aus ${name}` : HOLIDAY_GUEST_SCHOOL_CLASS;
+}
+
+/** Hinweis eines Feriengasts, den die Schule heute betreut. */
+export interface HolidayGuestBadge {
+  readonly studentId: string;
+  readonly schoolName: string;
+}
+
+/**
+ * Die Hinweise aller Feriengäste, die die Schule heute betreut (#5630).
+ * Vor und nach ihrer Woche stehen Gäste in keiner Liste und haben keinen.
+ */
+export async function fetchHolidayGuestBadges(): Promise<HolidayGuestBadge[]> {
+  const badges = await readData<
+    { student_id: number | string; school_name: string }[] | null
+  >(
+    "/api/holiday-guests",
+    "Die Hinweise zu den Feriengästen konnten nicht geladen werden",
+  );
+  return (badges ?? []).map((badge) => ({
+    studentId: String(badge.student_id),
+    schoolName: badge.school_name,
+  }));
+}
 
 /**
  * Wählt die Gruppe für die Feriengäste einer Woche. Das Backend übernimmt
@@ -375,6 +411,7 @@ export async function fetchHolidayGuestSheet(
     timeModelEndsAt: sheet.time_model_ends_at,
     homeSchoolId: optionalId(sheet.home_school_id),
     guestSchoolName: sheet.guest_school_name,
+    schoolName: sheet.school_name ?? "",
     emergencyContacts: sheet.emergency_contacts ?? [],
     pickupContacts: sheet.pickup_contacts ?? [],
     answers: sheet.answers ?? [],

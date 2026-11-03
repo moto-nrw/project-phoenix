@@ -41,6 +41,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     uses: ./.github/workflows/lint.yml
     with:
       run-backend: true

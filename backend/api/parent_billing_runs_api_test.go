@@ -78,6 +78,9 @@ type billingRunBody struct {
 	// MissingDebtorNumbers counts the invoices without a debtor number
 	// while the Träger asks for one (#5621).
 	MissingDebtorNumbers int `json:"missing_debtor_numbers"`
+	// PaymentTextMissingDebtorNumbers counts the invoices with an amount
+	// and without a debtor number while the payment text names it (#5622).
+	PaymentTextMissingDebtorNumbers int `json:"payment_text_missing_debtor_numbers"`
 }
 
 type billingPeriodBody struct {

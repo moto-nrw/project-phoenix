@@ -83,8 +83,11 @@ type directoryFilter struct {
 	KeepAlumni    []int64
 	CareStatus    string
 	CareStatusOn  string
-	Page          int
-	PageSize      int
+	// HolidayGuestsArrivedOn keeps a holiday guest before its week off the
+	// page (#5630); empty applies no such bound.
+	HolidayGuestsArrivedOn string
+	Page                   int
+	PageSize               int
 }
 
 func directoryDateParam(value string) *calendar.Date {

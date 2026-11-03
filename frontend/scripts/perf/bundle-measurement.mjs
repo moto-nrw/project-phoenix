@@ -1,4 +1,4 @@
-// Content-addressed observations, never approved budget policy.
+// Content-addressed observations, never ceiling policy.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -212,7 +212,7 @@ export function readBaseComparison(directory = process.cwd(), currentIdentity) {
     return {
       routes: null,
       status:
-        "Nicht angefordert; genehmigte absolute Budgets werden vollständig geprüft.",
+        "Keine Merge-Basis angefordert; nur die Obergrenzen aus bundle-ceilings.json werden geprüft.",
     };
   const { identity } = JSON.parse(readFileSync(identityFile, "utf8"));
   assertIdentity(identity);
@@ -231,7 +231,7 @@ export function readBaseComparison(directory = process.cwd(), currentIdentity) {
     );
   return {
     routes: readMeasurement(file, identity),
-    status: `Verifizierte Basismessung für Quellbaum ${identity.sourceTree}; eigenes PR-Delta (2 % oder 10 KiB) und feste absolute Budgets werden getrennt geprüft.`,
+    status: `Verifizierte Basismessung für Quellbaum ${identity.sourceTree}; PR-Zuwachs (2 % oder 10 KiB) und Obergrenzen werden getrennt geprüft.`,
   };
 }
 
