@@ -1,9 +1,15 @@
-// Shared harness for the bauart oxlint rule tests: each probe file goes
-// through the real oxlint with the repo config.
+// Shared harness for the oxlint plugin tests: each probe file goes through
+// the real oxlint, by default with the repo config.
 import { spawnSync } from "node:child_process";
+import { vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+
+// Only the concurrent suites importing this harness use wider batches. The
+// worker count and file isolation stay unchanged; each flush still starts
+// one oxlint process with separate roots and diagnostics for every probe.
+vi.setConfig({ maxConcurrency: 32 });
 
 const temporaryDirectories: string[] = [];
 
@@ -11,23 +17,17 @@ type LintResult = { status: number; output: string };
 type Probe = { path: string; source: string; resolve: (r: LintResult) => void };
 
 // Each oxlint start costs about 0.2 s, most of it loading the JS plugins.
-// Probes queued in the same tick share one oxlint run; the tests below run
-// concurrently so their probes batch. Every probe keeps its own temp root,
-// so path-based exemptions and baselines see the same relative path.
-let queue: Probe[] = [];
+// Probes queued in the same tick for the same config share one oxlint run;
+// the tests run concurrently so their probes batch. Every probe keeps its own
+// temp root, so path-based exemptions and baselines see the same relative path.
+const queues = new Map<string, Probe[]>();
 
-function flush() {
-  const batch = queue;
-  queue = [];
+function flush(config: string) {
+  const batch = queues.get(config) ?? [];
+  queues.delete(config);
   const result = spawnSync(
     resolve("node_modules/.bin/oxlint"),
-    [
-      "-c",
-      resolve(".oxlintrc.json"),
-      "-f",
-      "json",
-      ...batch.map((p) => p.path),
-    ],
+    ["-c", config, "-f", "json", ...batch.map((p) => p.path)],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const { diagnostics } = JSON.parse(result.stdout) as {
@@ -60,6 +60,7 @@ function flush() {
 export function lintSource(
   source: string,
   relativePath = "src/components/probe.tsx",
+  config = resolve(".oxlintrc.json"),
 ): Promise<LintResult> {
   const directory = mkdtempSync(join(tmpdir(), "bauart-"));
   temporaryDirectories.push(directory);
@@ -68,7 +69,12 @@ export function lintSource(
   writeFileSync(sourcePath, source);
 
   return new Promise((done) => {
-    if (queue.length === 0) setTimeout(flush, 0);
+    let queue = queues.get(config);
+    if (!queue) {
+      queue = [];
+      queues.set(config, queue);
+      setTimeout(() => flush(config), 0);
+    }
     queue.push({ path: sourcePath, source, resolve: done });
   });
 }

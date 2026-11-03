@@ -1,6 +1,10 @@
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import ts from "typescript";
+import typescript from "typescript";
+
+// Under Vitest every use of an imported binding reads its module object
+// again; walking each syntax tree uses `ts` per node. Alias it once.
+import ts = typescript;
 
 /**
  * The cookie writers of the session cookie inventory (#5399, #5444):

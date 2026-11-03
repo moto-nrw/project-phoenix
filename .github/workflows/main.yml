@@ -412,9 +412,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Fetch source ratchet comparison ref
+      # The register ratchets compare against the merge base with development,
+      # which a depth-1 checkout cannot resolve. Unrelated refs and tags are
+      # not inputs.
+      - name: Fetch source ratchet comparison history
         if: matrix.suite == 'ratchets'
-        run: git fetch --no-tags --depth=1 origin development:refs/remotes/origin/development
+        run: git fetch --no-tags --unshallow origin "$(git rev-parse HEAD)" +refs/heads/development:refs/remotes/origin/development
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
@@ -424,7 +427,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs .github/actions/ci-cost/ci-cost.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs .github/actions/ci-cost/ci-cost.test.mjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py
 
@@ -602,8 +605,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          scripts/backend-architecture.sh diagram --output "$output_directory"
-          scripts/backend-architecture.sh dependencies \
+          scripts/backend-architecture.sh projections \
             --focus module:architecture-check \
             --output "$output_directory"
 

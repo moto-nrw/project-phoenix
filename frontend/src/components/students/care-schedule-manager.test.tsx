@@ -459,6 +459,20 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
   });
 
+  it("uses the accessible strong orange for today's date markers", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+
+    await screen.findByText("Betreuungszeiten");
+    const todayMarkers = screen
+      .getAllByText("27")
+      .filter((marker) => marker.classList.contains("rounded-full"));
+
+    expect(todayMarkers.length).toBeGreaterThan(0);
+    for (const marker of todayMarkers) {
+      expect(marker).toHaveClass("bg-moto-orange-strong", "text-white");
+    }
+  });
+
   it("uses its own width to choose the readable week layout", async () => {
     render(<CareScheduleManager studentId="42" />);
 

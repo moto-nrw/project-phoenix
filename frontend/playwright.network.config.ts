@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { networkPorts } from "./e2e/network/ports.mjs";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 const ports = networkPorts("network");
 
@@ -9,6 +10,7 @@ process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 
 /** @public Local, synthetic network evidence. No seeded database or real keys. */
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./e2e/network",
   testMatch: "*.spec.ts",
   // The shared-cookie scenario needs its own domain and fixture server mode.
@@ -34,12 +36,12 @@ export default defineConfig({
     video: "off",
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
-    launchOptions: {
+    ...secureChromeUse({
       args: [
         "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE *.localhost",
         "--disable-background-networking",
       ],
-    },
+    }),
   },
   webServer: {
     command: "node e2e/network/server.mjs --stop-with-stdin",

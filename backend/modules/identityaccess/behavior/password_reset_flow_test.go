@@ -64,7 +64,7 @@ func storedResetToken(t *testing.T, db *bun.DB, id int64) (used bool, expiry tim
 func TestInitiatePasswordResetIssuesARedeemableLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db)
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-flow")
 
@@ -123,7 +123,7 @@ func TestPasswordResetRejectsAnErasedAccount(t *testing.T) {
 func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db)
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-previous")
 
@@ -141,7 +141,7 @@ func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {
 func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db)
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	ctx := testpkg.Ctx(t)
 	staff := resetAccount(t, db, "reset-scope-staff")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
@@ -175,7 +175,7 @@ func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true), api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-rate-limit")
 
@@ -227,7 +227,7 @@ func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
 func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, api.WithAuthTestPasswordResetRateLimit(true), api.WithAuthTestPasswordResetBackoff(time.Millisecond))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-cleanup")
 

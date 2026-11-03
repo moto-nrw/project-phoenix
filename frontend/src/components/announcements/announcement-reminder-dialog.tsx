@@ -188,7 +188,7 @@ export function AnnouncementReminderDialog({
             {hasReminder && (
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline_danger"
                 size="md"
                 onClick={() => setConfirmRemove(true)}
                 disabled={pending !== null}
@@ -201,7 +201,7 @@ export function AnnouncementReminderDialog({
             )}
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="md"
               onClick={onClose}
               disabled={pending !== null}

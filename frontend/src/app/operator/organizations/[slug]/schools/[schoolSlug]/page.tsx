@@ -468,7 +468,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         </button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="compact"
           onClick={() => setEditSchoolOpen(true)}
         >
@@ -476,14 +476,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="compact"
           onClick={() => setChildQuotaOpen(true)}
         >
           Kinderkontingent
         </Button>
         <ButtonLink
-          variant="secondary"
+          variant="outline"
           size="compact"
           href={
             school
@@ -527,7 +527,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="compact"
             onClick={() => setInviteOpen(true)}
           >
