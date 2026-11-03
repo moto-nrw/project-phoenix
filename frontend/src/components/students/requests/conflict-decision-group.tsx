@@ -299,7 +299,7 @@ export function ConflictDecisionGroup({
   return (
     <section
       ref={sectionRef}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+      className="moto-content-surface rounded-2xl border p-4"
     >
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-gray-900">

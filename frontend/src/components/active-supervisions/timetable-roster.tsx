@@ -788,7 +788,7 @@ function TimetableRosterHeader({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm backdrop-blur-md">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       {/* Auf dem Telefon steht der Einklapp-Pfeil neben dem Titel und die
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}

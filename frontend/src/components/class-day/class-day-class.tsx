@@ -636,7 +636,7 @@ export function ClassDayClass({
         } as CSSProperties
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface rounded-2xl border p-5">
         <NavigationLink
           href={schoolPath(schoolDayListPath(dateISO, openList))}
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -844,7 +844,7 @@ export function ClassDayClass({
                 {homeworkEntries.map((entry) => (
                   <li
                     key={entry.id}
-                    className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm"
+                    className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5"
                   >
                     <div className="min-w-0 flex-1">
                       {entry.subject ? (

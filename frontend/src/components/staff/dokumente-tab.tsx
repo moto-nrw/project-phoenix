@@ -319,7 +319,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
               // base class carries a colorless `border` — without
               // moto-content-surface the Tailwind-4 default (currentColor)
               // paints it black.
-              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+              triggerClassName="moto-content-surface h-9 w-56"
             />
           </div>
 
@@ -384,7 +384,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
               value={filter}
               options={filterItems}
               onChange={(value) => setFilter(value as CategoryFilter)}
-              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+              triggerClassName="moto-content-surface h-9 w-56"
             />
           </div>
         )}

@@ -105,7 +105,7 @@ export function PlannedNowSection({
   if (sortedPlanned.length === 0) {
     return (
       <section
-        className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md"
+        className="moto-content-surface mb-4 rounded-2xl border p-4"
         data-setup-tour="supervision-next"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -159,7 +159,7 @@ export function PlannedNowSection({
 
   return (
     <section
-      className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md"
+      className="moto-content-surface mb-5 overflow-hidden rounded-2xl border"
       data-setup-tour="supervision-next"
     >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
@@ -231,7 +231,7 @@ export function PlannedNowSection({
               return (
                 <article
                   key={instance.id}
-                  className="moto-content-surface overflow-hidden rounded-xl border shadow-sm"
+                  className="moto-content-surface overflow-hidden rounded-xl border"
                   style={blockTintStyle(instance, instance.isAssigned)}
                 >
                   <div className="p-4">

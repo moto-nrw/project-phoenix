@@ -101,7 +101,7 @@ export function ParentMessagesCard({
   });
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <ConceptSectionHeader
         className="mb-4"
         title="Nachrichten mit den Eltern"

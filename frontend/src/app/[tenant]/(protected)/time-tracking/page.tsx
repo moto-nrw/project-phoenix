@@ -1484,7 +1484,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-moto-green";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green-strong";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1494,7 +1494,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-moto-green-hover";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green-strong";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1591,7 +1591,7 @@ type StatusTone = "green" | "amber" | "gray";
 // (#92400E) is the ramp step that stays legible on white; the older
 // text-amber-600 (#D97706) missed WCAG AA for normal text.
 const STATUS_TEXT: Record<StatusTone, string> = {
-  green: "text-moto-green",
+  green: "text-moto-green-strong",
   amber: "text-moto-amber-strong",
   gray: "text-gray-700",
 };

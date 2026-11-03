@@ -321,7 +321,7 @@ export function InvitationForm({
   const roleError = errors.fieldError("role_id");
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 md:p-6">
       <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="rounded-xl bg-gray-100 p-2">
           <Mail

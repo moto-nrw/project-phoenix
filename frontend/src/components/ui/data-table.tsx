@@ -133,8 +133,7 @@ const alignClass: Record<
 
 // Class constants shared between the real table and its skeleton state so
 // the two cannot drift apart — the skeleton IS this table's own markup.
-const surfaceClass =
-  "moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md";
+const surfaceClass = "moto-content-surface overflow-hidden rounded-2xl border";
 const tableClass = "w-full border-collapse text-left text-sm";
 const headRowClass =
   "border-b border-gray-100 text-xs font-medium text-gray-500";

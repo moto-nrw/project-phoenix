@@ -106,7 +106,7 @@ function ApprovalsEmptyState({
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span
@@ -315,7 +315,7 @@ export default function GuardianApprovalQueue({
         requests.map((req) => (
           <div
             key={req.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
+            className="moto-content-surface rounded-2xl border p-4 sm:p-6"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">

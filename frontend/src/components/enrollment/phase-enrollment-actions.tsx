@@ -347,7 +347,7 @@ export function ManualApprovedEnrollmentModal({
               </div>
             </div>
           ) : null}
-          <div className="moto-content-surface grid gap-3 rounded-xl border p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_16rem]">
+          <div className="moto-content-surface grid gap-3 rounded-xl border p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
             <Textarea
               id="manual-enrollment-reason"
               name="reason"

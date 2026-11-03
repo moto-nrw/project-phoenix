@@ -54,7 +54,7 @@ export function SchoolCheckinSelectionBar({
 
   return (
     <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 hidden rounded-xl border px-3 py-2 shadow-sm md:block"
+      className="moto-content-surface sticky top-2 z-30 mb-3 hidden rounded-xl border px-3 py-2 md:block"
       role="region"
       aria-label="An- und Abmelde-Modus"
       aria-busy={isRunning || runningAction !== null}

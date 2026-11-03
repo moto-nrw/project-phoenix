@@ -37,8 +37,7 @@ import {
 } from "~/lib/tenant-context";
 import { transitConcept } from "~/lib/concepts/transit";
 
-const DETAIL_CARD_CLASS =
-  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
+const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 const EMPTY_ROOMS: Room[] = [];
 
@@ -535,7 +534,7 @@ export function TransitStudentsSection({
                 Kinder werden geladen...
               </div>
             ) : studentsError ? null : students.length === 0 ? (
-              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
+              <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
                 Aktuell keine Kinder unterwegs.
               </div>
             ) : (

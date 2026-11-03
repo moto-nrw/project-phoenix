@@ -151,7 +151,7 @@ export function AttachmentEditor({
           {attachments.map((attachment, index) => (
             <li
               key={attachment.document_url}
-              className="moto-content-surface inline-flex w-full flex-col gap-3 rounded-xl border p-3 shadow-sm"
+              className="moto-content-surface inline-flex w-full flex-col gap-3 rounded-xl border p-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

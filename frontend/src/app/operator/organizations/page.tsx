@@ -34,7 +34,7 @@ import { organizationsConcept } from "~/lib/concepts/organizations";
 
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
-    <div className="moto-content-surface rounded-xl border px-5 py-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border px-5 py-4">
       <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
         {label}
       </div>

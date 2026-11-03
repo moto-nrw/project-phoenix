@@ -423,7 +423,7 @@ export function FieldEditorRow({
   };
 
   return (
-    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <article className="moto-content-surface rounded-2xl border p-4">
       <div className="flex items-start gap-3">
         <span className="mt-1 hidden text-gray-300 sm:block">
           <GripVertical className="h-5 w-5" aria-hidden="true" />
@@ -831,7 +831,7 @@ export function FieldEditorRow({
 }
 
 const conditionInputClass =
-  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
+  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:text-gray-600";
 
 // Field-source operators offered in the condition editor. "includes" is
 // reserved for the care-offering source and is not listed here.
@@ -959,7 +959,7 @@ function ConditionEditor({
   }
 
   return (
-    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-3">
       <CheckboxCard
         checked={condition !== null}
         onChange={(checked) =>
@@ -1421,7 +1421,7 @@ export function FormPreview({
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       {header}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="border-b border-gray-100 px-4 py-4">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>

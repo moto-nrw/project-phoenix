@@ -58,8 +58,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
-const DETAIL_CARD_CLASS =
-  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
+const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 
 function canUseAllMoveTargets(session: Session | null): boolean {
   const permissions = session?.user?.permissions ?? [];
@@ -836,7 +835,7 @@ function StudentsInRoomBody({
     // room.
     return (
       <div className="flex flex-col gap-2">
-        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
+        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
           Aktuell keine Kinder im Raum.
         </div>
       </div>

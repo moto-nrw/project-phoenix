@@ -432,7 +432,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
@@ -630,7 +630,7 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <article className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
@@ -826,7 +826,7 @@ function ReviewSidebar({
         return (
           <section
             key={child.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1044,7 +1044,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Zusätzliche Angaben
       </h2>

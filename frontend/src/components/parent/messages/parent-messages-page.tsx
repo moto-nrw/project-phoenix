@@ -236,7 +236,7 @@ export function ParentMessagesPage() {
             description={t("description")}
           />
         </div>
-        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
           {t("noChildren")}
         </p>
       </ParentPage>
@@ -252,7 +252,7 @@ export function ParentMessagesPage() {
           description={t("description")}
         />
       </div>
-      <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
+      <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
         {rows.map((row) => (
           <li key={`${row.studentId}:${row.audience}`}>
             <ConversationRow row={row} />

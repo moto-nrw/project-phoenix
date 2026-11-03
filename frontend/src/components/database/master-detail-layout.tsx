@@ -61,7 +61,7 @@ export function MasterDetailLayout({
     // Touchscreen mühsam (#3330).
     return (
       <div className={cn("flex w-full flex-col", className)}>
-        <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
+        <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border">
           <div className="h-full overflow-auto">{list}</div>
         </div>
         <Drawer
@@ -111,7 +111,7 @@ export function MasterDetailLayout({
     >
       <div
         className={cn(
-          "moto-content-surface moto-scroll-surface overflow-hidden rounded-2xl border shadow-sm",
+          "moto-content-surface moto-scroll-surface overflow-hidden rounded-2xl border",
           showDetail ? "shrink-0" : "flex-1",
         )}
         style={showDetail ? { width: listWidth } : undefined}
@@ -119,7 +119,7 @@ export function MasterDetailLayout({
         <div className="flex h-full flex-col">{list}</div>
       </div>
       {showDetail ? (
-        <div className="moto-content-surface moto-scroll-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
+        <div className="moto-content-surface moto-scroll-surface min-w-0 flex-1 overflow-hidden rounded-2xl border">
           <div className="flex h-full flex-col">{detail}</div>
         </div>
       ) : null}
