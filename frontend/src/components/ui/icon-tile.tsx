@@ -2,9 +2,9 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 
-export type IconTileSize = "xs" | "sm" | "section" | "page" | "display";
-export type IconTileShape = "square" | "round";
-export type IconTileTone =
+type IconTileSize = "xs" | "sm" | "section" | "page" | "display";
+type IconTileShape = "square" | "round";
+type IconTileTone =
   "neutral" | "inverse" | "blue" | "green" | "greenFill" | "orange" | "red";
 
 // Kachelmaß, Ecke der quadratischen Form und Symbolgröße je Stufe. Das
