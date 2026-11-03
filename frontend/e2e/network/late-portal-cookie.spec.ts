@@ -7,7 +7,6 @@ import {
   type Route,
 } from "@playwright/test";
 import { networkPorts } from "./ports.mjs";
-import { ORIGIN_PAGE } from "./origin-page";
 
 const port = networkPorts("tenantSwitch").frontend;
 
@@ -79,11 +78,15 @@ async function isolate(context: BrowserContext) {
   });
 }
 
+// Each portal opens through its own Auth.js `providers` route: JSON with 200
+// and no cookie. The school and caterer hosts answer /api/health with an empty
+// 404 by design, which Google Chrome turns into an error page (#5612).
+
 /** Opens a session in the portal's own Auth.js instance. */
 async function signIn(page: Page, portal: Portal) {
   // Token handoff is server-only; use the public credentials contract.
   const password = randomBytes(24).toString("hex");
-  await page.goto(`${portal.origin}${ORIGIN_PAGE}`);
+  await page.goto(`${portal.origin}${portal.basePath}/providers`);
   const status = await page.evaluate(
     async ({ basePath, provider, password }) => {
       const { csrfToken } = (await (
@@ -231,7 +234,7 @@ for (const portal of portals) {
         expect(await readStatus(tab1, portal.read)).toBe(200);
         const lateTab = tabs === "same tab" ? tab1 : await context.newPage();
         if (lateTab !== tab1)
-          await lateTab.goto(`${portal.origin}${ORIGIN_PAGE}`);
+          await lateTab.goto(`${portal.origin}${portal.basePath}/providers`);
 
         const source = makeSource(portal);
         const pending = await holdResponse(
@@ -252,7 +255,7 @@ for (const portal of portals) {
 
         // A fresh page of the portal reads nothing protected and no session.
         const fresh = await context.newPage();
-        await fresh.goto(`${portal.origin}${ORIGIN_PAGE}`);
+        await fresh.goto(`${portal.origin}${portal.basePath}/providers`);
         expect(await readStatus(fresh, portal.read)).toBe(401);
         expect(
           await fresh.evaluate(

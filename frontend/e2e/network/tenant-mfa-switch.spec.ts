@@ -2,7 +2,6 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { networkPorts } from "./ports.mjs";
-import { ORIGIN_PAGE } from "./origin-page";
 
 const ports = networkPorts("tenantSwitch");
 const source = `http://school-a.mfa.localhost:${ports.frontend}`;
@@ -18,7 +17,9 @@ async function browserSession(
 ) {
   const probe = await context.newPage();
   try {
-    await probe.goto(`${origin}${ORIGIN_PAGE}`);
+    // The portal's own Auth.js route answers 200 on every host; the school
+    // host answers /api/health with an empty 404, an error page in Chrome.
+    await probe.goto(`${origin}${path.replace(/\/session$/, "/providers")}`);
     return await probe.evaluate(async (sessionPath) => {
       const session = await (await fetch(sessionPath)).json();
       return { tenantId: session.user?.tenantId, scope: session.user?.scope };
@@ -163,7 +164,7 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
   // controlled echoes from a stable same-origin document, not a departing
   // execution context that Playwright may suspend during navigation.
   const broadcaster = await context.newPage();
-  await broadcaster.goto(`${source}${ORIGIN_PAGE}`);
+  await broadcaster.goto(`${source}/api/health`);
   let release!: () => void;
   const released = new Promise<void>((resolve) => {
     release = resolve;
