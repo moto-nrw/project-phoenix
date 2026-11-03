@@ -237,24 +237,38 @@ func (h *HolidayContributions) readSiblings(ctx context.Context, reviewer parent
 		}
 		members = append(members, member)
 	}
+	return sentOrder(members), nil
+}
+
+// sentOrder sorts the registrations of a group in the order they were sent,
+// then by number: the tie-break of the sibling rule. Every calculation of a
+// group runs in this order, so a confirmation freezes what the preview
+// showed, whichever registration it confirms.
+func sentOrder(members []siblingMember) []siblingMember {
 	slices.SortStableFunc(members, func(a, b siblingMember) int {
 		if order := a.registration.SubmittedAt.Compare(b.registration.SubmittedAt); order != 0 {
 			return order
 		}
-		return int(a.id() - b.id())
+		switch {
+		case a.id() < b.id():
+			return -1
+		case a.id() > b.id():
+			return 1
+		}
+		return 0
 	})
-	return members, nil
+	return members
 }
 
 // computeSiblings runs the chain over the registrations of a group that
-// are not cancelled, with the rules valid on the first booked day of the
-// group. exemption overrides the exemption of one registration: the one
+// are not cancelled, in the order they were sent, with the rules valid on
+// the first booked day of the group. exemption overrides the exemption of one registration: the one
 // the Träger-Büro is about to confirm or preview.
 func (h *HolidayContributions) computeSiblings(ctx context.Context, organizationID int64, members []siblingMember, exemption map[int64]bool) (map[int64]parentbilling.HolidayContribution, error) {
 	var ranked []siblingMember
 	var chain []holidayMember
 	var children []parentbilling.HolidayChild
-	for _, member := range members {
+	for _, member := range sentOrder(slices.Clone(members)) {
 		if member.cancelled() {
 			continue
 		}
@@ -311,11 +325,9 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 
 // shareDebtorNumber gives every confirmed registration of the group that no
 // issued invoice bills the debtor number of the group (#5621): all
-// registrations of a family pay with one reference.
+// registrations of a family pay with one reference. An empty number removes
+// it from them, so no registration keeps or passes on a removed number.
 func (h *HolidayContributions) shareDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, number string, issued map[int64]bool) error {
-	if number == "" {
-		return nil
-	}
 	for _, member := range members {
 		if member.registration.Status != parentbilling.HolidayRegistrationConfirmed || issued[member.id()] ||
 			member.registration.DebtorNumber == number {

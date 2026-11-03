@@ -36,7 +36,7 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 // the period first, so a release that runs at the same time copies either
 // the number before or the number after, and the change sees an invoice
 // the release committed. In a sibling group the other confirmed
-// registrations take the number too (#5628).
+// registrations take the number too, or lose it with a removal (#5628).
 func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayDebtorNumber, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayDebtorNumber{}, errTraegerRequired
@@ -56,8 +56,9 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
 	// A sibling group pays with one number (#5628): the other confirmed
-	// registrations of the group that no issued invoice bills take it.
-	if group, grouped := groupOf(groups, registrationID); grouped && registration.DebtorNumber != "" {
+	// registrations of the group that no issued invoice bills take it, or
+	// lose it with this one.
+	if group, grouped := groupOf(groups, registrationID); grouped {
 		ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registrationID })
 		others, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
 		if err != nil {

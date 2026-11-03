@@ -291,3 +291,62 @@ func TestSiblingGroupListQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, list(), len(one), "the list reads the same statements for any number of groups")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_sibling_groups", one)
 }
+
+// TestConfirmationRanksSiblingsInTheOrderTheyWereSent pins the tie-break of
+// a confirmation (#5628, review of #5655): two children of the same price
+// in two merged registrations. The child of the registration sent earlier is
+// the first child, whichever registration the Träger-Büro confirms first,
+// and the confirmation freezes what the preview showed.
+func TestConfirmationRanksSiblingsInTheOrderTheyWereSent(t *testing.T) {
+	t.Parallel()
+	for name, earlierFirst := range map[string]bool{"earlier confirmed first": true, "later confirmed first": false} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newReviewFixture(t, "Geschwister Reihenfolge "+name)
+			billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+			createContributionRule(t, f, billing, siblingHalf())
+			earlier := f.submitChild(t, f.period, f.offer, "mama.reihe@example.org", "Mia", 0)
+			later := f.submitChild(t, f.period, f.offer, "papa.reihe@example.org", "Tom", 0)
+			require.Equal(t, http.StatusOK, f.merge(t, f.office.token, earlier, later).Code)
+			assert.Equal(t, int64(4500), f.contribution(t, earlier).TotalCents)
+			assert.Equal(t, int64(2250), f.contribution(t, later).TotalCents)
+
+			order := []int64{earlier, later}
+			if !earlierFirst {
+				order = []int64{later, earlier}
+			}
+			for _, id := range order {
+				rec := f.confirmWith(t, id, nil)
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			}
+			assert.Equal(t, []int64{4500}, f.contributionVersions(t, earlier),
+				"the child of the registration sent earlier pays in full, frozen once")
+			assert.Equal(t, []int64{2250}, f.contributionVersions(t, later),
+				"the child of the later registration pays half, frozen once")
+		})
+	}
+}
+
+// TestRemovedDebtorNumberLeavesTheWholeSiblingGroup pins the review of
+// #5655: where the Träger does not ask for the debtor number, removing it
+// from one registration removes it from the other confirmed registrations
+// of the group, and a later confirmation in the group inherits none.
+func TestRemovedDebtorNumberLeavesTheWholeSiblingGroup(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Debitor entfernen")
+	first := f.submitChild(t, f.period, f.offer, "mama.debitor@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.debitor@example.org", "Tom", 0)
+	third := f.submitChild(t, f.period, f.offer, "oma.debitor@example.org", "Ida", 0)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, map[string]any{"debtor_number": "10 4711"}).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, second, nil).Code)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second, third).Code)
+	require.Equal(t, "10 4711", f.debtorNumberDetail(t, second).DebtorNumber, "the group pays with one number")
+
+	rec := f.changeDebtorNumber(t, f.office.token, first, "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, f.debtorNumberDetail(t, first).DebtorNumber)
+	assert.Empty(t, f.debtorNumberDetail(t, second).DebtorNumber, "the removal reaches the confirmed sibling")
+	assert.Empty(t, f.siblingContribution(t, third).SiblingDebtorNumber, "the group proposes no removed number")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, third, nil).Code)
+	assert.Empty(t, f.debtorNumberDetail(t, third).DebtorNumber, "a later confirmation inherits no removed number")
+}
