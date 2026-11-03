@@ -106,7 +106,7 @@ func (b *BillingRuns) costTakeoverInput(ctx context.Context, reviewer parentbill
 
 // costTakeoverList is the list of one cost bearer and the number of its
 // invoices. A registration that is gone after 92 days (ADR 0118) leaves the
-// proof and the confirmation day empty; the invoice keeps the rest.
+// proof unknown and the confirmation day empty; the invoice keeps the rest.
 func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 	rows := []map[string]string{}
 	var total int64
@@ -122,13 +122,7 @@ func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 			children++
 			total += takeover
 			row["number"] = document.Number
-			row["proof"] = "Nein"
-			if in.proofs[document.RegistrationID] {
-				row["proof"] = "Ja"
-			}
-			if confirmedAt, found := in.confirmed[document.RegistrationID]; found {
-				row["confirmed"] = calendar.DateFromTime(confirmedAt).Format("02.01.2006")
-			}
+			row["proof"], row["confirmed"] = registrationFacts(in, document.RegistrationID)
 			rows = append(rows, row)
 		}
 		if billed {
@@ -142,6 +136,27 @@ func costTakeoverList(in costTakeoverInput) (ExportTable, int) {
 		Lines: costTakeoverLines(in, children, documents, total), Columns: costTakeoverColumns, Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}, documents
+}
+
+// proofGone is what the list says about the proof of a registration that
+// is gone after 92 days (ADR 0118): its proofs went with it, so neither
+// "Ja" nor "Nein" would be true.
+const proofGone = "Nicht mehr verfügbar"
+
+// registrationFacts are the proof and the confirmation day of the
+// registration an invoice bills. The frozen contribution goes with the
+// registration, so a registration without a confirmation day is gone: then
+// the proof is no longer known and the day stays empty.
+func registrationFacts(in costTakeoverInput, registrationID int64) (proof, confirmed string) {
+	confirmedAt, found := in.confirmed[registrationID]
+	if !found {
+		return proofGone, ""
+	}
+	proof = "Nein"
+	if in.proofs[registrationID] {
+		proof = "Ja"
+	}
+	return proof, calendar.DateFromTime(confirmedAt).Format("02.01.2006")
 }
 
 // costTakeoverRow is the row of one child the cost bearer pays for: its

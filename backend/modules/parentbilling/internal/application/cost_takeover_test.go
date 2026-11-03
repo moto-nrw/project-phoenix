@@ -2,6 +2,7 @@ package application
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,17 +131,31 @@ func TestOverviewSumsWhatEachCostBearerPaysUnderTheTotal(t *testing.T) {
 func TestReimbursementListHoldsOnlyTheChildrenOfItsCostBearer(t *testing.T) {
 	t.Parallel()
 	bearer := parentbilling.CostBearer{ID: youthOfficeBearer().ID, Name: "Jugendamt", Address: "Am Kreishaus 1\n12345 Musterstadt", FileReference: "FJ 51"}
-	table, documents := costTakeoverList(costTakeoverInput{
+	confirmedAt := july(1).BerlinMidnight().Add(10 * time.Hour)
+	in := costTakeoverInput{
 		run: parentbilling.BillingRun{PeriodName: "Sommerferien 2027"}, bearer: bearer, documents: takeoverDocuments(),
-		proofs: map[int64]bool{11: true},
-	})
+		proofs: map[int64]bool{11: true}, confirmed: map[int64]time.Time{11: confirmedAt},
+	}
+	table, documents := costTakeoverList(in)
 
 	assert.Equal(t, 1, documents)
 	require.Len(t, table.Rows, 6, "two children, the sum and three rows naming the cost bearer")
 	assert.Equal(t, map[string]string{
 		"number": "FE-0001", "child": "Ben Muster", "weeks": "05.07. bis 09.07.2027, bis 16 Uhr",
-		"base": "100,00", "sibling": "-50,00", "takeover": "50,00", "proof": "Ja",
-	}, table.Rows[1], "a registration gone after 92 days leaves the confirmation day empty")
+		"base": "100,00", "sibling": "-50,00", "takeover": "50,00", "proof": "Ja", "confirmed": "01.07.2027",
+	}, table.Rows[1])
+
+	in.proofs = map[int64]bool{}
+	table, _ = costTakeoverList(in)
+	assert.Equal(t, "Nein", table.Rows[0]["proof"], "a registration that still exists without a proof had none")
+
+	// After 92 days the registration is gone with its proofs and its frozen
+	// contribution (ADR 0118): the list cannot know whether a proof existed.
+	in.confirmed = map[int64]time.Time{}
+	table, _ = costTakeoverList(in)
+	assert.Equal(t, "Nicht mehr verfügbar", table.Rows[0]["proof"])
+	assert.Empty(t, table.Rows[0]["confirmed"], "the confirmation day is gone too")
+	assert.Equal(t, "50,00", table.Rows[1]["takeover"], "the invoice keeps the amounts")
 	assert.Equal(t, map[string]string{"weeks": "Summe", "takeover": "150,00"}, table.Rows[2])
 	assert.Equal(t, map[string]string{"child": "Anschrift", "weeks": "Am Kreishaus 1, 12345 Musterstadt"}, table.Rows[4])
 	assert.Contains(t, table.Lines, "2 Kinder, 1 Rechnung")

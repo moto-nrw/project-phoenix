@@ -23,6 +23,10 @@ type CostBearerStore interface {
 	// CostBearer reads one cost bearer; a missing one is
 	// ErrCostBearerNotFound.
 	CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error)
+	// LockCostBearer reads one cost bearer and holds its row until the
+	// transaction ends, shared for a confirmation, exclusive for a
+	// deletion; a missing one is ErrCostBearerNotFound.
+	LockCostBearer(ctx context.Context, organizationID, costBearerID int64, exclusive bool) (parentbilling.CostBearer, error)
 	// CostBearersInUse names the cost bearers a frozen contribution line or
 	// an invoice position names.
 	CostBearersInUse(ctx context.Context, organizationID int64) (map[int64]bool, error)
@@ -85,6 +89,11 @@ func (s *Rules) DeleteCostBearer(ctx context.Context, organizationID, costBearer
 	}
 	if costBearerID <= 0 {
 		return parentbilling.ErrCostBearerNotFound
+	}
+	// The exclusive lock waits for a running confirmation with this cost
+	// bearer, so the check below sees the lines it wrote.
+	if _, err := s.store.LockCostBearer(ctx, organizationID, costBearerID, true); err != nil {
+		return err
 	}
 	inUse, err := s.store.CostBearersInUse(ctx, organizationID)
 	if err != nil {

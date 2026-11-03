@@ -14,7 +14,8 @@ import (
 // The cost bearers of a Träger (#5627). A line of a frozen contribution and
 // a position of an invoice name a cost bearer by its ID without a foreign
 // key, so the erasure of a Träger deletes both in one cascade; the delete
-// here refuses a cost bearer they name.
+// here refuses a cost bearer they name. The row lock of LockCostBearer
+// orders a confirmation and a deletion of the same cost bearer.
 
 // deleteUnusedCostBearerQuery deletes the cost bearer only when no line and
 // no position names it.
@@ -75,12 +76,33 @@ func (s *Store) ListCostBearers(ctx context.Context, organizationID int64) ([]pa
 
 // CostBearer reads one cost bearer of the Träger.
 func (s *Store) CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error) {
+	return s.selectCostBearer(ctx, organizationID, costBearerID, "")
+}
+
+// LockCostBearer reads one cost bearer of the Träger and holds its row until
+// the transaction ends: a confirmation shares the lock while it writes the
+// lines that name the cost bearer, a deletion takes it exclusively before
+// it checks whether anything names it. So a deletion waits for a running
+// confirmation and then sees its lines, and a confirmation waits for a
+// running deletion and then finds no cost bearer.
+func (s *Store) LockCostBearer(ctx context.Context, organizationID, costBearerID int64, exclusive bool) (parentbilling.CostBearer, error) {
+	if exclusive {
+		return s.selectCostBearer(ctx, organizationID, costBearerID, "UPDATE")
+	}
+	return s.selectCostBearer(ctx, organizationID, costBearerID, "SHARE")
+}
+
+func (s *Store) selectCostBearer(ctx context.Context, organizationID, costBearerID int64, lock string) (parentbilling.CostBearer, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return parentbilling.CostBearer{}, err
 	}
 	var row costBearerRow
-	if err := db.NewSelect().Model(&row).Where("id = ?", costBearerID).Where("organization_id = ?", organizationID).Scan(ctx); err != nil {
+	query := db.NewSelect().Model(&row).Where("id = ?", costBearerID).Where("organization_id = ?", organizationID)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return parentbilling.CostBearer{}, parentbilling.ErrCostBearerNotFound
 		}

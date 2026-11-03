@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -382,4 +383,75 @@ func TestCostBearerListAndReimbursementListQueryBudgetsAreFlat(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	list := get(billingRunPath(run.ID, fmt.Sprintf("/cost-takeovers/%d/export?format=csv", office.ID)), true)
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_run_cost_takeovers", list)
+}
+
+// requestInBackground runs a request of the Träger-Büro and hands its answer
+// over once the handler returns.
+func requestInBackground(t *testing.T, f reviewFixture, token, method, path string, body any) <-chan *httptest.ResponseRecorder {
+	t.Helper()
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- traegerJSON(t, f.traeger, token, method, path, body) }()
+	return done
+}
+
+// assertWaits checks that the request is still held by the row lock.
+func assertWaits(t *testing.T, done <-chan *httptest.ResponseRecorder, what string) {
+	t.Helper()
+	select {
+	case rec := <-done:
+		t.Fatalf("%s did not wait for the lock on the cost bearer: %d %s", what, rec.Code, rec.Body.String())
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// TestConfirmationAndDeletionOfACostBearerWaitForEachOther pins the row lock
+// of the cost bearer (#5627): a deletion that holds it makes a confirmation
+// wait and then find no cost bearer; a confirmation that holds it makes a
+// deletion wait and then see the line that names it. No line ever names a
+// deleted cost bearer.
+func TestConfirmationAndDeletionOfACostBearerWaitForEachOther(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Kostenträger Sperre")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	ctx := context.Background()
+
+	// A deletion holds the row: the confirmation waits, then the cost
+	// bearer is gone and the registration stays received.
+	deleted := createCostBearer(t, f, billing, map[string]any{"name": "Sozialamt Musterstadt", "active": true})
+	deletion, err := f.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = deletion.ExecContext(ctx, `SELECT id FROM parent_billing.cost_bearers WHERE id = ? FOR UPDATE`, deleted.ID)
+	require.NoError(t, err)
+	confirmation := requestInBackground(t, f, f.office.token, http.MethodPost, holidayConfirmPath(f.period.ID, f.siblings),
+		map[string]any{"cost_bearer_id": deleted.ID})
+	assertWaits(t, confirmation, "the confirmation")
+	_, err = deletion.ExecContext(ctx, `DELETE FROM parent_billing.cost_bearers WHERE id = ?`, deleted.ID)
+	require.NoError(t, err)
+	require.NoError(t, deletion.Commit())
+	rec := <-confirmation
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Equal(t, "parent_billing.cost_bearer_not_found", refusalCode(t, rec))
+	assert.Equal(t, "received", f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.siblings, ""), nil)).Status)
+
+	// A confirmation holds the row while it writes the line: the deletion
+	// waits, then sees the line and refuses.
+	office := createCostBearer(t, f, billing, youthOffice())
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	var contribution int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.holiday_contributions WHERE holiday_registration_id = ? ORDER BY id LIMIT 1`,
+		f.again).Scan(ctx, &contribution))
+	confirming, err := f.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = confirming.ExecContext(ctx, `SELECT id FROM parent_billing.cost_bearers WHERE id = ? FOR SHARE`, office.ID)
+	require.NoError(t, err)
+	deletionRequest := requestInBackground(t, f, billing, http.MethodDelete, costBearerPath(office.ID), nil)
+	assertWaits(t, deletionRequest, "the deletion")
+	_, err = confirming.ExecContext(ctx, `INSERT INTO parent_billing.holiday_contribution_lines
+		(organization_id, holiday_contribution_id, position, kind, amount_cents, cost_bearer_id, cost_bearer_name)
+		VALUES (?, ?, 99, 'cost_takeover', 0, ?, ?)`, f.office.organization, contribution, office.ID, office.Name)
+	require.NoError(t, err)
+	require.NoError(t, confirming.Commit())
+	rec = <-deletionRequest
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Equal(t, "parent_billing.cost_bearer_in_use", refusalCode(t, rec))
 }

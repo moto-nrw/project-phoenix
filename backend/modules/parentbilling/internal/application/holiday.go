@@ -90,7 +90,7 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
 	}
-	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption != nil && *benefitsExemption, costBearerID)
+	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption != nil && *benefitsExemption, costBearerID, false)
 	if err != nil {
 		return parentbilling.HolidayContribution{}, err
 	}
@@ -129,7 +129,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
 	}
-	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID)
+	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID, true)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
@@ -174,8 +174,10 @@ func (h *HolidayContributions) compute(ctx context.Context, organizationID int64
 
 // chosenCostBearer reads the cost bearer the Träger-Büro chose (#5627):
 // none for zero, otherwise an active cost bearer of the Träger, and never
-// together with the exemption.
-func (h *HolidayContributions) chosenCostBearer(ctx context.Context, organizationID int64, exemption bool, costBearerID int64) (*parentbilling.CostBearer, error) {
+// together with the exemption. A confirmation holds the cost bearer's row
+// in a shared lock until it commits the lines that name it, so a parallel
+// deletion waits and then refuses (DeleteCostBearer).
+func (h *HolidayContributions) chosenCostBearer(ctx context.Context, organizationID int64, exemption bool, costBearerID int64, confirm bool) (*parentbilling.CostBearer, error) {
 	switch {
 	case costBearerID == 0:
 		return nil, nil
@@ -184,7 +186,13 @@ func (h *HolidayContributions) chosenCostBearer(ctx context.Context, organizatio
 	case costBearerID < 0:
 		return nil, parentbilling.ErrCostBearerNotFound
 	}
-	bearer, err := h.store.CostBearer(ctx, organizationID, costBearerID)
+	read := h.store.CostBearer
+	if confirm {
+		read = func(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error) {
+			return h.store.LockCostBearer(ctx, organizationID, costBearerID, false)
+		}
+	}
+	bearer, err := read(ctx, organizationID, costBearerID)
 	if err != nil {
 		return nil, err
 	}
