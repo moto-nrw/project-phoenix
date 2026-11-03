@@ -6,6 +6,8 @@
  * sentence with example values.
  */
 
+import { textTooLong } from "./text-length";
+
 /** The Träger setting of the payment text. */
 export const PAYMENT_TEXT_KEY = "parent_billing.payment_text";
 
@@ -57,9 +59,8 @@ const ALLOWED_TEXT =
  * built-in sentence.
  */
 export function paymentTextProblem(text: string): string | null {
-  if ([...text].length > PAYMENT_TEXT_MAX_LENGTH) {
-    return `Der Text ist zu lang. Erlaubt sind ${PAYMENT_TEXT_MAX_LENGTH} Zeichen.`;
-  }
+  const tooLong = textTooLong(text, PAYMENT_TEXT_MAX_LENGTH);
+  if (tooLong) return tooLong;
   let rest = text;
   for (const match of text.matchAll(/\{[^{}]*\}/g)) {
     if (!ALLOWED.has(match[0])) {

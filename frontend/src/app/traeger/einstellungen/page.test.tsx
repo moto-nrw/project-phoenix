@@ -295,7 +295,8 @@ describe("TraegerSettingsPage", () => {
         "placeholder",
         "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer {Rechnungsnummer} an.",
       );
-      expect(field).toHaveAttribute("maxlength", "600");
+      // The limit counts characters like the backend, not UTF-16 units.
+      expect(field).not.toHaveAttribute("maxlength");
       expect(
         screen.getByRole("heading", { name: "Schreiben an die Familien" }),
       ).toBeInTheDocument();
@@ -321,6 +322,26 @@ describe("TraegerSettingsPage", () => {
         }),
       ).toHaveTextContent(
         "Bitte überweisen Sie 124,00 € bis zum 15.12.2026. Verwendungszweck: FE-2026-0007, 10 4711. Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+      );
+    });
+
+    it("saves 600 characters with an emoji at the end", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", false));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      const text = `{Betrag}${"a".repeat(591)}😀`;
+      expect([...text]).toHaveLength(600);
+      fireEvent.change(field, { target: { value: text } });
+      fireEvent.blur(field);
+
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.payment_text",
+          text,
+        ),
       );
     });
 
