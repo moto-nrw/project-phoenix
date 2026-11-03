@@ -70,11 +70,10 @@ func (m *BookingMaterialization) offeringStudentIDs(ctx context.Context, offerin
 // before the date. A future date is refused while such an earlier day still
 // needs the stored time (#5643).
 func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, date calendar.Date) error {
-	first, err := m.pickupResetFirstDay(date)
-	if err != nil {
-		return err
-	}
 	weekday := int(date.Weekday())
+	if weekday < 1 || weekday > 5 {
+		return errors.New("pickup reset date must be Monday through Friday")
+	}
 	// Match care end: class -> recurrence before the student and pickup rows.
 	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
@@ -82,7 +81,9 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
-	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, min(first, date), date)
+	// The date alone first: a date without a booking is refused before the
+	// days up to it are projected.
+	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, date, date)
 	if err != nil {
 		return fmt.Errorf("load offering pickup for reset: %w", err)
 	}
@@ -96,12 +97,8 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if row == nil {
 		return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
 	}
-	// A legacy care_offering row is no override: the projection ignores it,
-	// so removing it changes no earlier day.
-	if row.Manual {
-		if until, needed := lastDayNeedingStoredPickup(projection, studentID, *row, first, date); needed {
-			return &careplan.PickupResetStillNeededError{NeededUntil: until, PossibleFrom: until.AddDays(1)}
-		}
+	if err := m.refuseResetWhileEarlierDaysNeedRow(ctx, studentID, *row, date); err != nil {
+		return err
 	}
 	if err := m.deps.Pickup.DeleteWeekdayRow(ctx, row.ID); err != nil {
 		return fmt.Errorf("delete pickup schedule override: %w", err)
@@ -114,25 +111,27 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	return m.resyncPickupAutoExcusals(ctx, []int64{studentID})
 }
 
-// pickupResetFirstDay validates the reset date and returns the first day of
-// its weekday the reset reaches: the weekday's next date from today. The
-// reset projects every day from there to the date, so a date beyond the
-// horizon is refused before any lock is taken.
-func (m *BookingMaterialization) pickupResetFirstDay(date calendar.Date) (calendar.Date, error) {
-	weekday := int(date.Weekday())
-	if weekday < 1 || weekday > 5 {
-		return "", errors.New("pickup reset date must be Monday through Friday")
+// refuseResetWhileEarlierDaysNeedRow checks the days of the row's weekday
+// from today up to (excluding) the reset date. The date has a booking, so the
+// projected range ends inside the student's care period.
+func (m *BookingMaterialization) refuseResetWhileEarlierDaysNeedRow(
+	ctx context.Context, studentID int64, row ports.PickupWeekdayRow, date calendar.Date,
+) error {
+	// A legacy care_offering row is no override: the projection ignores it,
+	// so removing it changes no earlier day.
+	first := nextWeekdayFrom(m.todayDate(), row.Weekday)
+	if !row.Manual || !first.Before(date) {
+		return nil
 	}
-	today := m.todayDate()
-	if date.After(today.AddDays(pickupResetHorizonDays)) {
-		return "", careplan.ErrPickupResetBeyondHorizon
+	projection, err := m.deps.Pickup.OfferingPickupsBetween(ctx, studentID, first, date.AddDays(-1))
+	if err != nil {
+		return fmt.Errorf("load offering pickup before reset date: %w", err)
 	}
-	return nextWeekdayFrom(today, weekday), nil
+	if until, needed := lastDayNeedingStoredPickup(projection, studentID, row, first, date); needed {
+		return &careplan.PickupResetStillNeededError{NeededUntil: until, PossibleFrom: until.AddDays(1)}
+	}
+	return nil
 }
-
-// pickupResetHorizonDays is how far ahead a reset date may lie: a year covers
-// every booking change staff can plan in the care plan editor.
-const pickupResetHorizonDays = 366
 
 // pickupWeekdayRow is the student's stored row of the weekday; nil when there
 // is none.
@@ -151,12 +150,17 @@ func (m *BookingMaterialization) pickupWeekdayRow(ctx context.Context, studentID
 
 // lastDayNeedingStoredPickup is the last day from day up to (excluding)
 // until on which the bookings do not set the stored time, so that removing
-// the row would change that day; false when there is none.
+// the row would change that day; false when there is none. A day on which the
+// projection does not let the row apply (booking mode, no care that day)
+// keeps nothing the row would remove.
 func lastDayNeedingStoredPickup(
 	projection *careplan.PickupBaselineProjection, studentID int64, row ports.PickupWeekdayRow, day, until calendar.Date,
 ) (calendar.Date, bool) {
 	var last calendar.Date
 	for ; day.Before(until); day = day.AddDays(7) {
+		if !projection.AllowsPickupForWeekday(studentID, day, row.Weekday) {
+			continue
+		}
 		if offeringPickupClock(projection, studentID, day) != row.PickupTime {
 			last = day
 		}

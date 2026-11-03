@@ -70,7 +70,6 @@ var pickupResetErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: ErrPickupResetNoOffering, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsPickupResetRequiresOffering)
 	}},
-	{Target: careplan.ErrPickupResetBeyondHorizon, Render: common.ErrorInvalidRequest},
 	{Match: func(err error) bool {
 		var stillNeeded *careplan.PickupResetStillNeededError
 		return errors.As(err, &stillNeeded)

@@ -88,17 +88,49 @@ func TestOfferingPickupReset_FutureDayAllowedWhenEarlierDaysMatchBooking(t *test
 	assert.Empty(t, stored)
 }
 
-// The reset projects every day from today to the requested date, so a date
-// far in the future is refused before anything is loaded or locked.
-func TestOfferingPickupReset_RefusesDateBeyondHorizon(t *testing.T) {
+// In booking mode a stored row does not apply on a day without care, so a
+// booking gap before the change keeps nothing that the reset would remove.
+func TestOfferingPickupReset_FutureDayAllowedOverBookingGap(t *testing.T) {
+	t.Parallel()
+
+	authoritative := true
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
+	ctx := testpkg.Ctx(t)
+
+	oldOffering := createPickupTimeOffering(t, env, "gehzeit-reset-gap-old",
+		[]string{"tue"}, map[string]string{"tue": "14:30"})
+	newOffering := createPickupTimeOffering(t, env, "gehzeit-reset-gap-new",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	studentID, childID := submitAndApproveOfferingChild(
+		t, env, oldOffering.ID, "gehzeit-reset-gap@example.com", "Luecke", 2,
+	)
+	effectiveFrom := decisionTestToday.AddDays(14)
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+		ctx, childID, enrollmentTest.Date(effectiveFrom),
+		[]*enrollmentTest.RequestChildOffering{{CareOfferingID: newOffering.ID, SelectedDays: []string{"mon"}}},
+	))
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Luecke")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "15:15")
+
+	require.NoError(t, pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, effectiveFrom),
+		"the Mondays before the change have no care, so the stored time applies nowhere")
+	stored, err := careplantest.NewScheduleRecords(env.repos.CarePlan()).StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Empty(t, stored)
+}
+
+// A date without a booking is refused from that single day, before the range
+// up to it is projected.
+func TestOfferingPickupReset_FarFutureDateWithoutBookingIsRefused(t *testing.T) {
 	t.Parallel()
 
 	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
-	student := testpkg.CreateTestStudent(t, env.db, "Gehzeit", "Horizont", "1a")
+	student := testpkg.CreateTestStudent(t, env.db, "Gehzeit", "Fern", "1a")
 
 	farAway := calendar.NewDate(9999, 12, 31)
 	require.Equal(t, time.Friday, farAway.Weekday())
 	err := pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, student.ID, farAway)
-	require.ErrorIs(t, err, careplan.ErrPickupResetBeyondHorizon)
+	require.ErrorIs(t, err, careplan.ErrPickupResetNoOffering)
 }
