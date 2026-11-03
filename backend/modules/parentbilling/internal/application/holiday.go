@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -13,6 +14,7 @@ import (
 // which registrations an issued invoice bills (#5621).
 type HolidayStore interface {
 	Store
+	HolidaySiblingStore
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
@@ -84,7 +86,8 @@ func (h *HolidayContributions) QuoteHolidayContribution(ctx context.Context, lin
 // checks that it belongs to the period of the session's Träger and records
 // the read, and shows its frozen contribution, with whether an issued
 // invoice bills it (#5621), or a preview with the exemption the Träger-Büro
-// is about to choose.
+// is about to choose. In a sibling group (#5628) it reads the other
+// registrations too, ranks the preview across the group and names them.
 func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (parentbilling.HolidayContribution, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
@@ -93,15 +96,35 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 	if err != nil {
 		return parentbilling.HolidayContribution{}, err
 	}
-	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)
+	members, grouped, err := h.siblingsOf(ctx, reviewer, periodID, registration)
 	if err != nil {
-		return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read holiday contribution: %w", err)
+		return parentbilling.HolidayContribution{}, err
 	}
-	if found {
-		issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+	contribution, err := h.memberContribution(ctx, reviewer.OrganizationID, periodID, members, registration, benefitsExemption)
+	if err != nil {
+		return parentbilling.HolidayContribution{}, err
+	}
+	if grouped {
+		contribution.Siblings = siblingView(members, registration.ID)
+		contribution.SiblingDebtorNumber = groupDebtorNumber(members, registration.ID)
+	}
+	return contribution, nil
+}
+
+// memberContribution is the frozen contribution of the registration with
+// whether an issued invoice bills it, or else its preview across its group.
+func (h *HolidayContributions) memberContribution(ctx context.Context, organizationID, periodID int64, members []siblingMember,
+	registration parentbilling.HolidayRegistration, benefitsExemption *bool,
+) (parentbilling.HolidayContribution, error) {
+	for _, member := range members {
+		if member.id() != registration.ID || member.frozen == nil {
+			continue
+		}
+		issued, err := h.store.IssuedRegistrations(ctx, organizationID, parentbilling.ServiceHoliday, periodID)
 		if err != nil {
 			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
 		}
+		frozen := *member.frozen
 		frozen.Invoiced = issued[registration.ID]
 		return frozen, nil
 	}
@@ -109,19 +132,35 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 	if benefitsExemption != nil {
 		exemption = *benefitsExemption
 	}
-	return h.compute(ctx, reviewer.OrganizationID, registration.Children, exemption)
+	computed, err := h.computeSiblings(ctx, organizationID, members, map[int64]bool{registration.ID: exemption})
+	if err != nil {
+		return parentbilling.HolidayContribution{}, err
+	}
+	if contribution, ok := computed[registration.ID]; ok {
+		return contribution, nil
+	}
+	// A cancelled registration ranks with no sibling.
+	return h.compute(ctx, organizationID, registration.Children, exemption)
 }
 
 // ConfirmHolidayRegistration confirms the registration through Enrollment
 // with the debtor number and freezes the contribution it computes from the
-// confirmed bookings, in the caller's Träger transaction. Enrollment holds
-// the period and the registration, so no change of a price or a booking
-// runs in between. A missing debtor number the Träger asks for refuses the
-// confirmation before anything is written. The caller rolls the
-// transaction back when this fails after the confirmation.
+// confirmed bookings, in the caller's Träger transaction. It holds the
+// invoices of the period first, like a merge of siblings, and Enrollment
+// holds the period and the registration, so no change of a price, a
+// booking or a group runs in between. In a sibling group (#5628) the
+// contribution ranks across the group, a blank debtor number takes the
+// group's, and the other confirmed registrations of the group get their
+// contribution again and the number. A missing debtor number the Träger
+// asks for refuses the confirmation before anything is written. The caller
+// rolls the transaction back when this fails after the confirmation.
 func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
+	}
+	others, issued, debtorNumber, err := h.confirmingSiblings(ctx, reviewer, periodID, registrationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
@@ -133,15 +172,8 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if registration.Status != parentbilling.HolidayRegistrationConfirmed {
 		return parentbilling.HolidayConfirmation{}, parentbilling.ErrHolidayRegistrationStateConflict
 	}
-	contribution, err := h.compute(ctx, reviewer.OrganizationID, registration.Children, benefitsExemption)
-	if err != nil {
+	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, benefitsExemption); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
-	}
-	if benefitsExemption && !contribution.BenefitsExemption {
-		return parentbilling.HolidayConfirmation{}, parentbilling.ErrBenefitsExemptionUnavailable
-	}
-	if err := h.store.InsertHolidayContributions(ctx, reviewer.OrganizationID, periodID, registration.ID, reviewer.AccountID, contribution); err != nil {
-		return parentbilling.HolidayConfirmation{}, fmt.Errorf("parent billing: freeze holiday contribution: %w", err)
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)
 	if err != nil {
@@ -151,6 +183,55 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 		return parentbilling.HolidayConfirmation{}, errors.New("parent billing: the frozen holiday contribution is missing")
 	}
 	return parentbilling.HolidayConfirmation{RegistrationID: registration.ID, Status: registration.Status, Contribution: frozen}, nil
+}
+
+// confirmingSiblings holds the invoices of the period and reads the other
+// registrations of the group of the registration about to be confirmed; a
+// blank debtor number takes the group's (#5628).
+func (h *HolidayContributions) confirmingSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64,
+	debtorNumber string,
+) ([]siblingMember, map[int64]bool, string, error) {
+	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	group, grouped := groupOf(groups, registrationID)
+	if !grouped {
+		return nil, issued, debtorNumber, nil
+	}
+	ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registrationID })
+	others, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if strings.TrimSpace(debtorNumber) == "" {
+		debtorNumber = groupDebtorNumber(others, 0)
+	}
+	return others, issued, debtorNumber, nil
+}
+
+// freezeConfirmed freezes the contribution of the confirmed registration,
+// ranked across its group, and gives the other confirmed registrations of
+// the group their contribution again and the debtor number.
+func (h *HolidayContributions) freezeConfirmed(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64,
+	registration parentbilling.HolidayRegistration, others []siblingMember, issued map[int64]bool, benefitsExemption bool,
+) error {
+	members := slices.Concat(others, []siblingMember{{registration: registration}})
+	computed, err := h.computeSiblings(ctx, reviewer.OrganizationID, members, map[int64]bool{registration.ID: benefitsExemption})
+	if err != nil {
+		return err
+	}
+	contribution := computed[registration.ID]
+	if benefitsExemption && !contribution.BenefitsExemption {
+		return parentbilling.ErrBenefitsExemptionUnavailable
+	}
+	if err := h.store.InsertHolidayContributions(ctx, reviewer.OrganizationID, periodID, registration.ID, reviewer.AccountID, contribution); err != nil {
+		return fmt.Errorf("parent billing: freeze holiday contribution: %w", err)
+	}
+	if err := h.refreezeSiblings(ctx, reviewer, periodID, members, issued); err != nil {
+		return err
+	}
+	return h.shareDebtorNumber(ctx, reviewer, periodID, others, registration.DebtorNumber, issued)
 }
 
 // compute runs the chain with the rules valid on the first booked day.

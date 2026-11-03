@@ -26,5 +26,8 @@
   "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "parent_document_not_found": "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
   "payment_text_debtor_number_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "recipient_email_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "recipient_email_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sibling_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "sibling_group_invoiced": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sibling_group_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

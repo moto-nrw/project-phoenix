@@ -49,6 +49,11 @@ const (
 	// HolidayAuditDebtorNumber records a change of the debtor number of a
 	// confirmed registration (#5621).
 	HolidayAuditDebtorNumber = "debtor_number"
+	// HolidayAuditSiblingMerge and HolidayAuditSiblingSplit record that the
+	// Elternabrechnung merged the registration with others as siblings or
+	// took it out of its sibling group (#5628).
+	HolidayAuditSiblingMerge = "sibling_merge"
+	HolidayAuditSiblingSplit = "sibling_split"
 )
 
 // HolidayDebtorNumberMaxLength is the longest debtor number a registration
@@ -179,13 +184,15 @@ type HolidayDebtorNumberChange struct {
 // HolidayRegistrationEventDetails name what a change changed: the status
 // before a confirmation or cancellation, the child and its bookings before
 // and after a rebooking, the debtor number a confirmation entered or a
-// change changed.
+// change changed, the other registrations of a sibling merge or split
+// (#5628).
 type HolidayRegistrationEventDetails struct {
 	From         string                     `json:"from,omitempty"`
 	ChildID      int64                      `json:"child_id,omitempty"`
 	Before       []HolidayBookingChange     `json:"before,omitempty"`
 	After        []HolidayBookingChange     `json:"after,omitempty"`
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
+	Siblings     []int64                    `json:"siblings,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.
@@ -318,6 +325,11 @@ type HolidayRegistrationReview interface {
 	// registration; a blank one removes it (#5621). Whether the number may
 	// still change is the caller's rule.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistrationDetail, error)
+	// RecordHolidaySiblings records a sibling merge or split of the
+	// Elternabrechnung (#5628): action is HolidayAuditSiblingMerge or
+	// HolidayAuditSiblingSplit, siblingIDs the other registrations it
+	// concerns. Any state of the registration takes it.
+	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
 	// RebookHolidayChild replaces the bookings of one child: one time model
 	// per week, at least one week.
 	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingInput) (HolidayRegistrationDetail, error)

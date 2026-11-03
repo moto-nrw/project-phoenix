@@ -217,6 +217,17 @@
       "target_owner": "enrollment"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RecordHolidaySiblings",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RecordHolidaySiblings",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.RecordHolidaySiblings: Enrollment checks the action, locks the period and the registration and appends the sibling merge or split with the other registrations to the registration's audit trail in the caller's Träger transaction (#5628); the Elternabrechnung has written its sibling group and the new contribution versions under its period billing lock in the same unit and the route rolls back on any refusal (ADR 0115 addendum).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RecordHolidaySiblings",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ResolveHolidayLink",
       "classification": "query",
       "effect": "query",

@@ -207,8 +207,8 @@ func (s *Store) selectRun(ctx context.Context, organizationID, runID int64, lock
 	return row.run(), nil
 }
 
-// PeriodContributions reads the frozen contributions of a period with
-// their lines, by registration and in the order of the form.
+// PeriodContributions reads the newest frozen contributions of a period
+// with their lines, by registration and in the order of the form.
 func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodID int64) (map[int64]parentbilling.HolidayContribution, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -216,7 +216,7 @@ func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodI
 	}
 	var rows []holidayContributionRow
 	if err := db.NewSelect().Model(&rows).
-		Where("organization_id = ?", organizationID).Where("holiday_period_id = ?", periodID).
+		Where("organization_id = ?", organizationID).Where("holiday_period_id = ?", periodID).Where(currentVersion).
 		OrderExpr("holiday_registration_id, holiday_registration_child_id").Scan(ctx); err != nil {
 		return nil, err
 	}

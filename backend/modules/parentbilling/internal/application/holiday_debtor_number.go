@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -34,7 +35,8 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 // registration while no issued invoice bills it. It holds the invoices of
 // the period first, so a release that runs at the same time copies either
 // the number before or the number after, and the change sees an invoice
-// the release committed.
+// the release committed. In a sibling group the other confirmed
+// registrations take the number too (#5628).
 func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayDebtorNumber, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayDebtorNumber{}, errTraegerRequired
@@ -42,12 +44,9 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
-	if err := h.store.LockPeriodBilling(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID); err != nil {
-		return parentbilling.HolidayDebtorNumber{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
-	}
-	issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
 	if err != nil {
-		return parentbilling.HolidayDebtorNumber{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
+		return parentbilling.HolidayDebtorNumber{}, err
 	}
 	if issued[registrationID] {
 		return parentbilling.HolidayDebtorNumber{}, parentbilling.ErrDebtorNumberLocked
@@ -55,6 +54,18 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	registration, err := h.registrations.SetHolidayDebtorNumber(ctx, reviewer, periodID, registrationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
+	}
+	// A sibling group pays with one number (#5628): the other confirmed
+	// registrations of the group that no issued invoice bills take it.
+	if group, grouped := groupOf(groups, registrationID); grouped && registration.DebtorNumber != "" {
+		ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registrationID })
+		others, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
+		if err != nil {
+			return parentbilling.HolidayDebtorNumber{}, err
+		}
+		if err := h.shareDebtorNumber(ctx, reviewer, periodID, others, registration.DebtorNumber, issued); err != nil {
+			return parentbilling.HolidayDebtorNumber{}, err
+		}
 	}
 	return parentbilling.HolidayDebtorNumber{RegistrationID: registration.ID, DebtorNumber: registration.DebtorNumber}, nil
 }

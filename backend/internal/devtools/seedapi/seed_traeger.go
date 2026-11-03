@@ -315,7 +315,50 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number, a possible duplicate waits for review")
+	if err := seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings); err != nil {
+		return "", err
+	}
 	return token, nil
+}
+
+// seedHolidaySiblingGroup lets the second parent register a third sibling
+// in a form of their own, and the Träger-Büro merges it with the siblings'
+// registration (#5628): the third child pays the sibling price although it
+// stands in another registration. A demo server that refuses the order
+// keeps the period without the group.
+func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID int64, registration map[string]any, siblings int64) error {
+	children := registration["children"].([]map[string]any)
+	guestBookings := children[1]["bookings"].([]map[string]any)
+	sibling := map[string]any{}
+	for key, value := range registration {
+		sibling[key] = value
+	}
+	delete(sibling, "second_guardian")
+	sibling["guardian"] = map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"}
+	sibling["declaration_name"] = "Thomas Ferienkind"
+	sibling["children"] = []map[string]any{{
+		"first_name": "Mila", "last_name": "Ferienkind", "birth_date": "2020-02-21", "home_school_id": children[0]["home_school_id"],
+		"bookings": guestBookings[len(guestBookings)-1:],
+	}}
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, sibling)
+	var refused *APIError
+	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
+		fmt.Printf("  Ferienanmeldung: third sibling refused (%s), no sibling group\n", refused.Code)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("register the third sibling: %w", err)
+	}
+	third, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return fmt.Errorf("read the third sibling's registration: %w", err)
+	}
+	merge := fmt.Sprintf("/traeger/holiday-contributions/%d/sibling-groups", periodID)
+	if _, err := rt.Client.PostWithAuth(auth, merge, map[string]any{"registration_ids": []int64{siblings, third}}); err != nil {
+		return fmt.Errorf("merge the siblings of two registrations: %w", err)
+	}
+	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
+	return nil
 }
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor

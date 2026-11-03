@@ -143,3 +143,66 @@ Punkt 5, ADR 0070).
   der Prüfungen in `contribution_rules` dazu (#4684, #4685, #4687).
 - Die Zusammenfassung zeigt den Beitrag nach den Regeln von heute; was gilt,
   hält erst die Bestätigung fest.
+
+## Nachtrag 2026-11-03: Geschwister aus getrennten Anmeldungen (#5628)
+
+Eltern melden Geschwister oft in zwei Formularen an, und ein Formular nimmt
+höchstens drei Kinder auf. Punkt 3 kannte Geschwister nur in derselben
+Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
+
+1. **Geschwistergruppe.** Das Träger-Büro führt Anmeldungen desselben
+   Zeitraums per Klick als Geschwister zusammen, nie automatisch. Gleiche
+   E-Mail oder gleicher Nachname des Elternteils sind nur ein Hinweis in der
+   Liste. Die Gruppe gehört der Elternabrechnung:
+   `parent_billing.holiday_sibling_groups` und
+   `parent_billing.holiday_sibling_group_members` (Träger-Policy aus
+   ADR 0105). Eine Anmeldung gehört höchstens zu einer Gruppe. Das Mitglied
+   geht mit seiner Anmeldung (ADR 0118); eine Gruppe mit nur noch einer
+   Anmeldung geht mit (Trigger). Eine stornierte Anmeldung lässt sich nicht
+   zusammenführen, wohl aber trennen.
+2. **Rang über die Gruppe.** Die Regelkette rankt die Kinder aller nicht
+   stornierten Anmeldungen der Gruppe wie eine Anmeldung: höchster Beitrag
+   zuerst, bei Gleichstand die früher abgesendete Anmeldung, dann die
+   Reihenfolge im Formular. Es gelten die Regeln am ersten gebuchten Tag der
+   Gruppe. Jede Anmeldung hält nur die Zeilen ihrer eigenen Kinder fest. Eine
+   bestätigte Anmeldung rankt mit den Grundpreisen und der Befreiung, die sie
+   festgehalten hat; ein späterer Preis ändert sie nicht. Die Befreiung
+   bleibt Sache jeder Anmeldung. Die Elternabrechnung liest die weiteren
+   Anmeldungen über ihren Port `HolidayRegistrations`; jeder Lesezugriff
+   steht im Protokoll der jeweiligen Anmeldung (ADR 0114 Punkt 6).
+3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen und
+   das Bestätigen einer Anmeldung der Gruppe rechnen den festgehaltenen
+   Beitrag jeder bestätigten Anmeldung der Gruppe neu. Ändert er sich, kommt
+   er als neue Fassung dazu (`holiday_contributions.version`); die alte
+   bleibt. Gültig ist die höchste Fassung. Die Anfrage-Rolle fügt weiter nur
+   ein und liest. Eine neue Fassung behält die Zeit der Bestätigung; ihr
+   Konto ist das, das zusammengeführt oder getrennt hat.
+4. **Grenze: ausgestellte Rechnung.** Zusammenführen und Trennen gehen nur,
+   solange keine Anmeldung der Gruppe eine ausgestellte Rechnung hat
+   (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Sie laufen
+   unter derselben Sperre der Rechnungen des Zeitraums wie die Freigabe
+   eines Laufs; ein offener Lauf zeigt die neuen Beträge in seiner Vorschau,
+   und die Freigabe prüft ohnehin die geprüfte Vorschau. Das Bestätigen
+   nimmt dieselbe Sperre.
+5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung. Die
+   Ermäßigung steht auf der Rechnung des Kindes, das sie bekommt. Ein Brief
+   nennt nie Kinder oder Eltern einer anderen Anmeldung; zwei Anmeldungen
+   können von getrennt lebenden Eltern kommen.
+6. **Debitorennummer.** Eine Gruppe zahlt mit einer Nummer (ADR 0121
+   Nachtrag #5621): Beim Zusammenführen bekommen die bestätigten Anmeldungen
+   die Nummer der ersten Anmeldung der Gruppe, die eine hat. Eine
+   Bestätigung ohne Nummer übernimmt die Nummer der Gruppe; eine neue oder
+   geänderte Nummer gilt für alle bestätigten Anmeldungen der Gruppe ohne
+   ausgestellte Rechnung.
+7. **Protokoll und Recht.** Die Routen liegen unter
+   `/traeger/holiday-contributions/{periodId}/sibling-groups` hinter dem
+   Recht „Anmeldung verwalten“. Zusammenführen und Trennen stehen mit den
+   anderen Anmeldungen im Protokoll jeder betroffenen Anmeldung
+   (`sibling_merge`, `sibling_split`), geschrieben über den Port in
+   derselben Träger-Transaktion (ADR 0067, wie die Bestätigung).
+
+Nicht in diesem Nachtrag: das Alter als Rang, Stufenregeln, Geschwister über
+Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).
+Storniert Enrollment eine bestätigte Anmeldung der Gruppe, rechnet die
+Elternabrechnung die übrigen erst beim nächsten Zusammenführen, Trennen oder
+Bestätigen neu; das Büro trennt die stornierte Anmeldung dafür.

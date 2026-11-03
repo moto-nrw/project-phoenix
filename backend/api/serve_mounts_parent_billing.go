@@ -285,6 +285,10 @@ func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Co
 	return parentBillingRegistration(detail), nil
 }
 
+func (b parentBillingHolidayRegistrations) RecordHolidaySiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error {
+	return parentBillingHolidayError(b.review.RecordHolidaySiblings(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, action, siblingIDs))
+}
+
 // parentBillingBillingRegistrations binds the billing run's port to
 // Enrollment: the period of the session's Träger and its confirmed
 // registrations through the review, which records the read in the period's
@@ -356,8 +360,8 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {
 	registration := parentbilling.HolidayRegistration{
-		ID: detail.ID, Status: detail.Status, BenefitsDeclared: detail.BenefitsDeclared, DebtorNumber: detail.DebtorNumber,
-		Children: make([]parentbilling.HolidayChild, len(detail.Children)),
+		ID: detail.ID, Status: detail.Status, SubmittedAt: detail.SubmittedAt, BenefitsDeclared: detail.BenefitsDeclared,
+		DebtorNumber: detail.DebtorNumber, Children: make([]parentbilling.HolidayChild, len(detail.Children)),
 	}
 	for i, child := range detail.Children {
 		bookings := make([]parentbilling.HolidayBooking, len(child.Bookings))
@@ -367,7 +371,9 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
 			}
 		}
-		registration.Children[i] = parentbilling.HolidayChild{ID: child.ID, Position: i + 1, Bookings: bookings}
+		registration.Children[i] = parentbilling.HolidayChild{
+			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, Bookings: bookings,
+		}
 	}
 	return registration
 }
