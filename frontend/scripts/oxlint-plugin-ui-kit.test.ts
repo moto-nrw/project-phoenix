@@ -1156,8 +1156,6 @@ describe("button ratchet baseline", () => {
     const findingAt: Record<string, string> = {
       "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
       "no-button-override": `<Button className="h-10">A</Button>`,
-      // Jede Grau-Ausnahme teilt ihre Zeile mit einer no-hand-rolled-button-
-      // Ausnahme und überschreibt sie danach; die Zeile trifft beide Regeln.
       "no-grey-button-fill": `<button type="button" className="rounded-lg bg-gray-100 px-4 py-2">A</button>`,
     };
     const sources = new Map<string, string[]>();

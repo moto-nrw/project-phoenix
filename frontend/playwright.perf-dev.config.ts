@@ -7,6 +7,7 @@ import {
   tenantBaseUrl,
 } from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Render-Zählung mit react-scan gegen den DEV-Server (pnpm run perf:render,
 // #2938). react-scan liest React-Fiber-Debuginfos, die nur der Dev-Build hat.
@@ -16,6 +17,7 @@ const env = perfServerEnv();
 const access = loadAccess();
 
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./scripts/perf",
   testMatch: "react-scan.perf.ts",
   timeout: 240_000,
@@ -25,6 +27,7 @@ export default defineConfig({
   outputDir: "perf-results/react-scan/test-output",
   use: {
     ...devices["Desktop Chrome"],
+    ...secureChromeUse(),
     baseURL: tenantBaseUrl(access),
     headless: true,
     actionTimeout: PERF_ACTION_TIMEOUT,

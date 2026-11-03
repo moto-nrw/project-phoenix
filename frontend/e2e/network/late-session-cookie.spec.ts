@@ -3,6 +3,7 @@ import {
   expect,
   type BrowserContext,
   type Page,
+  type Response,
   type Route,
 } from "@playwright/test";
 import { randomBytes } from "node:crypto";
@@ -193,20 +194,24 @@ const lateSources = {
 } as const;
 
 const endActions = {
-  logout: async (page: Page) => {
+  logout: async (page: Page, beforeSignout?: () => void) => {
     await page
       .getByRole("button", { name: /Profilmenü|Profil/ })
       .first()
       .click();
     await page.getByRole("button", { name: "Abmelden" }).first().click();
+    // The cold page may still be compiling while its menu opens. Start the
+    // response assertion immediately before the request, not before that UI.
+    beforeSignout?.();
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Abmelden" })
       .click();
     await page.waitForURL((url) => url.pathname === "/");
   },
-  "Zur Schulanmeldung": async (page: Page) => {
+  "Zur Schulanmeldung": async (page: Page, beforeSignout?: () => void) => {
     await page.goto(`${target}/home`);
+    beforeSignout?.();
     await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
     await page.waitForURL(`${target}/`);
   },
@@ -232,11 +237,11 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       const pending = await holdResponse(tab2, late.pattern, late.start);
       expect((await pending.held).setCookie).toBe(false);
 
-      const [deleted] = await Promise.all([
-        waitForSessionCookieDeletion(tab1),
-        endSession(tab1),
-      ]);
-      expect(deleted).toBe(true);
+      let deleted!: Promise<boolean>;
+      await endSession(tab1, () => {
+        deleted = waitForSessionCookieDeletion(tab1);
+      });
+      expect(await deleted).toBe(true);
       const afterEnd = await (await request.get(fixtureState)).json();
       expect(afterEnd.logoutRequests - before.logoutRequests).toBe(1);
       expect(afterEnd.liveFamilies).toBe(before.liveFamilies - 1);
@@ -369,11 +374,11 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
     );
     await pending.intercepted;
 
-    const [deleted] = await Promise.all([
-      waitForSessionCookieDeletion(tab1),
-      endSession(tab1),
-    ]);
-    expect(deleted).toBe(true);
+    let deleted!: Promise<boolean>;
+    await endSession(tab1, () => {
+      deleted = waitForSessionCookieDeletion(tab1);
+    });
+    expect(await deleted).toBe(true);
     await tab1.close();
 
     // The renewal fails on the revoked family; its answer sets no cookie.
@@ -396,15 +401,23 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       await csrfHeld;
       await route.continue();
     });
-    const revoked = tab1.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/auth/logout" &&
-        response.status() === 204,
-    );
-    const ending = Promise.all([
-      waitForSessionCookieDeletion(tab1),
-      endSession(tab1),
-    ]);
+    let deleted!: Promise<boolean>;
+    let ending!: Promise<void>;
+    // endSession calls the hook only after its menu clicks; wait for the hook
+    // before awaiting the response, or `revoked` is still undefined.
+    const revoked = new Promise<Response>((resolveRevoked, rejectRevoked) => {
+      ending = endSession(tab1, () => {
+        deleted = waitForSessionCookieDeletion(tab1);
+        tab1
+          .waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === "/api/auth/logout" &&
+              response.status() === 204,
+          )
+          .then(resolveRevoked, rejectRevoked);
+      });
+      ending.catch(rejectRevoked);
+    });
     await revoked;
     // The revocation committed; the cookie is still there (CSRF stalls).
     expect(await sessionCookie(context)).toBeDefined();
@@ -428,8 +441,8 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
     ).toEqual([]);
 
     releaseCsrf();
-    const [deleted] = await ending;
-    expect(deleted).toBe(true);
+    await ending;
+    expect(await deleted).toBe(true);
     await tab1.close();
     await tab3.close();
     await expectSessionStaysEnded(context);
@@ -457,11 +470,11 @@ test("Zur Schulanmeldung: a late renewal from the other school keeps the new ses
   );
   await pending.intercepted;
 
-  const [deleted] = await Promise.all([
-    waitForSessionCookieDeletion(tab1),
-    endActions["Zur Schulanmeldung"](tab1),
-  ]);
-  expect(deleted).toBe(true);
+  let deleted!: Promise<boolean>;
+  await endActions["Zur Schulanmeldung"](tab1, () => {
+    deleted = waitForSessionCookieDeletion(tab1);
+  });
+  expect(await deleted).toBe(true);
   await login(tab1);
   const fresh = (await context.cookies(source)).find(
     (cookie) => cookie.name === cookieName,
@@ -500,11 +513,11 @@ test("logout: a renewal answered before the revocation and delivered after it op
   );
   expect((await pending.held).setCookie).toBe(true);
 
-  const [deleted] = await Promise.all([
-    waitForSessionCookieDeletion(tab1),
-    endActions.logout(tab1),
-  ]);
-  expect(deleted).toBe(true);
+  let deleted!: Promise<boolean>;
+  await endActions.logout(tab1, () => {
+    deleted = waitForSessionCookieDeletion(tab1);
+  });
+  expect(await deleted).toBe(true);
   await tab1.close();
 
   await pending.release();

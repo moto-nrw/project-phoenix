@@ -7,6 +7,9 @@ Install these before cloning:
 1. **direnv** -- https://direnv.net/docs/installation.html
 2. **devbox** -- https://www.jetpack.io/devbox/docs/installing_devbox/
 3. **Docker Desktop** -- https://docs.docker.com/get-docker/
+4. **Google Chrome**, current stable (only for Playwright runs: E2E, layout,
+   guides, screenshots, perf). Playwright no longer uses its bundled Chromium;
+   see [browser for Playwright](agents/operations.md#browser-for-playwright).
 
 ## Setup
 

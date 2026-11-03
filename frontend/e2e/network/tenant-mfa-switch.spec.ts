@@ -17,7 +17,9 @@ async function browserSession(
 ) {
   const probe = await context.newPage();
   try {
-    await probe.goto(`${origin}/api/health`);
+    // The portal's own Auth.js route answers 200 on every host; the school
+    // host answers /api/health with an empty 404, an error page in Chrome.
+    await probe.goto(`${origin}${path.replace(/\/session$/, "/providers")}`);
     return await probe.evaluate(async (sessionPath) => {
       const session = await (await fetch(sessionPath)).json();
       return { tenantId: session.user?.tenantId, scope: session.user?.scope };

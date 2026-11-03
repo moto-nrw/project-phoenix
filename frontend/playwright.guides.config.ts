@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 import { frontendPort } from "./e2e/frontend-port";
 import { assertPortServesThisCheckout } from "./e2e/own-server";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Dedicated config for build-time PDF generation of the printed NFC onepager
 // (pnpm run generate:guides). Kept separate from playwright.config.ts so the
@@ -21,6 +22,7 @@ import { assertPortServesThisCheckout } from "./e2e/own-server";
 assertPortServesThisCheckout(frontendPort);
 
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./scripts",
   testMatch: "generate-guides.ts",
   // A production build plus one render still needs more than Playwright's
@@ -29,6 +31,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
+    ...secureChromeUse(),
     baseURL: `http://localhost:${frontendPort}`,
     headless: true,
   },

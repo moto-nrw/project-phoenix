@@ -419,24 +419,13 @@ jobs:
         run: node --test scripts/test-frontend-changed.test.mjs
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
-      # The binary is cached per lockfile, OS libs install every run.
-      - name: Cache Playwright browsers
-        if: ${{ matrix.project == 'node' }}
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-
-      - name: Install Playwright Chromium
+      # Systemweites Google Chrome statt des gebündelten Chromium (#5612):
+      # --force aktualisiert das veraltete Chrome des Runner-Images;
+      # frontend/scripts/secure-chrome.setup.ts lehnt ungepatchte Versionen ab.
+      - name: Install Google Chrome
         if: ${{ matrix.project == 'node' }}
         working-directory: frontend
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            pnpm exec playwright install-deps chromium
-          else
-            pnpm exec playwright install --with-deps chromium
-          fi
+        run: pnpm exec playwright install --with-deps --force chrome
 
       - name: Run browser layout tests
         if: ${{ matrix.project == 'node' }}
