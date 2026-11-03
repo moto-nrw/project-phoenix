@@ -125,6 +125,23 @@ describe("ui-kit/no-dead-surface-utility", () => {
     expect(count, output).toBe(1);
   });
 
+  it("follows const values passed to a className composer", () => {
+    const { count, output } = ruleHits(
+      `
+      declare const cn: (...classes: string[]) => string;
+      const surface = "moto-content-surface";
+      const focus = "focus-visible:ring-2";
+      function Probe() {
+        return <div className={cn(surface, focus)} />;
+      }
+      void Probe;
+    `,
+      "no-dead-surface-utility",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
   it("accepts layout, border widths, important overrides and popover blur", () => {
     const { count, output } = ruleHits(
       `

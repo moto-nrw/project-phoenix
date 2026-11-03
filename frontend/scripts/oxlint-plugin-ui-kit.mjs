@@ -316,7 +316,12 @@ function crossJoin(left, right) {
  * when the combination count overflows; callers fall back to the joined
  * over-approximation.
  */
-function classCombinations(node, seen = new WeakSet()) {
+function classCombinations(
+  node,
+  seen = new WeakSet(),
+  sourceCode,
+  seenVariables = new Set(),
+) {
   if (!node || typeof node !== "object" || seen.has(node)) return [""];
   seen.add(node);
 
@@ -324,18 +329,58 @@ function classCombinations(node, seen = new WeakSet()) {
     return [typeof node.value === "string" ? node.value : ""];
   }
   if (node.type === "TemplateElement") return [node.value.raw];
+  if (node.type === "Identifier" && sourceCode) {
+    const variable = findVariable(sourceCode, node);
+    if (!variable || seenVariables.has(variable)) return [""];
+    seenVariables.add(variable);
+    const combinations = [];
+    for (const definition of variable.defs) {
+      if (
+        definition.type !== "Variable" ||
+        definition.node.type !== "VariableDeclarator" ||
+        definition.parent?.kind !== "const" ||
+        !definition.node.init
+      )
+        continue;
+      const resolved = classCombinations(
+        definition.node.init,
+        seen,
+        sourceCode,
+        seenVariables,
+      );
+      if (!resolved) return null;
+      combinations.push(...resolved);
+      if (combinations.length > MAX_CLASS_COMBINATIONS) return null;
+    }
+    return combinations.length > 0 ? combinations : [""];
+  }
   if (node.type === "ConditionalExpression") {
-    const consequent = classCombinations(node.consequent, seen);
-    const alternate = classCombinations(node.alternate, seen);
+    const consequent = classCombinations(
+      node.consequent,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
+    const alternate = classCombinations(
+      node.alternate,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
     if (!consequent || !alternate) return null;
     const merged = [...consequent, ...alternate];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
   }
   if (node.type === "LogicalExpression") {
-    const right = classCombinations(node.right, seen);
+    const right = classCombinations(
+      node.right,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
     if (!right) return null;
     if (node.operator === "&&") return ["", ...right];
-    const left = classCombinations(node.left, seen);
+    const left = classCombinations(node.left, seen, sourceCode, seenVariables);
     if (!left) return null;
     const merged = [...left, ...right];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
@@ -347,7 +392,12 @@ function classCombinations(node, seen = new WeakSet()) {
     const children = Array.isArray(value) ? value : [value];
     for (const child of children) {
       if (!child || typeof child !== "object") continue;
-      const childCombos = classCombinations(child, seen);
+      const childCombos = classCombinations(
+        child,
+        seen,
+        sourceCode,
+        seenVariables,
+      );
       if (!childCombos) return null;
       combos = crossJoin(combos, childCombos);
       if (!combos) return null;
@@ -697,6 +747,7 @@ const noDeadSurfaceUtility = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
 
     const check = (node, text) => {
       const tokens = deadSurfaceTokens(text);
@@ -734,7 +785,11 @@ const noDeadSurfaceUtility = {
         if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
           return; // already reported by the Literal/TemplateLiteral visitors
         }
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const combos = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
         const rendered = combos.find(
           (combo) => deadSurfaceTokens(combo).length > 0,
         );
