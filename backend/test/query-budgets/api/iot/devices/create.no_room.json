@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.devices.create.no_room",
+  "max": 6,
+  "exact": true,
+  "description": "POST /api/iot/; one distinct real device per request, valid real registrar, generated key, native default fresh LastSeen; all production SQL including tenant transaction; N1/N3/N8."
+}

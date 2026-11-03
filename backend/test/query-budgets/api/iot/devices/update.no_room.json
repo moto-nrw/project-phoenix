@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.devices.update.no_room",
+  "max": 7,
+  "exact": true,
+  "description": "PUT /api/iot/{id}; distinct no-room device per request with fixed fresh LastSeen; real registrar assigned, all stored fields/wire and tenant/RLS verified; N1/N3/N8, per-request full transaction."
+}

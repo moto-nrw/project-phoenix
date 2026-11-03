@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.devices.update.with_room",
+  "max": 11,
+  "exact": true,
+  "description": "PUT /api/iot/{id}; distinct assigned room/device per request, fixed fresh LastSeen and real registrar; Facilities projections retained; N1/N3/N8, per-request full transaction."
+}

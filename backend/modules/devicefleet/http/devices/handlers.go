@@ -133,10 +133,16 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
-	if err != nil {
-		rs.renderError(w, r, err)
-		return
+	// Creation already replaces device with INSERT ... RETURNING *.
+	// Keep the read when room enrichment or live-row filtering is needed.
+	createdDevice := device
+	if device.RoomID != nil || device.ArchivedAt != nil {
+		var err error
+		createdDevice, err = rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+		if err != nil {
+			rs.renderError(w, r, err)
+			return
+		}
 	}
 
 	w.Header().Set("Cache-Control", "no-store")
@@ -182,10 +188,15 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
-	if err != nil {
-		rs.renderError(w, r, err)
-		return
+	// Update already replaces device with UPDATE ... RETURNING *, including
+	// the BEFORE trigger's updated_at. Rooms still need Facilities enrichment.
+	updatedDevice := device
+	if device.RoomID != nil || device.ArchivedAt != nil {
+		updatedDevice, err = rs.IoTService.GetDeviceByID(r.Context(), device.ID)
+		if err != nil {
+			rs.renderError(w, r, err)
+			return
+		}
 	}
 
 	rs.runtime.Success(w, r, http.StatusOK, newDeviceResponse(r.Context(), rs.IoTService, updatedDevice), "Device updated successfully")

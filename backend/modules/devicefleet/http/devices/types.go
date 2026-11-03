@@ -126,7 +126,7 @@ func newDeviceResponses(ctx context.Context, svc devicefleet.DeviceOnlineMonitor
 	return responses
 }
 
-// newDeviceCreationResponse combines re-read metadata with the credential
+// newDeviceCreationResponse combines persisted metadata with the credential
 // issued by creation. A database read never supplies the one-time key.
 func newDeviceCreationResponse(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, device *devicefleet.Device, apiKey *string) DeviceCreationResponse {
 	response := DeviceCreationResponse{
