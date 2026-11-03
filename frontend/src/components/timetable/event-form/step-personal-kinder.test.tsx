@@ -1,7 +1,29 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { createRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// The offering suggestion waits 400 ms after the last change before it asks
+// (#5104). Fake timers for the whole file let that debounce pass without real
+// time: Testing Library detects them through `jest` and advances the clock in
+// findBy/waitFor at its polling interval, within the same time budget as with
+// real timers.
+beforeAll(() => {
+  vi.useFakeTimers();
+  vi.stubGlobal("jest", {
+    advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms),
+  });
+});
+afterAll(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 const {
   createExternal,
@@ -829,7 +851,8 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
     expect(
       screen.getByText(/Es kommen alle Kinder der Klasse 1b/),
     ).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Longer than the 400 ms the suggestion waits before it asks.
+    await act(() => vi.advanceTimersByTimeAsync(600));
     expect(getOfferingSuggestion).not.toHaveBeenCalled();
   });
 });

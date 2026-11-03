@@ -1,5 +1,13 @@
 import { catalogText } from "~/test/error-catalog-text";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   act,
   fireEvent,
@@ -207,6 +215,22 @@ function studentsNext(): SchoolSetupState {
 }
 
 describe("SchoolSetupWizard", () => {
+  // Die Tour sucht im 200-ms-Takt und wartet bewusst (Klick 250 ms, Verlassen
+  // 800 ms, fehlende Seitenleiste 1,5 s). Fake-Timer für die ganze Datei
+  // lassen diese Wartezeiten ohne echte Sekunden ablaufen: Testing Library
+  // erkennt sie über `jest` und rückt in findBy/waitFor die Uhr im
+  // Abfragetakt vor, mit demselben Zeitbudget wie mit echten Timern.
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("jest", {
+      advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms),
+    });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
@@ -382,7 +406,6 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("shows how to enter a parent, and skips that when one is already there", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     setupState.steps[3] = {
       key: "students",
@@ -578,7 +601,6 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("goes back into the sidebar to show the way again, without jumping forward", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
@@ -682,7 +704,6 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("ignores a late click advance once the tour has moved on", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
@@ -739,7 +760,6 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("waits for the new page instead of highlighting a button of the old one", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = newSchool();
     pathname = "/database/groups";
     const { rerender } = render(<SchoolSetupWizard />);
@@ -827,7 +847,6 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("continues with the import when the person chooses Importieren", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     setupState = studentsNext();
     pathname = "/database/students";
     const { rerender } = render(<SchoolSetupWizard />);
