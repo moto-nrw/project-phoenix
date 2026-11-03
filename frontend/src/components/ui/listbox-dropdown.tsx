@@ -294,7 +294,7 @@ function nextEnabledIndex<K extends string>(
 }
 
 function isRepeatedCharacter(buffer: string): boolean {
-  return buffer.length > 1 && [...buffer].every((char) => char === buffer[0]);
+  return /^(.)(?:\1)+$/u.test(buffer);
 }
 
 function typeaheadMatchIndex<K extends string>(
