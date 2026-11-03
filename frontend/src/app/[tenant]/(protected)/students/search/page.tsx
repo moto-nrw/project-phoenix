@@ -67,6 +67,7 @@ import {
 } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { schoolClassesLabel } from "~/lib/school-class-label";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -2998,6 +2999,7 @@ function SearchPageContent() {
   // Kacheln oder Tabelle (#3834). Die Tabelle trägt dieselben Angaben wie
   // die Karte, eine Spalte je Angabe, und markiert Kinder per Kästchen für
   // die Sammelaktionen. Auf dem Telefon wird sie zur dichten Zeilenliste.
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -3014,7 +3016,7 @@ function SearchPageContent() {
             supervisedRooms={mySupervisedRooms}
           />
         )),
-        classColumn(),
+        classColumn({ label: holidayGuestLabel }),
         groupColumn(),
         arrivalColumn((student) => searchStudentDay(student, isToday)),
         pickupColumn((student) => searchStudentDay(student, isToday)),
@@ -3029,6 +3031,7 @@ function SearchPageContent() {
       myGroupRooms,
       mySupervisedRooms,
       trackingData,
+      holidayGuestLabel,
     ],
   );
   const tableColumnDefaults = useMemo(
@@ -3108,6 +3111,7 @@ function SearchPageContent() {
         trackingData={trackingData}
         onOpen={handleOpenStudent}
         onCheckinClick={handleCheckinClick}
+        classLabel={holidayGuestLabel(student)}
       />
     );
   };
@@ -3613,7 +3617,8 @@ function SearchPageContent() {
                       extraContent={
                         <>
                           <StudentInfoRow icon={<SchoolClassIcon />}>
-                            {student.school_class || "–"}
+                            {holidayGuestLabel(student) ??
+                              (student.school_class || "–")}
                           </StudentInfoRow>
                           <StudentInfoRow icon={<GroupIcon />}>
                             Gruppe: {student.group_name || "–"}
