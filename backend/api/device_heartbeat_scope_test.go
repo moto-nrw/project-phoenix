@@ -17,8 +17,9 @@ import (
 
 func TestDeviceAuthenticationPersistsSchoolScopedHeartbeat(t *testing.T) {
 	t.Parallel()
-	// Keep database/sql pool wait channels from crossing the synctest bubble.
-	// Fixtures warm this private pool before the virtual clock starts.
+	// A private pool keeps database/sql wait channels from crossing the
+	// synctest bubble; the shared SetupTestDB pool would hand them to parallel
+	// tests. Fixtures warm this pool before the virtual clock starts.
 	db := testpkg.SetupClosableTestDB(t)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 	database := testpkg.NewDatabase(t, db)
@@ -76,13 +77,11 @@ func TestDeviceAuthenticationPersistsSchoolScopedHeartbeat(t *testing.T) {
 				require.Equal(t, previous, current.LastSeen, "a heartbeat inside the debounce window must not write early")
 				time.Sleep(time.Nanosecond)
 				synctest.Wait()
-				require.Eventually(t, func() bool {
-					current, readErr := fleet.FindDevice(ownCtx, own.ID)
-					return readErr == nil && current.LastSeen != nil && current.LastSeen.After(*previous)
-				}, 70*time.Second, 2*time.Second, "deferred heartbeat must retain its school/runtime after request cancellation")
+				// synctest.Wait returned, so the deferred flush has finished.
 				current, err = fleet.FindDevice(ownCtx, own.ID)
 				require.NoError(t, err)
-				require.NotNil(t, current.LastSeen)
+				require.NotNil(t, current.LastSeen, "deferred heartbeat must retain its school/runtime after request cancellation")
+				require.True(t, current.LastSeen.After(*previous), "deferred heartbeat must retain its school/runtime after request cancellation")
 				require.True(t, current.LastSeen.Equal(observedAt), "deferred heartbeat must persist the second observation, not the flush time")
 			} else {
 				cancel()
