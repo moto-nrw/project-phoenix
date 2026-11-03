@@ -89,11 +89,23 @@ func TestEveryAccountSessionIsWrittenBehindTheLiveAccountCheck(t *testing.T) {
 	assert.Equal(t, map[string]int{"account_login.go": 1, "session_refresh.go": 1}, writers)
 
 	persist := functionSource(t, "account_login.go", "func (s *AccountAuthentication) persistSessionInTransaction(")
-	assert.Less(t, strings.Index(persist, "s.prepareSessionMint("), strings.Index(persist, "s.sessions.CreateAccountSession("),
+	requireCalledBefore(t, persist, "s.prepareSessionMint(", "s.sessions.CreateAccountSession(",
 		"the login mint checks the live account before it writes the session")
 	refresh := functionSource(t, "session_refresh.go", "func (r *refreshRotation) run(")
-	assert.Less(t, strings.Index(refresh, "r.lockAccount("), strings.Index(refresh, "r.persist("),
+	requireCalledBefore(t, refresh, "r.lockAccount(", "r.persist(",
 		"the refresh rotation locks the live account before it writes the successor")
+}
+
+// requireCalledBefore requires that both calls appear in source and that
+// check comes first. A missing call fails on its own, not as an index of -1
+// that would pass the order check.
+func requireCalledBefore(t *testing.T, source, check, write, message string) {
+	t.Helper()
+	checkAt := strings.Index(source, check)
+	writeAt := strings.Index(source, write)
+	require.GreaterOrEqual(t, checkAt, 0, "%s: %s is called", message, check)
+	require.GreaterOrEqual(t, writeAt, 0, "%s: %s is called", message, write)
+	assert.Less(t, checkAt, writeAt, message)
 }
 
 func functionSource(t *testing.T, file, signature string) string {
