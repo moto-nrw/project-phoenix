@@ -17,3 +17,4 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen -> basi
 PUT /traeger/holiday-periods/{id} -> basis
 PUT /traeger/holiday-periods/{id}/form -> basis
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings -> basis
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details -> basis

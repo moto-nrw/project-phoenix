@@ -34,6 +34,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}:                     notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings"}: notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}:                     notCaptured,
 	{http.MethodPost, "/traeger/school-sessions/"}:                                                               notCaptured,
 	{http.MethodDelete, "/traeger/settings/values/{key}"}:                                                        notCaptured,
 	{http.MethodPut, "/traeger/settings/values/{key}"}:                                                           notCaptured,
@@ -72,6 +73,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
 	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
+	// Storno and Gutschrift of an issued invoice (#4690) belong to the
+	// Träger as well.
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/cancellation"}: notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
 }
 
 func init() {

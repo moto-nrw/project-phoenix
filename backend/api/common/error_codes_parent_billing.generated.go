@@ -4,6 +4,8 @@ package common
 const CodeParentBillingBankAccountMissing = "parent_billing.bank_account_missing"
 const CodeParentBillingBenefitsExemptionUnavailable = "parent_billing.benefits_exemption_unavailable"
 const CodeParentBillingBillingCorrectionInvalid = "parent_billing.billing_correction_invalid"
+const CodeParentBillingBillingDocumentCorrectionInvalid = "parent_billing.billing_document_correction_invalid"
+const CodeParentBillingBillingDocumentNotFound = "parent_billing.billing_document_not_found"
 const CodeParentBillingBillingFamilyNotFound = "parent_billing.billing_family_not_found"
 const CodeParentBillingBillingLetterNotFound = "parent_billing.billing_letter_not_found"
 const CodeParentBillingBillingLettersExist = "parent_billing.billing_letters_exist"
@@ -21,6 +23,8 @@ const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_ru
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
+const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
+const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
 const CodeParentBillingInvoiceNumberTaken = "parent_billing.invoice_number_taken"
 const CodeParentBillingLetterMailPending = "parent_billing.letter_mail_pending"
 const CodeParentBillingLetterheadTooLong = "parent_billing.letterhead_too_long"
@@ -34,6 +38,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
 	{CodeParentBillingBenefitsExemptionUnavailable, "business_rejection"},
 	{CodeParentBillingBillingCorrectionInvalid, "input"},
+	{CodeParentBillingBillingDocumentCorrectionInvalid, "input"},
+	{CodeParentBillingBillingDocumentNotFound, "business_rejection"},
 	{CodeParentBillingBillingFamilyNotFound, "business_rejection"},
 	{CodeParentBillingBillingLetterNotFound, "business_rejection"},
 	{CodeParentBillingBillingLettersExist, "business_rejection"},
@@ -51,6 +57,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
+	{CodeParentBillingInvoiceCancelled, "business_rejection"},
+	{CodeParentBillingInvoiceCredited, "business_rejection"},
 	{CodeParentBillingInvoiceNumberTaken, "business_rejection"},
 	{CodeParentBillingLetterMailPending, "business_rejection"},
 	{CodeParentBillingLetterheadTooLong, "business_rejection"},

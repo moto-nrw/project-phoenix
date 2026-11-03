@@ -38,6 +38,7 @@ import {
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
+import { GuardianAddressFields } from "./holiday-guardian-address-fields";
 import { HolidayQuestions } from "./holiday-registration-questions";
 
 export function useWeekLabels() {
@@ -593,45 +594,17 @@ export function GuardianAddressCard({
       title={required ? t("addressTitle") : t("addressTitleOptional")}
       description={required ? t("addressText") : t("addressOptionalText")}
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)]">
-        <Input
-          name="guardian_address.street"
-          required={required}
-          label={t("street")}
-          autoComplete="street-address"
-          maxLength={100}
-          value={address.street}
-          error={fieldError("guardian_address.street")}
-          onChange={(event) =>
-            onChange({ ...address, street: event.target.value })
-          }
-        />
-        <Input
-          name="guardian_address.postal_code"
-          required={required}
-          label={t("postalCode")}
-          autoComplete="postal-code"
-          inputMode="numeric"
-          maxLength={5}
-          value={address.postalCode}
-          error={fieldError("guardian_address.postal_code")}
-          onChange={(event) =>
-            onChange({ ...address, postalCode: event.target.value })
-          }
-        />
-        <Input
-          name="guardian_address.city"
-          required={required}
-          label={t("city")}
-          autoComplete="address-level2"
-          maxLength={100}
-          value={address.city}
-          error={fieldError("guardian_address.city")}
-          onChange={(event) =>
-            onChange({ ...address, city: event.target.value })
-          }
-        />
-      </div>
+      <GuardianAddressFields
+        address={address}
+        required={required}
+        labels={{
+          street: t("street"),
+          postalCode: t("postalCode"),
+          city: t("city"),
+        }}
+        fieldError={fieldError}
+        onChange={onChange}
+      />
     </SectionCard>
   );
 }

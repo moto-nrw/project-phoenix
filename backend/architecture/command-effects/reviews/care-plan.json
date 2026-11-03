@@ -598,6 +598,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResetStudentPickupDayToOffering",
       "classification": "unresolved",
@@ -630,6 +642,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.Today. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today",
       "target_owner": ""
     },
     {
@@ -679,6 +703,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.bookingCommands.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.bookingCommands.ResetStudentPickupDayToOffering",
       "classification": "unresolved",
@@ -711,6 +747,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.bookingCommands.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.Today. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today",
       "target_owner": ""
     },
     {
@@ -2368,6 +2416,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResetStudentPickupDayToOffering",
       "classification": "unresolved",
@@ -2400,6 +2460,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.Today. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today",
       "target_owner": ""
     },
     {
@@ -5501,6 +5573,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingPickupTimes.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResetStudentPickupDayToOffering",
       "classification": "unresolved",
@@ -5533,6 +5617,18 @@
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0150",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResetStudentPickupDayToOffering",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingPickupTimes.ResetStudentPickupDayToOffering",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.BookingMaterializationDependencies.Today. Reached since #5643: the pickup reset reads today to bound the earlier days it changes; same clock value as the approved bindings, approved by ADR 0150; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "care-plan",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today",
       "target_owner": ""
     },
     {

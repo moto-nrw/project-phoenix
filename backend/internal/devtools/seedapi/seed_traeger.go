@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -315,7 +316,39 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number, a possible duplicate waits for review")
+	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
+		return "", err
+	}
 	return token, nil
+}
+
+// seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
+// registration (#5629): the family called with a new phone number and an
+// added emergency contact. Name, e-mail and address stay those of the
+// registration, so the confirmation letter still reaches the seeded
+// parent's inbox with its address. The history then shows the change by its
+// fields.
+func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64, registration map[string]any) error {
+	guardian := map[string]any{}
+	if registered, ok := registration["guardian"].(map[string]any); ok {
+		maps.Copy(guardian, registered)
+	}
+	guardian["phone"] = "0151 0000009"
+	path := fmt.Sprintf("/traeger/holiday-periods/%d/registrations/%d/details", periodID, registrationID)
+	if _, err := rt.Client.PutWithAuth(auth, path, map[string]any{
+		"guardian":         guardian,
+		"guardian_address": registration["guardian_address"],
+		"second_guardian":  registration["second_guardian"],
+		"emergency_contacts": []map[string]any{
+			{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"},
+			{"name": "Karin Ferienkind", "phone": "05402 000003", "relationship": "Tante"},
+		},
+		"pickup_persons": []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
+	}); err != nil {
+		return fmt.Errorf("change the details of the holiday registration: %w", err)
+	}
+	fmt.Println("  Träger-Büro: changed the phone number and added an emergency contact")
+	return nil
 }
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor

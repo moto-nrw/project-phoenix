@@ -131,10 +131,19 @@ type BillingLetterheads interface {
 }
 
 // BillingLetterService lets the Abrechnung of a Träger create the letters
-// of a released run, look at one before and read each one after. Every
-// operation runs in the Träger transaction of the session's Träger, which
-// the caller opens, and is recorded in the run's trail.
+// of a released run, look at one before and read each one after, and cancel
+// or credit an issued invoice with a document and a letter of its own
+// (#4690). Every operation runs in the Träger transaction of the session's
+// Träger, which the caller opens, and is recorded in the run's trail.
 type BillingLetterService interface {
+	// CancelBillingDocument issues the cancellation of an invoice of the
+	// run. Once the run has its letters, the cancellation gets its letter at
+	// once; otherwise it gets it with the letters of the run.
+	CancelBillingDocument(ctx context.Context, reviewer HolidayReviewer, runID, documentID int64, input BillingCancellationInput) (BillingDocument, error)
+	// CreditBillingDocument issues a credit for one child of an invoice of
+	// the run, at most what is left of the child's amount, with its letter
+	// like a cancellation.
+	CreditBillingDocument(ctx context.Context, reviewer HolidayReviewer, runID, documentID int64, input BillingCreditInput) (BillingDocument, error)
 	// CreateBillingLetters renders and stores the letter of every invoice
 	// of the run. A run has its letters once.
 	CreateBillingLetters(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingLetterInput) (BillingLetters, error)

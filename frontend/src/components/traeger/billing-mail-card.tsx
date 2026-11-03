@@ -29,6 +29,7 @@ import {
   mailBillingLetters,
   printBillingLetters,
 } from "~/lib/traeger-billing-api";
+import { BILLING_DOCUMENT_KIND_LABELS } from "./billing-format";
 
 const logger = createLogger({ component: "BillingMailCard" });
 
@@ -219,7 +220,10 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                   <p className="text-sm font-medium text-gray-900">
                     {mailing.recipientFirstName} {mailing.recipientLastName}
                     <span className="ml-2 font-normal text-gray-500">
-                      {mailing.number}
+                      {mailing.kind === "cancellation" ||
+                      mailing.kind === "credit"
+                        ? `${BILLING_DOCUMENT_KIND_LABELS[mailing.kind]} ${mailing.number}`
+                        : mailing.number}
                     </span>
                   </p>
                   <p className="truncate text-sm text-gray-600">
