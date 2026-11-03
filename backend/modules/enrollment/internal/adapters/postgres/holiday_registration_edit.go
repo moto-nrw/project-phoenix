@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -35,6 +37,20 @@ const (
 	deleteHolidayContactsQuery = `DELETE FROM enrollment.holiday_registration_contacts
 		WHERE organization_id = ? AND holiday_registration_id = ?`
 )
+
+// updateHolidayChild writes one changed child; the school only when it
+// changed.
+func updateHolidayChild(ctx context.Context, db bun.IDB, organizationID, registrationID, childID int64,
+	child enrollment.HolidayChildInput, answers string, schoolChanged bool) error {
+	if schoolChanged {
+		_, err := db.NewRaw(updateHolidayChildDetailsAndSchoolQuery, child.FirstName, child.LastName, child.BirthDate.String(),
+			child.GuestSchoolName, answers, child.HomeSchoolID, organizationID, registrationID, childID).Exec(ctx)
+		return err
+	}
+	_, err := db.NewRaw(updateHolidayChildDetailsQuery, child.FirstName, child.LastName, child.BirthDate.String(),
+		child.GuestSchoolName, answers, organizationID, registrationID, childID).Exec(ctx)
+	return err
+}
 
 // WriteHolidayRegistrationDetails writes the registration, one statement per
 // changed child, the school only when it changed, and replaces the
@@ -68,12 +84,7 @@ func (s *HolidayRegistrationStore) WriteHolidayRegistrationDetails(ctx context.C
 		if err != nil {
 			return err
 		}
-		query, args := updateHolidayChildDetailsQuery, []any{child.FirstName, child.LastName, child.BirthDate.String(),
-			child.GuestSchoolName, childAnswers}
-		if schoolChanged[i] {
-			query, args = updateHolidayChildDetailsAndSchoolQuery, append(args, child.HomeSchoolID)
-		}
-		if _, err := db.NewRaw(query, append(args, organizationID, registrationID, childIDs[i])...).Exec(ctx); err != nil {
+		if err := updateHolidayChild(ctx, db, organizationID, registrationID, childIDs[i], child, childAnswers, schoolChanged[i]); err != nil {
 			return fmt.Errorf("enrollment postgres: update holiday registration child details: %w", err)
 		}
 	}
