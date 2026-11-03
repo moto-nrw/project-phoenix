@@ -1,4 +1,4 @@
-package application
+package application_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ func (s countEnrollmentRows) ListStudentEnrollments(_ context.Context, filter ti
 }
 
 type countStudentReader struct {
-	ActivityStudents
+	application.ActivityStudents
 	read func([]int64) (map[int64]*timetable.OperationStudent, error)
 }
 
@@ -66,7 +67,7 @@ func TestEnrollmentCountsKeepOrderedReaderFailures(t *testing.T) {
 				},
 			}
 			students := countStudentReader{read: func([]int64) (map[int64]*timetable.OperationStudent, error) { return nil, wantErr }}
-			service, err := NewActivityService(countEnrollmentRows{rows: rows}, nil, directories, nil, nil, students)
+			service, err := application.NewActivityService(countEnrollmentRows{rows: rows}, nil, directories, nil, nil, students)
 			require.NoError(t, err)
 			_, scalarErr := service.GetEnrolledStudents(testpkg.Ctx(t), first.ID)
 			_, err = service.GetEnrollmentCounts(testpkg.Ctx(t), []int64{first.ID, second.ID})
@@ -93,7 +94,7 @@ func TestEnrollmentCountsDoNotDropEmptyRosterReaderFailures(t *testing.T) {
 		StudentAlumni: func(context.Context, []int64) (map[int64]bool, error) { return nil, nil },
 		StudentNames:  func(context.Context, []int64) (map[int64]ports.PersonName, error) { return nil, nil },
 	}
-	service, err := NewActivityService(countEnrollmentRows{rows: []timetable.StudentEnrollment{{ActivityGroupID: populated.ID, StudentID: child.ID}}}, nil, directories, nil, nil, students)
+	service, err := application.NewActivityService(countEnrollmentRows{rows: []timetable.StudentEnrollment{{ActivityGroupID: populated.ID, StudentID: child.ID}}}, nil, directories, nil, nil, students)
 	require.NoError(t, err)
 	_, scalarErr := service.GetEnrolledStudents(testpkg.Ctx(t), empty.ID)
 	_, err = service.GetEnrollmentCounts(testpkg.Ctx(t), []int64{empty.ID, populated.ID})
