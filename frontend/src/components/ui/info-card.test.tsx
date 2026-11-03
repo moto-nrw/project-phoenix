@@ -50,6 +50,8 @@ describe("InfoCard", () => {
     const card = container.firstChild as HTMLElement;
     expect(card.className).toContain("rounded-2xl");
     expect(card.className).toContain("border");
+    expect(card.className).toContain("p-5");
+    expect(card.className).toContain("max-sm:p-4");
   });
 });
 

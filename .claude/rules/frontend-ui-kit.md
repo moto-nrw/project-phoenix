@@ -117,7 +117,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
 | Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
 | Key figure tile | `StatCard` — default `variant="card"` | `~/components/ui/stat-card` |
-| Info card with `InfoItem` rows | `InfoCard`, `InfoItem` (still `p-6`; ADR 0149 sets `p-5`) | `~/components/ui/info-card` |
+| Info card with `InfoItem` rows | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
 | Any card: page section with heading, explanation, actions, or a plain surface | `SectionCard` — `moto-content-surface` card, `p-5`, `p-4` on a phone; title, description, action slot, optional `collapsible`; `kicker` only per ADR 0149 | `~/components/ui/section-card` |
 | Any other framed white container (list wrapper, inner card, skeleton) | the `moto-content-surface` utility + `rounded-2xl border` (inner cards keep `rounded-xl`); never `border-gray-200 bg-white` by hand | `globals.css` |
 | Floating menu / dropdown list / anchored popover panel | the `moto-popover-surface` utility + `rounded-xl border` (gray-200 frame, white, shadow-lg, no blur) — what `OverflowMenu`, `CustomSelect`, `DatePicker` use internally | `globals.css` |
