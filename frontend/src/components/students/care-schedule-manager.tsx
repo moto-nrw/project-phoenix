@@ -21,6 +21,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   type CareExceptionSubmit,
   CarePlanEditorModal,
@@ -206,6 +207,12 @@ interface CareBoundaryItem {
   readonly value: string;
   readonly description?: string;
   readonly marker: string | null;
+  /**
+   * Eine Abweichung, die jemand prüfen sollte, steht als Warnung statt als
+   * graue Herkunft; `markerTitle` nennt dann beide Zeiten.
+   */
+  readonly markerTone?: "warning";
+  readonly markerTitle?: string;
   readonly icon: React.ReactNode;
   readonly onEdit?: () => void;
 }
@@ -1594,7 +1601,14 @@ function CareBoundaryRow({
               whenever the value wrapped ("Keine Abholung" in a day column). */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
             <span className="min-w-0 break-words">{boundary.value}</span>
-            {boundary.marker ? (
+            {boundary.marker && boundary.markerTone === "warning" ? (
+              <StatusBadge
+                tone="orange"
+                compact
+                label={boundary.marker}
+                title={boundary.markerTitle}
+              />
+            ) : boundary.marker ? (
               <span
                 className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-sm font-semibold text-gray-500 shadow-sm"
                 title={boundary.marker}
@@ -1695,16 +1709,44 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
-  if (
-    day.baseSchedule?.source !== "care_offering" &&
-    day.offeringSchedule &&
-    day.baseSchedule?.pickupTime !== day.offeringSchedule.pickupTime
-  ) {
-    return day.offeringSchedule.careOfferingName
-      ? `Andere Zeit als im Angebot „${day.offeringSchedule.careOfferingName}“`
-      : "Andere Zeit als im Angebot";
-  }
   return pickupScheduleSourceLabel(day.baseSchedule);
+}
+
+/**
+ * Die gebuchte Abholzeit, wenn eine von Hand eingetragene Zeit sie an diesem
+ * Tag verdeckt. Die eingetragene Zeit gewinnt, deshalb muss die Abweichung
+ * in der Woche auffallen, nicht nur im Tageseditor (#5618).
+ */
+function hiddenBookedPickup(day: PickupDayData): string | null {
+  if (
+    day.isException ||
+    !day.baseSchedule ||
+    day.baseSchedule.source === "care_offering" ||
+    !day.offeringSchedule ||
+    day.baseSchedule.pickupTime === day.offeringSchedule.pickupTime
+  ) {
+    return null;
+  }
+  return formatPickupTime(day.offeringSchedule.pickupTime);
+}
+
+function pickupBoundary(day: PickupDayData) {
+  const booked = hiddenBookedPickup(day);
+  if (booked === null || !day.baseSchedule) {
+    return {
+      description: getPickupDescription(day),
+      marker: getPickupMarker(day),
+    };
+  }
+  const offering = day.offeringSchedule?.careOfferingName;
+  return {
+    description: "Von Hand eingetragen, gilt statt der gebuchten Zeit.",
+    marker: `Gebucht ${booked} Uhr`,
+    markerTone: "warning" as const,
+    markerTitle: `Von Hand eingetragen: ${formatPickupTime(day.baseSchedule.pickupTime)} Uhr. Gebucht${
+      offering ? ` im Angebot „${offering}“` : ""
+    }: ${booked} Uhr.`,
+  };
 }
 
 function sameWeekdays(
@@ -1771,8 +1813,7 @@ function getCareBoundaries(
       key: "pickup",
       label: "Abholung",
       value: getPickupValue(day.pickup),
-      description: getPickupDescription(day.pickup),
-      marker: getPickupMarker(day.pickup),
+      ...pickupBoundary(day.pickup),
       icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
       onEdit: actions.onEditPickup,
     },

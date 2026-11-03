@@ -2064,6 +2064,8 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Die Kennzeichnung `Für Eltern sichtbar` zeigt Angaben, die Eltern sehen.",
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
       "Fehlt `Bearbeiten` oder `Wochenplan`? Fragen Sie Ihre Leitung nach den nötigen Rechten.",
+      // #5618: care-schedule-manager.tsx (hiddenBookedPickup), Knopf im Tagesdialog.
+      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt für diesen Wochentag in jeder Woche.",
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",

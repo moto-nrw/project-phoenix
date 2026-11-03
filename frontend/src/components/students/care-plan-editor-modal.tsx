@@ -79,6 +79,13 @@ const DEPARTURE_OPTION_ORDER: readonly DepartureMode[] = [
 ];
 const WEEKDAY_KEYS = ["", "mon", "tue", "wed", "thu", "fri"] as const;
 
+/** „jeden Montag“ für das Übernehmen der gebuchten Abholzeit. */
+function weeklyAdverb(weekday: number): string {
+  const names = ["", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const name = names[weekday];
+  return name ? `jeden ${name}` : "in jeder Woche";
+}
+
 interface NoteDeletionTarget {
   readonly content: string;
   readonly deleteNote: () => Promise<void>;
@@ -483,7 +490,16 @@ export function CarePlanEditorModal({
               pickupDay.baseSchedule &&
               pickupDay.offeringSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
-                <div className="flex justify-end">
+                // Der Dialog gilt sonst nur für diesen Tag; das Übernehmen
+                // ändert aber den Wochenplan. Der Satz sagt das und nennt die
+                // gebuchte Zeit (#5618).
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-gray-600">
+                    Gebucht:{" "}
+                    {formatPickupTime(pickupDay.offeringSchedule.pickupTime)}{" "}
+                    Uhr. Übernehmen gilt {weeklyAdverb(pickupDay.weekday)},
+                    nicht nur an diesem Tag.
+                  </p>
                   <Button
                     type="button"
                     variant="ghost"
@@ -497,8 +513,8 @@ export function CarePlanEditorModal({
                     }
                   >
                     {isResettingPickup
-                      ? "Setzt zurück…"
-                      : "Abholung auf Angebots-Gehzeit zurücksetzen"}
+                      ? "Wird übernommen …"
+                      : "Gebuchte Abholzeit übernehmen"}
                   </Button>
                 </div>
               ) : null}
