@@ -1252,6 +1252,8 @@ describe("button ratchet baseline", () => {
         },
       }),
     );
+    // Eine Ausnahme für die graue Ruhefläche steht auf derselben Zeile wie
+    // die für den handgebauten Knopf; ihr Fund trifft deshalb beide Regeln.
     const findingAt: Record<string, string> = {
       "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
       "no-button-override": `<Button className="h-10">A</Button>`,

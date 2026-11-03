@@ -38,6 +38,9 @@ type RunStore interface {
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// LockPeriodBilling holds the invoices of the service and period until
+	// the transaction ends (#5621).
+	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
 	RunCorrections(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingCorrection, error)
 	InsertRunCorrection(ctx context.Context, organizationID int64, run parentbilling.BillingRun, registrationID, accountID int64, correction parentbilling.BillingCorrection) error
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
@@ -59,11 +62,13 @@ type RunStore interface {
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
-// registrations come from Enrollment through the root-bound port; the
+// registrations come from Enrollment through the root-bound port, whether
+// the Träger asks for the debtor number from the settings (#5621); the
 // frozen contributions, the runs and the invoices are the owner's own rows.
 type BillingRuns struct {
 	store         RunStore
 	registrations parentbilling.HolidayBillingRegistrations
+	settings      parentbilling.HolidayBillingSettings
 	renderer      TableRenderer
 	today         func() calendar.Date
 }
@@ -72,11 +77,13 @@ var _ parentbilling.BillingRuns = (*BillingRuns)(nil)
 
 // NewBillingRuns builds the billing runs. renderer renders the overview of
 // a released run; today is the issue date of a release.
-func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, renderer TableRenderer, today func() calendar.Date) *BillingRuns {
-	if store == nil || registrations == nil || renderer == nil || today == nil {
-		panic("parent billing: the store, the holiday registrations, the renderer and the clock are required")
+func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings,
+	renderer TableRenderer, today func() calendar.Date,
+) *BillingRuns {
+	if store == nil || registrations == nil || settings == nil || renderer == nil || today == nil {
+		panic("parent billing: the store, the holiday registrations, the settings, the renderer and the clock are required")
 	}
-	return &BillingRuns{store: store, registrations: registrations, renderer: renderer, today: today}
+	return &BillingRuns{store: store, registrations: registrations, settings: settings, renderer: renderer, today: today}
 }
 
 func validReviewer(reviewer parentbilling.HolidayReviewer) error {
@@ -219,6 +226,11 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	run, err := b.lockCalculated(ctx, reviewer.OrganizationID, runID)
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, err
+	}
+	// A change of a debtor number of the period waits until the invoices
+	// are issued, or the release until the change is committed (#5621).
+	if err := b.store.LockPeriodBilling(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID); err != nil {
+		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
 	}
 	pattern, err := b.numberPattern(ctx, reviewer.OrganizationID, run.Service)
 	if err != nil {
@@ -386,6 +398,9 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.BillingRunDetail{}, err
 		}
 		detail.Documents, detail.Unbilled = current.documents, current.unbilled
+		if detail.MissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
+			return parentbilling.BillingRunDetail{}, err
+		}
 	}
 	for _, document := range detail.Documents {
 		detail.PreviewCount++
@@ -446,4 +461,23 @@ func normalizeCorrection(input parentbilling.BillingCorrectionInput) (parentbill
 		return input, errs
 	}
 	return input, nil
+}
+
+// missingDebtorNumbers counts the draft invoices without a debtor number
+// when the Träger asks for one (#5621); the release stays possible.
+func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (int, error) {
+	required, err := b.settings.AsksDebtorNumber(ctx, organizationID)
+	if err != nil {
+		return 0, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
+	}
+	if !required {
+		return 0, nil
+	}
+	missing := 0
+	for _, document := range documents {
+		if document.DebtorNumber == "" {
+			missing++
+		}
+	}
+	return missing, nil
 }

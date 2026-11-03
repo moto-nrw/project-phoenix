@@ -10,15 +10,32 @@ import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { createLogger } from "~/lib/logger";
-import type { SettingsSchema } from "~/lib/settings-api";
+import type {
+  ResolvedSetting,
+  SchemaTab,
+  SettingsSchema,
+} from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
+import { SectionCard } from "~/components/ui/section-card";
+import {
+  DEBTOR_NUMBER_ON_CONFIRM_KEY,
+  PAYMENT_TEXT_KEY,
+  TRAEGER_HOLIDAY_TAB,
+  paymentTextPreview,
+} from "~/lib/traeger-payment-text";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
+
+function tabItem(tab: SchemaTab, key: string): ResolvedSetting | undefined {
+  return tab.categories
+    .flatMap((category) => category.items)
+    .find((item) => item.key === key);
+}
 
 function hasWritableSetting(schema: SettingsSchema): boolean {
   return schema.tabs.some((tab) =>
@@ -65,6 +82,11 @@ export default function TraegerSettingsPage() {
 
   const activeTab =
     tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null;
+  // The holiday tab shows the payment sentence with example values (#5622).
+  const paymentText =
+    activeTab?.key === TRAEGER_HOLIDAY_TAB
+      ? tabItem(activeTab, PAYMENT_TEXT_KEY)
+      : undefined;
   const fromTraeger = tabs
     .flatMap((tab) => tab.categories)
     .flatMap((category) => category.items)
@@ -128,6 +150,24 @@ export default function TraegerSettingsPage() {
           audience="traeger"
         />
       ))}
+      {activeTab && paymentText ? (
+        // The payment sentence with example values, bold as the letter
+        // prints it; a display only, the text changes in the field above.
+        <SectionCard
+          title="Vorschau des Zahlungstexts"
+          description="So steht der Text im Schreiben, mit Beispielwerten. Bei 0 € steht dort: „Sie müssen für diese Betreuung nichts bezahlen.“"
+        >
+          <figure aria-label="Vorschau des Zahlungstexts">
+            <p className="font-semibold wrap-anywhere whitespace-pre-line text-gray-900">
+              {paymentTextPreview(
+                typeof paymentText.value === "string" ? paymentText.value : "",
+                tabItem(activeTab, DEBTOR_NUMBER_ON_CONFIRM_KEY)?.value ===
+                  true,
+              )}
+            </p>
+          </figure>
+        </SectionCard>
+      ) : null}
     </TenantPage>
   );
 }

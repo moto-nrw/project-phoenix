@@ -16,6 +16,8 @@
   "contribution_rule_invalid": "Bitte prüfen Sie die markierten Felder.",
   "contribution_rule_not_found": "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+  "debtor_number_invalid": "Bitte prüfen Sie die Debitorennummer.",
+  "debtor_number_locked": "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
   "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
   "invoice_number_taken": "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
   "letter_mail_pending": "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
@@ -23,5 +25,6 @@
   "number_range_invalid": "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
   "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
   "parent_document_not_found": "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "payment_text_debtor_number_missing": "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
   "recipient_email_missing": "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie."
 }

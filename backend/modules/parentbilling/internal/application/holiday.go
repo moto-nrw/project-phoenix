@@ -9,22 +9,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
+// HolidayStore persists the rules and the frozen contributions and knows
+// which registrations an issued invoice bills (#5621).
+type HolidayStore interface {
+	Store
+	// IssuedRegistrations names the registrations of the period that an
+	// invoice of the service already bills.
+	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// LockPeriodBilling holds the invoices of the service and period until
+	// the transaction ends, so the release of a run and a change of what it
+	// copies run one after another.
+	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
+}
+
 // HolidayContributions serves parentbilling.HolidayContributions. The
 // registration and its bookings come from Enrollment through the root-bound
-// port; the rules and the frozen contributions are the owner's own rows.
+// port, whether the Träger asks for the debtor number from the settings;
+// the rules and the frozen contributions are the owner's own rows.
 type HolidayContributions struct {
-	store         Store
+	store         HolidayStore
 	registrations parentbilling.HolidayRegistrations
+	settings      parentbilling.HolidayBillingSettings
 }
 
 var _ parentbilling.HolidayContributions = (*HolidayContributions)(nil)
 
 // NewHolidayContributions builds the holiday contribution.
-func NewHolidayContributions(store Store, registrations parentbilling.HolidayRegistrations) *HolidayContributions {
-	if store == nil || registrations == nil {
-		panic("parent billing: the store and the holiday registrations are required")
+func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) *HolidayContributions {
+	if store == nil || registrations == nil || settings == nil {
+		panic("parent billing: the store, the holiday registrations and the settings are required")
 	}
-	return &HolidayContributions{store: store, registrations: registrations}
+	return &HolidayContributions{store: store, registrations: registrations, settings: settings}
 }
 
 // ResolveHolidayLink resolves a public link; an empty key names no link.
@@ -67,8 +82,9 @@ func (h *HolidayContributions) QuoteHolidayContribution(ctx context.Context, lin
 
 // HolidayContribution reads the registration through Enrollment, which
 // checks that it belongs to the period of the session's Träger and records
-// the read, and shows its frozen contribution or a preview with the
-// exemption the Träger-Büro is about to choose.
+// the read, and shows its frozen contribution, with whether an issued
+// invoice bills it (#5621), or a preview with the exemption the Träger-Büro
+// is about to choose.
 func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (parentbilling.HolidayContribution, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayContribution{}, errTraegerRequired
@@ -82,6 +98,11 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 		return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read holiday contribution: %w", err)
 	}
 	if found {
+		issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+		if err != nil {
+			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
+		}
+		frozen.Invoiced = issued[registration.ID]
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared
@@ -92,15 +113,20 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 }
 
 // ConfirmHolidayRegistration confirms the registration through Enrollment
-// and freezes the contribution it computes from the confirmed bookings, in
-// the caller's Träger transaction. Enrollment holds the period and the
-// registration, so no change of a price or a booking runs in between. The
-// caller rolls the transaction back when this fails after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool) (parentbilling.HolidayConfirmation, error) {
+// with the debtor number and freezes the contribution it computes from the
+// confirmed bookings, in the caller's Träger transaction. Enrollment holds
+// the period and the registration, so no change of a price or a booking
+// runs in between. A missing debtor number the Träger asks for refuses the
+// confirmation before anything is written. The caller rolls the
+// transaction back when this fails after the confirmation.
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
 	}
-	registration, err := h.registrations.ConfirmHolidayRegistration(ctx, reviewer, periodID, registrationID)
+	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	registration, err := h.registrations.ConfirmHolidayRegistration(ctx, reviewer, periodID, registrationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}

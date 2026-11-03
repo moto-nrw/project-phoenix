@@ -39,6 +39,11 @@ export interface HolidayContribution {
   /** Frozen at the confirmation; a preview otherwise. */
   readonly frozen: boolean;
   readonly confirmedAt: string | null;
+  /**
+   * An issued invoice bills the registration; it keeps the debtor number
+   * (#5621). Only the Träger read of a frozen contribution sets it.
+   */
+  readonly invoiced?: boolean;
 }
 
 interface BackendLine {
@@ -67,6 +72,7 @@ export interface BackendContribution {
   benefits_exemption: boolean;
   frozen: boolean;
   confirmed_at: string | null;
+  invoiced?: boolean;
 }
 
 /** Maps a contribution of the backend. */
@@ -95,5 +101,6 @@ export function contributionFromBackend(
     benefitsExemption: contribution.benefits_exemption,
     frozen: contribution.frozen,
     confirmedAt: contribution.confirmed_at,
+    invoiced: contribution.invoiced ?? false,
   };
 }

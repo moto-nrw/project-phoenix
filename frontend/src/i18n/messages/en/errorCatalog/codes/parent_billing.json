@@ -16,6 +16,8 @@
   "contribution_rule_invalid": "{object} could not be saved. Please check your entries.",
   "contribution_rule_not_found": "{object} could not be changed. Please check its current status.",
   "contribution_rule_overlap": "{object} could not be changed. Please check its current status.",
+  "debtor_number_invalid": "{object} could not be saved. Please check your entries.",
+  "debtor_number_locked": "{object} could not be changed. Please check its current status.",
   "holiday_quote_invalid": "The fee cannot be calculated for these weeks. Please reload the page.",
   "invoice_number_taken": "{object} could not be changed. Please check its current status.",
   "letter_mail_pending": "{object} could not be changed. Please check its current status.",
@@ -23,5 +25,6 @@
   "number_range_invalid": "{object} could not be saved. Please check your entries.",
   "number_range_missing": "{object} could not be changed. Please check its current status.",
   "parent_document_not_found": "This document is no longer available. Please reload the page.",
+  "payment_text_debtor_number_missing": "{object} could not be changed. Please check its current status.",
   "recipient_email_missing": "{object} could not be changed. Please check its current status."
 }

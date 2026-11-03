@@ -55,6 +55,7 @@ const PREVIEW: BillingRunDetail = {
   previewCount: 1,
   previewCents: 11250,
   unbilled: 1,
+  missingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
   letters: null,
@@ -67,6 +68,7 @@ const PREVIEW: BillingRunDetail = {
       recipientFirstName: "Eva",
       recipientLastName: "Muster",
       recipientEmail: "eva@example.org",
+      debtorNumber: "",
       serviceFrom: "2027-01-04",
       serviceUntil: "2027-01-15",
       totalCents: 11250,
@@ -276,6 +278,34 @@ describe("TraegerBillingRunPage", () => {
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(api.fetchBillingRun).toHaveBeenCalledTimes(2));
+  });
+
+  it("names the invoices without a debtor number only while the Träger asks for it (#5621)", async () => {
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      missingDebtorNumbers: 3,
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "3 Anmeldungen haben noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lauf freigeben" }),
+    ).toBeEnabled();
+  });
+
+  it("shows no debtor number hint when the switch is off (#5621)", async () => {
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      missingDebtorNumbers: 0,
+    });
+    renderPage();
+
+    expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(screen.queryByText(/Debitorennummer/)).not.toBeInTheDocument();
   });
 
   it("shows issued invoices without a way to change them", async () => {

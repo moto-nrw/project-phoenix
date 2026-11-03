@@ -1,2 +1,4 @@
+GET /traeger/holiday-contributions/confirmation-settings
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
+PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number

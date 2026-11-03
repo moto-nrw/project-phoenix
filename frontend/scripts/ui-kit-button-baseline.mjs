@@ -230,13 +230,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1311],
+    lines: [1318],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1554],
+    lines: [1561],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -287,7 +287,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1311],
+    lines: [1318],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {
