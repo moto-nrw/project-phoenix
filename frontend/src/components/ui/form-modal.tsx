@@ -56,7 +56,8 @@ export function FormModal({
 }: FormModalProps) {
   const visible = isOpen && !suspended;
 
-  // Signal for surfaces that hide while a form sheet covers them.
+  // Window events kept from the former standalone shell (pinned by
+  // form-modal.test.tsx); nothing in the app listens to them today.
   useEffect(() => {
     globalThis.dispatchEvent(
       new CustomEvent(visible ? "mobile-modal-open" : "mobile-modal-close"),

@@ -63,7 +63,6 @@ export const Z_LAYER = {
 
 /** `Z_LAYER` levels as numbers for inline `style.zIndex`. */
 export const Z_INDEX = {
-  modal: 9999,
   /** Portaled select menus: above dialogs, below calendars. */
   menu: 10000,
   /** Anchored popover panels and calendars. */

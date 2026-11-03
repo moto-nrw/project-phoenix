@@ -82,6 +82,16 @@ describe("Modal", () => {
       screen.getByRole("dialog", { name: "Formular" }),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("bleibt")).toBeInTheDocument();
+
+    // Anker: sichtbar schließt dieselbe Taste den Dialog wieder.
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("caps the dialog at the requested size, also as a phone sheet", async () => {

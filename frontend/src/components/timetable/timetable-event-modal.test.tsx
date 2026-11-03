@@ -5526,8 +5526,10 @@ describe("TimetableEventModal", () => {
     expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
       "ring-1",
     );
+    // Resting fill only: the kit close X (`ghost` `icon`, #5579) darkens to
+    // `active:bg-gray-200` while pressed, which is no grey button.
     for (const button of screen.getAllByRole("button")) {
-      expect(button.className).not.toContain("bg-gray-200");
+      expect(button.className.split(/\s+/)).not.toContain("bg-gray-200");
     }
 
     await goToStep(2);
