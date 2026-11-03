@@ -5,6 +5,7 @@
 // des Baukastens, weil Rechnung und Bestätigungsschreiben die Anschrift als
 // feste Angabe übernehmen.
 
+import { SectionCard } from "~/components/ui/section-card";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -36,27 +37,21 @@ export function HolidayFormAddress({
   disabled: boolean;
 }>) {
   return (
-    <section
-      aria-labelledby="holiday-form-address-title"
-      className="moto-content-surface rounded-2xl border p-5"
+    <SectionCard
+      title="Anschrift"
+      headingLevel={3}
+      namedRegion
+      description="Eltern geben Straße, PLZ und Ort an. Rechnung und Bestätigungsschreiben übernehmen die Anschrift."
     >
-      <h2
-        id="holiday-form-address-title"
-        className="text-base font-semibold text-gray-900"
-      >
-        Anschrift
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-        Eltern geben Straße, PLZ und Ort an. Rechnung und Bestätigungsschreiben
-        übernehmen die Anschrift.
-      </p>
+      {/* Unter sm untereinander: drei Segmente nebeneinander sind breiter
+          als ein 320-px-Telefon abzüglich der beiden Kartenränder. */}
       <SegmentedControl
-        className="mt-4"
+        className="max-sm:grid max-sm:w-full max-sm:grid-flow-row"
         ariaLabel="Anschrift abfragen"
         items={ADDRESS_CHOICES.map((item) => ({ ...item, disabled }))}
         value={value}
         onChange={onChange}
       />
-    </section>
+    </SectionCard>
   );
 }
