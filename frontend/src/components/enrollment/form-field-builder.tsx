@@ -18,6 +18,8 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   Eye,
   GripVertical,
@@ -460,10 +462,9 @@ export function FieldEditorRow({
                 disabled={disabled || index === 0}
                 variant="surface"
                 size="icon"
-                className="text-sm"
                 aria-label="Frage nach oben verschieben"
               >
-                ↑
+                <ArrowUp className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
                 type="button"
@@ -471,18 +472,16 @@ export function FieldEditorRow({
                 disabled={disabled || index === total - 1}
                 variant="surface"
                 size="icon"
-                className="text-sm"
                 aria-label="Frage nach unten verschieben"
               >
-                ↓
+                <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                variant="surface"
+                variant="outline_danger"
                 size="icon"
-                className="hover:bg-moto-red/10 hover:text-moto-red-strong hover:ring-moto-red/30"
                 aria-label="Frage entfernen"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -942,7 +941,7 @@ function ConditionEditor({
     const description = hasQuestionWithoutText
       ? "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen."
       : !field.applies_to_child && hasChildQuestion
-        ? "Eine Frage zur Familie kann nicht von einer Frage je Kind abhängen. Legen Sie eine andere Ja/Nein- oder Auswahlfrage für die Familie an. Schreiben Sie auch den Fragetext dazu."
+        ? "Eine allgemeine Frage kann nicht von einer Frage pro Kind abhängen. Legen Sie eine andere allgemeine Ja/Nein- oder Auswahlfrage an. Schreiben Sie auch den Fragetext dazu."
         : "Legen Sie zuerst eine andere Ja/Nein- oder Auswahlfrage mit Fragetext an. Diese Frage kann dann von deren Antwort abhängen.";
     return (
       <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2">

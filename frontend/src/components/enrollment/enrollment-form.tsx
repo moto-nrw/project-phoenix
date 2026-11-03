@@ -1768,10 +1768,9 @@ export function EnrollmentForm({
                   </h3>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="ghost_danger"
                     size="compact"
                     onClick={() => removeGuardian(i)}
-                    className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong"
                   >
                     {tr("actions.remove")}
                   </Button>
@@ -2108,10 +2107,9 @@ export function EnrollmentForm({
                   {children.length > 1 && !lockChildStructure && (
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="ghost_danger"
                       size="compact"
                       onClick={() => removeChild(i)}
-                      className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong"
                     >
                       {tr("actions.remove")}
                     </Button>

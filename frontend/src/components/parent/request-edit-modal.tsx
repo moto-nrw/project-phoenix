@@ -264,7 +264,7 @@ export function RequestEditModal({
           <Button
             type="button"
             size="md"
-            className="w-full max-sm:min-h-11 sm:w-auto"
+            className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t("saving")}
             onClick={() => void submit()}

@@ -92,8 +92,15 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 		}
 	}
 	loginTime := time.Now()
-	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
+	recorded, _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime)
+	if err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
+	}
+	// Every account session is minted here: an account the erasure of
+	// unused accounts anonymized after the caller's checks gets no session
+	// (#5546). The login routes answer it like wrong credentials.
+	if !recorded {
+		return time.Time{}, &mintGuardError{err: failed("issue session", domain.ErrAccountNotFound)}
 	}
 	if err := s.adoptSourceFamily(ctx, account.ID, sourceFamilyID, session, loginTime); err != nil {
 		return time.Time{}, &mintGuardError{err: err}

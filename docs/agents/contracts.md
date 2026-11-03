@@ -723,6 +723,13 @@ Backend paths in this section are relative to `backend/`:
   transaction. Ending the Träger's or the member's Träger sessions also deletes
   these sessions; the Träger logout revokes them through the switch lineage,
   and an Absprung whose Träger family is gone is refused (#5422).
+- Every account session, in every portal, is minted after the mint
+  transaction stamped `last_login` on the live account under its row lock
+  (`prepareSessionMint`; refresh locks the live account first). An account the
+  hourly erasure anonymized after the caller's checks gets no session; the
+  login routes answer it like wrong credentials (#5546). The erasure passes
+  over an account a login holds; a login waits for an erasure holding the
+  account only until that transaction ends.
 - `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect

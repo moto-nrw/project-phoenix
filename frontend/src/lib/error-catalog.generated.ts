@@ -728,7 +728,7 @@ export const ERROR_CATALOG = {
       "parent_billing.bank_account_missing":
         "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
       "parent_billing.benefits_exemption_unavailable":
-        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Beiträge“. Bitte fragen Sie die Abrechnung.",
+        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.billing_family_not_found":

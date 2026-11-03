@@ -389,7 +389,7 @@ export function HolidayFormEditor({
               <PreviewFieldsSection
                 title={germanMessages.familyQuestionsTitle}
                 fields={familyFields}
-                emptyTitle="Keine Fragen oder Infos zur Familie"
+                emptyTitle="Keine allgemeinen Fragen oder Infos"
                 emptyText="Beim Elternteil stehen nur die festen Angaben."
                 fieldBadge={questionBadge}
               />

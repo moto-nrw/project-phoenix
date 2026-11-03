@@ -161,9 +161,9 @@ export function ChildConsentsSection({
                   <div>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="ghost_danger"
                       size="compact"
-                      className="text-moto-red-strong hover:text-moto-red-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
+                      className="mt-1"
                       aria-label={t("withdrawButton")}
                       onClick={() => {
                         actionErrors.clear();
@@ -183,7 +183,7 @@ export function ChildConsentsSection({
                       type="button"
                       variant="ghost"
                       size="compact"
-                      className="text-moto-green-strong hover:text-moto-green-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
+                      className="mt-1"
                       aria-label={t("grantButton")}
                       onClick={() => {
                         actionErrors.clear();

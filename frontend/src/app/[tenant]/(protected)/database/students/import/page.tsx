@@ -621,9 +621,9 @@ export default function StudentImportPage() {
             <Button
               type="button"
               variant="primary"
-              size="sm"
+              size="field"
               onClick={() => void handleDownloadTemplate()}
-              className="h-10 w-full gap-2"
+              className="w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
               Vorlage herunterladen

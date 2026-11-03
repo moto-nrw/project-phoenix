@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +28,16 @@ func readyDemoSchool(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSc
 	return slug
 }
 
+// giveDemoAccess gives the order the demo access of its visitor. Every
+// order is born with its access in one transaction; an order no access
+// names is out of use, and every run retires it (#5540).
+func giveDemoAccess(t *testing.T, db *bun.DB, slug string) {
+	t.Helper()
+	_, err := db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name)
+		VALUES ('besuch-' || ?0 || '@example.org', 'OGS', 'hash-' || ?0, NOW() + INTERVAL '14 days', ?0, 'Anna Lena', 'von Berg')`, slug).Exec(t.Context())
+	require.NoError(t, err)
+}
+
 func schoolHidden(t *testing.T, db *bun.DB, schoolID int64) bool {
 	t.Helper()
 	var hidden bool
@@ -48,6 +57,7 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	ctx := t.Context()
 	first := readyDemoSchool(t, db, queue, schools, "OGS Nord", firstID)
 	second := readyDemoSchool(t, db, queue, schools, "OGS Süd", secondID)
+	giveDemoAccess(t, db, second) // its visitor still uses it
 	waiting := orderDemoSchool(t, db, "OGS West")
 	entered := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	for _, slug := range []string{first, second} {
@@ -121,7 +131,10 @@ func TestRetiringDemoSchoolWithAnActiveAccessLeavesItOpen(t *testing.T) {
 	assert.NotNil(t, demoSchoolProgress(t, db, slug))
 }
 
-func TestRetiringDemoSchoolWaitsForItsSeedLease(t *testing.T) {
+// While the seed of an order holds its lease, the run neither hides its
+// school nor erases its visitor. Since #5540 the run does not wait for the
+// lease either: it leaves the order for the next run, which retires it.
+func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	schoolID, _ := testpkg.CreateTestTenant(t, db)
@@ -130,36 +143,26 @@ func TestRetiringDemoSchoolWaitsForItsSeedLease(t *testing.T) {
 	schools, err := NewDemoSchools(db)
 	require.NoError(t, err)
 	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
-	type retirement struct {
-		hidden, erased int
-		err            error
-	}
-	started := make(chan struct{})
-	finished := make(chan retirement, 1)
 
 	require.NoError(t, schools.WithDemoLease(t.Context(), "demo school seed:"+slug, func(context.Context) error {
-		go func() {
-			close(started)
-			hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-			finished <- retirement{hidden: hidden, erased: erased, err: err}
-		}()
-		<-started
-		select {
-		case result := <-finished:
-			return fmt.Errorf("erasure finished despite the seed lease: %+v", result)
-		case <-time.After(100 * time.Millisecond):
-		}
+		hidden, erased := retireNow(t, queue, []string{slug})
+		assert.Zero(t, hidden, "the run hides no school during its seed lease")
+		assert.Zero(t, erased, "the run erases no visitor during the seed lease")
 		assert.False(t, schoolHidden(t, db, schoolID))
+		assert.NotNil(t, demoSchoolProgress(t, db, slug))
 		return nil
 	}))
 
-	result := <-finished
-	require.NoError(t, result.err)
-	assert.Equal(t, 1, result.hidden)
-	assert.Equal(t, 1, result.erased)
+	// The next run is told nothing: it finds the order in the database.
+	hidden, erased := retireNow(t, queue, nil)
+	assert.Equal(t, 1, hidden)
+	assert.Equal(t, 1, erased)
 }
 
-func TestRetiringDemoSchoolsWaitsForVisitorErasureLease(t *testing.T) {
+// While another run holds the run lock, this run neither hides nor erases
+// anything. Since #5540 it does not wait for the lock either: it skips, and
+// the next run retires the order.
+func TestRetiringDemoSchoolsSkipsDuringAnotherRunsLease(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	schoolID, _ := testpkg.CreateTestTenant(t, db)
@@ -174,29 +177,15 @@ func TestRetiringDemoSchoolsWaitsForVisitorErasureLease(t *testing.T) {
 	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0))`).Exec(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
-	type retirement struct {
-		hidden, erased int
-		err            error
-	}
-	started := make(chan struct{})
-	finished := make(chan retirement, 1)
-	go func() {
-		close(started)
-		hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-		finished <- retirement{hidden: hidden, erased: erased, err: err}
-	}()
-	<-started
-	select {
-	case result := <-finished:
-		t.Fatalf("erasure finished despite the global cleanup lease: %+v", result)
-	case <-time.After(100 * time.Millisecond):
-	}
+	hidden, erased := retireNow(t, queue, []string{slug})
+	assert.Zero(t, hidden, "the run hides no school during another run's lease")
+	assert.Zero(t, erased)
+	assert.False(t, schoolHidden(t, db, schoolID))
 	require.NoError(t, tx.Rollback())
 
-	result := <-finished
-	require.NoError(t, result.err)
-	assert.Equal(t, 1, result.hidden)
-	assert.Equal(t, 1, result.erased)
+	hidden, erased = retireNow(t, queue, nil)
+	assert.Equal(t, 1, hidden)
+	assert.Equal(t, 1, erased)
 }
 
 // The serving backend hides the visitor's school when the visitor starts over

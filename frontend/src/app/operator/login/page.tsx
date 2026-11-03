@@ -13,11 +13,7 @@ import {
   PASSKEY_LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { useApiFormError } from "~/contexts/ToastContext";
-import {
-  AuthShell,
-  OperatorBrand,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
@@ -34,6 +30,7 @@ import {
 } from "~/lib/passkey-api";
 import { createLogger } from "~/lib/logger";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "OperatorLoginPage" });
 
@@ -317,25 +314,29 @@ export default function OperatorLoginPage() {
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             <span className="relative z-10">
               {isLoading ? "Anmeldung läuft..." : "Anmelden"}
             </span>
-          </button>
+          </Button>
           {passkeySupported && (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="field"
+              className="w-full gap-2"
               disabled={isLoading}
               onClick={handlePasskeyLogin}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             >
               <MotoConceptIcon concept={passkeysConcept} size={16} />
               <span>Mit Passkey anmelden</span>
-            </button>
+            </Button>
           )}
         </form>
       )}

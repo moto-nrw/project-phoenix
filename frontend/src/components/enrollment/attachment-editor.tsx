@@ -180,7 +180,6 @@ export function AttachmentEditor({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-10"
                     disabled={busy}
                     aria-label={`PDF ${index + 1} entfernen`}
                     title="PDF entfernen"

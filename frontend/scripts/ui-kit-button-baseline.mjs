@@ -76,6 +76,30 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/guardians/guardian-picker-panel.tsx",
+    lines: [326],
+    reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/messaging/new-message-modal.tsx",
+    lines: [381],
+    reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/messaging/new-team-message-modal.tsx",
+    lines: [161],
+    reason: "Person in der Empfängerliste wählen: Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/announcements/parent-target-picker.tsx",
+    lines: [46],
+    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
     lines: [148],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
@@ -83,8 +107,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1082],
+    lines: [1076],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/auth/auth-shell.tsx",
+    lines: [360],
+    reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
@@ -95,7 +125,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3139],
+    lines: [3150],
     reason: "Schalter (role=switch)",
   },
   {

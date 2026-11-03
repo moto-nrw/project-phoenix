@@ -47,7 +47,7 @@ function benefitsText(
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Beiträge“.";
+  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.";
 }
 
 export function HolidayRegistrationStatusCard({

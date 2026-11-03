@@ -309,8 +309,9 @@ type AccountSessionCommand interface {
 	// so a tenant switch hands the replaced session a bounded grace.
 	RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
 	// EnforceAccountSessionCap keeps at most keep live sessions in the portal
-	// group of portalScope and returns the evicted sessions.
-	EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int) ([]AccountSession, error)
+	// group of portalScope and returns the evicted sessions. The session with
+	// the ID minted always stays; zero protects none.
+	EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int, minted int64) ([]AccountSession, error)
 	DeleteAccountSession(ctx context.Context, id int64) error
 	RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]AccountSession, error)
 	// RevokeAccountSessionsInTenant deletes the account's sessions at the

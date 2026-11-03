@@ -4,6 +4,7 @@ import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { buttonClassName } from "~/components/ui/button";
 import { useLocale, useTranslations } from "next-intl";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
@@ -192,7 +193,13 @@ export default function EnrollPhasePickerPage() {
                             })}
                           </p>
                         </div>
-                        <span className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800 sm:w-auto">
+                        <span
+                          className={buttonClassName({
+                            variant: "primary",
+                            size: "md",
+                            className: "w-full shrink-0 sm:w-auto",
+                          })}
+                        >
                           {t("start")}
                         </span>
                       </a>

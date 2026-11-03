@@ -159,6 +159,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(ctx, retired, organizationtenancy.DemoSchoolState{SchoolID: retiredID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, retired, accounts[retiredID].caregiver, accounts[retiredID].parent))
+	giveDemoAccess(t, db, retired) // its visitor still uses it
 	_, err = db.NewRaw(`UPDATE platform.demo_school_states
 		SET visitor_account_ids = ARRAY[?], visitor_parent_account_ids = ARRAY[?], visitor_school_ids = ARRAY[?, ?] WHERE name = ?`,
 		accounts[abandonedID].caregiver, accounts[abandonedID].parent, retiredID, abandonedID, retired).Exec(ctx)
@@ -210,8 +211,8 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, retiredID), "the school is still open")
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, abandonedID), "no order is out of use yet")
 
-	// The expiry deletes the access and hides the school of the other order.
-	_, err = db.NewRaw(`DELETE FROM auth.demo_accesses WHERE school_slug = ?`, failed).Exec(ctx)
+	// The expiry deletes the accesses and hides the school of the other order.
+	_, err = db.NewRaw(`DELETE FROM auth.demo_accesses WHERE school_slug IN (?, ?)`, failed, retired).Exec(ctx)
 	require.NoError(t, err)
 	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{retired})
 	require.NoError(t, err)
