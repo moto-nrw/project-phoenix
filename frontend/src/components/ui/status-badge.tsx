@@ -8,32 +8,31 @@
 // rows of pills busier without adding meaning (#2476).
 import type { LucideIcon } from "lucide-react";
 
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+
 export type StatusBadgeTone = "blue" | "green" | "orange" | "red" | "gray";
 
-// Status badges are a base UI primitive. Keeping their five fixed kit tones
-// here avoids loading location colour mapping and contrast utilities wherever
-// a status label is rendered. These values match MOTO_COLOR_PALETTE exactly.
 const TONES: Record<StatusBadgeTone, { bg: string; text: string }> = {
   blue: {
-    bg: "#EDF3FC",
-    text: "#315C9B",
+    bg: MOTO_COLOR_PALETTE.blue.soft,
+    text: MOTO_COLOR_PALETTE.blue.strong,
   },
   green: {
-    bg: "#EEF9E1",
-    text: "#3F6F12",
+    bg: MOTO_COLOR_PALETTE.green.soft,
+    text: MOTO_COLOR_PALETTE.green.strong,
   },
   orange: {
-    bg: "#FFF3E5",
-    text: "#9B5609",
+    bg: MOTO_COLOR_PALETTE.orange.soft,
+    text: MOTO_COLOR_PALETTE.orange.strong,
   },
   red: {
-    bg: "#FEF2F2",
-    text: "#B91C1C",
+    bg: MOTO_COLOR_PALETTE.red.soft,
+    text: MOTO_COLOR_PALETTE.red.strong,
   },
   // Muss mit LOCATION_BADGE_TONES[neutral.base] uebereinstimmen, sonst
   // driften der graue StatusBadge und der graue StatusColorBadge auseinander.
   gray: {
-    bg: "#F3F4F6",
+    bg: MOTO_COLOR_PALETTE.neutral.soft,
     text: "#4B5563",
   },
 };

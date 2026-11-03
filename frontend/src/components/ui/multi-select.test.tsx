@@ -113,6 +113,19 @@ describe("MultiSelect", () => {
     expect(trigger()).toHaveTextContent("2 Gruppen");
   });
 
+  it("summarises multiple selections when no field-specific label is given", () => {
+    render(
+      <MultiSelect
+        ariaLabel="Auswahl"
+        value={["1", "2"]}
+        options={OPTIONS}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(trigger()).toHaveTextContent("2 ausgewählt");
+  });
+
   it("can summarise every selection from the chosen options", () => {
     render(
       <MultiSelect

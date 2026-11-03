@@ -126,8 +126,11 @@ export function MultiSelect({
   const triggerLabel = (() => {
     if (unavailable && unavailableLabel) return unavailableLabel;
     if (selectedOptions.length === 0) return placeholder;
-    if (summaryLabel && selectedOptions.length > summaryThreshold) {
-      return summaryLabel(selectedOptions.length, selectedOptions);
+    if (selectedOptions.length > summaryThreshold) {
+      return (
+        summaryLabel?.(selectedOptions.length, selectedOptions) ??
+        `${selectedOptions.length} ausgewählt`
+      );
     }
     return selectedOptions.map((option) => option.label).join(", ");
   })();
