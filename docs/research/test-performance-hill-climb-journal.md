@@ -931,3 +931,8 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Paket n=3: 72,2/93,1/68,0 → 25,0/28,6/27,9 s (Median 72,2 → 27,9); Heartbeat 60,0 → 0,03 s. TestFullProductionRouterGolden isoliert 3,25 s (Paketwert 13–29 s ist Scheduler-Wartezeit unter Parallelität), keine weiteren Tests > 10 s.
 - Mutation (verzögerter Write verliert Tenant-Kontext) vorher/nachher rot an „deferred heartbeat must retain its school/runtime…“. Inventar 1557 Pass/2 Skips gleich. `-race -count=3` grün.
 - Review Opus: OK mit Auflagen; Parent-Fix: direkte Abfrage statt redundantem Eventually, Doku in helpers.go und backend-testing.md. Mutation auf Endfassung erneut rot.
+
+### Runde F-cookie (session-cookie-inventory.test.ts): behalten
+- Fehlte in der nach Assertion-Dauer sortierten Liste (Zeit im Modulaufbau, 18,6 s Spanne); vom Parent nach Dateispanne nachgetragen. Ursache wie bei browser-token-ratchet: `ts.X`-Zugriffe über Vitests Importobjekt im AST-Lauf über 3289 Dateien. Änderung: `import ts = typescript` in `src/test/session-cookie-writers.ts`.
+- Verschränkter A/B n=3: Wand 22,06/21,47/19,40 → 6,41/5,98/6,90 s (Median 21,47 → 6,41), Spanne 20,27 → 5,11 s; writers.test 1,80 → 1,38 s. Berechnetes Inventar über alle 3289 Dateien byte-gleich.
+- Mutationen: Session-Cookie-Write in api/logs/route.ts (4/11 rot, gleiche Meldung) und `"set"` in READS (28/115 rot, gleiche Liste), vorher/nachher. Review Sol: OK.
