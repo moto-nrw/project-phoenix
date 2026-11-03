@@ -13,9 +13,14 @@ import {
   type DateOfBirthTranslator,
 } from "~/components/enrollment/date-of-birth-picker";
 import {
-  type HolidayDateQuestion,
-  HolidayQuestionFields,
-} from "~/components/holiday-registration/holiday-question-fields";
+  CustomDateField,
+  NativeDateControl,
+} from "~/components/enrollment/custom-date-field";
+import {
+  type GuardianAddressDraft,
+  GuardianAddressFields,
+} from "~/components/holiday-registration/holiday-guardian-address-fields";
+import { HolidayQuestionFields } from "~/components/holiday-registration/holiday-question-fields";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -34,7 +39,6 @@ import type { TraegerSchool } from "~/lib/traeger-api";
 import {
   editHolidayRegistration,
   type HolidayRegistrationChild,
-  type HolidayRegistrationAddressEdit,
   type HolidayRegistrationContactEdit,
   type HolidayRegistrationDetail,
   type HolidayRegistrationEdit,
@@ -212,15 +216,20 @@ const EMPTY_PERSON: HolidayRegistrationPersonEdit = {
 };
 
 /** The parent who registered and the optional second guardian. */
-/** The postal address as the form edits it: empty parts, never null. */
-type AddressDraft = HolidayRegistrationAddressEdit;
+const ADDRESS_LABELS = {
+  street: "Straße und Hausnummer",
+  postalCode: "PLZ",
+  city: "Ort",
+} as const;
+
+type AddressDraft = GuardianAddressDraft;
 
 /**
  * The postal address of the parent (#5625), when the form version of the
- * registration asks for it. All three parts or none; the five-digit postal
- * code and whether it is required follow the public form.
+ * registration asks for it: the fields of the public form, and here the
+ * notice that an issued invoice keeps its address.
  */
-function AddressFields({
+function AddressSection({
   address,
   required,
   invoiced,
@@ -234,8 +243,6 @@ function AddressFields({
   fieldError: (name: string) => string | undefined;
   onChange: (address: AddressDraft) => void;
 }>) {
-  const set = (patch: Partial<AddressDraft>) =>
-    onChange({ ...address, ...patch });
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-semibold text-gray-900">
@@ -252,39 +259,13 @@ function AddressFields({
           die bisherige Anschrift.
         </p>
       ) : null}
-      <Input
-        name="guardian_address.street"
-        label="Straße und Hausnummer"
+      <GuardianAddressFields
+        address={address}
         required={required}
-        maxLength={100}
-        autoComplete="street-address"
-        value={address.street}
-        error={fieldError("guardian_address.street")}
-        onChange={(event) => set({ street: event.target.value })}
+        labels={ADDRESS_LABELS}
+        fieldError={fieldError}
+        onChange={onChange}
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[10rem_1fr]">
-        <Input
-          name="guardian_address.postal_code"
-          label="PLZ"
-          required={required}
-          inputMode="numeric"
-          maxLength={5}
-          autoComplete="postal-code"
-          value={address.postalCode}
-          error={fieldError("guardian_address.postal_code")}
-          onChange={(event) => set({ postalCode: event.target.value })}
-        />
-        <Input
-          name="guardian_address.city"
-          label="Ort"
-          required={required}
-          maxLength={100}
-          autoComplete="address-level2"
-          value={address.city}
-          error={fieldError("guardian_address.city")}
-          onChange={(event) => set({ city: event.target.value })}
-        />
-      </div>
     </fieldset>
   );
 }
@@ -341,7 +322,7 @@ export function GuardiansEditor(
             />
           </fieldset>
           {addressRequirement === "off" ? null : (
-            <AddressFields
+            <AddressSection
               address={address}
               required={addressRequirement === "required"}
               invoiced={invoiced}
@@ -566,29 +547,6 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   );
 }
 
-/** A date question: the native date field of the kit Input. The calendar of
- * the date picker would double the page's bundle growth for a rarely used
- * question type. */
-function DateQuestion({
-  name,
-  field,
-  value,
-  error,
-  onChange,
-}: HolidayDateQuestion) {
-  return (
-    <Input
-      type="date"
-      name={name}
-      label={field.label}
-      required={field.required}
-      value={typeof value === "string" ? value : ""}
-      error={error}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
-}
-
 /** The questions of one scope with the fields of the public form. */
 function Questions({
   questions,
@@ -614,7 +572,19 @@ function Questions({
       fieldError={fieldError}
       onChange={(key, value) => onChange({ ...answers, [key]: value })}
       tr={germanText}
-      renderDate={DateQuestion}
+      renderDate={({ name, field, value, error, onChange: change }) => (
+        // The native date field of the kit Input: the calendar of the date
+        // picker would double the page's bundle growth.
+        <CustomDateField
+          field={field}
+          inputName={name}
+          value={value}
+          error={error}
+          onChange={change}
+          controlId={name.replaceAll(".", "-")}
+          renderControl={NativeDateControl}
+        />
+      )}
     />
   );
 }

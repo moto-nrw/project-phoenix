@@ -15,17 +15,49 @@ export const EDIT_HINT =
 export const CANCELLED_EDIT_TEXT =
   "Die Anmeldung ist storniert. Die Angaben lassen sich nicht mehr ändern.";
 
-/** The questions of one scope the Träger-Büro may answer: no health ones. */
+/**
+ * The questions of one scope the Träger-Büro may answer, as the backend
+ * checks them (`holidayEditForm`): no question with health information, its
+ * answer stays sealed. A question whose condition depends on a health
+ * question, directly or through another such question, cannot be evaluated
+ * without the sealed answer: it is shown without its condition and is
+ * optional, so its answer stays visible and is kept.
+ */
 export function editableQuestions(
   fields: readonly HolidayFormField[],
   child: boolean,
 ): HolidayFormField[] {
-  return fields.filter(
-    (field) =>
-      field.type !== "information" &&
-      !field.health &&
-      Boolean(field.applies_to_child) === child,
+  const sealed = new Set(
+    fields.filter((field) => field.health).map((field) => field.key),
   );
+  const unknown = new Set(sealed);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const field of fields) {
+      const condition = field.visible_when;
+      if (
+        condition?.source === "field" &&
+        condition.field !== undefined &&
+        unknown.has(condition.field) &&
+        !unknown.has(field.key)
+      ) {
+        unknown.add(field.key);
+        changed = true;
+      }
+    }
+  }
+  return fields
+    .filter(
+      (field) =>
+        field.type !== "information" &&
+        !sealed.has(field.key) &&
+        Boolean(field.applies_to_child) === child,
+    )
+    .map((field) =>
+      unknown.has(field.key)
+        ? { ...field, visible_when: null, required: false }
+        : field,
+    );
 }
 
 const GUARDIAN: Readonly<Record<string, string>> = {

@@ -682,6 +682,14 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
             sort_order: 1,
           },
           {
+            key: "abholdatum",
+            label: "Erster Abholtag",
+            type: "date",
+            applies_to_child: true,
+            help_text: "Der Tag, ab dem jemand anders abholt.",
+            sort_order: 3,
+          },
+          {
             key: "gruppe",
             label: "Wunschgruppe",
             type: "select",
@@ -711,6 +719,14 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
     // Anker: the editor has loaded and asks the child's own question.
     expect(await edit.findByLabelText(/^Lieblingsessen/)).toHaveValue("Nudeln");
     expect(edit.queryByText("Tetanus-Impfschutz")).not.toBeInTheDocument();
+    // A date question keeps its help text and uses the kit date field.
+    expect(
+      edit.getByText("Der Tag, ab dem jemand anders abholt."),
+    ).toBeInTheDocument();
+    expect(edit.getByLabelText(/^Erster Abholtag/)).toHaveAttribute(
+      "type",
+      "date",
+    );
     // An unanswered choice asks in German, not with the key of its text.
     expect(edit.getByText("Bitte wählen")).toBeInTheDocument();
     expect(edit.queryByText("fields.choose")).not.toBeInTheDocument();
