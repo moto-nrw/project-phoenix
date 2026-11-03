@@ -936,3 +936,8 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Fehlte in der nach Assertion-Dauer sortierten Liste (Zeit im Modulaufbau, 18,6 s Spanne); vom Parent nach Dateispanne nachgetragen. Ursache wie bei browser-token-ratchet: `ts.X`-Zugriffe über Vitests Importobjekt im AST-Lauf über 3289 Dateien. Änderung: `import ts = typescript` in `src/test/session-cookie-writers.ts`.
 - Verschränkter A/B n=3: Wand 22,06/21,47/19,40 → 6,41/5,98/6,90 s (Median 21,47 → 6,41), Spanne 20,27 → 5,11 s; writers.test 1,80 → 1,38 s. Berechnetes Inventar über alle 3289 Dateien byte-gleich.
 - Mutationen: Session-Cookie-Write in api/logs/route.ts (4/11 rot, gleiche Meldung) und `"set"` in READS (28/115 rot, gleiche Liste), vorher/nachher. Review Sol: OK.
+
+### Runde B-test (backend/test): Paket verworfen, Deadline-Test behalten
+- Delegate-Kandidat (direkte Deadline-Prüfung, AST-Graph-Dedup, Hermetik-/Counter-Feinschliff): Paket n=3 30,7 → 28,7 s (−6,6 %), verworfen. Profil (13 s Wand, 34 CPU-s): API-Builder-Routengraph 6,6 CPU-s, Kalender-Scan 2,8, Hermetik-Global-State 2,4 CPU-s; QueryCounters-Unterfälle ≤ 0,01 s, ~19,6 s des Elternwerts sind Scheduler-Warten. Untergrenze: vollständige AST-Scans über alle Backend-Dateien; ihre Wandzeit > CPU ist Konkurrenz im eigenen Paket.
+- Parent-Variante nur für TestSessionFixturesGiveEachWriteItsOwnDeadline: drei Subtests mit `t.Parallel()`, echte 3-s-Trigger bleiben. Isoliert n=3: 19,23/18,91/19,16 → 6,93/6,81/6,91 s (Median 19,16 → 6,91, −64 %).
+- Mutation „Deadline in CreateTestActivityGroup vor den verschachtelten Fixtures“: vorher/nachher rot an `Failed to create test activity group: context deadline exceeded`. Inventar unverändert (4 Läufe/Subtests).
