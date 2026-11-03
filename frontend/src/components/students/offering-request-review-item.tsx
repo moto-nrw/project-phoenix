@@ -132,9 +132,15 @@ export function OfferingRequestReviewItem({
   expectedVersion,
   decisionDisabledReason,
   approveReasonRequired = false,
+  onHold,
 }: Readonly<{
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
+  /**
+   * Die Freigabe ist gespeichert, die Karte zeigt aber noch ihre Auswirkung.
+   * Die Liste behält die Anfrage dann, auch wenn sie im Hintergrund neu lädt.
+   */
+  onHold?: () => void;
   grouped?: boolean;
   /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
   expectedVersion?: string;
@@ -243,6 +249,7 @@ export function OfferingRequestReviewItem({
         setApprovalPreview(null);
         setBusy(false);
         setApplied({ notice, impact });
+        onHold?.();
         return;
       }
       onDecided(notice);

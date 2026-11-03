@@ -161,8 +161,24 @@ export function AggregatedRequestList({
     };
   }, [view, reloadFeed, loadWithdrawals]);
 
+  // Freigegebene Anfragen, deren Karte noch die Auswirkung zeigt (#5102).
+  // Ein Neuladen im Hintergrund liefert sie nicht mehr; ohne diesen Halt
+  // verschwände die Karte samt Hinweis, bevor die OGS ihn gelesen hat.
+  const [heldItems, setHeldItems] = useState<
+    ReadonlyMap<string, AggregatedOpenRequest>
+  >(() => new Map());
+  const handleHold = useCallback((request: AggregatedOpenRequest) => {
+    setHeldItems((current) => new Map(current).set(itemKey(request), request));
+  }, []);
+
   const handleDecided = useCallback(
     (key: string, decidedNotice: string) => {
+      setHeldItems((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
       setItems((prev) => prev.filter((item) => itemKey(item) !== key));
       setSelectedForBulk((current) => {
         if (!current.has(key)) return current;
@@ -185,9 +201,18 @@ export function AggregatedRequestList({
     void reloadFeed();
   }, [reloadFeed]);
 
+  // Gezählt werden nur offene Anfragen; gezeigt werden auch die gehaltenen.
+  const shownItems = useMemo(() => {
+    if (heldItems.size === 0) return items;
+    const loaded = new Set(items.map(itemKey));
+    const held = [...heldItems.values()].filter(
+      (item) => !loaded.has(itemKey(item)),
+    );
+    return [...items, ...held];
+  }, [items, heldItems]);
   const openCases = useMemo(
-    () => (view === "open" ? groupOpenCases(items, withdrawals) : []),
-    [items, view, withdrawals],
+    () => (view === "open" ? groupOpenCases(shownItems, withdrawals) : []),
+    [shownItems, view, withdrawals],
   );
   const buckets = useMemo(() => bucketCases(openCases), [openCases]);
 
@@ -394,7 +419,7 @@ export function AggregatedRequestList({
   return (
     <div className="space-y-3">
       <LoadErrorAlert error={error} />
-      {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
+      {shownItems.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <RequestEmptyState
           view={view}
           hasMore={hasMore}
@@ -435,6 +460,7 @@ export function AggregatedRequestList({
                   onBackToList={backToList}
                   onSelectionChange={handleBulkSelection}
                   onDecided={handleDecided}
+                  onHold={handleHold}
                   onProtectionChanged={handleProtectionChanged}
                   onReload={handleStale}
                   onNotice={showSuccess}

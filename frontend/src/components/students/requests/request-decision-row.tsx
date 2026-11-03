@@ -42,11 +42,13 @@ const logger = createLogger({ component: "RequestDecisionRow" });
 function OpenRequestContent({
   request,
   onDecided,
+  onHold,
   decisionDisabledReason,
   approveReasonRequired,
 }: Readonly<{
   request: AggregatedOpenRequest;
   onDecided: (notice: string) => void;
+  onHold?: () => void;
   decisionDisabledReason?: string;
   approveReasonRequired: boolean;
 }>) {
@@ -80,6 +82,7 @@ function OpenRequestContent({
         <OfferingRequestReviewItem
           row={request.data}
           onDecided={onDecided}
+          onHold={onHold}
           grouped
           expectedVersion={request.expected_version}
           decisionDisabledReason={decisionDisabledReason}
@@ -110,6 +113,7 @@ export function RequestDecisionRow({
   approveReasonRequired = false,
   onSelectionChange,
   onDecided,
+  onHold,
   onStale,
 }: Readonly<{
   request: AggregatedOpenRequest;
@@ -122,9 +126,12 @@ export function RequestDecisionRow({
   approveReasonRequired?: boolean;
   onSelectionChange: (key: string, checked: boolean) => void;
   onDecided: (key: string, notice: string) => void;
+  /** Die Karte zeigt nach der Entscheidung noch etwas an (#5102). */
+  onHold?: (request: AggregatedOpenRequest) => void;
   onStale: () => void;
 }>) {
   const key = itemKey(request);
+  const hold = onHold ? () => onHold(request) : undefined;
   const [markingDone, setMarkingDone] = useState(false);
   const actionErrors = useApiErrorDisplay();
 
@@ -133,6 +140,7 @@ export function RequestDecisionRow({
       <OpenRequestContent
         request={request}
         onDecided={(notice) => onDecided(key, notice)}
+        onHold={hold}
         approveReasonRequired={approveReasonRequired}
       />
     );
@@ -236,6 +244,7 @@ export function RequestDecisionRow({
         <OpenRequestContent
           request={request}
           onDecided={(notice) => onDecided(key, notice)}
+          onHold={hold}
           decisionDisabledReason={disabledReason}
           approveReasonRequired={approveReasonRequired}
         />

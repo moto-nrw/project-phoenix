@@ -132,8 +132,24 @@ vi.mock("~/components/students/care-request-review-item", () => ({
   ),
 }));
 vi.mock("~/components/students/offering-request-review-item", () => ({
-  OfferingRequestReviewItem: ({ row }: { row: { id: string } }) => (
-    <div>offering-item-{row.id}</div>
+  OfferingRequestReviewItem: ({
+    row,
+    onHold,
+    onDecided,
+  }: {
+    row: { id: string };
+    onHold?: () => void;
+    onDecided: (notice: string) => void;
+  }) => (
+    <div>
+      <span>offering-item-{row.id}</span>
+      <button type="button" onClick={() => onHold?.()}>
+        Auswirkung zeigen
+      </button>
+      <button type="button" onClick={() => onDecided("Erledigt.")}>
+        Fertig
+      </button>
+    </div>
   ),
 }));
 vi.mock("~/components/students/excused-request-review-item", () => ({
@@ -3063,4 +3079,34 @@ describe("AggregatedRequestList", () => {
       );
     },
   );
+
+  // #5102: nach der Freigabe zeigt die Karte noch ihre Auswirkung. Lädt die
+  // Liste im Hintergrund neu, fehlt die Anfrage dort; die Karte bleibt, bis
+  // die OGS „Fertig“ wählt.
+  it("behält eine freigegebene Karte mit Auswirkung beim Neuladen", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [stampedItem("offering", "5", "2026-08-29T10:00:00Z")],
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(await screen.findByText("offering-item-5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Auswirkung zeigen" }));
+    const callsBefore = mockListOpen.mock.calls.length;
+    mockListOpen.mockResolvedValue({ items: [] });
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() =>
+      expect(mockListOpen.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+
+    expect(screen.getByText("offering-item-5")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+    await waitFor(() =>
+      expect(screen.queryByText("offering-item-5")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Erledigt.")).toBeInTheDocument();
+  });
 });
