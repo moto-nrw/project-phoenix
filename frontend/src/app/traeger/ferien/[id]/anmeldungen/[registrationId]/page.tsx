@@ -4,17 +4,12 @@
 // haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Die
 // Gesundheitsangaben lädt die Seite getrennt und nur mit dem Recht
 // „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll.
+// Geschwister aus anderen Anmeldungen stehen mit „Trennen“ in einer eigenen
+// Karte (#5628); zusammengeführt wird in der Liste.
 
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
 import {
   answeredQuestions,
@@ -42,10 +37,17 @@ import {
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
 import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
+import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useApiLoadError } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -65,16 +67,8 @@ import {
   TRAEGER_HEALTH_RIGHT,
   withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
+import { splitHolidaySibling } from "~/lib/traeger-sibling-groups-api";
 import { traegerPath } from "~/lib/traeger-url";
-
-// The siblings of the registration (#5628) load only when it has some, so
-// the page carries no code for them otherwise. React.lazy, not next/dynamic:
-// the page then needs no loader of its own.
-const HolidayRegistrationSiblingsCard = lazy(() =>
-  import("~/components/traeger/holiday-registration-siblings-card").then(
-    (module) => ({ default: module.HolidayRegistrationSiblingsCard }),
-  ),
-);
 
 const PDF_LABELS: AttachmentLabels = {
   open: "Öffnen",
@@ -229,6 +223,29 @@ export default function TraegerHolidayRegistrationPage() {
     [exemption, refreshContribution],
   );
 
+  // Siblings from another registration (#5628): split after asking.
+  const [confirmingSplit, setConfirmingSplit] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const splitErrors = useApiErrorDisplay();
+  const { success } = useToast();
+  const splitSiblings = async () => {
+    setSplitting(true);
+    try {
+      await splitHolidaySibling(periodId, registrationId);
+      success("Die Anmeldung ist von den Geschwistern getrennt.");
+      setConfirmingSplit(false);
+      await load();
+    } catch (err) {
+      logger.error("holiday_registration_sibling_split_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingSplit(false);
+      void splitErrors.show(err, { object: "die Geschwister" });
+    } finally {
+      setSplitting(false);
+    }
+  };
+
   const changeExemption = useCallback(
     (next: boolean) => {
       setExemption(next);
@@ -306,15 +323,66 @@ export default function TraegerHolidayRegistrationPage() {
             onDebtorNumberChanged={load}
           />
           {contribution?.siblings?.length ? (
-            <Suspense fallback={null}>
-              <HolidayRegistrationSiblingsCard
-                periodId={periodId}
-                registrationId={registration.id}
-                siblings={contribution.siblings}
-                invoiced={contribution.invoiced ?? false}
-                onSplit={load}
-              />
-            </Suspense>
+            <SectionCard
+              title="Geschwister"
+              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Das Kind mit dem höchsten Beitrag ist das 1. Kind."
+              action={
+                contribution.siblingsInvoiced ? undefined : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => setConfirmingSplit(true)}
+                  >
+                    Trennen
+                  </Button>
+                )
+              }
+            >
+              <div className="space-y-2 text-sm text-gray-700">
+                <ul className="space-y-1">
+                  {contribution.siblings.map((sibling) => (
+                    <li key={sibling.registrationId} className="wrap-anywhere">
+                      <NavigationLink
+                        href={traegerPath(
+                          `/traeger/ferien/${periodId}/anmeldungen/${sibling.registrationId}`,
+                        )}
+                        className="font-medium text-gray-900 underline"
+                      >
+                        Anmeldung Nr. {sibling.registrationId}
+                      </NavigationLink>
+                      {": "}
+                      {sibling.children.map((child) => child.name).join(", ")}
+                      {sibling.cancelled
+                        ? " (storniert, zählt nicht mit)"
+                        : null}
+                    </li>
+                  ))}
+                </ul>
+                {contribution.siblingsInvoiced ? (
+                  <p>
+                    Für eine dieser Anmeldungen gibt es schon eine Rechnung.
+                    Geschwister können Sie jetzt nicht mehr ändern.
+                  </p>
+                ) : null}
+              </div>
+              <ConfirmationModal
+                isOpen={confirmingSplit}
+                title="Von den Geschwistern trennen?"
+                confirmText="Trennen"
+                isConfirmLoading={splitting}
+                loadingText="Trennt …"
+                onClose={() => setConfirmingSplit(false)}
+                onConfirm={() => void splitSiblings()}
+              >
+                <p className="text-sm text-gray-700">
+                  Die Kinder dieser Anmeldung zählen dann nicht mehr mit den
+                  anderen Anmeldungen zusammen. moto berechnet den Ferienbeitrag
+                  neu, auch einen schon bestätigten. Eltern bekommen keine
+                  Nachricht von moto.
+                </p>
+              </ConfirmationModal>
+            </SectionCard>
           ) : null}
           <HolidayRegistrationProofCard
             periodId={periodId}

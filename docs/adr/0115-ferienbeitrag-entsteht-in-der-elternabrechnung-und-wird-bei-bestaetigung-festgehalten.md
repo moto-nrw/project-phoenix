@@ -179,21 +179,25 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    Konto ist das, das zusammengeführt oder getrennt hat.
 4. **Grenze: ausgestellte Rechnung.** Zusammenführen und Trennen gehen nur,
    solange keine Anmeldung der Gruppe eine ausgestellte Rechnung hat
-   (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Sie laufen
+   (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Die
+   Einzelansicht jeder Anmeldung der Gruppe erfährt diese Sperre. Sie laufen
    unter derselben Sperre der Rechnungen des Zeitraums wie die Freigabe
-   eines Laufs; ein offener Lauf zeigt die neuen Beträge in seiner Vorschau,
-   und die Freigabe prüft ohnehin die geprüfte Vorschau. Das Bestätigen
-   nimmt dieselbe Sperre.
+   eines Laufs und halten danach den Zeitraum in Enrollment
+   (`HoldHolidayPeriod`), bevor sie die Gruppe lesen: Eine Stornierung oder
+   Umbuchung läuft vorher ganz oder danach. Ein offener Lauf zeigt die neuen
+   Beträge in seiner Vorschau, und die Freigabe prüft ohnehin die geprüfte
+   Vorschau. Das Bestätigen und das Ändern der Debitorennummer nehmen
+   dieselben Sperren.
 5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung. Die
    Ermäßigung steht auf der Rechnung des Kindes, das sie bekommt. Ein Brief
    nennt nie Kinder oder Eltern einer anderen Anmeldung; zwei Anmeldungen
    können von getrennt lebenden Eltern kommen.
 6. **Debitorennummer.** Eine Gruppe zahlt mit einer Nummer (ADR 0121
    Nachtrag #5621): Beim Zusammenführen bekommen die bestätigten Anmeldungen
-   die Nummer der ersten Anmeldung der Gruppe, die eine hat. Eine
-   Bestätigung ohne Nummer übernimmt die Nummer der Gruppe; eine neue oder
-   geänderte Nummer gilt für alle bestätigten Anmeldungen der Gruppe ohne
-   ausgestellte Rechnung.
+   die Nummer der ersten nicht stornierten Anmeldung der Gruppe, die eine
+   hat. Eine Bestätigung ohne Nummer übernimmt die Nummer der Gruppe; eine
+   neue, geänderte oder entfernte Nummer gilt für alle bestätigten
+   Anmeldungen der Gruppe ohne ausgestellte Rechnung.
 7. **Protokoll und Recht.** Die Routen liegen unter
    `/traeger/holiday-contributions/{periodId}/sibling-groups` hinter dem
    Recht „Anmeldung verwalten“. Zusammenführen und Trennen stehen mit den

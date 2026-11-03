@@ -51,6 +51,8 @@ export interface HolidayContribution {
   readonly siblings?: readonly HolidaySibling[];
   /** The debtor number the sibling group already has. */
   readonly siblingDebtorNumber?: string;
+  /** An issued invoice bills a registration of the group; it stays. */
+  readonly siblingsInvoiced?: boolean;
 }
 
 export interface HolidaySibling {
@@ -91,11 +93,11 @@ export interface BackendContribution {
         registration_id: number;
         status: string;
         children?:
-          | { id: number; first_name: string; last_name: string }[]
-          | null;
+          { id: number; first_name: string; last_name: string }[] | null;
       }[]
     | null;
   sibling_debtor_number?: string;
+  siblings_invoiced?: boolean;
 }
 
 /** Maps a contribution of the backend. */
@@ -134,5 +136,6 @@ export function contributionFromBackend(
       })),
     })),
     siblingDebtorNumber: contribution.sibling_debtor_number ?? "",
+    siblingsInvoiced: contribution.siblings_invoiced ?? false,
   };
 }

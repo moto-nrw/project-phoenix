@@ -325,6 +325,11 @@ type HolidayRegistrationReview interface {
 	// registration; a blank one removes it (#5621). Whether the number may
 	// still change is the caller's rule.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistrationDetail, error)
+	// HoldHolidayPeriod locks the period of the session's Träger until the
+	// transaction ends, like every change of one of its registrations, so
+	// none changes while the Elternabrechnung reads and decides on several
+	// of them (#5628). It reads no personal data and records nothing.
+	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
 	// RecordHolidaySiblings records a sibling merge or split of the
 	// Elternabrechnung (#5628): action is HolidayAuditSiblingMerge or
 	// HolidayAuditSiblingSplit, siblingIDs the other registrations it

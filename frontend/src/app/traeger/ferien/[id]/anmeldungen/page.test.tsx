@@ -373,6 +373,52 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("locks the selection while new results load and keeps only shown rows", async () => {
+    renderPage();
+    const table = within(await screen.findByRole("table"));
+    fireEvent.click(
+      await table.findByRole("checkbox", {
+        name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+      }),
+    );
+    fireEvent.click(
+      table.getByRole("checkbox", {
+        name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+      }),
+    );
+    expect(screen.getByText(/2 Anmeldungen ausgewählt/)).toBeInTheDocument();
+
+    let resolveList: (list: typeof SIBLING_LIST) => void = () => {};
+    mockFetchList.mockReturnValue(
+      new Promise((resolve) => {
+        resolveList = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Eingegangen" }));
+
+    await waitFor(() =>
+      expect(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 9 von Ute Muster auswählen",
+        }),
+      ).toBeDisabled(),
+    );
+    expect(
+      screen.queryByText(/Anmeldungen? ausgewählt/),
+    ).not.toBeInTheDocument();
+
+    resolveList({
+      ...SIBLING_LIST,
+      registrations: [SIBLING_LIST.registrations[2]!],
+    });
+    const enabled = await table.findByRole("checkbox", {
+      name: "Anmeldung Nr. 9 von Ute Muster auswählen",
+    });
+    await waitFor(() => expect(enabled).toBeEnabled());
+    expect(mockMerge).not.toHaveBeenCalled();
+  });
+
   it("names the issued invoice when the merge is refused", async () => {
     mockMerge.mockRejectedValue(
       new ApiError("invoiced", 409, {

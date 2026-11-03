@@ -106,7 +106,7 @@ func (h *HolidayContributions) MergeHolidaySiblings(ctx context.Context, reviewe
 	if len(selected) < 2 {
 		return parentbilling.HolidaySiblingGroup{}, parentbilling.ErrInvalidHolidaySiblingGroup
 	}
-	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
@@ -146,7 +146,7 @@ func (h *HolidayContributions) SplitHolidaySibling(ctx context.Context, reviewer
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return errTraegerRequired
 	}
-	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return err
 	}
@@ -177,11 +177,18 @@ func (h *HolidayContributions) SplitHolidaySibling(ctx context.Context, reviewer
 	return h.recordSiblings(ctx, reviewer, periodID, rest, parentbilling.HolidaySiblingsSplit, registrationID)
 }
 
-// lockSiblings holds the invoices of the period and reads its groups and
-// the registrations an issued invoice bills.
-func (h *HolidayContributions) lockSiblings(ctx context.Context, organizationID, periodID int64) ([]parentbilling.HolidaySiblingGroup, map[int64]bool, error) {
+// lockSiblings holds the invoices of the period, then the period in
+// Enrollment, before it reads anything: no release, cancellation or
+// rebooking changes the group between the read and the decision. Then it
+// reads the groups and the registrations an issued invoice bills. The order
+// is the one of a change of the debtor number: invoices, then Enrollment.
+func (h *HolidayContributions) lockSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidaySiblingGroup, map[int64]bool, error) {
+	organizationID := reviewer.OrganizationID
 	if err := h.store.LockPeriodBilling(ctx, organizationID, parentbilling.ServiceHoliday, periodID); err != nil {
 		return nil, nil, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
+	}
+	if err := h.registrations.HoldHolidayPeriod(ctx, reviewer, periodID); err != nil {
+		return nil, nil, err
 	}
 	groups, err := h.siblingGroups(ctx, organizationID, periodID)
 	if err != nil {
@@ -377,10 +384,12 @@ func siblingView(members []siblingMember, registrationID int64) []parentbilling.
 }
 
 // groupDebtorNumber is the debtor number of the first registration of the
-// group that has one, except the one named.
+// group that has one, except the one named. A cancelled registration keeps
+// the number it had, which the group may since have changed or removed, so
+// it passes on none.
 func groupDebtorNumber(members []siblingMember, except int64) string {
 	for _, member := range members {
-		if member.id() != except && member.registration.DebtorNumber != "" {
+		if member.id() != except && !member.cancelled() && member.registration.DebtorNumber != "" {
 			return member.registration.DebtorNumber
 		}
 	}

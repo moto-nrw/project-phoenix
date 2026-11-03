@@ -105,8 +105,13 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 		return parentbilling.HolidayContribution{}, err
 	}
 	if grouped {
+		issued, err := h.store.IssuedRegistrations(ctx, reviewer.OrganizationID, parentbilling.ServiceHoliday, periodID)
+		if err != nil {
+			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
+		}
 		contribution.Siblings = siblingView(members, registration.ID)
 		contribution.SiblingDebtorNumber = groupDebtorNumber(members, registration.ID)
+		contribution.SiblingsInvoiced = refuseInvoiced(memberIDs(members), issued) != nil
 	}
 	return contribution, nil
 }
@@ -191,7 +196,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 func (h *HolidayContributions) confirmingSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64,
 	debtorNumber string,
 ) ([]siblingMember, map[int64]bool, string, error) {
-	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return nil, nil, "", err
 	}

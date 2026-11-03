@@ -44,7 +44,7 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
-	groups, issued, err := h.lockSiblings(ctx, reviewer.OrganizationID, periodID)
+	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}

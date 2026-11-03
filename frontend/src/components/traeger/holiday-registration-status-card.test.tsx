@@ -309,6 +309,45 @@ describe("HolidayRegistrationStatusCard", () => {
       );
     });
 
+    it("follows the group's proposal after a split and keeps a typed number (#5628)", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      const card = (siblingDebtorNumber: string, registrationId = "7") => (
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={{ ...HOLIDAY_REGISTRATION, id: registrationId }}
+            contribution={{ ...HOLIDAY_CONTRIBUTION, siblingDebtorNumber }}
+            debtorNumberRequired
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onConfirmed={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>
+      );
+      const { rerender } = render(card("10 4711"));
+      expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("10 4711");
+
+      // The split leaves the registration without a group and its number.
+      rerender(card(""));
+      expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("");
+
+      fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+        target: { value: "55" },
+      });
+      rerender(card("20 0815"));
+      expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("55");
+
+      // Another registration starts with its own proposal.
+      rerender(card("20 0815", "8"));
+      expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("20 0815");
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() =>
+        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("20 0815"),
+      );
+    });
+
     it("confirms with the trimmed debtor number", async () => {
       mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
       renderWithSwitch(true);

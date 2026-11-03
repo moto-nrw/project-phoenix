@@ -4,10 +4,12 @@ import {
   fireEvent,
   render as rtlRender,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   HOLIDAY_CONTRIBUTION,
@@ -50,6 +52,12 @@ vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => mockContribution(),
 }));
 
+const { mockSplit } = vi.hoisted(() => ({ mockSplit: vi.fn() }));
+vi.mock("~/lib/traeger-sibling-groups-api", () => ({
+  splitHolidaySibling: (periodId: string, registrationId: string) =>
+    mockSplit(periodId, registrationId),
+}));
+
 import TraegerHolidayRegistrationPage from "./page";
 
 describe("TraegerHolidayRegistrationPage", () => {
@@ -69,27 +77,126 @@ describe("TraegerHolidayRegistrationPage", () => {
     vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
   });
 
-  it("shows the siblings of another registration only when there are some (#5628)", async () => {
-    mockContribution.mockResolvedValue({
-      ...HOLIDAY_CONTRIBUTION,
-      siblings: [
-        {
-          registrationId: "8",
-          cancelled: false,
-          children: [{ id: "81", name: "Tom Muster" }],
-        },
-      ],
+  describe("siblings from another registration (#5628)", () => {
+    const SIBLINGS = [
+      {
+        registrationId: "8",
+        cancelled: false,
+        children: [{ id: "81", name: "Tom Muster" }],
+      },
+      {
+        registrationId: "9",
+        cancelled: true,
+        children: [{ id: "91", name: "Ida Muster" }],
+      },
+    ];
+    beforeEach(() => {
+      mockSplit.mockReset();
     });
-    render(
-      <ToastProvider>
-        <TraegerHolidayRegistrationPage />
-      </ToastProvider>,
-    );
 
-    expect(
-      await screen.findByRole("link", { name: "Anmeldung Nr. 8" }),
-    ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
-    expect(screen.getByRole("button", { name: "Trennen" })).toBeInTheDocument();
+    function renderPage() {
+      render(
+        <ToastProvider>
+          <TraegerHolidayRegistrationPage />
+        </ToastProvider>,
+      );
+    }
+
+    async function confirmSplit() {
+      fireEvent.click(await screen.findByRole("button", { name: "Trennen" }));
+      expect(
+        await screen.findByText("Von den Geschwistern trennen?"),
+      ).toBeInTheDocument();
+      const buttons = screen.getAllByRole("button", { name: "Trennen" });
+      fireEvent.click(buttons[buttons.length - 1]!);
+    }
+
+    it("shows no sibling card without siblings", async () => {
+      renderPage();
+
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "Anmeldung von Eva Muster",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Geschwister" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names the children of the other registrations and splits after asking", async () => {
+      mockContribution.mockResolvedValue({
+        ...HOLIDAY_CONTRIBUTION,
+        siblings: SIBLINGS,
+      });
+      mockSplit.mockResolvedValue(undefined);
+      renderPage();
+
+      expect(
+        await screen.findByRole("link", { name: "Anmeldung Nr. 8" }),
+      ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
+      expect(screen.getByText(/Tom Muster/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Ida Muster \(storniert, zählt nicht mit\)/),
+      ).toBeInTheDocument();
+      mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+      await confirmSplit();
+
+      await waitFor(() => expect(mockSplit).toHaveBeenCalledWith("5", "7"));
+      expect(
+        await screen.findByText(
+          "Die Anmeldung ist von den Geschwistern getrennt.",
+        ),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("heading", { name: "Geschwister" }),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    it("shows the issued invoice when the split is refused", async () => {
+      mockContribution.mockResolvedValue({
+        ...HOLIDAY_CONTRIBUTION,
+        siblings: SIBLINGS,
+      });
+      mockSplit.mockRejectedValue(
+        new ApiError("invoiced", 409, {
+          code: "parent_billing.sibling_group_invoiced",
+        }),
+      );
+      renderPage();
+      await confirmSplit();
+
+      expect(
+        await screen.findByText(
+          "Für diese Anmeldung gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no split once an invoice bills any registration of the group", async () => {
+      mockContribution.mockResolvedValue({
+        ...HOLIDAY_CONTRIBUTION,
+        invoiced: false,
+        siblings: SIBLINGS,
+        siblingsInvoiced: true,
+      });
+      renderPage();
+
+      expect(
+        await screen.findByText(
+          "Für eine dieser Anmeldungen gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Anmeldung Nr. 8" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Trennen" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("names the parents in the title and keeps the number in the status line (#5146)", async () => {

@@ -104,6 +104,9 @@ type HolidayContribution struct {
 	// SiblingDebtorNumber is the debtor number the group already has, which
 	// a confirmation without a number takes (#5628).
 	SiblingDebtorNumber string `json:"sibling_debtor_number,omitempty"`
+	// SiblingsInvoiced reports that an issued invoice bills a registration
+	// of the group, which then neither merges nor splits (#5628).
+	SiblingsInvoiced bool `json:"siblings_invoiced,omitempty"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -196,6 +199,10 @@ type HolidayRegistrations interface {
 	// SetHolidayDebtorNumber changes the debtor number of a confirmed
 	// registration; a blank one removes it.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+	// HoldHolidayPeriod locks the period until the transaction ends, so no
+	// registration of it changes while a sibling group is read and decided
+	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
+	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
 	// RecordHolidaySiblings records action, HolidaySiblingsMerged or
 	// HolidaySiblingsSplit, with the other registrations it names.
 	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error

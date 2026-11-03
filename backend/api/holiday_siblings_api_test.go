@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,7 @@ type siblingContributionBody struct {
 		} `json:"children"`
 	} `json:"siblings"`
 	SiblingDebtorNumber string `json:"sibling_debtor_number"`
+	SiblingsInvoiced    bool   `json:"siblings_invoiced"`
 }
 
 func siblingGroupsPath(periodID int64) string {
@@ -217,6 +219,8 @@ func TestSiblingsLockOnceAnInvoiceIsIssued(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	assertRefusedWith(t, f.split(t, f.office.token, second), http.StatusConflict, common.CodeParentBillingSiblingGroupInvoiced)
+	assert.True(t, f.siblingContribution(t, first).SiblingsInvoiced, "the page learns that the group is locked")
+	assert.True(t, f.siblingContribution(t, second).SiblingsInvoiced)
 	assertRefusedWith(t, f.merge(t, f.office.token, third, first), http.StatusConflict, common.CodeParentBillingSiblingGroupInvoiced)
 	assert.Len(t, f.siblingGroups(t), 1, "the refusals change nothing")
 	assert.Equal(t, []int64{2250}, f.contributionVersions(t, second))
@@ -349,4 +353,87 @@ func TestRemovedDebtorNumberLeavesTheWholeSiblingGroup(t *testing.T) {
 	assert.Empty(t, f.siblingContribution(t, third).SiblingDebtorNumber, "the group proposes no removed number")
 	require.Equal(t, http.StatusOK, f.confirmWith(t, third, nil).Code)
 	assert.Empty(t, f.debtorNumberDetail(t, third).DebtorNumber, "a later confirmation inherits no removed number")
+}
+
+// TestMergeWaitsForACancellationOfTheSamePeriod pins the review of #5655:
+// a merge holds the period in Enrollment before it reads the group, so a
+// cancellation that is still running finishes first and the merge refuses
+// the cancelled registration instead of grouping it.
+func TestMergeWaitsForACancellationOfTheSamePeriod(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Sperre")
+	first := f.submitChild(t, f.period, f.offer, "mama.sperre@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.sperre@example.org", "Tom", 0)
+
+	// A cancellation holds the period, as Enrollment's change does, and
+	// cancels the registration the merge reads first before it commits.
+	cancellation, err := f.db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer func() { _ = cancellation.Rollback() }()
+	_, err = cancellation.ExecContext(t.Context(), `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
+	require.NoError(t, err)
+	_, err = cancellation.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations SET status = 'cancelled' WHERE id = ?`, first)
+	require.NoError(t, err)
+
+	merged := make(chan *httptest.ResponseRecorder, 1)
+	go func() { merged <- f.merge(t, f.office.token, first, second) }()
+	select {
+	case rec := <-merged:
+		t.Fatalf("the merge did not wait for the period: %d %s", rec.Code, rec.Body.String())
+	case <-time.After(500 * time.Millisecond):
+	}
+	require.NoError(t, cancellation.Commit())
+
+	rec := <-merged
+	assertRefusedWith(t, rec, http.StatusConflict, common.CodeEnrollmentHolidayRegistrationStateConflict)
+	assert.Empty(t, f.siblingGroups(t), "no group with the cancelled registration")
+}
+
+// TestCancelledSiblingPassesOnNoDebtorNumber pins the review of #5655: a
+// cancelled registration keeps the number it had. When the group changes
+// its number, a later confirmation takes the group's current number, not
+// the cancelled registration's old one.
+func TestCancelledSiblingPassesOnNoDebtorNumber(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Debitor Storno")
+	first := f.submitChild(t, f.period, f.offer, "mama.storno@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.storno@example.org", "Tom", 0)
+	third := f.submitChild(t, f.period, f.offer, "oma.storno@example.org", "Ida", 0)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, map[string]any{"debtor_number": "10 4711"}).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, second, nil).Code)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second, third).Code)
+	require.Equal(t, http.StatusOK, f.act(t, first, "cancel").Code)
+
+	rec := f.changeDebtorNumber(t, f.office.token, second, "20 0815")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "10 4711", f.debtorNumberDetail(t, first).DebtorNumber, "the cancelled registration keeps its number")
+	assert.Equal(t, "20 0815", f.siblingContribution(t, third).SiblingDebtorNumber, "the group proposes its current number")
+
+	require.Equal(t, http.StatusOK, f.confirmWith(t, third, nil).Code)
+	assert.Equal(t, "20 0815", f.debtorNumberDetail(t, third).DebtorNumber)
+	assert.Equal(t, "20 0815", f.debtorNumberDetail(t, second).DebtorNumber, "the confirmation brings back no old number")
+}
+
+// TestSiblingInvoiceLocksTheWholeGroup pins the review of #5655: when an
+// issued invoice bills only another registration of the group, the page of
+// this registration learns that the group is locked, and a split is refused.
+func TestSiblingInvoiceLocksTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Rechnung Gruppe")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	first := f.submitChild(t, f.period, f.offer, "mama.gruppe@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.gruppe@example.org", "Tom", 0)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second).Code)
+	assert.False(t, f.siblingContribution(t, second).SiblingsInvoiced, "no invoice yet")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, nil).Code)
+
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	other := f.siblingContribution(t, second)
+	assert.False(t, other.Invoiced, "no invoice bills this registration")
+	assert.True(t, other.SiblingsInvoiced, "an invoice of the sibling locks the group")
+	assertRefusedWith(t, f.split(t, f.office.token, second), http.StatusConflict, common.CodeParentBillingSiblingGroupInvoiced)
 }

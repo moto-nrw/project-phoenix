@@ -349,6 +349,15 @@ export default function TraegerHolidayRegistrationsPage() {
       if (current !== generation.current) return;
       setList(loaded);
       setGroups(loadedGroups);
+      // Only registrations the list shows stay selected: none is merged
+      // unseen.
+      const shown = new Set(
+        loaded.registrations.map((registration) => registration.id),
+      );
+      setSelected((selection) => {
+        const kept = [...selection].filter((id) => shown.has(id));
+        return kept.length === selection.size ? selection : new Set(kept);
+      });
       clearLoadError();
     } catch (err) {
       if (current !== generation.current) return;
@@ -390,7 +399,7 @@ export default function TraegerHolidayRegistrationsPage() {
   };
 
   const mergeSiblings = async () => {
-    if (merging || selected.size < 2) return;
+    if (merging || loading || selected.size < 2) return;
     setMerging(true);
     try {
       await mergeHolidaySiblings(periodId, [...selected]);
@@ -591,6 +600,7 @@ export default function TraegerHolidayRegistrationsPage() {
                   variant="primary"
                   size="md"
                   isLoading={merging}
+                  disabled={loading}
                   loadingText="Führt zusammen …"
                   onClick={() => void mergeSiblings()}
                 >
@@ -607,7 +617,8 @@ export default function TraegerHolidayRegistrationsPage() {
         getRowKey={(registration) => registration.id}
         selection={{
           selectedKeys: selected,
-          disabled: merging,
+          // While new rows load, the old ones are no choice any more.
+          disabled: merging || loading,
           rowLabel: (registration) =>
             `Anmeldung Nr. ${registration.id} von ${registration.guardianFirstName} ${registration.guardianLastName}`,
           onChange: (keys, on) =>

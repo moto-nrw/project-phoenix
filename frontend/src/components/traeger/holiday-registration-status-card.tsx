@@ -239,11 +239,20 @@ export function HolidayRegistrationStatusCard({
     HolidayRegistrationAction | "confirm" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  // A sibling group pays with one number (#5628): its number is the
-  // proposal, which the Träger-Büro may change.
-  const [debtorNumber, setDebtorNumber] = useState(
-    contribution?.siblingDebtorNumber ?? "",
-  );
+  // A sibling group pays with one number (#5628): its current number is the
+  // proposal. It follows the registration and its group, for example after
+  // a split, until the Träger-Büro types its own number for this
+  // registration; that one stays.
+  const [typedDebtorNumber, setTypedDebtorNumber] = useState<{
+    readonly registrationId: string;
+    readonly value: string;
+  } | null>(null);
+  const debtorNumber =
+    typedDebtorNumber?.registrationId === registration.id
+      ? typedDebtorNumber.value
+      : (contribution?.siblingDebtorNumber ?? "");
+  const setDebtorNumber = (value: string) =>
+    setTypedDebtorNumber({ registrationId: registration.id, value });
   const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
   const confirmRef = useRef<HTMLFormElement>(null);
   const confirmErrors = useApiFormError(confirmRef);

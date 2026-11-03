@@ -802,6 +802,11 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it locks the period through Enrollment's review in the caller's Träger transaction before a sibling group is read and translates Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.HolidayRegistration",
       "reason": "ADR 0115 (#4664): Consumer-port adapter of the Elternabrechnung's holiday registrations; it reads through Enrollment's review, which checks the Träger and records the read, and translates the registration and Enrollment's refusals."
     },

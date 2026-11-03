@@ -207,6 +207,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HoldHolidayPeriod",
+      "reason": "Owner-provided locking read/gate, never labelled query. Target modules/enrollment.HolidayRegistrationReview.HoldHolidayPeriod: Enrollment checks the period of the session's Träger and locks it (SELECT FOR UPDATE) in the caller's Träger transaction, the lock every change of one of its registrations takes first; the Elternabrechnung takes it after its period billing lock and before it reads and decides on a sibling group, so no cancellation or rebooking commits between the read and the merge, split or confirmation (#5628). It reads no personal data and writes nothing.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.HoldHolidayPeriod",
+      "target_owner": "enrollment"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HolidayRegistration",
       "classification": "leaf",
       "effect": "mutation",

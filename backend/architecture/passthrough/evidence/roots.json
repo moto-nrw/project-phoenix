@@ -1122,6 +1122,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (b parentBillingHolidayRegistrations) HoldHolidayPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) error {\n\treturn parentBillingHolidayError(b.review.HoldHolidayPeriod(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b parentBillingHolidayRegistrations) HolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.HolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingHolidayRegistrations.HolidayRegistration",

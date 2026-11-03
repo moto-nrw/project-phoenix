@@ -294,6 +294,10 @@ func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Co
 	return parentBillingRegistration(detail), nil
 }
 
+func (b parentBillingHolidayRegistrations) HoldHolidayPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) error {
+	return parentBillingHolidayError(b.review.HoldHolidayPeriod(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID))
+}
+
 func (b parentBillingHolidayRegistrations) RecordHolidaySiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error {
 	return parentBillingHolidayError(b.review.RecordHolidaySiblings(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, action, siblingIDs))
 }
