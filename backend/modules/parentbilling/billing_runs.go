@@ -127,7 +127,8 @@ type PostalAddress struct {
 
 // BillingDocument is the invoice of one family: in a calculated run the
 // draft without a number, in a released run the issued invoice.
-// RecipientAddress is nil when the registration has no postal address.
+// RecipientAddress is nil when the registration has no postal address;
+// DebtorNumber is empty when it has no debtor number (#5621).
 type BillingDocument struct {
 	ID                 int64          `json:"id"`
 	Number             string         `json:"number"`
@@ -137,6 +138,7 @@ type BillingDocument struct {
 	RecipientLastName  string         `json:"recipient_last_name"`
 	RecipientEmail     string         `json:"recipient_email"`
 	RecipientAddress   *PostalAddress `json:"recipient_address"`
+	DebtorNumber       string         `json:"debtor_number"`
 	ServiceFrom        calendar.Date  `json:"service_from"`
 	ServiceUntil       calendar.Date  `json:"service_until"`
 	Children           []BillingChild `json:"children"`
@@ -145,18 +147,21 @@ type BillingDocument struct {
 
 // BillingRunDetail is a run with its invoices. A calculated run shows the
 // preview of today: Unbilled counts the confirmed registrations without a
-// frozen contribution, which the run leaves out. Letters is set once the
-// letters of a released run are created (#4669).
+// frozen contribution, which the run leaves out; MissingDebtorNumbers
+// counts its invoices without a debtor number when the Träger asks for one
+// (#5621). Letters is set once the letters of a released run are created
+// (#4669).
 type BillingRunDetail struct {
 	BillingRun
-	Documents       []BillingDocument `json:"documents"`
-	PreviewCount    int               `json:"preview_count"`
-	PreviewCents    int64             `json:"preview_cents"`
-	Unbilled        int               `json:"unbilled"`
-	NumberPattern   string            `json:"number_pattern"`
-	NumberRangeSet  bool              `json:"number_range_set"`
-	BilledInAdvance bool              `json:"billed_in_advance"`
-	Letters         *BillingLetters   `json:"letters"`
+	Documents            []BillingDocument `json:"documents"`
+	PreviewCount         int               `json:"preview_count"`
+	PreviewCents         int64             `json:"preview_cents"`
+	Unbilled             int               `json:"unbilled"`
+	MissingDebtorNumbers int               `json:"missing_debtor_numbers"`
+	NumberPattern        string            `json:"number_pattern"`
+	NumberRangeSet       bool              `json:"number_range_set"`
+	BilledInAdvance      bool              `json:"billed_in_advance"`
+	Letters              *BillingLetters   `json:"letters"`
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a
@@ -204,14 +209,16 @@ type HolidayBillingChild struct {
 }
 
 // HolidayBillingRegistration is a confirmed registration with the parent
-// who registered, the recipient of its invoice, and the parent's postal
-// address when the form asked for it (#5625).
+// who registered, the recipient of its invoice, the parent's postal
+// address when the form asked for it (#5625) and the debtor number of the
+// family when the Träger-Büro entered one (#5621).
 type HolidayBillingRegistration struct {
 	ID                int64
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
 	GuardianAddress   *PostalAddress
+	DebtorNumber      string
 	Children          []HolidayBillingChild
 }
 

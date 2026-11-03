@@ -263,10 +263,11 @@ func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error 
 // seedHolidayRegistrations lets the form ask for the postal address
 // (#5625), registers two siblings through the public link (#4661), then a second parent registers the first sibling once more for
 // the second week, a possible duplicate, stating benefits with the uploaded
-// proof (#5238). The Träger-Büro reviews the list and confirms the siblings'
-// registration (#4663), which freezes its contribution (#4664); the
-// duplicate stays received. The form shows the siblings' contribution before
-// it is sent.
+// proof (#5238). The Träger-Büro asks for the debtor number at the
+// confirmation (#5621), reviews the list and confirms the siblings'
+// registration with their invented debtor number (#4663), which freezes its
+// contribution (#4664); the duplicate stays received and has no debtor
+// number yet. The form shows the siblings' contribution before it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	if err := seedHolidayAddressForm(rt.Client, auth, periodID); err != nil {
 		return "", err
@@ -303,13 +304,25 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
+		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
-	fmt.Println("  Träger-Büro: siblings confirmed with their contribution, a possible duplicate waits for review")
+	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number, a possible duplicate waits for review")
 	return token, nil
 }
+
+// seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
+// number of the family at the confirmation (#5621); the demo Träger works
+// like Bissendorf and switches it on.
+const seedDebtorNumberSettingKey = "parent_billing.debtor_number_on_confirm"
+
+// seedHolidayDebtorNumber is the invented debtor number of the confirmed
+// siblings; the letter names it as the reference to pay with.
+const seedHolidayDebtorNumber = "10 4711"
 
 // seedHolidayRegistrationPrefill reads the prefill of the holiday link as the
 // first seeded parent (#4662): the parents portal offers that family's

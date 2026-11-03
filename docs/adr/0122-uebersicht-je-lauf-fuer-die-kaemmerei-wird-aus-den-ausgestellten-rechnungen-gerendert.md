@@ -88,3 +88,12 @@ PDF, Excel und CSV. Die Spalten erscheinen nur, wenn mindestens eine
 Rechnung des Laufs eine Anschrift hat; sonst bleibt die Übersicht bei den
 Spalten von bisher. Die Zeile mit der Summe einer Rechnung nennt die
 Anschrift wie ihre Positionen. Die Mail-Adresse fehlt weiter.
+
+## Nachtrag 2026-11-03: Spalte Debitorennummer (#5621)
+
+Punkt 2 bekommt direkt nach „Empfänger“ die Spalte „Debitorennummer“ aus der
+Kopie der Rechnung (ADR 0121 Nachtrag „Debitorennummer beim Bestätigen“), in
+PDF, Excel und CSV, auf den Zeilen der Positionen und der Summe je Rechnung.
+Wie die Anschriftspalten erscheint sie nur, wenn mindestens eine Rechnung
+des Laufs eine Nummer hat; eine Rechnung ohne Nummer lässt die Zelle leer.
+Hat der Lauf beides, steht die Debitorennummer vor der Anschrift.

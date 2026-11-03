@@ -16,6 +16,8 @@
   "contribution_rule_invalid": "Bitte prüfen Sie die markierten Felder.",
   "contribution_rule_not_found": "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+  "debtor_number_invalid": "Bitte prüfen Sie die Debitorennummer.",
+  "debtor_number_locked": "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
   "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
   "invoice_number_taken": "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
   "letter_mail_pending": "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",

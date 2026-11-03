@@ -16,8 +16,10 @@ import (
 // rule on illness), the emergency numbers of the hosting OGS and whom to
 // ask. The address field names the family and the person who registered,
 // then the postal address the invoice copied from the registration when the
-// form asked for it (ADR 0121 addendum, #5625); the invoice number is the
-// reference to pay with, as the Bissendorf address number was.
+// form asked for it (ADR 0121 addendum, #5625). The reference to pay with is
+// the debtor number of the family the invoice copied from the registration,
+// the Bissendorf address number, and without one the invoice number (ADR
+// 0121 addendum, #5621).
 
 // Letter is a confirmation letter as the Elternabrechnung writes it: every
 // text, in the parts of a letter. The LetterRenderer lays it out in the
@@ -98,6 +100,9 @@ func recipientLines(document parentbilling.BillingDocument) []string {
 
 func letterFacts(content letterContent) []LetterFact {
 	facts := []LetterFact{{Label: "Rechnungsnummer", Value: content.document.Number}}
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		facts = append(facts, LetterFact{Label: "Debitorennummer", Value: number})
+	}
 	if content.document.IssuedOn != nil {
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.document.IssuedOn)})
 	}
@@ -177,12 +182,19 @@ func positionLabel(position parentbilling.BillingPosition) string {
 	return strings.TrimSuffix(label, ",")
 }
 
+// paymentText asks for the transfer. The reference to pay with is the
+// debtor number of the family when the invoice has one (ADR 0121 addendum,
+// #5621), otherwise the invoice number.
 func paymentText(content letterContent) string {
 	if content.document.TotalCents == 0 {
 		return "Sie müssen für diese Betreuung nichts bezahlen."
 	}
-	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
-		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), content.document.Number)
+	reference := "die Rechnungsnummer " + content.document.Number
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		reference = "Ihre Debitorennummer " + number
+	}
+	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck %s an.",
+		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), reference)
 }
 
 func questionText(head parentbilling.Letterhead) string {

@@ -49,10 +49,13 @@ type HolidayReviewStore interface {
 	// ReadHolidayProof reads one claimed proof of a registration of the
 	// period with its bytes.
 	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
-	// LockHolidayRegistration reads the status and the freeze override of
-	// a registration and holds its row.
-	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override string, found bool, err error)
+	// LockHolidayRegistration reads the status, the freeze override and the
+	// debtor number of a registration and holds its row.
+	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override, debtorNumber string, found bool, err error)
 	SetHolidayRegistrationStatus(ctx context.Context, organizationID, registrationID int64, status string) error
+	// SetHolidayDebtorNumber writes the debtor number of a registration;
+	// an empty one stores none (#5621).
+	SetHolidayDebtorNumber(ctx context.Context, organizationID, registrationID int64, debtorNumber string) error
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
 	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
 	// AppendHolidayAudit writes one entry; details travel as JSON.
@@ -285,12 +288,11 @@ func (h *HolidayRegistrationReview) OpenHolidayRegistrationProof(ctx context.Con
 	return file, nil
 }
 
-// ChangeHolidayRegistration confirms, cancels, freezes or reopens a
-// registration.
+// ChangeHolidayRegistration cancels, freezes or reopens a registration.
+// ConfirmHolidayRegistration confirms one (#5621).
 func (h *HolidayRegistrationReview) ChangeHolidayRegistration(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, action string) (enrollment.HolidayRegistrationDetail, error) {
 	apply := map[string]func(context.Context, int64, enrollment.HolidayPeriod, holidayRegistrationState) (any, error){
-		enrollment.HolidayAuditConfirm: h.confirm, enrollment.HolidayAuditCancel: h.cancel,
-		enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
+		enrollment.HolidayAuditCancel: h.cancel, enrollment.HolidayAuditFreeze: h.freeze, enrollment.HolidayAuditReopen: h.reopen,
 	}[action]
 	if apply == nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: unknown holiday registration action %q", action)
@@ -299,17 +301,6 @@ func (h *HolidayRegistrationReview) ChangeHolidayRegistration(ctx context.Contex
 		details, err := apply(ctx, reviewer.OrganizationID, period, current)
 		return action, details, err
 	})
-}
-
-// confirm confirms a received registration, frozen or not.
-func (h *HolidayRegistrationReview) confirm(ctx context.Context, organizationID int64, _ enrollment.HolidayPeriod, current holidayRegistrationState) (any, error) {
-	if current.Status != enrollment.HolidayRegistrationReceived {
-		return nil, enrollment.ErrHolidayRegistrationStateConflict
-	}
-	if err := h.store.SetHolidayRegistrationStatus(ctx, organizationID, current.ID, enrollment.HolidayRegistrationConfirmed); err != nil {
-		return nil, err
-	}
-	return enrollment.HolidayRegistrationEventDetails{From: current.Status}, nil
 }
 
 // cancel cancels a registration that is not frozen.
@@ -402,14 +393,16 @@ func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollm
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	status, override, found, err := h.store.LockHolidayRegistration(ctx, reviewer.OrganizationID, periodID, registrationID)
+	status, override, debtorNumber, found, err := h.store.LockHolidayRegistration(ctx, reviewer.OrganizationID, periodID, registrationID)
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: lock holiday registration: %w", err)
 	}
 	if !found {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	action, details, err := apply(period, holidayRegistrationState{ID: registrationID, Status: status, FreezeOverride: override})
+	action, details, err := apply(period, holidayRegistrationState{
+		ID: registrationID, Status: status, FreezeOverride: override, DebtorNumber: debtorNumber,
+	})
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
@@ -436,6 +429,7 @@ type holidayRegistrationState struct {
 	ID             int64
 	Status         string
 	FreezeOverride string
+	DebtorNumber   string
 }
 
 // frozen reports whether a registration is frozen: frozen on purpose, or

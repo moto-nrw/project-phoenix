@@ -39,6 +39,7 @@ type holidayReviewRegistrationRow struct {
 	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
 	BenefitsDeclared        bool       `bun:"benefits_declared"`
 	ConsentVersion          *int       `bun:"consent_version"`
+	DebtorNumber            *string    `bun:"debtor_number"`
 }
 
 // holidayReviewChildRow is one child as the review reads it, without its
@@ -66,7 +67,7 @@ const (
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			guardian_address_street, guardian_address_postal_code, guardian_address_city
+			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -161,6 +162,9 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 		if row.ConsentVersion != nil {
 			details[i].ConsentVersion = *row.ConsentVersion
 		}
+		if row.DebtorNumber != nil {
+			details[i].DebtorNumber = *row.DebtorNumber
+		}
 		if row.AddressStreet != "" {
 			details[i].GuardianAddress = &enrollment.HolidayAddress{
 				Street: row.AddressStreet, PostalCode: row.AddressPostalCode, City: row.AddressCity,
@@ -235,7 +239,7 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen')
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number')
 		ORDER BY occurred_at, id`
 )
 
@@ -291,7 +295,7 @@ func (s *HolidayRegistrationStore) ReadHolidayHistory(ctx context.Context, organ
 }
 
 const (
-	lockHolidayRegistrationQuery = `SELECT id, status, freeze_override
+	lockHolidayRegistrationQuery = `SELECT id, status, freeze_override, debtor_number
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?
 		FOR UPDATE`
@@ -299,24 +303,43 @@ const (
 		WHERE organization_id = ? AND id = ?`
 	updateHolidayRegistrationFreezeQuery = `UPDATE enrollment.holiday_registrations SET freeze_override = ?
 		WHERE organization_id = ? AND id = ?`
+	updateHolidayDebtorNumberQuery = `UPDATE enrollment.holiday_registrations SET debtor_number = NULLIF(?, '')
+		WHERE organization_id = ? AND id = ?`
 )
 
-// LockHolidayRegistration reads the status and the freeze override of one
-// registration of the period and holds its row until the end of the
-// transaction.
-func (s *HolidayRegistrationStore) LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (string, string, bool, error) {
+// LockHolidayRegistration reads the status, the freeze override and the
+// debtor number of one registration of the period and holds its row until
+// the end of the transaction.
+func (s *HolidayRegistrationStore) LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (string, string, string, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return "", "", false, err
+		return "", "", "", false, err
 	}
 	var rows []holidayReviewRegistrationRow
 	if err := db.NewRaw(lockHolidayRegistrationQuery, organizationID, periodID, registrationID).Scan(ctx, &rows); err != nil {
-		return "", "", false, fmt.Errorf("enrollment postgres: lock holiday registration: %w", err)
+		return "", "", "", false, fmt.Errorf("enrollment postgres: lock holiday registration: %w", err)
 	}
 	if len(rows) == 0 {
-		return "", "", false, nil
+		return "", "", "", false, nil
 	}
-	return rows[0].Status, holidayFreezeOverrides(rows)[rows[0].ID], true, nil
+	debtorNumber := ""
+	if rows[0].DebtorNumber != nil {
+		debtorNumber = *rows[0].DebtorNumber
+	}
+	return rows[0].Status, holidayFreezeOverrides(rows)[rows[0].ID], debtorNumber, true, nil
+}
+
+// SetHolidayDebtorNumber writes the debtor number of a registration; an
+// empty one stores NULL (#5621).
+func (s *HolidayRegistrationStore) SetHolidayDebtorNumber(ctx context.Context, organizationID, registrationID int64, debtorNumber string) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(updateHolidayDebtorNumberQuery, debtorNumber, organizationID, registrationID).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: update holiday debtor number: %w", err)
+	}
+	return nil
 }
 
 // SetHolidayRegistrationStatus writes the status of a registration.

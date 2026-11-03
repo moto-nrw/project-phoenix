@@ -46,7 +46,14 @@ const (
 	// HolidayAuditHealth records a read of the health information of a
 	// registration (#4722).
 	HolidayAuditHealth = "health"
+	// HolidayAuditDebtorNumber records a change of the debtor number of a
+	// confirmed registration (#5621).
+	HolidayAuditDebtorNumber = "debtor_number"
 )
+
+// HolidayDebtorNumberMaxLength is the longest debtor number a registration
+// keeps (#5621): the reference field of a SEPA transfer has 35 characters.
+const HolidayDebtorNumberMaxLength = 35
 
 var (
 	// ErrHolidayRegistrationEntryNotFound reports a registration that does
@@ -120,6 +127,11 @@ type HolidayRegistrationSummary struct {
 	// benefits; the Träger-Büro decides on the exemption when it confirms
 	// (#4664).
 	BenefitsDeclared bool `json:"benefits_declared"`
+
+	// DebtorNumber is the number of the family in the finance system of the
+	// Träger, entered when the Träger-Büro confirms; empty without one
+	// (#5621). The letter names it as the reference to pay with.
+	DebtorNumber string `json:"debtor_number"`
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the
@@ -157,14 +169,23 @@ type HolidayBookingChange struct {
 	TimeModelID int64 `json:"time_model_id"`
 }
 
+// HolidayDebtorNumberChange is the debtor number before and after a
+// confirmation or a change of it (#5621); empty means none.
+type HolidayDebtorNumberChange struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
+
 // HolidayRegistrationEventDetails name what a change changed: the status
 // before a confirmation or cancellation, the child and its bookings before
-// and after a rebooking.
+// and after a rebooking, the debtor number a confirmation entered or a
+// change changed.
 type HolidayRegistrationEventDetails struct {
-	From    string                 `json:"from,omitempty"`
-	ChildID int64                  `json:"child_id,omitempty"`
-	Before  []HolidayBookingChange `json:"before,omitempty"`
-	After   []HolidayBookingChange `json:"after,omitempty"`
+	From         string                     `json:"from,omitempty"`
+	ChildID      int64                      `json:"child_id,omitempty"`
+	Before       []HolidayBookingChange     `json:"before,omitempty"`
+	After        []HolidayBookingChange     `json:"after,omitempty"`
+	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.
@@ -278,10 +299,19 @@ type HolidayRegistrationReview interface {
 	// the CSV and Excel export. format names the file format in the audit
 	// trail.
 	ExportHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter, format string) (HolidayRegistrationExport, error)
-	// ChangeHolidayRegistration confirms, cancels, freezes or reopens a
-	// registration: action is HolidayAuditConfirm, HolidayAuditCancel,
-	// HolidayAuditFreeze or HolidayAuditReopen.
+	// ChangeHolidayRegistration cancels, freezes or reopens a registration:
+	// action is HolidayAuditCancel, HolidayAuditFreeze or HolidayAuditReopen.
 	ChangeHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string) (HolidayRegistrationDetail, error)
+	// ConfirmHolidayRegistration confirms a received registration, frozen or
+	// not, with the debtor number of the family when debtorNumber is not
+	// blank (#5621). A debtor number longer than
+	// HolidayDebtorNumberMaxLength or with a line break is a validation
+	// error on debtor_number; whether one is required is the caller's rule.
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistrationDetail, error)
+	// SetHolidayDebtorNumber changes the debtor number of a confirmed
+	// registration; a blank one removes it (#5621). Whether the number may
+	// still change is the caller's rule.
+	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistrationDetail, error)
 	// RebookHolidayChild replaces the bookings of one child: one time model
 	// per week, at least one week.
 	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingInput) (HolidayRegistrationDetail, error)

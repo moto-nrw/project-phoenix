@@ -177,3 +177,50 @@ Ferienanmeldung ergänzen“:
   und Kundennummer kommt weiter mit der Elternabrechnung (ADR 0088 §4).
   Teilnehmerliste der OGS (ADR 0116), Feriengast-Kopie (ADR 0120) und
   Eingangsbestätigung bekommen keine Anschrift.
+
+## Nachtrag 2026-11-03: Debitorennummer beim Bestätigen (#5621)
+
+Die Gemeinde Bissendorf ordnet Zahlungen über die Debitorennummer der Familie
+zu (sie nennt sie auch Adressnummer). Dieser Nachtrag ersetzt die Regel
+„Adressnummer“ in Punkt 5 für Träger, die die Nummer abfragen:
+
+- **Schalter je Träger.** Die Träger-Einstellung
+  `parent_billing.debtor_number_on_confirm` („Debitorennummer beim Bestätigen
+  abfragen“, Ebene `traeger`, Standard aus) entscheidet, ob das Träger-Büro
+  die Nummer beim Bestätigen einträgt. Die Elternabrechnung liest den Schalter
+  über ihren Port `HolidayBillingSettings` in der Träger-Transaktion; die
+  Wurzel bindet ihn an `TraegerSettings.TraegerBools`.
+- **An der Anmeldung, nicht am Kind und nicht an einer Familie.**
+  `enrollment.holiday_registrations.debtor_number` (höchstens 35 Zeichen,
+  getrimmt, ohne Zeilenumbruch, kein Format; CHECK). Geschwister teilen die
+  Nummer, Feriengäste haben in moto kein Kind (ADR 0120), und eine Familie
+  über mehrere Zeiträume gibt es nicht. Die Nummer geht mit der Anmeldung
+  nach 92 Tagen (ADR 0118 Punkt 1).
+- **Bestätigen.** Ist der Schalter an, lehnt die Bestätigung ohne Nummer mit
+  400 und Feldfehler `debtor_number` ab, bevor etwas geschrieben ist
+  (`parent_billing.debtor_number_invalid`). Ist er aus, ist die Nummer
+  freiwillig. Bestätigung und Nummer sind ein Eintrag „confirm“ im Protokoll
+  der Anmeldung (ADR 0114), mit der Nummer vorher und nachher.
+- **Ändern bis zur Rechnung.** Das Träger-Büro ändert die Nummer einer
+  bestätigten Anmeldung unter `/traeger/holiday-contributions`, solange keine
+  ausgestellte Rechnung sie abrechnet; danach 409
+  (`parent_billing.debtor_number_locked`). Einfrieren und Wiederöffnen
+  spielen keine Rolle. Jede Änderung ist ein Eintrag „debtor_number“ mit der
+  Nummer vorher und nachher. Freigabe und Änderung nehmen dieselbe
+  Transaktionssperre je Träger, Leistung und Zeitraum; die Freigabe kopiert
+  also die Nummer vor oder nach einer laufenden Änderung, nie eine, die die
+  Änderung danach noch überschreibt.
+- **Kopie in der Rechnung.** Die Freigabe kopiert die Nummer in
+  `parent_billing.documents.debtor_number` (ADR 0118 Punkt 2, ADR 0119); der
+  Trigger gegen Änderungen bleibt. Ist der Schalter an und hat eine
+  Rechnung der Vorschau keine Nummer, nennt die Seite des Laufs die Zahl;
+  die Freigabe bleibt möglich.
+- **Schreiben.** Hat die Rechnung eine Nummer, steht sie im Infoblock unter
+  der Rechnungsnummer als „Debitorennummer“, und der Zahlungssatz lautet
+  „Geben Sie als Verwendungszweck Ihre Debitorennummer … an.“ Ohne Nummer
+  bleibt der Satz mit der Rechnungsnummer. Schon erzeugte Schreiben bleiben
+  (Punkt 3).
+- **Nicht in diesem Schritt:** kein Vorschlag aus einer früheren Anmeldung,
+  kein Import aus dem Finanzverfahren, keine Prüfung des Formats, kein frei
+  einstellbarer Zahlungstext. Die Kundennummer des Zahlers für alle
+  Leistungen kommt weiter mit #4689.

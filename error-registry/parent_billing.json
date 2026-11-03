@@ -25,6 +25,18 @@
       "legacy": "parent_billing.contribution_rule_overlap"
     },
     {
+      "code": "parent_billing.debtor_number_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.debtor_number_invalid"
+    },
+    {
+      "code": "parent_billing.debtor_number_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.debtor_number_locked"
+    },
+    {
       "code": "parent_billing.holiday_quote_invalid",
       "class": "input",
       "parameters": [],
