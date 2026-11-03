@@ -5,6 +5,7 @@ import {
   StudentCheckinSection,
   StudentSickReportSection,
   StudentExcusedReportSection,
+  StudentStatusActionsMenu,
 } from "./student-checkout-section";
 
 describe("StudentCheckoutSection", () => {
@@ -206,5 +207,26 @@ describe("StudentExcusedReportSection", () => {
     // Anker: die Karte mit ihrem Titel ist gerendert.
     expect(screen.getByText("Entschuldigen")).toBeInTheDocument();
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+});
+
+describe("StudentStatusActionsMenu", () => {
+  it("renders its floating actions in the popover surface", () => {
+    render(
+      <StudentStatusActionsMenu
+        isClassTrip={false}
+        onPlanClassTrip={vi.fn()}
+        isLoading={false}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Statusaktionen" }),
+    );
+
+    expect(screen.getByRole("menu")).toHaveClass(
+      "moto-popover-surface",
+      "rounded-xl",
+    );
   });
 });

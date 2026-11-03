@@ -1324,7 +1324,7 @@ function MobileDayButton({
       <span
         className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
           day.isToday
-            ? "bg-moto-orange text-white"
+            ? "bg-moto-orange-strong text-white"
             : isSelected
               ? "bg-white text-gray-900"
               : "bg-gray-100 text-gray-700"
@@ -1403,7 +1403,7 @@ function CareDayCard({
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
             {day.isToday ? (
               <>
-                <span className="bg-moto-orange flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
+                <span className="bg-moto-orange-strong flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
                   {day.date.getDate()}
                 </span>
                 <span>.</span>

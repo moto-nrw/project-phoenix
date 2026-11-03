@@ -254,7 +254,7 @@ export function StudentStatusActionsMenu({
       {open ? (
         <div
           role="menu"
-          className="moto-content-surface absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-lg border py-1 shadow-lg"
+          className="moto-popover-surface absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border py-1"
         >
           <button
             type="button"
