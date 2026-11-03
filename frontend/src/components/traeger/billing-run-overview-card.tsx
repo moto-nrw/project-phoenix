@@ -167,7 +167,7 @@ export function BillingRunOverviewCard({
     },
     {
       key: "number",
-      header: "Rechnung",
+      header: "Nummer",
       render: (document) => {
         const reference = billingReferenceText(document);
         return (

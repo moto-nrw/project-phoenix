@@ -59,7 +59,7 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen, die noch keine Rechnung haben. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
@@ -350,7 +350,8 @@ export default function TraegerBillingRunPage() {
             />
           ) : null}
           {run.status === "released" && run.letters ? (
-            <BillingMailCard runId={run.id} />
+            // A new Storno or Gutschrift is a new letter to send (#4690).
+            <BillingMailCard key={run.documents.length} runId={run.id} />
           ) : null}
           <BillingRunOverviewCard
             run={run}

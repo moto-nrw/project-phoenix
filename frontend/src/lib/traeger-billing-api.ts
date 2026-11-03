@@ -582,6 +582,8 @@ export type LetterMailStatus =
 /** The mail of the letter of one family. */
 export interface LetterMailing {
   readonly documentId: string;
+  /** An invoice, a Storno or a Gutschrift (#4690). */
+  readonly kind: BillingDocumentKind;
   readonly number: string;
   readonly recipientFirstName: string;
   readonly recipientLastName: string;
@@ -601,6 +603,7 @@ export interface LetterSeries {
 
 interface BackendLetterMailing {
   document_id: number;
+  kind?: BillingDocumentKind;
   number: string;
   recipient_first_name: string;
   recipient_last_name: string;
@@ -614,6 +617,7 @@ interface BackendLetterMailing {
 function mailingFromBackend(mailing: BackendLetterMailing): LetterMailing {
   return {
     documentId: String(mailing.document_id),
+    kind: mailing.kind ?? "invoice",
     number: mailing.number,
     recipientFirstName: mailing.recipient_first_name,
     recipientLastName: mailing.recipient_last_name,

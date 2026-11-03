@@ -308,7 +308,7 @@ func (m *BillingLetterMail) recordRead(ctx context.Context, reviewer parentbilli
 // outbox entry Delivery no longer keeps has an unknown result.
 func documentMailing(document parentbilling.BillingDocument, mailings []parentbilling.BillingLetterSend, states map[int64]parentbilling.BillingLetterMailState) parentbilling.BillingLetterMailing {
 	mailing := parentbilling.BillingLetterMailing{
-		DocumentID: document.ID, Number: document.Number, RecipientFirstName: document.RecipientFirstName,
+		DocumentID: document.ID, Kind: document.Kind, Number: document.Number, RecipientFirstName: document.RecipientFirstName,
 		RecipientLastName: document.RecipientLastName, RecipientEmail: document.RecipientEmail,
 		Status: parentbilling.LetterMailNotSent, Sends: len(mailings),
 	}

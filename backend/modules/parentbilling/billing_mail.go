@@ -54,7 +54,9 @@ var (
 // RequestedAt and SentAt are nil before the first mail; Sends counts every
 // mail of the letter.
 type BillingLetterMailing struct {
-	DocumentID         int64      `json:"document_id"`
+	DocumentID int64 `json:"document_id"`
+	// Kind names an invoice, a Storno or a Gutschrift (#4690).
+	Kind               string     `json:"kind"`
 	Number             string     `json:"number"`
 	RecipientFirstName string     `json:"recipient_first_name"`
 	RecipientLastName  string     `json:"recipient_last_name"`
