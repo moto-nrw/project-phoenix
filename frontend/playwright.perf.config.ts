@@ -7,6 +7,7 @@ import {
   tenantBaseUrl,
 } from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Perf-Baseline gegen einen PRODUKTIONS-Server (pnpm run perf:trace, #2938).
 // Wie playwright.guides.config.ts: `next build && next start`, weil nur der
@@ -23,6 +24,7 @@ const env = perfServerEnv();
 const access = loadAccess();
 
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./scripts/perf",
   // `.perf.ts`, nicht `.spec.ts`: sonst greift vitest die Datei auf.
   testMatch: "measure.perf.ts",
@@ -33,6 +35,7 @@ export default defineConfig({
   outputDir: "perf-results/test-output",
   use: {
     ...devices["Desktop Chrome"],
+    ...secureChromeUse(),
     baseURL: tenantBaseUrl(access),
     headless: true,
     actionTimeout: PERF_ACTION_TIMEOUT,

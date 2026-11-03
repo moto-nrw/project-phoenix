@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,27 +12,16 @@ import (
 func sideEffectRegisterOnlyShrinks(root string, current map[string]losableSideEffectNotice) error {
 	repo := filepath.Dir(root)
 	run := func(args ...string) ([]byte, error) {
-		command := exec.Command("git", args...)
-		command.Dir = repo
-		return command.Output()
+		return registerGitOutput(repo, args...)
 	}
 	return sideEffectRegisterAgainstBase(run, current)
 }
 
 func sideEffectRegisterAgainstBase(run func(...string) ([]byte, error), current map[string]losableSideEffectNotice) error {
-	// Never turn a missing base ref into a successful shrink check.
-	revision, err := run("rev-parse", "--verify", "origin/development^{commit}")
+	base, err := registerMergeBase(run)
 	if err != nil {
-		return fmt.Errorf("notice ratchet needs fetched origin/development: %w", err)
+		return err
 	}
-	// Compare our changes with the common branch base. A fetch in another
-	// worktree may advance the shared remote ref while this branch still
-	// carries its original notices; those upstream changes are not ours.
-	ancestor, err := run("merge-base", "HEAD", strings.TrimSpace(string(revision)))
-	if err != nil {
-		return fmt.Errorf("notice ratchet needs a common development ancestor: %w", err)
-	}
-	base := strings.TrimSpace(string(ancestor))
 	path := "backend/" + sideEffectNoticeRegister
 	entries, err := run("ls-tree", "--name-only", base, "--", path)
 	if err != nil {

@@ -13,7 +13,8 @@ func TestSessionFixturesGiveEachWriteItsOwnDeadline(t *testing.T) {
 
 	// Each dependency finishes within its five-second budget, but together
 	// they exceed it. A parent's insert must not spend its budget waiting for
-	// those independently bounded fixture calls.
+	// those independently bounded fixture calls. The three fixtures write
+	// separate rows, so they wait out their delays side by side.
 	_, err := db.ExecContext(t.Context(), `
 		CREATE FUNCTION public.delay_fixture_dependency() RETURNS trigger
 		LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(3); RETURN NEW; END $$;
@@ -26,6 +27,7 @@ func TestSessionFixturesGiveEachWriteItsOwnDeadline(t *testing.T) {
 
 	for _, name := range []string{"activity", "tenant activity", "tenant session"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			var activityID int64
 			switch name {
 			case "activity":

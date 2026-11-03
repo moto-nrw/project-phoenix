@@ -1,7 +1,6 @@
 package architecture
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -61,10 +60,7 @@ func TestReviewedSharedFixtureRuleShape(t *testing.T) {
 // runs against the real owner map and package classification.
 func sharedFixturePolicies(t *testing.T) (*Policy, *Policy) {
 	t.Helper()
-	candidate, err := LoadPolicy(filepath.Join("..", "..", "architecture", "policy.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	candidate := repositoryPolicy(t)
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), func(rule Rule) bool {
@@ -135,7 +131,8 @@ func TestSharedFixtureRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 
 func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 	t.Parallel()
-	for _, extra := range []Rule{
+	base, candidate := sharedFixturePolicies(t)
+	extraRules := []Rule{
 		{ID: "shared-fixtures.people-domain", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "people-directory", TargetRole: "domain"},
 		{ID: "shared-fixtures.tenant-postgres", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "postgres"},
 		{ID: "shared-fixtures.e2e-in-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "tenant-runtime", TargetRole: "public"},
@@ -146,14 +143,17 @@ func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 		{ID: "owner-suite.audit-enrollment-domain", Description: "test", Scopes: []string{"external_test"}, SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "domain"},
 		{ID: "owner-suite.settings-security-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "settings-platform", SourceRole: "application", TargetOwner: "security-runtime", TargetRole: "public"},
 		{ID: "shared-fixtures.foreign-owner", Description: "test", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public"},
-	} {
-		base, candidate := sharedFixturePolicies(t)
-		widened := *candidate
-		widened.Rules = append(slices.Clone(candidate.Rules), extra)
-		err := comparePolicyStrictness(base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
-		if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID) {
-			t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-fixture shape: %v", extra.ID, err)
-		}
+	}
+	batch := *candidate
+	batch.Rules = append(slices.Clone(candidate.Rules), extraRules...)
+	err := comparePolicyStrictness(base, &batch, noCreated(), noCreated(), noCreated(), noCreated(), nil)
+	for _, extra := range extraRules {
+		t.Run(extra.ID, func(t *testing.T) {
+			if err == nil || !strings.Contains(err.Error(), "rule "+extra.ID) {
+				t.Fatalf("%s: the reviewed epoch admitted a rule outside the shared-fixture shape: %v", extra.ID, err)
+			}
+			assertIsolatedRuleLoosening(t, base, candidate, extra)
+		})
 	}
 }
 

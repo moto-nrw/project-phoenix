@@ -27,6 +27,9 @@ function topbarFloor(): number {
 
 const MOBILE_BOTTOM_NAV_CLEARANCE = "calc(6rem + env(safe-area-inset-bottom))";
 
+// Helle Spur wie ui/SegmentedControl; das gewählte Feld hebt sich hell ab.
+const OPTION_TRACK = "rounded-lg bg-gray-100 p-1";
+
 function panelMaxHeight(top: number, isDesktopPlacement: boolean): string {
   return isDesktopPlacement
     ? `min(70vh, calc(100dvh - ${top}px - 1rem))`
@@ -194,6 +197,8 @@ export function FilterPanel({
   }
 
   const isQuiet = variant === "quiet";
+  // Die Spur trägt das Grau, nicht der einzelne Knopf: ungewählte Felder
+  // bleiben ohne eigene Füllung (#5574).
   // Selected-pill treatment. Quiet mode swaps the near-black fill for the
   // app's calm blue-accent pill (same tokens as the active-filter badge in
   // PageHeaderWithSearch) so the panel matches the detail-modal language.
@@ -217,11 +222,12 @@ export function FilterPanel({
     <button
       key={option.value}
       type="button"
+      aria-pressed={selectedValues.includes(option.value)}
       onClick={() => selectOption(filter, option.value, selectedValues)}
       className={`flex h-9 min-w-[84px] items-center justify-center rounded-md px-3 text-xs font-medium transition-all ${extraClass} ${
         selectedValues.includes(option.value)
           ? selectedOptionClass
-          : "bg-gray-100 text-gray-500 hover:text-gray-900"
+          : "text-gray-500 hover:text-gray-900"
       } `}
     >
       {content}
@@ -238,7 +244,7 @@ export function FilterPanel({
     switch (filter.type) {
       case "buttons":
         return (
-          <div className="flex flex-wrap gap-1.5">
+          <div className={`flex flex-wrap gap-1 ${OPTION_TRACK}`}>
             {filter.options.map((option) =>
               optionButton(filter, option, selectedValues, "", option.label),
             )}
@@ -247,7 +253,7 @@ export function FilterPanel({
 
       case "grid":
         return (
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid grid-cols-2 gap-1 ${OPTION_TRACK}`}>
             {filter.options.map((option) =>
               optionButton(
                 filter,

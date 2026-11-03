@@ -12,17 +12,31 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// Legal-reference cases need real form/request rows, not a rebuilt copy of
+// every catalog table. Each top-level test owns its tenant in the package DB.
+func legalDocumentExportFixture(t *testing.T, db *bun.DB) (school, form, request int64) {
+	t.Helper()
+	school = testpkg.Tenant(t)
+	author := testpkg.CreateTestAccount(t, db, "legal-document-export")
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.form_schemas
+		(tenant_id, version, name, created_by) VALUES (?, 1, 'Synthetic form', ?) RETURNING id`, school, author.ID).Scan(t.Context(), &form))
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	applicant := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID,
+		fmt.Sprintf("legal-%d@example.invalid", school), fmt.Sprintf("legal-export-%d", school))
+	return school, form, applicant.ID
+}
 
 func TestTenantExportRequiresFormLegalDocumentOriginal(t *testing.T) {
 	t.Parallel()
-	db, _, school, _ := exportFixture(t)
-	_, err := db.ExecContext(t.Context(), "ALTER TABLE enrollment.form_schemas ADD COLUMN legal_blocks jsonb")
-	require.NoError(t, err)
+	db := testpkg.SetupTestDB(t)
+	school, form, _ := legalDocumentExportFixture(t, db)
 	filename := strconv.FormatInt(school, 10) + "_legal.pdf"
 	blocks, err := json.Marshal([]map[string]string{{"document_url": "/api/public/enrollment-form-legal-documents/" + filename}})
 	require.NoError(t, err)
-	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), school).Exec(t.Context())
+	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 	require.NoError(t, err)
 	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
 	require.NoError(t, err)
@@ -51,30 +65,27 @@ func TestTenantExportRequiresFormLegalDocumentOriginal(t *testing.T) {
 
 func TestTenantExportRequiresEmbeddedFormAttachments(t *testing.T) {
 	t.Parallel()
-	db, _, school, _ := exportFixture(t)
-	for _, query := range []string{
-		"ALTER TABLE enrollment.form_schemas ADD COLUMN fields jsonb, ADD COLUMN legal_blocks jsonb",
-		"ALTER TABLE enrollment.requests ADD COLUMN legal_blocks_snapshot jsonb",
-	} {
-		_, err := db.ExecContext(t.Context(), query)
-		require.NoError(t, err)
-	}
+	db := testpkg.SetupTestDB(t)
+	school, form, request := legalDocumentExportFixture(t, db)
 	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
 	require.NoError(t, err)
-	cases := []struct{ name, table, column, payload string }{
-		{"field attachments", "enrollment.form_schemas", "fields", `[{"attachments":[{"document_url":%q}]}]`},
-		{"legal attachments", "enrollment.form_schemas", "legal_blocks", `[{"attachments":[{"document_url":%q}]}]`},
-		{"submission snapshot", "enrollment.requests", "legal_blocks_snapshot", `[{"blocks":[{"attachments":[{"document_url":%q}]}]}]`},
+	cases := []struct {
+		name, table, column, payload string
+		id                           int64
+	}{
+		{"field attachments", "enrollment.form_schemas", "fields", `[{"attachments":[{"document_url":%q}]}]`, form},
+		{"legal attachments", "enrollment.form_schemas", "legal_blocks", `[{"attachments":[{"document_url":%q}]}]`, form},
+		{"submission snapshot", "enrollment.requests", "legal_blocks_snapshot", `[{"blocks":[{"attachments":[{"document_url":%q}]}]}]`, request},
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, query := range []string{"UPDATE enrollment.form_schemas SET fields = NULL, legal_blocks = NULL", "UPDATE enrollment.requests SET legal_blocks_snapshot = NULL"} {
-				_, err := db.ExecContext(t.Context(), query)
+			for _, query := range []string{"UPDATE enrollment.form_schemas SET fields = '[]', legal_blocks = '[]' WHERE tenant_id = ?", "UPDATE enrollment.requests SET legal_blocks_snapshot = '[]' WHERE tenant_id = ?"} {
+				_, err := db.ExecContext(t.Context(), query, school)
 				require.NoError(t, err)
 			}
 			filename := strconv.FormatInt(school, 10) + fmt.Sprintf("_attachment_%d.pdf", i)
 			payload := fmt.Sprintf(tc.payload, "/uploads/enrollment-form-legal-documents/"+filename)
-			_, err := db.NewRaw("UPDATE "+tc.table+" SET "+tc.column+" = ?::jsonb WHERE id = ?", payload, school).Exec(t.Context())
+			_, err := db.NewRaw("UPDATE "+tc.table+" SET "+tc.column+" = ?::jsonb WHERE id = ?", payload, tc.id).Exec(t.Context())
 			require.NoError(t, err)
 			uploads := t.TempDir()
 			assertFailedExport(t, exporter, school, uploads)
@@ -90,9 +101,9 @@ func TestTenantExportRequiresEmbeddedFormAttachments(t *testing.T) {
 
 func TestTenantExportRejectsForeignLegalDocumentReferences(t *testing.T) {
 	t.Parallel()
-	db, _, school, foreign := exportFixture(t)
-	_, err := db.ExecContext(t.Context(), "ALTER TABLE enrollment.form_schemas ADD COLUMN legal_blocks jsonb")
-	require.NoError(t, err)
+	db := testpkg.SetupTestDB(t)
+	school, form, _ := legalDocumentExportFixture(t, db)
+	foreign, _ := testpkg.CreateTestTenant(t, db)
 	filename := strconv.FormatInt(foreign, 10) + "_foreign.pdf"
 	uploads := t.TempDir()
 	dir := filepath.Join(uploads, "enrollment-form-legal-documents")
@@ -103,14 +114,14 @@ func TestTenantExportRejectsForeignLegalDocumentReferences(t *testing.T) {
 	for _, prefix := range []string{"/uploads/", "/api/public/"} {
 		blocks, err := json.Marshal([]map[string]string{{"document_url": prefix + "enrollment-form-legal-documents/" + filename}})
 		require.NoError(t, err)
-		_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), school).Exec(t.Context())
+		_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 		require.NoError(t, err)
 		assertFailedExport(t, exporter, school, uploads)
 	}
 	// Looking like a URL in arbitrary text never grants access to a global avatar.
 	blocks, err := json.Marshal([]map[string]string{{"text": "/uploads/avatars/global/" + filename}})
 	require.NoError(t, err)
-	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), school).Exec(t.Context())
+	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "complete")
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: uploads}))

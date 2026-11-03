@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 import { loadAccess, perfPort, tenantBaseUrl } from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Seitenwechsel-Messung (pnpm run perf:nav, #2828). Gleicher Aufbau wie
 // playwright.perf.config.ts — Produktions-Server, eigener Port, keine
@@ -12,6 +13,7 @@ const env = perfServerEnv();
 const access = loadAccess();
 
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./scripts/perf",
   testMatch: "navigation.perf.ts",
   timeout: 900_000,
@@ -21,6 +23,7 @@ export default defineConfig({
   outputDir: "perf-results/navigation/test-output",
   use: {
     ...devices["Desktop Chrome"],
+    ...secureChromeUse(),
     baseURL: tenantBaseUrl(access),
     headless: true,
   },

@@ -1,5 +1,13 @@
 import { catalogText } from "~/test/error-catalog-text";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { StaffOnboardingState } from "~/lib/staff-onboarding-api";
@@ -120,6 +128,22 @@ function stepTitles(): string[] {
 }
 
 describe("StaffOnboardingWizard", () => {
+  // Die Tour sucht im 200-ms-Takt und lässt eine fehlende Station erst nach
+  // 1,5 s aus. Fake-Timer für die ganze Datei lassen diese Wartezeiten ohne
+  // echte Sekunden ablaufen: Testing Library erkennt sie über `jest` und rückt
+  // in findBy/waitFor die Uhr im Abfragetakt vor, mit demselben Zeitbudget
+  // wie mit echten Timern.
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("jest", {
+      advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms),
+    });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();

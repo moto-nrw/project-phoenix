@@ -233,7 +233,7 @@ export function StudentPhotoSection({
           {showSecondaryAction ? (
             <Button
               type="button"
-              variant="secondary"
+              variant={pendingPhotoRemoved ? "outline" : "outline_danger"}
               size="md"
               onClick={handleRemoveClick}
             >

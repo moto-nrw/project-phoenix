@@ -5,6 +5,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { localMFACode, loginToLocalTenant } from "../../e2e/local-tenant-login";
+import { secureLaunchOptions } from "../secure-chrome";
 
 import { accessForShot, type Credentials, type StackAccess } from "./access";
 import { captureInOrder } from "./capture-order";
@@ -826,7 +827,7 @@ export async function captureShots(
   const loadTimeoutMs = options.loadTimeoutMs ?? LOAD_TIMEOUT_MS;
   const concurrency = options.concurrency ?? 4;
   assertConcurrency(concurrency);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(secureLaunchOptions());
   try {
     const sessions = new Map<
       string,
