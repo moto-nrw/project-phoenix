@@ -48,6 +48,7 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
+import { Button } from "~/components/ui/button";
 import { AttendanceExportDialog } from "~/components/students/attendance-export-dialog";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
@@ -254,8 +255,10 @@ function DayCard({
                       Instanzstatus synthetischer "Ohne Zuordnung"-Zeilen
                       schließt sie ebenfalls aus. */}
                   {canCorrect && slot.instanceStatus === "completed" && (
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      size="md"
                       onClick={() =>
                         onCorrect({
                           instanceId: slot.instanceId,
@@ -268,10 +271,10 @@ function DayCard({
                           note: slot.note,
                         })
                       }
-                      className="mt-0.5 pl-1 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                      className="mt-0.5 ml-1"
                     >
                       Korrigieren
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -511,8 +514,10 @@ function HistoryTable({
                                 )}
                                 {canCorrect &&
                                   slot.instanceStatus === "completed" && (
-                                    <button
+                                    <Button
                                       type="button"
+                                      variant="link"
+                                      size="md"
                                       onClick={() =>
                                         setCorrecting({
                                           instanceId: slot.instanceId,
@@ -525,10 +530,10 @@ function HistoryTable({
                                           note: slot.note,
                                         })
                                       }
-                                      className="mt-1 pl-4 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                                      className="mt-1 ml-4"
                                     >
                                       Korrigieren
-                                    </button>
+                                    </Button>
                                   )}
                               </td>
                               <td className="px-6 py-2 text-gray-500 tabular-nums">

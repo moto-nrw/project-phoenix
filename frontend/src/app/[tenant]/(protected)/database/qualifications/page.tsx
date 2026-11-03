@@ -235,14 +235,14 @@ export default function QualificationsPage() {
           <ButtonLink
             href={tenantPath("/database/qualification-types")}
             variant="outline"
-            size="compact"
+            size="md"
           >
             Nachweisarten
           </ButtonLink>
           <Button
             type="button"
             variant="outline"
-            size="compact"
+            size="md"
             disabled={filtered.length === 0}
             onClick={() =>
               downloadBlob(
