@@ -18,7 +18,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
@@ -44,6 +43,7 @@ import {
 } from "~/lib/traeger-api";
 import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 import { traegerPath } from "~/lib/traeger-url";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "TraegerInvitePage" });
 
@@ -234,15 +234,17 @@ function InviteForm({
         </>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={submitting || !password}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         <span className="relative z-10">
           {submitting ? "Wird angenommen …" : "Einladung annehmen"}
         </span>
-      </button>
+      </Button>
     </form>
   );
 }

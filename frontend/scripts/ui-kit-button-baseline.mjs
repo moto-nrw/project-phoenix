@@ -107,8 +107,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1082],
+    lines: [1076],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/auth/auth-shell.tsx",
+    lines: [360],
+    reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
@@ -119,7 +125,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3139],
+    lines: [3150],
     reason: "Schalter (role=switch)",
   },
   {

@@ -1470,18 +1470,19 @@ function PhaseForm(props: PhaseFormProps) {
               <span className="text-moto-orange mt-1 flex flex-wrap items-center gap-2 text-xs">
                 Beginn und Ende weichen vom Kalenderzeitraum ab (
                 {formatPeriodRange(linkedPeriodDrift)}).
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="compact"
                   onClick={() =>
                     update({
                       service_start_date: linkedPeriodDrift.startDate,
                       service_end_date: linkedPeriodDrift.endDate,
                     })
                   }
-                  className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
                 >
                   Daten übernehmen
-                </button>
+                </Button>
               </span>
             )}
           </label>

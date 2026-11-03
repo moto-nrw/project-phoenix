@@ -12,8 +12,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authPrimaryButtonClassName,
-  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -37,6 +35,7 @@ import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "SchoolLoginPage" });
 
@@ -382,27 +381,30 @@ function LoginForm() {
                 </div>
 
                 <div className="text-center">
-                  <button
+                  <Button
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className={authTextButtonClassName}
+                    variant="link"
+                    size="md"
                   >
                     Passwort vergessen?
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <div className="mt-2">
-                <button
+                <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className={authPrimaryButtonClassName}
+                  variant="primary"
+                  size="field"
+                  className="w-full"
                 >
                   <span className="relative z-10">
                     {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
                   </span>
-                </button>
+                </Button>
               </div>
             </form>
           )}

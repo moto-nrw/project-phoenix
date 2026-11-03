@@ -64,7 +64,7 @@ import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
@@ -1447,7 +1447,11 @@ function PhaseChildActions({
       ) : null}
       <NavigationLink
         href={href}
-        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className={buttonClassName({
+          variant: "outline",
+          size: "compact",
+          className: "",
+        })}
         onClick={(event: React.MouseEvent<HTMLAnchorElement>) =>
           event.stopPropagation()
         }

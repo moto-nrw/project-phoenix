@@ -55,7 +55,7 @@ import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { BackAction } from "~/components/ui/back-link";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -1514,7 +1514,11 @@ function BaseTemplateOverviewRow() {
           href={tenantPath("/anmeldung/preview?base=1")}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={buttonClassName({
+            variant: "outline",
+            size: "md",
+            className: "gap-2",
+          })}
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
           Vorschau
@@ -2588,7 +2592,7 @@ export function LegalBlocksSection({
                 disabled={disabled}
                 variant="ghost"
                 size="compact"
-                className="w-fit text-sm"
+                className="w-fit"
               >
                 Einstellungen wieder verwenden
               </Button>
@@ -2598,9 +2602,9 @@ export function LegalBlocksSection({
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                variant="ghost"
+                variant="ghost_danger"
                 size="compact"
-                className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong w-fit gap-2 text-sm"
+                className="w-fit gap-2"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
@@ -2930,6 +2934,7 @@ function AGBTemplateSourceEditor({
 }>) {
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
+  const documentPicker = useRef<HTMLInputElement>(null);
 
   return (
     <div className="mt-3 space-y-3">
@@ -3001,32 +3006,38 @@ function AGBTemplateSourceEditor({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label
-                className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
-                  disabled || documentSaving
-                    ? "pointer-events-none opacity-50"
-                    : ""
-                }`}
+              <Button
+                type="button"
+                variant="surface"
+                size="compact"
+                disabled={disabled || documentSaving}
+                onClick={() => documentPicker.current?.click()}
               >
                 <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="sr-only"
-                  disabled={disabled || documentSaving}
-                  onChange={(event) => {
-                    onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
+              </Button>
+              <input
+                ref={documentPicker}
+                type="file"
+                accept="application/pdf,.pdf"
+                aria-label={hasDocument ? "PDF ersetzen" : "PDF hochladen"}
+                hidden
+                disabled={disabled || documentSaving}
+                onChange={(event) => {
+                  onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
               {hasDocument ? (
                 <a
                   href={publicAGBDocumentURL(documentURL)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className: "",
+                  })}
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Öffnen</span>

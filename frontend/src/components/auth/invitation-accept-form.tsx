@@ -4,10 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import {
-  AuthFieldError,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthFieldError } from "~/components/auth/auth-shell";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
@@ -23,6 +20,7 @@ import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "InvitationAccept" });
 
@@ -242,13 +240,14 @@ export function InvitationAcceptForm({
             <p className="mb-4 text-sm text-gray-500">
               Die vorherige Sitzung konnte nicht automatisch beendet werden.
             </p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="field"
               onClick={handleManualRedirect}
-              className="rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800"
             >
               Zur Anmeldung
-            </button>
+            </Button>
           </>
         ) : (
           <>
@@ -429,13 +428,15 @@ export function InvitationAcceptForm({
 
       <PasswordRequirements requirements={requirementStatus} />
 
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         {isSubmitting ? "Wird übernommen..." : "Einladung akzeptieren"}
-      </button>
+      </Button>
     </form>
   );
 }

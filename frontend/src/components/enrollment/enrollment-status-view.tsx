@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -818,13 +817,15 @@ function EnrollmentStatusHero({
           </p>
           {allEditable || canRequestChange ? (
             <div className="mt-6">
-              <Link
+              <ButtonLink
                 href={editHref}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                variant="primary"
+                size="md"
+                className="gap-2"
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 {allEditable ? t("editFull") : t("requestChange")}
-              </Link>
+              </ButtonLink>
             </div>
           ) : null}
         </div>
@@ -1405,7 +1406,7 @@ function WithdrawAllSection({
           size="md"
           onClick={handleWithdraw}
           disabled={withdrawingAll}
-          className="w-full shrink-0 font-semibold sm:w-auto"
+          className="w-full shrink-0 sm:w-auto"
         >
           {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
         </Button>
@@ -1519,13 +1520,15 @@ function ChangeRequestsPanel({
           </div>
         </div>
         {canCreate ? (
-          <Link
+          <ButtonLink
             href={editHref}
-            className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+            variant="primary"
+            size="md"
+            className="w-full shrink-0 gap-2 sm:w-auto"
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("requestChange")}
-          </Link>
+          </ButtonLink>
         ) : null}
       </div>
 
