@@ -125,6 +125,36 @@ describe("CustomSelect", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("closes an open menu when the field becomes disabled", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <CustomSelect
+        value=""
+        options={options}
+        onChange={onChange}
+        ariaLabel="Auswahl"
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+    fireEvent.click(trigger);
+    // Anker: Das Menü war vor der Deaktivierung geöffnet.
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+    rerender(
+      <CustomSelect
+        value=""
+        options={options}
+        onChange={onChange}
+        ariaLabel="Auswahl"
+        disabled
+      />,
+    );
+
+    expect(trigger).toBeDisabled();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("keeps Escape from reaching document listeners while the trigger owns an open listbox", () => {
     const onDocumentKeyDown = vi.fn();
     document.addEventListener("keydown", onDocumentKeyDown);

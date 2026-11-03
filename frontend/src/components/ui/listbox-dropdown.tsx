@@ -265,10 +265,8 @@ const MENU_VIEWPORT_MARGIN_PX = 8;
 function firstEnabledIndex<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
 ): number {
-  return Math.max(
-    options.findIndex((option) => !option.disabled),
-    0,
-  );
+  const index = options.findIndex((option) => !option.disabled);
+  return index >= 0 ? index : options.length === 0 ? -1 : 0;
 }
 
 function selectedIndexForValue<K extends string>(
@@ -408,8 +406,9 @@ export function ListboxDropdown<K extends string>({
   // do not re-scroll after a suppressed hover focus move.
   const lastScrollFocusIndexRef = useRef<number | null>(null);
   const lastScrollMenuStyleRef = useRef<CSSProperties | null>(null);
+  const wasDisabledRef = useRef(disabled);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = openProp ?? uncontrolledOpen;
+  const open = !disabled && (openProp ?? uncontrolledOpen);
   const setOpen = useCallback(
     (next: boolean) => {
       if (openProp === undefined) setUncontrolledOpen(next);
@@ -460,6 +459,12 @@ export function ListboxDropdown<K extends string>({
     if (nextFocusIndex < 0) setOptionsFocused(false);
     if (nextFocusIndex !== focusIndex) setFocusIndex(nextFocusIndex);
   }, [focusIndex, options, selectedIndex]);
+
+  useEffect(() => {
+    const wasDisabled = wasDisabledRef.current;
+    wasDisabledRef.current = disabled;
+    if (disabled && !wasDisabled) setOpen(false);
+  }, [disabled, setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -660,14 +665,14 @@ export function ListboxDropdown<K extends string>({
   const selectAt = useCallback(
     (index: number) => {
       const option = options[index];
-      if (!option || option.disabled) return;
+      if (disabled || !option || option.disabled) return;
       onChange(option.value);
       // A multi-select stays open: picking a second class without reopening
       // the menu is the whole point of the mode.
       if (isMulti) return;
       closeAndReturnFocus();
     },
-    [closeAndReturnFocus, isMulti, onChange, options],
+    [closeAndReturnFocus, disabled, isMulti, onChange, options],
   );
 
   const markOpenScrollTo = (index: number) => {

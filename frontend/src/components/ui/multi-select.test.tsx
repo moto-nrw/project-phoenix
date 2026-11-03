@@ -130,6 +130,20 @@ describe("MultiSelect", () => {
     expect(trigger()).toHaveTextContent("F");
   });
 
+  it("ignores values that no longer have an option", () => {
+    render(
+      <MultiSelect
+        ariaLabel="Auswahl"
+        value={["1", "entfernt"]}
+        options={OPTIONS}
+        onChange={() => undefined}
+        summaryLabel={(count) => `${count} Gruppen`}
+      />,
+    );
+
+    expect(trigger()).toHaveTextContent("Bärengruppe");
+  });
+
   it("disables the field and says so when there is nothing to choose", () => {
     render(
       <MultiSelect
@@ -195,11 +209,14 @@ describe("MultiSelect", () => {
     it("shows an empty state for no matches", () => {
       render(<Controlled searchable />);
       openMenu();
-      fireEvent.change(screen.getByRole("textbox", { name: "Suchen" }), {
+      const search = screen.getByRole("textbox", { name: "Suchen" });
+      fireEvent.change(search, {
         target: { value: "xyz" },
       });
 
       expect(screen.getByText("Keine Treffer.")).toBeInTheDocument();
+      fireEvent.keyDown(search, { key: "ArrowDown" });
+      fireEvent.keyDown(search, { key: "ArrowUp" });
       expect(trigger()).not.toHaveAttribute("aria-activedescendant");
     });
 

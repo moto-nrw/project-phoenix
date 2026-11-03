@@ -119,19 +119,16 @@ export function MultiSelect({
   const selectedOptions = options.filter((option) =>
     selectedSet.has(option.value),
   );
-  const labelFor = (optionValue: string) =>
-    options.find((option) => option.value === optionValue)?.label ??
-    optionValue;
   // Nothing to choose from: an open, empty menu would only be a dead end.
   const unavailable = options.length === 0;
 
   const triggerLabel = (() => {
     if (unavailable && unavailableLabel) return unavailableLabel;
-    if (selected.length === 0) return placeholder;
-    if (summaryLabel && selected.length > summaryThreshold) {
-      return summaryLabel(selected.length, selectedOptions);
+    if (selectedOptions.length === 0) return placeholder;
+    if (summaryLabel && selectedOptions.length > summaryThreshold) {
+      return summaryLabel(selectedOptions.length, selectedOptions);
     }
-    return selected.map(labelFor).join(", ");
+    return selectedOptions.map((option) => option.label).join(", ");
   })();
 
   const { visibleOptions, searching, listboxProps } = useListboxSearch(
