@@ -109,6 +109,7 @@ func TestTenantExportSnapshotIgnoresConcurrentWrites(t *testing.T) {
 	require.NoError(t, hook.err)
 	data, err := os.ReadFile(filepath.Join(out, "facilities.rooms.jsonl"))
 	require.NoError(t, err)
+	require.Contains(t, string(data), "synthetic-original-row", "the snapshot must still export the tenant's committed rooms")
 	require.NotContains(t, string(data), "synthetic-concurrent-row")
 }
 
