@@ -253,6 +253,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
+	// Raised by ADR 0150: the document template constructor (+6).
 	"modules/organizationtenancy/compose": 299,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).

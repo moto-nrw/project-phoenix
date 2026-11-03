@@ -128,6 +128,19 @@ func letterValues(content letterContent) map[string]templates.Value {
 	return values
 }
 
+// unfilledLetterPlaceholders names the placeholders of the confirmation
+// letter a value map has no value for. Every placeholder its kind offers the
+// Träger must be filled, or a paragraph of the Träger's template vanishes.
+func unfilledLetterPlaceholders(values map[string]templates.Value) []string {
+	var missing []string
+	for _, placeholder := range templates.Placeholders(templates.KindConfirmation) {
+		if value := values[placeholder.Name]; value.Text == "" && len(value.Rows) == 0 {
+			missing = append(missing, placeholder.Name)
+		}
+	}
+	return missing
+}
+
 func emergencyRows(contacts []parentbilling.BillingEmergencyContact) []templates.Row {
 	result := make([]templates.Row, len(contacts))
 	for i, contact := range contacts {
