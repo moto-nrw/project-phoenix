@@ -50,6 +50,13 @@ func WithSettingsSnapshot(ctx context.Context, snapshot *SettingsSnapshot) conte
 	return context.WithValue(ctx, settingsSnapshotContextKey{}, snapshot)
 }
 
+// HasExplicitSettingsSnapshot reports presence without inspecting its tenant or
+// keys. Adapters preserving scalar partial-snapshot semantics use this guard.
+func HasExplicitSettingsSnapshot(ctx context.Context) bool {
+	snapshot, _ := ctx.Value(settingsSnapshotContextKey{}).(*SettingsSnapshot)
+	return snapshot != nil
+}
+
 func SnapshotFromContext(ctx context.Context, tenantID int64, keys []string) *SettingsSnapshot {
 	snapshot, _ := ctx.Value(settingsSnapshotContextKey{}).(*SettingsSnapshot)
 	if snapshot == nil || snapshot.tenantID != tenantID || !snapshot.containsAll(keys) {

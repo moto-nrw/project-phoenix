@@ -201,7 +201,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
 // ADR 0148: the demo school file erasure constructor of
 // modules/organizationtenancy/compose adds exactly 10 LOC.
-const moduleComposeBudgetTotal = 12784
+const moduleComposeBudgetTotal = 12777
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -276,7 +276,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/securityruntime/compose": 7,
 	"modules/schoolstructure/compose": 593,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":             322,
+	"modules/settings/compose":             315,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	"modules/studentpresence/compose":                 250,
