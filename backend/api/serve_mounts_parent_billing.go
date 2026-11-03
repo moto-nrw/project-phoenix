@@ -357,14 +357,30 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 		}
 		registrations[i] = parentbilling.HolidayBillingRegistration{
 			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,
-			GuardianEmail: registration.GuardianEmail, DebtorNumber: registration.DebtorNumber,
-			HasBenefitsProof: registration.HasBenefitsProof, Children: children,
+			GuardianEmail: registration.GuardianEmail, DebtorNumber: registration.DebtorNumber, Children: children,
 		}
 		if address := registration.GuardianAddress; address != nil {
 			registrations[i].GuardianAddress = &parentbilling.PostalAddress{Street: address.Street, PostalCode: address.PostalCode, City: address.City}
 		}
 	}
 	return registrations, nil
+}
+
+// HolidayProofRegistrations reads every registration of the period through
+// the review, with no status filter, so a registration cancelled after its
+// invoice still names its proof (#5627); the review checks the Träger and
+// records the read like the list.
+func (b parentBillingBillingRegistrations) HolidayProofRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (map[int64]bool, error) {
+	registrations, err := b.review.ListHolidayRegistrationRecipients(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+		enrollmentOwner.HolidayRegistrationFilter{})
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	proofs := make(map[int64]bool, len(registrations))
+	for _, registration := range registrations {
+		proofs[registration.ID] = registration.HasBenefitsProof
+	}
+	return proofs, nil
 }
 
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {

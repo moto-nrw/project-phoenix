@@ -114,7 +114,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
-      "binding_digest": "81ed678c75b0b30ee9606aaa1456ceb3",
+      "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
@@ -134,6 +134,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayBillingPeriods",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPeriods.ListHolidayPeriods",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayProofRegistrations",
+      "binding_digest": "8eab5993e00957266ae32dac80ca3452",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayProofRegistrations",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
       "target_owner": "enrollment"
     },
     {

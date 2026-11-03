@@ -540,3 +540,32 @@ func TestStornoOfAnInvoiceWithACostTakeoverReversesTheTakeover(t *testing.T) {
 	assert.Contains(t, list, ";-67,50;33,75;-33,75;", "the Storno row reverses the invoice row")
 	assert.Contains(t, list, "Summe;;;0,00", "the cost bearer owes nothing for the cancelled invoice")
 }
+
+// TestReimbursementListKeepsTheProofOfACancelledRegistration pins that the
+// list names the proof of every registration it bills, whatever its status
+// now (#5627): a registration cancelled after its invoice was issued keeps
+// its invoice, its frozen contribution and its proof, so the list says "Ja".
+func TestReimbursementListKeepsTheProofOfACancelledRegistration(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Nachweis nach Storno der Anmeldung")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	office := createCostBearer(t, f, billing, youthOffice())
+	confirmSiblingsWithTakeover(t, f, office)
+	rec := uploadOfficeProof(t, f, f.office.token, f.siblings, "bescheid.pdf", proofPDF)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(f.siblings, "/cancel"), map[string]any{})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet,
+		billingRunPath(run.ID, fmt.Sprintf("/cost-takeovers/%d/export?format=csv", office.ID)), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	list := rec.Body.String()
+	assert.Contains(t, list, "FE-0001;Lia Muster;")
+	assert.Contains(t, list, ";67,50;0,00;67,50;Ja;", "the proof of the cancelled registration still counts")
+	assert.NotContains(t, list, ";Nein;", "no row denies the proof that exists")
+}

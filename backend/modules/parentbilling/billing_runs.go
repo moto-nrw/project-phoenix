@@ -237,10 +237,7 @@ type HolidayBillingRegistration struct {
 	GuardianEmail     string
 	GuardianAddress   *PostalAddress
 	DebtorNumber      string
-	// HasBenefitsProof reports a proof of benefits of the registration, for
-	// the list of a cost bearer (#5627).
-	HasBenefitsProof bool
-	Children         []HolidayBillingChild
+	Children          []HolidayBillingChild
 }
 
 // HolidayBillingRegistrations is Enrollment as the billing run reads a
@@ -252,6 +249,10 @@ type HolidayBillingRegistrations interface {
 	HolidayBillingPeriods(ctx context.Context, reviewer HolidayReviewer) ([]HolidayBillingPeriod, error)
 	HolidayBillingPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) (HolidayBillingPeriod, error)
 	ConfirmedHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayBillingRegistration, error)
+	// HolidayProofRegistrations names the registrations of the period with
+	// a proof of benefits, whatever their status now: an invoice outlives a
+	// cancellation of its registration, and so does the proof (#5627).
+	HolidayProofRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) (map[int64]bool, error)
 }
 
 // BillingRuns lets the Abrechnung of a Träger start, check, correct and
