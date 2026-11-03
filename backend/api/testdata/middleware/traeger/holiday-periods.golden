@@ -15,6 +15,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/holiday-periods/{id}/publish
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 	PUT /traeger/holiday-periods/{id}
 	PUT /traeger/holiday-periods/{id}/form

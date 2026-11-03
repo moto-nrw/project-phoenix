@@ -147,6 +147,8 @@ type documentPositionRow struct {
 	DiscountBasisPoints        *int           `bun:"discount_basis_points"`
 	DiscountCents              *int64         `bun:"discount_cents"`
 	Note                       string         `bun:"note"`
+	CostBearerID               *int64         `bun:"cost_bearer_id"`
+	CostBearerName             string         `bun:"cost_bearer_name"`
 }
 
 // ListBillingRuns lists the runs of the Träger, newest first.
@@ -435,6 +437,7 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 					WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn, TimeModelName: position.TimeModelName,
 					ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 					DiscountCents: position.DiscountCents, Note: position.Note,
+					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
 				})
 			}
 		}
@@ -582,6 +585,7 @@ func issuedChildren(positions []documentPositionRow) []parentbilling.BillingChil
 			Kind: position.Kind, AmountCents: position.AmountCents, WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn,
 			TimeModelName: position.TimeModelName, ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 			DiscountCents: position.DiscountCents, Note: position.Note,
+			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
 		})
 		children[at].TotalCents += position.AmountCents
 	}

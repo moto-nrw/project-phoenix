@@ -265,6 +265,7 @@ var tableRetentions = map[string]tableRetention{
 	"meta.migration_metadata":                               notPersonal("schema bookkeeping"),
 	"meta.parent_student_consent_permission_grants":         parent("users.student_guardian_relationships"),
 	"parent_billing.contribution_rules":                     notPersonal("contribution rule of a Träger (#4664): kind, parameters, validity and the note of an exemption, no person"),
+	"parent_billing.cost_bearers":                           notPersonal("body that pays the holiday contribution of a family in its place (#5627): name, address and file reference of an office, no person"),
 	"parent_billing.document_letters":                       parent("parent_billing.documents"),
 	"parent_billing.document_mailings":                      parent("parent_billing.document_letters"),
 	"parent_billing.document_positions":                     parent("parent_billing.documents"),

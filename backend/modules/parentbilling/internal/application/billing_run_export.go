@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -139,6 +140,12 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 		total += document.TotalCents
 	}
 	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatAmount(total)})
+	for _, takeover := range runCostTakeovers(documents) {
+		rows = append(rows, map[string]string{
+			"position": "Davon übernimmt " + takeover.name + " (" + invoiceCount(takeover.documents) + ")",
+			"amount":   formatAmount(takeover.cents),
+		})
+	}
 	return ExportTable{
 		Title: "Abrechnungsanordnung", Subtitle: run.PeriodName,
 		Lines: overviewLines(run, documents, total), Columns: overviewColumns(documents), Rows: rows,
@@ -225,7 +232,11 @@ func overviewLines(run parentbilling.BillingRun, all []parentbilling.BillingDocu
 		count += ", Nummern " + documents[0].Number + " bis " + documents[len(documents)-1].Number
 	}
 	lines = append(append(lines, count), corrections...)
-	return append(lines, "Gesamtsumme: "+formatAmount(total)+" Euro")
+	lines = append(lines, "Gesamtsumme: "+formatAmount(total)+" Euro")
+	for _, takeover := range runCostTakeovers(all) {
+		lines = append(lines, "Davon übernimmt "+takeover.name+": "+formatAmount(takeover.cents)+" Euro ("+invoiceCount(takeover.documents)+")")
+	}
+	return lines
 }
 
 // hasCorrections reports a run with a Storno or a Gutschrift, or with an
@@ -316,12 +327,85 @@ func overviewPositionLabel(position parentbilling.BillingPosition) string {
 		return label
 	case parentbilling.LineBenefitsExemption:
 		return "Befreiung bei Leistungsbezug: " + position.Note
+	case parentbilling.LineCostTakeover:
+		return "Kostenübernahme: " + position.CostBearerName
 	case parentbilling.LineCorrection:
 		return "Korrektur: " + position.Note
 	case parentbilling.LineCredit:
 		return "Gutschrift: " + position.Note
 	}
 	return position.Kind
+}
+
+// costTakeover is what one cost bearer pays in a run: the sum and the
+// number of invoices, under the name the first invoice copied.
+type costTakeover struct {
+	id        int64
+	name      string
+	cents     int64
+	documents int
+}
+
+// runCostTakeovers sums the cost takeovers of the documents per cost
+// bearer, in the order the cost bearers first appear (#5627). A Storno
+// negates every position of its invoice (#4690), the takeover line too: its
+// amount reverses the invoice's and it takes the invoice out of the count.
+// A cost bearer whose invoices are all cancelled pays nothing and is left
+// out.
+func runCostTakeovers(documents []parentbilling.BillingDocument) []costTakeover {
+	var takeovers []costTakeover
+	index := map[int64]int{}
+	for _, document := range documents {
+		count := 1
+		if document.Kind == parentbilling.DocumentCancellation {
+			count = -1
+		}
+		for _, paid := range documentCostTakeovers(document) {
+			at, ok := index[paid.id]
+			if !ok {
+				at = len(takeovers)
+				index[paid.id] = at
+				takeovers = append(takeovers, costTakeover{id: paid.id, name: paid.name})
+			}
+			takeovers[at].cents += paid.cents
+			takeovers[at].documents += count
+		}
+	}
+	paying := takeovers[:0]
+	for _, takeover := range takeovers {
+		if takeover.documents > 0 || takeover.cents != 0 {
+			paying = append(paying, takeover)
+		}
+	}
+	return paying
+}
+
+// documentCostTakeovers is what each cost bearer pays of one invoice. A
+// takeover line is negative; the sum is positive.
+func documentCostTakeovers(document parentbilling.BillingDocument) []costTakeover {
+	var paid []costTakeover
+	for _, child := range document.Children {
+		for _, position := range child.Positions {
+			if position.Kind != parentbilling.LineCostTakeover || position.CostBearerID == nil {
+				continue
+			}
+			at := slices.IndexFunc(paid, func(takeover costTakeover) bool { return takeover.id == *position.CostBearerID })
+			if at < 0 {
+				at = len(paid)
+				paid = append(paid, costTakeover{id: *position.CostBearerID, name: position.CostBearerName})
+			}
+			paid[at].cents -= position.AmountCents
+		}
+	}
+	return paid
+}
+
+// invoiceCount writes "1 Rechnung" or "3 Rechnungen".
+func invoiceCount(count int) string {
+	if count == 1 {
+		return "1 Rechnung"
+	}
+	return strconv.Itoa(count) + " Rechnungen"
 }
 
 // formatAmount writes cents the German way without a currency sign:

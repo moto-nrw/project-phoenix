@@ -8,8 +8,9 @@ import (
 )
 
 // The rule chain of the holiday contribution (ADR 0088 section 4, ADR 0115):
-// base price, sibling rule, exemption. It is pure; the caller reads the
-// rules and the bookings and decides whether the exemption applies.
+// base price, sibling rule, then the exemption or the cost takeover by a
+// cost bearer (#5627). It is pure; the caller reads the rules and the
+// bookings and decides whether the exemption or which cost bearer applies.
 
 // holidayRules are the rules of one Träger valid on one day.
 type holidayRules struct {
@@ -51,8 +52,10 @@ func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 }
 
 // computeHolidayContribution runs the chain over the children of one
-// registration. exemption applies the exemption rule when there is one.
-func computeHolidayContribution(children []parentbilling.HolidayChild, rules holidayRules, exemption bool) parentbilling.HolidayContribution {
+// registration. exemption applies the exemption rule when there is one; a
+// cost bearer takes over what is left after the sibling rule. The caller
+// never passes both.
+func computeHolidayContribution(children []parentbilling.HolidayChild, rules holidayRules, exemption bool, bearer *parentbilling.CostBearer) parentbilling.HolidayContribution {
 	result := parentbilling.HolidayContribution{
 		Children:           make([]parentbilling.HolidayChildContribution, len(children)),
 		ExemptionAvailable: rules.exemption != nil,
@@ -62,9 +65,15 @@ func computeHolidayContribution(children []parentbilling.HolidayChild, rules hol
 		result.Children[i] = holidayBaseLines(child)
 	}
 	applySiblingRule(result.Children, rules.sibling)
-	if result.BenefitsExemption {
+	switch {
+	case result.BenefitsExemption:
 		for i := range result.Children {
 			applyExemption(&result.Children[i], rules.exemption)
+		}
+	case bearer != nil:
+		result.CostBearerID, result.CostBearerName = &bearer.ID, bearer.Name
+		for i := range result.Children {
+			applyCostTakeover(&result.Children[i], bearer)
 		}
 	}
 	for i := range result.Children {
@@ -157,6 +166,20 @@ func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentb
 	}
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineBenefitsExemption, AmountCents: -child.TotalCents, Note: rule.Note,
+	})
+	child.TotalCents = 0
+}
+
+// applyCostTakeover lets the cost bearer pay what is left of the child's
+// contribution and copies its ID and name into the line, even when nothing
+// is left (#5627).
+func applyCostTakeover(child *parentbilling.HolidayChildContribution, bearer *parentbilling.CostBearer) {
+	if len(child.Lines) == 0 {
+		return
+	}
+	id := bearer.ID
+	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
+		Kind: parentbilling.LineCostTakeover, AmountCents: -child.TotalCents, CostBearerID: &id, CostBearerName: bearer.Name,
 	})
 	child.TotalCents = 0
 }

@@ -1,0 +1,4 @@
+DELETE /traeger/cost-bearers/{id} -> basis
+GET /traeger/cost-bearers/ -> basis
+POST /traeger/cost-bearers/ -> basis
+PUT /traeger/cost-bearers/{id} -> basis

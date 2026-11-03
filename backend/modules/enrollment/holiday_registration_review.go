@@ -49,6 +49,9 @@ const (
 	// HolidayAuditDebtorNumber records a change of the debtor number of a
 	// confirmed registration (#5621).
 	HolidayAuditDebtorNumber = "debtor_number"
+	// HolidayAuditProofUpload records a proof of benefits the Träger-Büro
+	// uploaded for the family (#5627).
+	HolidayAuditProofUpload = "proof_upload"
 	// HolidayAuditEdit records a change of the details the family entered
 	// (#5629). It names the changed fields, never their values.
 	HolidayAuditEdit = "edit"
@@ -250,7 +253,10 @@ type HolidayRegistrationDetail struct {
 	CustodyConfirmedAt *time.Time                 `json:"custody_confirmed_at"`
 	DeclarationName    string                     `json:"declaration_name"`
 	BenefitsProofs     []HolidayRegistrationProof `json:"benefits_proofs"`
-	History            []HolidayRegistrationEvent `json:"history"`
+	// BenefitsProofAttached reports a proof without reading its list; the
+	// recipients of the Elternabrechnung carry it (#5627), no answer does.
+	BenefitsProofAttached bool                       `json:"-"`
+	History               []HolidayRegistrationEvent `json:"history"`
 }
 
 // HolidayRegistrationExportRow is one booking of the export: one row per
@@ -272,6 +278,9 @@ type HolidayRegistrationExportRow struct {
 type HolidayRegistrationRecipient struct {
 	HolidayRegistrationSummary
 	GuardianAddress *HolidayAddress
+	// HasBenefitsProof reports a proof of benefits of the registration, for
+	// the list a cost bearer gets (#5627). Only this read names it.
+	HasBenefitsProof bool
 }
 
 // HolidayRegistrationExport is the export of a period: its rows and one
@@ -383,6 +392,12 @@ type HolidayRegistrationReview interface {
 	// OpenHolidayRegistrationProof returns one proof of benefits of a
 	// registration with its bytes (#5238).
 	OpenHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, proofID int64) (HolidayProofFile, error)
+	// UploadHolidayRegistrationProof stores a proof of benefits the family
+	// brought on paper as a proof of the registration (#5627), with the
+	// limits of HolidayProofOptions; a file outside them is an
+	// UploadRejection, one more file than the limit ErrHolidayProofLimit, a
+	// cancelled registration ErrHolidayRegistrationStateConflict.
+	UploadHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, upload HolidayProofUpload) (HolidayRegistrationDetail, error)
 }
 
 // HolidaySchoolNames names the schools of a Träger for the export of the

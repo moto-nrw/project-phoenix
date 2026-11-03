@@ -20,6 +20,11 @@ const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
+const CodeParentBillingCostBearerInUse = "parent_billing.cost_bearer_in_use"
+const CodeParentBillingCostBearerInactive = "parent_billing.cost_bearer_inactive"
+const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
+const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
+const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
@@ -54,6 +59,11 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},
+	{CodeParentBillingCostBearerInUse, "business_rejection"},
+	{CodeParentBillingCostBearerInactive, "business_rejection"},
+	{CodeParentBillingCostBearerInvalid, "input"},
+	{CodeParentBillingCostBearerNotFound, "business_rejection"},
+	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},

@@ -5,7 +5,8 @@
  * portal's client.
  */
 
-type ContributionLineKind = "base" | "sibling" | "benefits_exemption";
+type ContributionLineKind =
+  "base" | "sibling" | "benefits_exemption" | "cost_takeover";
 
 export interface ContributionLine {
   readonly kind: ContributionLineKind;
@@ -18,6 +19,8 @@ export interface ContributionLine {
   readonly discountBasisPoints: number | null;
   readonly discountCents: number | null;
   readonly note: string;
+  /** Cost takeover (#5627): the copied name of the cost bearer. */
+  readonly costBearerName?: string;
 }
 
 interface ChildContribution {
@@ -36,6 +39,9 @@ export interface HolidayContribution {
   readonly exemptionAvailable: boolean;
   /** The exemption applies. */
   readonly benefitsExemption: boolean;
+  /** The cost bearer that pays instead of the family (#5627); null if none. */
+  readonly costBearerId?: string | null;
+  readonly costBearerName?: string;
   /** Frozen at the confirmation; a preview otherwise. */
   readonly frozen: boolean;
   readonly confirmedAt: string | null;
@@ -56,6 +62,7 @@ interface BackendLine {
   discount_basis_points: number | null;
   discount_cents: number | null;
   note: string;
+  cost_bearer_name?: string;
 }
 
 export interface BackendContribution {
@@ -70,6 +77,8 @@ export interface BackendContribution {
   total_cents: number;
   exemption_available: boolean;
   benefits_exemption: boolean;
+  cost_bearer_id?: number | null;
+  cost_bearer_name?: string;
   frozen: boolean;
   confirmed_at: string | null;
   invoiced?: boolean;
@@ -94,11 +103,16 @@ export function contributionFromBackend(
         discountBasisPoints: line.discount_basis_points,
         discountCents: line.discount_cents,
         note: line.note,
+        costBearerName: line.cost_bearer_name ?? "",
       })),
     })),
     totalCents: contribution.total_cents,
     exemptionAvailable: contribution.exemption_available,
     benefitsExemption: contribution.benefits_exemption,
+    costBearerId: contribution.cost_bearer_id
+      ? String(contribution.cost_bearer_id)
+      : null,
+    costBearerName: contribution.cost_bearer_name ?? "",
     frozen: contribution.frozen,
     confirmedAt: contribution.confirmed_at,
     invoiced: contribution.invoiced ?? false,
