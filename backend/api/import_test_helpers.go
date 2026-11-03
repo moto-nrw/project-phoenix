@@ -8,7 +8,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -34,13 +33,10 @@ type ImportTestModule struct {
 // ImportTestOptions decorate the owner ports of the composed import.
 // WrapGuardians lets a test inject an owner failure at a chosen row, so the
 // per-row savepoint and the batch rollback are observable without a
-// contrived data shape. Mailer replaces the auth module's mail transport,
-// so staff invitations of an import can be accepted and counted instead of
-// waiting out the default refusing transport's retries.
+// contrived data shape.
 type ImportTestOptions struct {
 	WrapGuardians importPorts.GuardianPortDecorator
 	Clock         func() time.Time
-	Mailer        email.Mailer
 }
 
 // NewImportTestModule composes the Data Import over the real owners
@@ -62,6 +58,18 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 // with the People Directory, guardian provider bound, and the School
 // Membership the import writes through, for suites that mount its routes.
 func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
+	return newImportTestModule(db, unit, options)
+}
+
+// NewImportTestModuleWithAuth is NewImportTestModuleWithOptions whose auth
+// module, which sends the staff invitations of an import, takes the given
+// options (for example WithAuthTestMailer to accept and count mail).
+func NewImportTestModuleWithAuth(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions, auth ...AuthTestOption) (ImportTestModule, error) {
+	module, _, _, err := newImportTestModule(db, unit, options, auth...)
+	return module, err
+}
+
+func newImportTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options ImportTestOptions, authOptions ...AuthTestOption) (ImportTestModule, peopledirectory.Capability, schoolmembership.Capability, error) {
 	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
@@ -69,10 +77,6 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	students, _, err := NewStudentTestRepositories(db, command)
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
-	}
-	var authOptions []AuthTestOption
-	if options.Mailer != nil {
-		authOptions = append(authOptions, WithAuthTestMailer(options.Mailer))
 	}
 	auth, err := NewAuthTestModule(db, unit, authOptions...)
 	if err != nil {

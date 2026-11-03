@@ -91,7 +91,7 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 			// each successful replay. Keep the real invitation owner and worker,
 			// but accept its mail: this test verifies owner rollback, not SMTP.
 			mailer := testpkg.NewCapturingMailer()
-			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{Mailer: mailer})
+			module, err := api.NewImportTestModuleWithAuth(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{}, api.WithAuthTestMailer(mailer))
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", tenantID)
