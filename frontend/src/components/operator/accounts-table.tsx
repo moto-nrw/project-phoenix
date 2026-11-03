@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "~/components/ui/button";
 import { useMemo } from "react";
 import type {
   OrgAccount,
@@ -214,31 +215,34 @@ export function AccountsTable({
           return (
             <div className="flex flex-wrap justify-end gap-2">
               {canManageCaregiver && (
-                <button
+                <Button
                   type="button"
+                  variant="surface"
+                  size="compact"
                   onClick={() => onManageCaregiver?.(row, schoolContext)}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   Betreuung verwalten
-                </button>
+                </Button>
               )}
               {canManageMFA && (
-                <button
+                <Button
                   type="button"
+                  variant="surface"
+                  size="compact"
                   onClick={() => onManageMFA?.(row, schoolContext)}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   2FA verwalten
-                </button>
+                </Button>
               )}
               {canManageTenantAccess && (
-                <button
+                <Button
                   type="button"
+                  variant="surface"
+                  size="compact"
                   onClick={() => onManageTenantAccess?.(row)}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   Schulzugänge
-                </button>
+                </Button>
               )}
             </div>
           );

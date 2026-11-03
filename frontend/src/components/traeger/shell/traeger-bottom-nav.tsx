@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -96,10 +95,10 @@ export function TraegerBottomNav() {
         ))}
         {crowded ? (
           <li>
-            <Button
+            {/* Navigationszeile wie im Elternportal, kein Kit-Knopf (#5536):
+                Form und Zustand kommen aus der geteilten unteren Leiste. */}
+            <button
               type="button"
-              variant="ghost"
-              size="compact"
               onClick={() => setMoreOpen(true)}
               data-traeger-nav-item="more"
               data-active={moreActive ? "true" : "false"}
@@ -114,7 +113,7 @@ export function TraegerBottomNav() {
                 className="h-5 w-5 shrink-0"
               />
               {moreActive ? <span className={LABEL}>Mehr</span> : null}
-            </Button>
+            </button>
           </li>
         ) : null}
       </PortalBottomNav>

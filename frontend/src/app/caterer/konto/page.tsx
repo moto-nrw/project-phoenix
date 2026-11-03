@@ -280,7 +280,7 @@ function TwoFactorSection({
               </Button>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="md"
                 disabled={busy}
                 onClick={reset}
@@ -317,7 +317,7 @@ function TwoFactorSection({
               </Button>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="md"
                 disabled={busy}
                 onClick={reset}

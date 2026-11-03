@@ -5,6 +5,7 @@ import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { Button } from "~/components/ui/button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -139,24 +140,26 @@ function OperatorDevicesPageContent() {
   );
 
   const actionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="md"
       onClick={() => setCreateDeviceOpen(true)}
-      className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
     >
       Neues Gerät
-    </button>
+    </Button>
   );
 
   const mobileActionButton = (
-    <button
+    <Button
       type="button"
+      variant="primary"
+      size="icon"
       onClick={() => setCreateDeviceOpen(true)}
-      className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
       aria-label="Neues Gerät"
     >
       <PlusIcon />
-    </button>
+    </Button>
   );
 
   return (

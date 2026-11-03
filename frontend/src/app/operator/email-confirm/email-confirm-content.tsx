@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Mail, Check, X } from "lucide-react";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -118,14 +119,15 @@ export function EmailConfirmContent() {
           <p className="mb-6 text-gray-600">
             Klicke auf den Button, um deine neue E-Mail-Adresse zu bestätigen.
           </p>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="base"
             ref={primaryRef as React.RefObject<HTMLButtonElement>}
             onClick={() => void handleConfirm()}
-            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
           >
             Jetzt bestätigen
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -162,7 +164,11 @@ export function EmailConfirmContent() {
           <Link
             href={operatorPath("/operator/settings?tab=profile")}
             ref={primaryRef as React.RefObject<HTMLAnchorElement>}
-            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
+            className={buttonClassName({
+              variant: "primary",
+              size: "base",
+              className: "",
+            })}
           >
             Weiter
           </Link>
@@ -188,7 +194,11 @@ export function EmailConfirmContent() {
           <Link
             href={operatorPath("/operator/settings")}
             ref={primaryRef as React.RefObject<HTMLAnchorElement>}
-            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
+            className={buttonClassName({
+              variant: "primary",
+              size: "base",
+              className: "",
+            })}
           >
             Zu den Einstellungen
           </Link>

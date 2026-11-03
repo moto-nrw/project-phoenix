@@ -62,6 +62,7 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
   DeletedEntityCard,
+  TrashToggleButton,
   useSoftDeletable,
 } from "~/app/operator/provisioning/soft-delete-shared";
 import {
@@ -498,24 +499,26 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         >
           <DataTableStatusBadge active={organization?.active ?? false} />
         </button>
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="compact"
           onClick={() => setEditOrgOpen(true)}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Bearbeiten
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline_danger"
+          size="compact"
           onClick={() => {
             if (organization) {
               orgDelete.setDeleteTarget(organization);
             }
           }}
-          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
-        </button>
+        </Button>
       </>
     ),
     [handleToggleOrgActive, orgDelete, organization],
@@ -533,26 +536,23 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       return (
         <>
           {deletedSchools.length > 0 && (
-            <button
-              type="button"
-              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                schoolDelete.showTrash
-                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Papierkorb ({deletedSchools.length})
-            </button>
+            <TrashToggleButton
+              count={deletedSchools.length}
+              active={schoolDelete.showTrash}
+              onToggle={() =>
+                schoolDelete.setShowTrash(!schoolDelete.showTrash)
+              }
+            />
           )}
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setCreateSchoolOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
           >
             <PlusIcon />
             Neue Schule
-          </button>
+          </Button>
         </>
       );
     }
@@ -583,14 +583,15 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
     if (activeTab === "geraete") {
       return (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={() => setCreateDeviceOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
         >
           <PlusIcon />
           Neues Gerät
-        </button>
+        </Button>
       );
     }
 
