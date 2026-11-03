@@ -880,9 +880,21 @@ describe("button ratchet baseline", () => {
       }
       sources.set(entry.file, lines);
     }
-    sources.set("src/components/probe.tsx", [
-      `export const probe = ${findingAt["no-hand-rolled-button"]};`,
-    ]);
+    // Der zusätzliche Fund liegt in einer Datei, die die echte Baseline schon
+    // zählt, und bleibt innerhalb dieser Zahl. Liest das Skript versehentlich
+    // die Standard-Baseline statt UI_KIT_BUTTON_BASELINE_PATH, sieht es keine
+    // Erhöhung, schreibt und endet mit 0; dann wird dieser Test rot.
+    const [baselinedFile] = Object.keys(
+      buttonRatchetBaseline["no-hand-rolled-button"],
+    ).filter((file) => file.endsWith(".tsx"));
+    expect(baselinedFile).toBeDefined();
+    const baselinedLines = sources.get(baselinedFile!) ?? [
+      `import { Button } from "~/components/ui/button";`,
+    ];
+    baselinedLines.push(
+      `export const probeExtra = ${findingAt["no-hand-rolled-button"]};`,
+    );
+    sources.set(baselinedFile!, baselinedLines);
     for (const [file, lines] of sources) {
       mkdirSync(dirname(join(directory, file)), { recursive: true });
       writeFileSync(join(directory, file), `${lines.join("\n")}\n`);
