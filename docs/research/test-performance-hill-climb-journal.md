@@ -957,3 +957,10 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Paket n=3: 114,6/104,5/108,7 → 59,4/60,5/83,0 s (Median 108,7 → 60,5, −44 %). Tests: GitHook 48,4 → 0,55; SharedFixtureEpoch 39,2 → 3,0; HTTPHostEpoch 19,1 → 2,9; InternalReachEpoch 18,0 → 5,8; ParentHTTPEpoch 16,0 → 3,0; SharedKernelEpoch 12,0 → 5,0 s. Übrige Baseline-Tests 10–13 s lagen reproduziert darunter (Paketkonkurrenz).
 - Mutationen (ruleLoosenings überspringt application/domain, Dispatch ohne ruleLoosenings, Composition-Vergleich immer rot) vorher/nachher an gleichen Assertions rot. Inventar 959 → 988 (29 bestehende Tabellenfälle jetzt benannt, keine entfernt).
 - Review Opus: OK, Restlücke „verlinkter Worktree“; Parent ergänzte ihn (`6832a0435b`), Mutation „Wrapper löscht Hook-Git-Variablen nicht“ rot.
+
+### Abschlussvergleich, gepaart B (ed22e7b46e) gegen C (61545feba3)
+- Je Seite ein Warmlauf, dann B1→C1, C2→B2 über den unveränderten Messplatz (`--root`), keine andere eigene Testlast.
+- Frontend `full`: B 181,1/173,0 s (Median 177,05) → C 158,5/159,0 s (Median 158,75); Paare 1,143×/1,088×, Median 1,115×. CPU 813,8 → 765,4 s, RSS 3952 → 3517 MB. Inventar 1541/24771 identisch (`compare` comparable).
+- Backend `backend-full`: B 457,7/444,5 s (Median 451,1) → C 320,1/323,2 s (Median 321,65); Paare 1,430×/1,375×, Median 1,402×. CPU 915,3 → 686,0 s, RSS 6413 → 6189 MB. Inventar: 0 fehlend, +29 (in B-arch benannte Tabellenfälle), 30 Skips beidseitig; `compare` lehnt deshalb ab, Differenz einzeln geprüft (`tmp/hc4/inv.mjs`).
+- 4×-Ziel verfehlt: Frontend bräuchte 44,3 s (weitere 3,6×), Backend 112,8 s (weitere 2,85×). Frontend-Rest ist Overhead pro Datei (happy-dom-Import, React-Dev-Render), Backend-Rest Paketsumme bei 2 Paketen parallel plus Build.
+- Ein erster C-Backend-Warmlauf war rot (Funktionslängen-Ratchet nach Umbenennung im Import-Testhelfer); behoben in `61545feba3`, Backend-Block vollständig neu gemessen.
