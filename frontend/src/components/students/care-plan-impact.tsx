@@ -86,8 +86,12 @@ export function CarePlanImpact({
     [],
   );
   // Den erledigten Stand nach oben melden, damit eine Liste ihn behält.
+  // Die Ref folgt dem Callback im Effect, nicht beim Rendern (React darf
+  // ein Rendern wiederholen). Der Effekt darunter meldet den Stand danach.
   const onProgressRef = useRef(onProgress);
-  onProgressRef.current = onProgress;
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
   useEffect(() => {
     onProgressRef.current?.({
       removed: [...removed],
