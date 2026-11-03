@@ -560,7 +560,7 @@ export interface HolidayRegistrationContactEdit {
 }
 
 /** The details of one child; a null school makes it a holiday guest. */
-export interface HolidayRegistrationChildEdit {
+interface HolidayRegistrationChildEdit {
   readonly id: string;
   readonly firstName: string;
   readonly lastName: string;
@@ -599,7 +599,7 @@ function personBody(person: HolidayRegistrationPersonEdit) {
 }
 
 /** The request body; the field names are those of the public form. */
-export function holidayRegistrationEditBody(
+function holidayRegistrationEditBody(
   edit: HolidayRegistrationEdit,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {};
