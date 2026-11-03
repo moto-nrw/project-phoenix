@@ -211,7 +211,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows no proof card without the statement on benefits (#5238)", async () => {
+  it("offers the upload of a paper proof without the statement on benefits (#5238, #5627)", async () => {
     render(
       <ToastProvider>
         <TraegerHolidayRegistrationPage />
@@ -221,10 +221,16 @@ describe("TraegerHolidayRegistrationPage", () => {
       await screen.findByRole("heading", { name: "Eltern" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", {
-        name: "Nachweis für den Leistungsbezug",
-      }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("heading", { name: "Nachweis für den Leistungsbezug" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Kein Nachweis. Bringt eine Familie mit Leistungsbezug den Nachweis auf Papier, laden Sie ihn hier hoch.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Nachweis hochladen" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the declaration with name, custody, version and its texts (#5626)", async () => {

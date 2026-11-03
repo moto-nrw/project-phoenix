@@ -12,6 +12,7 @@ import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
+import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
@@ -263,6 +264,7 @@ export default function TraegerBillingRunPage() {
                 : undefined
             }
           />
+          <BillingCostTakeoverCard run={run} />
         </>
       ) : null}
     </TenantPage>

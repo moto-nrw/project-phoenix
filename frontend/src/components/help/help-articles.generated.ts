@@ -9779,10 +9779,23 @@ export const traegerBillingRunTopic =
             "Geben Sie die Datei an die Kämmerei weiter.",
           ],
         },
+        {
+          title: "Liste für die Erstattung herunterladen",
+          description:
+            "Das geht, sobald der Lauf freigegeben ist und ein Kostenträger Beiträge übernimmt.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Die Karte `Kostenübernahme` zeigt je Kostenträger die Zahl der Rechnungen und den Betrag.",
+            "Wählen Sie in der Zeile des Kostenträgers das Menü mit den drei Punkten.",
+            "Wählen Sie unter `Liste für die Erstattung` das Format: `PDF`, `Excel` oder `CSV`.",
+            "Schicken Sie die Liste an den Kostenträger. Sie nennt je Kind die Wochen, den Grundbetrag, die Geschwisterermäßigung, den übernommenen Betrag, ob ein Nachweis vorlag und den Tag der Bestätigung.",
+          ],
+        },
       ],
       result:
         "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme.",
       notes: [
+        "Bezahlt ein Kostenträger, bekommt die Familie eine Rechnung über 0 €. Im Schreiben steht, wer die Kosten übernimmt. Die Übersicht für die Kämmerei nennt unter der Gesamtsumme je Kostenträger den Betrag, den er übernimmt.",
         "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
@@ -9880,7 +9893,7 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
-/** `/traeger/beitraege` (#4664): Regeln des Ferienbeitrags. */
+/** `/traeger/beitraege` (#4664, #5627): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
     return {
@@ -9888,7 +9901,7 @@ export const traegerHolidayContributionTopic =
       title: "Ferienbeitrag festlegen",
       question: "Wie rechnet moto den Ferienbeitrag?",
       summary:
-        "Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Geschwister zahlen weniger, Familien mit Leistungsbezug nichts.",
+        "Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Geschwister zahlen weniger. Bei Leistungsbezug zahlt die Familie nichts.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Landmark",
@@ -9923,6 +9936,17 @@ export const traegerHolidayContributionTopic =
             "Wählen Sie `Speichern`.",
           ],
         },
+        {
+          title: "Kostenträger anlegen",
+          description:
+            "Ein Kostenträger bezahlt den Beitrag für eine Familie, zum Beispiel das Jugendamt bei Leistungsbezug. Sie fordern den Betrag dann beim Kostenträger an.",
+          steps: [
+            "Wählen Sie bei `Kostenträger` den Knopf `Kostenträger hinzufügen`.",
+            "Tragen Sie den `Name` ein. `Anschrift` und `Ihr Aktenzeichen beim Kostenträger` sind freiwillig.",
+            "Wählen Sie `Speichern`.",
+            "Gibt es den Kostenträger nicht mehr, wählen Sie im Menü der Zeile `Ausschalten`. Beim Bestätigen steht er dann nicht mehr zur Wahl.",
+          ],
+        },
       ],
       result:
         "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
@@ -9930,7 +9954,9 @@ export const traegerHolidayContributionTopic =
         "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
         "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
-        "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
+        "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen.",
+        "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag nach der Geschwisterermäßigung.",
+        "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ermäßigungen`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -10158,7 +10184,9 @@ export const traegerHolidayRegistrationReviewTopic =
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
+            "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
+            "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
             "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
@@ -10214,6 +10242,7 @@ export const traegerHolidayRegistrationReviewTopic =
       ],
       differences: [
         "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
+        "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn unter `Ermäßigungen` an.",
         "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie unter `Einstellungen` im Bereich `Ferienbetreuung` fest.",
       ],
       troubleshootingDetails: [

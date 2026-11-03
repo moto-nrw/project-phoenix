@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import type { ContributionRule } from "~/lib/traeger-contributions-api";
+import type {
+  ContributionRule,
+  CostBearer,
+} from "~/lib/traeger-contributions-api";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { api } = vi.hoisted(() => ({
@@ -11,6 +14,9 @@ const { api } = vi.hoisted(() => ({
     createContributionRule: vi.fn(),
     updateContributionRule: vi.fn(),
     deleteContributionRule: vi.fn(),
+    fetchCostBearers: vi.fn(),
+    saveCostBearer: vi.fn(),
+    deleteCostBearer: vi.fn(),
   },
 }));
 
@@ -29,6 +35,15 @@ const SIBLING: ContributionRule = {
   note: "",
 };
 
+const YOUTH_OFFICE: CostBearer = {
+  id: "4",
+  name: "Fachdienst Jugend des Landkreises Musterstadt",
+  address: "Am Kreishaus 1\n12345 Musterstadt",
+  fileReference: "FJ 51-2027",
+  active: true,
+  inUse: true,
+};
+
 function renderPage() {
   render(
     <ToastProvider>
@@ -41,6 +56,7 @@ describe("TraegerBeitraegePage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
     api.fetchContributionRules.mockResolvedValue([SIBLING]);
+    api.fetchCostBearers.mockResolvedValue([]);
   });
 
   it("lists the rules by kind and names the kind without a rule", async () => {
@@ -123,6 +139,75 @@ describe("TraegerBeitraegePage", () => {
         kind: "benefits_exemption",
         note: "Beitragsfrei mit Nachweis",
         siblingFromChild: null,
+      }),
+    );
+  });
+
+  it("adds a cost bearer and asks for its name", async () => {
+    api.saveCostBearer.mockResolvedValue(YOUTH_OFFICE);
+    renderPage();
+    expect(
+      (
+        await screen.findAllByText(
+          "Kein Kostenträger. Beim Bestätigen bezahlt die Familie oder ist befreit.",
+        )
+      )[0],
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kostenträger hinzufügen" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte geben Sie den Namen ein."),
+    ).toBeInTheDocument();
+    expect(api.saveCostBearer).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/^Name/), {
+      target: { value: YOUTH_OFFICE.name },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Ihr Aktenzeichen beim Kostenträger (freiwillig)"),
+      { target: { value: "FJ 51-2027" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.saveCostBearer).toHaveBeenCalledWith(null, {
+        name: YOUTH_OFFICE.name,
+        address: "",
+        fileReference: "FJ 51-2027",
+        active: true,
+      }),
+    );
+    await waitFor(() => expect(api.fetchCostBearers).toHaveBeenCalledTimes(2));
+  });
+
+  it("only switches off a cost bearer a contribution names", async () => {
+    api.fetchCostBearers.mockResolvedValue([YOUTH_OFFICE]);
+    api.saveCostBearer.mockResolvedValue({ ...YOUTH_OFFICE, active: false });
+    renderPage();
+    const name = (await screen.findAllByText(YOUTH_OFFICE.name))[0];
+    expect(name).toHaveClass("wrap-anywhere");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: `Aktionen für ${YOUTH_OFFICE.name}`,
+      })[0]!,
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Ausschalten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Ändern" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Löschen" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ausschalten" }));
+
+    await waitFor(() =>
+      expect(api.saveCostBearer).toHaveBeenCalledWith("4", {
+        ...YOUTH_OFFICE,
+        active: false,
       }),
     );
   });

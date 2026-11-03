@@ -37,7 +37,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
           "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
           "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-          "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+          "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
+          "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
+          "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
           "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
           "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
           "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
@@ -93,6 +95,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
+      "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn unter `Ermäßigungen` an.",
       "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie unter `Einstellungen` im Bereich `Ferienbetreuung` fest.",
     ],
     troubleshootingDetails: [

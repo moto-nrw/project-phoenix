@@ -23,6 +23,7 @@ const ACTION_LABELS: Readonly<
   reopen: "Wieder geöffnet",
   rebook: "Umgebucht",
   debtor_number: "Debitorennummer geändert",
+  proof_upload: "Nachweis hochgeladen",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {

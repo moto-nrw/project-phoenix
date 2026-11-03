@@ -124,6 +124,8 @@ export default function TraegerHolidayRegistrationPage() {
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
+  // The cost bearer that pays instead of the family (#5627); null otherwise.
+  const [costBearerId, setCostBearerId] = useState<string | null>(null);
   // While the preview is computed again, the confirmation waits for it: it
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
@@ -157,6 +159,7 @@ export default function TraegerHolidayRegistrationPage() {
       setHealth(loadedHealth);
       setContribution(loadedContribution);
       setExemption(loadedRegistration.benefitsDeclared);
+      setCostBearerId(null);
       clearLoadError();
     } catch (err) {
       logger.error("traeger_holiday_registration_load_failed", {
@@ -177,14 +180,15 @@ export default function TraegerHolidayRegistrationPage() {
   // would freeze, so the contribution is read again; only the newest answer
   // is shown.
   const refreshContribution = useCallback(
-    async (withExemption: boolean) => {
+    async (withExemption: boolean, withCostBearer: string | null) => {
       const request = ++latestContribution.current;
       setPreviewPending(true);
       try {
         const next = await fetchHolidayContribution(
           periodId,
           registrationId,
-          withExemption,
+          withCostBearer ? false : withExemption,
+          withCostBearer ?? undefined,
         );
         if (request === latestContribution.current) {
           setContribution(next);
@@ -208,15 +212,23 @@ export default function TraegerHolidayRegistrationPage() {
   const changed = useCallback(
     (next: HolidayRegistrationDetail) => {
       setRegistration(next);
-      void refreshContribution(exemption);
+      void refreshContribution(exemption, costBearerId);
     },
-    [exemption, refreshContribution],
+    [exemption, costBearerId, refreshContribution],
   );
 
   const changeExemption = useCallback(
     (next: boolean) => {
       setExemption(next);
-      void refreshContribution(next);
+      void refreshContribution(next, null);
+    },
+    [refreshContribution],
+  );
+
+  const changeCostBearer = useCallback(
+    (next: string | null) => {
+      setCostBearerId(next);
+      if (next) void refreshContribution(false, next);
     },
     [refreshContribution],
   );
@@ -285,6 +297,9 @@ export default function TraegerHolidayRegistrationPage() {
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
             exemption={exemption}
             onExemptionChange={changeExemption}
+            costBearers={confirmation?.costBearers}
+            costBearerId={costBearerId}
+            onCostBearerChange={changeCostBearer}
             onChanged={changed}
             onConfirmed={load}
             onDebtorNumberChanged={load}
@@ -292,6 +307,7 @@ export default function TraegerHolidayRegistrationPage() {
           <HolidayRegistrationProofCard
             periodId={periodId}
             registration={registration}
+            onUploaded={setRegistration}
           />
           {contribution &&
           (registration.status !== "cancelled" || contribution.frozen) ? (
