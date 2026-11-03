@@ -876,3 +876,23 @@ FinalB/Credentialsbytegenau restauriert;18619Quellobjekte einschließlichFremdar
 **Restartpunkt:** Erst reproduzieren/klären, warum der unveränderte native Reader unter realerFulllast keine durchgehende2,5sQuellenabdeckung erhält, oder dieselbe Messung auf stabil qualifiziertem Host durchführen. Keine Auswertung der Lücke als0Kosten, keinIgnorieren des Fehlerkanals, keine Wiederholung ohne neue Evidenz. Vor einem neuenFullvergleich eigene frische gemeinsame Prüfer-/Hostepoche kontrollieren und beideSeiten neu wärmen/messen; alteunvollständigeReportsnichtsalvagen. B/C-Memobytes,8DefektbelegeundSourceReview sind archiviert. AlterOne-shotController verweigertabsichtlich erneut vorhandenesexecution-Verzeichnis. Separat bleibt die ausgewählteDatumsprobe zu minimieren, ohne Tests/Timeouts/Skips zu ändern. Remoteexperiment/PaidCIweiternichtautorisiert; keine unbegrenzteFortsetzung oderScheduler angelegt.
 
 Zusammenfassende getrennte Resultate/Spannen/PaarSpeedups/Ressourcentradeoffs: `tmp/test-perf/hill-climb-results-20261103.md`. 4×FrontendFullverfehlt: frischerNenner179,75s, Ziel44,94s, gehalten172,85s, weitererFaktor3,85nötig. LokaleCI-Testprofile1,140/1,035/1,051× sind keinLinux-/Workflowgewinn. TatsächlicheCIBeobachtung304s/1499Runner-s mitArchitekturjob277s ist ungepaart und gibt keine Nachherzeit. KeinMultiplyderPhasenspeedups, keinevermeintlicheKostenersparnis. Budget-/Sessionende und qualifizierteTeilphasen sind keinBeweis des Optimums.
+
+## Neuer Lauf: Tests und Test-Support, 3. November 2026
+
+Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-prompt.md), Messplatz eingefroren. Vorlaufänderungen gesichert als `ed22e7b46e`.
+
+### Baseline (Meilenstein 0), Revision ed22e7b46e
+
+- Frontend `full` (je ein Warmlauf, dann n=2 `--cache-state warm`): 178,9 / 177,3 s, Median 178,1 s; CPU 822 / 809 s; RSS 3924 / 3792 MB; 1541 Dateien. Vitest-Phasen (summiert): Import ~152 s, Environment ~135 s, Setup ~78 s, Tests ~244 s, Transform ~19 s.
+- Backend `backend-full` (Warmlauf 515 s nach fehlender `TEST_DB_DSN` im ersten Versuch, dann n=2): 404,9 / 406,7 s, Median 405,8 s; CPU 884 / 902 s; RSS 7039 / 6185 MB. Pakete > 20 s: organizationtenancy/compose ~96, internal/architecture ~86, api ~62, database/migrations ~45–51, dataimport/importtest ~46, identityaccess/behavior ~43, test ~23.
+- Kandidaten: Frontend 26 Dateien = 50 % Testdauer (gruppiert), Frontend-Overhead, 7 Go-Pakete > 20 s und ihre Top-Level-Tests > 10 s.
+
+### Runde B-import (dataimport/importtest): behalten
+- Ursache: sieben Staff-Replays warteten je 1 s + 5 s auf Mail-Retries des verweigernden Default-Mailers. Änderung: `ImportTestOptions.Mailer` reicht einen Capture-Mailer an das Auth-Testmodul (Review-Auflage statt neuer testhooks-Naht/Policy-Kante), plus zwei Mail-Assertions.
+- Paket n=3: 47,6/55,0/54,3 → 4,0/4,5/5,7 s, Median 54,3 → 4,5 s (−92 %). Die drei 43–46-s-Tests fielen auf 0,7–4,6 s (Clone-Slots frei).
+- Mutation (Person separat committet): vorher/nachher rot an `all earlier owner writes must roll back` ([1 1 1 …] vs [2 1 1 …]). Inventar 29/26/1 Skip unverändert. Cross-Review Opus: OK mit Auflage (umgesetzt).
+
+### Runde F-scripts (publish.test.ts, browser-token-ratchet.test.ts): behalten
+- publish: zwei rateLimitExceeded-Tests warteten echten Drive-Backoff (6 × 1 s). Fake-Timer mit `nextTimerAsync`: Wand n=3 7,49/7,99/7,60 → 1,31/1,29/1,53 s (Median 7,60 → 1,31). Mutation „Ratenlimit nicht wiederholen“: vorher/nachher rot in denselben zwei Tests.
+- browser-token-ratchet: jeder `ts.X`-Zugriff über Vitests Importobjekt kostete ~⅔ der Laufzeit; `import ts = typescript`. Wand 8,30/7,61/7,58 → 3,53/3,50/3,59 s (Median 7,61 → 3,53). Mutation Refresh-Token in session-cache.ts: vorher/nachher rot an `expect(violations).toEqual([])`.
+- Inventar 34/1968 unverändert. Cross-Review Sol: OK; bestehende, unveränderte Lücke: Backoff-Wartezeit/Versuchszahl wird nicht geprüft (vorher wie nachher).
