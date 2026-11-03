@@ -417,6 +417,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
+      "enrollment.holiday_proof_limit":
+        "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
       "enrollment.holiday_registration_closed":
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
@@ -763,6 +765,16 @@ export const ERROR_CATALOG = {
         "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_overlap":
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.cost_bearer_in_use":
+        "Dieser Kostenträger wurde schon gewählt. Sie können ihn nur ausschalten.",
+      "parent_billing.cost_bearer_inactive":
+        "Dieser Kostenträger ist ausgeschaltet. Bitte wählen Sie einen anderen.",
+      "parent_billing.cost_bearer_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.cost_bearer_not_found":
+        "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.cost_takeover_with_exemption":
+        "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -65,6 +66,12 @@ type RunStore interface {
 	// RunLetters reads the letters of a released run; nil before they are
 	// created (#4669).
 	RunLetters(ctx context.Context, organizationID, runID int64) (*parentbilling.BillingLetters, error)
+	// CostBearer reads one cost bearer; a missing one is
+	// ErrCostBearerNotFound (#5627).
+	CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error)
+	// RegistrationConfirmations names when each registration of the period
+	// with a frozen contribution was confirmed (#5627).
+	RegistrationConfirmations(ctx context.Context, organizationID, periodID int64) (map[int64]time.Time, error)
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed

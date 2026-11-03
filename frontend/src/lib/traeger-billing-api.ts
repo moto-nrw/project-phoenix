@@ -28,7 +28,12 @@ export interface BillingRun {
 }
 
 type BillingPositionKind =
-  "base" | "sibling" | "benefits_exemption" | "correction" | "credit";
+  | "base"
+  | "sibling"
+  | "benefits_exemption"
+  | "cost_takeover"
+  | "correction"
+  | "credit";
 
 /** An invoice, its Storno or its Gutschrift (#4690). */
 export type BillingDocumentKind = "invoice" | "cancellation" | "credit";
@@ -59,6 +64,9 @@ export interface BillingPosition {
   readonly discountCents: number | null;
   /** The note of an exemption or the reason of a correction. */
   readonly note: string;
+  /** Cost takeover (#5627): the cost bearer and the name the invoice copied. */
+  readonly costBearerId?: string | null;
+  readonly costBearerName?: string;
 }
 
 interface BillingCorrection {
@@ -186,6 +194,8 @@ interface BackendPosition {
   discount_basis_points: number | null;
   discount_cents: number | null;
   note: string;
+  cost_bearer_id?: number | null;
+  cost_bearer_name?: string;
 }
 
 interface BackendDocumentLink {
@@ -293,6 +303,10 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
     discountBasisPoints: position.discount_basis_points,
     discountCents: position.discount_cents,
     note: position.note,
+    costBearerId: position.cost_bearer_id
+      ? String(position.cost_bearer_id)
+      : null,
+    costBearerName: position.cost_bearer_name ?? "",
   };
 }
 
@@ -683,6 +697,22 @@ export async function downloadBillingRunOverview(
     `${runPath(id)}/export?format=${format}`,
     {},
     `abrechnungsanordnung.${format}`,
+  );
+}
+
+/**
+ * The list of a released run for the reimbursement by one cost bearer
+ * (#5627): every child the cost bearer pays for, with the sum.
+ */
+export async function downloadCostTakeoverList(
+  id: string,
+  costBearerId: string,
+  format: BillingRunExportFormat,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(id)}/cost-takeovers/${encodeURIComponent(costBearerId)}/export?format=${format}`,
+    {},
+    `kostenuebernahme.${format}`,
   );
 }
 

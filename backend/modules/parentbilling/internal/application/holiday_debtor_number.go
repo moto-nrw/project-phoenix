@@ -28,7 +28,17 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 	if err != nil {
 		return parentbilling.HolidayConfirmationSettings{}, err
 	}
-	return parentbilling.HolidayConfirmationSettings{DebtorNumberRequired: required}, nil
+	bearers, err := h.store.ListCostBearers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.HolidayConfirmationSettings{}, fmt.Errorf("parent billing: list cost bearers: %w", err)
+	}
+	active := []parentbilling.CostBearerChoice{}
+	for _, bearer := range bearers {
+		if bearer.Active {
+			active = append(active, parentbilling.CostBearerChoice{ID: bearer.ID, Name: bearer.Name})
+		}
+	}
+	return parentbilling.HolidayConfirmationSettings{DebtorNumberRequired: required, CostBearers: active}, nil
 }
 
 // ChangeHolidayDebtorNumber changes the debtor number of a confirmed

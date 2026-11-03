@@ -67,10 +67,12 @@ func (rs *HolidayResource) QuoteRouter() chi.Router {
 // HolidayConfirmRequest is the body of POST
 // /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm.
 // benefits_exemption applies the exemption for families receiving benefits;
+// cost_bearer_id lets that cost bearer of the Träger pay instead (#5627);
 // debtor_number is the number of the family in the finance system of the
-// Träger (#5621). An empty body confirms without either.
+// Träger (#5621). An empty body confirms without any of them.
 type HolidayConfirmRequest struct {
 	BenefitsExemption bool   `json:"benefits_exemption"`
+	CostBearerID      int64  `json:"cost_bearer_id"`
 	DebtorNumber      string `json:"debtor_number"`
 }
 
@@ -150,21 +152,20 @@ func registrationKey(w http.ResponseWriter, r *http.Request) (capability.Holiday
 	return reviewer, periodID, registrationID, true
 }
 
+// contribution answers the frozen contribution or the preview with the
+// choice the query names: benefits_exemption=true|false and
+// cost_bearer_id=<id> (#5627).
 func (rs *HolidayResource) contribution(w http.ResponseWriter, r *http.Request) {
 	reviewer, periodID, registrationID, ok := registrationKey(w, r)
 	if !ok {
 		return
 	}
-	var exemption *bool
-	if raw := r.URL.Query().Get("benefits_exemption"); raw != "" {
-		parsed, err := strconv.ParseBool(raw)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("benefits_exemption must be true or false: %w", err)))
-			return
-		}
-		exemption = &parsed
+	exemption, costBearerID, err := previewChoice(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
-	contribution, err := rs.contributions.HolidayContribution(r.Context(), reviewer, periodID, registrationID, exemption)
+	contribution, err := rs.contributions.HolidayContribution(r.Context(), reviewer, periodID, registrationID, exemption, costBearerID)
 	if err != nil {
 		renderHolidayError(w, r, err)
 		return
@@ -185,13 +186,36 @@ func (rs *HolidayResource) confirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	confirmation, err := rs.contributions.ConfirmHolidayRegistration(r.Context(), reviewer, periodID, registrationID, req.BenefitsExemption, req.DebtorNumber)
+	confirmation, err := rs.contributions.ConfirmHolidayRegistration(r.Context(), reviewer, periodID, registrationID,
+		req.BenefitsExemption, req.CostBearerID, req.DebtorNumber)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, confirmation, "Holiday registration confirmed successfully")
+}
+
+// previewChoice reads the exemption and the cost bearer of a preview from
+// the query; both are optional.
+func previewChoice(r *http.Request) (*bool, int64, error) {
+	var exemption *bool
+	if raw := r.URL.Query().Get("benefits_exemption"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			return nil, 0, fmt.Errorf("benefits_exemption must be true or false: %w", err)
+		}
+		exemption = &parsed
+	}
+	var costBearerID int64
+	if raw := r.URL.Query().Get("cost_bearer_id"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			return nil, 0, errors.New("cost_bearer_id must be a positive ID")
+		}
+		costBearerID = parsed
+	}
+	return exemption, costBearerID, nil
 }
 
 // confirmationSettings answers what a confirmation of the session's Träger
@@ -289,6 +313,12 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationStateConflict))
 	case errors.Is(err, capability.ErrBenefitsExemptionUnavailable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingBenefitsExemptionUnavailable))
+	case errors.Is(err, capability.ErrCostTakeoverWithExemption):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCostTakeoverWithExemption))
+	case errors.Is(err, capability.ErrCostBearerNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCostBearerNotFound))
+	case errors.Is(err, capability.ErrCostBearerInactive):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCostBearerInactive))
 	case errors.Is(err, capability.ErrInvalidHolidaySiblingGroup):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingSiblingGroupInvalid))
 	case errors.Is(err, capability.ErrHolidaySiblingGroupNotFound):

@@ -144,6 +144,45 @@ Punkt 5, ADR 0070).
 - Die Zusammenfassung zeigt den Beitrag nach den Regeln von heute; was gilt,
   hält erst die Bestätigung fest.
 
+## Nachtrag 2026-11-03: Kostenübernahme durch einen Kostenträger (#5627)
+
+Für Familien mit Leistungsbezug, deren Beitrag eine Stelle erstattet (zum
+Beispiel das Jugendamt nach § 90 Abs. 4 SGB VIII), reicht die Befreiung
+nicht: Sie erlässt den Betrag, niemand schuldet ihn. Der schmale Schnitt vor
+#4687:
+
+1. **Kostenträger des Trägers.** `parent_billing.cost_bearers` (Owner
+   Elternabrechnung, Träger-Policy aus ADR 0105) hält Name, Anschrift,
+   Aktenzeichen und ob die Stelle noch zur Wahl steht. Die Abrechnung pflegt
+   sie mit den Regeln (`ContributionRules`), weil ADR 0088 §4 den
+   Kostenträger als Zahler der Kette führt. Das Träger-Büro sieht beim
+   Bestätigen nur die aktiven, über die Einstellungen der Bestätigung.
+2. **Neue Zeilenart in der festen Kette.** Nach Grundpreis und Geschwister
+   setzt `cost_takeover` den Rest jedes Kindes auf 0 €: Der Kostenträger
+   übernimmt, was die Familie nach der Geschwisterermäßigung zahlen müsste.
+   Befreiung und Kostenübernahme schließen sich aus; die Kostenübernahme gilt
+   für alle Kinder der Anmeldung.
+3. **Zahler als Kopie an der Zeile.** Die Zeile und die Position der
+   Rechnung halten ID und Namen des Kostenträgers fest. Eine Umbenennung
+   ändert keinen festgehaltenen Beitrag und keine ausgestellte Rechnung
+   (ADR 0119). Die ID trägt keinen Fremdschlüssel: Die Löschung eines Trägers
+   entfernt Kostenträger und Rechnungen in einer Kaskade, die ein
+   Fremdschlüssel abweisen würde. Einen Kostenträger, den eine Zeile oder
+   Position nennt, löscht die Elternabrechnung nicht; er lässt sich nur
+   ausschalten.
+4. **Brief, Übersicht und Liste.** Die Rechnung zeigt 0 €; der Brief nennt
+   den Kostenträger statt des Zahlungstexts. Die Übersicht für die Kämmerei
+   (ADR 0122) nennt unter der Gesamtsumme je Kostenträger, was er übernimmt;
+   die Gesamtsumme bleibt, was die Familien zahlen. Je freigegebenem Lauf und
+   Kostenträger gibt es eine Liste für die Erstattung, deren Download im
+   Protokoll des Laufs steht.
+5. **Nachweis.** Das Träger-Büro lädt einen Nachweis, den die Familie auf
+   Papier bringt, zur Anmeldung hoch, mit den Grenzen des Nachweises der
+   Eltern (#5238). Er ist keine Bedingung der Kostenübernahme.
+
+Ein eigenes Beitragsdokument an den Kostenträger, Anteile, Ablaufdaten und
+die Kostenübernahme je Kind bleiben #4687.
+
 ## Nachtrag 2026-11-03: Geschwister aus getrennten Anmeldungen (#5628)
 
 Eltern melden Geschwister oft in zwei Formularen an, und ein Formular nimmt
@@ -167,7 +206,11 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    Gruppe. Jede Anmeldung hält nur die Zeilen ihrer eigenen Kinder fest. Eine
    bestätigte Anmeldung rankt mit den Grundpreisen und der Befreiung, die sie
    festgehalten hat; ein späterer Preis ändert sie nicht. Die Befreiung
-   bleibt Sache jeder Anmeldung. Die Elternabrechnung liest die weiteren
+   bleibt Sache jeder Anmeldung, ebenso die Kostenübernahme (#5627): Sie
+   folgt nach der Geschwisterermäßigung und übernimmt nur den Rest der
+   Kinder ihrer Anmeldung; die Ermäßigung der anderen Anmeldungen bleibt.
+   Eine bestätigte Anmeldung rankt mit dem Kostenträger, den sie festgehalten
+   hat. Die Elternabrechnung liest die weiteren
    Anmeldungen über ihren Port `HolidayRegistrations`; jeder Lesezugriff
    steht im Protokoll der jeweiligen Anmeldung (ADR 0114 Punkt 6).
 3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen und

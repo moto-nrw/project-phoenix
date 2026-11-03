@@ -44,9 +44,17 @@ func (m siblingMember) cancelled() bool {
 	return m.registration.Status == parentbilling.HolidayRegistrationCancelled
 }
 
+// holidayMemberChoice is what the Träger-Büro chooses for the registration
+// it previews or confirms: the exemption or the cost bearer (#5627).
+type holidayMemberChoice struct {
+	exemption bool
+	bearer    *parentbilling.CostBearer
+}
+
 // chainMember is the registration as the chain ranks it: a frozen one with
-// the base prices and the exemption it froze, so a later price changes
-// nothing; else with its bookings and the parents' statement.
+// the base prices, the exemption and the cost bearer it froze (#5627), so a
+// later price or a renamed cost bearer changes nothing; else with its
+// bookings and the parents' statement.
 func (m siblingMember) chainMember() holidayMember {
 	if m.frozen == nil {
 		return holidayMember{children: m.registration.Children, exemption: m.registration.BenefitsDeclared}
@@ -63,7 +71,11 @@ func (m siblingMember) chainMember() holidayMember {
 			})
 		}
 	}
-	return holidayMember{children: children, exemption: m.frozen.BenefitsExemption}
+	member := holidayMember{children: children, exemption: m.frozen.BenefitsExemption}
+	if m.frozen.CostBearerID != nil {
+		member.bearer = &parentbilling.CostBearer{ID: *m.frozen.CostBearerID, Name: m.frozen.CostBearerName}
+	}
+	return member
 }
 
 // ListHolidaySiblingGroups lists the groups of the period. They name only
@@ -269,9 +281,10 @@ func sentOrder(members []siblingMember) []siblingMember {
 
 // computeSiblings runs the chain over the registrations of a group that
 // are not cancelled, in the order they were sent, with the rules valid on
-// the first booked day of the group. exemption overrides the exemption of one registration: the one
-// the Träger-Büro is about to confirm or preview.
-func (h *HolidayContributions) computeSiblings(ctx context.Context, organizationID int64, members []siblingMember, exemption map[int64]bool) (map[int64]parentbilling.HolidayContribution, error) {
+// the first booked day of the group. chosen overrides the exemption and the
+// cost bearer of one registration: the one the Träger-Büro is about to
+// confirm or preview (#5627).
+func (h *HolidayContributions) computeSiblings(ctx context.Context, organizationID int64, members []siblingMember, chosen map[int64]holidayMemberChoice) (map[int64]parentbilling.HolidayContribution, error) {
 	var ranked []siblingMember
 	var chain []holidayMember
 	var children []parentbilling.HolidayChild
@@ -280,8 +293,8 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 			continue
 		}
 		next := member.chainMember()
-		if override, ok := exemption[member.id()]; ok {
-			next.exemption = override
+		if choice, ok := chosen[member.id()]; ok {
+			next.exemption, next.bearer = choice.exemption, choice.bearer
 		}
 		ranked = append(ranked, member)
 		chain = append(chain, next)

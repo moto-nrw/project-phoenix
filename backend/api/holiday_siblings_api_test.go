@@ -437,3 +437,32 @@ func TestSiblingInvoiceLocksTheWholeGroup(t *testing.T) {
 	assert.True(t, other.SiblingsInvoiced, "an invoice of the sibling locks the group")
 	assertRefusedWith(t, f.split(t, f.office.token, second), http.StatusConflict, common.CodeParentBillingSiblingGroupInvoiced)
 }
+
+// TestCostTakeoverOfOneSiblingRegistration pins the combination of #5628
+// and #5627 through the routes: the later registration of a group is
+// confirmed with a cost bearer. The sibling discount comes first, the cost
+// bearer takes over what is left, the family pays nothing for it, and the
+// earlier registration keeps its full price.
+func TestCostTakeoverOfOneSiblingRegistration(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Kostenträger")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	createContributionRule(t, f, billing, siblingHalf())
+	bearer := createCostBearer(t, f, billing, youthOffice())
+	earlier := f.submitChild(t, f.period, f.offer, "mama.kosten@example.org", "Mia", 0)
+	later := f.submitChild(t, f.period, f.offer, "papa.kosten@example.org", "Tom", 0)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, earlier, later).Code)
+
+	rec := f.confirmWith(t, later, map[string]any{"cost_bearer_id": bearer.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	frozen := f.siblingContribution(t, later)
+	assert.Equal(t, int64(0), frozen.TotalCents, "the family pays nothing for the registration with the cost takeover")
+	require.Len(t, frozen.Children, 1)
+	assert.Equal(t, []string{"base:4500", "sibling:-2250", "cost_takeover:-2250"}, lineKinds(frozen.Children[0].Lines),
+		"the cost bearer gets the amount after the sibling discount")
+	assert.Equal(t, int64(4500), f.contribution(t, earlier).TotalCents, "the earlier registration keeps its full price")
+
+	require.Equal(t, http.StatusOK, f.confirmWith(t, earlier, nil).Code)
+	assert.Equal(t, []int64{4500}, f.contributionVersions(t, earlier))
+	assert.Equal(t, []int64{0}, f.contributionVersions(t, later), "confirming the sibling keeps the cost takeover as it was")
+}

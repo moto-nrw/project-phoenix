@@ -40,6 +40,7 @@ type HolidayRegistrationEventAction =
   | "rebook"
   | "debtor_number"
   | "edit"
+  | "proof_upload"
   | "sibling_merge"
   | "sibling_split";
 
@@ -465,6 +466,35 @@ export function holidayProofHref(
   return `${registrationPath(periodId, registrationId)}/proofs/${encodeURIComponent(proofId)}`;
 }
 
+/**
+ * Uploads a proof of benefits the family brought on paper (#5627) and
+ * returns the registration with its proofs. The backend checks type, size
+ * and content like the parents' upload.
+ */
+export async function uploadHolidayProof(
+  periodId: string,
+  registrationId: string,
+  file: File,
+): Promise<HolidayRegistrationDetail> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await transportFetch(
+    `${registrationPath(periodId, registrationId)}/proofs`,
+    { method: "POST", body, credentials: "include" },
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    data?: BackendDetail;
+  } | null;
+  if (!response.ok || !payload?.data) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      payload,
+    );
+  }
+  return detailFromBackend(payload.data);
+}
+
 /** The query string of a filter, empty values left out. */
 function holidayRegistrationQuery(
   filter: HolidayRegistrationFilter,
@@ -751,14 +781,29 @@ export async function downloadHolidayRegistrations(
  * contributions client, because the list reads it for its column too and
  * should not load that client.
  */
+/** An active cost bearer the confirmation offers (#5627). */
+export interface CostBearerChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface HolidayConfirmationSettings {
   /** The Träger asks for the debtor number of the family. */
   readonly debtorNumberRequired: boolean;
+  /** The active cost bearers of the Träger, by name (#5627). */
+  readonly costBearers?: readonly CostBearerChoice[];
 }
 
 export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
-  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
-    "/api/traeger/holiday-contributions/confirmation-settings",
-  );
-  return { debtorNumberRequired: settings.debtor_number_required };
+  const settings = await traegerRequest<{
+    debtor_number_required: boolean;
+    cost_bearers?: { id: number; name: string }[] | null;
+  }>("/api/traeger/holiday-contributions/confirmation-settings");
+  return {
+    debtorNumberRequired: settings.debtor_number_required,
+    costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
+      id: String(bearer.id),
+      name: bearer.name,
+    })),
+  };
 }

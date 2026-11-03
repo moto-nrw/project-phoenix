@@ -175,6 +175,17 @@
       "target_owner": "enrollment"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayProofRegistrations",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayProofRegistrations",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients without a status filter: Enrollment checks the period of the session's Träger, reads every registration of the period with whether a proof of benefits exists (#5627), whatever its status, and appends the list read to the period's audit trail (ADR 0114) in the caller's Träger transaction before the Elternabrechnung renders the list of a cost bearer; the route rolls back on any later refusal.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.AsksDebtorNumber",
       "classification": "query",
       "effect": "query",

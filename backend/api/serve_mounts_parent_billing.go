@@ -28,16 +28,19 @@ import (
 // behind the right "Abrechnung", the contribution and confirmation of a
 // holiday registration at /traeger/holiday-contributions behind the right
 // "Anmeldung verwalten", and the public contribution of the registration
-// form at /traeger/holiday-quotes, and the billing runs and number ranges
-// at /traeger/billing-runs and /traeger/number-ranges behind the right
-// "Abrechnung" (#4668, ADR 0119), with the confirmation letters of a
-// released run in the layout of the Träger (#4669, ADR 0121), its overview
-// for the Kämmerei (#4672, ADR 0122), and the mail of the letters as mails
-// of the Träger on Delivery's outbox and their print in one file (#4670,
-// ADR 0123).
+// form at /traeger/holiday-quotes, the cost bearers of a Träger at
+// /traeger/cost-bearers behind the right "Abrechnung" (#5627), and the
+// billing runs and number ranges at /traeger/billing-runs and
+// /traeger/number-ranges behind the right "Abrechnung" (#4668, ADR 0119),
+// with the confirmation letters of a released run in the layout of the
+// Träger (#4669, ADR 0121), its overview for the Kämmerei (#4672, ADR 0122)
+// and the list for the reimbursement by a cost bearer (#5627), and the mail
+// of the letters as mails of the Träger on Delivery's outbox and their
+// print in one file (#4670, ADR 0123).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
 	runs := NewBillingRunHTTP(settings, delivery, healthData)
@@ -369,6 +372,23 @@ func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx con
 		}
 	}
 	return registrations, nil
+}
+
+// HolidayProofRegistrations reads every registration of the period through
+// the review, with no status filter, so a registration cancelled after its
+// invoice still names its proof (#5627); the review checks the Träger and
+// records the read like the list.
+func (b parentBillingBillingRegistrations) HolidayProofRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (map[int64]bool, error) {
+	registrations, err := b.review.ListHolidayRegistrationRecipients(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+		enrollmentOwner.HolidayRegistrationFilter{})
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	proofs := make(map[int64]bool, len(registrations))
+	for _, registration := range registrations {
+		proofs[registration.ID] = registration.HasBenefitsProof
+	}
+	return proofs, nil
 }
 
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {

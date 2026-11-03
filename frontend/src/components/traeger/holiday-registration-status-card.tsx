@@ -3,7 +3,8 @@
 // Status einer Ferienanmeldung und was das Träger-Büro damit tun kann
 // (#4663): bestätigen, stornieren, einfrieren und wieder öffnen. Die Karte
 // sagt, warum eine Aktion gerade fehlt. Das Bestätigen hält den Ferienbeitrag
-// fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664). Fragt der
+// fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664) oder mit
+// der Kostenübernahme durch einen Kostenträger (#5627). Fragt der
 // Träger die Debitorennummer ab, ist sie beim Bestätigen Pflicht (#5621).
 // Bei einer bestätigten Anmeldung trägt das Büro die Nummer hier nach oder
 // ändert sie, bis die Rechnung ausgestellt ist; danach hält die Rechnung sie
@@ -11,12 +12,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   useApiErrorDisplay,
@@ -31,6 +34,7 @@ import {
 } from "~/lib/traeger-contributions-api";
 import {
   changeHolidayRegistration,
+  type CostBearerChoice,
   type HolidayRegistrationAction,
   type HolidayRegistrationDetail,
 } from "~/lib/traeger-holiday-registrations-api";
@@ -206,6 +210,115 @@ function DebtorNumberField({
   );
 }
 
+type Payer = "family" | "exemption" | "cost_bearer";
+
+const NO_COST_BEARERS: readonly CostBearerChoice[] = [];
+
+/**
+ * Who pays the contribution a confirmation freezes (#5627): the family,
+ * nobody (the exemption) or a cost bearer of the Träger. Exemption and cost
+ * takeover exclude each other; each option shows only when the Träger has
+ * an exemption rule or an active cost bearer.
+ */
+function PayerChoice({
+  payer,
+  exemptionAvailable,
+  costBearers,
+  costBearerId,
+  onPayerChange,
+  onCostBearerChange,
+}: Readonly<{
+  payer: Payer;
+  exemptionAvailable: boolean;
+  costBearers: readonly CostBearerChoice[];
+  costBearerId: string | null;
+  onPayerChange: (payer: Payer) => void;
+  onCostBearerChange: (id: string) => void;
+}>) {
+  const options: { value: Payer; label: string; description: string }[] = [
+    {
+      value: "family",
+      label: "Die Familie bezahlt",
+      description: "Die Familie bekommt eine Rechnung über den Betrag.",
+    },
+  ];
+  if (exemptionAvailable) {
+    options.push({
+      value: "exemption",
+      label: "Von der Zahlung befreien (Leistungsbezug)",
+      description: "Niemand bezahlt den Betrag.",
+    });
+  }
+  if (costBearers.length > 0) {
+    options.push({
+      value: "cost_bearer",
+      label: "Kosten übernimmt ein Kostenträger",
+      description:
+        "Die Familie bezahlt nichts. Sie fordern den Betrag beim Kostenträger an.",
+    });
+  }
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-2 text-sm font-medium text-gray-900">
+        Wer bezahlt den Beitrag?
+      </legend>
+      <div className="flex flex-col gap-2 sm:max-w-md">
+        {options.map((option) => {
+          const id = `holiday-registration-payer-${option.value}`;
+          return (
+            <ChoiceTile
+              key={option.value}
+              htmlFor={id}
+              selected={payer === option.value}
+              className="items-start p-3"
+            >
+              <Radio
+                id={id}
+                name="payer"
+                value={option.value}
+                checked={payer === option.value}
+                onChange={() => onPayerChange(option.value)}
+                className="mt-0.5"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-gray-900">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block text-xs font-normal text-gray-600">
+                  {option.description}
+                </span>
+              </span>
+            </ChoiceTile>
+          );
+        })}
+        {payer === "cost_bearer" ? (
+          <div>
+            <label
+              id="holiday-registration-cost-bearer-label"
+              htmlFor="holiday-registration-cost-bearer"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Kostenträger
+            </label>
+            <CustomSelect
+              id="holiday-registration-cost-bearer"
+              name="cost_bearer_id"
+              ariaLabelledBy="holiday-registration-cost-bearer-label"
+              value={costBearerId ?? ""}
+              options={costBearers.map((bearer) => ({
+                value: bearer.id,
+                label: bearer.name,
+              }))}
+              onChange={onCostBearerChange}
+              wrapLabels
+            />
+          </div>
+        ) : null}
+      </div>
+    </fieldset>
+  );
+}
+
 export function HolidayRegistrationStatusCard({
   periodId,
   registration,
@@ -214,6 +327,9 @@ export function HolidayRegistrationStatusCard({
   debtorNumberRequired = false,
   exemption,
   onExemptionChange,
+  costBearers = NO_COST_BEARERS,
+  costBearerId = null,
+  onCostBearerChange,
   onChanged,
   onConfirmed,
   onDebtorNumberChanged,
@@ -229,6 +345,11 @@ export function HolidayRegistrationStatusCard({
   /** The exemption the confirmation applies; the page shows its preview. */
   exemption: boolean;
   onExemptionChange: (exemption: boolean) => void;
+  /** The active cost bearers the confirmation offers (#5627). */
+  costBearers?: readonly CostBearerChoice[];
+  /** The cost bearer that pays; null while the family pays or is exempt. */
+  costBearerId?: string | null;
+  onCostBearerChange?: (costBearerId: string | null) => void;
   onChanged: (registration: HolidayRegistrationDetail) => void;
   /** After a confirmation; the page reads the registration again. */
   onConfirmed: () => Promise<void>;
@@ -259,6 +380,15 @@ export function HolidayRegistrationStatusCard({
   const errorDisplay = useApiErrorDisplay();
   const exemptionAvailable = contribution?.exemptionAvailable ?? false;
   const invoiced = contribution?.invoiced ?? false;
+  let payer: Payer = "family";
+  if (
+    costBearerId &&
+    costBearers.some((bearer) => bearer.id === costBearerId)
+  ) {
+    payer = "cost_bearer";
+  } else if (exemptionAvailable && exemption) {
+    payer = "exemption";
+  }
   // Enter in the debtor number submits the form, so the guards of the button
   // hold here too: one confirmation at a time, and only of the amount shown.
   const confirmBlocked =
@@ -281,8 +411,9 @@ export function HolidayRegistrationStatusCard({
       await confirmHolidayRegistration(
         periodId,
         registration.id,
-        exemptionAvailable && exemption,
+        payer === "exemption",
         debtorNumber.trim(),
+        payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
       );
       await onConfirmed();
     } catch (err) {
@@ -314,6 +445,17 @@ export function HolidayRegistrationStatusCard({
   };
 
   const open = registration.status !== "cancelled";
+  const choosesPayer =
+    registration.status === "received" &&
+    (exemptionAvailable || costBearers.length > 0);
+  const changePayer = (next: Payer) => {
+    if (next === "cost_bearer") {
+      onCostBearerChange?.(costBearerId ?? costBearers[0]?.id ?? null);
+      return;
+    }
+    onCostBearerChange?.(null);
+    onExemptionChange(next === "exemption");
+  };
   return (
     <SectionCard title="Status">
       <div className="space-y-4 text-sm text-gray-700">
@@ -373,21 +515,15 @@ export function HolidayRegistrationStatusCard({
             onChanged={onDebtorNumberChanged}
           />
         ) : null}
-        {registration.status === "received" && exemptionAvailable ? (
-          <label
-            htmlFor="holiday-registration-exemption"
-            className="flex items-start gap-3"
-          >
-            <Checkbox
-              id="holiday-registration-exemption"
-              name="benefits_exemption"
-              checked={exemption}
-              onChange={(event) => onExemptionChange(event.target.checked)}
-            />
-            <span>
-              Beim Bestätigen von der Zahlung befreien (Leistungsbezug)
-            </span>
-          </label>
+        {choosesPayer ? (
+          <PayerChoice
+            payer={payer}
+            exemptionAvailable={exemptionAvailable}
+            costBearers={costBearers}
+            costBearerId={costBearerId}
+            onPayerChange={changePayer}
+            onCostBearerChange={(id) => onCostBearerChange?.(id)}
+          />
         ) : null}
         {open ? (
           <div className="flex flex-wrap gap-2">

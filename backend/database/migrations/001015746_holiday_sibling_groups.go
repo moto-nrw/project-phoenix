@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidaySiblingGroupsVersion = "1.15.744"
+const holidaySiblingGroupsVersion = "1.15.746"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidaySiblingGroupsVersion,
 		Description: "Elternabrechnung: Geschwister aus getrennten Ferienanmeldungen und Fassungen des festgehaltenen Beitrags (#5628)",
 		DependsOn: []string{
-			parentBillingDocumentCorrectionsVersion,  // the last migration before this one
-			holidayRegistrationEditVersion,           // the audit actions this extends
+			parentBillingCostBearersVersion,          // the last migration before this one; its audit actions this keeps
+			holidayRegistrationEditVersion,           // the audit action edit this keeps
 			parentBillingHolidayContributionsVersion, // the frozen contributions this versions
 		},
 	})
@@ -37,7 +37,9 @@ func init() {
 //     only inserts and reads a contribution (ADR 0115 point 5). Existing
 //     contributions are version 1.
 //   - enrollment.holiday_registration_audit takes the actions sibling_merge
-//     and sibling_split.
+//     and sibling_split, besides every action before it: edit (1.15.741)
+//     and proof_upload (1.15.745) included. The down migration restores the
+//     list of 1.15.745.
 const holidaySiblingGroupsUpSQL = `
 ALTER TABLE parent_billing.holiday_contributions
 	ADD COLUMN version INT NOT NULL DEFAULT 1,
@@ -110,7 +112,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
 		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number',
-			'edit', 'sibling_merge', 'sibling_split'));
+			'edit', 'proof_upload', 'sibling_merge', 'sibling_split'));
 `
 
 // holidaySiblingGroupsDownSQL drops the groups and every version but the
@@ -121,7 +123,8 @@ ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT chk_holiday_registration_audit_action;
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (
-		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit'));
+		action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number',
+			'edit', 'proof_upload'));
 DROP TABLE IF EXISTS parent_billing.holiday_sibling_group_members;
 DROP TABLE IF EXISTS parent_billing.holiday_sibling_groups;
 DROP FUNCTION IF EXISTS parent_billing.drop_lone_holiday_sibling_group();

@@ -32,9 +32,12 @@ vi.mock("~/lib/traeger-contributions-api", () => ({
     id: string,
     benefitsExemption: boolean,
     debtorNumber?: string,
+    costBearerId?: string,
   ) => {
     mockConfirmDebtorNumber(debtorNumber);
-    return mockConfirm(periodId, id, benefitsExemption);
+    return costBearerId === undefined
+      ? mockConfirm(periodId, id, benefitsExemption)
+      : mockConfirm(periodId, id, benefitsExemption, costBearerId);
   },
   changeHolidayDebtorNumber: (
     periodId: string,
@@ -86,11 +89,14 @@ describe("HolidayRegistrationStatusCard", () => {
         "Eltern bekommen beim Bestätigen noch keine Nachricht von moto.",
       ),
     ).toBeInTheDocument();
-    const checkbox = screen.getByRole("checkbox", {
-      name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+    expect(
+      screen.getByRole("radio", { name: /^Die Familie bezahlt/ }),
+    ).toBeChecked();
+    const exemptionChoice = screen.getByRole("radio", {
+      name: /Von der Zahlung befreien \(Leistungsbezug\)/,
     });
-    expect(checkbox).not.toBeChecked();
-    fireEvent.click(checkbox);
+    expect(exemptionChoice).not.toBeChecked();
+    fireEvent.click(exemptionChoice);
     expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
@@ -109,8 +115,8 @@ describe("HolidayRegistrationStatusCard", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("checkbox", {
-        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+      screen.getByRole("radio", {
+        name: /Von der Zahlung befreien \(Leistungsbezug\)/,
       }),
     ).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
@@ -139,10 +145,65 @@ describe("HolidayRegistrationStatusCard", () => {
 
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
     expect(
-      screen.getByRole("checkbox", {
-        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+      screen.getByRole("radio", {
+        name: /Von der Zahlung befreien \(Leistungsbezug\)/,
       }),
     ).toBeChecked();
+  });
+
+  it("lets a cost bearer pay instead of the family and confirms with it", async () => {
+    mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+    const onCostBearerChange = vi.fn();
+    const onExemptionChange = vi.fn();
+    const props = {
+      periodId: "5",
+      registration: { ...HOLIDAY_REGISTRATION, benefitsDeclared: true },
+      contribution: HOLIDAY_CONTRIBUTION,
+      exemption: true,
+      onExemptionChange,
+      costBearers: [
+        { id: "3", name: "Fachdienst Jugend des Landkreises Musterstadt" },
+        { id: "4", name: "Sozialamt Musterstadt" },
+      ],
+      onCostBearerChange,
+      onChanged: vi.fn(),
+      onConfirmed: vi.fn(() => Promise.resolve()),
+      onDebtorNumberChanged: vi.fn(() => Promise.resolve()),
+    };
+    const { rerender } = render(
+      <ToastProvider>
+        <HolidayRegistrationStatusCard {...props} costBearerId={null} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Kosten übernimmt ein Kostenträger/ }),
+    );
+    expect(onCostBearerChange).toHaveBeenCalledWith("3");
+
+    rerender(
+      <ToastProvider>
+        <HolidayRegistrationStatusCard {...props} costBearerId="4" />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByRole("radio", { name: /Kosten übernimmt ein Kostenträger/ }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /Von der Zahlung befreien/ }),
+    ).not.toBeChecked();
+    expect(screen.getByText("Sozialamt Musterstadt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    await waitFor(() =>
+      expect(mockConfirm).toHaveBeenCalledWith("5", "7", false, "4"),
+    );
+
+    fireEvent.click(
+      screen.getByRole("radio", { name: /^Die Familie bezahlt/ }),
+    );
+    expect(onCostBearerChange).toHaveBeenLastCalledWith(null);
+    expect(onExemptionChange).toHaveBeenLastCalledWith(false);
   });
 
   it("names the missing rule when the parents state benefits", () => {
@@ -157,7 +218,7 @@ describe("HolidayRegistrationStatusCard", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
   });
 
   it("cancels only after the confirmation", async () => {

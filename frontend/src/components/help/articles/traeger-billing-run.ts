@@ -113,10 +113,23 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
       },
+      {
+        title: "Liste für die Erstattung herunterladen",
+        description:
+          "Das geht, sobald der Lauf freigegeben ist und ein Kostenträger Beiträge übernimmt.",
+        steps: [
+          "Öffnen Sie den freigegebenen Lauf.",
+          "Die Karte `Kostenübernahme` zeigt je Kostenträger die Zahl der Rechnungen und den Betrag.",
+          "Wählen Sie in der Zeile des Kostenträgers das Menü mit den drei Punkten.",
+          "Wählen Sie unter `Liste für die Erstattung` das Format: `PDF`, `Excel` oder `CSV`.",
+          "Schicken Sie die Liste an den Kostenträger. Sie nennt je Kind die Wochen, den Grundbetrag, die Geschwisterermäßigung, den übernommenen Betrag, ob ein Nachweis vorlag und den Tag der Bestätigung.",
+        ],
+      },
     ],
     result:
       "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme. Storno und Gutschrift stehen dort als eigene Zeilen mit Minusbetrag und der Nummer der Rechnung.",
     notes: [
+      "Bezahlt ein Kostenträger, bekommt die Familie eine Rechnung über 0 €. Im Schreiben steht, wer die Kosten übernimmt. Die Übersicht für die Kämmerei nennt unter der Gesamtsumme je Kostenträger den Betrag, den er übernimmt.",
       "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
