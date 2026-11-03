@@ -1,0 +1,16 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/traeger/vorlagen": {
+      "referenceBytes": 750409,
+      "maxBytes": 765417,
+      "_reason": "#4677: Neue Träger-Seite mit der Liste der Dokumentvorlagen (DataTable, Statusanzeige). CI-Messung (Linux, Lint / Frontend build, Lauf 41669861920): 750409 Bytes inklusive gemeinsamer Träger-Shell. Neue Route; unverändert 2 % oder 10 KiB Toleranz."
+    },
+    "/traeger/vorlagen/[kind]": {
+      "referenceBytes": 756286,
+      "maxBytes": 771412,
+      "_reason": "#4677: Neue Träger-Seite zum Bearbeiten einer Vorlage mit Vorschau im Briefkopf, Platzhalterliste und Versionen. CI-Messung (Linux, Lint / Frontend build, Lauf 41669861920): 756286 Bytes inklusive gemeinsamer Träger-Shell. Neue Route; unverändert 2 % oder 10 KiB Toleranz."
+    }
+  }
+}
