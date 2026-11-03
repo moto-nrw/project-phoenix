@@ -91,7 +91,7 @@ func TestConfirmationWithoutTheSwitchTakesTheDebtorNumberAsItComes(t *testing.T)
 
 	rec := confirmationSettings(t, f, f.office.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"debtor_number_required":false}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())), "the switch is off by default")
+	assert.JSONEq(t, `{"debtor_number_required":false,"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())), "the switch is off by default")
 
 	rec = f.confirmWith(t, f.siblings, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -114,7 +114,7 @@ func TestConfirmationWithTheSwitchRequiresTheDebtorNumber(t *testing.T) {
 	askForDebtorNumber(t, f, true)
 	rec := confirmationSettings(t, f, f.office.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"debtor_number_required":true}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
+	assert.JSONEq(t, `{"debtor_number_required":true,"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
 
 	for name, body := range map[string]map[string]any{
 		"without":     nil,
