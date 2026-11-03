@@ -25,5 +25,6 @@
   "number_range_invalid": "{object} could not be saved. Please check your entries.",
   "number_range_missing": "{object} could not be changed. Please check its current status.",
   "parent_document_not_found": "This document is no longer available. Please reload the page.",
+  "payment_text_debtor_number_missing": "{object} could not be changed. Please check its current status.",
   "recipient_email_missing": "{object} could not be changed. Please check its current status."
 }

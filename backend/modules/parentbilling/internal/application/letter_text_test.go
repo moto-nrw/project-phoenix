@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -152,6 +153,77 @@ func TestConfirmationLetterFollowsTheBissendorfTemplate(t *testing.T) {
 	}
 	assert.Equal(t, want, confirmationLetter(withDebtor),
 		"the debtor number stands under the invoice number and is the reference to pay with")
+}
+
+// bissendorfPaymentText is the payment text of the Bissendorf letter with
+// the sentence for families with a direct debit mandate (#5622). It stands
+// in every letter: moto does not know which family gave a mandate.
+const bissendorfPaymentText = "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. " +
+	"Geben Sie als Verwendungszweck Ihre Debitorennummer {Debitorennummer} an. " +
+	"Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab."
+
+// TestConfirmationLetterWithThePaymentTextOfTheTraeger is the golden test
+// of the Träger's own payment text (#5622, ADR 0121 addendum): it replaces
+// the built-in sentence, every placeholder is filled in, amount and date in
+// the format of the built-in sentence, and the sentence stays bold. The rest
+// of the letter does not change.
+func TestConfirmationLetterWithThePaymentTextOfTheTraeger(t *testing.T) {
+	t.Parallel()
+
+	builtIn := goldenLetterContent(t)
+	builtIn.document.DebtorNumber = "10 4711"
+	content := goldenLetterContent(t)
+	content.document.DebtorNumber = "10 4711"
+	content.letterhead.PaymentText = bissendorfPaymentText
+	want := confirmationLetter(builtIn)
+	want.Blocks[2] = LetterBlock{
+		Text: "Bitte überweisen Sie 92,50 € bis zum 15.12.2026 auf das Konto unten. " +
+			"Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an. " +
+			"Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+		Bold: true,
+	}
+	assert.Equal(t, want, confirmationLetter(content), "the Bissendorf text with the sentence on the mandate")
+
+	content.letterhead.PaymentText = "  {Rechnungsnummer}, {Betrag}, {Zahlungsfrist}, {Debitorennummer}, {Betrag} again.\n"
+	assert.Equal(t, "FE-2026-0007, 92,50 €, 15.12.2026, 10 4711, 92,50 € again.", confirmationLetter(content).Blocks[2].Text,
+		"every placeholder is filled in, as often as it stands")
+
+	content.letterhead.PaymentText = "   "
+	assert.Equal(t, confirmationLetter(builtIn), confirmationLetter(content), "a blank text keeps the built-in sentence")
+
+	content.letterhead.PaymentText = bissendorfPaymentText
+	content.document.TotalCents = 0
+	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen."}, confirmationLetter(content).Blocks[2],
+		"an invoice of 0 € keeps the fixed sentence, also with a text of the Träger")
+}
+
+// TestPaymentTextRefusesLettersWithoutTheDebtorNumberItNames holds that no
+// letter prints a gap where the reference to pay with belongs (#5622): a
+// payment text with {Debitorennummer} needs the number on every invoice
+// that asks for payment.
+func TestPaymentTextRefusesLettersWithoutTheDebtorNumberItNames(t *testing.T) {
+	t.Parallel()
+
+	documents := []parentbilling.BillingDocument{
+		{Number: "FE-0001", TotalCents: 9250, DebtorNumber: "10 4711"},
+		{Number: "FE-0002", TotalCents: 5000},
+		{Number: "FE-0003", TotalCents: 0},
+		{Number: "FE-0004", TotalCents: 2000, DebtorNumber: "  "},
+	}
+	err := debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: bissendorfPaymentText}, documents)
+	var missing *parentbilling.PaymentTextDebtorNumberMissingError
+	require.ErrorAs(t, err, &missing)
+	assert.ErrorIs(t, err, parentbilling.ErrPaymentTextDebtorNumberMissing)
+	assert.Equal(t, []string{"FE-0002", "FE-0004"}, missing.InvoiceNumbers, "an invoice of 0 € needs no reference")
+
+	for name, text := range map[string]string{
+		"built-in sentence":       "",
+		"text without the number": "Bitte überweisen Sie {Betrag} mit der Rechnungsnummer {Rechnungsnummer}.",
+	} {
+		assert.NoError(t, debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: text}, documents), name)
+	}
+	assert.NoError(t, debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: bissendorfPaymentText}, documents[:1]),
+		"every invoice has its number")
 }
 
 // A family that pays nothing gets no payment date and no request to pay;

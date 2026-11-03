@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -45,7 +46,25 @@ var (
 	// ErrLetterheadTooLong reports a letterhead or footer of the Träger
 	// that leaves too little room on a page for the letter.
 	ErrLetterheadTooLong = errors.New("the letterhead or footer of the Träger is too long for a letter")
+	// ErrPaymentTextDebtorNumberMissing reports letters whose payment text
+	// names the debtor number while an invoice of the run has none (#5622).
+	ErrPaymentTextDebtorNumberMissing = errors.New("the payment text names the debtor number but an invoice has none")
 )
+
+// PaymentTextDebtorNumberMissingError names the invoices of a run without
+// a debtor number when the payment text of the Träger asks for one. It is
+// ErrPaymentTextDebtorNumberMissing.
+type PaymentTextDebtorNumberMissingError struct {
+	InvoiceNumbers []string
+}
+
+func (e *PaymentTextDebtorNumberMissingError) Error() string {
+	return fmt.Sprintf("%s: %d invoices", ErrPaymentTextDebtorNumberMissing, len(e.InvoiceNumbers))
+}
+
+func (e *PaymentTextDebtorNumberMissingError) Unwrap() error {
+	return ErrPaymentTextDebtorNumberMissing
+}
 
 // BillingEmergencyContact is the emergency number of a hosting OGS.
 type BillingEmergencyContact struct {
@@ -88,7 +107,9 @@ type LetterheadBankAccount struct {
 
 // Letterhead is the layout of the Träger a letter prints: the logo (PNG or
 // JPEG, nil without), the colour and the texts of letterhead and footer,
-// the contact person and the default bank account (nil without).
+// the contact person and the default bank account (nil without). The
+// payment text is the Träger's own payment sentence with its placeholders
+// (#5622); empty keeps the built-in sentence.
 type Letterhead struct {
 	Logo         []byte
 	AccentColor  string
@@ -98,6 +119,7 @@ type Letterhead struct {
 	ContactPhone string
 	ContactEmail string
 	BankAccount  *LetterheadBankAccount
+	PaymentText  string
 }
 
 // BillingLetterheads is the master data and the branding settings of the

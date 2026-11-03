@@ -173,6 +173,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"PUT /traeger/settings/values/parent_billing.debtor_number_on_confirm Bearer traeger-token",
+		"PUT /traeger/settings/values/parent_billing.payment_text Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		"POST /traeger/billing-runs/ Bearer traeger-token",

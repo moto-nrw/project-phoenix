@@ -26,6 +26,7 @@ export const codes = [
   "parent_billing.number_range_invalid",
   "parent_billing.number_range_missing",
   "parent_billing.parent_document_not_found",
+  "parent_billing.payment_text_debtor_number_missing",
   "parent_billing.recipient_email_missing",
 ] as const;
 
@@ -56,6 +57,7 @@ export const classes = {
   "parent_billing.number_range_invalid": "input",
   "parent_billing.number_range_missing": "business_rejection",
   "parent_billing.parent_document_not_found": "business_rejection",
+  "parent_billing.payment_text_debtor_number_missing": "business_rejection",
   "parent_billing.recipient_email_missing": "business_rejection",
 } as const;
 
@@ -86,5 +88,6 @@ export const parameters = {
   "parent_billing.number_range_invalid": [],
   "parent_billing.number_range_missing": [],
   "parent_billing.parent_document_not_found": [],
+  "parent_billing.payment_text_debtor_number_missing": ["count"],
   "parent_billing.recipient_email_missing": [],
 } as const;

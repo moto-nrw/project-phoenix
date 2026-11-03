@@ -11,9 +11,10 @@ import (
 // TestTraegerLevelKeysOfVersionOne pins the first Träger classification (ADR
 // 0086 section 4, ADR 0107 point 7): the legal texts of the enrollment and
 // the parent portal functions without a lock are "beide"; the colour and the
-// texts of the branding are "traeger" (#4653), and so is the switch for the
-// debtor number at the confirmation of a holiday registration (#5621);
-// everything else stays at the school. A change of these lists is a product
+// texts of the branding are "traeger" (#4653), and so are the switch for the
+// debtor number at the confirmation of a holiday registration (#5621) and
+// the payment sentence of the confirmation letter (#5622); everything else
+// stays at the school. A change of these lists is a product
 // decision.
 func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	t.Parallel()
@@ -29,7 +30,7 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
-		config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingDebtorNumberOnConfirm, config.KeyParentBillingPaymentText,
 	}
 	var got, gotTraeger []string
 	for key, definition := range config.DefaultRegistry().AllDefinitions() {

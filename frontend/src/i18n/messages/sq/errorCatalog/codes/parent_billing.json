@@ -25,5 +25,6 @@
   "number_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "parent_document_not_found": "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+  "payment_text_debtor_number_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "recipient_email_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

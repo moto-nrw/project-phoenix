@@ -170,8 +170,8 @@ func (s parentBillingSettings) AsksDebtorNumber(ctx context.Context, organizatio
 
 // parentBillingLetterheads binds the letterhead of the letters to the
 // master data of Organisation & Tenancy, which logs the read of the
-// contact person and the bank accounts, and to the branding settings of
-// the Träger (ADR 0112, ADR 0121).
+// contact person and the bank accounts, and to the branding settings and
+// the payment text of the Träger (ADR 0112, ADR 0121, #5622).
 type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
 	settings   TraegerBrandingSettings
@@ -182,8 +182,10 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 	if err != nil {
 		return parentbilling.Letterhead{}, err
 	}
-	texts, err := b.settings.TraegerTexts(ctx, reviewer.OrganizationID,
-		[]string{configModels.KeyBrandingPrimaryColor, configModels.KeyBrandingLetterheadText, configModels.KeyBrandingFooterText})
+	texts, err := b.settings.TraegerTexts(ctx, reviewer.OrganizationID, []string{
+		configModels.KeyBrandingPrimaryColor, configModels.KeyBrandingLetterheadText, configModels.KeyBrandingFooterText,
+		configModels.KeyParentBillingPaymentText,
+	})
 	if err != nil {
 		return parentbilling.Letterhead{}, err
 	}
@@ -191,6 +193,7 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 		AccentColor: texts[configModels.KeyBrandingPrimaryColor], SenderText: texts[configModels.KeyBrandingLetterheadText],
 		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
 		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
+		PaymentText: texts[configModels.KeyParentBillingPaymentText],
 	}
 	for _, account := range profile.BankAccounts {
 		if account.IsDefault {
