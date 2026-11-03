@@ -71,7 +71,9 @@ const DEBTOR_NUMBER_COLUMN: DataTableColumn<HolidayRegistrationSummary> = {
   header: "Debitorennummer",
   render: (registration) =>
     registration.debtorNumber ? (
-      <span className="font-mono">{registration.debtorNumber}</span>
+      <span className="font-mono wrap-anywhere">
+        {registration.debtorNumber}
+      </span>
     ) : (
       "–"
     ),
