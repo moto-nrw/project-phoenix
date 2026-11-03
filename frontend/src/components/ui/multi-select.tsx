@@ -116,9 +116,6 @@ export function MultiSelect({
 }: MultiSelectProps) {
   const selected = [...new Set(value)];
   const selectedSet = new Set(selected);
-  const optionBadges = new Map(
-    options.map((option) => [option.value, option.badge]),
-  );
   const selectedOptions = options.filter((option) =>
     selectedSet.has(option.value),
   );
@@ -214,10 +211,7 @@ export function MultiSelect({
       menuHeader={menuHeader}
       {...listboxProps}
       renderOption={(option) => (
-        <MultiSelectOptionLabel
-          label={option.label}
-          badge={optionBadges.get(option.value)}
-        />
+        <MultiSelectOptionLabel label={option.label} badge={option.badge} />
       )}
       renderTrigger={({ open }) => (
         <ListboxTriggerContent

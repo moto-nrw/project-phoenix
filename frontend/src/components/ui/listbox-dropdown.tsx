@@ -24,6 +24,8 @@ export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
   readonly label: string;
   readonly disabled?: boolean;
+  /** Short gray note under the label ("Zählt nicht als Betreuungstag"). */
+  readonly badge?: string;
 }
 
 /**
