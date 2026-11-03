@@ -18,6 +18,8 @@ const (
 			guardian_first_name = ?, guardian_last_name = ?, guardian_email = ?, guardian_phone = ?,
 			second_guardian_first_name = NULLIF(?, ''), second_guardian_last_name = NULLIF(?, ''),
 			second_guardian_email = NULLIF(?, ''), second_guardian_phone = NULLIF(?, ''),
+			guardian_address_street = NULLIF(?, ''), guardian_address_postal_code = NULLIF(?, ''),
+			guardian_address_city = NULLIF(?, ''),
 			custom_data = ?::jsonb
 		WHERE organization_id = ? AND id = ?`
 	updateHolidayChildDetailsQuery = `UPDATE enrollment.holiday_registration_children SET
@@ -42,12 +44,16 @@ func (s *HolidayRegistrationStore) WriteHolidayRegistrationDetails(ctx context.C
 	if err != nil {
 		return err
 	}
-	guardian, second := details.Guardian, enrollment.HolidayGuardianInput{}
+	guardian, second, address := details.Guardian, enrollment.HolidayGuardianInput{}, enrollment.HolidayAddress{}
 	if details.SecondGuardian != nil {
 		second = *details.SecondGuardian
 	}
+	if details.GuardianAddress != nil {
+		address = *details.GuardianAddress
+	}
 	if _, err := db.NewRaw(updateHolidayRegistrationDetailsQuery, guardian.FirstName, guardian.LastName, guardian.Email, guardian.Phone,
-		second.FirstName, second.LastName, second.Email, second.Phone, answers, organizationID, registrationID).Exec(ctx); err != nil {
+		second.FirstName, second.LastName, second.Email, second.Phone, address.Street, address.PostalCode, address.City,
+		answers, organizationID, registrationID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday registration details: %w", err)
 	}
 	for i, child := range details.Children {

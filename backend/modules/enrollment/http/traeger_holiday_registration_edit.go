@@ -16,12 +16,14 @@ import (
 // /traeger/holiday-periods/{id}/registrations/{registrationId}/details
 // (#5629): the sections the Träger-Büro changes, with the field names of the
 // public form. A section that is absent stays as it is. guardian and
-// second_guardian travel together, a missing or empty second_guardian
-// removes it; emergency_contacts and pickup_persons travel together;
+// second_guardian and guardian_address travel together, a missing or empty
+// second_guardian or guardian_address removes it (#5625);
+// emergency_contacts and pickup_persons travel together;
 // children name each changed child by its id. Bookings, benefits, consents
 // and health information are not part of it.
 type HolidayRegistrationEditRequest struct {
 	Guardian          *holidayGuardianRequest     `json:"guardian"`
+	GuardianAddress   *holidayAddressRequest      `json:"guardian_address"`
 	SecondGuardian    *holidayGuardianRequest     `json:"second_guardian"`
 	Children          []holidayChildEditRequest   `json:"children"`
 	EmergencyContacts *[]holidayContactRequest    `json:"emergency_contacts"`
@@ -49,6 +51,10 @@ func (req *HolidayRegistrationEditRequest) edit() capability.HolidayRegistration
 		if req.SecondGuardian != nil {
 			second := capability.HolidayGuardianInput(*req.SecondGuardian)
 			guardians.SecondGuardian = &second
+		}
+		if req.GuardianAddress != nil {
+			address := capability.HolidayAddress(*req.GuardianAddress)
+			guardians.GuardianAddress = &address
 		}
 		edit.Guardians = guardians
 	}

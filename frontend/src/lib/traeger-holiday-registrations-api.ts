@@ -1,4 +1,5 @@
 import {
+  holidayAddressRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -319,6 +320,7 @@ interface BackendDetail extends BackendSummary {
   form?: {
     version: number;
     fields?: HolidayFormField[] | null;
+    address_requirement?: string | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
   } | null;
   custom_data?: Record<string, unknown> | null;
@@ -424,6 +426,9 @@ function detailFromBackend(
       legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
       version: registration.form?.version ?? 0,
       fields: registration.form?.fields ?? [],
+      addressRequirement: holidayAddressRequirement(
+        registration.form?.address_requirement,
+      ),
     },
     answers: registration.custom_data ?? {},
     childAnswers: Object.fromEntries(
@@ -590,6 +595,13 @@ export interface HolidayRegistrationPersonEdit {
   readonly phone: string;
 }
 
+/** The postal address of the parent who registered (#5625). */
+export interface HolidayRegistrationAddressEdit {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+}
+
 /** An emergency contact or a person allowed to collect the children. */
 export interface HolidayRegistrationContactEdit {
   readonly name: string;
@@ -616,6 +628,8 @@ interface HolidayRegistrationChildEdit {
 export interface HolidayRegistrationEdit {
   readonly guardians?: {
     readonly guardian: HolidayRegistrationPersonEdit;
+    /** Null removes the address; the form version decides whether it is asked. */
+    readonly address: HolidayRegistrationAddressEdit | null;
     readonly secondGuardian: HolidayRegistrationPersonEdit | null;
   };
   readonly child?: HolidayRegistrationChildEdit;
@@ -643,6 +657,14 @@ function holidayRegistrationEditBody(
   const body: Record<string, unknown> = {};
   if (edit.guardians) {
     body.guardian = personBody(edit.guardians.guardian);
+    const address = edit.guardians.address;
+    body.guardian_address = address
+      ? {
+          street: address.street,
+          postal_code: address.postalCode,
+          city: address.city,
+        }
+      : null;
     body.second_guardian = edit.guardians.secondGuardian
       ? personBody(edit.guardians.secondGuardian)
       : null;

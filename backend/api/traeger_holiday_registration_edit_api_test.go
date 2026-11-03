@@ -26,7 +26,12 @@ type editedRegistration struct {
 	GuardianFirstName string `json:"guardian_first_name"`
 	GuardianEmail     string `json:"guardian_email"`
 	GuardianPhone     string `json:"guardian_phone"`
-	SecondGuardian    *struct {
+	GuardianAddress   *struct {
+		Street     string `json:"street"`
+		PostalCode string `json:"postal_code"`
+		City       string `json:"city"`
+	} `json:"guardian_address"`
+	SecondGuardian *struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
 		Email     string `json:"email"`
@@ -438,4 +443,108 @@ func TestTraegerEditOfAFamilyAnswerUpdatesTheChildAnswers(t *testing.T) {
 	assert.Empty(t, childAnswersOf(edited, ben))
 	assert.Equal(t, []any{"children.0.custom_data.ausflug_ziel", "children.1.custom_data.ausflug_ziel", "custom_data.ausfluege_moeglich"},
 		edited.History[len(edited.History)-1].Details["fields"])
+}
+
+// newAddressEditFixture registers the siblings with the postal address under
+// a form version whose address block is requirement (#5625).
+func newAddressEditFixture(t *testing.T, name, requirement string) reviewFixture {
+	t.Helper()
+	f := newHolidayRegistrationFixture(t)
+	office := newTraegerOffice(t, f.db, f.traeger, name, identityaccess.TraegerRoleAdministration)
+	period := openHolidays(t, f, office)
+	saveHolidayAddressForm(t, f, office, period.ID, requirement)
+	offer := holidayOffer(t, f, period.PublicToken)
+	rec := submitWithAddress(t, f, period.PublicToken, offer, "eva.muster@example.org", musterAddress())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	siblings := decodeSchoolPortalData[struct {
+		ID int64 `json:"id"`
+	}](t, rec.Body.Bytes()).ID
+	return reviewFixture{holidayRegistrationFixture: f, office: office, period: period, offer: offer, siblings: siblings}
+}
+
+func guardiansWithAddress(address any) map[string]any {
+	body := editedGuardians("0151 2345678", nil)
+	body["guardian_address"] = address
+	return body
+}
+
+func addressText(detail editedRegistration) string {
+	if detail.GuardianAddress == nil {
+		return ""
+	}
+	return detail.GuardianAddress.Street + ", " + detail.GuardianAddress.PostalCode + " " + detail.GuardianAddress.City
+}
+
+// The Träger-Büro changes the postal address with the rules of the form
+// version the family registered with; the history names the address, never
+// its value, and an issued invoice keeps the address it was issued with.
+func TestTraegerEditsTheGuardianAddressWithTheRulesOfItsForm(t *testing.T) {
+	t.Parallel()
+	f := newAddressEditFixture(t, "Träger Bearbeiten Anschrift", "required")
+	require.Equal(t, "Musterweg 12, 01234 Bissendorf", addressText(f.readDetail(t, f.siblings)))
+
+	for _, refusal := range []struct {
+		name    string
+		address any
+		fields  []string
+	}{
+		{"required address removed", nil, []string{"guardian_address.city", "guardian_address.postal_code", "guardian_address.street"}},
+		{"only the street", map[string]any{"street": "Neue Straße 3"}, []string{"guardian_address.city", "guardian_address.postal_code"}},
+		{"four-digit postal code", map[string]any{"street": "Neue Straße 3", "postal_code": "4914", "city": "Bissendorf"}, []string{"guardian_address.postal_code"}},
+	} {
+		rec := f.editDetails(t, f.siblings, guardiansWithAddress(refusal.address))
+		require.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", refusal.name, rec.Body.String())
+		code, fields := registrationRefusalOf(t, rec)
+		assert.Equal(t, "enrollment.holiday_registration_invalid", code, refusal.name)
+		assert.ElementsMatch(t, refusal.fields, fields, refusal.name)
+	}
+	assert.Empty(t, f.editEntries(t, f.siblings), "a refused address writes no entry")
+
+	moved := f.edited(t, f.editDetails(t, f.siblings, guardiansWithAddress(
+		map[string]any{"street": " Neue Straße 3 ", "postal_code": "49143", "city": "Bissendorf"})))
+	assert.Equal(t, "Neue Straße 3, 49143 Bissendorf", addressText(moved))
+	assert.Equal(t, []any{"guardian_address"}, moved.History[len(moved.History)-1].Details["fields"])
+	for _, entry := range f.editEntries(t, f.siblings) {
+		assert.NotContains(t, entry, "Neue Straße", "the entry carries no value")
+		assert.NotContains(t, entry, "49143")
+	}
+
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "confirm").Code)
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := startBillingRun(t, f, billing, f.period.ID)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(billingRun(t, f, billing, run.ID)))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	invoiceAddress := func() string {
+		rec := traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		documents := decodeSchoolPortalData[billingAddressBody](t, rec.Body.Bytes()).Documents
+		require.Len(t, documents, 1)
+		require.NotNil(t, documents[0].RecipientAddress)
+		address := documents[0].RecipientAddress
+		return address.Street + ", " + address.PostalCode + " " + address.City
+	}
+	require.Equal(t, "Neue Straße 3, 49143 Bissendorf", invoiceAddress(), "the invoice copied the address of its release")
+
+	again := f.edited(t, f.editDetails(t, f.siblings, guardiansWithAddress(
+		map[string]any{"street": "Am Bach 1", "postal_code": "49143", "city": "Bissendorf"})))
+	assert.Equal(t, "Am Bach 1, 49143 Bissendorf", addressText(again), "a confirmed registration with an invoice can be changed")
+	assert.Equal(t, "Neue Straße 3, 49143 Bissendorf", invoiceAddress(), "the issued invoice keeps its address")
+}
+
+// An optional address can be removed; a form version that does not ask for
+// an address refuses one.
+func TestTraegerEditRemovesAnOptionalAddressAndRefusesOneTheFormDoesNotAsk(t *testing.T) {
+	t.Parallel()
+	f := newAddressEditFixture(t, "Träger Bearbeiten Anschrift freiwillig", "optional")
+	removed := f.edited(t, f.editDetails(t, f.siblings, guardiansWithAddress(nil)))
+	assert.Nil(t, removed.GuardianAddress, "an optional address can be removed")
+	assert.Equal(t, []any{"guardian_address"}, removed.History[len(removed.History)-1].Details["fields"])
+
+	plain := newReviewFixture(t, "Träger Bearbeiten ohne Anschrift")
+	rec := plain.editDetails(t, plain.siblings, guardiansWithAddress(musterAddress()))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	_, fields := registrationRefusalOf(t, rec)
+	assert.ElementsMatch(t, []string{"guardian_address.city", "guardian_address.postal_code", "guardian_address.street"}, fields,
+		"the form of this registration asks for no address")
 }

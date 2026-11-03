@@ -10186,7 +10186,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Zum Beispiel eine neue Telefonnummer oder ein falsch geschriebener Name.",
           steps: [
             "Wählen Sie bei der Karte `Ändern`: bei `Eltern`, beim Kind, bei `Notfallkontakte und Abholung` oder bei `Allgemeine Angaben`.",
-            "Ändern Sie die Angaben. Es gelten dieselben Regeln wie im Formular der Eltern.",
+            "Ändern Sie die Angaben. Es gelten dieselben Regeln wie im Formular der Eltern. Fragt das Formular nach der Anschrift, ändern Sie sie bei `Eltern`.",
             "Wählen Sie `Änderung speichern`.",
           ],
         },
@@ -10227,8 +10227,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
         "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
-        "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist.",
-        "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`.",
+        "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
+        "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
         "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
       ],
       differences: [

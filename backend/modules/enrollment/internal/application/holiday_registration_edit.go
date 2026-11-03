@@ -110,7 +110,7 @@ func holidayStoredFromDetail(detail enrollment.HolidayRegistrationDetail) holida
 			FirstName: detail.GuardianFirstName, LastName: detail.GuardianLastName,
 			Email: detail.GuardianEmail, Phone: detail.GuardianPhone,
 		},
-		SecondGuardian: detail.SecondGuardian, CustomData: detail.CustomData,
+		GuardianAddress: detail.GuardianAddress, SecondGuardian: detail.SecondGuardian, CustomData: detail.CustomData,
 		EmergencyContacts: []enrollment.HolidayContactInput{}, PickupPersons: []enrollment.HolidayContactInput{},
 	}}
 	for _, child := range detail.Children {
@@ -145,6 +145,7 @@ func applyHolidayEdit(stored holidayStoredDetails, edit enrollment.HolidayRegist
 	if edit.Guardians != nil {
 		scope.guardians = true
 		next.Guardian, next.SecondGuardian = edit.Guardians.Guardian, edit.Guardians.SecondGuardian
+		next.GuardianAddress = edit.Guardians.GuardianAddress
 	}
 	if edit.Contacts != nil {
 		scope.contacts = true
@@ -178,7 +179,7 @@ func applyHolidayEdit(stored holidayStoredDetails, edit enrollment.HolidayRegist
 func (h *HolidayRegistrationReview) checkHolidayEdit(next enrollment.HolidayRegistrationInput, scope holidayEditScope, form enrollment.HolidayPeriodForm, schools []enrollment.HolidaySchool) (enrollment.HolidayRegistrationInput, error) {
 	errs := validation.Errors{}
 	if scope.guardians {
-		addHolidayGuardianErrors(errs, next)
+		addHolidayGuardianErrors(errs, next, form.AddressRequirement)
 	}
 	childErrs := validation.Errors{}
 	if slices.Contains(scope.children, true) {
@@ -203,9 +204,15 @@ func (h *HolidayRegistrationReview) checkHolidayEdit(next enrollment.HolidayRegi
 	return withHolidayAnswers(next, answers)
 }
 
-func addHolidayGuardianErrors(errs validation.Errors, next enrollment.HolidayRegistrationInput) {
+// addHolidayGuardianErrors checks the parent, the postal address against
+// the address block of the registration's form version (#5625) and the
+// second guardian.
+func addHolidayGuardianErrors(errs validation.Errors, next enrollment.HolidayRegistrationInput, address enrollment.HolidayAddressRequirement) {
 	if guardianErrs := validateHolidayGuardian(next.Guardian); len(guardianErrs) > 0 {
 		errs["guardian"] = guardianErrs
+	}
+	if addressErrs := validateHolidayAddress(address, next.GuardianAddress); len(addressErrs) > 0 {
+		errs["guardian_address"] = addressErrs
 	}
 	if next.SecondGuardian != nil {
 		if guardianErrs := validateHolidaySecondGuardian(*next.SecondGuardian); len(guardianErrs) > 0 {
@@ -346,6 +353,9 @@ func refuseHolidayHealthAnswers(answerErrs validation.Errors, form enrollment.Ho
 // in the order of the form: parents, children, contacts, answers.
 func holidayEditFields(before, after enrollment.HolidayRegistrationInput) []string {
 	fields := holidayGuardianFields("guardian", before.Guardian, after.Guardian)
+	if !reflect.DeepEqual(before.GuardianAddress, after.GuardianAddress) {
+		fields = append(fields, "guardian_address")
+	}
 	switch {
 	case (before.SecondGuardian == nil) != (after.SecondGuardian == nil):
 		fields = append(fields, "second_guardian")

@@ -75,6 +75,7 @@ function questionLabel(
 function fieldLabel(path: string, fields: readonly HolidayFormField[]): string {
   const [section, second, third, fourth] = path.split(".");
   if (section === "guardian") return GUARDIAN[second ?? ""] ?? "Elternteil";
+  if (section === "guardian_address") return "Anschrift";
   if (section === "second_guardian") {
     return second
       ? (SECOND_GUARDIAN[second] ?? "zweite sorgeberechtigte Person")

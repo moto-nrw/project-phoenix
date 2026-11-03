@@ -299,11 +299,15 @@ type HolidayRegistrationEdit struct {
 	CustomData *HolidayAnswers
 }
 
-// HolidayGuardiansEdit are the parent who registered and the optional
-// second guardian; a nil SecondGuardian removes it.
+// HolidayGuardiansEdit are the parent who registered with the postal
+// address and the optional second guardian; a nil SecondGuardian or
+// GuardianAddress removes it. The address follows the form version of the
+// registration (#5625); an issued invoice keeps the address it was issued
+// with.
 type HolidayGuardiansEdit struct {
-	Guardian       HolidayGuardianInput
-	SecondGuardian *HolidayGuardianInput
+	Guardian        HolidayGuardianInput
+	GuardianAddress *HolidayAddress
+	SecondGuardian  *HolidayGuardianInput
 }
 
 // HolidayChildEdit are the details of one child of the registration. A zero

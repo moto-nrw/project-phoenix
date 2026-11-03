@@ -104,7 +104,8 @@ Sie führt keinen neuen Owner und keine neue Stelle der Träger-Transaktion ein.
 
 Zu Punkt 6: Das Träger-Büro ändert die Angaben einer Anmeldung
 (`PUT .../registrations/{registrationId}/details`, Recht „Anmeldung
-verwalten“): Elternteil, zweite sorgeberechtigte Person, Vor- und Nachname,
+verwalten“): Elternteil mit Anschrift (nach dem Baustein der Formularversion,
+#5625), zweite sorgeberechtigte Person, Vor- und Nachname,
 Geburtsdatum und Schule eines Kindes, Notfallkontakte, Abholpersonen und
 die Antworten ohne Gesundheitsangabe. `edit` gehört zu den Änderungen. Der
 Eintrag nennt die geänderten Felder als Feldpfade („guardian.phone“,
@@ -122,8 +123,14 @@ Eintrag nennt die geänderten Felder als Feldpfade („guardian.phone“,
   bestätigte und eingefrorene Anmeldungen lassen sich ändern: keine dieser
   Angaben ändert den Ferienbeitrag (ADR 0115), Wochen und Zeitmodell ändert
   weiter nur das Umbuchen.
-- Kinder, Buchungen, Leistungsbezug, Nachweise, Einwilligungen und
-  Gesundheitsangaben ändern sich hier nicht. Eine Antwort auf eine Frage mit
+- Kinder, Buchungen, Leistungsbezug, Nachweise, Einwilligungen, die
+  Erklärung der Eltern (#5626) und Gesundheitsangaben ändern sich hier
+  nicht; die Debitorennummer ändert die Statuskarte (#5621). Eine Antwort auf eine Frage mit
   Gesundheitsangabe lehnt die Route ab: sie liegt verschlüsselt und
   bräuchte ein eigenes Schreibrecht.
-- Ausgestellte Schreiben behalten ihre eigene Kopie (ADR 0119 Punkt 7).
+- Ausgestellte Schreiben behalten ihre eigene Kopie (ADR 0119 Punkt 7), auch
+  eine Rechnung ihre Anschrift.
+- Bedingungen, die an einer Frage mit Gesundheitsangabe hängen, wertet die
+  Änderung nicht aus: die Antwort bleibt. Ändern sich die allgemeinen
+  Antworten, werden die Antworten jedes Kindes neu bereinigt; entfernte
+  Antworten stehen im Eintrag.

@@ -34,12 +34,14 @@ const {
   mockEdit,
   mockConfirmationSettings,
   sessionPermissions,
+  contributionOverride,
 } = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
   mockHealth: vi.fn(),
   mockEdit: vi.fn(),
   mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
+  contributionOverride: { current: null as unknown },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   ...(await importOriginal<
@@ -51,7 +53,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
-  fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
+  fetchHolidayContribution: () =>
+    Promise.resolve(contributionOverride.current ?? HOLIDAY_CONTRIBUTION),
 }));
 
 import TraegerHolidayRegistrationPage from "./page";
@@ -645,6 +648,7 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
           email: "eva.muster@example.org",
           phone: "0151 9999999",
         },
+        address: null,
         secondGuardian: null,
       },
     });
@@ -770,6 +774,71 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
         },
       }),
     );
+  });
+
+  it("changes the postal address with the rules of its form and says an invoice keeps the old one (#5625)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      status: "confirmed",
+      guardianAddress: {
+        street: "Musterweg 12",
+        postalCode: "01234",
+        city: "Bissendorf",
+      },
+      form: { ...HOLIDAY_REGISTRATION.form, addressRequirement: "required" },
+    });
+    contributionOverride.current = { ...HOLIDAY_CONTRIBUTION, invoiced: true };
+    mockEdit.mockResolvedValueOnce({
+      ...HOLIDAY_REGISTRATION,
+      history: [
+        {
+          action: "edit",
+          occurredAt: "2026-11-03T10:12:00Z",
+          from: "",
+          childId: "",
+          before: [],
+          after: [],
+          debtorNumber: null,
+          fields: ["guardian_address"],
+        },
+      ],
+    });
+    const edit = await openParentsEdit();
+    expect(
+      await edit.findByText(
+        "Für diese Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die bisherige Anschrift.",
+      ),
+    ).toBeInTheDocument();
+    expect(edit.getByLabelText(/^Straße und Hausnummer/)).toHaveValue(
+      "Musterweg 12",
+    );
+    expect(edit.getByLabelText(/^PLZ/)).toBeRequired();
+    fireEvent.change(edit.getByLabelText(/^PLZ/), {
+      target: { value: "49143" },
+    });
+    fireEvent.click(edit.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(mockEdit).toHaveBeenCalledWith("5", "7", {
+        guardians: {
+          guardian: {
+            firstName: "Eva",
+            lastName: "Muster",
+            email: "eva@example.org",
+            phone: "0151 2345678",
+          },
+          address: {
+            street: "Musterweg 12",
+            postalCode: "49143",
+            city: "Bissendorf",
+          },
+          secondGuardian: null,
+        },
+      }),
+    );
+    expect(
+      await screen.findByText(": Anschrift", { exact: false }),
+    ).toBeInTheDocument();
+    contributionOverride.current = null;
   });
 
   it("offers no „Ändern“ on a cancelled registration and says why", async () => {

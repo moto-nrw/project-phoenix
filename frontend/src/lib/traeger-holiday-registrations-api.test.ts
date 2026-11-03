@@ -289,7 +289,12 @@ describe("traeger-holiday-registrations-api", () => {
 
     const detail = await fetchHolidayRegistration("5", "7");
 
-    expect(detail.form).toEqual({ version: 0, fields: [], legalBlocks: [] });
+    expect(detail.form).toEqual({
+      version: 0,
+      fields: [],
+      legalBlocks: [],
+      addressRequirement: "off",
+    });
     expect(detail.answers).toEqual({});
     expect(detail.childAnswers).toEqual({});
   });
@@ -346,6 +351,11 @@ describe("traeger-holiday-registrations-api", () => {
           email: "eva@example.org",
           phone: "0151 9999999",
         },
+        address: {
+          street: "Neue Straße 3",
+          postalCode: "49143",
+          city: "Bissendorf",
+        },
         secondGuardian: null,
       },
     });
@@ -375,6 +385,11 @@ describe("traeger-holiday-registrations-api", () => {
         last_name: "Muster",
         email: "eva@example.org",
         phone: "0151 9999999",
+      },
+      guardian_address: {
+        street: "Neue Straße 3",
+        postal_code: "49143",
+        city: "Bissendorf",
       },
       second_guardian: null,
     });

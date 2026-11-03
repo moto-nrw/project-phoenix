@@ -34,6 +34,7 @@ import type { TraegerSchool } from "~/lib/traeger-api";
 import {
   editHolidayRegistration,
   type HolidayRegistrationChild,
+  type HolidayRegistrationAddressEdit,
   type HolidayRegistrationContactEdit,
   type HolidayRegistrationDetail,
   type HolidayRegistrationEdit,
@@ -211,8 +212,93 @@ const EMPTY_PERSON: HolidayRegistrationPersonEdit = {
 };
 
 /** The parent who registered and the optional second guardian. */
-export function GuardiansEditor(props: HolidayRegistrationEditorProps) {
-  const { registration } = props;
+/** The postal address as the form edits it: empty parts, never null. */
+type AddressDraft = HolidayRegistrationAddressEdit;
+
+/**
+ * The postal address of the parent (#5625), when the form version of the
+ * registration asks for it. All three parts or none; the five-digit postal
+ * code and whether it is required follow the public form.
+ */
+function AddressFields({
+  address,
+  required,
+  invoiced,
+  fieldError,
+  onChange,
+}: Readonly<{
+  address: AddressDraft;
+  required: boolean;
+  /** An issued invoice keeps the address it was issued with. */
+  invoiced: boolean;
+  fieldError: (name: string) => string | undefined;
+  onChange: (address: AddressDraft) => void;
+}>) {
+  const set = (patch: Partial<AddressDraft>) =>
+    onChange({ ...address, ...patch });
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-semibold text-gray-900">
+        {required ? "Anschrift" : "Anschrift (freiwillig)"}
+      </legend>
+      {required ? null : (
+        <p className="text-sm text-gray-700">
+          Mit Anschrift sind Straße, PLZ und Ort nötig.
+        </p>
+      )}
+      {invoiced ? (
+        <p className="text-sm text-gray-700">
+          Für diese Anmeldung gibt es schon eine Rechnung. Die Rechnung behält
+          die bisherige Anschrift.
+        </p>
+      ) : null}
+      <Input
+        name="guardian_address.street"
+        label="Straße und Hausnummer"
+        required={required}
+        maxLength={100}
+        autoComplete="street-address"
+        value={address.street}
+        error={fieldError("guardian_address.street")}
+        onChange={(event) => set({ street: event.target.value })}
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[10rem_1fr]">
+        <Input
+          name="guardian_address.postal_code"
+          label="PLZ"
+          required={required}
+          inputMode="numeric"
+          maxLength={5}
+          autoComplete="postal-code"
+          value={address.postalCode}
+          error={fieldError("guardian_address.postal_code")}
+          onChange={(event) => set({ postalCode: event.target.value })}
+        />
+        <Input
+          name="guardian_address.city"
+          label="Ort"
+          required={required}
+          maxLength={100}
+          autoComplete="address-level2"
+          value={address.city}
+          error={fieldError("guardian_address.city")}
+          onChange={(event) => set({ city: event.target.value })}
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+/** The parent who registered with the postal address, and the optional
+ * second guardian. */
+export function GuardiansEditor(
+  props: HolidayRegistrationEditorProps & Readonly<{ invoiced?: boolean }>,
+) {
+  const { registration, invoiced = false } = props;
+  const addressRequirement = registration.form.addressRequirement ?? "off";
+  const [address, setAddress] = useState<AddressDraft>(
+    registration.guardianAddress ?? { street: "", postalCode: "", city: "" },
+  );
   const [guardian, setGuardian] = useState<HolidayRegistrationPersonEdit>({
     firstName: registration.guardianFirstName,
     lastName: registration.guardianLastName,
@@ -225,7 +311,20 @@ export function GuardiansEditor(props: HolidayRegistrationEditorProps) {
   return (
     <EditForm
       {...props}
-      edit={() => ({ guardians: { guardian, secondGuardian: second } })}
+      edit={() => ({
+        guardians: {
+          guardian,
+          // An empty address is no address, as in the public form.
+          address:
+            addressRequirement === "off" ||
+            (address.street.trim() === "" &&
+              address.postalCode.trim() === "" &&
+              address.city.trim() === "")
+              ? null
+              : address,
+          secondGuardian: second,
+        },
+      })}
     >
       {(fieldError) => (
         <>
@@ -241,6 +340,15 @@ export function GuardiansEditor(props: HolidayRegistrationEditorProps) {
               onChange={setGuardian}
             />
           </fieldset>
+          {addressRequirement === "off" ? null : (
+            <AddressFields
+              address={address}
+              required={addressRequirement === "required"}
+              invoiced={invoiced}
+              fieldError={fieldError}
+              onChange={setAddress}
+            />
+          )}
           <fieldset className="space-y-3">
             <legend className="text-sm font-semibold text-gray-900">
               Zweite sorgeberechtigte Person

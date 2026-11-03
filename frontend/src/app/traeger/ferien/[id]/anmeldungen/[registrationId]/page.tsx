@@ -359,7 +359,10 @@ export default function TraegerHolidayRegistrationPage() {
           ) : null}
           {editing === "guardians" && editorProps ? (
             <SectionCard title={EDIT_TITLE} description="Eltern">
-              <GuardiansEditor {...editorProps} />
+              <GuardiansEditor
+                {...editorProps}
+                invoiced={contribution?.invoiced ?? false}
+              />
             </SectionCard>
           ) : (
             <SectionCard
