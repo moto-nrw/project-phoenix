@@ -192,5 +192,5 @@ Eindeutigkeit ein:
   Träger-Transaktion; ein Lauf eines anderen Trägers ist 404. Beide gehören
   zu `BillingLetterService`, weil sie mit ihrem Schreiben ausgestellt
   werden. Kein neuer Owner, keine neue Regel, kein neues `data_object`.
-- **Migration** `1.15.743` (nach `1.15.739`; 740 bis 742 sind von offenen
+- **Migration** `1.15.743` (nach `1.15.740`; 741 und 742 sind von offenen
   Pull Requests belegt).

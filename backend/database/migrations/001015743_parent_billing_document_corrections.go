@@ -14,7 +14,8 @@ func init() {
 		Version:     parentBillingDocumentCorrectionsVersion,
 		Description: "Elternabrechnung: Storno, Gutschrift und Neuausstellung ausgestellter Rechnungen als eigene Dokumente (#4690)",
 		DependsOn: []string{
-			holidayDebtorNumberVersion,         // the last migration before this one
+			holidayGuestHomeSchoolNameVersion,  // the last migration before this one
+			holidayDebtorNumberVersion,         // the debtor number the documents copy
 			parentBillingRunExportEventVersion, // the actions of the trail this extends
 			parentBillingHolidayRunsVersion,    // the invoices this extends
 		},

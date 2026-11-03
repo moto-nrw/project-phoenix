@@ -155,7 +155,8 @@ type TraegerBrandingSettings interface {
 
 // parentBillingSettings binds the Elternabrechnung's settings port to the
 // Träger level of the settings system: whether the Träger enters the debtor
-// number of the family when it confirms a holiday registration (#5621).
+// number of the family when it confirms a holiday registration (#5621), and
+// its payment text, which the billing run checks before the release (#5622).
 type parentBillingSettings struct {
 	settings TraegerBrandingSettings
 }
@@ -166,6 +167,14 @@ func (s parentBillingSettings) AsksDebtorNumber(ctx context.Context, organizatio
 		return false, err
 	}
 	return values[configModels.KeyParentBillingDebtorNumberOnConfirm], nil
+}
+
+func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyParentBillingPaymentText], nil
 }
 
 // parentBillingLetterheads binds the letterhead of the letters to the

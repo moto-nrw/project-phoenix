@@ -953,19 +953,35 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
-      "binding_digest": "0570fe658f51fe2116e6faaeb9250b67",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding_digest": "e70ff16432e612ffef85b970655d01c5",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
-      "binding_digest": "19af127cef4a3f0e396f37e9c034a3bd",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding_digest": "b087e1e08ec433e8c7e2be7df41bce63",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding_digest": "1f28781c169a7294fc8fa73549410181",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayHostSchoolNames.HolidayHostSchoolNames",
+      "binding_digest": "c2f5b59185906bb7b6ac3696ec476ea7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
       "target_owner": "organization-tenancy"
     },
     {

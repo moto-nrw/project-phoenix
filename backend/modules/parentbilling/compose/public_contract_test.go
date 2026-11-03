@@ -50,6 +50,10 @@ func (s settingsDouble) AsksDebtorNumber(context.Context, int64) (bool, error) {
 	return s.asksDebtorNumber, nil
 }
 
+func (s settingsDouble) PaymentText(context.Context, int64) (string, error) {
+	return "", nil
+}
+
 func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

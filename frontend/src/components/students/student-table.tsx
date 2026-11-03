@@ -133,7 +133,11 @@ export function nameColumn<T extends Student>(
 }
 
 export function classColumn<T extends Student>(
-  options: { defaultVisible?: boolean } = {},
+  options: {
+    defaultVisible?: boolean;
+    /** Ersetzt die Klasse, etwa durch den Hinweis „Gast aus …“ (#5630). */
+    label?: (student: T) => string | undefined;
+  } = {},
 ): StudentTableColumn<T> {
   return {
     key: "class",
@@ -141,7 +145,8 @@ export function classColumn<T extends Student>(
     className: "whitespace-nowrap",
     stackedLabel: false,
     defaultVisible: options.defaultVisible,
-    render: (student) => student.school_class || EMPTY,
+    render: (student) =>
+      options.label?.(student) ?? (student.school_class || EMPTY),
     sortValue: (student) => student.school_class ?? "",
   };
 }
