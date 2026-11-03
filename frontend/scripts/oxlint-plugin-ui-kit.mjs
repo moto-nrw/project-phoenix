@@ -4,6 +4,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -2122,17 +2123,8 @@ const noGreyButtonFill = makeButtonRatchetRule({
 // wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
 // Dafür gibt es `flush` und `footer`. Hart null.
 //
-// no-important-override startet mit einer shrink-only Baseline je Datei: Input
-// und OverflowMenu hängen className per Zeichenkette an statt über cn(), dort
-// gewinnt ohne `!` die Kit-Klasse. Die fünf Stellen gehen weg, sobald die
-// Felder die passende Größe als Prop bekommen; dann sinkt die Zahl hier.
-const IMPORTANT_OVERRIDE_BASELINE = {
-  "src/app/[tenant]/(protected)/meal-plan/page.tsx": 1,
-  "src/components/activities/activity-management-modal.tsx": 1,
-  "src/components/activities/quick-create-modal.tsx": 1,
-  "src/components/help/help-view.tsx": 1,
-  "src/components/staff/dienstplan-person-week-grid.tsx": 1,
-};
+// no-important-override startet mit einer shrink-only Baseline je Datei
+// (ui-kit-important-override-baseline.mjs).
 
 const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
 const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
@@ -2217,7 +2209,10 @@ function makeKitClassRule({
           kitNames = kitComponentNames(node);
         },
         "Program:exit"() {
-          if (findings.length <= (baseline[key] ?? 0)) return;
+          // count: jeden Fund melden, damit der Test die Baseline gegen den
+          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
+          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
+          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
           for (const node of findings) context.report({ node, messageId });
         },
         VariableDeclarator(node) {
@@ -2249,7 +2244,7 @@ const noImportantOverride = makeKitClassRule({
   message:
     'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
   detect: ({ tokens }) => tokens.some(isImportantUtility),
-  baseline: IMPORTANT_OVERRIDE_BASELINE,
+  baseline: importantOverrideBaseline,
 });
 
 const noSectionCardBleed = makeKitClassRule({

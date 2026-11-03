@@ -19,7 +19,6 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { RotateCcw, Send } from "lucide-react";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -285,7 +284,17 @@ export function PushNotificationSection({
     latestTestRef.current = () => void sendTest();
   });
 
-  if (state === "loading") return <PushNotificationSkeleton />;
+  if (state === "loading") {
+    // Ohne Kopf: Ist Web-Push nicht eingerichtet, verschwindet die Karte
+    // nach dem Laden ganz; ein schon sichtbarer Titel würde kurz aufblitzen.
+    return (
+      <SectionCard
+        testId="push-notification-skeleton"
+        loading
+        loadingRows={2}
+      />
+    );
+  }
   if (state === "disabled") {
     return portal === "parent" ? (
       <span hidden data-parent-tour="notification-device-unavailable" />
@@ -541,24 +550,6 @@ export function PushNotificationSection({
           onFinished={() => void refresh()}
         />
       )}
-    </div>
-  );
-}
-
-function PushNotificationSkeleton() {
-  return (
-    <div
-      data-testid="push-notification-skeleton"
-      className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
-      aria-hidden="true"
-    >
-      <div className="flex items-center gap-3">
-        <Skeleton className="size-10 shrink-0 rounded-xl" />
-        <Skeleton className="h-5 w-44" />
-        <Skeleton className="ms-auto h-10 w-28 rounded-lg" />
-      </div>
-      <Skeleton className="mt-4 h-4 w-full max-w-2xl" />
-      <Skeleton className="mt-2 h-4 w-3/4 max-w-xl" />
     </div>
   );
 }

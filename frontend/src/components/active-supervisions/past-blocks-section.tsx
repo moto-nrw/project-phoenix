@@ -117,7 +117,7 @@ export function PastBlocksSection() {
       onCollapsedChange={(collapsed) => setExpanded(!collapsed)}
       className="mt-5"
       flush
-      bodyClassName="mt-5 border-t border-gray-100 bg-gray-50/50 p-5 max-sm:p-4"
+      bodyClassName="compact:p-4 mt-5 border-t border-gray-100 bg-gray-50/50 p-5 max-sm:p-4"
     >
       {isLoading && blocks === null ? (
         <SkeletonRegion label="Vergangene Blöcke werden geladen">

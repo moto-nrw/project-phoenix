@@ -17,6 +17,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -1405,5 +1406,27 @@ describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("ui-kit(no-important-override)");
+  });
+});
+
+describe("ui-kit/no-important-override baseline is current (#5581)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
+  // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.
+  it("records exactly the findings each baselined file still has", async () => {
+    const previous = process.env.UI_KIT_IMPORTANT_OVERRIDE;
+    process.env.UI_KIT_IMPORTANT_OVERRIDE = "count";
+    try {
+      for (const [file, expected] of Object.entries(
+        importantOverrideBaseline,
+      )) {
+        const result = await lintSource(readFileSync(file, "utf8"), file);
+        const found =
+          result.output.match(/ui-kit\(no-important-override\)/g)?.length ?? 0;
+        expect({ file, found }).toEqual({ file, found: expected });
+      }
+    } finally {
+      if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
+      else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
+    }
   });
 });

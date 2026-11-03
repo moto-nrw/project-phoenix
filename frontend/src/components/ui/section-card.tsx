@@ -404,20 +404,21 @@ export function SectionCard({
       {showBody && (
         <div id={collapsible ? bodyId : undefined} className={bodyClasses}>
           {loading ? (
-            // Wie SkeletonRegion, ohne page-skeletons: das zöge die DataTable
-            // in jede Seite mit einer Karte.
-            <output
+            // Wie SkeletonRegion, ohne page-skeletons (das zöge die DataTable
+            // in jede Seite mit einer Karte) und als div, weil <output> keine
+            // Liste aufnehmen darf.
+            <div
+              role="status"
               aria-label={`${title ?? "Inhalt"} wird geladen`}
               aria-live="polite"
               aria-busy="true"
-              className="block w-full"
             >
               <dl className="space-y-3">
                 {Array.from({ length: loadingRows }, (_, index) => (
                   <DataFieldSkeleton key={index} />
                 ))}
               </dl>
-            </output>
+            </div>
           ) : (
             children
           )}

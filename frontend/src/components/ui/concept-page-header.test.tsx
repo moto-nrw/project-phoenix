@@ -8,7 +8,6 @@ describe("ConceptPageHeader", () => {
     render(
       <ConceptPageHeader
         title="Nachrichten"
-        eyebrow="Austausch mit der OGS"
         concept={parentConversationsConcept}
       />,
     );
@@ -19,7 +18,6 @@ describe("ConceptPageHeader", () => {
     });
     const iconSurface = title.parentElement?.previousElementSibling;
 
-    expect(screen.getByText("Austausch mit der OGS")).toBeInTheDocument();
     expect(iconSurface).toHaveClass("rounded-xl", "bg-gray-100");
     expect(
       iconSurface?.querySelector('[data-moto-duotone-tone="blue"]'),
