@@ -919,7 +919,7 @@ function ClockInCard({
       variant="primary"
       disabled={stampingDisabled || actionLoading}
       onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
-      className="mx-auto w-full max-w-sm text-sm shadow-none"
+      className="mx-auto w-full max-w-sm"
     >
       Starten
     </Button>
@@ -933,7 +933,7 @@ function ClockInCard({
         variant="primary"
         disabled={stampingDisabled || actionLoading}
         onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
-        className="mx-auto mt-6 w-full max-w-sm text-sm shadow-none"
+        className="mx-auto mt-6 w-full max-w-sm"
       >
         Starten
       </Button>
@@ -1559,18 +1559,20 @@ function BreakActivityLog({
       })}
       {/* Toggle button at the bottom */}
       {hasHidden && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          onClick={() => setExpanded(!expanded)}
-          aria-expanded={expanded}
-          className="w-full !rounded-none border-t border-gray-50 text-gray-400 hover:bg-transparent hover:text-gray-600"
-        >
-          {expanded
-            ? "Weniger anzeigen"
-            : `${hiddenSegments.length} weitere anzeigen`}
-        </Button>
+        <div className="border-t border-gray-50 pt-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => setExpanded(!expanded)}
+            aria-expanded={expanded}
+            className="w-full"
+          >
+            {expanded
+              ? "Weniger anzeigen"
+              : `${hiddenSegments.length} weitere anzeigen`}
+          </Button>
+        </div>
       )}
     </>
   );
@@ -2736,7 +2738,6 @@ function EditSessionModal({
                       size="compact"
                       aria-pressed={notes === reason}
                       onClick={() => setNotes(reason)}
-                      className="!rounded-full shadow-none hover:shadow-none"
                     >
                       {reason}
                     </Button>
@@ -2901,11 +2902,10 @@ function EditSessionModal({
                   <div className="pt-1">
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="ghost_danger"
                       size="compact"
                       onClick={handleAbsenceDelete}
                       disabled={absenceDeleting}
-                      className="text-moto-red hover:text-moto-red-hover px-0 text-sm hover:bg-transparent"
                     >
                       {absenceDeleting
                         ? "Abwesenheit wird gelöscht…"

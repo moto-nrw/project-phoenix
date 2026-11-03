@@ -332,6 +332,8 @@ function HeadActions({
     return (
       <a
         href={weekProtocolsService.pdfUrl(protocol.id)}
+        // Kennzeichen der Kopfkarte für ihre Bedienhöhe (wie `ButtonLink`).
+        data-button-link=""
         className={buttonClassName({
           variant: "outline",
           size: "md",

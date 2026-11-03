@@ -915,7 +915,6 @@ function GuardianRow({
                 onClick={onEditContact}
                 title={t("guardians.editContact")}
                 aria-label={t("guardians.editContact")}
-                className="text-gray-400"
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -944,7 +943,6 @@ function GuardianRow({
                     ? t("guardians.managePickup")
                     : t("guardians.pickupNotes")
                 }
-                className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
                   <MotoConceptIcon concept={permissionsConcept} size={18} />
@@ -1377,16 +1375,17 @@ function ContactModal({
                   />
                 </div>
                 {phones.length > 1 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() =>
                       setPhones((prev) => prev.filter((_, idx) => idx !== i))
                     }
-                    className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                     aria-label={t("guardians.removePhone")}
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}

@@ -136,10 +136,9 @@ import type {
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
 
-const PRIORITY_OPTIONS: ReadonlyArray<{
-  value: AnnouncementPriority;
-  label: string;
-}> = [
+const PRIORITY_OPTIONS: ReadonlyArray<
+  SegmentedControlItem<AnnouncementPriority>
+> = [
   { value: "info", label: "Info" },
   { value: "important", label: "Wichtig" },
 ];
@@ -1590,27 +1589,31 @@ function AnnouncementFormModal({
                                 maxLength={MAX_POLL_OPTION_LENGTH}
                               />
                             </div>
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost_danger"
+                              size="icon"
                               onClick={() => removeOptionAt(index)}
                               aria-label={`Antwort ${index + 1} entfernen`}
-                              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                              className="shrink-0"
                             >
                               <Trash2 className="h-4 w-4" aria-hidden />
-                            </button>
+                            </Button>
                           </li>
                         ))}
                       </ul>
 
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="md"
                         onClick={addOption}
                         disabled={optionRows.length >= MAX_POLL_OPTIONS}
-                        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        className="mt-3 gap-2"
                       >
                         <Plus className="h-4 w-4" aria-hidden />
                         Antwort hinzufügen
-                      </button>
+                      </Button>
 
                       <p className="mt-2 text-xs text-gray-500">
                         Zwei bis {MAX_POLL_OPTIONS} Antworten. Eltern antworten
@@ -1873,32 +1876,16 @@ function AnnouncementFormModal({
                   </h3>
 
                   <div>
-                    <span
-                      id="announcement-priority-label"
-                      className="mb-1.5 block text-sm font-medium text-gray-700"
-                    >
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
                       Priorität
                     </span>
-                    <div
-                      className="flex flex-wrap gap-2"
-                      role="group"
-                      aria-labelledby="announcement-priority-label"
-                    >
-                      {PRIORITY_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setPriority(opt.value)}
-                          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                            priority === opt.value
-                              ? "bg-gray-900 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      variant="pills"
+                      ariaLabel="Priorität"
+                      items={PRIORITY_OPTIONS}
+                      value={priority}
+                      onChange={setPriority}
+                    />
                   </div>
 
                   {/* An Elternbrief is defined by both channels being mandatory, so
