@@ -316,14 +316,14 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     const table = within(await screen.findByRole("table"));
 
     expect(
-      await table.findByText("Vielleicht Geschwister: gleiche E-Mail (Nr. 8)"),
-    ).toBeInTheDocument();
+      await table.findAllByText("Vielleicht Geschwister: gleiche E-Mail"),
+    ).toHaveLength(2);
+    expect(table.getByText("Nr. 8")).toBeInTheDocument();
+    expect(table.getByText("Nr. 7")).toBeInTheDocument();
     expect(
-      table.getByText("Vielleicht Geschwister: gleiche E-Mail (Nr. 7)"),
+      table.getByText("Vielleicht Geschwister: gleicher Nachname"),
     ).toBeInTheDocument();
-    expect(
-      table.getByText("Vielleicht Geschwister: gleicher Nachname (Nr. 7, 8)"),
-    ).toBeInTheDocument();
+    expect(table.getByText("Nr. 7, 8")).toBeInTheDocument();
     expect(mockMerge).not.toHaveBeenCalled();
   });
 
@@ -365,8 +365,9 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     expect(await table.findByText("mit Nr. 8")).toBeInTheDocument();
     expect(table.getByText("mit Nr. 7")).toBeInTheDocument();
     expect(
-      table.getByText("Vielleicht Geschwister: gleicher Nachname (Nr. 7, 8)"),
+      table.getByText("Vielleicht Geschwister: gleicher Nachname"),
     ).toBeInTheDocument();
+    expect(table.getByText("Nr. 7, 8")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Als Geschwister zusammenführen" }),
     ).not.toBeInTheDocument();

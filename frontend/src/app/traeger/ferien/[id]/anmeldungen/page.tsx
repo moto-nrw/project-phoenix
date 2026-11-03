@@ -133,9 +133,11 @@ function siblingsColumn(
       const hint = view.hints.get(registration.id);
       if (!hint) return null;
       return (
-        <span className="wrap-anywhere text-gray-700">
-          {SIBLING_HINT_LABELS[hint.reason]} (Nr.{" "}
-          {hint.registrationIds.join(", ")})
+        <span className="block wrap-anywhere text-gray-700">
+          <span className="block">{SIBLING_HINT_LABELS[hint.reason]}</span>
+          <span className="block text-gray-500">
+            Nr. {hint.registrationIds.join(", ")}
+          </span>
         </span>
       );
     },
