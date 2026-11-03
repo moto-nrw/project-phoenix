@@ -96,12 +96,13 @@ func (s *HolidayRegistrationStore) CountHolidayRegistrationAttempt(ctx context.C
 const (
 	insertHolidayRegistrationQuery = `INSERT INTO enrollment.holiday_registrations
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
+			 privacy_consent_at, health_consent_at, binding_confirmed_at, custody_confirmed_at, declaration_name, benefits_declared,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
 			form_version, custom_data, legal_acceptances, consent_version,
 			guardian_address_street, guardian_address_postal_code, guardian_address_city)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
-			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
+			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END,
+			CASE WHEN ? THEN statement_timestamp() END, NULLIF(?, ''), ?,
 			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
 			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)),
 			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))
@@ -184,7 +185,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
-		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
+		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.CustodyConfirmed, input.DeclarationName, input.BenefitsDeclared,
 		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances)),
 		input.ConsentVersion, address.Street, address.PostalCode, address.City).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
