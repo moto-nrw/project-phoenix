@@ -836,6 +836,11 @@
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
     },
     {
+      "decision": "0121",
+      "id": "api/parentBillingSettings.PaymentText",
+      "reason": "ADR 0121 addendum (#5622): Consumer-port adapter of the Elternabrechnung's settings port; it reads the payment text of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
+    },
+    {
       "decision": "0113",
       "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
       "reason": "ADR 0113 (#4662): Consumer-port adapter of the parents portal's holiday registration link port; it translates Enrollment's resolved link into the Träger and its school IDs and maps the unknown link onto the portal's sentinel."
