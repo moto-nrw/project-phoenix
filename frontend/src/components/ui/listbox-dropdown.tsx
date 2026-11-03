@@ -24,8 +24,6 @@ export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
   readonly label: string;
   readonly disabled?: boolean;
-  /** Short gray note under the label ("Zählt nicht als Betreuungstag"). */
-  readonly badge?: string;
 }
 
 /**
@@ -1139,21 +1137,9 @@ export function ListboxDropdown<K extends string>({
 function OptionLabel<K extends string>({
   option,
 }: Readonly<{ option: ListboxDropdownOption<K> }>) {
-  if (!option.badge) {
-    return (
-      <span className="min-w-0 flex-1 truncate" title={option.label}>
-        {option.label}
-      </span>
-    );
-  }
   return (
-    <span className="min-w-0 flex-1">
-      <span className="block truncate" title={option.label}>
-        {option.label}
-      </span>
-      <span className="mt-1 block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-        {option.badge}
-      </span>
+    <span className="min-w-0 flex-1 truncate" title={option.label}>
+      {option.label}
     </span>
   );
 }
