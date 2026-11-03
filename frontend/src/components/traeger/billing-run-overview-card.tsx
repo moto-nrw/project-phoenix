@@ -5,7 +5,9 @@
 // Kind korrigieren lassen; nach der Freigabe die Übersicht für die Kämmerei
 // mit allen Positionen und Summen als PDF, Excel oder CSV im Menü der Karte
 // unter „Exportieren“, wie im Schul-Portal (#5240). Die Aufschlüsselung steht
-// im Seitenpanel, Korrektur und Schreiben im Menü der Zeile.
+// im Seitenpanel, Korrektur und Schreiben im Menü der Zeile. Nach der
+// Freigabe stehen dort auch Storno und Gutschrift (#4690); beide sind eigene
+// Zeilen mit eigener Nummer, Minusbetrag und Bezug auf die Rechnung.
 
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -17,6 +19,7 @@ import {
 } from "~/components/ui/export-menu";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
@@ -31,6 +34,12 @@ import {
   BillingDocumentBreakdown,
   recipientName,
 } from "./billing-document-card";
+import {
+  BILLING_DOCUMENT_KIND_LABELS,
+  billingReferenceText,
+  isCancelled,
+  isCredited,
+} from "./billing-format";
 import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
@@ -41,16 +50,54 @@ const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "csv",
 ]);
 
+/** A draft has no ID yet; its registration names it. */
+function rowKey(document: BillingDocument): string {
+  return document.id || `draft-${document.registrationId}`;
+}
+
+/**
+ * What an issued invoice still asks for one child: the child's amount
+ * minus the Gutschriften of the run for that child (#4690).
+ */
+export function leftForChild(
+  run: BillingRunDetail,
+  invoice: BillingDocument,
+  child: BillingChild,
+): number {
+  let left = child.totalCents;
+  for (const document of run.documents) {
+    if (document.kind !== "credit") continue;
+    if (document.referenceNumber !== invoice.number) continue;
+    for (const credited of document.children) {
+      if (credited.childId === child.childId) left += credited.totalCents;
+    }
+  }
+  return left;
+}
+
 export function BillingRunOverviewCard({
   run,
   onCorrect,
   onDownloadLetter,
+  onCancel,
+  onCredit,
+  onReissue,
 }: Readonly<{
   run: BillingRunDetail;
   /** Set while the run is a preview; corrects one child of a document. */
   onCorrect?: (document: BillingDocument, child: BillingChild) => void;
   /** Set once the letters of the released run exist (#4669). */
   onDownloadLetter?: (document: BillingDocument) => void;
+  /** Set once the run is released: Storno of an invoice (#4690). */
+  onCancel?: (document: BillingDocument) => void;
+  /** Set once the run is released: Gutschrift for one child (#4690). */
+  onCredit?: (
+    document: BillingDocument,
+    child: BillingChild,
+    leftCents: number,
+  ) => void;
+  /** Opens the run that issues a cancelled invoice again (#4690). */
+  onReissue?: (document: BillingDocument) => void;
 }>) {
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
@@ -61,8 +108,7 @@ export function BillingRunOverviewCard({
   const { show: showActionError } = useApiErrorDisplay();
   const released = run.status === "released";
   const shown =
-    run.documents.find((document) => document.registrationId === shownKey) ??
-    null;
+    run.documents.find((document) => rowKey(document) === shownKey) ?? null;
 
   const exportFile = async (format: BillingRunExportFormat) => {
     setExporting(format);
@@ -77,6 +123,33 @@ export function BillingRunOverviewCard({
     } finally {
       setExporting(null);
     }
+  };
+
+  // Storno and Gutschrift only for an issued invoice that is not cancelled;
+  // a Storno only while it has no Gutschrift, a Gutschrift only while the
+  // child has something left.
+  const correctionItems = (document: BillingDocument) => {
+    if (!released || document.kind !== "invoice" || isCancelled(document)) {
+      return [];
+    }
+    const items: { label: string; onClick: () => void }[] = [];
+    if (onCancel && !isCredited(document)) {
+      items.push({
+        label: "Rechnung stornieren",
+        onClick: () => onCancel(document),
+      });
+    }
+    if (onCredit) {
+      for (const child of document.children) {
+        const left = leftForChild(run, document, child);
+        if (left <= 0) continue;
+        items.push({
+          label: `Gutschrift für ${child.firstName}`,
+          onClick: () => onCredit(document, child, left),
+        });
+      }
+    }
+    return items;
   };
 
   const columns: DataTableColumn<BillingDocument>[] = [
@@ -95,12 +168,36 @@ export function BillingRunOverviewCard({
     {
       key: "number",
       header: "Rechnung",
-      render: (document) =>
-        document.number ? (
-          <span className="font-mono text-gray-900">{document.number}</span>
-        ) : (
-          "Entwurf ohne Nummer"
-        ),
+      render: (document) => {
+        const reference = billingReferenceText(document);
+        return (
+          <span className="flex flex-col items-start gap-1">
+            <span className="flex flex-wrap items-center gap-2">
+              {document.number ? (
+                <span className="font-mono text-gray-900">
+                  {document.number}
+                </span>
+              ) : (
+                "Entwurf ohne Nummer"
+              )}
+              {document.kind !== "invoice" ? (
+                <StatusBadge
+                  label={BILLING_DOCUMENT_KIND_LABELS[document.kind]}
+                  tone="blue"
+                />
+              ) : null}
+              {isCancelled(document) ? (
+                <StatusBadge label="Storniert" tone="red" />
+              ) : null}
+            </span>
+            {reference ? (
+              <span className="text-sm wrap-anywhere text-gray-600">
+                {reference}
+              </span>
+            ) : null}
+          </span>
+        );
+      },
       stacked: "field",
     },
     {
@@ -133,7 +230,7 @@ export function BillingRunOverviewCard({
           items={[
             {
               label: "Aufschlüsselung ansehen",
-              onClick: () => setShownKey(document.registrationId),
+              onClick: () => setShownKey(rowKey(document)),
             },
             ...(onCorrect
               ? document.children.map((child) => ({
@@ -141,6 +238,7 @@ export function BillingRunOverviewCard({
                   onClick: () => onCorrect(document, child),
                 }))
               : []),
+            ...correctionItems(document),
             ...(onDownloadLetter
               ? [
                   {
@@ -160,7 +258,7 @@ export function BillingRunOverviewCard({
       title="Rechnungen"
       description={
         released
-          ? "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme."
+          ? "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag."
           : "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile."
       }
       actions={
@@ -188,7 +286,7 @@ export function BillingRunOverviewCard({
       <DataTable
         columns={columns}
         rows={[...run.documents]}
-        getRowKey={(document) => document.registrationId}
+        getRowKey={rowKey}
         rowHasInteractiveControls
         stackedOnMobile
         emptyState={
@@ -200,7 +298,9 @@ export function BillingRunOverviewCard({
       />
       <BillingDocumentBreakdown
         document={shown}
+        runId={run.id}
         onClose={() => setShownKey(null)}
+        onReissue={onReissue}
       />
     </SectionCard>
   );

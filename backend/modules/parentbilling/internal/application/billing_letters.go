@@ -34,6 +34,12 @@ type LetterStore interface {
 	// reports a missing one as ErrBillingLetterNotFound.
 	DocumentLetter(ctx context.Context, organizationID, runID, documentID int64) (parentbilling.BillingLetterFile, error)
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
+	// The numbering and storing of a cancellation or a credit (#4690).
+	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
+	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
+	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
+	IssueDocument(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, sequence int64, document parentbilling.BillingDocument) (int64, error)
+	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
 }
 
 // BillingLetters serves parentbilling.BillingLetterService. The layout of
@@ -85,7 +91,7 @@ func (b *BillingLetters) CreateBillingLetters(ctx context.Context, reviewer pare
 		return parentbilling.BillingLetters{}, err
 	}
 	for _, document := range documents {
-		file, err := b.render(letterContent{run: run, document: document, input: input, letterhead: head})
+		file, err := b.render(runLetterContent(run, documents, document, input, head))
 		if err != nil {
 			return parentbilling.BillingLetters{}, err
 		}
@@ -209,7 +215,8 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 	}
 	var missing []string
 	for _, document := range documents {
-		if document.TotalCents != 0 && strings.TrimSpace(document.DebtorNumber) == "" {
+		// A cancellation or a credit asks for no payment (#4690).
+		if document.TotalCents > 0 && strings.TrimSpace(document.DebtorNumber) == "" {
 			missing = append(missing, document.Number)
 		}
 	}
@@ -220,7 +227,14 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {
-	file, err := b.renderer.RenderLetter(confirmationLetter(content), "bestaetigung-"+content.document.Number)
+	letter, prefix := confirmationLetter(content), "bestaetigung-"
+	switch content.document.Kind {
+	case parentbilling.DocumentCancellation:
+		letter, prefix = cancellationLetter(content), "storno-"
+	case parentbilling.DocumentCredit:
+		letter, prefix = creditLetter(content), "gutschrift-"
+	}
+	file, err := b.renderer.RenderLetter(letter, prefix+content.document.Number)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render letter: %w", err)
 	}

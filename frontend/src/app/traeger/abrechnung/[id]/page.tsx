@@ -4,14 +4,20 @@
 // Ferienzeitraums, Korrekturen mit Begründung und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Ausgestellte Rechnungen ändern sich
 // nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
-// Lauf hat die Übersicht für die Kämmerei (#4672).
+// Lauf hat die Übersicht für die Kämmerei (#4672). Eine ausgestellte Rechnung
+// lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
+// stellt der nächste Lauf des Zeitraums neu aus.
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
+import {
+  BillingDocumentCorrectionModal,
+  type BillingDocumentCorrectionTarget,
+} from "~/components/traeger/billing-document-correction-modal";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
@@ -41,7 +47,9 @@ import {
   type BillingRunDetail,
   downloadBillingLetter,
   fetchBillingRun,
+  fetchBillingRuns,
   releaseBillingRun,
+  startBillingRun,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -61,7 +69,11 @@ export default function TraegerBillingRunPage() {
   const [correcting, setCorrecting] = useState<BillingCorrectionTarget | null>(
     null,
   );
+  const [documentCorrection, setDocumentCorrection] =
+    useState<BillingDocumentCorrectionTarget | null>(null);
   const [confirmingRelease, setConfirmingRelease] = useState(false);
+  const router = useRouter();
+  const reissueErrors = useApiErrorDisplay();
   const [releasing, setReleasing] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
@@ -120,7 +132,29 @@ export default function TraegerBillingRunPage() {
     }
   };
 
+  // A cancelled invoice is issued again by the run of its period that is
+  // still a preview; without one, a new run starts (#4690).
+  const reissue = async () => {
+    if (!run) return;
+    try {
+      const open = (await fetchBillingRuns()).find(
+        (other) =>
+          other.status === "calculated" &&
+          other.holidayPeriodId === run.holidayPeriodId,
+      );
+      const target = open ?? (await startBillingRun(run.holidayPeriodId));
+      router.push(traegerPath(`/traeger/abrechnung/${target.id}`));
+    } catch (err) {
+      logger.error("traeger_billing_reissue_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void reissueErrors.show(err, { object: "der neue Lauf" });
+    }
+  };
+
   const preview = run?.status === "calculated";
+  const corrections =
+    run?.documents.filter((document) => document.kind !== "invoice") ?? [];
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
 
   return (
@@ -165,6 +199,15 @@ export default function TraegerBillingRunPage() {
                 setRun(corrected);
               }}
             />
+            <BillingDocumentCorrectionModal
+              runId={run.id}
+              target={documentCorrection}
+              onClose={() => setDocumentCorrection(null)}
+              onIssued={() => {
+                setDocumentCorrection(null);
+                void load();
+              }}
+            />
             <ConfirmationModal
               isOpen={confirmingRelease}
               title="Lauf freigeben?"
@@ -195,11 +238,33 @@ export default function TraegerBillingRunPage() {
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
               <DataField label="Rechnungen">{run.previewCount}</DataField>
-              <DataField label="Summe">
+              <DataField
+                label={
+                  corrections.length > 0
+                    ? "Summe nach Storno und Gutschrift"
+                    : "Summe"
+                }
+              >
                 <span className="tabular-nums">
                   {formatEuro(run.previewCents)}
                 </span>
               </DataField>
+              {corrections.length > 0 ? (
+                <DataField label="Storno und Gutschrift">
+                  {corrections.length === 1
+                    ? "1 Dokument"
+                    : `${corrections.length} Dokumente`}{" "}
+                  über{" "}
+                  <span className="tabular-nums">
+                    {formatEuro(
+                      corrections.reduce(
+                        (sum, document) => sum + document.totalCents,
+                        0,
+                      ),
+                    )}
+                  </span>
+                </DataField>
+              ) : null}
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
@@ -262,6 +327,24 @@ export default function TraegerBillingRunPage() {
                 ? (document) => void downloadLetter(document)
                 : undefined
             }
+            onCancel={
+              preview
+                ? undefined
+                : (document) =>
+                    setDocumentCorrection({ kind: "cancellation", document })
+            }
+            onCredit={
+              preview
+                ? undefined
+                : (document, child, leftCents) =>
+                    setDocumentCorrection({
+                      kind: "credit",
+                      document,
+                      child,
+                      leftCents,
+                    })
+            }
+            onReissue={preview ? undefined : () => void reissue()}
           />
         </>
       ) : null}

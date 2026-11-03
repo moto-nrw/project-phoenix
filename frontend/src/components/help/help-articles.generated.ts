@@ -9699,7 +9699,7 @@ export const traegerBillingRunTopic =
       title: "Ferien abrechnen",
       question: "Wie stelle ich die Rechnungen für die Ferien aus?",
       summary:
-        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien.",
+        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "FileText",
@@ -9770,6 +9770,32 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Rechnung stornieren und neu ausstellen",
+          description:
+            "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+            "Wählen Sie `Rechnung stornieren`.",
+            "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
+            "Wählen Sie `Stornieren`.",
+            "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+            "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
+            "Prüfen Sie die Rechnung und wählen Sie `Lauf freigeben`. Die neue Rechnung bekommt eine neue Nummer.",
+          ],
+        },
+        {
+          title: "Einen Betrag gutschreiben",
+          description:
+            "Mit einer Gutschrift wird ein Teil der Rechnung erlassen, zum Beispiel für einen Krankheitstag. Sie ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
+          steps: [
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+            "Wählen Sie `Gutschrift für …` beim Kind.",
+            "Tragen Sie den Betrag und eine Begründung ein.",
+            "Wählen Sie `Gutschreiben`.",
+          ],
+        },
+        {
           title: "Übersicht für die Kämmerei herunterladen",
           description: "Das geht, sobald der Lauf freigegeben ist.",
           steps: [
@@ -9781,19 +9807,23 @@ export const traegerBillingRunTopic =
         },
       ],
       result:
-        "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme.",
+        "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme. Storno und Gutschrift stehen dort als eigene Zeilen mit Minusbetrag und der Nummer der Rechnung.",
       notes: [
         "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
         "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Familie. Hat die Anmeldung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie unter `Einstellungen` im Bereich `Ferienbetreuung`.",
         "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Sie steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+        "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
+        "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
+        "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
         "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
+        "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
         "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab, und diese Anmeldungen wurden ohne Nummer bestätigt. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
       ],
       troubleshootingDetails: [

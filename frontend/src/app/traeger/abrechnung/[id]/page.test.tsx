@@ -24,8 +24,13 @@ const { api } = vi.hoisted(() => ({
     mailBillingLetter: vi.fn(),
     printBillingLetters: vi.fn(),
     downloadBillingRunOverview: vi.fn(),
+    cancelBillingDocument: vi.fn(),
+    creditBillingDocument: vi.fn(),
+    fetchBillingRuns: vi.fn(),
+    startBillingRun: vi.fn(),
   },
 }));
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 
@@ -35,7 +40,7 @@ vi.mock("~/lib/traeger-url", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "9" }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   usePathname: () => "/abrechnung/9",
 }));
 
@@ -43,6 +48,7 @@ import TraegerBillingRunPage from "./page";
 
 const PREVIEW: BillingRunDetail = {
   id: "9",
+  holidayPeriodId: "5",
   periodName: "Winterferien 2027",
   serviceFrom: "2027-01-04",
   serviceUntil: "2027-01-15",
@@ -62,6 +68,10 @@ const PREVIEW: BillingRunDetail = {
   documents: [
     {
       id: "",
+      kind: "invoice",
+      referenceNumber: "",
+      reason: "",
+      history: [],
       number: "",
       issuedOn: null,
       registrationId: "31",
@@ -597,5 +607,166 @@ describe("TraegerBillingRunPage", () => {
       ),
     ).toBeInTheDocument();
     expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  describe("Storno und Gutschrift (#4690)", () => {
+    const invoice = RELEASED.documents[0]!;
+    const CANCELLED: BillingRunDetail = {
+      ...RELEASED,
+      previewCents: 0,
+      documents: [
+        {
+          ...invoice,
+          history: [
+            {
+              id: "52",
+              runId: "9",
+              kind: "cancellation",
+              number: "FE-0002",
+              issuedOn: "2026-09-10",
+              totalCents: -11250,
+              reason: "Anschrift falsch",
+            },
+          ],
+        },
+        {
+          ...invoice,
+          id: "52",
+          kind: "cancellation",
+          number: "FE-0002",
+          referenceNumber: "FE-0001",
+          reason: "Anschrift falsch",
+          totalCents: -11250,
+          children: invoice.children.map((child) => ({
+            ...child,
+            totalCents: -child.totalCents,
+            positions: child.positions.map((position) => ({
+              ...position,
+              amountCents: -position.amountCents,
+            })),
+          })),
+        },
+      ],
+    };
+
+    it("cancels an issued invoice only with a reason", async () => {
+      api.fetchBillingRun.mockResolvedValue(RELEASED);
+      api.cancelBillingDocument.mockResolvedValue({
+        ...CANCELLED.documents[1]!,
+      });
+      renderPage();
+
+      await openInvoiceMenu();
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Rechnung stornieren" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Rechnung FE-0001 stornieren?",
+      });
+      expect(dialog).toHaveTextContent(/nimmt 112,50\s€ zurück/);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Stornieren" }),
+      );
+      expect(
+        await within(dialog).findByText("Bitte geben Sie eine Begründung an."),
+      ).toBeInTheDocument();
+      expect(api.cancelBillingDocument).not.toHaveBeenCalled();
+
+      fireEvent.change(within(dialog).getByLabelText(/Begründung/), {
+        target: { value: "  Anschrift falsch  " },
+      });
+      api.fetchBillingRun.mockResolvedValue(CANCELLED);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Stornieren" }),
+      );
+      await waitFor(() =>
+        expect(api.cancelBillingDocument).toHaveBeenCalledWith(
+          "9",
+          "51",
+          "Anschrift falsch",
+        ),
+      );
+      expect(
+        await screen.findByText("Storno FE-0002 ist ausgestellt."),
+      ).toBeInTheDocument();
+      expect((await screen.findAllByText("Storniert"))[0]).toBeInTheDocument();
+      expect(screen.getAllByText("Zu FE-0001")[0]).toBeInTheDocument();
+    });
+
+    it("credits at most what is left of a child", async () => {
+      api.fetchBillingRun.mockResolvedValue(RELEASED);
+      renderPage();
+
+      await openInvoiceMenu();
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Gutschrift für Ben" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Gutschrift für Ben",
+      });
+      fireEvent.change(within(dialog).getByLabelText(/Betrag in Euro/), {
+        target: { value: "50,00" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/Begründung/), {
+        target: { value: "Krank" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Gutschreiben" }),
+      );
+      expect(
+        await within(dialog).findByText(/Höchstens 45,00/),
+      ).toBeInTheDocument();
+      expect(api.creditBillingDocument).not.toHaveBeenCalled();
+
+      api.creditBillingDocument.mockResolvedValue({
+        ...invoice,
+        id: "53",
+        kind: "credit",
+        number: "FE-0003",
+      });
+      fireEvent.change(within(dialog).getByLabelText(/Betrag in Euro/), {
+        target: { value: "5,00" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Gutschreiben" }),
+      );
+      await waitFor(() =>
+        expect(api.creditBillingDocument).toHaveBeenCalledWith("9", "51", {
+          childId: "42",
+          amountCents: 500,
+          reason: "Krank",
+        }),
+      );
+    });
+
+    it("shows the history of a cancelled invoice and opens the run that issues it again", async () => {
+      api.fetchBillingRun.mockResolvedValue(CANCELLED);
+      api.fetchBillingRuns.mockResolvedValue([]);
+      api.startBillingRun.mockResolvedValue({ ...RELEASED, id: "12" });
+      renderPage();
+
+      await openInvoiceMenu();
+      expect(
+        screen.queryByRole("menuitem", { name: "Rechnung stornieren" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        await screen.findByRole("menuitem", {
+          name: "Aufschlüsselung ansehen",
+        }),
+      );
+      const panel = await screen.findByRole("dialog", {
+        name: "Rechnung an Eva Muster",
+      });
+      expect(panel).toHaveTextContent(/Verlauf/);
+      expect(panel).toHaveTextContent(/Storno FE-0002/);
+      expect(panel).toHaveTextContent(/Anschrift falsch/);
+      fireEvent.click(
+        within(panel).getByRole("button", { name: "Neu ausstellen" }),
+      );
+      await waitFor(() =>
+        expect(api.startBillingRun).toHaveBeenCalledWith("5"),
+      );
+      expect(push).toHaveBeenCalledWith("/abrechnung/12");
+    });
   });
 });

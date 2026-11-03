@@ -129,20 +129,32 @@ type PostalAddress struct {
 // draft without a number, in a released run the issued invoice.
 // RecipientAddress is nil when the registration has no postal address;
 // DebtorNumber is empty when it has no debtor number (#5621).
+//
+// Kind is an invoice, a cancellation or a credit (#4690). A cancellation or
+// credit names its invoice in ReferenceDocumentID and ReferenceNumber and
+// carries its Reason; an invoice issued again names the cancelled invoice
+// it replaces, a draft the one it will replace. History lists the
+// cancellation, the credits and the replacing invoice of an issued invoice.
 type BillingDocument struct {
-	ID                 int64          `json:"id"`
-	Number             string         `json:"number"`
-	IssuedOn           *calendar.Date `json:"issued_on"`
-	RegistrationID     int64          `json:"registration_id"`
-	RecipientFirstName string         `json:"recipient_first_name"`
-	RecipientLastName  string         `json:"recipient_last_name"`
-	RecipientEmail     string         `json:"recipient_email"`
-	RecipientAddress   *PostalAddress `json:"recipient_address"`
-	DebtorNumber       string         `json:"debtor_number"`
-	ServiceFrom        calendar.Date  `json:"service_from"`
-	ServiceUntil       calendar.Date  `json:"service_until"`
-	Children           []BillingChild `json:"children"`
-	TotalCents         int64          `json:"total_cents"`
+	ID                  int64                 `json:"id"`
+	RunID               int64                 `json:"run_id"`
+	Kind                string                `json:"kind"`
+	ReferenceDocumentID *int64                `json:"reference_document_id"`
+	ReferenceNumber     string                `json:"reference_number"`
+	Reason              string                `json:"reason"`
+	History             []BillingDocumentLink `json:"history"`
+	Number              string                `json:"number"`
+	IssuedOn            *calendar.Date        `json:"issued_on"`
+	RegistrationID      int64                 `json:"registration_id"`
+	RecipientFirstName  string                `json:"recipient_first_name"`
+	RecipientLastName   string                `json:"recipient_last_name"`
+	RecipientEmail      string                `json:"recipient_email"`
+	RecipientAddress    *PostalAddress        `json:"recipient_address"`
+	DebtorNumber        string                `json:"debtor_number"`
+	ServiceFrom         calendar.Date         `json:"service_from"`
+	ServiceUntil        calendar.Date         `json:"service_until"`
+	Children            []BillingChild        `json:"children"`
+	TotalCents          int64                 `json:"total_cents"`
 }
 
 // BillingRunDetail is a run with its invoices. A calculated run shows the

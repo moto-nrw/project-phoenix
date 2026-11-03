@@ -4,7 +4,10 @@
 // festgehaltenen Ferienbeitrag und die Korrekturen mit Begründung. Vor der
 // Freigabe ein Entwurf ohne Nummer, danach die ausgestellte Rechnung. Seit
 // #5146 steht sie im Seitenpanel, geöffnet aus dem Menü ihrer Zeile in der
-// Rechnungstabelle (BillingRunOverviewCard), statt als eigene Karte.
+// Rechnungstabelle (BillingRunOverviewCard), statt als eigene Karte. Seit
+// #4690 zeigt es auch Storno und Gutschrift mit Grund und Bezug und den
+// Verlauf einer Rechnung: ihren Storno, ihre Gutschriften und die neue
+// Rechnung, die sie ersetzt.
 
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import {
@@ -16,9 +19,17 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { Button } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingChild, BillingDocument } from "~/lib/traeger-billing-api";
-import { billingPositionLabel } from "./billing-format";
+import { traegerPath } from "~/lib/traeger-url";
+import {
+  BILLING_DOCUMENT_KIND_LABELS,
+  billingPositionLabel,
+  billingReferenceText,
+  isCancelled,
+} from "./billing-format";
 import { formatEuro } from "./contribution-format";
 import { formatDateRange } from "./holiday-period-format";
 
@@ -27,9 +38,93 @@ export function recipientName(document: BillingDocument): string {
 }
 
 function issuedText(document: BillingDocument): string {
-  return document.number
-    ? `Rechnung ${document.number}${document.issuedOn ? ` vom ${formatDate(document.issuedOn)}` : ""}`
+  const reference = billingReferenceText(document);
+  const issued = document.number
+    ? `${BILLING_DOCUMENT_KIND_LABELS[document.kind]} ${document.number}${document.issuedOn ? ` vom ${formatDate(document.issuedOn)}` : ""}`
     : "Entwurf ohne Nummer";
+  return reference ? `${issued} · ${reference}` : issued;
+}
+
+/**
+ * The history of an issued invoice: its Storno, its Gutschriften and the
+ * new invoice that replaces it. A cancelled invoice without a new one says
+ * how the family gets it.
+ */
+function DocumentHistory({
+  document,
+  runId,
+  onReissue,
+}: Readonly<{
+  document: BillingDocument;
+  runId: string;
+  onReissue?: () => void;
+}>) {
+  if (document.kind !== "invoice" || !document.number) return null;
+  const reissued = document.history.some((link) => link.kind === "invoice");
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-gray-700">Verlauf</p>
+      {document.history.length === 0 ? (
+        <p className="text-sm text-gray-700">
+          Kein Storno und keine Gutschrift.
+        </p>
+      ) : (
+        <ul className="space-y-1 text-sm text-gray-700">
+          {document.history.map((link) => (
+            <li key={link.id} className="wrap-anywhere">
+              {formatDate(link.issuedOn)}:{" "}
+              {link.kind === "invoice" ? (
+                <>
+                  Neue Rechnung{" "}
+                  {link.runId === runId ? (
+                    <span className="font-mono">{link.number}</span>
+                  ) : (
+                    <NavigationLink
+                      href={traegerPath(`/traeger/abrechnung/${link.runId}`)}
+                      className="font-mono underline"
+                    >
+                      {link.number}
+                    </NavigationLink>
+                  )}{" "}
+                  über{" "}
+                  <span className="tabular-nums">
+                    {formatEuro(link.totalCents)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {BILLING_DOCUMENT_KIND_LABELS[link.kind]}{" "}
+                  <span className="font-mono">{link.number}</span> über{" "}
+                  <span className="tabular-nums">
+                    {formatEuro(link.totalCents)}
+                  </span>
+                  . {link.reason}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {isCancelled(document) && !reissued ? (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-700">
+            Die Rechnung ist storniert. Die neue Rechnung stellen Sie in einem
+            neuen Lauf aus. Dort steht die Familie in der Vorschau.
+          </p>
+          {onReissue ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={onReissue}
+            >
+              Neu ausstellen
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
@@ -58,8 +153,16 @@ function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
 /** Die Aufschlüsselung einer Rechnung: Positionen je Kind und Korrekturen. */
 export function BillingDocumentBreakdown({
   document,
+  runId,
   onClose,
-}: Readonly<{ document: BillingDocument | null; onClose: () => void }>) {
+  onReissue,
+}: Readonly<{
+  document: BillingDocument | null;
+  runId: string;
+  onClose: () => void;
+  /** Opens the run that issues a cancelled invoice again (#4690). */
+  onReissue?: (document: BillingDocument) => void;
+}>) {
   return (
     <SlideOver
       open={document !== null}
@@ -72,7 +175,8 @@ export function BillingDocumentBreakdown({
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <SlideOverTitle>
-                Rechnung an {recipientName(document)}
+                {BILLING_DOCUMENT_KIND_LABELS[document.kind]} an{" "}
+                {recipientName(document)}
               </SlideOverTitle>
               {/* E-Mail und Debitorennummer (bis 35 Zeichen am Stück) brechen um. */}
               <SlideOverDescription className="wrap-anywhere">
@@ -87,6 +191,11 @@ export function BillingDocumentBreakdown({
             <SlideOverCloseButton />
           </SlideOverHeader>
           <SlideOverBody className="space-y-4">
+            {document.reason ? (
+              <p className="text-sm wrap-anywhere text-gray-700">
+                Grund: {document.reason}
+              </p>
+            ) : null}
             <ContributionBreakdown
               items={document.children.map((child) => ({
                 key: child.childId,
@@ -98,12 +207,21 @@ export function BillingDocumentBreakdown({
                 total: formatEuro(child.totalCents),
               }))}
               childTotalLabel="Summe"
-              totalLabel="Rechnungsbetrag"
+              totalLabel={
+                document.kind === "invoice"
+                  ? "Rechnungsbetrag"
+                  : `${BILLING_DOCUMENT_KIND_LABELS[document.kind]} gesamt`
+              }
               total={formatEuro(document.totalCents)}
             />
             {document.children.map((child) => (
               <CorrectionHistory key={child.childId} child={child} />
             ))}
+            <DocumentHistory
+              document={document}
+              runId={runId}
+              onReissue={onReissue ? () => onReissue(document) : undefined}
+            />
           </SlideOverBody>
         </SlideOverContent>
       ) : null}

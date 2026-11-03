@@ -93,8 +93,11 @@ type BillingLetterMail struct {
 	TraegerName    string `json:"traeger_name"`
 	PeriodName     string `json:"period_name"`
 	Number         string `json:"number"`
-	Filename       string `json:"filename"`
-	PDF            []byte `json:"pdf"`
+	// DocumentKind is the kind of the document whose letter the mail
+	// carries; empty is an invoice (#4690).
+	DocumentKind string `json:"document_kind,omitempty"`
+	Filename     string `json:"filename"`
+	PDF          []byte `json:"pdf"`
 }
 
 // BillingLetterSend is one stored send of a letter: the outbox entry of
