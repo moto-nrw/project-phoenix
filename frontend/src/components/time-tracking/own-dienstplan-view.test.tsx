@@ -353,6 +353,24 @@ describe("OwnDienstplanView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("explains when only cancelled shifts follow in the next eight weeks", () => {
+    state.shifts = [];
+    state.aheadShifts = [
+      shift({ id: "2", date: "2026-09-22", cancelled: true }),
+    ];
+
+    render(<OwnDienstplanView />);
+
+    expect(
+      screen.getByText(
+        /In den 8 Wochen danach sind nur ausgefallene Schichten eingetragen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur nächsten Schicht" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the failed look-ahead search and offers a retry", async () => {
     state.shifts = [];
     state.aheadError = new ApiError("unavailable", 503);

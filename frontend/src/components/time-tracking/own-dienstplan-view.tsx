@@ -243,7 +243,7 @@ function OwnDienstplanContent() {
                   // Vorausschau fehlt und darf ihn nicht ersetzen.
                   keepContent: true,
                 }
-            : null
+              : null
       }
       empty={
         weekIsEmpty && !shiftsError
@@ -311,7 +311,8 @@ function OwnDienstplanContent() {
 }
 
 /**
- * Text des Leerzustands: wann die nächste Schicht kommt, sonst wer plant.
+ * Text des Leerzustands: wann die nächste Schicht kommt, sonst ob nur
+ * ausgefallene Schichten folgen und wer weitere Schichten plant.
  * Solange die Suche läuft, bleibt es beim Hinweis auf die Leitung. Scheitert
  * sie, zeigt die Seite darüber einen Ladefehler mit Wiederholen; eine
  * erfundene „keine weiteren Schichten" wäre schlimmer.
@@ -324,6 +325,9 @@ function emptyWeekDescription(
     // Geschützte Leerzeichen: das Datum bricht nicht mitten in der Zeile um.
     const date = formatDate(nextShiftDate, true).replaceAll(" ", "\u00A0");
     return `Ihre nächste Schicht nach dieser Woche ist am ${date}.`;
+  }
+  if (aheadShifts?.length) {
+    return `In den ${LOOKAHEAD_WEEKS} Wochen danach sind nur ausgefallene Schichten eingetragen. Ihre Schichten plant die Leitung. Fragen Sie dort nach, wenn Sie eine Schicht erwarten.`;
   }
   if (aheadShifts !== undefined) {
     return `Auch in den ${LOOKAHEAD_WEEKS} Wochen danach ist keine Schicht eingetragen. Ihre Schichten plant die Leitung. Fragen Sie dort nach, wenn Sie eine Schicht erwarten.`;
