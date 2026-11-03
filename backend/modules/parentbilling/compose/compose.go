@@ -9,8 +9,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewContributionRules builds the contribution rules of a Träger. They run
-// in the Träger transaction the Träger-Portal route opens (ADR 0105).
+// NewContributionRules builds the contribution rules and cost bearers (#5627)
+// of a Träger, in the Träger transaction of the portal route (ADR 0105).
 func NewContributionRules() parentbilling.ContributionRules {
 	return application.NewRules(postgres.NewStore())
 }

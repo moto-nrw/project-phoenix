@@ -169,6 +169,36 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.parent_document_not_found"
+    },
+    {
+      "code": "parent_billing.cost_bearer_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_invalid"
+    },
+    {
+      "code": "parent_billing.cost_bearer_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_not_found"
+    },
+    {
+      "code": "parent_billing.cost_bearer_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_in_use"
+    },
+    {
+      "code": "parent_billing.cost_bearer_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_inactive"
+    },
+    {
+      "code": "parent_billing.cost_takeover_with_exemption",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_takeover_with_exemption"
     }
   ]
 }

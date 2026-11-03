@@ -30,6 +30,10 @@ var (
 	// ErrHolidayProofNotFound reports a proof that is not one of the
 	// registration's.
 	ErrHolidayProofNotFound = errors.New("holiday registration proof not found")
+	// ErrHolidayProofLimit reports a proof the Träger-Büro uploads to a
+	// registration that already has HolidayProofOptions.MaxFiles() proofs
+	// (#5627).
+	ErrHolidayProofLimit = errors.New("the holiday registration has the most proofs it takes")
 )
 
 // HolidayProofUpload is one validated file a parent uploads through the

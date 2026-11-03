@@ -43,13 +43,15 @@ type holidayContributionLineRow struct {
 	DiscountBasisPoints   *int           `bun:"discount_basis_points"`
 	DiscountCents         *int64         `bun:"discount_cents"`
 	Note                  string         `bun:"note"`
+	CostBearerID          *int64         `bun:"cost_bearer_id"`
+	CostBearerName        string         `bun:"cost_bearer_name"`
 }
 
 func (l holidayContributionLineRow) line() parentbilling.HolidayContributionLine {
 	return parentbilling.HolidayContributionLine{
 		Kind: l.Kind, AmountCents: l.AmountCents, WeekStartsOn: l.WeekStartsOn, WeekEndsOn: l.WeekEndsOn,
 		TimeModelName: l.TimeModelName, ChildRank: l.ChildRank, DiscountBasisPoints: l.DiscountBasisPoints,
-		DiscountCents: l.DiscountCents, Note: l.Note,
+		DiscountCents: l.DiscountCents, Note: l.Note, CostBearerID: l.CostBearerID, CostBearerName: l.CostBearerName,
 	}
 }
 
@@ -73,16 +75,19 @@ func (s *Store) HolidayContributions(ctx context.Context, organizationID, regist
 	if err != nil {
 		return parentbilling.HolidayContribution{}, false, err
 	}
-	exemption := false
-	for _, lines := range byContribution {
-		for _, line := range lines {
-			exemption = exemption || line.Kind == parentbilling.LineBenefitsExemption
-		}
-	}
 	confirmedAt := rows[0].ConfirmedAt
 	contribution := parentbilling.HolidayContribution{
-		Children: make([]parentbilling.HolidayChildContribution, len(rows)), BenefitsExemption: exemption,
-		Frozen: true, ConfirmedAt: &confirmedAt,
+		Children: make([]parentbilling.HolidayChildContribution, len(rows)), Frozen: true, ConfirmedAt: &confirmedAt,
+	}
+	for _, lines := range byContribution {
+		for _, line := range lines {
+			switch line.Kind {
+			case parentbilling.LineBenefitsExemption:
+				contribution.BenefitsExemption = true
+			case parentbilling.LineCostTakeover:
+				contribution.CostBearerID, contribution.CostBearerName = line.CostBearerID, line.CostBearerName
+			}
+		}
 	}
 	for i, row := range rows {
 		childLines := byContribution[row.ID]
@@ -124,7 +129,7 @@ func (s *Store) InsertHolidayContributions(ctx context.Context, organizationID, 
 				OrganizationID: organizationID, HolidayContributionID: rows[i].ID, Position: position + 1,
 				Kind: line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
 				TimeModelName: line.TimeModelName, ChildRank: line.ChildRank, DiscountBasisPoints: line.DiscountBasisPoints,
-				DiscountCents: line.DiscountCents, Note: line.Note,
+				DiscountCents: line.DiscountCents, Note: line.Note, CostBearerID: line.CostBearerID, CostBearerName: line.CostBearerName,
 			})
 		}
 	}

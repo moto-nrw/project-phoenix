@@ -49,6 +49,9 @@ const (
 	// HolidayAuditDebtorNumber records a change of the debtor number of a
 	// confirmed registration (#5621).
 	HolidayAuditDebtorNumber = "debtor_number"
+	// HolidayAuditProofUpload records a proof of benefits the Träger-Büro
+	// uploaded for the family (#5627).
+	HolidayAuditProofUpload = "proof_upload"
 )
 
 // HolidayDebtorNumberMaxLength is the longest debtor number a registration
@@ -318,6 +321,14 @@ type HolidayRegistrationReview interface {
 	// OpenHolidayRegistrationProof returns one proof of benefits of a
 	// registration with its bytes (#5238).
 	OpenHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, proofID int64) (HolidayProofFile, error)
+	// UploadHolidayRegistrationProof stores a proof of benefits the family
+	// brought on paper as a proof of the registration (#5627), with the
+	// limits of HolidayProofOptions; a file outside them is an
+	// UploadRejection, one more file than the limit ErrHolidayProofLimit.
+	UploadHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, upload HolidayProofUpload) (HolidayRegistrationDetail, error)
+	// HolidayProofRegistrations names the registrations of the period with
+	// at least one proof of benefits (#5627).
+	HolidayProofRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) (map[int64]bool, error)
 }
 
 // HolidaySchoolNames names the schools of a Träger for the export of the

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -124,6 +125,12 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 		total += document.TotalCents
 	}
 	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatAmount(total)})
+	for _, takeover := range runCostTakeovers(documents) {
+		rows = append(rows, map[string]string{
+			"position": "Davon übernimmt " + takeover.name + " (" + invoiceCount(takeover.documents) + ")",
+			"amount":   formatAmount(takeover.cents),
+		})
+	}
 	return ExportTable{
 		Title: "Abrechnungsanordnung", Subtitle: run.PeriodName,
 		Lines: overviewLines(run, documents, total), Columns: overviewColumns(documents), Rows: rows,
@@ -188,7 +195,11 @@ func overviewLines(run parentbilling.BillingRun, documents []parentbilling.Billi
 	default:
 		count += ", Nummern " + documents[0].Number + " bis " + documents[len(documents)-1].Number
 	}
-	return append(lines, count, "Gesamtsumme: "+formatAmount(total)+" Euro")
+	lines = append(lines, count, "Gesamtsumme: "+formatAmount(total)+" Euro")
+	for _, takeover := range runCostTakeovers(documents) {
+		lines = append(lines, "Davon übernimmt "+takeover.name+": "+formatAmount(takeover.cents)+" Euro ("+invoiceCount(takeover.documents)+")")
+	}
+	return lines
 }
 
 // overviewPositionLabel names what a position stands for, as the run page
@@ -215,10 +226,69 @@ func overviewPositionLabel(position parentbilling.BillingPosition) string {
 		return label
 	case parentbilling.LineBenefitsExemption:
 		return "Befreiung bei Leistungsbezug: " + position.Note
+	case parentbilling.LineCostTakeover:
+		return "Kostenübernahme: " + position.CostBearerName
 	case parentbilling.LineCorrection:
 		return "Korrektur: " + position.Note
 	}
 	return position.Kind
+}
+
+// costTakeover is what one cost bearer pays in a run: the sum and the
+// number of invoices, under the name the first invoice copied.
+type costTakeover struct {
+	id        int64
+	name      string
+	cents     int64
+	documents int
+}
+
+// runCostTakeovers sums the cost takeovers of the invoices per cost bearer,
+// in the order the cost bearers first appear (#5627).
+func runCostTakeovers(documents []parentbilling.BillingDocument) []costTakeover {
+	var takeovers []costTakeover
+	index := map[int64]int{}
+	for _, document := range documents {
+		for _, paid := range documentCostTakeovers(document) {
+			at, ok := index[paid.id]
+			if !ok {
+				at = len(takeovers)
+				index[paid.id] = at
+				takeovers = append(takeovers, costTakeover{id: paid.id, name: paid.name})
+			}
+			takeovers[at].cents += paid.cents
+			takeovers[at].documents++
+		}
+	}
+	return takeovers
+}
+
+// documentCostTakeovers is what each cost bearer pays of one invoice. A
+// takeover line is negative; the sum is positive.
+func documentCostTakeovers(document parentbilling.BillingDocument) []costTakeover {
+	var paid []costTakeover
+	for _, child := range document.Children {
+		for _, position := range child.Positions {
+			if position.Kind != parentbilling.LineCostTakeover || position.CostBearerID == nil {
+				continue
+			}
+			at := slices.IndexFunc(paid, func(takeover costTakeover) bool { return takeover.id == *position.CostBearerID })
+			if at < 0 {
+				at = len(paid)
+				paid = append(paid, costTakeover{id: *position.CostBearerID, name: position.CostBearerName})
+			}
+			paid[at].cents -= position.AmountCents
+		}
+	}
+	return paid
+}
+
+// invoiceCount writes "1 Rechnung" or "3 Rechnungen".
+func invoiceCount(count int) string {
+	if count == 1 {
+		return "1 Rechnung"
+	}
+	return strconv.Itoa(count) + " Rechnungen"
 }
 
 // formatAmount writes cents the German way without a currency sign:
