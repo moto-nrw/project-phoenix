@@ -67,7 +67,7 @@ func (h *HolidayRegistrationReview) edit(ctx context.Context, organizationID int
 	if err != nil {
 		return nil, err
 	}
-	next, err = h.checkHolidayEdit(next, scope, stored.form, schools)
+	next, err = h.checkHolidayEdit(stored, next, scope, schools)
 	if err != nil {
 		return nil, err
 	}
@@ -196,18 +196,20 @@ func applyHolidayEdit(stored holidayStoredDetails, edit enrollment.HolidayRegist
 // form and returns the details with the checked answers. The answers are
 // checked against the form version of the registration without its health
 // questions: their answers stay sealed and unchanged.
-func (h *HolidayRegistrationReview) checkHolidayEdit(next enrollment.HolidayRegistrationInput, scope holidayEditScope, form enrollment.HolidayPeriodForm, schools []enrollment.HolidaySchool) (enrollment.HolidayRegistrationInput, error) {
+func (h *HolidayRegistrationReview) checkHolidayEdit(stored holidayStoredDetails, next enrollment.HolidayRegistrationInput, scope holidayEditScope, schools []enrollment.HolidaySchool) (enrollment.HolidayRegistrationInput, error) {
+	form := stored.form
 	errs := validation.Errors{}
 	if scope.guardians {
 		addHolidayGuardianErrors(errs, next, form.AddressRequirement)
 	}
 	childErrs := validation.Errors{}
-	if slices.Contains(scope.children, true) {
-		all := validateHolidayChildren(next.Children, schools, h.today())
-		for i, edited := range scope.children {
-			if err, ok := all[fmt.Sprint(i)]; ok && edited {
-				childErrs[fmt.Sprint(i)] = err
-			}
+	for i, edited := range scope.children {
+		if !edited {
+			continue
+		}
+		childSchools := holidayEditChildSchools(schools, stored.input.Children[i], next.Children[i])
+		if err, ok := validateHolidayChildren(next.Children[i:i+1], childSchools, h.today())["0"]; ok {
+			childErrs[fmt.Sprint(i)] = err
 		}
 	}
 	answers := holidayEditAnswers(next, scope, form)
@@ -222,6 +224,18 @@ func (h *HolidayRegistrationReview) checkHolidayEdit(next enrollment.HolidayRegi
 		return next, errs
 	}
 	return withHolidayAnswers(next, answers)
+}
+
+// holidayEditChildSchools are the schools a child of the edit may attend:
+// the Träger's schools, and the child's own school when the edit keeps it,
+// also when the Träger has deleted it since. A deleted school cannot be
+// chosen anew.
+func holidayEditChildSchools(schools []enrollment.HolidaySchool, before, after enrollment.HolidayChildInput) []enrollment.HolidaySchool {
+	if after.HomeSchoolID == 0 || after.HomeSchoolID != before.HomeSchoolID ||
+		slices.ContainsFunc(schools, func(school enrollment.HolidaySchool) bool { return school.ID == after.HomeSchoolID }) {
+		return schools
+	}
+	return append(slices.Clone(schools), enrollment.HolidaySchool{ID: after.HomeSchoolID})
 }
 
 // addHolidayGuardianErrors checks the parent, the postal address against

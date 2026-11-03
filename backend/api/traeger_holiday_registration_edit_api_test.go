@@ -564,3 +564,33 @@ func TestTraegerEditKeepsAChildWhoseSchoolWasDeleted(t *testing.T) {
 	assert.Equal(t, f.offer.Schools[0].ID, *edited.Children[0].HomeSchoolID)
 	assert.Equal(t, []any{"guardian.phone"}, edited.History[len(edited.History)-1].Details["fields"])
 }
+
+// The child's own school stays valid after the Träger deleted it: the
+// Träger-Büro corrects the child's name without choosing another school.
+// Choosing the deleted school for another child is still refused.
+func TestTraegerEditCorrectsAChildWhoseSchoolWasDeleted(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Bearbeiten Kind gelöschte Schule")
+	detail := f.readDetail(t, f.siblings)
+	lia, ben := detail.Children[0], detail.Children[1]
+	deleted := f.offer.Schools[0].ID
+	_, err := f.db.ExecContext(t.Context(), `UPDATE platform.schools SET deleted_at = now() WHERE id = ?`, deleted)
+	require.NoError(t, err)
+
+	edited := f.edited(t, f.editDetails(t, f.siblings, map[string]any{"children": []map[string]any{{
+		"id": lia.ID, "first_name": "Lia", "last_name": "Mustermann", "birth_date": "2018-03-01",
+		"home_school_id": deleted, "custom_data": map[string]any{},
+	}}}))
+	assert.Equal(t, "Mustermann", edited.Children[0].LastName)
+	require.NotNil(t, edited.Children[0].HomeSchoolID)
+	assert.Equal(t, deleted, *edited.Children[0].HomeSchoolID, "Lia keeps her school")
+	assert.Equal(t, []any{"children.0.last_name"}, edited.History[len(edited.History)-1].Details["fields"])
+
+	rec := f.editDetails(t, f.siblings, map[string]any{"children": []map[string]any{{
+		"id": ben.ID, "first_name": "Ben", "last_name": "Muster", "birth_date": "2016-09-12",
+		"home_school_id": deleted, "custom_data": map[string]any{},
+	}}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	_, fields := registrationRefusalOf(t, rec)
+	assert.Equal(t, []string{"children.1.home_school_id"}, fields, "a deleted school cannot be chosen anew")
+}
