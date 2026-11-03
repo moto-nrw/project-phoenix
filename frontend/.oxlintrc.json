@@ -57,6 +57,8 @@
     "ui-kit/no-dynamic-color-class": "error",
     "ui-kit/no-white-on-warm-fill": "error",
     "ui-kit/no-raw-input": "error",
+    "ui-kit/no-important-override": "error",
+    "ui-kit/no-section-card-bleed": "error",
     "ui-kit/require-checkbox-label": "error",
     "ui-kit/no-rounded-3xl": "error",
     "ui-kit/no-shadcn-tokens": "error",

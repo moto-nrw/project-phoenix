@@ -33,11 +33,8 @@ import type {
 } from "~/lib/operator/operator-invitation-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
-import {
-  ConceptPageHeader,
-  SectionHeader,
-} from "~/components/ui/concept-section-header";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptPageHeader } from "~/components/ui/concept-page-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
@@ -149,12 +146,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6">
-      <SectionHeader
-        title="Neuen Operator einladen"
-        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
-        className="mb-4"
-      />
+    <SectionCard title="Neuen Operator einladen" concept={operatorsConcept}>
       <form
         ref={formRef}
         onSubmit={(e) => void handleSubmit(e)}
@@ -195,7 +187,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
           {isSubmitting ? "Wird gesendet..." : "Einladung senden"}
         </Button>
       </form>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -266,13 +258,7 @@ function PendingInvitationsList({
   }, [revokeTarget, onMutate, toastSuccess, showRevokeError, clearRevokeError]);
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6">
-      <SectionHeader
-        title="Offene Einladungen"
-        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
-        className="mb-4"
-      />
-
+    <SectionCard title="Offene Einladungen" concept={operatorsConcept}>
       <div className="space-y-3">
         {invitations.map((inv) => (
           <div
@@ -335,7 +321,7 @@ function PendingInvitationsList({
         </p>
         <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -421,13 +407,7 @@ function OperatorsList({
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6">
-      <SectionHeader
-        title="Bestehende Operatoren"
-        icon={<MotoConceptIcon concept={operatorsConcept} size={22} />}
-        className="mb-4"
-      />
-
+    <SectionCard title="Bestehende Operatoren" concept={operatorsConcept}>
       {operators.length === 0 ? (
         <p className="text-sm text-gray-500">Keine Operatoren vorhanden.</p>
       ) : (
@@ -526,6 +506,6 @@ function OperatorsList({
         </p>
         <FormErrorAlert message={deactivateErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }

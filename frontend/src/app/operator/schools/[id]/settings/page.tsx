@@ -31,10 +31,8 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptPageHeader } from "~/components/ui/concept-page-header";
+import { SectionCard } from "~/components/ui/section-card";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { settingsConcept } from "~/lib/concepts/settings";
 import { devicesConcept } from "~/lib/concepts/devices";
@@ -232,12 +230,13 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
 
       {!loading &&
         schema?.tabs?.map((tab) => (
-          <section key={tab.key} className="mb-8">
-            <ConceptSectionHeader
-              title={TAB_LABELS[tab.key] ?? tab.label}
-              concept={TAB_CONCEPTS[tab.key] ?? settingsConcept}
-              className="mb-4"
-            />
+          <SectionCard
+            key={tab.key}
+            bare
+            className="mb-8"
+            title={TAB_LABELS[tab.key] ?? tab.label}
+            concept={TAB_CONCEPTS[tab.key] ?? settingsConcept}
+          >
             <div className="space-y-6">
               {tab.categories.map((category) => (
                 <SettingsCategory
@@ -251,7 +250,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
                 />
               ))}
             </div>
-          </section>
+          </SectionCard>
         ))}
 
       <ConfirmationModal

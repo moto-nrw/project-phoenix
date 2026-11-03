@@ -309,7 +309,7 @@ export function RolePermissionsTab({
               : "Noch keine Berechtigungen zugewiesen. Mit „Bearbeiten“ oben rechts wählen Sie aus, was diese Rolle darf."}
           </p>
         ) : (
-          <SectionCard className="!p-0">
+          <SectionCard padding="none">
             {viewGroups.map(([resource, permissions]) => (
               <section key={resource} className="px-4 py-3">
                 <h4 className="text-sm font-semibold text-gray-900">
@@ -373,7 +373,7 @@ export function RolePermissionsTab({
         </Button>
       </div>
 
-      <SectionCard className="!p-0">
+      <SectionCard padding="none">
         {editGroups.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-gray-500">
             Keine Berechtigungen gefunden.
