@@ -1,14 +1,17 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import {
   buttonRatchetAllowlist,
@@ -170,14 +173,20 @@ describe.concurrent("ui-kit/no-hand-rolled-surface", () => {
 
 describe.concurrent("ui-kit/no-rounded-3xl", () => {
   it("reports rounded-3xl, also inside the kit", async () => {
-    for (const path of ["src/probe.tsx", "src/components/ui/probe.tsx"]) {
-      const result = await lintSource(
-        `function Probe() {
+    const paths = ["src/probe.tsx", "src/components/ui/probe.tsx"];
+    const results = await Promise.all(
+      paths.map((path) =>
+        lintSource(
+          `function Probe() {
           return <div className="rounded-3xl p-4" />;
         }
         void Probe;`,
-        path,
-      );
+          path,
+        ),
+      ),
+    );
+    for (const [index, path] of paths.entries()) {
+      const result = results[index]!;
       const output = result.output;
 
       expect(result.status, path).toBe(1);
@@ -186,18 +195,20 @@ describe.concurrent("ui-kit/no-rounded-3xl", () => {
   });
 
   it("accepts the canonical radius and exempts test files", async () => {
-    const canonical = await lintSource(
-      `function Probe() {
+    const [canonical, fixture] = await Promise.all([
+      lintSource(
+        `function Probe() {
         return <div className="moto-content-surface rounded-2xl border p-4" />;
       }
       void Probe;`,
-      "src/probe.tsx",
-    );
-    const fixture = await lintSource(
-      `const className = "rounded-3xl";
+        "src/probe.tsx",
+      ),
+      lintSource(
+        `const className = "rounded-3xl";
       void className;`,
-      "src/probe.test.tsx",
-    );
+        "src/probe.test.tsx",
+      ),
+    ]);
 
     for (const result of [canonical, fixture]) {
       const output = result.output;
@@ -293,20 +304,22 @@ describe.concurrent("ui-kit/no-hand-rolled-page-card", () => {
   });
 
   it("accepts control surfaces in pages and the chain in components", async () => {
-    const pageControl = await lintSource(
-      `function Probe() {
+    const [pageControl, componentCard] = await Promise.all([
+      lintSource(
+        `function Probe() {
         return <span className="moto-content-surface h-9 rounded-full border px-3" />;
       }
       void Probe;`,
-      "src/app/[tenant]/(protected)/rooms/page.tsx",
-    );
-    const componentCard = await lintSource(
-      `function Probe() {
+        "src/app/[tenant]/(protected)/rooms/page.tsx",
+      ),
+      lintSource(
+        `function Probe() {
         return <div className="moto-content-surface rounded-2xl border p-6" />;
       }
       void Probe;`,
-      "src/components/rooms/room-card.tsx",
-    );
+        "src/components/rooms/room-card.tsx",
+      ),
+    ]);
 
     for (const result of [pageControl, componentCard]) {
       const output = result.output;
@@ -326,11 +339,14 @@ describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
     void Probe;`;
 
   it("reports a value choice on ui/Tabs", async () => {
-    for (const label of ["Woche", "Monat", "Woche A", "Ganzer Tag"]) {
-      const result = await lintSource(
-        tabsSource(label),
-        "src/components/probe.tsx",
-      );
+    const labels = ["Woche", "Monat", "Woche A", "Ganzer Tag"];
+    const results = await Promise.all(
+      labels.map((label) =>
+        lintSource(tabsSource(label), "src/components/probe.tsx"),
+      ),
+    );
+    for (const [index, label] of labels.entries()) {
+      const result = results[index]!;
       const output = result.output;
 
       expect(result.status, label).toBe(1);
@@ -453,13 +469,17 @@ describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
   });
 
   it("accepts content tabs and leaves the other portals alone", async () => {
-    for (const [label, path] of [
+    const cases = [
       ["Bearbeiten", "src/components/probe.tsx"],
       ["Verlauf", "src/components/probe.tsx"],
       ["Woche", "src/components/parent/probe.tsx"],
       ["Woche", "src/components/probe.test.tsx"],
-    ] as const) {
-      const result = await lintSource(tabsSource(label), path);
+    ] as const;
+    const results = await Promise.all(
+      cases.map(([label, path]) => lintSource(tabsSource(label), path)),
+    );
+    for (const [index, [label, path]] of cases.entries()) {
+      const result = results[index]!;
       const output = result.output;
 
       expect(result.status, `${label} ${path}\n${output}`).toBe(0);
@@ -703,16 +723,18 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
       buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
     )[0]!;
     // Andere Klassenketten derselben Datei fallen weg: Die Sonde ersetzt sie.
-    const equal = await lintSource(handRolled(count), file);
+    const [equal, more, fewer] = await Promise.all([
+      lintSource(handRolled(count), file),
+      lintSource(handRolled(count + 1), file),
+      lintSource(handRolled(count - 1), file),
+    ]);
     expect(equal.output).not.toContain("no-hand-rolled-button");
 
-    const more = await lintSource(handRolled(count + 1), file);
     expect(more.status).toBe(1);
     expect(more.output).toContain("ui-kit(no-hand-rolled-button)");
 
     // Weniger Funde sind im Lint erlaubt; die gesenkte Baseline verlangt der
     // Test „button ratchet baseline“ unten.
-    const fewer = await lintSource(handRolled(count - 1), file);
     expect(fewer.output).not.toContain("no-hand-rolled-button");
   });
 
@@ -725,10 +747,12 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     const sourceAtLine = (targetLine: number) =>
       `${"\n".repeat(targetLine - 2)}function Probe() {\nreturn <button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>;\n}\nvoid Probe;`;
 
-    const allowed = await lintSource(sourceAtLine(line), entry.file);
+    const [allowed, moved] = await Promise.all([
+      lintSource(sourceAtLine(line), entry.file),
+      lintSource(sourceAtLine(line + 1), entry.file),
+    ]);
     expect(allowed.output).not.toContain("no-hand-rolled-button");
 
-    const moved = await lintSource(sourceAtLine(line + 1), entry.file);
     expect(moved.status).toBe(1);
     expect(moved.output).toContain("ui-kit(no-hand-rolled-button)");
   });
@@ -813,9 +837,56 @@ describe("button ratchet baseline", () => {
     expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
   }, 120_000);
 
+  // Ein zweiter Volllauf über src kostet so viel wie der Test oben. Die
+  // Schreibsperre läuft deshalb in einem Sandbox-Frontend: das Skript als
+  // Kopie der echten Datei, das echte oxlint und das echte ui-kit-Plugin, ein
+  // src mit genau den Allowlist-Fundstellen und einem Fund mehr.
   it("refuses to raise the baseline in write mode", () => {
     const directory = mkdtempSync(join(tmpdir(), "button-baseline-"));
     temporaryDirectories.push(directory);
+    mkdirSync(join(directory, "scripts"));
+    for (const file of [
+      "ui-kit-button-baseline-update.mjs",
+      "ui-kit-button-baseline.mjs",
+      "ui-kit-button-baseline.json",
+    ]) {
+      copyFileSync(resolve("scripts", file), join(directory, "scripts", file));
+    }
+    symlinkSync(resolve("node_modules"), join(directory, "node_modules"));
+    writeFileSync(
+      join(directory, ".oxlintrc.json"),
+      JSON.stringify({
+        categories: { correctness: "off", suspicious: "off", perf: "off" },
+        jsPlugins: [resolve("scripts/oxlint-plugin-ui-kit.mjs")],
+        rules: {
+          "ui-kit/no-hand-rolled-button": "error",
+          "ui-kit/no-button-override": "error",
+        },
+      }),
+    );
+    const findingAt: Record<string, string> = {
+      "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
+      "no-button-override": `<Button className="h-10">A</Button>`,
+    };
+    const sources = new Map<string, string[]>();
+    for (const entry of buttonRatchetAllowlist) {
+      const lines = sources.get(entry.file) ?? [
+        `import { Button } from "~/components/ui/button";`,
+      ];
+      for (const line of entry.lines) {
+        while (lines.length < line) lines.push("");
+        lines[line - 1] =
+          `export const probe${line} = ${findingAt[entry.rule]};`;
+      }
+      sources.set(entry.file, lines);
+    }
+    sources.set("src/components/probe.tsx", [
+      `export const probe = ${findingAt["no-hand-rolled-button"]};`,
+    ]);
+    for (const [file, lines] of sources) {
+      mkdirSync(dirname(join(directory, file)), { recursive: true });
+      writeFileSync(join(directory, file), `${lines.join("\n")}\n`);
+    }
     const baselinePath = join(directory, "ui-kit-button-baseline.json");
     const initial =
       '{\n  "no-hand-rolled-button": {},\n  "no-button-override": {}\n}\n';
@@ -823,7 +894,7 @@ describe("button ratchet baseline", () => {
 
     const result = spawnSync(
       process.execPath,
-      [resolve("scripts/ui-kit-button-baseline-update.mjs")],
+      [join(directory, "scripts/ui-kit-button-baseline-update.mjs")],
       {
         encoding: "utf8",
         env: { ...process.env, UI_KIT_BUTTON_BASELINE_PATH: baselinePath },
