@@ -1,0 +1,46 @@
+name: probe 5612 chrome sandbox
+on:
+  push:
+    branches: [probe/5612-chrome-sandbox]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, blacksmith-4vcpu-ubuntu-2404]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Environment
+        run: |
+          lsb_release -ds || true
+          uname -r
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          sysctl kernel.unprivileged_userns_clone || true
+          which google-chrome google-chrome-stable chromium || true
+          google-chrome --version || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Launch system Chrome with sandbox via Playwright 1.64.1
+        run: |
+          mkdir /tmp/p && cd /tmp/p && npm init -y >/dev/null && npm i --silent playwright-core@1.64.1
+          cat > probe.mjs <<'JS'
+          import { chromium } from "playwright-core";
+          for (const headless of [true, false]) {
+            try {
+              const b = await chromium.launch({ channel: "chrome", chromiumSandbox: true, headless });
+              const p = await b.newPage();
+              await p.goto("chrome://sandbox");
+              await p.waitForTimeout(500);
+              const text = (await p.innerText("body")).replace(/\s+/g, " ").slice(0, 600);
+              console.log(`headless=${headless} version=${b.version()} :: ${text}`);
+              await b.close();
+            } catch (e) {
+              console.log(`headless=${headless} FAILED: ${String(e.message).slice(0, 800)}`);
+              process.exitCode = 1;
+            }
+          }
+          JS
+          if command -v xvfb-run >/dev/null; then xvfb-run -a node probe.mjs; else node probe.mjs; fi
