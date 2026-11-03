@@ -139,6 +139,18 @@ func TestCostBearersAreKeptPerTraegerAndNamedOnesOnlySwitchOff(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.False(t, decodeSchoolPortalData[costBearerBody](t, rec.Body.Bytes()).Active)
 
+	// A PUT changes an existing cost bearer and never creates one, also not
+	// with ID 0 and also not when repeated.
+	for range 2 {
+		rec = traegerJSON(t, f.traeger, billing, http.MethodPut, costBearerPath(0), youthOffice())
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		assert.Equal(t, "parent_billing.cost_bearer_not_found", refusalCode(t, rec))
+	}
+	var bearers int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.cost_bearers WHERE organization_id = ?`, f.office.organization).
+		Scan(context.Background(), &bearers))
+	assert.Equal(t, 2, bearers, "PUT /0 created no cost bearer")
+
 	rec = traegerJSON(t, f.traeger, billing, http.MethodDelete, costBearerPath(unused.ID), nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, billing, http.MethodDelete, costBearerPath(unused.ID), nil)

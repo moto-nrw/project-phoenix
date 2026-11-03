@@ -67,15 +67,9 @@ func (rs *RuleResource) saveCostBearer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var bearerID int64
-	status := http.StatusCreated
-	if r.Method == http.MethodPut {
-		id, err := common.ParseIDParam(r, "id")
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		bearerID, status = id, http.StatusOK
+	bearerID, status, ok := costBearerTarget(w, r)
+	if !ok {
+		return
 	}
 	req := &CostBearerRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -88,6 +82,26 @@ func (rs *RuleResource) saveCostBearer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, status, bearer, "Cost bearer saved successfully")
+}
+
+// costBearerTarget names what a save writes: a new cost bearer on POST
+// (zero, 201), the existing one {id} names on PUT (200). A PUT never
+// creates: an ID that is not positive names no cost bearer and answers 404,
+// so a repeated PUT cannot add duplicates.
+func costBearerTarget(w http.ResponseWriter, r *http.Request) (int64, int, bool) {
+	if r.Method != http.MethodPut {
+		return 0, http.StatusCreated, true
+	}
+	id, err := common.ParseIDParam(r, "id")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return 0, 0, false
+	}
+	if id <= 0 {
+		renderCostBearerError(w, r, capability.ErrCostBearerNotFound)
+		return 0, 0, false
+	}
+	return id, http.StatusOK, true
 }
 
 func (rs *RuleResource) deleteCostBearer(w http.ResponseWriter, r *http.Request) {
