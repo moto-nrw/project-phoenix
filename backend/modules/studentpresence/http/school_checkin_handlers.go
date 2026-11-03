@@ -26,11 +26,15 @@ type schoolCheckinRequest struct {
 	// Note is the optional reason for an early checkout (#3324). Only valid
 	// with Action "out"; blank means no note.
 	Note string `json:"note,omitempty"`
+	// Reason is "class" for a child going to class (#5656). Only valid with
+	// Action "out" and without a note; empty is every other checkout.
+	Reason string `json:"reason,omitempty"`
 }
 
 // schoolCheckinResponse mirrors the shape of AttendanceStatus so the frontend
 // can render the new state directly without a follow-up fetch. The Location
-// field is the resolved binary-mode label ("Anwesend" | "Schulhof" | "Abwesend")
+// field is the resolved binary-mode label ("Anwesend" | "Schulhof" | "Abwesend" |
+// "Im Unterricht")
 // so PresenceBadge can update optimistically in the UI.
 type schoolCheckinResponse struct {
 	StudentID    int64      `json:"student_id"`
@@ -133,6 +137,27 @@ func validateSchoolCheckinRequest(req schoolCheckinRequest) error {
 	if req.Action == schoolCheckinActionIn && strings.TrimSpace(req.Note) != "" {
 		return errors.New(`note is only allowed with action "out"`)
 	}
+	if req.Reason == "" {
+		return nil
+	}
+	if err := validateSchoolCheckoutReason(req.Action, req.Reason); err != nil {
+		return err
+	}
+	if strings.TrimSpace(req.Note) != "" {
+		return errors.New(`note is not allowed with reason "class"`)
+	}
+	return nil
+}
+
+// validateSchoolCheckoutReason accepts the one reason the single and the batch
+// endpoint know, and only on a checkout.
+func validateSchoolCheckoutReason(action, reason string) error {
+	if reason != studentpresence.CheckoutReasonClass {
+		return errors.New(`reason must be "class"`)
+	}
+	if action != schoolCheckinActionOut {
+		return errors.New(`reason is only allowed with action "out"`)
+	}
 	return nil
 }
 
@@ -160,6 +185,8 @@ const maxSchoolCheckinBatchBytes = 64 << 10
 type schoolCheckinBatchRequest struct {
 	Action     string   `json:"action"` // "in" | "out"
 	StudentIDs []string `json:"student_ids"`
+	// Reason is "class" for children going to class together (#5656).
+	Reason string `json:"reason,omitempty"`
 }
 
 // schoolCheckinBatchResult is the per-student outcome inside a batch response.
@@ -210,7 +237,12 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	batch, err := rs.ActiveService.ProcessSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
+	var batch *studentpresence.SchoolCheckinBatchResult
+	if req.Reason == studentpresence.CheckoutReasonClass {
+		batch, err = rs.ActiveService.ProcessSchoolClassCheckoutBatch(r.Context(), studentIDs, staffID)
+	} else {
+		batch, err = rs.ActiveService.ProcessSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -251,6 +283,11 @@ func decodeSchoolCheckinBatch(w http.ResponseWriter, r *http.Request) (schoolChe
 	}
 	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
 		return schoolCheckinBatchRequest{}, nil, common.ErrorInvalidRequest(errors.New(`action must be "in" or "out"`))
+	}
+	if req.Reason != "" {
+		if err := validateSchoolCheckoutReason(req.Action, req.Reason); err != nil {
+			return schoolCheckinBatchRequest{}, nil, common.ErrorInvalidRequest(err)
+		}
 	}
 	// Cap the RAW list before parsing and deduplication: a payload of
 	// duplicate ids must not buy unbounded parse work just because it would
@@ -293,7 +330,7 @@ func buildSchoolCheckinBatchResponse(action string, batch *studentpresence.Schoo
 			OK:        true,
 			Changed:   item.Changed,
 			Status:    item.Status,
-			Location:  labelForAttendanceStatus(item.Status),
+			Location:  batchItemLocation(item),
 		})
 	}
 	return resp
@@ -363,7 +400,11 @@ func (rs *Resource) applySchoolCheckinAction(
 		// transaction (issue #895 — see modules/studentpresence/internal/application/presence.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
-		result, err = rs.ActiveService.CheckOutStudentWithNote(ctx, student.ID, staffID, req.Note, true)
+		if req.Reason == studentpresence.CheckoutReasonClass {
+			result, err = rs.ActiveService.CheckOutStudentToClass(ctx, student.ID, staffID, true)
+		} else {
+			result, err = rs.ActiveService.CheckOutStudentWithNote(ctx, student.ID, staffID, req.Note, true)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -393,7 +434,17 @@ func buildSchoolCheckinResponse(studentID int64, status *studentpresence.DailyAt
 		Changed:      changed,
 	}
 	resp.Location = labelForAttendanceStatus(status.Status)
+	if status.IsInClass() {
+		resp.Location = studentpresence.InClassLocationLabel
+	}
 	return resp
+}
+
+func batchItemLocation(item studentpresence.SchoolCheckinBatchItem) string {
+	if item.InClass {
+		return studentpresence.InClassLocationLabel
+	}
+	return labelForAttendanceStatus(item.Status)
 }
 
 // labelForAttendanceStatus maps the tri-state status to the German presence

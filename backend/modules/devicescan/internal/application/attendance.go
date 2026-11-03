@@ -130,8 +130,11 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *devicescan.P
 	}
 
 	message := "Tschüss " + person.FirstName + "!"
-	if destination == devicescan.DestinationTransit {
+	switch destination {
+	case devicescan.DestinationTransit:
 		message = "Viel Spaß!"
+	case devicescan.DestinationClass:
+		message = "Bis später, " + person.FirstName + "!"
 	}
 	result := &devicescan.AttendanceToggleResult{
 		Action:  action,

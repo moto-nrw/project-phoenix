@@ -127,11 +127,12 @@ func activeLiveListFilters(params *studentListParams) []string {
 // absence for a future day is exactly what those filters are for, so a dated
 // export must keep accepting them (#1939).
 var locationDerivedExportStatuses = map[string]struct{}{
-	"abwesend":  {},
-	"schule":    {},
-	"unterwegs": {},
-	"schulhof":  {},
-	"anwesend":  {},
+	"abwesend":   {},
+	"schule":     {},
+	"unterricht": {},
+	"unterwegs":  {},
+	"schulhof":   {},
+	"anwesend":   {},
 }
 
 // activeLiveExportFilters is the export counterpart of activeLiveListFilters.
@@ -215,7 +216,8 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 // applyAtSchoolLocation turns "Abwesend" into "Schule" for every full-access
 // child the day plan expects who has not checked in yet (#3260). It runs after
 // applyDayPlanning because the rule reads the plan it just resolved; the
-// restricted rows carry no plan and keep "Abwesend".
+// restricted rows carry no plan and keep "Abwesend". A child still "Im
+// Unterricht" after the care day's end reads "Abwesend" again (#5656).
 func applyAtSchoolLocation(
 	responses []StudentResponse,
 	pickups map[int64]*careplan.EffectivePickupTime,
@@ -225,6 +227,10 @@ func applyAtSchoolLocation(
 ) {
 	for i := range responses {
 		response := &responses[i]
+		if response.Location == studentpresence.InClassLocationLabel && !careplan.InClassUntilCareDayEnd(careDayEnd, now) {
+			response.Location = studentpresence.AbsentLocationLabel
+			continue
+		}
 		if !response.HasFullAccess || response.Location != studentpresence.AbsentLocationLabel {
 			continue
 		}

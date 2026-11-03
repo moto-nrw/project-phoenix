@@ -15,6 +15,7 @@ const (
 	DayStateNotArrived DayState = "not_arrived"
 	DayStatePresent    DayState = "present"
 	DayStateLeft       DayState = "left"
+	DayStateInClass    DayState = "in_class"
 	DayStateAbsent     DayState = "absent"
 	DayStateNoCare     DayState = "no_care"
 	DayStateUnknown    DayState = "unknown"
@@ -58,6 +59,7 @@ type todayStatusFacts struct {
 	HasAttendanceToday bool
 	CheckIn            string
 	CheckOut           string
+	LeftForClass       bool
 	ExpectedArrival    string
 	PickupTime         string
 	NowHHMM            string
@@ -81,6 +83,9 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 				Since:      f.CheckIn,
 				PickupTime: f.PickupTime,
 			}
+		}
+		if f.LeftForClass {
+			return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateInClass, Until: f.CheckOut}
 		}
 		return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateLeft, Until: f.CheckOut}
 	}
@@ -116,11 +121,13 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []Attendance) {
 		if row.CheckOutTime == nil {
 			facts.CheckIn = berlinHHMM(row.CheckInTime)
 			facts.CheckOut = ""
+			facts.LeftForClass = false
 			return
 		}
 		if latestCheckOut == nil || row.CheckOutTime.After(*latestCheckOut) {
 			latestCheckOut = row.CheckOutTime
 			facts.CheckIn = berlinHHMM(row.CheckInTime)
+			facts.LeftForClass = row.LeftForClass
 		}
 	}
 	if latestCheckOut != nil {
@@ -129,11 +136,12 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []Attendance) {
 }
 
 // AttendanceRowsShowLeft reports whether one day's attendance rows show the
-// child checked in and already checked out again, with no open row left.
+// child checked in and already checked out again, with no open row left. A
+// child who went to class has not left for the day (#5656).
 func AttendanceRowsShowLeft(rows []Attendance) bool {
 	facts := todayStatusFacts{}
 	applyAttendanceRows(&facts, rows)
-	return facts.HasAttendanceToday && facts.CheckOut != ""
+	return facts.HasAttendanceToday && facts.CheckOut != "" && !facts.LeftForClass
 }
 
 func berlinHHMM(t time.Time) string {

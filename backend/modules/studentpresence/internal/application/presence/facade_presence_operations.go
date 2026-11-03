@@ -22,10 +22,11 @@ type PresenceOperations struct {
 	logger   *slog.Logger
 }
 
-// AtSchoolCounter counts the students who read "Schule" right now (#3260).
-// The day plan it needs lives outside the presence owner.
+// AtSchoolCounter counts the students who read "Schule" (#3260) and "Im
+// Unterricht" (#5656) right now. The day plan and care day end it needs live
+// outside the presence owner.
 type AtSchoolCounter interface {
-	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error)
+	CountNotHomeToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
 }
 
 // NewPresenceOperations wires a composed presence capability behind the
@@ -267,7 +268,7 @@ func (p PresenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		ActiveGroupsSummary: make([]studentpresence.ActiveGroupInfo, 0, len(analytics.ActiveGroupsSummary)),
 		LastUpdated:         analytics.LastUpdated,
 	}
-	result.StudentsAtSchool, result.StudentsHome = splitAtSchoolOrKeepHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs, p.logger)
+	result.StudentsAtSchool, result.StudentsInClass, result.StudentsHome = splitAtSchoolOrKeepHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs, p.logger)
 	for _, item := range analytics.RecentActivity {
 		result.RecentActivity = append(result.RecentActivity, studentpresence.RecentActivity{
 			Type: item.Type, GroupName: item.GroupName, RoomName: item.RoomName, Count: item.Count, Timestamp: item.Timestamp,
@@ -286,27 +287,28 @@ func (p PresenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 	return result, nil
 }
 
-func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64, logger *slog.Logger) (int, int) {
-	atSchool, remainingHome, err := splitAtSchoolFromHome(ctx, counter, home, candidates)
+func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64, logger *slog.Logger) (int, int, int) {
+	atSchool, inClass, remainingHome, err := splitAtSchoolFromHome(ctx, counter, home, candidates)
 	if err == nil {
-		return atSchool, remainingHome
+		return atSchool, inClass, remainingHome
 	}
 	logger.Warn("failed to split at-school students from dashboard home count", "error", err)
-	return 0, home
+	return 0, 0, home
 }
 
 // splitAtSchoolFromHome moves the "Zuhause" candidates still in class into
-// their own figure (#3260). Without a counter or candidates the home figure
-// stays as it is; the result never drops below zero.
-func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64) (int, int, error) {
+// their own figures: "Schule" before the first check-in (#3260) and "Im
+// Unterricht" after a checkout to class (#5656). Without a counter or candidates
+// the home figure stays as it is; the result never drops below zero.
+func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64) (int, int, int, error) {
 	if counter == nil || len(candidates) == 0 {
-		return 0, home, nil
+		return 0, 0, home, nil
 	}
-	atSchool, err := counter.CountAtSchoolToday(ctx, candidates)
+	atSchool, inClass, err := counter.CountNotHomeToday(ctx, candidates)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
-	return atSchool, max(0, home-atSchool), nil
+	return atSchool, inClass, max(0, home-atSchool-inClass), nil
 }
 
 func (p PresenceOperations) CrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]studentpresence.CrossTenantStudent, error) {

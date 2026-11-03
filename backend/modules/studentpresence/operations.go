@@ -345,6 +345,9 @@ type DashboardAnalytics struct {
 	// StudentsAtSchool are expected children before their first check-in
 	// (#3260); StudentsHome no longer counts them.
 	StudentsAtSchool int
+	// StudentsInClass were checked out with "Geht zum Unterricht" and have not
+	// come back yet (#5656); StudentsHome no longer counts them either.
+	StudentsInClass int
 
 	ActiveActivities    int
 	FreeRooms           int

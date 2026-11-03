@@ -290,6 +290,9 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Handle non-checked-in states (checked_out or other)
 	if attendanceStatus.Status != "checked_in" {
+		if hasFullAccess && attendanceStatus.IsInClass() {
+			return studentpresence.StudentLocationInfo{Location: studentpresence.InClassLocationLabel, Since: attendanceStatus.CheckOutTime}, nil
+		}
 		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime), nil
 	}
 
@@ -543,6 +546,10 @@ func applyActualTimesFromAttendance(response *StudentResponse, status *studentpr
 	}
 
 	response.ActualArrivalTime = calendar.FormatBerlinClock(status.CheckInTime)
+	// Leaving for class is no pickup (#5656): the child is still expected back.
+	if status.IsInClass() {
+		return
+	}
 	response.ActualPickupTime = calendar.FormatBerlinClock(status.CheckOutTime)
 	if status.CheckOutTime != nil {
 		response.ActualPickupNote = status.CheckOutNote

@@ -649,7 +649,7 @@ func (p supervisionPresence) AttendanceTimes(ctx context.Context, studentIDs []i
 		if status == nil {
 			continue
 		}
-		result[id] = supervisiondashboard.Attendance{CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime}
+		result[id] = supervisiondashboard.Attendance{CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime, InClass: status.IsInClass()}
 	}
 	return result, nil
 }

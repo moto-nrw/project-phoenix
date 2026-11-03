@@ -881,6 +881,7 @@ export async function getChildFeatures(
 type ChildTodayState =
   | "present"
   | "left"
+  | "in_class"
   | "expected"
   | "not_arrived"
   | "absent"
@@ -892,7 +893,7 @@ export interface ChildToday {
   readonly state: ChildTodayState;
   /** "HH:MM", nur bei present. */
   readonly since?: string;
-  /** "HH:MM", nur bei left. */
+  /** "HH:MM", nur bei left und in_class. */
   readonly until?: string;
   /** "HH:MM", nur bei expected und not_arrived. */
   readonly expected_from?: string;

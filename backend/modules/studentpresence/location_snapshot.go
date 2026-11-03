@@ -36,6 +36,13 @@ const AbsentLocationLabel = "Abwesend"
 // hold the day plan can decide it (careschedule.IsAtSchoolBeforeCheckIn).
 const AtSchoolLocationLabel = "Schule"
 
+// InClassLocationLabel is the resolved location of a child who was checked out
+// with "Geht zum Unterricht" and has not come back yet (#5656). Unlike
+// AtSchoolLocationLabel, which the day plan infers before the first check-in,
+// this one comes from a recorded checkout. Callers that know the school's care
+// day end fall back to AbsentLocationLabel after it (careplan.InClassUntilCareDayEnd).
+const InClassLocationLabel = "Im Unterricht"
+
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.
 // Callers can reuse the snapshot to resolve location strings without triggering N+1 queries.
 //
@@ -101,10 +108,7 @@ func (s *StudentLocationSnapshot) resolveDetailedLocation(
 
 func detailedAttendanceLocation(status *DailyAttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	if status.Status == "checked_out" {
-		if hasFullAccess && status.CheckOutTime != nil {
-			return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
-		}
-		return StudentLocationInfo{Location: "Abwesend"}
+		return checkedOutLocation(status, hasFullAccess)
 	}
 	if status.Status != "checked_in" {
 		return StudentLocationInfo{Location: "Abwesend"}
@@ -159,14 +163,24 @@ func ResolveBinaryLocation(status *DailyAttendanceStatus, hasFullAccess bool) St
 		}
 		return info
 	case "checked_out":
-		info := StudentLocationInfo{Location: "Abwesend"}
-		if hasFullAccess {
-			info.Since = status.CheckOutTime
-		}
-		return info
+		return checkedOutLocation(status, hasFullAccess)
 	default:
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
+}
+
+// checkedOutLocation names a checked-out child's location. Without full access
+// a child in class reads "Abwesend" like every other checkout, so the restricted
+// view learns nothing beyond attendance.
+func checkedOutLocation(status *DailyAttendanceStatus, hasFullAccess bool) StudentLocationInfo {
+	if !hasFullAccess {
+		return StudentLocationInfo{Location: AbsentLocationLabel}
+	}
+	location := AbsentLocationLabel
+	if status.IsInClass() {
+		location = InClassLocationLabel
+	}
+	return StudentLocationInfo{Location: location, Since: status.CheckOutTime}
 }
 
 // withYardRoomColor stamps the Schulhof room color onto a binary-mode

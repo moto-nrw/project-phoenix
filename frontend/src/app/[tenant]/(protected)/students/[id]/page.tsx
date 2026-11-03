@@ -20,15 +20,18 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   resolveStudentReferrer,
   studentReferrerBackLabel,
 } from "./student-referrer";
 import { groupService, studentService } from "~/lib/api";
-import { schoolCheckinStudent } from "~/lib/student-api";
-import { isAtSchoolLocation } from "~/lib/location-helper";
+import {
+  schoolCheckinStudent,
+  type SchoolCheckoutReason,
+} from "~/lib/student-api";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
 import {
   useStudentData,
   type ExtendedStudent,
@@ -664,7 +667,9 @@ function StudentDetailPageContent() {
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkingOut, setCheckingOut] = useState<
+    SchoolCheckoutReason | "home" | null
+  >(null);
   // Early checkout (#3324): decided when the dialog opens, so the field does
   // not appear or vanish while someone is typing.
   const isEarlyCheckout = useEarlyCheckoutCheck();
@@ -1089,20 +1094,26 @@ function StudentDetailPageContent() {
     toast.success("Die Angaben sind gespeichert.");
   };
 
-  const handleConfirmCheckout = async () => {
+  const handleConfirmCheckout = async (reason?: SchoolCheckoutReason) => {
     if (!student) return;
 
-    setCheckingOut(true);
+    setCheckingOut(reason ?? "home");
     dialogErrors.clear();
     try {
-      await schoolCheckinStudent(
-        studentId,
-        "out",
-        checkoutIsEarly ? checkoutNote : undefined,
-      );
+      await (reason
+        ? schoolCheckinStudent(studentId, "out", undefined, reason)
+        : schoolCheckinStudent(
+            studentId,
+            "out",
+            checkoutIsEarly ? checkoutNote : undefined,
+          ));
       refreshData();
       setShowConfirmCheckout(false);
-      toast.success(`${student.name} ist abgemeldet.`);
+      toast.success(
+        reason
+          ? `${student.name} ist im Unterricht.`
+          : `${student.name} ist abgemeldet.`,
+      );
     } catch (err) {
       logger.error("failed to checkout student", {
         student_id: studentId,
@@ -1112,7 +1123,7 @@ function StudentDetailPageContent() {
         object: "die Anwesenheit",
       });
     } finally {
-      setCheckingOut(false);
+      setCheckingOut(null);
     }
   };
 
@@ -1410,11 +1421,9 @@ function StudentDetailPageContent() {
   // COMPUTED VALUES
   // =============================================================================
 
-  // "Schule" (#3260) is not checked in either: the child still needs a check-in.
-  const isNotCheckedIn =
-    !student.current_location ||
-    student.current_location.startsWith("Zuhause") ||
-    isAtSchoolLocation(student.current_location);
+  // "Schule" (#3260) and "Im Unterricht" (#5656) are not checked in either: the
+  // child still needs a check-in.
+  const isNotCheckedIn = isNotCheckedInLocation(student.current_location);
   const showCheckout = canCheckin && !isNotCheckedIn;
   const showCheckin = canCheckin && isNotCheckedIn;
   const hasQuickActions =
@@ -1521,17 +1530,51 @@ function StudentDetailPageContent() {
       overlays={
         <>
           {/* Checkout Confirmation Modal */}
-          <ConfirmationModal
+          <Modal
             isOpen={showConfirmCheckout}
             onClose={() => {
               setShowConfirmCheckout(false);
               dialogErrors.clear();
             }}
-            onConfirm={handleConfirmCheckout}
             title="Kind abmelden"
-            confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
-            cancelText="Abbrechen"
-            isConfirmLoading={checkingOut}
+            mobileSheet
+            footer={
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    setShowConfirmCheckout(false);
+                    dialogErrors.clear();
+                  }}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  variant="surface"
+                  size="md"
+                  disabled={checkingOut !== null}
+                  isLoading={checkingOut === "class"}
+                  loadingText="Wird abgemeldet…"
+                  onClick={() => void handleConfirmCheckout("class")}
+                >
+                  Geht zum Unterricht
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  disabled={checkingOut !== null}
+                  isLoading={checkingOut === "home"}
+                  loadingText="Wird abgemeldet…"
+                  onClick={() => void handleConfirmCheckout()}
+                >
+                  Geht nach Hause
+                </Button>
+              </>
+            }
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1545,7 +1588,7 @@ function StudentDetailPageContent() {
                 onChange={setCheckoutNote}
               />
             ) : null}
-          </ConfirmationModal>
+          </Modal>
 
           {/* Checkin Confirmation Modal */}
           <ConfirmationModal

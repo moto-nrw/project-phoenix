@@ -10642,7 +10642,7 @@ export const webAttendanceTopic = function webAttendanceTopic(
           "Öffnen Sie die Karte des Kindes.",
           "Wählen Sie `Anmelden` oder `Abmelden`.",
           "Prüfen Sie den Namen im Fenster.",
-          "Bestätigen Sie mit `Anmelden` oder `Geht nach Hause`.",
+          "Bestätigen Sie mit `Anmelden`. Beim Abmelden wählen Sie `Geht nach Hause` oder `Geht zum Unterricht`.",
         ],
       },
       {
@@ -10681,7 +10681,9 @@ export const webAttendanceTopic = function webAttendanceTopic(
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
-      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig.",
+      "Geht ein Kind zum Unterricht und kommt danach wieder? Wählen Sie `Geht zum Unterricht`. Das Kind steht dann auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Kommt das Kind zurück, melden Sie es ganz normal an. Kommt es heute nicht zurück, steht es am Ende des Betreuungstags wieder auf `Zuhause`.",
+      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig. Das Fenster bietet auch `Geht zum Unterricht` an.",
       "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
     ],
     differences: [

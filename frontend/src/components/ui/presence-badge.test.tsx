@@ -112,6 +112,12 @@ describe("PresenceBadge", () => {
     expect(pill.getAttribute("data-presence-state")).toBe("abwesend");
   });
 
+  it("renders Im Unterricht in its own tone after a checkout to class (#5656)", () => {
+    render(<PresenceBadge student={{ current_location: "Im Unterricht" }} />);
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.queryByText("Zuhause")).not.toBeInTheDocument();
+  });
+
   it("renders Schule in its own tone before the first check-in (#3260)", () => {
     render(<PresenceBadge student={{ current_location: "Schule" }} />);
     expect(screen.getByText("Schule")).toBeInTheDocument();

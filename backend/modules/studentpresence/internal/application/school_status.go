@@ -50,7 +50,7 @@ func appendSchoolStatuses(result []studentpresence.SchoolStatus, ids []int64, da
 		if row := latest[id]; row != nil {
 			status.CheckedInBy, status.CheckedOutBy, status.CheckedOutDeviceID = row.CheckedInBy, row.CheckedOutBy, row.CheckedOutDeviceID
 			status.CheckInTime, status.CheckOutTime, status.YardSince = &row.CheckInTime, row.CheckOutTime, row.YardSince
-			status.CheckOutNote = row.CheckOutNote
+			status.CheckOutNote, status.CheckOutReason = row.CheckOutNote, row.CheckOutReason
 			switch {
 			case row.CheckOutTime != nil:
 				status.Status = "checked_out"

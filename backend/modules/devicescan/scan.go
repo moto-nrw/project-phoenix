@@ -85,6 +85,9 @@ const (
 
 	DestinationHome    = "zuhause"
 	DestinationTransit = "unterwegs"
+	// DestinationClass is additive (#5656): kiosks that do not know it keep
+	// sending the two destinations above and get the same answers as before.
+	DestinationClass = "unterricht"
 )
 
 // FailureKind is the HTTP class a classified refusal renders as.

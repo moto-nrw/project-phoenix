@@ -23,6 +23,18 @@ type Attendance struct {
 	YardSince          *time.Time
 	// CheckOutNote is why the child went home earlier than planned (#3324).
 	CheckOutNote *string
+	// CheckOutReason is CheckoutReasonClass when the child left for class and
+	// is expected back (#5656). Nil is every other checkout.
+	CheckOutReason *string
+}
+
+// CheckoutReasonClass marks a checkout that sends the child to class: not a
+// departure for the day, and the return opens a new attendance row (#5656).
+const CheckoutReasonClass = "class"
+
+// LeftForClass reports whether this stay ended because the child went to class.
+func (a Attendance) LeftForClass() bool {
+	return a.CheckOutReason != nil && *a.CheckOutReason == CheckoutReasonClass
 }
 
 // IsOpen reports a school attendance that is checked in and not yet checked
@@ -66,6 +78,9 @@ type AttendanceCheckout struct {
 	// Note is the optional reason for an early checkout (#3324). Empty
 	// leaves the column NULL.
 	Note string
+	// Reason is CheckoutReasonClass for a child going to class (#5656). Empty
+	// leaves the column NULL.
+	Reason string
 }
 
 var ErrAttendanceNotFound = errors.New("attendance not found")

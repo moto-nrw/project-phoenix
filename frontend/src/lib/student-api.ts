@@ -318,6 +318,9 @@ export async function fetchStudentEnrollmentExtraFields(
 /** Action accepted by POST /api/students/{id}/school-checkin. */
 export type SchoolCheckinAction = "in" | "out";
 
+/** Why a checkout is no departure for the day: the child goes to class (#5656). */
+export type SchoolCheckoutReason = "class";
+
 /**
  * Response shape mirrors `AttendanceStatus` on the backend plus the resolved
  * presence label so the UI can update a PresenceBadge optimistically without
@@ -360,17 +363,21 @@ export async function schoolCheckinStudent(
   studentId: string,
   action: SchoolCheckinAction,
   checkoutNote?: string,
+  checkoutReason?: SchoolCheckoutReason,
 ): Promise<SchoolCheckinResponse> {
   const url = `/api/students/${studentId}/school-checkin`;
   // Optional reason for an early checkout (#3324); the backend accepts it
   // only with "out" and stores nothing for a blank note.
   const note = action === "out" ? checkoutNote?.trim() : undefined;
+  const reason = action === "out" ? checkoutReason : undefined;
   try {
     const response = await authFetch<
       ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
     >(url, {
       method: "POST",
-      body: note ? { action, note } : { action },
+      // The backend refuses a note together with a reason: the note is for
+      // going home early, so the reason wins.
+      body: reason ? { action, reason } : note ? { action, note } : { action },
     });
 
     const data = extractApiData<BackendSchoolCheckinResponse>(response);
@@ -440,6 +447,7 @@ const SCHOOL_CHECKIN_BATCH_CHUNK_SIZE = 1000;
 async function postSchoolCheckinBatchChunk(
   studentIds: string[],
   action: SchoolCheckinAction,
+  reason?: SchoolCheckoutReason,
 ): Promise<BackendSchoolCheckinBatchResponse> {
   const response = await authFetch<
     | ApiResponse<BackendSchoolCheckinBatchResponse>
@@ -448,7 +456,9 @@ async function postSchoolCheckinBatchChunk(
     method: "POST",
     // IDs stay strings on the wire (see BackendSchoolCheckinBatchResponse) —
     // never convert them with Number(), which is lossy above 2^53-1.
-    body: { action, student_ids: studentIds },
+    body: reason
+      ? { action, reason, student_ids: studentIds }
+      : { action, student_ids: studentIds },
   });
   return extractApiData<BackendSchoolCheckinBatchResponse>(response);
 }
@@ -469,6 +479,7 @@ async function postSchoolCheckinBatchChunk(
 export async function schoolCheckinStudentsBatch(
   studentIds: string[],
   action: SchoolCheckinAction,
+  checkoutReason?: SchoolCheckoutReason,
 ): Promise<SchoolCheckinBatchOutcome> {
   const outcome: SchoolCheckinBatchOutcome = {
     action,
@@ -487,7 +498,11 @@ export async function schoolCheckinStudentsBatch(
       offset + SCHOOL_CHECKIN_BATCH_CHUNK_SIZE,
     );
     try {
-      const data = await postSchoolCheckinBatchChunk(chunk, action);
+      const data = await postSchoolCheckinBatchChunk(
+        chunk,
+        action,
+        checkoutReason,
+      );
       outcome.succeeded += data.succeeded;
       outcome.failed += data.failed;
       outcome.results.push(

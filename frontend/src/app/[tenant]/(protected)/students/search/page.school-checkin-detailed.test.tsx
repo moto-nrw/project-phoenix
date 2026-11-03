@@ -379,7 +379,10 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
     // Twice: the card underneath and the dialog naming the child.
     expect(screen.getAllByText("Mia Beispiel")).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+    expect(
+      screen.getByRole("button", { name: "Geht zum Unterricht" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Geht nach Hause" }));
 
     expect(mockToggleStudent).toHaveBeenCalledWith("11", "anwesend");
     await waitFor(() => {
@@ -492,7 +495,9 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
     });
     rerender(<StudentSearchPage />);
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Gehen nach Hause" }),
+    );
 
     // The executed batch is the snapshot the dialog displayed — both
     // children, not the shrunken live selection.

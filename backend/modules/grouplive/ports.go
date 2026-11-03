@@ -125,6 +125,8 @@ type Attendance struct {
 	Present      bool
 	CheckInTime  *time.Time
 	CheckOutTime *time.Time
+	// InClass reports a child who left for class and has not come back (#5656).
+	InClass bool
 }
 
 // EffectiveStatus is the resolved status-day precedence: sick wins over
@@ -224,6 +226,9 @@ type Planning interface {
 	// AtSchoolBeforeCheckIn applies the owner's rule for "Schule": an
 	// expected child without a check-in whose care day is not over (#3260).
 	AtSchoolBeforeCheckIn(inputs AtSchoolInputs) bool
+	// InClassUntilCareDayEnd applies the owner's rule for how long "Im
+	// Unterricht" holds: until the school's care day ends (#5656).
+	InClassUntilCareDayEnd(careDayEnd string, now time.Time) bool
 }
 
 // AtSchoolInputs are the facts the "Schule" rule decides from. CheckedIn is

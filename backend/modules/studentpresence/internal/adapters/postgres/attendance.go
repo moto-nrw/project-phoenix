@@ -138,6 +138,9 @@ func (s *Store) CloseAttendance(ctx context.Context, checkout studentpresence.At
 	if checkout.Note != "" {
 		query = query.Set("check_out_note = ?", checkout.Note)
 	}
+	if checkout.Reason != "" {
+		query = query.Set("check_out_reason = ?", checkout.Reason)
+	}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}

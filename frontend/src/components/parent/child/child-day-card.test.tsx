@@ -103,6 +103,10 @@ describe("ChildDayCard", () => {
         "Um 15:12 Uhr nach Hause gegangen",
       ],
       [
+        { at_ogs: false, state: "in_class", until: "08:30" },
+        "Um 08:30 Uhr zum Unterricht gegangen",
+      ],
+      [
         { at_ogs: false, state: "expected", expected_from: "12:30" },
         "Kommt heute um 12:30 Uhr",
       ],

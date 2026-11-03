@@ -90,9 +90,9 @@ func supervisionRunsOn(supervisor studentpresence.GroupSupervision, day calendar
 //
 // The student must already have an attendance record for today (status
 // "checked_in" or "checked_out"); otherwise ErrNoAttendanceRecordForCheckout is
-// returned. Attendance is only mutated when destination is "zuhause" and the
-// student is still "checked_in"; a concurrent checkout is treated as an
-// idempotent no-op.
+// returned. Attendance is only mutated when destination is "zuhause" or
+// "unterricht" and the student is still "checked_in"; a concurrent checkout is
+// treated as an idempotent no-op.
 func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
 	var result *DailyCheckoutResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
@@ -129,7 +129,11 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 		return nil, ErrNoAttendanceRecordForCheckout
 	}
 
-	if destination == "zuhause" {
+	if destination == "zuhause" || destination == "unterricht" {
+		details := checkoutDetails{}
+		if destination == "unterricht" {
+			details.reason = studentpresence.CheckoutReasonClass
+		}
 		switch currentStatus.Status {
 		case "checked_out":
 			s.getLogger().DebugContext(ctx, "student already checked out, skipping attendance toggle",
@@ -141,7 +145,7 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 			// transaction commits (#2113) — the explicit BroadcastDailyCheckout
 			// that used to sit here fired before the commit and is now a
 			// duplicate.
-			if _, err := s.CheckOutStudentFromDevice(ctx, studentID, deviceID); err != nil {
+			if _, err := s.checkOutStudentFromDevice(ctx, studentID, deviceID, details); err != nil {
 				s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
 					slog.Int64("student_id", studentID),
 					slog.String("error", err.Error()),
@@ -152,8 +156,11 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 	}
 
 	action := "checked_out_daily"
-	if destination == "unterwegs" {
+	switch destination {
+	case "unterwegs":
 		action = "checked_out"
+	case "unterricht":
+		action = "checked_out_class"
 	}
 
 	s.getLogger().InfoContext(ctx, "daily checkout confirmed",

@@ -115,6 +115,24 @@ vi.mock("~/components/ui/back-link", () => ({
 
 // Mock ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  Modal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div data-testid={`modal-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+        <h2>{title}</h2>
+        <div data-testid="modal-content">{children}</div>
+        {footer}
+      </div>
+    ) : null,
   ConfirmationModal: ({
     isOpen,
     onClose,
@@ -1310,8 +1328,7 @@ describe("StudentDetailPage", () => {
         expect(screen.getByTestId("modal-kind-abmelden")).toBeInTheDocument();
       });
 
-      const cancelButton = screen.getByTestId("modal-cancel");
-      fireEvent.click(cancelButton);
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
 
       await waitFor(() => {
         expect(
@@ -1332,7 +1349,9 @@ describe("StudentDetailPage", () => {
         expect(screen.getByTestId("modal-kind-abmelden")).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByRole("button", {
+        name: "Geht nach Hause",
+      });
       await act(async () => {
         fireEvent.click(confirmButton);
       });
@@ -1341,6 +1360,41 @@ describe("StudentDetailPage", () => {
         expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("1", "out");
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    // #5656: der dritte Weg neben „Geht nach Hause“ und „Abbrechen“.
+    it("checks out to class from the third button", async () => {
+      mockSchoolCheckinStudent.mockResolvedValue({});
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("checkout-button"));
+
+      const dialog = await screen.findByTestId("modal-kind-abmelden");
+      for (const name of [
+        "Geht nach Hause",
+        "Geht zum Unterricht",
+        "Abbrechen",
+      ]) {
+        expect(within(dialog).getByRole("button", { name })).toBeEnabled();
+      }
+
+      await act(async () => {
+        fireEvent.click(
+          within(dialog).getByRole("button", { name: "Geht zum Unterricht" }),
+        );
+      });
+
+      await waitFor(() => {
+        expect(mockSchoolCheckinStudent).toHaveBeenCalledWith(
+          "1",
+          "out",
+          undefined,
+          "class",
+        );
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          expect.stringContaining("ist im Unterricht"),
+        );
       });
     });
 
@@ -1359,7 +1413,9 @@ describe("StudentDetailPage", () => {
         expect(screen.getByTestId("modal-kind-abmelden")).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByRole("button", {
+        name: "Geht nach Hause",
+      });
       await act(async () => {
         fireEvent.click(confirmButton);
       });
@@ -1372,7 +1428,9 @@ describe("StudentDetailPage", () => {
         ),
       ).toBeInTheDocument();
       // Der Bestätigen-Knopf wiederholt mit dem aktuellen Stand.
-      expect(within(dialog).getByTestId("modal-confirm")).toBeEnabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Geht nach Hause" }),
+      ).toBeEnabled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
   });

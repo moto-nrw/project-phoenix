@@ -136,6 +136,9 @@ func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64,
 	}
 
 	if attendanceStatus.Status != "checked_in" {
+		if hasFullAccess && attendanceStatus.IsInClass() {
+			return studentpresence.InClassLocationLabel
+		}
 		return "Abwesend"
 	}
 

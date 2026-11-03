@@ -157,6 +157,13 @@ type AttendanceCommands interface {
 	// an early checkout (#3324). The note is stored only when this call closes
 	// the open stay; a blank note stores nothing.
 	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudentToClass is CheckOutStudent for a child going to class
+	// (#5656): the stay ends with the class reason and the child reads
+	// "Im Unterricht" until the next check-in.
+	CheckOutStudentToClass(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// ProcessSchoolClassCheckoutBatch is the "out" batch for children going to
+	// class together (#5656).
+	ProcessSchoolClassCheckoutBatch(ctx context.Context, studentIDs []int64, staffID int64) (*SchoolCheckinBatchResult, error)
 	// ProcessSchoolCheckinBatch applies one explicit school check-in/out
 	// action ("in" | "out") to a set of students in a single call (#2359).
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)

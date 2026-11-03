@@ -12,4 +12,5 @@ type SchoolStatus struct {
 	Date, Status                         string
 	CheckInTime, CheckOutTime, YardSince *time.Time
 	CheckOutNote                         *string
+	CheckOutReason                       *string
 }

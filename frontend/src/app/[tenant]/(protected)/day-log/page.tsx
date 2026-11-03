@@ -159,6 +159,13 @@ function studentDetailLine(student: DayLogStudent): string {
       ? `Ankunft ${from} · gegangen ${until}`
       : `Ankunft ${from} · noch anwesend`;
     const parts = [range];
+    for (const period of student.class_periods ?? []) {
+      parts.push(
+        period.until
+          ? `im Unterricht ${formatClock(period.from)} bis ${formatClock(period.until)} Uhr`
+          : `im Unterricht ab ${formatClock(period.from)} Uhr`,
+      );
+    }
     if (student.check_out_note) {
       parts.push(`Grund für das frühe Gehen: ${student.check_out_note}`);
     }

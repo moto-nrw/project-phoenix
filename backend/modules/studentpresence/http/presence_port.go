@@ -27,5 +27,7 @@ type StudentPresence interface {
 	EndVisit(ctx context.Context, id int64) error
 	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
 	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	CheckOutStudentToClass(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	ProcessSchoolClassCheckoutBatch(ctx context.Context, studentIDs []int64, staffID int64) (*studentpresence.SchoolCheckinBatchResult, error)
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*studentpresence.SchoolCheckinBatchResult, error)
 }

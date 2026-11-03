@@ -10,6 +10,8 @@
     "presentNoTime": "Here today",
     "left": "Went home at {time}",
     "leftNoTime": "Went home today",
+    "inClass": "Went to class at {time}",
+    "inClassNoTime": "Went to class today",
     "expected": "Arriving today at {time}",
     "expectedNoTime": "Arriving today",
     "notArrived": "Expected since {time}",

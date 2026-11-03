@@ -11,14 +11,15 @@ import (
 )
 
 type atSchoolCounterFake struct {
-	count int
-	err   error
-	seen  []int64
+	count   int
+	inClass int
+	err     error
+	seen    []int64
 }
 
-func (f *atSchoolCounterFake) CountAtSchoolToday(_ context.Context, ids []int64) (int, error) {
+func (f *atSchoolCounterFake) CountNotHomeToday(_ context.Context, ids []int64) (int, int, error) {
 	f.seen = ids
-	return f.count, f.err
+	return f.count, f.inClass, f.err
 }
 
 // TestSplitAtSchoolFromHome pins #3260: the children still in class leave the
@@ -29,17 +30,28 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 	t.Run("moves the counted children out of home", func(t *testing.T) {
 		t.Parallel()
 		counter := &atSchoolCounterFake{count: 3}
-		atSchool, home, err := splitAtSchoolFromHome(context.Background(), counter, 5, []int64{1, 2, 3, 4, 5})
+		atSchool, _, home, err := splitAtSchoolFromHome(context.Background(), counter, 5, []int64{1, 2, 3, 4, 5})
 		require.NoError(t, err)
 		assert.Equal(t, []int64{1, 2, 3, 4, 5}, counter.seen)
 		assert.Equal(t, 3, atSchool)
 		assert.Equal(t, 2, home)
 	})
 
+	// #5656: a child in class has not gone home either.
+	t.Run("moves the children in class out of home", func(t *testing.T) {
+		t.Parallel()
+		counter := &atSchoolCounterFake{count: 1, inClass: 2}
+		atSchool, inClass, home, err := splitAtSchoolFromHome(context.Background(), counter, 5, []int64{1, 2, 3, 4, 5})
+		require.NoError(t, err)
+		assert.Equal(t, 1, atSchool)
+		assert.Equal(t, 2, inClass)
+		assert.Equal(t, 2, home)
+	})
+
 	t.Run("clamps home at zero", func(t *testing.T) {
 		t.Parallel()
 		// A stale home figure can be lower than the at-school count.
-		atSchool, home, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{count: 2}, 1, []int64{1, 2})
+		atSchool, _, home, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{count: 2}, 1, []int64{1, 2})
 		require.NoError(t, err)
 		assert.Equal(t, 2, atSchool)
 		assert.Equal(t, 0, home)
@@ -48,7 +60,7 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 	t.Run("skips the counter without candidates", func(t *testing.T) {
 		t.Parallel()
 		counter := &atSchoolCounterFake{count: 9}
-		atSchool, home, err := splitAtSchoolFromHome(context.Background(), counter, 4, nil)
+		atSchool, _, home, err := splitAtSchoolFromHome(context.Background(), counter, 4, nil)
 		require.NoError(t, err)
 		assert.Nil(t, counter.seen)
 		assert.Equal(t, 0, atSchool)
@@ -57,7 +69,7 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 
 	t.Run("keeps home without a counter", func(t *testing.T) {
 		t.Parallel()
-		atSchool, home, err := splitAtSchoolFromHome(context.Background(), nil, 4, []int64{1})
+		atSchool, _, home, err := splitAtSchoolFromHome(context.Background(), nil, 4, []int64{1})
 		require.NoError(t, err)
 		assert.Equal(t, 0, atSchool)
 		assert.Equal(t, 4, home)
@@ -66,7 +78,7 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 	t.Run("fails when the counter fails", func(t *testing.T) {
 		t.Parallel()
 		boom := errors.New("planning down")
-		_, _, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{err: boom}, 1, []int64{1})
+		_, _, _, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{err: boom}, 1, []int64{1})
 		require.ErrorIs(t, err, boom)
 	})
 }
@@ -74,7 +86,7 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 func TestSplitAtSchoolOrKeepHome(t *testing.T) {
 	t.Parallel()
 
-	atSchool, home := splitAtSchoolOrKeepHome(
+	atSchool, inClass, home := splitAtSchoolOrKeepHome(
 		context.Background(),
 		&atSchoolCounterFake{err: errors.New("planning down")},
 		4,
@@ -83,5 +95,6 @@ func TestSplitAtSchoolOrKeepHome(t *testing.T) {
 	)
 
 	assert.Equal(t, 0, atSchool)
+	assert.Equal(t, 0, inClass)
 	assert.Equal(t, 4, home)
 }

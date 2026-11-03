@@ -98,3 +98,86 @@ func columnIDs(columns []lists.Column) []lists.ColumnID {
 	}
 	return ids
 }
+
+func classStay(checkIn, checkOut time.Time) *studentpresence.Attendance {
+	row := checkoutNoteStay(checkIn, checkOut, "")
+	reason := studentpresence.CheckoutReasonClass
+	row.CheckOutReason = &reason
+	return row
+}
+
+func TestDayLogClassPeriods_ReadsTheGapBetweenStays(t *testing.T) {
+	t.Parallel()
+
+	day := calendar.NewDate(2026, 9, 29).BerlinMidnight()
+	morning := classStay(day.Add(7*time.Hour), day.Add(8*time.Hour))
+	afternoon := checkoutNoteStay(day.Add(12*time.Hour), day.Add(15*time.Hour), "")
+	// Stays arrive out of order: the later one is listed first.
+	periods := dayLogClassPeriods([]*studentpresence.Attendance{afternoon, morning})
+	require.Len(t, periods, 1)
+	assert.Equal(t, day.Add(8*time.Hour), periods[0].From)
+	require.NotNil(t, periods[0].Until)
+	assert.Equal(t, day.Add(12*time.Hour), *periods[0].Until)
+	assert.Equal(t, "Im Unterricht 08:00–12:00", dayLogExportDetails(dayLogStudent{ClassPeriods: periods}))
+
+	// No return yet: the period is open, and the export says so.
+	open := dayLogClassPeriods([]*studentpresence.Attendance{morning})
+	require.Len(t, open, 1)
+	assert.Nil(t, open[0].Until)
+	assert.Equal(t, "Im Unterricht ab 08:00", dayLogExportDetails(dayLogStudent{ClassPeriods: open}))
+
+	// Going home carries no class period.
+	assert.Empty(t, dayLogClassPeriods([]*studentpresence.Attendance{afternoon}))
+}
+
+func TestAttendanceExport_TellsClassFromGoingHome(t *testing.T) {
+	t.Parallel()
+
+	day := calendar.NewDate(2026, 9, 29).BerlinMidnight()
+	notes := checkOutNotesByInstant([]*studentpresence.Attendance{
+		classStay(day.Add(7*time.Hour), day.Add(8*time.Hour)),
+		checkoutNoteStay(day.Add(12*time.Hour), day.Add(15*time.Hour), ""),
+	})
+
+	assert.Equal(t, attendanceWentToClassNote, notes[day.Add(8*time.Hour).UnixNano()])
+	assert.NotContains(t, notes, day.Add(15*time.Hour).UnixNano())
+	row := unassignedExportRow(classStay(day.Add(7*time.Hour), day.Add(8*time.Hour)))
+	assert.Equal(t, attendanceWentToClassNote, row.Values[attendanceColumnNote])
+}
+
+func TestExportStatus_InClassIsItsOwnBucket(t *testing.T) {
+	t.Parallel()
+
+	student := StudentResponse{Location: studentpresence.InClassLocationLabel}
+	assert.Equal(t, "unterricht", exportStatus(student))
+	assert.Equal(t, "Im Unterricht", exportStatusLabel("unterricht"))
+	assert.True(t, matchesExportStatusFilter(student, "unterricht"))
+	assert.False(t, matchesExportStatusFilter(student, "abwesend"))
+	assert.Contains(t, locationDerivedExportStatuses, "unterricht")
+}
+
+func TestApplyActualTimes_ClassIsNoPickup(t *testing.T) {
+	t.Parallel()
+
+	checkIn := time.Date(2026, 9, 29, 5, 30, 0, 0, time.UTC)
+	checkOut := checkIn.Add(time.Hour)
+	reason := studentpresence.CheckoutReasonClass
+	response := StudentResponse{}
+	applyActualTimesFromAttendance(&response, &studentpresence.DailyAttendanceStatus{
+		Status: "checked_out", CheckInTime: &checkIn, CheckOutTime: &checkOut, CheckOutReason: &reason,
+	})
+	require.NotNil(t, response.ActualArrivalTime)
+	assert.Nil(t, response.ActualPickupTime)
+}
+
+func TestApplyAtSchoolLocation_InClassEndsWithTheCareDay(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 9, 29, 15, 0, 0, 0, calendar.Berlin)
+	responses := []StudentResponse{{ID: 1, HasFullAccess: true, Location: studentpresence.InClassLocationLabel}}
+	applyAtSchoolLocation(responses, nil, nil, "16:00", now)
+	assert.Equal(t, studentpresence.InClassLocationLabel, responses[0].Location)
+
+	applyAtSchoolLocation(responses, nil, nil, "16:00", now.Add(time.Hour))
+	assert.Equal(t, studentpresence.AbsentLocationLabel, responses[0].Location)
+}

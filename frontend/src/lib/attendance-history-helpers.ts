@@ -45,6 +45,7 @@ interface BackendAttendanceSession {
   check_out_time?: string | null;
   duration_minutes?: number | null;
   check_out_note?: string | null;
+  check_out_reason?: string | null;
 }
 
 interface BackendAttendanceSlot {
@@ -111,6 +112,8 @@ interface AttendanceRecord {
    * of the day's stays; null when nobody wrote one.
    */
   checkOutNote: string | null;
+  /** When the child left for class (#5656): no departures, the day's stays. */
+  leftForClassAt: Date[];
 }
 
 interface AttendanceSession {
@@ -118,6 +121,8 @@ interface AttendanceSession {
   checkOutTime: Date | null;
   durationMinutes: number | null;
   checkOutNote: string | null;
+  /** The child left for class at this time (#5656). Not a departure. */
+  leftForClassAt: Date | null;
 }
 
 interface AttendanceSlot {
@@ -196,6 +201,9 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     deviceId: rec.device_id,
     sessions,
     checkOutNote: notes.length > 0 ? notes.join(" · ") : null,
+    leftForClassAt: sessions.flatMap((session) =>
+      session.leftForClassAt ? [session.leftForClassAt] : [],
+    ),
   };
 }
 
@@ -209,6 +217,10 @@ function mapAttendanceSession(
       : null,
     durationMinutes: session.duration_minutes ?? null,
     checkOutNote: session.check_out_note ?? null,
+    leftForClassAt:
+      session.check_out_reason === "class" && session.check_out_time
+        ? new Date(session.check_out_time)
+        : null,
   };
 }
 

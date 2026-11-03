@@ -16,6 +16,8 @@ type SchoolCheckinBatchItem struct {
 	OK        bool
 	Changed   bool
 	Status    string
+	// InClass reports a child who left for class and has not come back (#5656).
+	InClass bool
 }
 
 // SchoolCheckinBatchResult aggregates a batch call. Results preserve the
