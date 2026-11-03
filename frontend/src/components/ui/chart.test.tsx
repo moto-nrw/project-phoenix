@@ -254,7 +254,7 @@ describe("ChartTooltipContent", () => {
       payload: makePayload(),
     });
     // The ChartContainer wrapper renders, but the tooltip content itself should not
-    expect(container.querySelector(".border-border\\/50")).toBeNull();
+    expect(container.querySelector(".border-gray-200\\/50")).toBeNull();
     unmount();
 
     const visible = renderTooltipContent({
@@ -263,7 +263,7 @@ describe("ChartTooltipContent", () => {
     });
     // Anker: aktiv mit Payload findet dieselbe Abfrage den Tooltip.
     expect(
-      visible.container.querySelector(".border-border\\/50"),
+      visible.container.querySelector(".border-gray-200\\/50"),
     ).toBeInTheDocument();
   });
 
@@ -272,7 +272,7 @@ describe("ChartTooltipContent", () => {
       active: true,
       payload: [],
     });
-    expect(container.querySelector(".border-border\\/50")).toBeNull();
+    expect(container.querySelector(".border-gray-200\\/50")).toBeNull();
     unmount();
 
     const visible = renderTooltipContent({
@@ -281,7 +281,7 @@ describe("ChartTooltipContent", () => {
     });
     // Anker: mit Payload findet dieselbe Abfrage den Tooltip.
     expect(
-      visible.container.querySelector(".border-border\\/50"),
+      visible.container.querySelector(".border-gray-200\\/50"),
     ).toBeInTheDocument();
   });
 
@@ -290,7 +290,7 @@ describe("ChartTooltipContent", () => {
       active: true,
       payload: undefined,
     });
-    expect(container.querySelector(".border-border\\/50")).toBeNull();
+    expect(container.querySelector(".border-gray-200\\/50")).toBeNull();
     unmount();
 
     const visible = renderTooltipContent({
@@ -299,7 +299,7 @@ describe("ChartTooltipContent", () => {
     });
     // Anker: mit Payload findet dieselbe Abfrage den Tooltip.
     expect(
-      visible.container.querySelector(".border-border\\/50"),
+      visible.container.querySelector(".border-gray-200\\/50"),
     ).toBeInTheDocument();
   });
 

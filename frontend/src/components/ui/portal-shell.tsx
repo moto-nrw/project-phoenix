@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Z_LAYER } from "./overlay-styles";
 import {
   NavigationProgressBar,
   NavigationProgressProvider,
@@ -38,7 +39,7 @@ interface PortalShellProps {
 
 export function PortalShell({
   header,
-  headerClassName = "sticky top-0 z-40",
+  headerClassName = `sticky top-0 ${Z_LAYER.header}`,
   backgroundClassName = "",
   contentClassName = "",
   topLayer,

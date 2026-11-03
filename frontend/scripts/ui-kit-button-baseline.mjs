@@ -29,31 +29,31 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
-    lines: [222],
+    lines: [223],
     reason: "Auswahloptionen eines Filters, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [196],
+    lines: [197],
     reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [170],
+    lines: [171],
     reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [440],
+    lines: [441],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-range-picker.tsx",
-    lines: [81],
+    lines: [82],
     reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
   },
   {
@@ -65,7 +65,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [133],
+    lines: [134],
     reason: "Navigationszeile der unteren Leiste",
   },
   {

@@ -7,6 +7,7 @@ import { cn } from "~/lib/utils";
 import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
+  Z_LAYER,
 } from "./overlay-styles";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
@@ -42,7 +43,7 @@ const DrawerOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50",
+      `fixed inset-0 ${Z_LAYER.sheet}`,
       OVERLAY_BACKDROP_TINT_CLASS,
       OVERLAY_BACKDROP_CLASS,
       className,
@@ -60,8 +61,8 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 // Width caps live in className overrides at the call site.
 const directionContentClasses: Record<DrawerDirection, string> = {
   bottom:
-    "fixed inset-x-0 bottom-0 mt-24 flex h-auto max-h-[90vh] flex-col rounded-t-3xl",
-  top: "fixed inset-x-0 top-0 mb-24 flex h-auto max-h-[90vh] flex-col rounded-b-3xl",
+    "fixed inset-x-0 bottom-0 mt-24 flex h-auto max-h-[90vh] flex-col rounded-t-2xl",
+  top: "fixed inset-x-0 top-0 mb-24 flex h-auto max-h-[90vh] flex-col rounded-b-2xl",
   right: "fixed inset-y-0 right-0 flex h-full w-full max-w-lg flex-col",
   left: "fixed inset-y-0 left-0 flex h-full w-full max-w-lg flex-col",
 };
@@ -77,7 +78,7 @@ const DrawerContent = React.forwardRef<
       <DrawerPrimitive.Content
         ref={ref}
         className={cn(
-          "bg-background z-50 border-0",
+          `${Z_LAYER.sheet} border-0 bg-white`,
           directionContentClasses[direction],
           className,
         )}
@@ -132,7 +133,7 @@ const DrawerDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-sm", className)}
+    className={cn("text-sm text-gray-500", className)}
     {...props}
   />
 ));
