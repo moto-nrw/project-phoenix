@@ -105,3 +105,37 @@ export function shiftTypesFromShifts(
   }
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
+
+/**
+ * Wie weit der Leerzustand nach der nächsten Schicht sucht: acht ganze
+ * Wochen. Der Server erlaubt höchstens 62 Tage je Abfrage.
+ */
+export const LOOKAHEAD_WEEKS = 8;
+
+/**
+ * Der Suchzeitraum nach einer leeren Woche: vom Montag nach `weekTo` (einem
+ * Sonntag) über {@link LOOKAHEAD_WEEKS} ganze Wochen bis zu deren Sonntag.
+ */
+export function lookaheadRange(weekTo: string): { from: string; to: string } {
+  const from = parseISODate(weekTo);
+  from.setDate(from.getDate() + 1);
+  const to = new Date(from);
+  to.setDate(to.getDate() + LOOKAHEAD_WEEKS * WEEK_DAYS - 1);
+  return { from: toISODate(from), to: toISODate(to) };
+}
+
+/**
+ * Tag der frühesten Schicht, die stattfindet. Ausgefallene Schichten zählen
+ * nicht: ein Sprung zu einer Woche, in der nur ein Ausfall steht, führt ins
+ * Leere. Null, wenn keine Schicht stattfindet.
+ */
+export function earliestShiftDate(
+  shifts: readonly StaffShift[],
+): string | null {
+  let earliest: string | null = null;
+  for (const shift of shifts) {
+    if (shift.cancelled) continue;
+    if (earliest === null || shift.date < earliest) earliest = shift.date;
+  }
+  return earliest;
+}

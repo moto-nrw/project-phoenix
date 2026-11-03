@@ -7,15 +7,25 @@ import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import { OwnWeekAgenda } from "~/components/time-tracking/own-week-agenda";
 import { OwnWeekHoursCard } from "~/components/time-tracking/own-week-hours-card";
 import { Button } from "~/components/ui/button";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import {
+  formatDate,
+  isValidISODate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import {
   calendarWeekDays,
+  earliestShiftDate,
+  LOOKAHEAD_WEEKS,
+  lookaheadRange,
   plannedWeekMinutes,
   shiftTypesFromShifts,
   targetWeekMinutes,
@@ -29,6 +39,7 @@ import {
 } from "~/lib/shift-helpers";
 import { indexShiftTypes } from "~/lib/shift-type-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { timeTrackingKeys } from "~/lib/swr/portal-keys";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
@@ -43,9 +54,6 @@ import { formatWeekLabel } from "~/lib/timetable-helpers";
 // URL-Vokabular: nur `d` (ein Tag der angezeigten Woche), wie im Dienstplan.
 
 const ALLOWED_URL_PARAMS = ["d"] as const;
-
-/** SWR-Präfix der Wochen-Schichten; steht in PLAN_CACHE_KEY_PREFIXES. */
-const OWN_WEEK_SHIFTS_KEY_PREFIX = "time-tracking-own-shifts-week-";
 
 const EMPTY_SHIFTS: readonly StaffShift[] = [];
 
@@ -84,7 +92,7 @@ function OwnDienstplanContent() {
     error: shiftsError,
     mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(
-    `${OWN_WEEK_SHIFTS_KEY_PREFIX}${weekFrom}-${weekTo}`,
+    timeTrackingKeys.ownShiftsWeek(weekFrom, weekTo),
     // Ohne keepPreviousData: beim Wochenwechsel stünden sonst kurz die
     // Schichten der alten Woche unter dem neuen Wochenetikett.
     () => ownShiftService.getOwnShifts(weekFrom, weekTo),
@@ -166,6 +174,16 @@ function OwnDienstplanContent() {
   // leere Woche darf erst nach einer Antwort erscheinen.
   const loading = shifts === undefined && !shiftsError;
   const hasShiftData = shifts !== undefined;
+  const weekIsEmpty = hasShiftData && weekShifts.length === 0;
+
+  // Leere Woche: in den Wochen danach nach der nächsten Schicht suchen, damit
+  // niemand Woche für Woche weiterklickt (#5639).
+  const ahead = lookaheadRange(weekTo);
+  const { data: aheadShifts } = useSWRAuth<StaffShift[]>(
+    weekIsEmpty ? timeTrackingKeys.ownShiftsAhead(ahead.from, ahead.to) : null,
+    () => ownShiftService.getOwnShifts(ahead.from, ahead.to),
+  );
+  const nextShiftDate = aheadShifts ? earliestShiftDate(aheadShifts) : null;
 
   return (
     <TenantPage
@@ -209,11 +227,22 @@ function OwnDienstplanContent() {
             : null
       }
       empty={
-        !loading && !shiftsError && weekShifts.length === 0
+        weekIsEmpty && !shiftsError
           ? {
+              icon: <MotoConceptIcon concept={staffPlanConcept} size={48} />,
               title: "Keine Schichten in dieser Woche",
-              description:
-                "Ihre Schichten plant die Leitung im Dienstplan. Sobald welche eingetragen sind, sehen Sie sie hier.",
+              description: emptyWeekDescription(aheadShifts, nextShiftDate),
+              action:
+                nextShiftDate === null ? undefined : (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => updateParams({ d: nextShiftDate })}
+                  >
+                    Zur nächsten Schicht
+                  </Button>
+                ),
             }
           : undefined
       }
@@ -260,4 +289,24 @@ function OwnDienstplanContent() {
       />
     </TenantPage>
   );
+}
+
+/**
+ * Text des Leerzustands: wann die nächste Schicht kommt, sonst wer plant.
+ * Solange die Suche läuft oder scheitert, bleibt es beim Hinweis auf die
+ * Leitung; eine erfundene „keine weiteren Schichten" wäre schlimmer.
+ */
+function emptyWeekDescription(
+  aheadShifts: readonly StaffShift[] | undefined,
+  nextShiftDate: string | null,
+): string {
+  if (nextShiftDate !== null) {
+    // Geschützte Leerzeichen: das Datum bricht nicht mitten in der Zeile um.
+    const date = formatDate(nextShiftDate, true).replaceAll(" ", "\u00A0");
+    return `Ihre nächste Schicht nach dieser Woche ist am ${date}.`;
+  }
+  if (aheadShifts !== undefined) {
+    return `Auch in den ${LOOKAHEAD_WEEKS} Wochen danach ist keine Schicht eingetragen. Ihre Schichten plant die Leitung. Fragen Sie dort nach, wenn Sie eine Schicht erwarten.`;
+  }
+  return "Ihre Schichten plant die Leitung im Dienstplan. Sobald welche eingetragen sind, sehen Sie sie hier.";
 }
