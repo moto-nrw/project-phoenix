@@ -36,6 +36,8 @@ type holidayReviewRegistrationRow struct {
 	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
 	BenefitsDeclared        bool       `bun:"benefits_declared"`
 	ConsentVersion          *int       `bun:"consent_version"`
+	CustodyConfirmedAt      *time.Time `bun:"custody_confirmed_at"`
+	DeclarationName         *string    `bun:"declaration_name"`
 }
 
 // holidayReviewChildRow is one child as the review reads it, without its
@@ -62,6 +64,7 @@ const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
+			custody_confirmed_at, declaration_name,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
@@ -153,6 +156,10 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 				Children: byRegistration[row.ID],
 			},
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
+			CustodyConfirmedAt: row.CustodyConfirmedAt,
+		}
+		if row.DeclarationName != nil {
+			details[i].DeclarationName = *row.DeclarationName
 		}
 		if row.ConsentVersion != nil {
 			details[i].ConsentVersion = *row.ConsentVersion

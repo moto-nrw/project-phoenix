@@ -15,6 +15,7 @@ import {
   toggleKnownChild,
   validateRegistration,
 } from "./holiday-registration-model";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Bissendorf",
@@ -58,6 +59,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 
@@ -88,6 +90,8 @@ function complete(): RegistrationDraft {
     ],
     privacyConsent: true,
     bindingConfirmed: true,
+    custodyConfirmed: true,
+    declarationName: " Eva Muster ",
   };
 }
 
@@ -107,6 +111,8 @@ describe("validateRegistration", () => {
       "contacts.0.phone": "required",
       privacy_consent: "privacy",
       binding_confirmed: "binding",
+      custody_confirmed: "custody",
+      declaration_name: "declarationName",
     });
   });
 
@@ -129,7 +135,22 @@ describe("validateRegistration", () => {
       "contacts.0.phone",
       "privacy_consent",
       "binding_confirmed",
+      "custody_confirmed",
+      "declaration_name",
     ]);
+  });
+
+  it("requires the custody and the name as the declaration (#5626)", () => {
+    const draft = complete();
+    expect(
+      validateRegistration(
+        { ...draft, custodyConfirmed: false, declarationName: "   " },
+        offer,
+      ),
+    ).toEqual({
+      custody_confirmed: "custody",
+      declaration_name: "declarationName",
+    });
   });
 
   it("asks for the health consent only when a child has health information", () => {
@@ -172,6 +193,13 @@ describe("payloadFromDraft", () => {
     expect(payload.health_consent).toBe(false);
     expect(payload.binding_confirmed).toBe(true);
     expect(payload.captcha_token).toBe("captcha");
+  });
+
+  it("sends the custody, the trimmed name and the version of the texts shown (#5626)", () => {
+    const payload = payloadFromDraft(complete(), offer, "captcha");
+    expect(payload.custody_confirmed).toBe(true);
+    expect(payload.declaration_name).toBe("Eva Muster");
+    expect(payload.consent_version).toBe(3);
   });
 
   it("sends the school of a child of the Träger without a guest school name", () => {

@@ -15,6 +15,10 @@ import {
 } from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
+  HolidayDeclarationFields,
+  HolidayDeclarationTextsCard,
+} from "~/components/traeger/holiday-registration-declaration";
+import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
   HOLIDAY_REGISTRATION_STATUS_TONES,
   schoolNames,
@@ -303,8 +307,10 @@ export default function TraegerHolidayRegistrationPage() {
               <DataField label="Verbindlich angemeldet">
                 {consentText(registration.bindingConfirmedAt)}
               </DataField>
+              <HolidayDeclarationFields registration={registration} />
             </DataGrid>
           </SectionCard>
+          <HolidayDeclarationTextsCard registration={registration} />
           {registration.secondGuardian ? (
             <SectionCard title="Zweite sorgeberechtigte Person">
               <DataGrid>

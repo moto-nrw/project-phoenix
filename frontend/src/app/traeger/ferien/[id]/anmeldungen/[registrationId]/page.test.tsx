@@ -1,6 +1,11 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { render as rtlRender, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -11,6 +16,7 @@ import {
   HOLIDAY_REGISTRATION_HEALTH,
   HOLIDAY_SCHOOLS,
 } from "~/test/fixtures/holiday-registrations";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -146,6 +152,75 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.queryByRole("heading", {
         name: "Nachweis für den Leistungsbezug",
       }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the declaration with name, custody, version and its texts (#5626)", async () => {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const parents = within(
+      (await screen.findByRole("heading", { name: "Eltern" })).closest(
+        "section",
+      )!,
+    );
+    const field = (label: string) =>
+      parents.getByText(label).closest("div")!.querySelector("dd");
+    expect(field("Sorgerecht bestätigt")).toHaveTextContent(
+      "Ja, am 03.09.2026",
+    );
+    expect(field("Name als Erklärung")).toHaveTextContent("Eva Muster");
+    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 3");
+
+    const wording = screen.getByRole("heading", {
+      name: "Wortlaut der Erklärung",
+    });
+    fireEvent.click(
+      within(wording.closest("section")!).getByRole("button", {
+        expanded: false,
+      }),
+    );
+    const texts = within(wording.closest("section")!);
+    expect(
+      texts.getByText(HOLIDAY_CONSENT_TEXTS.custodyConfirmed),
+    ).toBeInTheDocument();
+    expect(
+      texts.getByText(HOLIDAY_CONSENT_TEXTS.privacyConsent),
+    ).toBeInTheDocument();
+    expect(
+      texts.getByText(HOLIDAY_CONSENT_TEXTS.declarationName),
+    ).toBeInTheDocument();
+  });
+
+  it("names a registration from before the declaration without texts (#5626)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      custodyConfirmedAt: null,
+      declarationName: "",
+      consentVersion: 0,
+      consentTexts: null,
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const parents = within(
+      (await screen.findByRole("heading", { name: "Eltern" })).closest(
+        "section",
+      )!,
+    );
+    expect(
+      parents.getByText("Vor Fassung 2, Wortlaut nicht gespeichert"),
+    ).toBeInTheDocument();
+    expect(parents.getByText("Nicht angegeben")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Anmeldung von Eva Muster" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Wortlaut der Erklärung" }),
     ).not.toBeInTheDocument();
   });
 

@@ -23,11 +23,15 @@ import type {
 } from "~/lib/holiday-registration-api";
 
 /**
- * Version of the consent texts the form shows (#4722). Version 2 names the
- * OGS that hosts a holiday week as a reader of the health information; the
- * backend shares health information only for registrations under it.
+ * Version of the consent texts the translations of this form belong to
+ * (#4722, #5626). The German texts come with the offer and bind; a
+ * translation is shown below them only while the offer has this version.
+ * Version 3 adds the custody and the name as the declaration.
  */
-const HOLIDAY_CONSENT_VERSION = 2;
+export const HOLIDAY_CONSENT_VERSION = 3;
+
+/** Bounds the typed name like the name of the parent. */
+export const DECLARATION_NAME_MAX_LENGTH = 100;
 
 export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
@@ -82,6 +86,10 @@ export interface RegistrationDraft {
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
   readonly bindingConfirmed: boolean;
+  /** The parent has the custody or the other custodian agrees (#5626). */
+  readonly custodyConfirmed: boolean;
+  /** The name the parent types to give the declarations (#5626). */
+  readonly declarationName: string;
   /** The family receives benefits; the Träger checks it (#4664). */
   readonly benefitsDeclared: boolean;
   /**
@@ -106,6 +114,8 @@ export type FieldErrorKey =
   | "privacy"
   | "health"
   | "binding"
+  | "custody"
+  | "declarationName"
   | "yesNo"
   | "choose"
   | "contactRole"
@@ -153,6 +163,8 @@ export function emptyRegistration(): RegistrationDraft {
     privacyConsent: false,
     healthConsent: false,
     bindingConfirmed: false,
+    custodyConfirmed: false,
+    declarationName: "",
     benefitsDeclared: false,
     benefitsProofs: [],
     answers: {},
@@ -524,10 +536,13 @@ export function validateRegistration(
   if (offer.binding && !draft.bindingConfirmed) {
     errors.binding_confirmed = "binding";
   }
+  if (!draft.custodyConfirmed) errors.custody_confirmed = "custody";
   for (const block of offer.form.legalBlocks ?? []) {
     if (block.enabled && block.required && !draft.legalAcceptances?.[block.key])
       errors[`legal_acceptances.${block.key}`] = "required";
   }
+  if (draft.declarationName.trim() === "")
+    errors.declaration_name = "declarationName";
   return errors;
 }
 
@@ -602,13 +617,16 @@ export function payloadFromDraft(
     privacy_consent: draft.privacyConsent,
     health_consent: hasHealthInfo(draft, offer.form) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,
+    custody_confirmed: draft.custodyConfirmed,
+    declaration_name: draft.declarationName.trim(),
     benefits_declared: draft.benefitsDeclared,
     benefits_proof_tokens: draft.benefitsDeclared
       ? draft.benefitsProofs.map((proof) => proof.token)
       : [],
     captcha_token: captchaToken,
     form_version: offer.form.version,
-    consent_version: HOLIDAY_CONSENT_VERSION,
+    // The version of the texts the form showed, as the offer named them.
+    consent_version: offer.consentTexts.version,
     custom_data: familyAnswersToSend(draft, offer.form),
   };
 }

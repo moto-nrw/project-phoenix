@@ -25,6 +25,19 @@
         {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich.</p>{{end}}
     </div>
 
+    {{with .Declaration}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Ihre Erklärung</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Diese Erklärungen haben Sie mit Ihrem Namen abgegeben. Bitte heben Sie die E-Mail auf.</p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Name: {{.Name}}<br>Abgegeben am {{.GivenAt}}<br>Fassung der Texte: {{.Version}}</p>
+        {{range .Statements}}
+        <p style="margin: 12px 0 0 0; font-size: 14px;"><strong>{{.Title}}</strong></p>
+        <p style="margin: 4px 0 0 0; font-size: 14px;">{{.Text}}</p>
+        {{if .Detail}}<p style="margin: 4px 0 0 0; font-size: 14px; white-space: pre-line;">{{.Detail}}</p>{{end}}
+        {{end}}
+    </div>
+    {{end}}
+
     <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger ({{.SchoolName}}).</p>
 </div>
 

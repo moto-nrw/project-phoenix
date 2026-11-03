@@ -112,7 +112,9 @@ func TestTraegerSharesAHealthQuestionWithTheHostingSchool(t *testing.T) {
 
 // submitShared registers Ida (OGS Süd) and Jan (no school of the Träger)
 // Sommer on version 2 with a second guardian and answers to every question,
-// Ida for week 1, Jan for both weeks, and returns the registration.
+// Ida for week 1, Jan for both weeks, and returns the registration. Like the
+// siblings it stands for a registration from before the consent texts of
+// version 2 (#4722), so no health information reaches the hosting school.
 func (f holidayHostFixture) submitShared(t *testing.T) int64 {
 	t.Helper()
 	body := siblingsRegistration(f.offer, "familie.sommer@example.org")
@@ -126,9 +128,13 @@ func (f holidayHostFixture) submitShared(t *testing.T) int64 {
 	children[1]["custom_data"] = map[string]any{"darf_allein_nach_hause": false, "tetanus_impfschutz": "nein", "lieblingsessen": "Nudeln"}
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.link), body)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	return decodeSchoolPortalData[struct {
+	id := decodeSchoolPortalData[struct {
 		ID int64 `json:"id"`
 	}](t, rec.Body.Bytes()).ID
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations
+		SET consent_version = NULL, custody_confirmed_at = NULL, declaration_name = NULL WHERE id = ?`, id)
+	require.NoError(t, err)
+	return id
 }
 
 // sharedPrivate are the values of the Sommer registration that must never
