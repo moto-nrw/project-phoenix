@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, waitFor as waitForDOM, act } from "@testing-library/react";
 import {
   bindPersonalStorage,
   clearPersonalStorage,
@@ -13,8 +13,15 @@ import { useUnreadCount } from "./use-unread-count";
 // The cached count belongs to the signed-in account at school 1 (#5000).
 const OWNER = "1:7";
 
+// renderHook updates result.current without a DOM mutation, so waitFor only
+// rechecks on its interval. Poll the same assertions more promptly; keep
+// Testing Library's timeout. Timers stay real except in the debounce test,
+// the only one that moves the clock: under fake timers every waitFor waited
+// for the next 20 ms auto-advance tick before it could settle.
+const waitFor: typeof waitForDOM = (callback, options) =>
+  waitForDOM(callback, { interval: 5, ...options });
+
 beforeEach(() => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
   localStorage.clear();
   bindPersonalStorage(OWNER);
 });
@@ -369,6 +376,7 @@ describe("useUnreadCount — event listeners", () => {
   });
 
   it("debounces rapid event bursts into a single refetch", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const fetcher = vi.fn().mockResolvedValue(5);
     renderHook(() =>
       useUnreadCount({

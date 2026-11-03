@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor as waitForDOM } from "@testing-library/react";
 import { useSSE } from "./use-sse";
 import { SSE_IDLE_TIMEOUT_MS } from "~/lib/fetch-event-source";
 import {
@@ -9,6 +9,12 @@ import {
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import { onSessionTenantMismatch } from "~/lib/api-error";
 import type { SSEEvent } from "~/lib/sse-types";
+
+// renderHook updates result.current without a DOM mutation, so waitFor only
+// rechecks on its interval. Poll the same assertions more promptly; keep
+// Testing Library's timeout and real timers.
+const waitFor: typeof waitForDOM = (callback, options) =>
+  waitForDOM(callback, { interval: 5, ...options });
 
 const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }));
 vi.mock("next-auth/react", () => ({
