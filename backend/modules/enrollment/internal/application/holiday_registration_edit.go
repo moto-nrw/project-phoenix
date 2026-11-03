@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -224,24 +225,62 @@ func addHolidayContactErrors(errs validation.Errors, next enrollment.HolidayRegi
 	}
 }
 
-// holidayFormWithoutHealth is the form version without its questions marked
-// as health information.
-func holidayFormWithoutHealth(form enrollment.HolidayPeriodForm) enrollment.HolidayPeriodForm {
-	form.Fields = slices.DeleteFunc(slices.Clone(form.Fields), func(field enrollment.HolidayFormField) bool { return field.Health })
+// holidayEditForm is the form version the edit checks answers against. Its
+// health questions are left out: their answers stay sealed, and the edit
+// neither reads nor changes them. A question whose condition depends on a
+// health question, directly or through another such question, cannot be
+// evaluated without the sealed answer; it counts as visible and optional, so
+// the edit keeps its answer instead of deleting it (#5629).
+func holidayEditForm(form enrollment.HolidayPeriodForm) enrollment.HolidayPeriodForm {
+	sealed := map[string]bool{}
+	for _, field := range form.Fields {
+		if field.Health {
+			sealed[field.Key] = true
+		}
+	}
+	unknown := maps.Clone(sealed)
+	for changed := true; changed; {
+		changed = false
+		for _, field := range form.Fields {
+			if condition := field.VisibleWhen; condition != nil && condition.Source == enrollment.ConditionSourceField &&
+				unknown[condition.Field] && !unknown[field.Key] {
+				unknown[field.Key], changed = true, true
+			}
+		}
+	}
+	fields := make([]enrollment.HolidayFormField, 0, len(form.Fields))
+	for _, field := range form.Fields {
+		if sealed[field.Key] {
+			continue
+		}
+		if unknown[field.Key] {
+			field.VisibleWhen, field.Required = nil, false
+		}
+		fields = append(fields, field)
+	}
+	form.Fields = fields
 	return form
 }
 
+// holidayEditChildRefreshed reports whether the edit checks the answers of
+// child i again: when the edit names the child, and when it changes the
+// family's answers, which child questions may depend on.
+func holidayEditChildRefreshed(scope holidayEditScope, i int) bool {
+	return scope.family || scope.children[i]
+}
+
 // holidayEditAnswers decodes the answers and sanitizes the edited scopes as
-// the public form does; the stored answers of the other scopes stay as they
-// are.
+// the public form does, every child's answers too when the family's answers
+// change: an answer whose question is now hidden goes. The stored answers of
+// the other scopes stay as they are.
 func holidayEditAnswers(next enrollment.HolidayRegistrationInput, scope holidayEditScope, form enrollment.HolidayPeriodForm) holidayAnswerSet {
 	set := decodeHolidayAnswers(next)
-	sanitized := sanitizeHolidayAnswers(holidayFormWithoutHealth(form), set)
+	sanitized := sanitizeHolidayAnswers(holidayEditForm(form), set)
 	if scope.family {
 		set.family = sanitized.family
 	}
-	for i, edited := range scope.children {
-		if edited {
+	for i := range scope.children {
+		if holidayEditChildRefreshed(scope, i) {
 			set.children[i] = sanitized.children[i]
 		}
 	}
@@ -249,9 +288,13 @@ func holidayEditAnswers(next enrollment.HolidayRegistrationInput, scope holidayE
 }
 
 // addHolidayEditAnswerErrors checks the answers of the edited scopes and
-// refuses every answer to a question with health information.
+// refuses every answer to a question with health information. A child the
+// edit does not name is checked after a change of the family's answers, but
+// its required questions are not: in the edit of the family's answers no
+// child question can be answered, and the next edit of the child asks for
+// them.
 func addHolidayEditAnswerErrors(errs, childErrs validation.Errors, scope holidayEditScope, form enrollment.HolidayPeriodForm, answers holidayAnswerSet) {
-	checked := holidayFormWithoutHealth(form)
+	checked := holidayEditForm(form)
 	byKey := buildFieldsByKey(holidayFormSchema(checked))
 	if scope.family {
 		answerErrs := validateHolidayAnswers(checked, false, answers.family,
@@ -261,11 +304,16 @@ func addHolidayEditAnswerErrors(errs, childErrs validation.Errors, scope holiday
 			errs["custom_data"] = answerErrs
 		}
 	}
-	for i, edited := range scope.children {
-		if !edited {
+	optional := holidayFormWithoutRequired(checked)
+	for i := range scope.children {
+		if !holidayEditChildRefreshed(scope, i) {
 			continue
 		}
-		answerErrs := validateHolidayAnswers(checked, true, answers.children[i], fieldVisibilityContext{
+		childForm := checked
+		if !scope.children[i] {
+			childForm = optional
+		}
+		answerErrs := validateHolidayAnswers(childForm, true, answers.children[i], fieldVisibilityContext{
 			guardianAnswers: answers.family, childAnswers: answers.children[i], fieldsByKey: byKey,
 		})
 		refuseHolidayHealthAnswers(answerErrs, form, scope.childAnswers[i])
@@ -273,6 +321,17 @@ func addHolidayEditAnswerErrors(errs, childErrs validation.Errors, scope holiday
 			nestHolidayChildError(childErrs, i, "custom_data", answerErrs)
 		}
 	}
+}
+
+// holidayFormWithoutRequired is the form version with every question
+// optional.
+func holidayFormWithoutRequired(form enrollment.HolidayPeriodForm) enrollment.HolidayPeriodForm {
+	fields := slices.Clone(form.Fields)
+	for i := range fields {
+		fields[i].Required = false
+	}
+	form.Fields = fields
+	return form
 }
 
 func refuseHolidayHealthAnswers(answerErrs validation.Errors, form enrollment.HolidayPeriodForm, submitted enrollment.HolidayAnswers) {

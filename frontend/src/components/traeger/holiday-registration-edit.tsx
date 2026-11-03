@@ -8,11 +8,14 @@
 // nur „Umbuchen“, Gesundheitsangaben ändern sich hier nicht.
 
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
-import { CustomFieldInput } from "~/components/enrollment/custom-field-input";
 import {
   DateOfBirthPicker,
   type DateOfBirthTranslator,
 } from "~/components/enrollment/date-of-birth-picker";
+import {
+  type HolidayDateQuestion,
+  HolidayQuestionFields,
+} from "~/components/holiday-registration/holiday-question-fields";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -24,7 +27,6 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import {
   buildFieldsByKey,
   type ConditionContext,
-  isFieldVisible,
 } from "~/lib/enrollment-field-visibility";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
 import { createLogger } from "~/lib/logger";
@@ -64,6 +66,7 @@ const MONTHS = [
   "Dezember",
 ];
 const FIELD_TEXT: Readonly<Record<string, string>> = {
+  "fields.choose": "Bitte wählen",
   "structured.yes": "Ja",
   "structured.no": "Nein",
   "structured.day": "Tag",
@@ -455,6 +458,30 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   );
 }
 
+/** A date question: the native date field of the kit Input. The calendar of
+ * the date picker would double the page's bundle growth for a rarely used
+ * question type. */
+function DateQuestion({
+  name,
+  field,
+  value,
+  error,
+  onChange,
+}: HolidayDateQuestion) {
+  return (
+    <Input
+      type="date"
+      name={name}
+      label={field.label}
+      required={field.required}
+      value={typeof value === "string" ? value : ""}
+      error={error}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+/** The questions of one scope with the fields of the public form. */
 function Questions({
   questions,
   answers,
@@ -470,47 +497,17 @@ function Questions({
   fieldError: (name: string) => string | undefined;
   onChange: (answers: Record<string, unknown>) => void;
 }>) {
-  const visible = questions.filter((field) => isFieldVisible(field, context));
-  if (visible.length === 0) return null;
-  const set = (key: string, value: unknown) =>
-    onChange({ ...answers, [key]: value });
   return (
-    <div className="space-y-4">
-      {visible.map((field) => {
-        const name = `${prefix}custom_data.${field.key}`;
-        return (
-          <CustomFieldInput
-            key={field.key}
-            field={field}
-            inputName={name}
-            value={answers[field.key]}
-            onChange={(value) => set(field.key, value)}
-            error={fieldError(name)}
-            tr={germanText}
-            renderStructured={() =>
-              field.type === "date" ? (
-                // The native date field of the kit Input: the calendar of
-                // the date picker would double the page's bundle growth
-                // for a rarely used question type.
-                <Input
-                  type="date"
-                  name={name}
-                  label={field.label}
-                  required={field.required}
-                  value={
-                    typeof answers[field.key] === "string"
-                      ? (answers[field.key] as string)
-                      : ""
-                  }
-                  error={fieldError(name)}
-                  onChange={(event) => set(field.key, event.target.value)}
-                />
-              ) : null
-            }
-          />
-        );
-      })}
-    </div>
+    <HolidayQuestionFields
+      fields={questions}
+      answers={answers}
+      context={context}
+      prefix={prefix}
+      fieldError={fieldError}
+      onChange={(key, value) => onChange({ ...answers, [key]: value })}
+      tr={germanText}
+      renderDate={DateQuestion}
+    />
   );
 }
 

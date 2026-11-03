@@ -677,6 +677,14 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
             applies_to_child: true,
             sort_order: 1,
           },
+          {
+            key: "gruppe",
+            label: "Wunschgruppe",
+            type: "select",
+            applies_to_child: true,
+            sort_order: 2,
+            options: [{ label: "Bären", value: "baeren" }],
+          },
         ],
       },
       childAnswers: { "9": { lieblingsessen: "Nudeln" } },
@@ -699,6 +707,9 @@ describe("TraegerHolidayRegistrationPage, Angaben ändern (#5629)", () => {
     // Anker: the editor has loaded and asks the child's own question.
     expect(await edit.findByLabelText(/^Lieblingsessen/)).toHaveValue("Nudeln");
     expect(edit.queryByText("Tetanus-Impfschutz")).not.toBeInTheDocument();
+    // An unanswered choice asks in German, not with the key of its text.
+    expect(edit.getByText("Bitte wählen")).toBeInTheDocument();
+    expect(edit.queryByText("fields.choose")).not.toBeInTheDocument();
     fireEvent.change(edit.getByLabelText(/^Nachname/), {
       target: { value: "Mustermann" },
     });

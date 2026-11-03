@@ -357,3 +357,85 @@ func TestHolidayHostSeesAnEditedNameAtOnceAndTheGuestCopyAfterTheReconciliation(
 	f.reconcile(t)
 	assert.Equal(t, []string{"Ben Mustermann"}, names(f.roster(t, weekDay)), "the reconciliation follows the new name")
 }
+
+// dependentAnswersForm asks per family whether trips are possible and per
+// child the trip destination (only when trips are possible), the tetanus
+// protection (health information) and its date (only with protection).
+func dependentAnswersForm() []map[string]any {
+	return []map[string]any{
+		{"key": "ausfluege_moeglich", "label": "Ausflüge möglich", "type": "boolean"},
+		{"key": "ausflug_ziel", "label": "Lieblingsausflug", "type": "text", "applies_to_child": true,
+			"visible_when": map[string]any{"source": "field", "field": "ausfluege_moeglich", "operator": "eq", "value": true}},
+		{"key": "tetanus_impfschutz", "label": "Tetanus-Impfschutz", "type": "select", "applies_to_child": true, "health": true,
+			"options": []map[string]any{{"label": "Ja", "value": "ja"}, {"label": "Nein", "value": "nein"}}},
+		{"key": "tetanus_datum", "label": "Letzte Tetanus-Impfung", "type": "text", "applies_to_child": true,
+			"visible_when": map[string]any{"source": "field", "field": "tetanus_impfschutz", "operator": "eq", "value": "ja"}},
+	}
+}
+
+// newDependentAnswersFixture registers the siblings with Lia's answers to
+// dependentAnswersForm: trips possible, Zoo, tetanus protection from May 2024.
+func newDependentAnswersFixture(t *testing.T, name string) (reviewFixture, int64) {
+	t.Helper()
+	f := newHolidayRegistrationFixture(t)
+	office := newTraegerOffice(t, f.db, f.traeger, name, identityaccess.TraegerRoleAdministration)
+	period := openHolidays(t, f, office)
+	saveHolidayForm(t, f, office, period.ID, dependentAnswersForm())
+	offer := holidayOffer(t, f, period.PublicToken)
+	body := siblingsRegistration(offer, "eva.muster@example.org")
+	body["form_version"] = 2
+	body["custom_data"] = map[string]any{"ausfluege_moeglich": true}
+	answerChildren(body,
+		map[string]any{"ausflug_ziel": "Zoo", "tetanus_impfschutz": "ja", "tetanus_datum": "Mai 2024"},
+		map[string]any{"ausflug_ziel": "Museum"})
+	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), body)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	siblings := decodeSchoolPortalData[struct {
+		ID int64 `json:"id"`
+	}](t, rec.Body.Bytes()).ID
+	f2 := reviewFixture{holidayRegistrationFixture: f, office: office, period: period, offer: offer, siblings: siblings}
+	return f2, f2.readDetail(t, siblings).Children[0].ID
+}
+
+func childAnswersOf(detail editedRegistration, childID int64) map[string]any {
+	for _, child := range detail.ChildCustomData {
+		if child.ChildID == childID {
+			return child.CustomData
+		}
+	}
+	return nil
+}
+
+// An answer whose question depends on a question with health information
+// stays when the Träger-Büro changes the child's name: the edit cannot see
+// the sealed controlling answer, so it does not decide on the visibility.
+func TestTraegerEditKeepsAnAnswerThatDependsOnAHealthQuestion(t *testing.T) {
+	t.Parallel()
+	f, lia := newDependentAnswersFixture(t, "Träger Bearbeiten Gesundheitsbedingung")
+	health := f.sealedHealth(t, f.siblings)
+
+	edited := f.edited(t, f.editDetails(t, f.siblings, map[string]any{"children": []map[string]any{{
+		"id": lia, "first_name": "Lia", "last_name": "Mustermann", "birth_date": "2018-03-01",
+		"home_school_id": f.offer.Schools[0].ID,
+		"custom_data":    map[string]any{"ausflug_ziel": "Zoo", "tetanus_datum": "Mai 2024"},
+	}}}))
+	assert.Equal(t, map[string]any{"ausflug_ziel": "Zoo", "tetanus_datum": "Mai 2024"}, childAnswersOf(edited, lia),
+		"the answer behind the health question is kept")
+	assert.Equal(t, []any{"children.0.last_name"}, edited.History[len(edited.History)-1].Details["fields"])
+	assert.Equal(t, health, f.sealedHealth(t, f.siblings), "the sealed health information stays as it was")
+}
+
+// A change of a family answer reaches the answers of every child: an answer
+// whose question the change hides goes, and the history names it.
+func TestTraegerEditOfAFamilyAnswerUpdatesTheChildAnswers(t *testing.T) {
+	t.Parallel()
+	f, lia := newDependentAnswersFixture(t, "Träger Bearbeiten Familienantwort")
+	ben := f.readDetail(t, f.siblings).Children[1].ID
+
+	edited := f.edited(t, f.editDetails(t, f.siblings, map[string]any{"custom_data": map[string]any{"ausfluege_moeglich": false}}))
+	assert.Equal(t, map[string]any{"tetanus_datum": "Mai 2024"}, childAnswersOf(edited, lia),
+		"the hidden trip answer goes, the answer behind the health question stays")
+	assert.Empty(t, childAnswersOf(edited, ben))
+	assert.Equal(t, []any{"children.0.custom_data.ausflug_ziel", "children.1.custom_data.ausflug_ziel", "custom_data.ausfluege_moeglich"},
+		edited.History[len(edited.History)-1].Details["fields"])
+}
