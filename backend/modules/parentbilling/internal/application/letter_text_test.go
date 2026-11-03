@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -243,4 +244,18 @@ func TestConfirmationLetterFollowsTheTemplateOfTheTraeger(t *testing.T) {
 	assert.Len(t, letter.Blocks, 3)
 	assert.Equal(t, []string{"Familie Beispiel", "Erika Beispiel"}, letter.Recipient)
 	assert.Equal(t, "Rechnungsnummer", letter.Facts[0].Label)
+}
+
+// The letter fills every placeholder its kind offers the Träger, so no
+// placeholder in a Träger's template stays empty by accident (#4677).
+func TestConfirmationLetterFillsEveryPlaceholderOfItsKind(t *testing.T) {
+	t.Parallel()
+	values := letterValues(goldenLetterContent(t))
+	for _, placeholder := range templates.Placeholders(templates.KindConfirmation) {
+		value, ok := values[placeholder.Name]
+		if assert.True(t, ok, placeholder.Name) {
+			assert.True(t, value.Text != "" || len(value.Rows) > 0, "%s is empty for the golden invoice", placeholder.Name)
+		}
+	}
+	assert.Len(t, values, len(templates.Placeholders(templates.KindConfirmation)), "no value without a placeholder")
 }

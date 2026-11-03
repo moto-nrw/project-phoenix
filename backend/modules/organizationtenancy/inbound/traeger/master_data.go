@@ -80,7 +80,9 @@ func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Rout
 		read.Get("/document-templates", rs.listTemplates)
 		read.Get("/document-templates/{kind}", rs.templateDetail)
 		manage.Post("/document-templates/{kind}/versions", rs.saveTemplate)
-		manage.Post("/document-templates/{kind}/preview", rs.previewTemplate)
+		// The preview fills sample data and stores nothing, so every
+		// reader of the templates may see it.
+		read.Post("/document-templates/{kind}/preview", rs.previewTemplate)
 	})
 	return r
 }

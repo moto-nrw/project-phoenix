@@ -41,7 +41,8 @@ des Trägers, keine Träger-Werte der Einstellungen.
    Brieftext trennt eine Leerzeile Absätze, `# ` am Anfang macht die erste
    Zeile zur Überschrift, `**…**` setzt den Absatz fett, und ein
    Tabellen-Platzhalter allein in einer Zeile druckt eine Tabelle. Ein Absatz,
-   dessen Platzhalter alle leer sind, entfällt. Das Paket hat keinen Zustand,
+   dessen Platzhalter alle leer sind, entfällt. Ein Platzhalter mit fehlender
+   oder überzähliger Klammer gilt als unbekannt. Das Paket hat keinen Zustand,
    keine Tabelle und kennt keinen Owner.
 2. **Die Versionen gehören dem Träger bei Organisation & Tenancy**
    (`platform.traeger_document_templates`, Schreib-Owner
@@ -51,9 +52,9 @@ des Trägers, keine Träger-Werte der Einstellungen.
    Version gilt die Standardvorlage (Version 0). Lesen und Schreiben laufen in
    der Träger-Transaktion des Sitzungsträgers (ADR 0105) unter der
    Träger-Policy; jede neue Version steht mit alter und neuer Nummer im
-   Protokoll der Stammdaten (`subject` `template`). Lesen braucht
-   „Übersicht lesen“, Speichern und die Vorschau „Einstellungen“, wie die
-   übrigen Stammdaten.
+   Protokoll der Stammdaten (`subject` `template`). Lesen und die Vorschau
+   brauchen „Übersicht lesen“, Speichern „Einstellungen“, wie die übrigen
+   Stammdaten.
 3. **Die Vorschau füllt die Vorlage mit Beispieldaten** und speichert nichts.
    Sie prüft wie das Speichern; ihre Werte sind erfunden und enthalten keine
    personenbezogenen Daten.

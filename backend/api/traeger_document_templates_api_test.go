@@ -196,10 +196,11 @@ func TestTraegerDocumentTemplatesNeedTheSettingsRight(t *testing.T) {
 	for _, role := range []string{identityaccess.TraegerRoleReadOnly, identityaccess.TraegerRoleBilling, identityaccess.TraegerRolePersonnel} {
 		reader := newMasterDataOffice(t, db, router, "Träger Vorlagen Rolle "+role, role)
 		assert.True(t, templateDetailOf(t, router, reader, "bestaetigung").Current.Standard, "%s reads the templates", role)
-		for _, path := range []string{"/versions", "/preview"} {
-			rec := traegerJSON(t, router, reader.token, http.MethodPost, documentTemplatesPath+"/rechnung"+path, hardtInvoice)
-			assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", role, path, rec.Body.String())
-		}
+		rec := traegerJSON(t, router, reader.token, http.MethodPost, documentTemplatesPath+"/rechnung/versions", hardtInvoice)
+		assert.Equal(t, http.StatusForbidden, rec.Code, "%s save: %s", role, rec.Body.String())
+		// The preview stores nothing, so a reader sees it too.
+		rec = traegerJSON(t, router, reader.token, http.MethodPost, documentTemplatesPath+"/rechnung/preview", hardtInvoice)
+		assert.Equal(t, http.StatusOK, rec.Code, "%s preview: %s", role, rec.Body.String())
 		assert.Empty(t, templateDetailOf(t, router, reader, "rechnung").Versions)
 	}
 }

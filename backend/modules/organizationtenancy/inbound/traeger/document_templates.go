@@ -15,8 +15,8 @@ import (
 )
 
 // Document templates of the Träger (#4677, ADR 0149) at
-// /traeger/master-data/document-templates. Reading needs "Übersicht lesen",
-// saving a version and the preview need "Einstellungen".
+// /traeger/master-data/document-templates. Reading and the preview with
+// sample data need "Übersicht lesen", saving a version "Einstellungen".
 
 // TemplateRequest is the body of POST …/document-templates/{kind}/versions
 // and …/preview.

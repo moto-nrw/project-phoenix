@@ -99,7 +99,8 @@ var (
 )
 
 // UnknownPlaceholdersError names the placeholders a template uses that its
-// kind does not know.
+// kind does not know, and every placeholder written wrongly (a missing or
+// extra brace) as it stands in the text.
 type UnknownPlaceholdersError struct {
 	Names []string
 }
@@ -118,7 +119,12 @@ func (e *InvalidError) Error() string { return ErrInvalid.Error() }
 // Unwrap lets errors.Is find ErrInvalid.
 func (e *InvalidError) Unwrap() error { return ErrInvalid }
 
-var placeholderPattern = regexp.MustCompile(`\{\{\s*([^{}]*?)\s*\}\}`)
+var (
+	placeholderPattern = regexp.MustCompile(`\{\{\s*([^{}]*?)\s*\}\}`)
+	// strayBrace finds what is left of a placeholder written wrongly, such
+	// as {{kinder} or {familienname}}, after the complete ones are removed.
+	strayBrace = regexp.MustCompile(`\S*[{}]\S*`)
+)
 
 // Kinds lists every kind of document in the order the Träger-Büro sees them.
 func Kinds() []Kind {
@@ -196,9 +202,17 @@ func Check(kind Kind, template Template) error {
 	unknown := map[string]bool{}
 	for _, text := range []string{template.Subject, template.Salutation, template.Body, template.Closing} {
 		for _, match := range placeholderPattern.FindAllStringSubmatch(text, -1) {
-			if !knows(kind, match[1]) {
+			switch {
+			case match[1] == "":
+				unknown[match[0]] = true
+			case !knows(kind, match[1]):
 				unknown[match[1]] = true
 			}
+		}
+		// A brace outside a complete placeholder is a placeholder written
+		// wrongly; the letter would print it as it stands.
+		for _, stray := range strayBrace.FindAllString(placeholderPattern.ReplaceAllString(text, " "), -1) {
+			unknown[stray] = true
 		}
 	}
 	if len(unknown) > 0 {

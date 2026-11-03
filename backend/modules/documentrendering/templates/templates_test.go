@@ -42,6 +42,17 @@ func TestCheckRefusesUnknownPlaceholders(t *testing.T) {
 	assert.NoError(t, templates.Check(templates.KindConfirmation, templates.Template{Subject: "x", Body: "{{ notfallnummern }}"}))
 }
 
+func TestCheckRefusesPlaceholdersWrittenWrongly(t *testing.T) {
+	t.Parallel()
+	err := templates.Check(templates.KindInvoice, templates.Template{
+		Subject: "Rechnung {{rechnungsnummer}",
+		Body:    "Hallo {familienname}}, {{}} und {{kinder}}.",
+	})
+	var unknown *templates.UnknownPlaceholdersError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, []string{"{familienname}},", "{{rechnungsnummer}", "{{}}"}, unknown.Names)
+}
+
 func TestCheckNeedsSubjectAndBodyWithinTheirLimits(t *testing.T) {
 	t.Parallel()
 	err := templates.Check(templates.KindInvoice, templates.Template{Closing: strings.Repeat("a", templates.MaxClosingLength+1)})
