@@ -156,19 +156,6 @@ export async function confirmHolidayRegistration(
   return contributionFromBackend(confirmation.contribution);
 }
 
-/** What a confirmation of the Träger needs (#5621). */
-export interface HolidayConfirmationSettings {
-  /** The Träger asks for the debtor number of the family. */
-  readonly debtorNumberRequired: boolean;
-}
-
-export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
-  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
-    "/api/traeger/holiday-contributions/confirmation-settings",
-  );
-  return { debtorNumberRequired: settings.debtor_number_required };
-}
-
 /**
  * Changes the debtor number of a confirmed registration until an invoice
  * bills it (#5621); returns the number the registration now has.

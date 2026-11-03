@@ -14,7 +14,6 @@ import {
   HolidayRegistrationAnswers,
 } from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
-import { HolidayRegistrationDebtorNumberCard } from "~/components/traeger/holiday-registration-debtor-number-card";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
   HOLIDAY_REGISTRATION_STATUS_TONES,
@@ -41,14 +40,14 @@ import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
-  fetchHolidayConfirmationSettings,
   fetchHolidayContribution,
-  type HolidayConfirmationSettings,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
+  fetchHolidayConfirmationSettings,
   fetchHolidayRegistration,
   fetchHolidayRegistrationHealth,
+  type HolidayConfirmationSettings,
   type HolidayRegistrationContact,
   type HolidayRegistrationDetail,
   type HolidayRegistrationHealthDetail,
@@ -284,18 +283,8 @@ export default function TraegerHolidayRegistrationPage() {
             onExemptionChange={changeExemption}
             onChanged={changed}
             onConfirmed={load}
+            onDebtorNumberChanged={load}
           />
-          {registration.status === "confirmed" &&
-          (confirmation?.debtorNumberRequired || registration.debtorNumber) ? (
-            <HolidayRegistrationDebtorNumberCard
-              periodId={periodId}
-              registrationId={registration.id}
-              debtorNumber={registration.debtorNumber}
-              required={confirmation?.debtorNumberRequired ?? false}
-              invoiced={contribution?.invoiced ?? false}
-              onChanged={load}
-            />
-          ) : null}
           <HolidayRegistrationProofCard
             periodId={periodId}
             registration={registration}

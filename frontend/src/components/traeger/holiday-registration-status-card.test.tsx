@@ -9,10 +9,16 @@ import {
   HOLIDAY_REGISTRATION,
 } from "~/test/fixtures/holiday-registrations";
 
-const { mockChange, mockConfirm, mockConfirmDebtorNumber } = vi.hoisted(() => ({
+const {
+  mockChange,
+  mockConfirm,
+  mockConfirmDebtorNumber,
+  mockChangeDebtorNumber,
+} = vi.hoisted(() => ({
   mockChange: vi.fn(),
   mockConfirm: vi.fn(),
   mockConfirmDebtorNumber: vi.fn(),
+  mockChangeDebtorNumber: vi.fn(),
 }));
 
 vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
@@ -30,6 +36,11 @@ vi.mock("~/lib/traeger-contributions-api", () => ({
     mockConfirmDebtorNumber(debtorNumber);
     return mockConfirm(periodId, id, benefitsExemption);
   },
+  changeHolidayDebtorNumber: (
+    periodId: string,
+    id: string,
+    debtorNumber: string,
+  ) => mockChangeDebtorNumber(periodId, id, debtorNumber),
 }));
 
 import { HolidayRegistrationStatusCard } from "./holiday-registration-status-card";
@@ -51,6 +62,7 @@ function renderCard(
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
         onConfirmed={onConfirmed}
+        onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
       />
     </ToastProvider>,
   );
@@ -62,6 +74,7 @@ describe("HolidayRegistrationStatusCard", () => {
     mockChange.mockReset();
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
+    mockChangeDebtorNumber.mockReset();
   });
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
@@ -119,6 +132,7 @@ describe("HolidayRegistrationStatusCard", () => {
           onExemptionChange={vi.fn()}
           onChanged={vi.fn()}
           onConfirmed={vi.fn(() => Promise.resolve())}
+          onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
         />
       </ToastProvider>,
     );
@@ -229,6 +243,7 @@ describe("HolidayRegistrationStatusCard", () => {
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
             onConfirmed={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
       );
@@ -302,6 +317,218 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(
         screen.getByText("Bitte prüfen Sie die Debitorennummer."),
       ).toBeInTheDocument();
+    });
+
+    it("keeps Enter in the field from confirming while the preview is computed again", () => {
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={HOLIDAY_CONTRIBUTION}
+            previewPending
+            debtorNumberRequired
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onConfirmed={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+      const field = screen.getByLabelText(/Debitorennummer/);
+      fireEvent.change(field, { target: { value: "10 4711" } });
+      fireEvent.submit(field.closest("form")!);
+
+      expect(screen.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+      expect(mockConfirm).not.toHaveBeenCalled();
+    });
+
+    it("sends one confirmation however often Enter is pressed", async () => {
+      let finish: (value: HolidayContribution) => void = () => undefined;
+      mockConfirm.mockImplementation(
+        () =>
+          new Promise<HolidayContribution>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      renderWithSwitch(true);
+      const field = screen.getByLabelText(/Debitorennummer/);
+      fireEvent.change(field, { target: { value: "10 4711" } });
+      const form = field.closest("form")!;
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+
+      await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(1));
+      finish({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Bestätigen" }),
+        ).toBeEnabled(),
+      );
+      expect(mockConfirm).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("debtor number of a confirmed registration (#5621)", () => {
+    const CONFIRMED: HolidayRegistrationDetail = {
+      ...HOLIDAY_REGISTRATION,
+      status: "confirmed",
+    };
+
+    function renderConfirmed(
+      debtorNumber: string,
+      required = true,
+      invoiced = false,
+    ) {
+      const onDebtorNumberChanged = vi.fn(() => Promise.resolve());
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={{ ...CONFIRMED, debtorNumber }}
+            contribution={{ ...HOLIDAY_CONTRIBUTION, invoiced }}
+            debtorNumberRequired={required}
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onConfirmed={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={onDebtorNumberChanged}
+          />
+        </ToastProvider>,
+      );
+      return { onDebtorNumberChanged };
+    }
+
+    it("enters a missing number in place and reads the registration again", async () => {
+      mockChangeDebtorNumber.mockResolvedValue("10 4711");
+      const { onDebtorNumberChanged } = renderConfirmed("");
+
+      expect(screen.getByText("Noch keine Nummer.")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Ohne Nummer steht im Schreiben die Rechnungsnummer als Verwendungszweck\./,
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer eintragen" }),
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      const field = screen.getByRole("textbox", { name: /Debitorennummer/ });
+      expect(field).toHaveFocus();
+      expect(field).toBeRequired();
+      expect(field).toHaveAttribute("maxLength", "35");
+      expect(field).toHaveAccessibleDescription(
+        "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.",
+      );
+      fireEvent.change(field, { target: { value: " 10 4711 " } });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() =>
+        expect(mockChangeDebtorNumber).toHaveBeenCalledWith(
+          "5",
+          "7",
+          "10 4711",
+        ),
+      );
+      await waitFor(() => expect(onDebtorNumberChanged).toHaveBeenCalled());
+      expect(
+        await screen.findByText("Die Debitorennummer ist gespeichert."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: /Debitorennummer/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps a required number and marks the empty field", async () => {
+      renderConfirmed("10 4711");
+
+      expect(screen.getByText("10 4711")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer ändern" }),
+      );
+      const field = screen.getByRole("textbox", { name: /Debitorennummer/ });
+      expect(field).toHaveValue("10 4711");
+      fireEvent.change(field, { target: { value: "" } });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText("Bitte geben Sie die Debitorennummer ein."),
+      ).toBeInTheDocument();
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(mockChangeDebtorNumber).not.toHaveBeenCalled();
+    });
+
+    it("discards the draft on Abbrechen", () => {
+      renderConfirmed("10 4711");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer ändern" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /Debitorennummer/ }),
+        { target: { value: "10 4712" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+      expect(screen.getByText("10 4711")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: /Debitorennummer/ }),
+      ).not.toBeInTheDocument();
+      expect(mockChangeDebtorNumber).not.toHaveBeenCalled();
+    });
+
+    it("says that an issued invoice keeps the number", async () => {
+      mockChangeDebtorNumber.mockImplementation(() =>
+        Promise.reject(
+          new ApiError("locked", 409, {
+            code: "parent_billing.debtor_number_locked",
+          }),
+        ),
+      );
+      renderConfirmed("10 4711");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer ändern" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /Debitorennummer/ }),
+        { target: { value: "10 4712" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(
+          "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no change once an issued invoice keeps the number", () => {
+      renderConfirmed("10 4711", true, true);
+
+      expect(
+        screen.getByText(
+          "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("10 4711")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Einfrieren" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Debitorennummer/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows no debtor number while the switch is off and none is set", () => {
+      renderConfirmed("", false);
+
+      expect(
+        screen.getByRole("button", { name: "Einfrieren" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Debitorennummer/)).not.toBeInTheDocument();
     });
   });
 });

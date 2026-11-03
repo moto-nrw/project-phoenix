@@ -582,3 +582,20 @@ export async function downloadHolidayRegistrations(
     filename: filenameFromDisposition(response),
   };
 }
+
+/**
+ * What a confirmation of the Träger needs (#5621). It lives here, not in the
+ * contributions client, because the list reads it for its column too and
+ * should not load that client.
+ */
+export interface HolidayConfirmationSettings {
+  /** The Träger asks for the debtor number of the family. */
+  readonly debtorNumberRequired: boolean;
+}
+
+export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
+  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
+    "/api/traeger/holiday-contributions/confirmation-settings",
+  );
+  return { debtorNumberRequired: settings.debtor_number_required };
+}

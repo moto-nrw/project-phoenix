@@ -48,8 +48,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Das geht bei einer bestätigten Anmeldung, bis der Abrechnungslauf ihre Rechnung ausgestellt hat.",
         steps: [
           "Öffnen Sie die bestätigte Anmeldung.",
-          "Wählen Sie bei `Debitorennummer` den Knopf `Eintragen` oder `Ändern`.",
-          "Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
+          "Wählen Sie unter `Status` den Knopf `Debitorennummer eintragen` oder `Debitorennummer ändern`.",
+          "Das Feld `Debitorennummer` öffnet sich in der Karte. Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
         ],
       },
       {

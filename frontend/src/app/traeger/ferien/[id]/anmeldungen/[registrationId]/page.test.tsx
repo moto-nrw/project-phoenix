@@ -20,9 +20,15 @@ vi.mock("~/lib/traeger-api", () => ({
   fetchHolidayPeriod: () => Promise.resolve(HOLIDAY_PERIOD),
   fetchTraegerSchools: () => Promise.resolve(HOLIDAY_SCHOOLS),
 }));
-const { mockRegistration, mockHealth, sessionPermissions } = vi.hoisted(() => ({
+const {
+  mockRegistration,
+  mockHealth,
+  mockConfirmationSettings,
+  sessionPermissions,
+} = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
   mockHealth: vi.fn(),
+  mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
@@ -31,13 +37,10 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   >()),
   fetchHolidayRegistration: () => mockRegistration(),
   fetchHolidayRegistrationHealth: () => mockHealth(),
-}));
-const { mockConfirmationSettings } = vi.hoisted(() => ({
-  mockConfirmationSettings: vi.fn(),
+  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
-  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 
 import TraegerHolidayRegistrationPage from "./page";
@@ -128,11 +131,13 @@ describe("TraegerHolidayRegistrationPage", () => {
     );
 
     const card = (
-      await screen.findByRole("heading", { name: "Debitorennummer" })
+      await screen.findByRole("heading", { name: "Status" })
     ).closest("section");
     expect(card).not.toBeNull();
     expect(within(card!).getByText("10 4711")).toBeInTheDocument();
-    expect(within(card!).getByRole("button", { name: "Ändern" })).toBeEnabled();
+    expect(
+      within(card!).getByRole("button", { name: "Debitorennummer ändern" }),
+    ).toBeEnabled();
     expect(screen.getByText(/Debitorennummer 10 4710$/)).toBeInTheDocument();
     expect(screen.getByText("Debitorennummer geändert")).toBeInTheDocument();
     expect(

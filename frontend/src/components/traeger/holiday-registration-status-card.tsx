@@ -5,17 +5,27 @@
 // sagt, warum eine Aktion gerade fehlt. Das Bestätigen hält den Ferienbeitrag
 // fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664). Fragt der
 // Träger die Debitorennummer ab, ist sie beim Bestätigen Pflicht (#5621).
+// Bei einer bestätigten Anmeldung trägt das Büro die Nummer hier nach oder
+// ändert sie, bis die Rechnung ausgestellt ist; danach hält die Rechnung sie
+// fest.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
-import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
+  changeHolidayDebtorNumber,
   confirmHolidayRegistration,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
@@ -53,12 +63,148 @@ function benefitsText(
   return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.";
 }
 
-/** The hint under the debtor number, here and where it is changed. */
-export const DEBTOR_NUMBER_HINT =
+/** The hint under the debtor number, at the confirmation and at a change. */
+const DEBTOR_NUMBER_HINT =
   "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.";
 
 /** The longest debtor number the backend keeps (#5621). */
-export const DEBTOR_NUMBER_MAX_LENGTH = 35;
+const DEBTOR_NUMBER_MAX_LENGTH = 35;
+
+/** What the card says about the debtor number, before and after the invoice. */
+function debtorNumberText(set: boolean, invoiced: boolean): string {
+  const missing = set
+    ? ""
+    : " Ohne Nummer steht im Schreiben die Rechnungsnummer als Verwendungszweck.";
+  if (!invoiced) {
+    return `Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist.${missing}`;
+  }
+  return set
+    ? "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr."
+    : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eintragen geht nicht mehr.${missing}`;
+}
+
+/**
+ * The debtor number of a confirmed registration (#5621): shown, and edited in
+ * place until the invoice is issued. `editing` belongs to the card, which
+ * hides its own button while the field is open.
+ */
+function DebtorNumberField({
+  periodId,
+  registrationId,
+  debtorNumber,
+  required,
+  invoiced,
+  editing,
+  onEditingChange,
+  onChanged,
+}: Readonly<{
+  periodId: string;
+  registrationId: string;
+  debtorNumber: string;
+  required: boolean;
+  invoiced: boolean;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  onChanged: () => Promise<unknown>;
+}>) {
+  const [value, setValue] = useState(debtorNumber);
+  const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearErrors } = formErrors;
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (!editing) return;
+    setValue(debtorNumber);
+    clearErrors();
+    fieldRef.current?.focus();
+  }, [editing, debtorNumber, clearErrors]);
+
+  const submit = async () => {
+    if (saving) return;
+    formErrors.clear();
+    if (required && !value.trim()) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
+        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      await changeHolidayDebtorNumber(periodId, registrationId, value.trim());
+      success("Die Debitorennummer ist gespeichert.");
+      onEditingChange(false);
+      await onChanged();
+    } catch (err) {
+      logger.error("holiday_debtor_number_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void formErrors.show(err, { object: "die Debitorennummer" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing && !invoiced) {
+    return (
+      <form
+        ref={formRef}
+        noValidate
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <FormErrorAlert message={formErrors.error} />
+        <div className="sm:max-w-md">
+          <Input
+            ref={fieldRef}
+            id="holiday-debtor-number"
+            name="debtor_number"
+            label="Debitorennummer"
+            required={required}
+            autoComplete="off"
+            controlSize="compact"
+            maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+            value={value}
+            aria-describedby="holiday-debtor-number-hint"
+            error={formErrors.fieldError("debtor_number") ?? undefined}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <p
+            id="holiday-debtor-number-hint"
+            className="mt-1 text-xs text-gray-600"
+          >
+            {DEBTOR_NUMBER_HINT}
+          </p>
+        </div>
+        <EditActions
+          onCancel={() => onEditingChange(false)}
+          saving={saving}
+          saveType="submit"
+        />
+      </form>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <DataGrid columns={2}>
+        <DataField label="Debitorennummer">
+          {debtorNumber ? (
+            <span className="font-mono">{debtorNumber}</span>
+          ) : (
+            "Noch keine Nummer."
+          )}
+        </DataField>
+      </DataGrid>
+      <p>{debtorNumberText(Boolean(debtorNumber), invoiced)}</p>
+    </div>
+  );
+}
 
 export function HolidayRegistrationStatusCard({
   periodId,
@@ -70,6 +216,7 @@ export function HolidayRegistrationStatusCard({
   onExemptionChange,
   onChanged,
   onConfirmed,
+  onDebtorNumberChanged,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
@@ -85,18 +232,30 @@ export function HolidayRegistrationStatusCard({
   onChanged: (registration: HolidayRegistrationDetail) => void;
   /** After a confirmation; the page reads the registration again. */
   onConfirmed: () => Promise<void>;
+  /** After a change of the debtor number; the page reads it again. */
+  onDebtorNumberChanged: () => Promise<unknown>;
 }>) {
   const [running, setRunning] = useState<
     HolidayRegistrationAction | "confirm" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [debtorNumber, setDebtorNumber] = useState("");
+  const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
   const confirmRef = useRef<HTMLFormElement>(null);
   const confirmErrors = useApiFormError(confirmRef);
   const errorDisplay = useApiErrorDisplay();
   const exemptionAvailable = contribution?.exemptionAvailable ?? false;
+  const invoiced = contribution?.invoiced ?? false;
+  // Enter in the debtor number submits the form, so the guards of the button
+  // hold here too: one confirmation at a time, and only of the amount shown.
+  const confirmBlocked =
+    running !== null || contribution === null || previewPending;
+  const showsDebtorNumber =
+    registration.status === "confirmed" &&
+    (debtorNumberRequired || Boolean(registration.debtorNumber));
 
   const confirm = async () => {
+    if (confirmBlocked) return;
     confirmErrors.clear();
     if (debtorNumberRequired && !debtorNumber.trim()) {
       confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
@@ -189,6 +348,18 @@ export function HolidayRegistrationStatusCard({
             ) : null}
           </form>
         ) : null}
+        {showsDebtorNumber ? (
+          <DebtorNumberField
+            periodId={periodId}
+            registrationId={registration.id}
+            debtorNumber={registration.debtorNumber}
+            required={debtorNumberRequired}
+            invoiced={invoiced}
+            editing={editingDebtorNumber}
+            onEditingChange={setEditingDebtorNumber}
+            onChanged={onDebtorNumberChanged}
+          />
+        ) : null}
         {registration.status === "received" && exemptionAvailable ? (
           <label
             htmlFor="holiday-registration-exemption"
@@ -214,12 +385,23 @@ export function HolidayRegistrationStatusCard({
                 size="md"
                 isLoading={running === "confirm"}
                 loadingText="Bestätigt …"
-                disabled={
-                  running !== null || contribution === null || previewPending
-                }
+                disabled={confirmBlocked}
                 onClick={() => confirmRef.current?.requestSubmit()}
               >
                 Bestätigen
+              </Button>
+            ) : null}
+            {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={running !== null}
+                onClick={() => setEditingDebtorNumber(true)}
+              >
+                {registration.debtorNumber
+                  ? "Debitorennummer ändern"
+                  : "Debitorennummer eintragen"}
               </Button>
             ) : null}
             {registration.frozen ? (

@@ -19,9 +19,6 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
-vi.mock("~/lib/traeger-contributions-api", () => ({
-  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
-}));
 const { mockPush, mockFetchList, mockDownload, mockDownloadBlob } = vi.hoisted(
   () => ({
     mockPush: vi.fn(),
@@ -52,6 +49,7 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     filter: HolidayRegistrationFilter,
     format: string,
   ) => mockDownload(periodId, filter, format),
+  fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),

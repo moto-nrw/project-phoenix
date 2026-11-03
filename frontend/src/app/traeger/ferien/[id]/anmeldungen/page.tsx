@@ -40,6 +40,7 @@ import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resour
 import {
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
+  fetchHolidayConfirmationSettings,
   fetchHolidayRegistrations,
   type HolidayRegistrationFilter,
   type HolidayRegistrationList,
@@ -47,7 +48,6 @@ import {
   type HolidayRegistrationSummary,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
-import { fetchHolidayConfirmationSettings } from "~/lib/traeger-contributions-api";
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
