@@ -427,7 +427,7 @@ export function DienstplanPersonWeekGrid({
 
   return (
     <div className="space-y-3">
-      <SectionCard className="!p-0">
+      <SectionCard padding="none">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-4 py-3">
           {readOnly ? (
             // Die Leseansicht nennt Person und Wochensummen schon im

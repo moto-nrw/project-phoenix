@@ -21,7 +21,7 @@ import {
 } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ExportMenu, exportFormatOptions } from "~/components/ui/export-menu";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   ChildExtraFields,
   ChildOfferingAdjustment,
@@ -104,30 +104,27 @@ export function StudentEnrollmentsTab({
   });
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        // Die Phasenkarten darunter bringen h4 und h5 mit; als h2 entstuende
-        // ein Sprung ueber Ebene 3.
-        level={3}
-        title="Anmeldungen"
-        concept={enrollmentsConcept}
-        subtitle="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."
-        actions={
-          !isLoading && !error && requests.length > 0 ? (
-            <ExportMenu
-              ariaLabel="Anmeldungen herunterladen"
-              options={EXPORT_OPTIONS}
-              busyKey={exporting}
-              onSelect={(option) => {
-                if (option.format && option.format !== "csv")
-                  void handleExport(option.format);
-              }}
-            />
-          ) : undefined
-        }
-      />
-
+    <SectionCard
+      // Die Phasenkarten darunter bringen h4 und h5 mit; als h2 entstuende
+      // ein Sprung ueber Ebene 3.
+      headingLevel={3}
+      title="Anmeldungen"
+      concept={enrollmentsConcept}
+      description="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."
+      actions={
+        !isLoading && !error && requests.length > 0 ? (
+          <ExportMenu
+            ariaLabel="Anmeldungen herunterladen"
+            options={EXPORT_OPTIONS}
+            busyKey={exporting}
+            onSelect={(option) => {
+              if (option.format && option.format !== "csv")
+                void handleExport(option.format);
+            }}
+          />
+        ) : undefined
+      }
+    >
       {isLoading ? (
         <p className="py-6 text-center text-sm text-gray-500">
           Anmeldungen werden geladen…
@@ -150,7 +147,7 @@ export function StudentEnrollmentsTab({
           ))}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
