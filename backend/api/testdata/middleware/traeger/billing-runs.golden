@@ -11,6 +11,8 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/billing-runs/{id}/mailings
 	POST /traeger/billing-runs/
 	POST /traeger/billing-runs/{id}/corrections
+	POST /traeger/billing-runs/{id}/documents/{documentID}/cancellation
+	POST /traeger/billing-runs/{id}/documents/{documentID}/credits
 	POST /traeger/billing-runs/{id}/documents/{documentID}/mailings
 	POST /traeger/billing-runs/{id}/letters
 	POST /traeger/billing-runs/{id}/letters/preview

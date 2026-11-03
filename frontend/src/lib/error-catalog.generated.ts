@@ -731,6 +731,10 @@ export const ERROR_CATALOG = {
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_correction_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_family_not_found":
         "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_letter_not_found":
@@ -765,6 +769,10 @@ export const ERROR_CATALOG = {
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
+      "parent_billing.invoice_cancelled":
+        "Diese Rechnung ist schon storniert. Sie lässt sich nicht mehr ändern.",
+      "parent_billing.invoice_credited":
+        "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
       "parent_billing.letter_mail_pending":

@@ -168,7 +168,7 @@ func (m *BillingLetterMail) MailBillingLetter(ctx context.Context, reviewer pare
 }
 
 // PrintBillingLetters combines the letters of every family of a released
-// run, in the order of their invoice numbers, and records the read.
+// run, in document issuance order, and records the read.
 func (m *BillingLetterMail) PrintBillingLetters(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64) (parentbilling.BillingLetterFile, error) {
 	current, err := m.letterRun(ctx, reviewer, runID, false)
 	if err != nil {
@@ -249,7 +249,7 @@ func (m *BillingLetterMail) send(ctx context.Context, reviewer parentbilling.Hol
 		IdempotencyKey: fmt.Sprintf("parent-billing-letter:%d:%d", document.ID, len(current.mailings[document.ID])+1),
 		GuardianName:   strings.TrimSpace(document.RecipientFirstName + " " + document.RecipientLastName),
 		TraegerName:    traeger, PeriodName: current.run.PeriodName, Number: document.Number,
-		Filename: file.Filename, PDF: file.Data,
+		DocumentKind: document.Kind, Filename: file.Filename, PDF: file.Data,
 	})
 	if err != nil {
 		return parentbilling.BillingLetterSend{}, fmt.Errorf("parent billing: enqueue letter mail: %w", err)
@@ -308,7 +308,7 @@ func (m *BillingLetterMail) recordRead(ctx context.Context, reviewer parentbilli
 // outbox entry Delivery no longer keeps has an unknown result.
 func documentMailing(document parentbilling.BillingDocument, mailings []parentbilling.BillingLetterSend, states map[int64]parentbilling.BillingLetterMailState) parentbilling.BillingLetterMailing {
 	mailing := parentbilling.BillingLetterMailing{
-		DocumentID: document.ID, Number: document.Number, RecipientFirstName: document.RecipientFirstName,
+		DocumentID: document.ID, Kind: document.Kind, Number: document.Number, RecipientFirstName: document.RecipientFirstName,
 		RecipientLastName: document.RecipientLastName, RecipientEmail: document.RecipientEmail,
 		Status: parentbilling.LetterMailNotSent, Sends: len(mailings),
 	}

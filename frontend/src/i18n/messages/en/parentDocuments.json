@@ -4,6 +4,8 @@
   "emptyTitle": "No documents yet",
   "emptyDescription": "When the provider sends you a letter, you find it here. You also get it by email.",
   "confirmationLetter": "Confirmation letter {period}",
+  "cancellationLetter": "Cancellation {period}",
+  "creditLetter": "Credit note {period}",
   "sender": "From {traeger}",
   "children": "For",
   "amount": "Amount",
