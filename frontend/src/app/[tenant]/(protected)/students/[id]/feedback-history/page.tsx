@@ -309,7 +309,7 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept={feedbackConcept} variant="page" />}
+        leading={<ConceptIconTile concept={feedbackConcept} size="page" />}
         title={student?.name ?? "Feedbackhistorie"}
         stats={studentMeta || feedbackLine}
         statsLoading={loading}
@@ -341,9 +341,7 @@ function StudentFeedbackHistoryPageContent() {
         <SectionCard
           title="Feedback-Übersicht"
           description={FEEDBACK_HISTORY_DESCRIPTION}
-          leading={
-            <ConceptIconTile concept={feedbackConcept} variant="section" />
-          }
+          leading={<ConceptIconTile concept={feedbackConcept} size="section" />}
         >
           <>
             {/* Proportion bar */}

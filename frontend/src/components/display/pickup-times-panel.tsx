@@ -17,7 +17,7 @@ export function PickupTimesPanel({ buckets }: PickupTimesPanelProps) {
   return (
     <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
       <div className="mb-5 flex items-center gap-4">
-        <ConceptIconTile concept={pickupConcept} variant="display" />
+        <ConceptIconTile concept={pickupConcept} size="display" />
         <h2 className="text-3xl font-bold text-gray-900">
           Nächste Abholzeiten
         </h2>

@@ -372,7 +372,7 @@ function HistoryTable({
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
         leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="section" />
+          <ConceptIconTile concept={changeHistoryConcept} size="section" />
         }
         bodyClassName="mt-4 -mx-5 -mb-5"
       >
@@ -823,9 +823,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}

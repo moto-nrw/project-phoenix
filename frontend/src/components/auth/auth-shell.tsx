@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Skeleton } from "~/components/ui/skeleton";
+import { IconTile } from "~/components/ui/icon-tile";
 
 /** The hint under a refused auth field, linked by `aria-describedby`. */
 export function AuthFieldError({
@@ -439,9 +440,12 @@ function TestimonialCard({
         )}
       >
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-950 text-white">
-            <Quote className="h-5 w-5" aria-hidden="true" />
-          </div>
+          <IconTile
+            size="page"
+            shape="round"
+            tone="inverse"
+            icon={<Quote className="h-5 w-5" aria-hidden="true" />}
+          />
           <span className="bg-moto-green-soft text-moto-green-strong rounded-full px-3 py-1 text-xs font-semibold">
             {testimonial.metric}
           </span>

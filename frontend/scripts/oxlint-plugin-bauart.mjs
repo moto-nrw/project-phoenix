@@ -317,11 +317,11 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2043",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2006",
+      "Bedingung löschen@1999",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2523",
-      "Auswahlzeit entfernen@3447",
+      "abweichend bearbeiten@2516",
+      "Auswahlzeit entfernen@3439",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@593",
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1182",
+      "Bearbeiten@1181",
     ],
   }),
 );
@@ -1593,10 +1593,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@269",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@991",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@992",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@942",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@941",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",

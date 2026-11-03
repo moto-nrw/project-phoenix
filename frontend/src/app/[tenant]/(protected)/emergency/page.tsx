@@ -13,6 +13,7 @@ import {
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
 import { emergencyConcept } from "~/lib/concepts/emergency";
+import { IconTile } from "~/components/ui/icon-tile";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
@@ -65,9 +66,10 @@ export default function EmergencyPage() {
           </>
         }
         leading={
-          <div className="bg-moto-red/10 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <MotoConceptIcon concept={emergencyConcept} size={24} />
-          </div>
+          <IconTile
+            tone="red"
+            icon={<MotoConceptIcon concept={emergencyConcept} size={24} />}
+          />
         }
       >
         <div className="grid gap-3 sm:grid-cols-2">

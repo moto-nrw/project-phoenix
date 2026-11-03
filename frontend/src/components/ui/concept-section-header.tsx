@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { IconTile } from "~/components/ui/icon-tile";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { cn } from "~/lib/utils";
 
@@ -97,11 +98,7 @@ export function SectionHeader({
 }: SectionHeaderProps) {
   return (
     <SectionHeaderShell
-      iconTile={
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          {icon}
-        </div>
-      }
+      iconTile={<IconTile icon={icon} />}
       title={title}
       subtitle={subtitle}
       actions={actions}
@@ -123,7 +120,7 @@ export function ConceptSectionHeader({
 }: ConceptSectionHeaderProps) {
   return (
     <SectionHeaderShell
-      iconTile={<ConceptIconTile concept={concept} variant="section" />}
+      iconTile={<ConceptIconTile concept={concept} size="section" />}
       title={title}
       subtitle={subtitle}
       actions={actions}
@@ -143,7 +140,7 @@ export function ConceptPageHeader({
 }: ConceptPageHeaderProps) {
   return (
     <div className={cn("flex min-w-0 items-start gap-3 sm:gap-4", className)}>
-      <ConceptIconTile concept={concept} variant="page" />
+      <ConceptIconTile concept={concept} size="page" />
       <div className="min-w-0">
         {eyebrow ? (
           <div className="text-moto-blue text-xs font-semibold tracking-wide uppercase">

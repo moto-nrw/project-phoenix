@@ -152,6 +152,7 @@ import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -4108,21 +4109,27 @@ function TimeTrackingContent() {
             }
           >
             <div className="py-4 text-center">
-              <div className="bg-moto-orange/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-                <svg
-                  className="text-moto-orange-strong h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                  />
-                </svg>
-              </div>
+              <IconTile
+                size="page"
+                shape="round"
+                tone="orange"
+                className="mx-auto mb-4"
+                icon={
+                  <svg
+                    className="text-moto-orange-strong h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                }
+              />
               <p className="mt-2 text-gray-600">
                 Für heute ist eine Abwesenheit eingetragen
                 {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.

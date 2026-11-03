@@ -84,6 +84,69 @@ async function ruleHits(
   };
 }
 
+describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
+  it("reports grey and tinted icon tiles, also across className branches", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      function Probe({ icon, done }: { icon: JSX.Element; done: boolean }) {
+        return <>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+            <BellIcon />
+          </span>
+          <div className="bg-moto-red/10 text-moto-red flex h-9 w-9 items-center justify-center rounded-lg">{icon}</div>
+          <span className={\`flex h-8 w-8 items-center justify-center rounded-xl \${done ? "bg-moto-green/15" : "bg-gray-100"}\`}>
+            <BellIcon />
+          </span>
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(3);
+  });
+
+  it("reports a hand-rolled tile inside the kit outside IconTile", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ icon }: { icon: JSX.Element }) {
+        return <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100">{icon}</div>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+      "src/components/ui/probe-card.tsx",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("accepts text circles, buttons, the kit tile and other sizes", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      declare const IconTile: (props: { icon: JSX.Element }) => JSX.Element;
+      function Probe({ initials }: { initials: string }) {
+        return <>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs">{initials}</div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">3</span>
+          <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><BellIcon /></button>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100"><BellIcon /></span>
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100"><BellIcon /></span>
+          <IconTile icon={<BellIcon />} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(0);
+  });
+});
+
 describe.concurrent("ui-kit/no-dead-surface-utility", () => {
   it("reports colour, shadow, ring and blur utilities beside a kit surface", async () => {
     const { count, output } = await ruleHits(

@@ -46,6 +46,7 @@ import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -280,9 +281,13 @@ function AcceptForm({
         aria-live="polite"
         className="flex flex-col items-center py-12"
       >
-        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
-          <Check className="h-6 w-6 text-white" aria-hidden="true" />
-        </div>
+        <IconTile
+          size="page"
+          shape="round"
+          tone="inverse"
+          className="mb-6"
+          icon={<Check className="h-6 w-6 text-white" aria-hidden="true" />}
+        />
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           {existing ? "Schule hinzugefügt" : "Konto erstellt"}
         </h3>

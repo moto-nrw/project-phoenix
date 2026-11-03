@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
 import { cn } from "~/lib/utils";
 
 /**
@@ -260,11 +261,7 @@ export function SectionCard({
             )}
           >
             {leading ??
-              (Icon && (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-              ))}
+              (Icon && <IconTile icon={<Icon aria-hidden="true" />} />)}
             <div className="min-w-0">
               {kicker && (
                 <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">

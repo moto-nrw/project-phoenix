@@ -870,9 +870,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         back
         backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        leading={
-          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
         empty={{
           title: "Anmeldephase nicht gefunden",
           description:
@@ -889,7 +887,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
-      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <DataTableStatusBadge active={phase.is_active} />

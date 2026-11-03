@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { IconTile } from "~/components/ui/icon-tile";
 
 /**
  * Die eine Kennzahl-Kachel des Anmeldungs-Moduls. Vorher gab es drei Stile
@@ -34,9 +35,13 @@ export function EnrollmentStatTile({
     <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {Icon || leading ? (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-500 shadow-sm">
-            {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : leading}
-          </span>
+          <IconTile
+            size="sm"
+            shape="round"
+            icon={
+              Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : leading
+            }
+          />
         ) : null}
         <span className="min-w-0">
           <span

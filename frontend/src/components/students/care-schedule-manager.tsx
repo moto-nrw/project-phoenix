@@ -106,6 +106,7 @@ import { pickupConcept } from "~/lib/concepts/pickup";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -1500,9 +1501,7 @@ function AbsencePlaceholder({
   const isInteractive = !readOnly && statusDay !== null;
   const content = (
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 shadow-sm">
-        <MotoConceptIcon concept={concept} size={18} />
-      </span>
+      <ConceptIconTile concept={concept} size="section" />
       <div className="min-w-0">
         <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Status

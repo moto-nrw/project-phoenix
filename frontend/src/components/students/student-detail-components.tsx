@@ -67,6 +67,7 @@ import { groupsConcept } from "~/lib/concepts/groups";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { staffConcept } from "~/lib/concepts/staff";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "StudentDetailComponents" });
 
@@ -732,13 +733,7 @@ export function SupervisorsCard({
     <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-            <MotoDuotoneIcon
-              icon={staffConcept.icon}
-              tone={staffConcept.tone}
-              size={22}
-            />
-          </div>
+          <ConceptIconTile concept={staffConcept} size="section" />
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
             Ansprechpartner
           </h2>
@@ -940,11 +935,7 @@ export function PersonalInfoReadOnly({
   return (
     <SectionCard
       title="Persönliche Informationen"
-      leading={
-        <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
-          <PersonIcon />
-        </div>
-      }
+      leading={<IconTile tone="green" icon={<PersonIcon />} />}
       action={
         showEditButton && onEditClick ? (
           <Button
@@ -1180,7 +1171,7 @@ function HistoryButton({
       className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
-        <ConceptIconTile concept={concept} variant="section" />
+        <ConceptIconTile concept={concept} size="section" />
         <div className="min-w-0 flex-1 text-left">
           <p
             className={`text-sm font-medium sm:text-base ${

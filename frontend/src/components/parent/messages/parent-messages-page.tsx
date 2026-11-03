@@ -304,8 +304,9 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
     >
       <ConceptIconTile
         concept={messagesConcept}
-        variant="page"
-        className="bg-moto-blue-soft rounded-full"
+        size="page"
+        shape="round"
+        tone="blue"
       />
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="flex min-w-0 items-center justify-between gap-2">

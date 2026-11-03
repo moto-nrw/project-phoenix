@@ -34,6 +34,7 @@ import {
 } from "~/lib/pickup-schedule-helpers";
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
+import { IconTile } from "~/components/ui/icon-tile";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -622,9 +623,7 @@ function LegSection({
   return (
     <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-          {icon}
-        </span>
+        <IconTile size="sm" icon={icon} />
         <div>
           <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
           <p className="text-xs text-gray-500">{regularLabel}</p>

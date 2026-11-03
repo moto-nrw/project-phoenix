@@ -1,5 +1,6 @@
 import type React from "react";
 
+import { IconTile } from "~/components/ui/icon-tile";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -35,9 +36,7 @@ export function InfoCard({
   return (
     <div className="moto-content-surface compact:p-4 flex h-full flex-col rounded-2xl border p-5 max-sm:p-4">
       <div className="compact:mb-3 mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          {icon}
-        </div>
+        <IconTile icon={icon} />
         <div className="min-w-0">
           {eyebrow && (
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

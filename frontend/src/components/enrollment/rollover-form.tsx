@@ -490,9 +490,7 @@ export function RolloverForm({
         backLabel="Zurück zu den Anmeldephasen"
         stats={statusLine}
         statsLoading={loadingPreview}
-        leading={
-          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       >
         {form}
       </TenantPage>

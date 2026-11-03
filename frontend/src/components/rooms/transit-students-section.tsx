@@ -4,7 +4,6 @@ import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -36,6 +35,7 @@ import {
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
 import { transitConcept } from "~/lib/concepts/transit";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
@@ -406,12 +406,11 @@ export function TransitStudentsSection({
           aria-expanded={isExpanded}
           className="group flex w-full min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
         >
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100"
+          <ConceptIconTile
+            concept={transitConcept}
+            size="sm"
             aria-hidden="true"
-          >
-            <MotoConceptIcon concept={transitConcept} size={18} />
-          </span>
+          />
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
               Kinder unterwegs
