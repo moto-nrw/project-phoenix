@@ -23,6 +23,7 @@ func TestUpdateChildOfferings_ReportsPickupTimesThatHideTheBooking(t *testing.T)
 	t.Parallel()
 
 	env := setupDecisionTest(t)
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday)
 	ctx := testpkg.Ctx(t)
 	careWithPickup := func(name, pickup string) *offeringContract.CareOfferingRecord {
 		return createAdjustmentCareOfferingWith(t, env, name, func(offering *offeringContract.CareOfferingRecord) {
@@ -64,9 +65,11 @@ func TestUpdateChildOfferings_ReportsPickupTimesThatHideTheBooking(t *testing.T)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Hand")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayMonday, author.ID, "14:30")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayWednesday, author.ID, "16:00")
-	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayThursday, author.ID, "14:30")
+	// Thursday was set by hand to a time no booking ever had.
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, timetable.WeekdayThursday, author.ID, "15:15")
 
-	stichtag := calendar.NewDate(2027, 5, 28) // a Friday, like the request of 30.10.
+	// A Friday ahead of today (24.08.), like the request of 30.10.
+	stichtag := calendar.NewDate(2026, 9, 11)
 	update, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
 		RequestID: submitted.Request.ID, ChildID: childID,
 		ActorAccountID: env.creatorID, ActorRole: "admin",
@@ -78,9 +81,12 @@ func TestUpdateChildOfferings_ReportsPickupTimesThatHideTheBooking(t *testing.T)
 	})
 	require.NoError(t, err)
 
+	// Monday's 14:30 is the time the old booking sets until the change, so
+	// removing it today changes no earlier day. Thursday's 15:15 still
+	// applies until the change; removing it today would end it too early.
 	assert.Equal(t, []enrollmentNative.PickupOverride{
-		{Weekday: timetable.WeekdayMonday, Date: calendar.NewDate(2027, 5, 31), StoredTime: "14:30", BookedTime: "16:00"},
-		{Weekday: timetable.WeekdayThursday, Date: calendar.NewDate(2027, 6, 3), StoredTime: "14:30", BookedTime: "16:00"},
+		{Weekday: timetable.WeekdayMonday, Date: calendar.NewDate(2026, 9, 14), StoredTime: "14:30", BookedTime: "16:00", ResetNow: true},
+		{Weekday: timetable.WeekdayThursday, Date: calendar.NewDate(2026, 9, 17), StoredTime: "15:15", BookedTime: "16:00", ResetNow: false},
 	}, update.RosterImpact.PickupOverrides,
 		"Wednesday repeats the booked time and Tuesday has no stored time; neither hides the booking")
 }

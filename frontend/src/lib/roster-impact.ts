@@ -30,6 +30,7 @@ export interface RosterImpactWire {
     readonly date: string;
     readonly stored_time: string;
     readonly booked_time: string;
+    readonly reset_now?: boolean;
   }>;
 }
 
@@ -67,6 +68,11 @@ export interface PickupOverride {
   readonly storedTime: string;
   /** "HH:MM" */
   readonly bookedTime: string;
+  /**
+   * Darf die eingetragene Zeit schon heute weg? Nein, wenn sie bis zum
+   * Stichtag noch gilt und von der bisherigen Buchung abweicht.
+   */
+  readonly resetNow: boolean;
 }
 
 export interface RosterImpact {
@@ -102,6 +108,7 @@ export function mapRosterImpact(
       date: override.date,
       storedTime: override.stored_time,
       bookedTime: override.booked_time,
+      resetNow: override.reset_now === true,
     })),
   };
 }

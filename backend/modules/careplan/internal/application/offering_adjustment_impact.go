@@ -89,20 +89,72 @@ func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID 
 		if !row.Manual || row.Weekday < 1 || row.Weekday > 5 {
 			continue
 		}
-		date := from.AddDays((row.Weekday - int(from.Weekday()) + 7) % 7)
-		offering, lookupErr := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)
+		date := nextWeekdayFrom(from, row.Weekday)
+		booked, lookupErr := m.offeringPickupClock(ctx, studentID, date)
 		if lookupErr != nil {
-			return nil, fmt.Errorf("decision: load offering pickup for roster impact: %w", lookupErr)
+			return nil, lookupErr
 		}
-		if offering == nil {
+		if booked == "" || booked == row.PickupTime {
 			continue
 		}
-		if booked := offering.PickupTime.Format("15:04"); booked != row.PickupTime {
-			result = append(result, careplan.PickupOverride{Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked})
+		resetNow, checkErr := m.pickupResetKeepsEarlierDays(ctx, studentID, row, date)
+		if checkErr != nil {
+			return nil, checkErr
 		}
+		result = append(result, careplan.PickupOverride{
+			Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked, ResetNow: resetNow,
+		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Weekday < result[j].Weekday })
 	return result, nil
+}
+
+// maxPickupResetLookaheadWeeks bounds the check below; a change further
+// ahead is reported, but not offered for reset yet.
+const maxPickupResetLookaheadWeeks = 60
+
+// pickupResetKeepsEarlierDays reports whether removing the stored weekday
+// row now leaves every day before the change's first weekday unchanged. The
+// row is undated, so a reset removes it from today on: that is only safe when
+// the bookings already set the stored time on every such day (the booking
+// the stored time copied), or when the change is in force today.
+func (m *BookingMaterialization) pickupResetKeepsEarlierDays(
+	ctx context.Context, studentID int64, row ports.PickupWeekdayRow, first calendar.Date,
+) (bool, error) {
+	day := nextWeekdayFrom(m.todayDate(), row.Weekday)
+	for weeks := 0; day.Before(first); weeks++ {
+		if weeks >= maxPickupResetLookaheadWeeks {
+			return false, nil
+		}
+		booked, err := m.offeringPickupClock(ctx, studentID, day)
+		if err != nil {
+			return false, err
+		}
+		if booked != row.PickupTime {
+			return false, nil
+		}
+		day = day.AddDays(7)
+	}
+	return true, nil
+}
+
+// offeringPickupClock is the booked pickup time on the date as "HH:MM";
+// empty when no booking sets one.
+func (m *BookingMaterialization) offeringPickupClock(ctx context.Context, studentID int64, date calendar.Date) (string, error) {
+	offering, err := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)
+	if err != nil {
+		return "", fmt.Errorf("decision: load offering pickup for roster impact: %w", err)
+	}
+	if offering == nil {
+		return "", nil
+	}
+	return offering.PickupTime.Format("15:04"), nil
+}
+
+// nextWeekdayFrom is the first date on or after from on the ISO weekday
+// (1 = Monday ... 5 = Friday).
+func nextWeekdayFrom(from calendar.Date, weekday int) calendar.Date {
+	return from.AddDays((weekday - int(from.Weekday()) + 7) % 7)
 }
 
 // bookingDayChange summarizes what the change did to the child's weekdays.

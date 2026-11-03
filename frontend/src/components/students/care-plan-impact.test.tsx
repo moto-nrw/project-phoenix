@@ -127,12 +127,14 @@ const pickupImpact: RosterImpact = {
       date: "2026-11-02",
       storedTime: "14:30",
       bookedTime: "16:00",
+      resetNow: true,
     },
     {
       weekday: 4,
       date: "2026-11-05",
       storedTime: "14:30",
       bookedTime: "16:00",
+      resetNow: true,
     },
   ],
 };
@@ -598,6 +600,104 @@ describe("CarePlanImpact", () => {
       expect(
         screen.queryByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
       ).not.toBeInTheDocument();
+    });
+
+    // Eine Handzeit ohne Datum ist ab heute weg. Gilt sie bis zum Stichtag
+    // noch und weicht sie von der bisherigen Buchung ab, bleibt sie stehen.
+    it("resets only the weekdays that may change today", async () => {
+      grantPermissions(["users:update"]);
+      mocks.resetStudentPickupToOffering.mockResolvedValue({});
+      renderImpact({
+        ...pickupImpact,
+        pickupOverrides: [
+          pickupImpact.pickupOverrides[0]!,
+          {
+            weekday: 4,
+            date: "2026-11-05",
+            storedTime: "15:15",
+            bookedTime: "16:00",
+            resetNow: false,
+          },
+        ],
+      });
+
+      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
+        "Donnerstags: eingetragen 15:15 Uhr, ab 05.11.2026 gebucht 16:00 Uhr.",
+      );
+      expect(
+        screen.getByText(
+          "Steht ein Datum dabei, gilt die eingetragene Zeit bis dahin weiter. Ab diesem Tag setzen Sie sie unter „Betreuungszeiten“ zurück.",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(screen.getAllByText("Übernommen")).toHaveLength(1),
+      );
+      expect(mocks.resetStudentPickupToOffering.mock.calls).toEqual([
+        ["42", 1, "2026-11-02"],
+      ]);
+      expect(screen.getByText(/Donnerstags/).closest("li")).toHaveTextContent(
+        "ab 05.11.2026 gebucht 16:00 Uhr.",
+      );
+    });
+
+    it("offers no reset while every weekday still applies until the change", () => {
+      grantPermissions(["users:update"]);
+      renderImpact({
+        ...pickupImpact,
+        pickupOverrides: pickupImpact.pickupOverrides.map((override) => ({
+          ...override,
+          resetNow: false,
+        })),
+      });
+
+      expect(
+        screen.getByText("Abholzeit weicht von der Buchung ab"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Ändern kann nur, wer Kinder bearbeiten darf."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("restores taken-over weekdays and reports each new one", async () => {
+      grantPermissions(["users:update"]);
+      mocks.resetStudentPickupToOffering.mockResolvedValue({});
+      const onProgress = vi.fn();
+      render(
+        <ToastProvider>
+          <CarePlanImpact
+            impact={pickupImpact}
+            studentId="42"
+            progress={{ removed: [], resetWeekdays: [1] }}
+            onProgress={onProgress}
+          />
+        </ToastProvider>,
+      );
+
+      expect(screen.getByText(/Montags/).closest("li")).toHaveTextContent(
+        "Montags: jetzt 16:00 Uhr wie gebucht.",
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Gebuchte Zeiten übernehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(onProgress).toHaveBeenLastCalledWith({
+          removed: [],
+          resetWeekdays: [1, 4],
+        }),
+      );
+      expect(mocks.resetStudentPickupToOffering.mock.calls).toEqual([
+        ["42", 4, "2026-11-05"],
+      ]);
     });
   });
 });

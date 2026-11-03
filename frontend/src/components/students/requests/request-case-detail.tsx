@@ -13,6 +13,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
 import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
 import type { AggregatedOpenRequest } from "~/lib/change-request-list-api";
+import type { HeldOfferingDecision } from "~/components/students/offering-request-review-item";
 import {
   caseTypeLabels,
   conflictedItemKeys,
@@ -36,6 +37,7 @@ export function RequestCaseDetail({
   onSelectionChange,
   onDecided,
   onHold,
+  held,
   onProtectionChanged,
   onReload,
   onNotice,
@@ -56,7 +58,12 @@ export function RequestCaseDetail({
   onBackToList: () => void;
   onSelectionChange: (key: string, checked: boolean) => void;
   onDecided: (key: string, notice: string) => void;
-  onHold?: (request: AggregatedOpenRequest) => void;
+  onHold?: (
+    request: AggregatedOpenRequest,
+    decision: HeldOfferingDecision,
+  ) => void;
+  /** Gehaltene Freigaben nach Anfrage-Schlüssel. */
+  held?: ReadonlyMap<string, HeldOfferingDecision>;
   onProtectionChanged: (studentID: string, enabled: boolean) => void;
   onReload: () => void;
   onNotice: (notice: string) => void;
@@ -156,6 +163,7 @@ export function RequestCaseDetail({
             onSelectionChange={onSelectionChange}
             onDecided={onDecided}
             onHold={onHold}
+            held={held?.get(itemKey(request))}
             onStale={onReload}
           />
         ))}

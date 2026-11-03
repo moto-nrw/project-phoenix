@@ -58,6 +58,13 @@ describe("mapRosterImpact", () => {
             date: "2026-11-02",
             stored_time: "14:30",
             booked_time: "16:00",
+            reset_now: true,
+          },
+          {
+            weekday: 4,
+            date: "2026-11-05",
+            stored_time: "15:15",
+            booked_time: "16:00",
           },
         ],
       })?.pickupOverrides,
@@ -67,6 +74,14 @@ describe("mapRosterImpact", () => {
         date: "2026-11-02",
         storedTime: "14:30",
         bookedTime: "16:00",
+        resetNow: true,
+      },
+      {
+        weekday: 4,
+        date: "2026-11-05",
+        storedTime: "15:15",
+        bookedTime: "16:00",
+        resetNow: false,
       },
     ]);
   });

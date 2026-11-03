@@ -273,6 +273,7 @@ describe("OfferingRequestReviewItem", () => {
           date: "2027-02-01",
           stored_time: "14:30",
           booked_time: "16:00",
+          reset_now: true,
         },
       ],
     });

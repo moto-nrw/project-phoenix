@@ -23,6 +23,8 @@ type pickupOverrideResponse struct {
 	Date       string `json:"date"`
 	StoredTime string `json:"stored_time"`
 	BookedTime string `json:"booked_time"`
+	// ResetNow: „Gebuchte Zeiten übernehmen“ may remove the stored time now.
+	ResetNow bool `json:"reset_now"`
 }
 
 type adjustedRosterTemplateResponse struct {
@@ -52,6 +54,7 @@ func newRosterImpactResponse(impact RosterImpact) rosterImpactResponse {
 	for _, override := range impact.PickupOverrides {
 		out.PickupOverrides = append(out.PickupOverrides, pickupOverrideResponse{
 			Weekday: override.Weekday, Date: override.Date.String(), StoredTime: override.StoredTime, BookedTime: override.BookedTime,
+			ResetNow: override.ResetNow,
 		})
 	}
 	for _, template := range impact.Adjusted {

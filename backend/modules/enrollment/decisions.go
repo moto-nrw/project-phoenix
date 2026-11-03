@@ -191,6 +191,7 @@ type PickupOverride struct {
 	Date       calendar.Date
 	StoredTime string
 	BookedTime string
+	ResetNow   bool
 }
 
 // AdjustedRosterTemplate is one Regeltermin the booking change rewrote.

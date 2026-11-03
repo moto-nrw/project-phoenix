@@ -266,6 +266,10 @@ type PickupOverride struct {
 	// StoredTime and BookedTime are "HH:MM".
 	StoredTime string
 	BookedTime string
+	// ResetNow says whether removing the stored time today keeps every day
+	// before Date unchanged. A stored row has no dates; for a change still
+	// ahead it may only go when the earlier days already use the same time.
+	ResetNow bool
 }
 
 // AdjustedRosterTemplate is one Regeltermin series the change rewrote.

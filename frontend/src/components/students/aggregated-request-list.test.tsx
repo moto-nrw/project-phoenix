@@ -142,14 +142,22 @@ vi.mock("~/components/students/offering-request-review-item", () => ({
     row,
     onHold,
     onDecided,
+    held,
   }: {
     row: { id: string };
-    onHold?: () => void;
+    onHold?: (decision: { notice: string; impact: unknown }) => void;
     onDecided: (notice: string) => void;
+    held?: { notice: string };
   }) => (
     <div>
       <span>offering-item-{row.id}</span>
-      <button type="button" onClick={() => onHold?.()}>
+      {held ? <span>gehalten: {held.notice}</span> : null}
+      <button
+        type="button"
+        onClick={() =>
+          onHold?.({ notice: "Freigegeben.", impact: { effectiveFrom: "" } })
+        }
+      >
         Auswirkung zeigen
       </button>
       <button type="button" onClick={() => onDecided("Erledigt.")}>
@@ -3114,5 +3122,50 @@ describe("AggregatedRequestList", () => {
       expect(screen.queryByText("offering-item-5")).not.toBeInTheDocument(),
     );
     expect(screen.getByText("Erledigt.")).toBeInTheDocument();
+  });
+
+  // Wechselt die OGS zu einem anderen Kind und zurück, kommt die Karte mit
+  // dem Ergebnis der Freigabe wieder, nicht als offene Anfrage.
+  it("zeigt eine gehaltene Freigabe nach einem Kindwechsel wieder", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Erstes Kind",
+          expected_version: "v5",
+          urgent_today: false,
+          bulk_eligible: false,
+          data: { id: "5" },
+        },
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T09:00:00Z",
+          student_id: "20",
+          student_name: "Zweites Kind",
+          expected_version: "v6",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "6" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Erstes Kind/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Auswirkung zeigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Zweites Kind/ }));
+    expect(await screen.findByText("master-item-6")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Erstes Kind/ }));
+
+    expect(
+      await screen.findByText("gehalten: Freigegeben."),
+    ).toBeInTheDocument();
   });
 });

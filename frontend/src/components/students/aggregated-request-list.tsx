@@ -47,6 +47,7 @@ import {
 } from "~/components/students/requests/bulk-approval-panel";
 import { HistoryRequestList } from "~/components/students/requests/history-request-list";
 import { RequestCaseDetail } from "~/components/students/requests/request-case-detail";
+import type { HeldOfferingDecision } from "~/components/students/offering-request-review-item";
 import {
   RequestCaseList,
   caseRowID,
@@ -164,12 +165,30 @@ export function AggregatedRequestList({
   // Freigegebene Anfragen, deren Karte noch die Auswirkung zeigt (#5102).
   // Ein Neuladen im Hintergrund liefert sie nicht mehr; ohne diesen Halt
   // verschwände die Karte samt Hinweis, bevor die OGS ihn gelesen hat.
+  // Mit der Anfrage merkt sich die Liste das Ergebnis der Freigabe. Wechselt
+  // die OGS das Kind und kommt zurück, zeigt die Karte es wieder, statt die
+  // schon entschiedene Anfrage erneut zur Entscheidung anzubieten.
   const [heldItems, setHeldItems] = useState<
-    ReadonlyMap<string, AggregatedOpenRequest>
+    ReadonlyMap<
+      string,
+      { request: AggregatedOpenRequest; decision: HeldOfferingDecision }
+    >
   >(() => new Map());
-  const handleHold = useCallback((request: AggregatedOpenRequest) => {
-    setHeldItems((current) => new Map(current).set(itemKey(request), request));
-  }, []);
+  const handleHold = useCallback(
+    (request: AggregatedOpenRequest, decision: HeldOfferingDecision) => {
+      setHeldItems((current) =>
+        new Map(current).set(itemKey(request), { request, decision }),
+      );
+    },
+    [],
+  );
+  const heldDecisions = useMemo(
+    () =>
+      new Map(
+        [...heldItems].map(([key, held]) => [key, held.decision] as const),
+      ),
+    [heldItems],
+  );
 
   const handleDecided = useCallback(
     (key: string, decidedNotice: string) => {
@@ -205,9 +224,9 @@ export function AggregatedRequestList({
   const shownItems = useMemo(() => {
     if (heldItems.size === 0) return items;
     const loaded = new Set(items.map(itemKey));
-    const held = [...heldItems.values()].filter(
-      (item) => !loaded.has(itemKey(item)),
-    );
+    const held = [...heldItems.values()]
+      .map((entry) => entry.request)
+      .filter((item) => !loaded.has(itemKey(item)));
     return [...items, ...held];
   }, [items, heldItems]);
   const openCases = useMemo(
@@ -461,6 +480,7 @@ export function AggregatedRequestList({
                   onSelectionChange={handleBulkSelection}
                   onDecided={handleDecided}
                   onHold={handleHold}
+                  held={heldDecisions}
                   onProtectionChanged={handleProtectionChanged}
                   onReload={handleStale}
                   onNotice={showSuccess}

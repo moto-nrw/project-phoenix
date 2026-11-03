@@ -20,7 +20,10 @@ import { CareRequestReviewItem } from "~/components/students/care-request-review
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
 import { ExcusedRequestReviewItem } from "~/components/students/excused-request-review-item";
 import { MasterDataReviewItem } from "~/components/students/master-data-review-item";
-import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
+import {
+  OfferingRequestReviewItem,
+  type HeldOfferingDecision,
+} from "~/components/students/offering-request-review-item";
 import { createLogger } from "~/lib/logger";
 import {
   markRequestDone,
@@ -43,12 +46,14 @@ function OpenRequestContent({
   request,
   onDecided,
   onHold,
+  held,
   decisionDisabledReason,
   approveReasonRequired,
 }: Readonly<{
   request: AggregatedOpenRequest;
   onDecided: (notice: string) => void;
-  onHold?: () => void;
+  onHold?: (decision: HeldOfferingDecision) => void;
+  held?: HeldOfferingDecision;
   decisionDisabledReason?: string;
   approveReasonRequired: boolean;
 }>) {
@@ -83,6 +88,7 @@ function OpenRequestContent({
           row={request.data}
           onDecided={onDecided}
           onHold={onHold}
+          held={held}
           grouped
           expectedVersion={request.expected_version}
           decisionDisabledReason={decisionDisabledReason}
@@ -114,6 +120,7 @@ export function RequestDecisionRow({
   onSelectionChange,
   onDecided,
   onHold,
+  held,
   onStale,
 }: Readonly<{
   request: AggregatedOpenRequest;
@@ -127,11 +134,18 @@ export function RequestDecisionRow({
   onSelectionChange: (key: string, checked: boolean) => void;
   onDecided: (key: string, notice: string) => void;
   /** Die Karte zeigt nach der Entscheidung noch etwas an (#5102). */
-  onHold?: (request: AggregatedOpenRequest) => void;
+  onHold?: (
+    request: AggregatedOpenRequest,
+    decision: HeldOfferingDecision,
+  ) => void;
+  /** Gehaltene Freigabe dieser Anfrage, falls die Karte noch offen ist. */
+  held?: HeldOfferingDecision;
   onStale: () => void;
 }>) {
   const key = itemKey(request);
-  const hold = onHold ? () => onHold(request) : undefined;
+  const hold = onHold
+    ? (decision: HeldOfferingDecision) => onHold(request, decision)
+    : undefined;
   const [markingDone, setMarkingDone] = useState(false);
   const actionErrors = useApiErrorDisplay();
 
@@ -141,6 +155,7 @@ export function RequestDecisionRow({
         request={request}
         onDecided={(notice) => onDecided(key, notice)}
         onHold={hold}
+        held={held}
         approveReasonRequired={approveReasonRequired}
       />
     );
@@ -245,6 +260,7 @@ export function RequestDecisionRow({
           request={request}
           onDecided={(notice) => onDecided(key, notice)}
           onHold={hold}
+          held={held}
           decisionDisabledReason={disabledReason}
           approveReasonRequired={approveReasonRequired}
         />
