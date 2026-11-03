@@ -563,8 +563,15 @@ vi.mock("~/lib/arrival-schedule-helpers", () => ({
 
 const mockSchoolCheckinStudent = vi.fn();
 vi.mock("~/lib/student-api", () => ({
-  schoolCheckinStudent: (studentId: string, action: "in" | "out") =>
-    mockSchoolCheckinStudent(studentId, action) as Promise<
+  schoolCheckinStudent: (
+    studentId: string,
+    action: "in" | "out",
+    note?: string,
+    reason?: string,
+  ) =>
+    (reason
+      ? mockSchoolCheckinStudent(studentId, action, note, reason)
+      : mockSchoolCheckinStudent(studentId, action)) as Promise<
       Record<string, unknown>
     >,
 }));

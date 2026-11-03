@@ -121,8 +121,6 @@ interface AttendanceSession {
   checkOutTime: Date | null;
   durationMinutes: number | null;
   checkOutNote: string | null;
-  /** The child left for class at this time (#5656). Not a departure. */
-  leftForClassAt: Date | null;
 }
 
 interface AttendanceSlot {
