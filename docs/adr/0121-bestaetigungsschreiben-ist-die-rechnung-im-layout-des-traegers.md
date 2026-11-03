@@ -224,3 +224,38 @@ zu (sie nennt sie auch Adressnummer). Dieser Nachtrag ersetzt die Regel
   kein Import aus dem Finanzverfahren, keine Prüfung des Formats, kein frei
   einstellbarer Zahlungstext. Die Kundennummer des Zahlers für alle
   Leistungen kommt weiter mit #4689.
+
+## Nachtrag 2026-11-03: Zahlungstext des Trägers (#5622)
+
+Das bisherige Schreiben der Gemeinde Bissendorf bittet zusätzlich Familien mit
+SEPA-Lastschriftmandat, nicht zu überweisen. Wer ein Mandat erteilt hat, weiß
+nur der Fachdienst Finanzen; der Satz steht deshalb in jedem Schreiben. Dieser
+Nachtrag ändert Punkt 5 („Ein Satz zum Lastschriftmandat fehlt“) und Punkt 6:
+
+- **Text des Trägers.** Der Zahlungssatz ist ein Text des Trägers mit festen
+  Platzhaltern: die Träger-Einstellung `parent_billing.payment_text`
+  („Zahlungstext im Schreiben“, Ebene `traeger`, Typ `textarea`, Recht
+  „Einstellungen“, Reiter „Ferienbetreuung“ neben dem Schalter aus #5621).
+  Die Elternabrechnung liest ihn wie die Texte des Briefkopfs über
+  `TraegerTexts` in der Träger-Transaktion (`Letterhead.PaymentText`).
+- **Platzhalter.** `{Betrag}`, `{Zahlungsfrist}`, `{Rechnungsnummer}` und
+  `{Debitorennummer}`, in der Schreibweise der Rechnungsnummern-Muster.
+  Betrag und Datum haben das Format des eingebauten Satzes. Andere Texte in
+  geschweiften Klammern, eine offene Klammer und mehr als 600 Zeichen lehnt
+  das Speichern ab (`Validation.Pattern` mit `AllowEmpty`, neu
+  `Validation.MaxLength`). Jede Änderung steht in
+  `config.traeger_setting_audit`.
+- **Leer heißt eingebaut.** Ohne eigenen Text bleibt der Satz aus Punkt 5 mit
+  der Regel aus #5621. Bei 0 € bleibt „Sie müssen für diese Betreuung nichts
+  bezahlen.“, auch mit eigenem Text. Der Satz bleibt fett.
+- **Keine Lücke.** Nennt der Text `{Debitorennummer}` und hat eine Rechnung
+  des Laufs mit Betrag keine Nummer, lehnen Vorschau und Erstellen der
+  Schreiben mit 409 ab (`parent_billing.payment_text_debtor_number_missing`,
+  in `details` die Zahl und die Rechnungsnummern); nichts wird gespeichert.
+- **Fertige Schreiben bleiben** (Punkt 3). Ein neuer Text gilt für die nächsten
+  erstellten Schreiben.
+- **Vorgriff, kein Ersatz.** Das ist ein kleiner Vorgriff auf die Vorlagen je
+  Träger (#4677, Story 91), die den Text später in ihre Vorlagenverwaltung
+  übernehmen. Ein Satz je Familie nach Mandat kommt mit den Mandaten je Zahler
+  (#4695) und dem Zahlungsweg je Familie (#4689); einen Zahlungstext je Lauf
+  gibt es nicht.

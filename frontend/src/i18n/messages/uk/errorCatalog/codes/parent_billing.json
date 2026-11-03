@@ -25,5 +25,6 @@
   "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "parent_document_not_found": "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+  "payment_text_debtor_number_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

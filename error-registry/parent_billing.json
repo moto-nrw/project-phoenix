@@ -139,6 +139,14 @@
       "legacy": "parent_billing.letterhead_too_long"
     },
     {
+      "code": "parent_billing.payment_text_debtor_number_missing",
+      "class": "business_rejection",
+      "parameters": [
+        "count"
+      ],
+      "legacy": "parent_billing.payment_text_debtor_number_missing"
+    },
+    {
       "code": "parent_billing.billing_letters_missing",
       "class": "business_rejection",
       "parameters": [],
