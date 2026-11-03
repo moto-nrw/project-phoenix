@@ -44,7 +44,7 @@ func (s *editReviewStore) ReadHolidayAnswers(context.Context, int64, int64, int6
 		Children: []enrollment.HolidayChildAnswers{{ChildID: 11, CustomData: enrollment.HolidayAnswers{}}}}}, nil
 }
 
-func (s *editReviewStore) WriteHolidayRegistrationDetails(context.Context, int64, int64, []int64, enrollment.HolidayRegistrationInput) error {
+func (s *editReviewStore) WriteHolidayRegistrationDetails(context.Context, int64, int64, enrollment.HolidayRegistrationInput, []int64, []bool) error {
 	s.written++
 	return nil
 }

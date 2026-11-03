@@ -22,18 +22,25 @@ const (
 			guardian_address_city = NULLIF(?, ''),
 			custom_data = ?::jsonb
 		WHERE organization_id = ? AND id = ?`
+	// updateHolidayChildDetailsQuery leaves the school alone: the check of
+	// the school runs on every write of home_school_id, and a school the
+	// Träger has deleted since stays the child's school.
 	updateHolidayChildDetailsQuery = `UPDATE enrollment.holiday_registration_children SET
-			first_name = ?, last_name = ?, birth_date = ?::date, home_school_id = NULLIF(?::bigint, 0),
-			guest_school_name = ?, custom_data = ?::jsonb
+			first_name = ?, last_name = ?, birth_date = ?::date, guest_school_name = ?, custom_data = ?::jsonb
+		WHERE organization_id = ? AND holiday_registration_id = ? AND id = ?`
+	updateHolidayChildDetailsAndSchoolQuery = `UPDATE enrollment.holiday_registration_children SET
+			first_name = ?, last_name = ?, birth_date = ?::date, guest_school_name = ?, custom_data = ?::jsonb,
+			home_school_id = NULLIF(?::bigint, 0)
 		WHERE organization_id = ? AND holiday_registration_id = ? AND id = ?`
 	deleteHolidayContactsQuery = `DELETE FROM enrollment.holiday_registration_contacts
 		WHERE organization_id = ? AND holiday_registration_id = ?`
 )
 
 // WriteHolidayRegistrationDetails writes the registration, one statement per
-// child, and replaces the contacts: delete, then one insert for all.
-func (s *HolidayRegistrationStore) WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, childIDs []int64, details enrollment.HolidayRegistrationInput) error {
-	if len(childIDs) != len(details.Children) {
+// changed child, the school only when it changed, and replaces the
+// contacts: delete, then one insert for all.
+func (s *HolidayRegistrationStore) WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, details enrollment.HolidayRegistrationInput, childIDs []int64, schoolChanged []bool) error {
+	if len(childIDs) != len(details.Children) || len(schoolChanged) != len(details.Children) {
 		return errors.New("enrollment postgres: the child IDs do not match the children")
 	}
 	db, err := traegerDB(ctx, organizationID)
@@ -61,8 +68,12 @@ func (s *HolidayRegistrationStore) WriteHolidayRegistrationDetails(ctx context.C
 		if err != nil {
 			return err
 		}
-		if _, err := db.NewRaw(updateHolidayChildDetailsQuery, child.FirstName, child.LastName, child.BirthDate.String(),
-			child.HomeSchoolID, child.GuestSchoolName, childAnswers, organizationID, registrationID, childIDs[i]).Exec(ctx); err != nil {
+		query, args := updateHolidayChildDetailsQuery, []any{child.FirstName, child.LastName, child.BirthDate.String(),
+			child.GuestSchoolName, childAnswers}
+		if schoolChanged[i] {
+			query, args = updateHolidayChildDetailsAndSchoolQuery, append(args, child.HomeSchoolID)
+		}
+		if _, err := db.NewRaw(query, append(args, organizationID, registrationID, childIDs[i])...).Exec(ctx); err != nil {
 			return fmt.Errorf("enrollment postgres: update holiday registration child details: %w", err)
 		}
 	}

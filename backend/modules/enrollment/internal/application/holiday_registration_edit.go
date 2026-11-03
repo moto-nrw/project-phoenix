@@ -75,10 +75,30 @@ func (h *HolidayRegistrationReview) edit(ctx context.Context, organizationID int
 	if len(fields) == 0 {
 		return nil, nil
 	}
-	if err := h.store.WriteHolidayRegistrationDetails(ctx, organizationID, current.ID, stored.childIDs, next); err != nil {
+	write, childIDs, schoolChanged := holidayChangedChildren(stored, next)
+	if err := h.store.WriteHolidayRegistrationDetails(ctx, organizationID, current.ID, write, childIDs, schoolChanged); err != nil {
 		return nil, fmt.Errorf("enrollment: write holiday registration details: %w", err)
 	}
 	return fields, nil
+}
+
+// holidayChangedChildren keeps only the children the edit changed, with
+// their IDs and whether their school changed: an unchanged child is not
+// written again.
+func holidayChangedChildren(stored holidayStoredDetails, next enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationInput, []int64, []bool) {
+	write := next
+	write.Children = nil
+	childIDs, schoolChanged := []int64{}, []bool{}
+	for i, before := range stored.input.Children {
+		after := next.Children[i]
+		if len(holidayChildFields("", before, after)) == 0 {
+			continue
+		}
+		write.Children = append(write.Children, after)
+		childIDs = append(childIDs, stored.childIDs[i])
+		schoolChanged = append(schoolChanged, before.HomeSchoolID != after.HomeSchoolID)
+	}
+	return write, childIDs, schoolChanged
 }
 
 // storedDetails reads what the edit may change, without health information.

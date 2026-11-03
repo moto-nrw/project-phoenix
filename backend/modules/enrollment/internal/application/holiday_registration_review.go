@@ -59,12 +59,14 @@ type HolidayReviewStore interface {
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
 	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
 	// WriteHolidayRegistrationDetails writes the details of a locked
-	// registration (#5629): both guardians, the family's answers, the
-	// details and answers of each child (childIDs in the order of
-	// details.Children) and the contacts. The answers carry no health
-	// information; the bookings, the consents and the sealed health
+	// registration (#5629): both guardians with the address, the family's
+	// answers, the contacts, and the details and answers of the changed
+	// children only: details.Children, with childIDs and schoolChanged in
+	// the same order. A school is written only when it changed, so a child
+	// keeps a school the Träger has deleted since. The answers carry no
+	// health information; the bookings, the consents and the sealed health
 	// information stay as they are.
-	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, childIDs []int64, details enrollment.HolidayRegistrationInput) error
+	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, details enrollment.HolidayRegistrationInput, childIDs []int64, schoolChanged []bool) error
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }

@@ -548,3 +548,19 @@ func TestTraegerEditRemovesAnOptionalAddressAndRefusesOneTheFormDoesNotAsk(t *te
 	assert.ElementsMatch(t, []string{"guardian_address.city", "guardian_address.postal_code", "guardian_address.street"}, fields,
 		"the form of this registration asks for no address")
 }
+
+// A child whose school the Träger has deleted since keeps it: an edit of the
+// parents or the family's answers does not write the child again, so the
+// check of the school does not refuse it.
+func TestTraegerEditKeepsAChildWhoseSchoolWasDeleted(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Bearbeiten gelöschte Schule")
+	_, err := f.db.ExecContext(t.Context(), `UPDATE platform.schools SET deleted_at = now() WHERE id = ?`, f.offer.Schools[0].ID)
+	require.NoError(t, err)
+
+	edited := f.edited(t, f.editDetails(t, f.siblings, editedGuardians("0151 7777777", nil)))
+	assert.Equal(t, "0151 7777777", edited.GuardianPhone)
+	require.NotNil(t, edited.Children[0].HomeSchoolID, "Lia keeps the deleted school")
+	assert.Equal(t, f.offer.Schools[0].ID, *edited.Children[0].HomeSchoolID)
+	assert.Equal(t, []any{"guardian.phone"}, edited.History[len(edited.History)-1].Details["fields"])
+}
