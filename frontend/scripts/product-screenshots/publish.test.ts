@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import type { Publisher } from "./publish";
 import { drivePublisher } from "./publish-drive";
@@ -505,6 +505,11 @@ test("Drive: ein Serverfehler nach dem Anlegen erzeugt beim erneuten Lauf kein D
 test.each(["rateLimitExceeded", "userRateLimitExceeded"])(
   "Drive: %s wiederholt abgewiesene Lese-, Anlege- und Update-Anfragen",
   async (reason) => {
+    // Der Adapter wartet vor jedem neuen Versuch echte Sekunden. Die
+    // Fake-Uhr springt nach jeder Makroaufgabe zum nächsten Timer, also läuft
+    // derselbe Backoff ohne Wartezeit.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    vi.setTimerTickMode("nextTimerAsync");
     for (const method of ["GET", "POST", "PATCH"]) {
       const target = driveTarget({
         rejectedRequest: { method, status: 403, reason },
