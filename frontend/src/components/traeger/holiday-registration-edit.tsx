@@ -15,13 +15,11 @@ import {
 } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   buildFieldsByKey,
@@ -314,6 +312,9 @@ function ContactFields({
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-semibold text-gray-900">{title}</legend>
+      <p className="text-sm text-gray-700">
+        Einen Eintrag entfernen Sie, indem Sie alle seine Felder leeren.
+      </p>
       {/* A missing emergency contact names the list, not one entry. */}
       <FieldErrorHint id={`${prefix}-error`} message={fieldError(prefix)} />
       {contacts.map((contact, index) => {
@@ -321,7 +322,7 @@ function ContactFields({
         return (
           <div
             key={contact.key}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <Input
               name={`${path}.name`}
@@ -351,18 +352,6 @@ function ContactFields({
               onChange={(event) =>
                 set(index, { relationship: event.target.value })
               }
-            />
-            <OverflowMenu
-              ariaLabel={`Aktionen für ${label} ${index + 1}`}
-              triggerSize="sm"
-              items={[
-                {
-                  label: `${label} ${index + 1} entfernen`,
-                  destructive: true,
-                  onClick: () =>
-                    onChange(contacts.filter((_, i) => i !== index)),
-                },
-              ]}
             />
           </div>
         );
@@ -405,6 +394,15 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   const [pickup, setPickup] = useState<readonly ContactDraft[]>(() =>
     drafts("pickup"),
   );
+  // An entry with every field empty is removed. The form keeps the
+  // remaining entries, so a refused field lands at its row.
+  const filled = (contacts: readonly ContactDraft[]) =>
+    contacts.filter(
+      (contact) =>
+        contact.name.trim() !== "" ||
+        contact.phone.trim() !== "" ||
+        contact.relationship.trim() !== "",
+    );
   const plain = (contacts: readonly ContactDraft[]) =>
     contacts.map(({ name, phone, relationship }) => ({
       name,
@@ -414,9 +412,18 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   return (
     <EditForm
       {...props}
-      edit={() => ({
-        contacts: { emergency: plain(emergency), pickup: plain(pickup) },
-      })}
+      edit={() => {
+        const keptEmergency = filled(emergency);
+        const keptPickup = filled(pickup);
+        setEmergency(keptEmergency);
+        setPickup(keptPickup);
+        return {
+          contacts: {
+            emergency: plain(keptEmergency),
+            pickup: plain(keptPickup),
+          },
+        };
+      }}
     >
       {(fieldError) => (
         <>
@@ -482,16 +489,21 @@ function Questions({
             tr={germanText}
             renderStructured={() =>
               field.type === "date" ? (
-                <ISODatePicker
+                // The native date field of the kit Input: the calendar of
+                // the date picker would double the page's bundle growth
+                // for a rarely used question type.
+                <Input
+                  type="date"
                   name={name}
                   label={field.label}
+                  required={field.required}
                   value={
                     typeof answers[field.key] === "string"
                       ? (answers[field.key] as string)
                       : ""
                   }
                   error={fieldError(name)}
-                  onChange={(value) => set(field.key, value)}
+                  onChange={(event) => set(field.key, event.target.value)}
                 />
               ) : null
             }
