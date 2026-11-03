@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers, setTestClock } from "~/test/clock";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act, waitFor as waitForDOM } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
@@ -8,6 +8,12 @@ import {
   useSupervision,
   useOptionalSupervision,
 } from "./supervision-context";
+
+// renderHook updates result.current without a DOM mutation, so waitFor only
+// rechecks on its interval. Poll the same assertions more promptly; keep
+// Testing Library's timeout and real timers.
+const waitFor: typeof waitForDOM = (callback, options) =>
+  waitForDOM(callback, { interval: 5, ...options });
 
 // Mock next-auth
 vi.mock("next-auth/react", () => ({

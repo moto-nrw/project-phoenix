@@ -138,7 +138,9 @@ func setupPackageTestDB(t testing.TB) {
 // SetupClosableTestDB returns a PRIVATE pool against the package clone for
 // tests that deliberately close their database to provoke errors. Closing
 // the shared SetupTestDB pool would kill every later test in the binary;
-// closing this one affects nobody else. The caller owns the close.
+// closing this one affects nobody else. The caller owns the close. Tests that
+// run database I/O inside a testing/synctest bubble also use it, so pool wait
+// channels never cross the bubble; warm it with fixtures before synctest.Test.
 func SetupClosableTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 

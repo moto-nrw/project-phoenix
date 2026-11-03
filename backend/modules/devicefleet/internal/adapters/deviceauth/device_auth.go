@@ -409,11 +409,12 @@ func SecureCompareStrings(a, b string) bool {
 const lastSeenDebounceWindow = 60 * time.Second
 
 type lastSeenDebounceState struct {
-	mu            sync.Mutex
-	lastPersisted time.Time
-	latestSeen    time.Time
-	flushTimer    *time.Timer
-	writeInFlight bool
+	mu             sync.Mutex
+	lastPersisted  time.Time
+	retryNotBefore time.Time
+	latestSeen     time.Time
+	flushTimer     *time.Timer
+	writeInFlight  bool
 }
 
 // LastSeenDebouncer coalesces last_seen writes per device so a chatty kiosk
@@ -476,16 +477,23 @@ func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, devices DeviceD
 		)
 		state.mu.Lock()
 		state.writeInFlight = false
+		now := time.Now()
+		if !state.lastPersisted.IsZero() {
+			// A failed flush must not reuse an already elapsed debounce window.
+			// Initial request failures still allow the next request to try immediately.
+			state.retryNotBefore = now.Add(lastSeenDebounceWindow)
+		}
 		if state.latestSeen.After(observedAt) {
 			state.lastPersisted = observedAt
 		}
-		d.scheduleDeferredFlushLocked(devices, id, state, time.Now())
+		d.scheduleDeferredFlushLocked(devices, id, state, now)
 		state.mu.Unlock()
 		return
 	}
 
 	state.mu.Lock()
 	state.lastPersisted = observedAt
+	state.retryNotBefore = time.Time{}
 	state.writeInFlight = false
 	d.scheduleDeferredFlushLocked(devices, id, state, time.Now())
 	state.mu.Unlock()
@@ -520,7 +528,11 @@ func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(devices DeviceDirectory,
 		return
 	}
 
-	delay := state.lastPersisted.Add(lastSeenDebounceWindow).Sub(now)
+	nextFlush := state.lastPersisted.Add(lastSeenDebounceWindow)
+	if state.retryNotBefore.After(nextFlush) {
+		nextFlush = state.retryNotBefore
+	}
+	delay := nextFlush.Sub(now)
 	if delay < 0 {
 		delay = 0
 	}

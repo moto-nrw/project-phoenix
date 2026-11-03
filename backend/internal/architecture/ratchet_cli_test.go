@@ -1090,7 +1090,16 @@ func ratchetRepository(t *testing.T, baseline string) (string, string) {
 
 func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string, string) {
 	t.Helper()
+	template := ratchetRepositoryTemplate(t, baseline, policy)
 	repo := t.TempDir()
+	if err := os.CopyFS(repo, os.DirFS(template.directory)); err != nil {
+		t.Fatalf("copy ratchet repository template: %v", err)
+	}
+	return repo, template.base
+}
+
+func initializeRatchetRepository(t *testing.T, repo, baseline, policy string) string {
+	t.Helper()
 	if err := os.CopyFS(repo, os.DirFS(fixturePath(t, "valid"))); err != nil {
 		t.Fatalf("copy project fixture: %v", err)
 	}
@@ -1103,7 +1112,7 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	runGit(t, repo, "config", "commit.gpgsign", "false")
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "base")
-	return repo, strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	return strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 }
 
 func ratchetRepositoryWithMigrationPackage(t *testing.T, baseMigration string) (string, string, string) {
