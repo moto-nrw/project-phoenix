@@ -14,8 +14,8 @@ func init() {
 		Version:     holidayGuestHomeSchoolNameVersion,
 		Description: "Feriengast nennt seine Heimatschule in Gruppe, Kinderliste, Aufsicht und Kindakte der ausrichtenden OGS (#5630)",
 		DependsOn: []string{
-			holidayRegistrationDeclarationVersion, // the last migration before this one
-			holidayGuestsVersion,                  // enrollment.holiday_guests
+			holidayDebtorNumberVersion, // the last migration before this one
+			holidayGuestsVersion,       // enrollment.holiday_guests
 		},
 	})
 	Migrations.MustRegister(holidayGuestHomeSchoolNameUp, holidayGuestHomeSchoolNameDown)
