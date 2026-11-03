@@ -45,7 +45,9 @@ function selectionMode(files) {
   // Every other path/type outside this allowlist defaults to the full suite.
   const sourceModule = /^frontend\/src\/(?:app|components|contexts|hooks|i18n|lib|server)\/.+\.(?:[cm]?[jt]s|[jt]sx)$/;
   const frontend = [...changed].filter(file => file.startsWith("frontend/") && !file.endsWith(".md"));
-  if (frontend.some(file => !sourceModule.test(file)) ||
+  // Its behavior suite is an unconditional external guard, including on deletion.
+  if (frontend.some(file => !sourceModule.test(file) &&
+    file !== "frontend/scripts/product-screenshots/quality.ts") ||
     ["scripts/test-frontend-changed.mjs", "scripts/test-frontend-changed.test.mjs",
       "scripts/test-changed.sh", "scripts/test-changed_test.sh",
       ".github/workflows/main.yml", ".github/workflows/test.yml"].some(file => changed.has(file))) return "full";

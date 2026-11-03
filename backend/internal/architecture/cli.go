@@ -54,6 +54,8 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 		return runDiagram(args[1:])
 	case "dependencies":
 		return runDependencies(args[1:])
+	case "projections":
+		return runProjections(args[1:])
 	case "cycles":
 		return runCycles(args[1:])
 	default:

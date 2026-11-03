@@ -27,24 +27,28 @@ func TestParentHTTPPermissionsRequireReviewedEpoch(t *testing.T) {
 
 func TestParentHTTPEpochGrantsOnlyTheNamedRuntimes(t *testing.T) {
 	t.Parallel()
-	for _, rule := range []Rule{
+	candidate := repositoryPolicy(t)
+	// Keep the unrelated owner independent of production owner retirements.
+	candidate.Owners = append(candidate.Owners, Owner{ID: "other-tool", Kind: "tool"})
+	base := *candidate
+	base.PolicyEpoch--
+	extraRules := []Rule{
 		{ID: "parent.application", Description: "test", SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "application", Scopes: []string{"production"}},
 		{ID: "parent.orm", Description: "test", SourceOwner: "parent-portal", SourceRole: "http", TargetClass: "orm-sql", Scopes: []string{"production"}},
 		{ID: "parent.models", Description: "test", SourceOwner: "parent-portal", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 		{ID: "parent.composition", Description: "test", SourceOwner: "parent-portal", SourceRole: "adapter-test", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: []string{"external_test"}},
 		{ID: "other.http", Description: "test", SourceOwner: "other-tool", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
-	} {
-		candidate := repositoryPolicy(t)
-		// Keep the unrelated owner independent of production owner retirements.
-		candidate.Owners = append(candidate.Owners, Owner{ID: "other-tool", Kind: "tool"})
-		base := *candidate
-		base.PolicyEpoch--
-		widened := *candidate
-		widened.Rules = append(slices.Clone(candidate.Rules), rule)
-		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
-		if err == nil || !strings.Contains(err.Error(), rule.ID) {
-			t.Fatalf("%s escaped the guard: %v", rule.ID, err)
-		}
+	}
+	batch := *candidate
+	batch.Rules = append(slices.Clone(candidate.Rules), extraRules...)
+	err := comparePolicyStrictness(&base, &batch, noCreated(), noCreated(), noCreated(), noCreated(), nil)
+	for _, rule := range extraRules {
+		t.Run(rule.ID, func(t *testing.T) {
+			if err == nil || !strings.Contains(err.Error(), rule.ID) {
+				t.Fatalf("%s escaped the guard: %v", rule.ID, err)
+			}
+			assertIsolatedRuleLoosening(t, &base, candidate, rule)
+		})
 	}
 }
 

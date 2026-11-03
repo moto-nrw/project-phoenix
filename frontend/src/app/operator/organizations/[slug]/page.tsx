@@ -501,7 +501,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         </button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="compact"
           onClick={() => setEditOrgOpen(true)}
         >

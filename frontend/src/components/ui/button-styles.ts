@@ -1,6 +1,5 @@
 export type ButtonVariant =
   | "primary"
-  | "secondary"
   | "outline"
   | "outline_danger"
   | "danger"
@@ -57,8 +56,6 @@ export function buttonStyles({
   const variantStyles: Record<ButtonVariant, string> = {
     primary:
       "bg-gray-900 text-white shadow-md hover:bg-gray-700 hover:shadow-lg",
-    secondary:
-      "bg-gray-200 text-gray-800 shadow-md hover:bg-gray-300 hover:shadow-md",
     outline:
       "bg-transparent text-gray-700 ring-1 ring-gray-300 shadow-md hover:bg-gray-50 hover:ring-gray-400",
     outline_danger:
@@ -96,9 +93,10 @@ export function buttonStyles({
     // Schwebender Anlegen-Knopf: rund, 56 px, grün wie `success`. Bringt sein
     // Maß selbst mit; die Größe des Aufrufs spielt keine Rolle.
     fab: "size-14 rounded-full p-0 bg-moto-green-fill text-white shadow-lg hover:bg-moto-green-fill-hover hover:shadow-xl active:bg-moto-green-fill-active",
-    // Gestrichelte Hinzufügen-Fläche („Weitere Nummer hinzufügen“).
+    // Gestrichelte Hinzufügen-Fläche („Weitere Nummer hinzufügen“). Ruht
+    // ohne Füllung: ein grau gefüllter Knopf passt in keine Rangstufe (#5574).
     dashed:
-      "border border-dashed border-gray-300 bg-gray-50 text-gray-600 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700",
+      "border border-dashed border-gray-300 bg-transparent text-gray-600 hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700",
   };
   // Fingerregel (#5531): Bei Bedienung per Finger ist jeder Kit-Knopf
   // mindestens 44 px hoch (Apple HIG 44 pt), `icon` auch 44 px breit. Mit Maus
