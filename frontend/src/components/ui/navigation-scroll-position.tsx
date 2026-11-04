@@ -20,15 +20,19 @@ const USER_INPUT_EVENTS = [
  * Position danach noch einmal auf ihre kurze Höhe drücken. Wer inzwischen selbst
  * scrollt oder klickt, behält die eigene Position.
  */
-function restoreScrollPosition(top: number): () => void {
+function restoreScrollPosition(top: number, onStop: () => void): () => void {
   const deadline = performance.now() + RESTORE_TIMEOUT_MS;
   const pathname = window.location.pathname;
   let frame = 0;
+  let stopped = false;
   const stop = () => {
+    if (stopped) return;
+    stopped = true;
     cancelAnimationFrame(frame);
     for (const type of USER_INPUT_EVENTS) {
       window.removeEventListener(type, stop);
     }
+    onStop();
   };
   const step = () => {
     if (
@@ -82,16 +86,24 @@ export function NavigationScrollPosition() {
   const lastCommitAt = useRef(Number.NEGATIVE_INFINITY);
   const traversalBeforeCommit = useRef(false);
   // Aus dem Scroll-Ereignis, nicht aus `window.scrollY` beim Wechsel: Dort hat
-  // der Browser die Position schon auf die Höhe der neuen Seite begrenzt.
+  // der Browser die Position schon auf die Höhe der neuen Seite begrenzt. Ein
+  // geplanter Reset setzt ihn vor dem nächsten Frame bewusst auf 0.
   const lastScrollY = useRef(0);
   const scrollPositions = useRef(new Map<string, number>());
   const resetFrame = useRef<number | undefined>(undefined);
   const stopRestore = useRef<(() => void) | undefined>(undefined);
+  const isRestoring = useRef(false);
 
   useEffect(() => {
     committedUrl.current = currentUrl();
     const handleScroll = () => {
       lastScrollY.current = window.scrollY;
+      if (!isRestoring.current) {
+        scrollPositions.current.set(
+          committedPathname.current,
+          lastScrollY.current,
+        );
+      }
     };
     const handleHistoryTraversal = () => {
       const target = window.location.pathname;
@@ -118,12 +130,17 @@ export function NavigationScrollPosition() {
       }
       const position = scrollPositions.current.get(target);
       stopRestore.current?.();
+      isRestoring.current = false;
       // Sprungmarken sind eine ausdrückliche Zielposition und gewinnen gegen
       // die gemerkte Position des Pfads.
-      stopRestore.current =
-        window.location.hash === "" && position !== undefined
-          ? restoreScrollPosition(position)
-          : undefined;
+      if (window.location.hash === "" && position !== undefined) {
+        isRestoring.current = true;
+        stopRestore.current = restoreScrollPosition(position, () => {
+          isRestoring.current = false;
+        });
+      } else {
+        stopRestore.current = undefined;
+      }
     };
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -139,6 +156,7 @@ export function NavigationScrollPosition() {
         cancelAnimationFrame(resetFrame.current);
       }
       stopRestore.current?.();
+      isRestoring.current = false;
     };
   }, []);
 
@@ -167,12 +185,15 @@ export function NavigationScrollPosition() {
     }
 
     stopRestore.current?.();
+    isRestoring.current = false;
     if (window.location.hash !== "") return;
     // Ein Verlaufsschritt kann den Pfad vor `popstate` bestätigen. Bis zum
     // nächsten Frame kann der Handler den Reset noch ohne sichtbaren Sprung
     // durch die Wiederherstellung ersetzen.
+    lastScrollY.current = 0;
     resetFrame.current = requestAnimationFrame(() => {
       resetFrame.current = undefined;
+      scrollPositions.current.set(pathname, 0);
       window.scrollTo({ top: 0, behavior: "instant" });
     });
   }, [pathname]);

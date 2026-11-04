@@ -292,6 +292,49 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
+  it("merkt die Position nach dem Zurück, wenn die Person weiter scrollt", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(300);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+
+    traverseHistory(view, "/access-log", 300);
+    window.dispatchEvent(new Event("wheel"));
+    userScrollsTo(500);
+
+    window.history.replaceState(null, "", "/ferien");
+    firePopState();
+    route.pathname = "/ferien";
+    view.rerender(shell());
+    window.history.replaceState(null, "", "/access-log");
+    firePopState();
+    route.pathname = "/access-log";
+    view.rerender(shell());
+    setScrollY(65);
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: "instant" });
+    });
+  });
+
+  it("merkt für eine abgebrochene Zwischenroute die geplante Startposition", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1000);
+    commitRoute(view, "/ferien");
+    commitRoute(view, "/abrechnung");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    traverseHistory(view, "/ferien", 65);
+    await nextFrame();
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalledWith({
+      top: 1000,
+      behavior: "instant",
+    });
+  });
+
   it("rendert im Leerlauf nicht von selbst neu", async () => {
     vi.useFakeTimers();
     try {
