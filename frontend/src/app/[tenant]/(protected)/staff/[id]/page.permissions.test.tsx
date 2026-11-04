@@ -362,7 +362,7 @@ describe("StaffDetailContent permissions", () => {
     const { container } = render(<StaffDetailContent />);
 
     expect(container.querySelector("img")?.getAttribute("src")).toMatch(
-      /\/api\/staff\/42\/avatar$/,
+      /\/api\/staff\/42\/avatar\?v=avatar$/,
     );
   });
 
