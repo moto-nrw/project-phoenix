@@ -95,7 +95,7 @@ function TimeModelRow({
             stacks, so the button names what it removes. */}
         <Button
           type="button"
-          variant="ghost_danger"
+          variant="ghost"
           size="compact"
           aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
           onClick={onRemove}
