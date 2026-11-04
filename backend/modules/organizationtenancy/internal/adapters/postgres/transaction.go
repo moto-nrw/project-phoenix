@@ -12,6 +12,9 @@ type Transaction struct{}
 func (Transaction) RunAdmin(ctx context.Context, callback func(context.Context) error) error {
 	return TransactionRunAdminBinding(ctx, callback, tenant.WithinAdmin)
 }
+func (Transaction) RunAdminRetry(ctx context.Context, callback func(context.Context) error) error {
+	return TransactionRunAdminBinding(ctx, callback, tenant.WithinAdminRetry)
+}
 func (Transaction) RunTenant(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
 	return TransactionRunTenantBinding(ctx, tenantID, callback, tenant.WithinTenant)
 }
