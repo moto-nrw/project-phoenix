@@ -31,10 +31,11 @@ func insertFigureWorkSession(t *testing.T, db *bun.DB, school, staffID int64, da
 }
 
 // insertOpenVisit records an open room visit in a group of its own.
-func insertOpenVisit(t *testing.T, db *bun.DB, school, studentID int64, entry time.Time) {
+func insertOpenVisit(t *testing.T, db *bun.DB, school, studentID int64, entry time.Time) *testpkg.ActiveGroupRow {
 	t.Helper()
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, school)
 	testpkg.CreateTestVisitForTenant(t, db, school, studentID, group.ID, entry, nil)
+	return group
 }
 
 func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
@@ -51,6 +52,11 @@ func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 	insertOpenVisit(t, db, school, both.ID, earlier)
 	inRoom := testpkg.CreateTestStudentForTenant(t, db, school, "Ria", "Raum", "1a")
 	insertOpenVisit(t, db, school, inRoom.ID, earlier)
+	endedSession := testpkg.CreateTestStudentForTenant(t, db, school, "Eva", "Beendet", "1a")
+	endedGroup := insertOpenVisit(t, db, school, endedSession.ID, earlier)
+	// A historical interrupted close can leave a visit without an exit time.
+	_, err := db.ExecContext(context.Background(), `UPDATE active.groups SET end_time = ? WHERE id = ?`, noon.Add(-time.Hour), endedGroup.ID)
+	require.NoError(t, err)
 	home := testpkg.CreateTestStudentForTenant(t, db, school, "Hans", "Heim", "1a")
 	testpkg.CreateTestAttendanceForTenant(t, db, school, home.ID, staff.ID, device.ID, figuresDay, earlier, &noon)
 	yesterday := testpkg.CreateTestStudentForTenant(t, db, school, "Yara", "Gestern", "1a")
@@ -68,7 +74,7 @@ func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 		assert.Equal(t, map[int64]int{school: 2}, counts, "attendance and visit of one child count once; only open stays of the day; only the given school")
 		return nil
 	}))
-	_, err := studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(testpkg.TenantContext(school), []int64{school}, noon)
+	_, err = studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(testpkg.TenantContext(school), []int64{school}, noon)
 	assert.Error(t, err, "outside the administrative transaction it refuses")
 }
 

@@ -25,8 +25,9 @@ const countPresentStudentsSQL = `SELECT tenant_id, COUNT(*)::int AS count FROM (
   SELECT tenant_id, student_id FROM active.attendance
   WHERE tenant_id = ANY(?0) AND date = ?1::date AND check_out_time IS NULL
   UNION
-  SELECT tenant_id, student_id FROM active.visits
-  WHERE tenant_id = ANY(?0) AND exit_time IS NULL
+  SELECT v.tenant_id, v.student_id FROM active.visits AS v
+  JOIN active.groups AS g ON g.id = v.active_group_id AND g.tenant_id = v.tenant_id
+  WHERE v.tenant_id = ANY(?0) AND v.exit_time IS NULL AND g.end_time IS NULL
 ) AS present GROUP BY tenant_id`
 
 func (c presentStudentCounts) CountPresentStudentsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64]int, error) {
