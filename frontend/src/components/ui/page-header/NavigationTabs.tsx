@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import React, {
   useRef,
   useEffect,
@@ -217,7 +218,9 @@ function MobileTabDropdown({
       </button>
 
       {isOpen && (
-        <div className="moto-popover-surface absolute top-full left-0 z-50 mt-1 min-w-48 overflow-hidden rounded-xl border py-1">
+        <div
+          className={`moto-popover-surface absolute top-full left-0 ${Z_LAYER.dropdown} mt-1 min-w-48 overflow-hidden rounded-xl border py-1`}
+        >
           {items.map((item) => {
             const isActive = item.id === activeTab;
             return (

@@ -9,22 +9,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewContributionRules builds the contribution rules of a Träger. They run
-// in the Träger transaction the Träger-Portal route opens (ADR 0105).
+// NewContributionRules builds the contribution rules and cost bearers (#5627)
+// of a Träger, in the Träger transaction of the portal route (ADR 0105).
 func NewContributionRules() parentbilling.ContributionRules {
 	return application.NewRules(postgres.NewStore())
 }
 
 // NewHolidayContributions builds the holiday contribution (#4664, ADR 0115)
 // over Enrollment's holiday registrations, which the root binds.
-func NewHolidayContributions(registrations parentbilling.HolidayRegistrations) parentbilling.HolidayContributions {
-	return application.NewHolidayContributions(postgres.NewStore(), registrations)
+func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.HolidayContributions {
+	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
 }
 
 // NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) over the
 // holiday registrations the root binds and Document Rendering's lists.
-func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) parentbilling.BillingRuns {
-	return application.NewBillingRuns(postgres.NewStore(), registrations, rendering.NewRenderer(), calendar.TodayDate)
+func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.BillingRuns {
+	return application.NewBillingRuns(postgres.NewStore(), registrations, settings, rendering.NewRenderer(), calendar.TodayDate)
 }
 
 // NewBillingLetterMail builds the mail and print of the letters (#4670,

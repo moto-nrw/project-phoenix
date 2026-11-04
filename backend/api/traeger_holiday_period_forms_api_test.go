@@ -404,7 +404,7 @@ func TestHolidayRegistrationKeepsItsFormVersionAndHealthAnswersStayInTheHealthRe
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	csv := strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")
 	header := strings.SplitN(csv, "\n", 2)[0]
-	assert.True(t, strings.HasSuffix(strings.TrimSpace(header), ";Mögliche Doppelanmeldung;Hinweis der Familie;Darf an Ausflügen teilnehmen;Lieblingsessen;Darf allein nach Hause gehen"),
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(header), ";Mögliche Doppelanmeldung;Hinweis der Familie;Darf an Ausflügen teilnehmen;Lieblingsessen;Darf allein nach Hause gehen;Klasse"),
 		"one column per question without health information of the versions the rows keep, newest first: %s", header)
 	assert.NotContains(t, csv, "Lebensmittelunverträglichkeiten", "no column for health information")
 	assert.NotContains(t, csv, "Laktose-GESUND", "no answer with health information")

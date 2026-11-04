@@ -71,6 +71,8 @@ func assertSeedHolidayRefusalSkipsTheRegistrations(t *testing.T, status int, bod
 		"POST /traeger/holiday-periods/5/publish",
 		"POST /traeger/contribution-rules/",
 		"POST /traeger/contribution-rules/",
+		"GET /traeger/holiday-periods/5/form",
+		"PUT /traeger/holiday-periods/5/form",
 		"POST /traeger/holiday-quotes/link-key",
 		"POST /traeger/holiday-registrations/link-key",
 	}, calls, "the step stops after the refused registration and bills no run")

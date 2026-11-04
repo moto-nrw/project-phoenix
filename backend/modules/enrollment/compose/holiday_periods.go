@@ -39,9 +39,9 @@ func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, heal
 	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, health, students, today)
 }
 
-// NewHolidayGuests builds the hosting school's holiday guests (ADR 0120, #4722).
-func NewHolidayGuests(people enrollment.HolidayGuestPeople, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
-	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, care, health, log, today)
+// NewHolidayGuests builds the hosting school's holiday guests (ADR 0120, #4722, #5630).
+func NewHolidayGuests(people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
+	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, schools, care, health, log, today)
 }
 
 // NewHolidayAccessTrail builds the holiday trail of the Träger-Portal's access

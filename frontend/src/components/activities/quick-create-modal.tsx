@@ -19,10 +19,8 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { createLogger } from "~/lib/logger";
-import { Minus, Plus } from "lucide-react";
-import { InfoIcon } from "@phosphor-icons/react";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { SectionHeader } from "~/components/ui/concept-section-header";
+import { Info, Minus, Plus } from "lucide-react";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "QuickCreateActivityModal" });
 
@@ -375,14 +373,13 @@ export function QuickCreateActivityModal({
 
           {/* Info Card */}
           <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-4">
-            <SectionHeader
+            <SectionCard
+              bare
               // FormModal rendert seinen Titel als h3.
-              level={4}
+              headingLevel={4}
               title="Hinweis"
-              icon={
-                <MotoDuotoneIcon icon={InfoIcon} tone="neutral" size={18} />
-              }
-              subtitle="Die Aktivität ist sofort für NFC-Terminals verfügbar."
+              icon={Info}
+              description="Die Aktivität ist sofort für NFC-Terminals verfügbar."
             />
           </div>
         </form>

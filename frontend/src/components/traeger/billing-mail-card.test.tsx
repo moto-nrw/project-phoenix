@@ -21,6 +21,7 @@ import { BillingMailCard } from "./billing-mail-card";
 
 const mailing = (overrides: Partial<LetterMailing>): LetterMailing => ({
   documentId: "51",
+  kind: "invoice",
   number: "FE-0001",
   recipientFirstName: "Eva",
   recipientLastName: "Muster",
@@ -70,6 +71,19 @@ describe("BillingMailCard", () => {
     for (const fn of Object.values(api)) fn.mockReset();
     downloadBlob.mockReset();
     api.fetchLetterMailings.mockResolvedValue(FAMILIES);
+  });
+
+  it("names a Storno and a Gutschrift by their kind (#4690)", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({}),
+      mailing({ documentId: "54", kind: "cancellation", number: "FE-0004" }),
+      mailing({ documentId: "55", kind: "credit", number: "FE-0005" }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Storno FE-0004")).toBeInTheDocument();
+    expect(screen.getByText("Gutschrift FE-0005")).toBeInTheDocument();
+    expect(screen.getByText("FE-0001")).toBeInTheDocument();
   });
 
   it("shows the state of the mail of every family", async () => {

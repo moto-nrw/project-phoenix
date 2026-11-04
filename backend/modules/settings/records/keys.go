@@ -775,3 +775,15 @@ const (
 	KeyBrandingLetterheadText = "branding.letterhead_text"
 	KeyBrandingFooterText     = "branding.footer_text"
 )
+
+// KeyParentBillingDebtorNumberOnConfirm is the switch of a Träger (#5621):
+// its office enters the debtor number of the family when it confirms a
+// holiday registration, and the letter names it as the reference to pay
+// with. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingDebtorNumberOnConfirm = "parent_billing.debtor_number_on_confirm"
+
+// KeyParentBillingPaymentText is the payment sentence of the confirmation
+// letter of a Träger (#5622): its own text with the placeholders {Betrag},
+// {Zahlungsfrist}, {Rechnungsnummer} and {Debitorennummer}. Empty keeps the
+// built-in sentence. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingPaymentText = "parent_billing.payment_text"

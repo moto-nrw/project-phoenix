@@ -4,6 +4,8 @@
   "emptyTitle": "Ende nuk ka dokumente",
   "emptyDescription": "Kur ofruesi ju dërgon një letër, e gjeni këtu. E merrni edhe me email.",
   "confirmationLetter": "Konfirmim: {period}",
+  "cancellationLetter": "Anulim: {period}",
+  "creditLetter": "Notë krediti: {period}",
   "sender": "Nga: {traeger}",
   "children": "Për",
   "amount": "Shuma",

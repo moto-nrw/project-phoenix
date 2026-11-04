@@ -25,6 +25,18 @@
       "legacy": "parent_billing.contribution_rule_overlap"
     },
     {
+      "code": "parent_billing.debtor_number_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.debtor_number_invalid"
+    },
+    {
+      "code": "parent_billing.debtor_number_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.debtor_number_locked"
+    },
+    {
       "code": "parent_billing.holiday_quote_invalid",
       "class": "input",
       "parameters": [],
@@ -127,6 +139,14 @@
       "legacy": "parent_billing.letterhead_too_long"
     },
     {
+      "code": "parent_billing.payment_text_debtor_number_missing",
+      "class": "business_rejection",
+      "parameters": [
+        "count"
+      ],
+      "legacy": "parent_billing.payment_text_debtor_number_missing"
+    },
+    {
       "code": "parent_billing.billing_letters_missing",
       "class": "business_rejection",
       "parameters": [],
@@ -149,6 +169,78 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.parent_document_not_found"
+    },
+    {
+      "code": "parent_billing.billing_document_correction_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_document_correction_invalid"
+    },
+    {
+      "code": "parent_billing.billing_document_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_document_not_found"
+    },
+    {
+      "code": "parent_billing.invoice_cancelled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_cancelled"
+    },
+    {
+      "code": "parent_billing.invoice_credited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_credited"
+    },
+    {
+      "code": "parent_billing.cost_bearer_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_invalid"
+    },
+    {
+      "code": "parent_billing.cost_bearer_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_not_found"
+    },
+    {
+      "code": "parent_billing.cost_bearer_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_in_use"
+    },
+    {
+      "code": "parent_billing.cost_bearer_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_bearer_inactive"
+    },
+    {
+      "code": "parent_billing.cost_takeover_with_exemption",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.cost_takeover_with_exemption"
+    },
+    {
+      "code": "parent_billing.sibling_group_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_invalid"
+    },
+    {
+      "code": "parent_billing.sibling_group_invoiced",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_invoiced"
+    },
+    {
+      "code": "parent_billing.sibling_group_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_not_found"
     }
   ]
 }

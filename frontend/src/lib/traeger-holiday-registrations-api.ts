@@ -1,4 +1,5 @@
 import {
+  holidayAddressRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -13,6 +14,11 @@ import {
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
+import {
+  type BackendConsentTexts,
+  consentTextsFromBackend,
+  type HolidayConsentTexts,
+} from "./holiday-consent-texts";
 import type {
   HolidayFormField,
   HolidayFormVersion,
@@ -29,7 +35,14 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook";
+  | HolidayRegistrationAction
+  | "confirm"
+  | "rebook"
+  | "debtor_number"
+  | "edit"
+  | "proof_upload"
+  | "sibling_merge"
+  | "sibling_split";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -82,6 +95,11 @@ export interface HolidayRegistrationSummary {
   readonly guardianPhone: string;
   /** The parents state that they receive benefits (#4664). */
   readonly benefitsDeclared: boolean;
+  /**
+   * The family's number in the finance system of the Träger, entered at the
+   * confirmation (#5621); empty without one.
+   */
+  readonly debtorNumber: string;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -149,6 +167,18 @@ export interface HolidayRegistrationEvent {
   readonly childId: string;
   readonly before: readonly HolidayBookingChange[];
   readonly after: readonly HolidayBookingChange[];
+  /**
+   * The debtor number before and after, when a confirmation entered it or a
+   * change changed it (#5621); null otherwise.
+   */
+  readonly debtorNumber: {
+    readonly before: string;
+    readonly after: string;
+  } | null;
+  /** The fields an edit changed, as paths like "guardian.phone" (#5629). */
+  readonly fields: readonly string[];
+  /** The other registrations of a sibling merge or split (#5628). */
+  readonly siblings: readonly string[];
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -161,6 +191,15 @@ interface HolidayRegistrationProof {
 }
 
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
+  /**
+   * Postal address of the parent, when the form asked for it (#5625). Only
+   * the detail and the export name it, the list does not.
+   */
+  readonly guardianAddress: {
+    readonly street: string;
+    readonly postalCode: string;
+    readonly city: string;
+  } | null;
   readonly secondGuardian: {
     readonly firstName: string;
     readonly lastName: string;
@@ -171,6 +210,16 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly privacyConsentAt: string;
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
+  /**
+   * The declaration (#5626): when the parent confirmed the custody and the
+   * name typed to give the declarations; a registration before has neither.
+   */
+  readonly custodyConfirmedAt: string | null;
+  readonly declarationName: string;
+  /** The version of the consent texts; 0 before #4722. */
+  readonly consentVersion: number;
+  /** The German texts of that version; null when they are not kept. */
+  readonly consentTexts: HolidayConsentTexts | null;
   /** Only the detail names the proofs; list and export never do. */
   readonly benefitsProofs: readonly HolidayRegistrationProof[];
   readonly history: readonly HolidayRegistrationEvent[];
@@ -218,6 +267,7 @@ interface BackendSummary {
   guardian_email: string;
   guardian_phone: string;
   benefits_declared?: boolean;
+  debtor_number?: string;
   children?: BackendChild[] | null;
 }
 
@@ -233,6 +283,11 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
+  guardian_address?: {
+    street: string;
+    postal_code: string;
+    city: string;
+  } | null;
   second_guardian?: {
     first_name: string;
     last_name: string;
@@ -243,6 +298,10 @@ interface BackendDetail extends BackendSummary {
   privacy_consent_at: string;
   health_consent_at: string | null;
   binding_confirmed_at: string | null;
+  custody_confirmed_at?: string | null;
+  declaration_name?: string | null;
+  consent_version?: number | null;
+  consent_texts?: BackendConsentTexts | null;
   benefits_proofs?:
     | {
         id: number;
@@ -261,6 +320,9 @@ interface BackendDetail extends BackendSummary {
           child_id?: number;
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
+          debtor_number?: { before: string; after: string } | null;
+          fields?: string[] | null;
+          siblings?: number[] | null;
         } | null;
       }[]
     | null;
@@ -268,6 +330,7 @@ interface BackendDetail extends BackendSummary {
   form?: {
     version: number;
     fields?: HolidayFormField[] | null;
+    address_requirement?: string | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
   } | null;
   custom_data?: Record<string, unknown> | null;
@@ -288,6 +351,7 @@ function summaryFromBackend(
     guardianEmail: registration.guardian_email,
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
+    debtorNumber: registration.debtor_number ?? "",
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -325,6 +389,13 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
+    guardianAddress: registration.guardian_address
+      ? {
+          street: registration.guardian_address.street,
+          postalCode: registration.guardian_address.postal_code,
+          city: registration.guardian_address.city,
+        }
+      : null,
     secondGuardian: registration.second_guardian
       ? {
           firstName: registration.second_guardian.first_name,
@@ -337,6 +408,12 @@ function detailFromBackend(
     privacyConsentAt: registration.privacy_consent_at,
     healthConsentAt: registration.health_consent_at,
     bindingConfirmedAt: registration.binding_confirmed_at,
+    custodyConfirmedAt: registration.custody_confirmed_at ?? null,
+    declarationName: registration.declaration_name ?? "",
+    consentVersion: registration.consent_version ?? 0,
+    consentTexts: registration.consent_texts
+      ? consentTextsFromBackend(registration.consent_texts)
+      : null,
     benefitsProofs: (registration.benefits_proofs ?? []).map((proof) => ({
       id: String(proof.id),
       filename: proof.filename,
@@ -351,12 +428,18 @@ function detailFromBackend(
       childId: event.details?.child_id ? String(event.details.child_id) : "",
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
+      debtorNumber: event.details?.debtor_number ?? null,
+      fields: event.details?.fields ?? [],
+      siblings: (event.details?.siblings ?? []).map(String),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
       legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
       version: registration.form?.version ?? 0,
       fields: registration.form?.fields ?? [],
+      addressRequirement: holidayAddressRequirement(
+        registration.form?.address_requirement,
+      ),
     },
     answers: registration.custom_data ?? {},
     childAnswers: Object.fromEntries(
@@ -381,6 +464,35 @@ export function holidayProofHref(
   proofId: string,
 ): string {
   return `${registrationPath(periodId, registrationId)}/proofs/${encodeURIComponent(proofId)}`;
+}
+
+/**
+ * Uploads a proof of benefits the family brought on paper (#5627) and
+ * returns the registration with its proofs. The backend checks type, size
+ * and content like the parents' upload.
+ */
+export async function uploadHolidayProof(
+  periodId: string,
+  registrationId: string,
+  file: File,
+): Promise<HolidayRegistrationDetail> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await transportFetch(
+    `${registrationPath(periodId, registrationId)}/proofs`,
+    { method: "POST", body, credentials: "include" },
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    data?: BackendDetail;
+  } | null;
+  if (!response.ok || !payload?.data) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      payload,
+    );
+  }
+  return detailFromBackend(payload.data);
 }
 
 /** The query string of a filter, empty values left out. */
@@ -515,6 +627,125 @@ export async function rebookHolidayChild(
   );
 }
 
+/** A person of the registration as the Träger-Büro edits it (#5629). */
+export interface HolidayRegistrationPersonEdit {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email: string;
+  readonly phone: string;
+}
+
+/** The postal address of the parent who registered (#5625). */
+interface HolidayRegistrationAddressEdit {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+}
+
+/** An emergency contact or a person allowed to collect the children. */
+export interface HolidayRegistrationContactEdit {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+/** The details of one child; a null school makes it a holiday guest. */
+interface HolidayRegistrationChildEdit {
+  readonly id: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: string;
+  readonly homeSchoolId: string | null;
+  readonly guestSchoolName: string;
+  /** Its answers to the questions without health information. */
+  readonly answers: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One change of the details (#5629). A section that is absent stays as it
+ * is; a null `secondGuardian` removes the second guardian.
+ */
+export interface HolidayRegistrationEdit {
+  readonly guardians?: {
+    readonly guardian: HolidayRegistrationPersonEdit;
+    /** Null removes the address; the form version decides whether it is asked. */
+    readonly address: HolidayRegistrationAddressEdit | null;
+    readonly secondGuardian: HolidayRegistrationPersonEdit | null;
+  };
+  readonly child?: HolidayRegistrationChildEdit;
+  readonly contacts?: {
+    readonly emergency: readonly HolidayRegistrationContactEdit[];
+    readonly pickup: readonly HolidayRegistrationContactEdit[];
+  };
+  /** The family's answers to the questions without health information. */
+  readonly answers?: Readonly<Record<string, unknown>>;
+}
+
+function personBody(person: HolidayRegistrationPersonEdit) {
+  return {
+    first_name: person.firstName,
+    last_name: person.lastName,
+    email: person.email,
+    phone: person.phone,
+  };
+}
+
+/** The request body; the field names are those of the public form. */
+function holidayRegistrationEditBody(
+  edit: HolidayRegistrationEdit,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (edit.guardians) {
+    body.guardian = personBody(edit.guardians.guardian);
+    const address = edit.guardians.address;
+    body.guardian_address = address
+      ? {
+          street: address.street,
+          postal_code: address.postalCode,
+          city: address.city,
+        }
+      : null;
+    body.second_guardian = edit.guardians.secondGuardian
+      ? personBody(edit.guardians.secondGuardian)
+      : null;
+  }
+  if (edit.child) {
+    body.children = [
+      {
+        id: Number(edit.child.id),
+        first_name: edit.child.firstName,
+        last_name: edit.child.lastName,
+        birth_date: edit.child.birthDate,
+        home_school_id: edit.child.homeSchoolId
+          ? Number(edit.child.homeSchoolId)
+          : 0,
+        guest_school_name: edit.child.guestSchoolName,
+        custom_data: edit.child.answers,
+      },
+    ];
+  }
+  if (edit.contacts) {
+    body.emergency_contacts = edit.contacts.emergency;
+    body.pickup_persons = edit.contacts.pickup;
+  }
+  if (edit.answers) body.custom_data = edit.answers;
+  return body;
+}
+
+/** Changes the details a family entered (#5629). */
+export async function editHolidayRegistration(
+  periodId: string,
+  registrationId: string,
+  edit: HolidayRegistrationEdit,
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/details`,
+      { method: "PUT", body: holidayRegistrationEditBody(edit) },
+    ),
+  );
+}
+
 /** The export of a filter as CSV or Excel, with the backend's file name. */
 export async function downloadHolidayRegistrations(
   periodId: string,
@@ -542,5 +773,37 @@ export async function downloadHolidayRegistrations(
   return {
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
+  };
+}
+
+/**
+ * What a confirmation of the Träger needs (#5621). It lives here, not in the
+ * contributions client, because the list reads it for its column too and
+ * should not load that client.
+ */
+/** An active cost bearer the confirmation offers (#5627). */
+export interface CostBearerChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface HolidayConfirmationSettings {
+  /** The Träger asks for the debtor number of the family. */
+  readonly debtorNumberRequired: boolean;
+  /** The active cost bearers of the Träger, by name (#5627). */
+  readonly costBearers?: readonly CostBearerChoice[];
+}
+
+export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
+  const settings = await traegerRequest<{
+    debtor_number_required: boolean;
+    cost_bearers?: { id: number; name: string }[] | null;
+  }>("/api/traeger/holiday-contributions/confirmation-settings");
+  return {
+    debtorNumberRequired: settings.debtor_number_required,
+    costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
+      id: String(bearer.id),
+      name: bearer.name,
+    })),
   };
 }

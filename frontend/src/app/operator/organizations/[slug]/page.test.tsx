@@ -146,9 +146,10 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
 
 vi.mock("~/components/ui/modal", () => ({
   dialogAriaProps: { role: "dialog", "aria-modal": true },
+  // FormModal renders through Modal (#5579): the stub keeps the dialog role.
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (
-      <div data-testid="modal">
+      <div data-testid="modal" role="dialog" aria-label={title}>
         <h2>{title}</h2>
         {children}
         <div data-testid="modal-footer">{footer}</div>

@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The proof of benefits of the public holiday registration (#5238): parents
@@ -59,6 +60,34 @@ func parseHolidayProof(w http.ResponseWriter, r *http.Request) (capability.Holid
 		Filename: uploaded.Filename, ContentType: normalizeUploadContentType(uploaded.ContentType),
 		Extension: common.DocumentFileExtension(uploaded.ContentType), SizeBytes: int64(len(content)), Content: content,
 	}, nil
+}
+
+// uploadOfficeProof stores a proof of benefits the family brought on paper
+// as a proof of the registration (#5627) and answers the registration with
+// its proofs. The checks are those of the parents' upload; a refused file
+// stores nothing and rolls the Träger transaction back.
+func (rs *HolidayPeriodResource) uploadOfficeProof(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	upload, err := parseHolidayProof(w, r)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderUploadRefusal(w, r, err)
+		return
+	}
+	detail, err := rs.review.UploadHolidayRegistrationProof(r.Context(), reviewer, periodID, registrationID, upload)
+	var rejection *capability.UploadRejection
+	switch {
+	case errors.As(err, &rejection):
+		tenant.MarkRollback(r.Context())
+		renderUploadFailure(w, r, err)
+	case err != nil:
+		renderHolidayReviewError(w, r, err)
+	default:
+		common.Respond(w, r, http.StatusCreated, detail, "Proof stored")
+	}
 }
 
 // openProof serves one proof of benefits of a registration inline. The read

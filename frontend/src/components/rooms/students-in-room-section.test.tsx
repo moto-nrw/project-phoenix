@@ -106,10 +106,9 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 // Light mocks for visual primitives, we want to assert behaviors (text,
 // button visibility, click handlers), not the exact rendering of every UI
-// atom imported transitively. The "Kinder im Raum" section now renders
-// its own <section aria-label> wrapper instead of going through InfoCard
-// (#1323 review, quiet section headers across the slide-over), so no
-// info-card mock is needed.
+// atom imported transitively. The "Kinder im Raum" section renders its
+// own <section aria-label> wrapper (#1323 review, quiet section headers
+// across the slide-over), so no card mock is needed.
 
 vi.mock("~/components/ui/button", () => ({
   Button: ({

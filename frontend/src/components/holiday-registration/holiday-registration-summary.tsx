@@ -20,8 +20,10 @@ import {
   uploadHolidayProof,
 } from "~/lib/holiday-registration-api";
 import {
+  asksForAddress,
   bookedWeeks,
   type ContactDraft,
+  hasAddress,
   hasSecondGuardian,
   isAnswered,
   OTHER_SCHOOL,
@@ -185,6 +187,13 @@ export function HolidayRegistrationSummary({
           <DataField label={t("phone")}>
             {draft.guardian.phone.trim()}
           </DataField>
+          {asksForAddress(offer.form) ? (
+            <DataField label={t("addressTitle")}>
+              {hasAddress(draft)
+                ? `${draft.guardianAddress.street.trim()}, ${draft.guardianAddress.postalCode.trim()} ${draft.guardianAddress.city.trim()}`
+                : none}
+            </DataField>
+          ) : null}
           <DataField label={t("contactsTitle")}>
             <ul className="space-y-2">
               {draft.contacts.map((contact) => (
@@ -222,6 +231,14 @@ export function HolidayRegistrationSummary({
           </DataGrid>
         </SectionCard>
       ) : null}
+
+      <SectionCard title={t("declarationTitle")} headingLevel={3}>
+        <DataGrid>
+          <DataField label={t("declarationName")}>
+            {draft.declarationName.trim()}
+          </DataField>
+        </DataGrid>
+      </SectionCard>
 
       {(offer.form.legalBlocks ?? []).some((b) => b.enabled) ? (
         <SectionCard title={t("legalTitle")}>

@@ -65,6 +65,10 @@ type holidayGuestFixture struct {
 	roster    func(t *testing.T, day calendar.Date) map[string]int64
 	reconcile func(t *testing.T)
 	child     func(t *testing.T, student int64) (class, status, from, until string, health *string)
+	// lists names the children of the OGS Nord on a day in the whole live
+	// roster (tablet list, bracelet assignment), the child list and the
+	// calendar picker for the week from that day.
+	lists func(t *testing.T, day calendar.Date) (roster, directory, picker []string)
 }
 
 // careDays lists the planned days of a child as "date arrival-pickup", the
@@ -89,9 +93,9 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	require.NoError(t, err)
 	staff, err := NewRFIDTestPeople(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, testHealthCipher(), clock)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
+	guests := owners.NewHolidayGuests(persons, organizations, carePlan, staff, accessLog, testHealthCipher(), clock)
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -126,6 +130,39 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 		reconcile: func(t *testing.T) {
 			t.Helper()
 			inNord(t, func(ctx context.Context) error { return guests.ReconcileHolidayGuests(ctx, nord) })
+		},
+		lists: func(t *testing.T, day calendar.Date) ([]string, []string, []string) {
+			t.Helper()
+			var roster, directory, picker []string
+			inNord(t, func(ctx context.Context) error {
+				entries, err := persons.ListStudentRoster(ctx, day.String())
+				if err != nil {
+					return err
+				}
+				for _, entry := range entries {
+					roster = append(roster, entry.FirstName+" "+entry.LastName)
+				}
+				records, err := persons.ListStudentDirectory(ctx, peopledirectory.StudentDirectoryFilter{CareStatusOn: day.String()})
+				if err != nil {
+					return err
+				}
+				for _, record := range records {
+					person, err := persons.FindPerson(ctx, record.PersonID)
+					if err != nil {
+						return err
+					}
+					directory = append(directory, person.FirstName+" "+person.LastName)
+				}
+				entries, err = persons.ListStudentRosterOverlapping(ctx, day.String(), day.AddDays(7).String(), day.String())
+				for _, entry := range entries {
+					picker = append(picker, entry.FirstName+" "+entry.LastName)
+				}
+				return err
+			})
+			sort.Strings(roster)
+			sort.Strings(directory)
+			sort.Strings(picker)
+			return roster, directory, picker
 		},
 		child: func(t *testing.T, student int64) (string, string, string, string, *string) {
 			t.Helper()

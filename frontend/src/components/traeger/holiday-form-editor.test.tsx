@@ -11,16 +11,27 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { ApiError } from "~/lib/api-error";
 import type {
+  HolidayAddressRequirement,
   HolidayForm,
   HolidayFormField,
 } from "~/lib/traeger-holiday-form-api";
 
-const { mockSave } = vi.hoisted(() => ({ mockSave: vi.fn() }));
+const { mockSave, mockSavedAddress } = vi.hoisted(() => ({
+  mockSave: vi.fn(),
+  mockSavedAddress: vi.fn(),
+}));
 
 vi.mock("~/lib/traeger-holiday-form-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  saveHolidayForm: (periodId: string, fields: HolidayFormField[]) =>
-    mockSave(periodId, fields),
+  saveHolidayForm: (
+    periodId: string,
+    fields: HolidayFormField[],
+    _blocks: unknown,
+    address: HolidayAddressRequirement,
+  ) => {
+    mockSavedAddress(address);
+    return mockSave(periodId, fields);
+  },
 }));
 
 import { HolidayFormEditor } from "./holiday-form-editor";
@@ -47,6 +58,7 @@ function form(fields: HolidayFormField[] = []): HolidayForm {
   return {
     version: 1,
     fields,
+    addressRequirement: "off",
     createdAt: "2026-10-01T08:00:00Z",
     template: TEMPLATE,
   };
@@ -88,6 +100,77 @@ function choice(name: RegExp, index = 0): HTMLElement {
 describe("HolidayFormEditor (#5198)", () => {
   beforeEach(() => {
     mockSave.mockReset();
+    mockSavedAddress.mockReset();
+  });
+
+  it("switches the address block and saves it with the next version (#5625)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({
+        ...form(),
+        version: 2,
+        fields,
+        addressRequirement: "required",
+      }),
+    );
+    const onSaved = renderEditor();
+    const save = screen.getByRole("button", {
+      name: "Als neue Version speichern",
+    });
+    const off = screen.getByRole("button", { name: "Nicht abfragen" });
+    expect(off).toHaveAttribute("aria-pressed", "true");
+    expect(save).toBeDisabled();
+    expect(
+      screen.queryByText(germanMessages.addressTitleOptional),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Allgemeine Fragen und Infos")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Freiwillig" }));
+    expect(
+      screen.getByText(germanMessages.addressTitleOptional),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Straße und Hausnummer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Pflicht" }));
+    expect(screen.getByText("Straße und Hausnummer *")).toBeInTheDocument();
+    expect(save).toBeEnabled();
+
+    fireEvent.click(save);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mockSavedAddress).toHaveBeenCalledWith("required");
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 2, addressRequirement: "required" }),
+    );
+  });
+
+  it("adds the class question with the standard template (#5625)", () => {
+    const klasse: HolidayFormField = {
+      key: "klasse",
+      label: "Klasse",
+      type: "text",
+      applies_to_child: true,
+      share_with_host: true,
+      sort_order: 2,
+    };
+    render(
+      <ToastProvider>
+        <HolidayFormEditor
+          periodId="5"
+          form={{ ...form(TEMPLATE), template: [...TEMPLATE, klasse] }}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    expect(questionInputs().map((input) => input.value)).toEqual([
+      "Lebensmittelunverträglichkeiten",
+      "Darf an Ausflügen teilnehmen",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Standardvorlage einfügen" }),
+    );
+    expect(questionInputs().map((input) => input.value)).toEqual([
+      "Lebensmittelunverträglichkeiten",
+      "Darf an Ausflügen teilnehmen",
+      "Klasse",
+    ]);
   });
 
   it("names the preview sections like the parent form (#5467)", () => {

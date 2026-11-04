@@ -228,3 +228,56 @@ dieser Änderung:
 - Die Verschlüsselung des Gesundheitsfelds für alle Kinder der Schule ist
   nicht Teil dieses Nachtrags; die Kopie hat denselben Schutz wie die
   eigenen Kinder der Schule.
+
+## Nachtrag 2026-11-03: Heimatschule im Alltag, Gast erst ab der Ferienwoche (#5630)
+
+Entscheidung des Product Owners nach der Rückmeldung der Gemeinde vom
+03.11.2026 ([#5630](https://github.com/moto-nrw/project-phoenix/issues/5630)):
+Das Team der ausrichtenden OGS arbeitet mit Ferienkindern wie mit eigenen
+Kindern, ein Hinweis nennt die Heimatschule, und die Kinder sind nur in der
+Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
+
+- **Zu Punkt 2: erst ab dem ersten Tag der Woche.** Vor dem ersten Tag
+  steht ein Feriengast in keiner Live-Liste und nicht in der Kinderliste:
+  Kinderliste, Tablet-Liste, Armband-Zuordnung, Kalenderauswahl und die
+  Gruppenlisten lassen ein Kind der Klasse `Feriengast` weg, dessen
+  `enrolled_from` nach dem Kalendertag des Lesers liegt (People Directory
+  `holidayGuestArrived`, neben `currentCare`). Wie beim Ende nach der Woche
+  zählt das Betreuungsintervall, nicht der Status, damit die Listen nicht auf
+  den stündlichen Abgleich warten. Die laufende Ansicht der Kinderliste
+  (`GET /api/students`) überlässt das Ende der Betreuung der Teilnahme von
+  Care Plan und fragt das People Directory deshalb ohne Zeitgrenze; sie
+  nennt den Tag der Liste im Filterfeld `HolidayGuestsArrivedOn`. Ein Kind,
+  das gerade anwesend ist, bleibt dort stehen; die Ansichten aller und
+  beendeter Betreuungen bleiben unbeschränkt. Vor der Woche sieht die
+  Leitung den Gast nur auf der Seite „Ferienwochen“. Eigene Kinder mit
+  späterem Start bleiben, wie sie sind. Ein Test vor der Änderung hat gezeigt, dass ein wartender
+  Gast vorher in Kinderliste und Tablet-Liste stand.
+- **Zu Punkt 4: Name der Heimatschule an der Kopie.** Die Kopie trägt neben
+  `home_school_id` und `guest_school_name` den Namen der Heimatschule
+  (`enrollment.holiday_guests.home_school_name`, Migration `1.15.740`). Der
+  Abgleich liest die Namen der Schulen des Trägers über den vorhandenen Port
+  `HolidayHostSchoolNames` (Organisation & Tenancy, Query, wie die
+  Teilnehmerliste aus ADR 0116) in der Tenant-Transaktion der Schule, nur
+  wenn ein Gast eine Heimatschule hat, und erneuert ihn bei jedem Abgleich.
+  Kein neuer Lesepfad über Owner und keine neue Regel in `policy.json`: Die
+  Bindung zieht von `api` nach `roots/owners`, damit auch der Worker sie hat.
+  Gelöscht wird der Name mit der Kopie, wie `guest_school_name`.
+- **Hinweis „Gast aus …“.** `GET /api/holiday-guests` (Recht
+  `students:read`, das Recht der Kinderliste) nennt für jeden Gast, den die
+  Schule heute betreut, die Schule des Hinweises; das Blatt nennt sie als
+  `school_name`. Die Regel ist die der Teilnehmerliste: Heimatschule des
+  Trägers, sonst die von den Eltern genannte Schule, sonst „Feriengast“.
+  Gruppe, Check-in, Kinderliste, Aufsicht und Kindakte zeigen ihn. Die Route
+  liest nur die Kopie, keine Tabelle des Trägers. Sie gibt nur den Namen
+  einer Schule zu einem Kind heraus, das das Team in derselben Liste schon
+  mit Klasse `Feriengast` sieht, und schreibt deshalb wie die Kinderliste
+  keinen Eintrag ins Zugriffsprotokoll.
+- **Rechtsgrundlage und Empfänger.** Die Heimatschule gehört nach Punkt 4 zu
+  den Mindestfeldern, die der Träger der ausrichtenden OGS für die Betreuung
+  in der Ferienwoche weitergibt. Der Hinweis zeigt sie dem Team, das das Kind
+  in dieser Woche betreut, und nur während der Woche. Andere Schulen, auch
+  des eigenen Trägers, sehen ihn nicht.
+- **Kiosk.** PyrePortal zeigt den Hinweis nicht; ein Gast hat kein Armband
+  und wird im Browser an- und abgemeldet. Ein Hinweis am Tablet folgt als
+  eigenes Issue, falls die ausrichtende OGS das Tablet nutzt.

@@ -31,8 +31,8 @@ interface ConceptIconTileProps {
 }
 
 /**
- * Shared gray icon tile for fachliche Konzepte (see Header-Muster in
- * concept-section-header.tsx). Consolidates the repeated
+ * Shared gray icon tile for fachliche Konzepte (`SectionCard concept`,
+ * `ConceptPageHeader`). Consolidates the repeated
  * "rounded-xl bg-gray-100 tile + MotoConceptIcon" markup so the tile size,
  * rounding and icon size stay in one place per variant.
  *

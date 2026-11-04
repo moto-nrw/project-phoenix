@@ -54,7 +54,9 @@ var (
 // RequestedAt and SentAt are nil before the first mail; Sends counts every
 // mail of the letter.
 type BillingLetterMailing struct {
-	DocumentID         int64      `json:"document_id"`
+	DocumentID int64 `json:"document_id"`
+	// Kind names an invoice, a Storno or a Gutschrift (#4690).
+	Kind               string     `json:"kind"`
 	Number             string     `json:"number"`
 	RecipientFirstName string     `json:"recipient_first_name"`
 	RecipientLastName  string     `json:"recipient_last_name"`
@@ -93,8 +95,11 @@ type BillingLetterMail struct {
 	TraegerName    string `json:"traeger_name"`
 	PeriodName     string `json:"period_name"`
 	Number         string `json:"number"`
-	Filename       string `json:"filename"`
-	PDF            []byte `json:"pdf"`
+	// DocumentKind is the kind of the document whose letter the mail
+	// carries; empty is an invoice (#4690).
+	DocumentKind string `json:"document_kind,omitempty"`
+	Filename     string `json:"filename"`
+	PDF          []byte `json:"pdf"`
 }
 
 // BillingLetterSend is one stored send of a letter: the outbox entry of

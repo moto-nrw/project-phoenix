@@ -42,7 +42,21 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	ctx context.Context, work *offeringAdjustmentWork, before []ports.RosterEnrollment,
 ) (careplan.RosterImpact, error) {
 	from := m.enrollmentRewriteBoundary(work.effectiveFrom)
-	impact := careplan.RosterImpact{EffectiveFrom: from, Adjusted: []careplan.AdjustedRosterTemplate{}, NotAdjusted: []careplan.ManualRosterTemplate{}}
+	impact := careplan.RosterImpact{
+		EffectiveFrom: from, Adjusted: []careplan.AdjustedRosterTemplate{},
+		NotAdjusted: []careplan.ManualRosterTemplate{}, PickupOverrides: []careplan.PickupOverride{},
+	}
+	var err error
+	// The new booking applies from the later of the change and the phase's
+	// first service day: a change without a date for a phase that starts in
+	// a month books nothing before then.
+	bookedFrom := from
+	if work.selectionDate.After(bookedFrom) {
+		bookedFrom = work.selectionDate
+	}
+	if impact.PickupOverrides, err = m.pickupOverrides(ctx, *work.child.CreatedStudentID, bookedFrom); err != nil {
+		return impact, err
+	}
 	after, err := m.adjustedRosterRows(ctx, work)
 	if err != nil {
 		return impact, err
@@ -63,6 +77,117 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	}
 	impact.NotAdjusted = append(impact.NotAdjusted, manual...)
 	return impact, nil
+}
+
+// pickupOverrides lists the weekdays on which a stored staff pickup time
+// differs from the pickup time the bookings set from the date on. The
+// projection lets the staff row win, so without a hint the old time stays
+// in force after the booking changed. One walk from today to the last
+// weekday of the change's first week answers every row and every day; it
+// projects bounded windows, latest first.
+func (m *BookingMaterialization) pickupOverrides(ctx context.Context, studentID int64, from calendar.Date) ([]careplan.PickupOverride, error) {
+	result := []careplan.PickupOverride{}
+	if m.deps.Pickup == nil {
+		return result, nil
+	}
+	rows, err := m.deps.Pickup.WeekdayRows(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load pickup schedules for roster impact: %w", err)
+	}
+	manual := make([]ports.PickupWeekdayRow, 0, len(rows))
+	for _, row := range rows {
+		if row.Manual && row.Weekday >= 1 && row.Weekday <= 5 {
+			manual = append(manual, row)
+		}
+	}
+	if len(manual) == 0 {
+		return result, nil
+	}
+	today := m.todayDate()
+	end := from.AddDays(6)
+	var pending []pendingPickupOverride
+	err = m.eachPickupWindowBackward(ctx, studentID, min(today, from), end,
+		func(projection *careplan.PickupBaselineProjection, windowFrom, windowTo calendar.Date) bool {
+			if windowTo == end {
+				pending = bookedPickupOverrides(projection, studentID, manual, from)
+			}
+			return markStoredPickupNeeded(projection, studentID, pending, max(windowFrom, today), windowTo.AddDays(1))
+		})
+	if err != nil {
+		return nil, fmt.Errorf("decision: load offering pickup for roster impact: %w", err)
+	}
+	for _, entry := range pending {
+		result = append(result, entry.override)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Weekday < result[j].Weekday })
+	return result, nil
+}
+
+// pendingPickupOverride is a stored row whose booked time differs from the
+// change's first week on, with the hint it produces.
+type pendingPickupOverride struct {
+	row      ports.PickupWeekdayRow
+	override careplan.PickupOverride
+}
+
+// bookedPickupOverrides lists the manual rows whose booked time on the
+// weekday's first date from the change on differs from the stored time.
+// ResetNow starts true and is cleared once an earlier day needs the row.
+func bookedPickupOverrides(
+	projection *careplan.PickupBaselineProjection, studentID int64, manual []ports.PickupWeekdayRow, from calendar.Date,
+) []pendingPickupOverride {
+	var pending []pendingPickupOverride
+	for _, row := range manual {
+		date := nextWeekdayFrom(from, row.Weekday)
+		booked := offeringPickupClock(projection, studentID, date)
+		if booked == "" || booked == row.PickupTime {
+			continue
+		}
+		pending = append(pending, pendingPickupOverride{row: row, override: careplan.PickupOverride{
+			Weekday: row.Weekday, Date: date, StoredTime: row.PickupTime, BookedTime: booked, ResetNow: true,
+		}})
+	}
+	return pending
+}
+
+// markStoredPickupNeeded clears ResetNow for every pending row that a day in
+// [from, until) before its change date still needs. The row is undated, so a
+// reset removes it from today on: that is only safe when the bookings already
+// set the stored time on every such day, or when the change is in force
+// today. It reports true once no pending row can change any more.
+func markStoredPickupNeeded(
+	projection *careplan.PickupBaselineProjection, studentID int64, pending []pendingPickupOverride, from, until calendar.Date,
+) bool {
+	done := true
+	for i := range pending {
+		override := &pending[i].override
+		if !override.ResetNow {
+			continue
+		}
+		day := nextWeekdayFrom(from, override.Weekday)
+		if _, needed := lastDayNeedingStoredPickup(projection, studentID, pending[i].row, day, min(override.Date, until)); needed {
+			override.ResetNow = false
+			continue
+		}
+		done = false
+	}
+	return done
+}
+
+// offeringPickupClock is the booked pickup time on the date as "HH:MM";
+// empty when no booking sets one.
+func offeringPickupClock(projection *careplan.PickupBaselineProjection, studentID int64, date calendar.Date) string {
+	offering := projection.OfferingForDate(studentID, date)
+	if offering == nil {
+		return ""
+	}
+	return offering.PickupTime.Format("15:04")
+}
+
+// nextWeekdayFrom is the first date on or after from on the ISO weekday
+// (1 = Monday ... 5 = Friday).
+func nextWeekdayFrom(from calendar.Date, weekday int) calendar.Date {
+	return from.AddDays((weekday - int(from.Weekday()) + 7) % 7)
 }
 
 // bookingDayChange summarizes what the change did to the child's weekdays.

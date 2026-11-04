@@ -464,8 +464,7 @@ export function StudentsInRoomSection({
   return (
     // Quiet section header to match the other slide-over blocks
     // (Rauminformationen / Belegungshistorie). Section element +
-    // aria-label preserve the "info-card" landmark contract the tests
-    // / a11y tooling expect from the previous InfoCard wrapper.
+    // aria-label keep the named landmark the tests and a11y tooling expect.
     <section aria-label="Kinder im Raum" className={DETAIL_CARD_CLASS}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
