@@ -316,6 +316,35 @@ describe("timetable operation mappers", () => {
     ).toBeUndefined();
   });
 
+  it("maps the reopen offer of a finished block (#5676)", () => {
+    const base = {
+      id: 125,
+      title: "GT 4",
+      date: "2026-05-11",
+      start_time: "14:30",
+      end_time: "16:00",
+      room_id: 226,
+      status: "completed" as const,
+      is_overdue: true,
+      minutes_until_start: -45,
+      expected_students_count: 0,
+      present_students_count: 0,
+      assigned_staff_ids: [],
+    };
+
+    const offered = mapPlannedInstance({
+      ...base,
+      can_reopen: true,
+      reopen_until: "2026-05-11T14:00:00Z",
+    });
+    expect(offered.canReopen).toBe(true);
+    expect(offered.reopenUntil).toBe("2026-05-11T14:00:00Z");
+
+    const closed = mapPlannedInstance(base);
+    expect(closed.canReopen).toBeUndefined();
+    expect(closed.reopenUntil).toBeUndefined();
+  });
+
   it("maps planned instance defaults when backend omits nullable flags and preview", () => {
     const result = mapPlannedInstance({
       id: 124,

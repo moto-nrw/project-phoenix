@@ -22,6 +22,7 @@ const (
 	CodeAttendanceFrozen            = "timetable.attendance_frozen"
 	CodeReopenStudentActive         = "timetable.reopen_student_active"
 	CodeReopenAttendanceChanged     = "timetable.reopen_attendance_changed"
+	CodeReopenStudentLeft           = "timetable.reopen_student_left"
 	CodeReopenSupervisionChanged    = "timetable.reopen_supervision_changed"
 	CodeReopenStaffBusy             = "timetable.reopen_staff_busy"
 	CodeGuardianNoticeTextInvalid   = "timetable.guardian_notice_text_invalid"

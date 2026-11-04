@@ -91,6 +91,12 @@ type OperationPlannedInstance struct {
 	CanStart            bool                      `json:"can_start"`
 	StartAvailableAt    string                    `json:"start_available_at"`
 	StartExpiresAt      string                    `json:"start_expires_at"`
+	// CanReopen announces on a finished block of the past scope that the
+	// caller may reopen it now (#5676), with the planner list's gate.
+	CanReopen bool `json:"can_reopen,omitempty"`
+	// ReopenUntil is the RFC 3339 end of that reopen window, set with
+	// CanReopen.
+	ReopenUntil string `json:"reopen_until,omitempty"`
 	// ActiveGroupID is the live session behind a running block (#2383).
 	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
 	// CancelReason explains a cancelled block ("fällt aus: …", #1840).

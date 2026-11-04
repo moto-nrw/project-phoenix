@@ -44,6 +44,9 @@ func (s *InstanceLifecycleService) Reopen(ctx context.Context, instanceID, accou
 	if err != nil {
 		return nil, err
 	}
+	if err := s.validateReopenStudentsStillAtSchool(ctx, instance, studentIDs); err != nil {
+		return nil, err
+	}
 	if err := s.validateReopenState(ctx, instance, snapshot); err != nil {
 		return nil, err
 	}
@@ -142,6 +145,30 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 		return nil, timetable.WithCode(fmt.Errorf("%w: student %d already has an active visit", timetable.ErrTimetableOperationConflict, currentVisits[0].StudentID), timetable.CodeReopenStudentActive)
 	}
 	return studentIDs, nil
+}
+
+// validateReopenStudentsStillAtSchool refuses a reopen that would put a
+// child back into the room after it left school. The reopen window lasts
+// until the planned end (#5676), long enough for a child to go home after
+// the completion.
+func (s *InstanceLifecycleService) validateReopenStudentsStillAtSchool(ctx context.Context, instance *scheduleModel.ActivityInstance, studentIDs []int64) error {
+	if len(studentIDs) == 0 || instance.CompletedAt == nil {
+		return nil
+	}
+	day := calendar.Date(instance.Date).String()
+	// Checkout does not take the student row locks in detailed mode. Hold
+	// school attendance rows through restoration so it cannot commit between
+	// this check and the visit restore.
+	stays, err := s.deps.Presence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: day, UntilDate: day, ForUpdate: true})
+	if err != nil {
+		return &ports.ScheduleError{Op: "reopen instance: load school attendance", Err: err}
+	}
+	for _, stay := range stays {
+		if stay.CheckOutTime != nil && stay.CheckOutTime.After(*instance.CompletedAt) {
+			return timetable.WithCode(fmt.Errorf("%w: student %d left school after completion", timetable.ErrTimetableOperationConflict, stay.StudentID), timetable.CodeReopenStudentLeft)
+		}
+	}
+	return nil
 }
 
 func (s *InstanceLifecycleService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
