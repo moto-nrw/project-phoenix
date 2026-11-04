@@ -17,8 +17,10 @@ name: Product screenshots
 #     aktuellen Stand, der Tag vX.Y.Z für genau dieses Release. Ohne Version
 #     gilt das neueste Release mit einem Tag vX.Y.Z. Läufe von anderen
 #     Branches hängen nichts an.
-#   - pull_request: Änderungen an Pipeline oder Workflow fotografieren einmal
-#     zur Probe, ohne Release-Anhang.
+#   - pull_request nach main (Release-PR development → main): Änderungen an
+#     Pipeline oder Workflow fotografieren einmal zur Probe, ohne
+#     Release-Anhang. Normale PRs nach development lösen den Lauf nicht aus;
+#     dort wartet niemand auf ihn, und er bindet einen Runner für 15+ Minuten.
 #
 # Capture und Anhängen sind getrennte Jobs; nur der zweite darf ins Repo
 # schreiben und läuft nur nach einem erfolgreichen Capture. Ein kaputter Shot
@@ -50,6 +52,7 @@ on:
         required: true
         type: string
   pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/product-screenshots.yml"
       - "frontend/scripts/product-screenshots/**"

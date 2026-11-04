@@ -50,11 +50,41 @@ type HolidayFormField struct {
 type HolidayAnswers map[string]json.RawMessage
 
 // HolidayPeriodForm is one version of the form of a period.
+// AddressRequirement says whether the version asks for the postal address
+// of the parent who registers (#5625).
 type HolidayPeriodForm struct {
-	LegalBlocks []FormLegalBlock   `json:"legal_blocks"`
-	Version     int                `json:"version"`
-	Fields      []HolidayFormField `json:"fields"`
-	CreatedAt   time.Time          `json:"created_at"`
+	LegalBlocks        []FormLegalBlock          `json:"legal_blocks"`
+	Version            int                       `json:"version"`
+	Fields             []HolidayFormField        `json:"fields"`
+	AddressRequirement HolidayAddressRequirement `json:"address_requirement"`
+	CreatedAt          time.Time                 `json:"created_at"`
+}
+
+// HolidayAddressRequirement is the fixed building block "Anschrift" of a
+// version of the form (#5625): the postal address of the parent who
+// registers is not asked, optional or required. It is no HolidayFormField,
+// because the Elternabrechnung copies the address as a fixed structure into
+// the invoice (ADR 0121 addendum). A version without it asks nothing.
+type HolidayAddressRequirement string
+
+// The settings of the building block "Anschrift".
+const (
+	HolidayAddressOff      HolidayAddressRequirement = "off"
+	HolidayAddressOptional HolidayAddressRequirement = "optional"
+	HolidayAddressRequired HolidayAddressRequirement = "required"
+)
+
+// ValidateHolidayAddressRequirement normalizes the setting of a new version:
+// an empty value asks nothing, an unknown one is refused at
+// "address_requirement".
+func ValidateHolidayAddressRequirement(requirement HolidayAddressRequirement) (HolidayAddressRequirement, error) {
+	switch requirement {
+	case "":
+		return HolidayAddressOff, nil
+	case HolidayAddressOff, HolidayAddressOptional, HolidayAddressRequired:
+		return requirement, nil
+	}
+	return "", invalidInputf(CodeHolidayFormFieldNotAllowed, "address_requirement", "unknown address requirement %q", requirement)
 }
 
 // HolidayFormMaxFields bounds one version: the paper forms of a Träger
@@ -161,10 +191,10 @@ func validateHolidayFormField(f *HolidayFormField) error {
 
 // HolidayFormTemplate is the standard template of a new period (B7 of the
 // requirements memo of 14.10.2026): per child, optional, the health
-// questions marked. The way home and the trips go to the hosting school
-// (#5202), and so do the health questions, like the fixed health fields
-// (#4722). "Standardvorlage einfügen" in the editor adds the fields whose
-// key is missing.
+// questions marked. The way home, the trips and the class go to the hosting
+// school (#5202, #5625), and so do the health questions, like the fixed
+// health fields (#4722). "Standardvorlage einfügen" in the editor adds the
+// fields whose key is missing.
 func HolidayFormTemplate() []HolidayFormField {
 	child := func(order int, key, label string, typ FormFieldType, health bool, options ...FormFieldOption) HolidayFormField {
 		return HolidayFormField{FormField: FormField{
@@ -184,6 +214,7 @@ func HolidayFormTemplate() []HolidayFormField {
 		shared(child(4, "koerperliche_einschraenkungen", "Körperliche Einschränkungen", FormFieldTextarea, true)),
 		shared(child(5, "darf_allein_nach_hause", "Darf allein nach Hause gehen", FormFieldBoolean, false)),
 		shared(child(6, "darf_an_ausfluegen_teilnehmen", "Darf an Ausflügen teilnehmen", FormFieldBoolean, false)),
+		shared(child(7, "klasse", "Klasse", FormFieldText, false)),
 	}
 }
 

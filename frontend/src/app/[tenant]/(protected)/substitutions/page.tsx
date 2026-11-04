@@ -19,7 +19,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -743,15 +743,17 @@ function RunningCard({
   onAssign,
 }: Readonly<{ rows: RunningSupervision[]; onAssign: (id: string) => void }>) {
   return (
-    <InfoCard
+    <SectionCard
       title="Laufende Betreuungen"
-      icon={<Clock className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+      icon={Clock}
+      className="flex h-full flex-col"
+      bodyClassName="compact:mt-3 mt-4 flex min-h-0 flex-1 flex-col space-y-3"
     >
       <p className="text-sm text-gray-600">
         Hier sehen Sie laufende Aufsichten in Ihrem Sichtbereich.
       </p>
       <RunningSection rows={rows} onAssign={onAssign} />
-    </InfoCard>
+    </SectionCard>
   );
 }
 
@@ -789,11 +791,11 @@ function ScheduleCard({
   data,
 }: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
   return (
-    <InfoCard
+    <SectionCard
       title="Vertretungen heute"
-      icon={
-        <CalendarClock className="h-5 w-5 text-gray-600" aria-hidden="true" />
-      }
+      icon={CalendarClock}
+      className="flex h-full flex-col"
+      bodyClassName="compact:mt-3 mt-4 flex min-h-0 flex-1 flex-col space-y-3"
     >
       <p className="text-sm text-gray-600">
         Hier sehen Sie Vertretungen für heutige Termine.
@@ -809,7 +811,7 @@ function ScheduleCard({
           Vertretungsplan öffnen
         </ButtonLink>
       ) : null}
-    </InfoCard>
+    </SectionCard>
   );
 }
 
@@ -825,9 +827,11 @@ function GroupCard({
   onEnd: (handover: Substitution) => void;
 }>) {
   return (
-    <InfoCard
+    <SectionCard
       title="Gruppen"
-      icon={<Repeat2 className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+      icon={Repeat2}
+      className="flex h-full flex-col"
+      bodyClassName="compact:mt-3 mt-4 flex min-h-0 flex-1 flex-col space-y-3"
     >
       <p className="text-sm text-gray-600">
         Hier verwalten Sie zeitlich begrenzte Gruppenübergaben.
@@ -838,7 +842,7 @@ function GroupCard({
         onAssign={onAssign}
         onEnd={onEnd}
       />
-    </InfoCard>
+    </SectionCard>
   );
 }
 

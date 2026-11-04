@@ -1,8 +1,8 @@
-// Approved bundle budgets are reviewed policy, not the latest observation.
 // `perf:bundle-ratchet` compiles cold, writes a versioned measurement artifact,
-// and enforces fixed per-route ceilings from bundle-budgets/<portal>/<resource>.json.
-// Improvements/retired observations pass; new routes need an explicit budget.
-// --update is deliberately unsupported: observations cannot approve budgets.
+// checks each route's growth against the merge-base measurement (feature PRs)
+// and the few absolute ceilings in bundle-ceilings.json (every run).
+// BUNDLE_GROWTH_APPROVED=true (set by CI from the PR label) turns delta
+// failures into warnings.
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
@@ -15,7 +15,11 @@ import { join } from "node:path";
 
 import { readRouteBundles } from "./bundle-routes.mjs";
 import { perfServerEnv } from "./env.mjs";
-import { compareBudgets, readBudgets } from "./bundle-policy.mjs";
+import {
+  compareBundles,
+  GROWTH_APPROVAL_LABEL,
+  readCeilings,
+} from "./bundle-policy.mjs";
 import {
   identityForRevision,
   makeMeasurement,
@@ -24,21 +28,16 @@ import {
   writeMeasurement,
 } from "./bundle-measurement.mjs";
 
-const BUDGET_DIR = join(process.cwd(), "scripts/perf/bundle-budgets");
+const CEILINGS_FILE = join(process.cwd(), "scripts/perf/bundle-ceilings.json");
 const MEASURED_FILE = join(process.cwd(), "perf-results/bundle-measured.json");
 const ANALYSIS_IDENTITY = join(
   process.cwd(),
   ".next/diagnostics/analyze/bundle-source-identity.json",
 );
 const args = new Set(process.argv.slice(2));
-if (args.has("--update")) {
-  throw new Error(
-    "--update cannot approve bundle budgets. Review an explicit bundle-budgets/<portal>/<resource>.json policy change instead.",
-  );
-}
 for (const argument of args) {
   if (argument !== "--skip-analyze")
-    throw new Error(`Unknown bundle budget option: ${argument}`);
+    throw new Error(`Unknown bundle ratchet option: ${argument}`);
 }
 const skipAnalyze = args.has("--skip-analyze");
 
@@ -87,43 +86,44 @@ function analyze() {
   }
 }
 
-function summary(rows, failures, warnings, baseStatus) {
-  const lines = ["## Bundle-Budgets", "", baseStatus, ""];
+function summary(rows, failures, warnings, baseStatus, growthApproved) {
+  const lines = ["## Bundle-Größen", "", baseStatus, ""];
+  if (growthApproved)
+    lines.push(`Zuwachs freigegeben mit Label \`${GROWTH_APPROVAL_LABEL}\`.`, "");
   lines.push(
     failures.length === 0
-      ? `Alle ${rows.length} gemessenen Routen ohne neue Delta- oder Budget-Verstöße.`
-      : `${failures.length} Delta-/Budget-Verstöße:`,
+      ? `Alle ${rows.length} gemessenen Routen ohne Verstöße.`
+      : `${failures.length} Verstöße:`,
   );
   for (const failure of failures) lines.push(`- ${failure}`);
   if (warnings.length > 0) {
-    lines.push("", "### Bundle-Policy-Warnungen");
+    lines.push("", "### Warnungen");
     for (const warning of warnings) lines.push(`- ${warning}`);
     for (const warning of warnings)
       process.stdout.write(`::warning::${warning}\n`);
   }
-  const moved = rows
-    .map((row) => ({
-      ...row,
-      change: row.bytes - (row.baseBytes ?? row.referenceBytes),
-    }))
-    .filter((row) => Math.abs(row.change) >= 512)
-    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-    .slice(0, 10);
-  if (moved.length > 0) {
+  const shown = rows.some((row) => row.delta !== null)
+    ? rows
+        .filter((row) => row.delta !== null && Math.abs(row.delta) >= 512)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+        .slice(0, 15)
+    : rows.filter((row) => row.maxBytes !== undefined);
+  if (shown.length > 0) {
     lines.push(
       "",
-      "| Route | Genehmigte Referenz | Obergrenze | Ist | Delta zur Basis oder Referenz |",
+      "| Route | Merge-Basis | Ist | Zuwachs | Obergrenze |",
       "|---|---|---|---|---|",
     );
-    for (const row of moved)
+    for (const row of shown)
       lines.push(
-        `| \`${row.route}\` | ${kb(row.referenceBytes)} | ${kb(row.maxBytes)} | ${kb(row.bytes)} | ${row.change > 0 ? "+" : ""}${kb(row.change)} |`,
+        `| \`${row.route}\` | ${row.baseBytes === undefined ? "–" : kb(row.baseBytes)} | ${kb(row.bytes)} | ${row.delta === null ? "–" : `${row.delta > 0 ? "+" : ""}${kb(row.delta)}`} | ${row.maxBytes === undefined ? "–" : kb(row.maxBytes)} |`,
       );
   }
   return `${lines.join("\n")}\n`;
 }
 
-const budgets = readBudgets(BUDGET_DIR);
+const ceilings = readCeilings(CEILINGS_FILE);
+const growthApproved = process.env.BUNDLE_GROWTH_APPROVED === "true";
 const current = identityForRevision();
 if (!skipAnalyze) {
   analyze();
@@ -165,12 +165,13 @@ writeMeasurement(
   ),
 );
 const base = readBaseComparison(process.cwd(), current.identity);
-const { failures, warnings, rows } = compareBudgets(
-  budgets,
+const { failures, warnings, rows } = compareBundles(
+  ceilings,
   measured,
   base.routes,
+  { growthApproved },
 );
-const text = summary(rows, failures, warnings, base.status);
+const text = summary(rows, failures, warnings, base.status, growthApproved);
 process.stdout.write(text);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);

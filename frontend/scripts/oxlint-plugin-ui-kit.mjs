@@ -4,6 +4,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -27,8 +28,9 @@ import {
 //                                     moto-popover-surface (floating menus),
 //                                     ChoiceTile (selectable rows) or a kit
 //                                     surface component (issue #2933)
-//   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
-//                                     rounded-2xl (moto-content-surface)
+//   ui-kit/no-rounded-3xl           — off-scale surface radius, also per
+//                                     side/corner; cards are rounded-2xl
+//                                     (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
 //                                     label so its visible box is clickable
 //
@@ -68,6 +70,21 @@ import {
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.
 //
+// Two more keep the kit on one overlay system (#5579):
+//
+//   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
+//                                     text-muted-foreground …); bg-white/gray-*
+//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
+//                                     levels come from Z_LAYER
+//
+// Two more keep SectionCard the only card head (#5581):
+//
+//   ui-kit/no-important-override   — no `!` utility on a kit component; the
+//                                     missing prop goes into the kit
+//                                     (shrink-only baseline per file)
+//   ui-kit/no-section-card-bleed   — no negative margin in a SectionCard
+//                                     bodyClassName; use flush or footer
+//
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
 
@@ -86,7 +103,19 @@ const INSET_0_RE = /\binset-0\b/;
 const SURFACE_ROUNDED_RE = /(?:^|\s)rounded-(?:xl|2xl)(?=\s|$)/;
 const SURFACE_BORDER_RE = /(?:^|\s)border(?:-[1-9]\d*)?(?=\s|$)/;
 const SURFACE_BG_RE = /(?:^|\s)bg-white(?=\s|$)/;
-const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
+// Also the per-side and per-corner forms (`rounded-t-3xl`, `rounded-br-3xl`,
+// logical `rounded-s-3xl` / `rounded-ss-3xl` …): the Drawer used them (#5579).
+const ROUNDED_3XL_RE =
+  /\brounded-(?:(?:t|b|l|r|tl|tr|bl|br|s|e|ss|se|es|ee)-)?3xl(?![\w-])/g;
+// shadcn semantic colour tokens (`bg-background`, `text-muted-foreground`,
+// `ring-ring` …). They resolve to slate tints from the old shadcn theme, not
+// to the kit's white and gray scale; `bg-background` is not white (#5579).
+const SHADCN_TOKEN_RE =
+  /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
+// Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
+// `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
+const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
 const UI_KIT_DIR = "src/components/ui/";
@@ -414,6 +443,8 @@ function makeClassStringRule({
   regex,
   baseline = new Map(),
   skipUiKit,
+  onlyUiKit = false,
+  skipFiles = [],
   docs,
   messageId,
   message,
@@ -430,6 +461,8 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
+      if (onlyUiKit && !key.startsWith(UI_KIT_DIR)) return {};
+      if (skipFiles.includes(key)) return {};
       const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
@@ -552,11 +585,11 @@ const noHandRolledSurface = {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (InfoCard, SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (InfoCard, SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -611,6 +644,26 @@ const noRounded3xl = makeClassStringRule({
   messageId: "rounded3xl",
   message:
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md).",
+});
+
+const noShadcnTokens = makeClassStringRule({
+  regex: SHADCN_TOKEN_RE,
+  skipUiKit: false,
+  docs: "Disallow shadcn semantic colour tokens; the kit uses bg-white and the gray scale.",
+  messageId: "shadcnToken",
+  message:
+    "{{match}} is a shadcn theme token (slate, not the kit palette). Use bg-white / gray-* or a moto-* utility (see .claude/rules/frontend-ui-kit.md).",
+});
+
+const noRawZIndex = makeClassStringRule({
+  regex: RAW_Z_INDEX_RE,
+  skipUiKit: false,
+  onlyUiKit: true,
+  skipFiles: [Z_LAYER_FILE],
+  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  messageId: "rawZIndex",
+  message:
+    "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
 });
 
 // ui-kit/green-fill-white-text — auf einer deckend grünen Fläche steht weiße
@@ -2057,6 +2110,155 @@ const noGreyButtonFill = makeButtonRatchetRule({
   }),
 });
 
+// --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
+//
+// Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
+// außen mit `!` überstimmt (`<SectionCard className="!p-0">`). Die Regel
+// prüft jedes className-Attribut (auch bodyClassName, titleClassName …) an
+// Elementen, die aus ~/components/ui/ importiert sind. Button und ButtonLink
+// gehören der Button-Ratsche (no-button-override) mit ihrer Baseline.
+//
+// no-section-card-bleed fällt auf einen Negativrand im bodyClassName einer
+// SectionCard: `-mx-5 -mb-5` hob das Kartenpolster für einen randlosen Rumpf
+// wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
+// Dafür gibt es `flush` und `footer`. Hart null.
+//
+// no-important-override startet mit einer shrink-only Baseline je Datei
+// (ui-kit-important-override-baseline.mjs).
+
+const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
+const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
+const NEGATIVE_MARGIN_RE = /^-m[xytrblse]?-/;
+
+function kitComponentNames(program) {
+  const names = new Set();
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration") continue;
+    const source =
+      statement.source.type === "Literal" ? String(statement.source.value) : "";
+    if (!KIT_IMPORT_RE.test(source)) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportNamespaceSpecifier") continue;
+      const imported =
+        specifier.type === "ImportSpecifier"
+          ? specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : String(specifier.imported.value)
+          : "default";
+      if (IMPORTANT_OWNED_ELSEWHERE.has(imported)) continue;
+      names.add(specifier.local.name);
+    }
+  }
+  return names;
+}
+
+/** Utility without its variant prefixes (`md:hover:!p-0` → `!p-0`). */
+function bareUtility(token) {
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < token.length; index += 1) {
+    const char = token[index];
+    if (char === "[") depth += 1;
+    else if (char === "]") depth -= 1;
+    else if (char === ":" && depth === 0) start = index + 1;
+  }
+  return token.slice(start);
+}
+
+function isImportantUtility(token) {
+  const utility = bareUtility(token);
+  if (utility.length < 2) return false;
+  return (
+    (utility.startsWith("!") && /^[-a-z[]/.test(utility.slice(1))) ||
+    (utility.endsWith("!") && /^-?[a-z]/.test(utility))
+  );
+}
+
+function classAttributes(node) {
+  return node.attributes.filter(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      /^(?:className|[a-z]\w*ClassName)$/.test(attribute.name.name) &&
+      attribute.value,
+  );
+}
+
+function makeKitClassRule({
+  description,
+  messageId,
+  message,
+  detect,
+  baseline = {},
+}) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { [messageId]: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return {};
+      const constants = new Map();
+      const findings = [];
+      let kitNames = new Set();
+      return {
+        Program(node) {
+          kitNames = kitComponentNames(node);
+        },
+        "Program:exit"() {
+          // count: jeden Fund melden, damit der Test die Baseline gegen den
+          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
+          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
+          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
+          for (const node of findings) context.report({ node, messageId });
+        },
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        JSXOpeningElement(node) {
+          const name = jsxName(node.name);
+          if (!name || !kitNames.has(name)) return;
+          for (const attribute of classAttributes(node)) {
+            const tokens = classText(attribute.value, constants)
+              .split(/\s+/)
+              .filter(Boolean);
+            if (detect({ name, attribute: attribute.name.name, tokens })) {
+              findings.push(attribute);
+            }
+          }
+        },
+      };
+    },
+  };
+}
+
+const noImportantOverride = makeKitClassRule({
+  description:
+    "Do not override a kit component with important utilities; add the missing prop to the kit.",
+  messageId: "important",
+  message:
+    'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
+  detect: ({ tokens }) => tokens.some(isImportantUtility),
+  baseline: importantOverrideBaseline,
+});
+
+const noSectionCardBleed = makeKitClassRule({
+  description:
+    "Do not undo the SectionCard padding with negative margins; use flush or footer.",
+  messageId: "bleed",
+  message:
+    "Kein Negativrand im Rumpf einer SectionCard: `flush` lässt den Rumpf bis an die Kante laufen, `footer` ergibt eine randlose Fußzone (#5581).",
+  detect: ({ name, attribute, tokens }) =>
+    name === "SectionCard" &&
+    attribute === "bodyClassName" &&
+    tokens.some((token) => NEGATIVE_MARGIN_RE.test(bareUtility(token))),
+});
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -2070,8 +2272,12 @@ export default {
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-important-override": noImportantOverride,
     "no-raw-input": noRawInput,
+    "no-raw-z-index": noRawZIndex,
     "no-rounded-3xl": noRounded3xl,
+    "no-section-card-bleed": noSectionCardBleed,
+    "no-shadcn-tokens": noShadcnTokens,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,

@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
   "pickup_proof_not_found": "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
   "pickup_reset_requires_offering": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "pickup_reset_still_needed": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "reason_required": "Не указана причина: {object}. Укажите её.",
   "request_not_decided": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "request_not_past": "Не удалось изменить: {object}. Проверьте текущее состояние.",

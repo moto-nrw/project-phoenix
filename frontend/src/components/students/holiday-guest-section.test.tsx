@@ -43,6 +43,7 @@ const sheet: HolidayGuestSheet = {
   timeModelEndsAt: "13:00",
   homeSchoolId: null,
   guestSchoolName: "Grundschule Melle",
+  schoolName: "Grundschule Melle",
   emergencyContacts: [
     { name: "Eva Muster", phone: "0151 2345678", relationship: "Eltern" },
     { name: "Oma Muster", phone: "05402 1234", relationship: "Großmutter" },
@@ -68,9 +69,7 @@ describe("HolidayGuestSection", () => {
       await screen.findByText("bis 13 Uhr (08:00 bis 13:00 Uhr)"),
     ).toBeInTheDocument();
     expect(screen.getByText("14.09.2026 bis 18.09.2026")).toBeInTheDocument();
-    expect(
-      screen.getByText("Ohne Schule beim Träger (Grundschule Melle)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Gast aus Grundschule Melle")).toBeInTheDocument();
     expect(screen.getByText("Eva Muster (Eltern)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "0151 2345678" })).toHaveAttribute(
       "href",
@@ -82,6 +81,32 @@ describe("HolidayGuestSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Opa Muster")).toBeInTheDocument();
     expect(sheetMock).toHaveBeenCalledWith("91");
+  });
+
+  it("names the home school of a child of another school of the Träger (#5630)", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      homeSchoolId: "7",
+      guestSchoolName: "",
+      schoolName: "OGS Am Park",
+    } satisfies HolidayGuestSheet);
+
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+
+    expect(await screen.findByText("Gast aus OGS Am Park")).toBeInTheDocument();
+  });
+
+  it("says Feriengast for a child without any school (#5630)", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      guestSchoolName: "",
+      schoolName: "",
+    } satisfies HolidayGuestSheet);
+
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+
+    const school = await screen.findByText("Schule");
+    expect(school.parentElement).toHaveTextContent("Feriengast");
   });
 
   it("shows the answers the Träger shares under their own heading (#5202)", async () => {

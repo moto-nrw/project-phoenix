@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_proof_not_found": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
   "pickup_reset_requires_offering": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "pickup_reset_still_needed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "reason_required": "Brakuje uzasadnienia: {object}. Wpisz je.",
   "request_not_decided": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "request_not_past": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

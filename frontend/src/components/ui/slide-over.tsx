@@ -38,15 +38,17 @@
 
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
-import { X } from "lucide-react";
 
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import { buttonClassName } from "./button";
+import { CloseIcon } from "./close-icon";
 import { FormErrorAlert } from "./form-error-alert";
 import type { FormErrorInput } from "./form-error";
 import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
+  Z_LAYER,
 } from "./overlay-styles";
 
 /**
@@ -152,7 +154,7 @@ const SlideOverOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-40",
+      `fixed inset-0 ${Z_LAYER.sheetBackdrop}`,
       OVERLAY_BACKDROP_TINT_CLASS,
       OVERLAY_BACKDROP_CLASS,
       className,
@@ -203,7 +205,7 @@ const SlideOverContent = React.forwardRef<
           ref={ref}
           data-date-picker-focus-trap="true"
           className={cn(
-            "fixed z-50 flex flex-col bg-white shadow-2xl outline-none",
+            `fixed ${Z_LAYER.sheet} flex flex-col bg-white shadow-2xl outline-none`,
             isSheet
               ? // Blatt von unten: an drei Kanten bündig, oben abgerundet, nie
                 // höher als 90vh — der Rest der Seite bleibt als Kontext sichtbar.
@@ -330,11 +332,10 @@ SlideOverDescription.displayName = DrawerPrimitive.Description.displayName;
 /**
  * SlideOverCloseButton — the shared close (X) control for slide-over headers.
  *
- * The SlideOver primitive (Vaul) ships no styled close button, so every panel
- * used to hand-roll its own — which is why the close-X drifted across the app.
- * This is the single source of truth: a round icon button matching the
- * canonical slide-over close. Renders a
- * default X; pass children to override, and aria-label to retitle it.
+ * The SlideOver primitive (Vaul) ships no styled close button. Like every
+ * overlay close X (#5531) it is the kit button `ghost` `icon` with
+ * `CloseIcon`, so Modal, FormModal and SlideOver close the same way. Renders
+ * the X by default; pass children to override, and aria-label to retitle it.
  */
 const SlideOverCloseButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
@@ -342,16 +343,19 @@ const SlideOverCloseButton = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DrawerPrimitive.Close
     ref={ref}
+    type="button"
     aria-label="Schließen"
     // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
     data-overlay-close=""
-    className={cn(
-      "inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300",
-      className,
-    )}
+    data-icon-only=""
+    className={buttonClassName({
+      variant: "ghost",
+      size: "icon",
+      className: cn("shrink-0", className),
+    })}
     {...props}
   >
-    {children ?? <X className="h-5 w-5" aria-hidden="true" />}
+    {children ?? <CloseIcon />}
   </DrawerPrimitive.Close>
 ));
 SlideOverCloseButton.displayName = "SlideOverCloseButton";

@@ -79,3 +79,32 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
   `billingRunOverview`, ohne die Route zu ändern.
 - Die Finanz-Exporte (SEPA, DATEV, Sollstellung) sind eigene Formate des
   Owners und nicht diese Übersicht.
+
+## Nachtrag 2026-11-03: Anschriftspalten (#5625)
+
+Punkt 2 bekommt nach „Empfänger“ die Spalten „Straße und Hausnummer“, „PLZ“
+und „Ort“ aus der Kopie der Rechnung (ADR 0121 Nachtrag vom 03.11.2026), in
+PDF, Excel und CSV. Die Spalten erscheinen nur, wenn mindestens eine
+Rechnung des Laufs eine Anschrift hat; sonst bleibt die Übersicht bei den
+Spalten von bisher. Die Zeile mit der Summe einer Rechnung nennt die
+Anschrift wie ihre Positionen. Die Mail-Adresse fehlt weiter.
+
+## Nachtrag 2026-11-03: Spalte Debitorennummer (#5621)
+
+Punkt 2 bekommt direkt nach „Empfänger“ die Spalte „Debitorennummer“ aus der
+Kopie der Rechnung (ADR 0121 Nachtrag „Debitorennummer beim Bestätigen“), in
+PDF, Excel und CSV, auf den Zeilen der Positionen und der Summe je Rechnung.
+Wie die Anschriftspalten erscheint sie nur, wenn mindestens eine Rechnung
+des Laufs eine Nummer hat; eine Rechnung ohne Nummer lässt die Zelle leer.
+Hat der Lauf beides, steht die Debitorennummer vor der Anschrift.
+
+## Nachtrag 2026-11-03: Storno und Gutschrift (#4690)
+
+Hat ein Lauf einen Storno oder eine Gutschrift oder ersetzt eine Rechnung
+eine stornierte (ADR 0119 Nachtrag vom 03.11.2026), heißt die erste Spalte
+„Nummer“, und nach ihr stehen „Art“ (Rechnung, Storno, Gutschrift) und
+„Bezug“ („zu FE-…“, „ersetzt FE-…“). Storno und Gutschrift sind eigene
+Zeilen mit Minusbetrag und eigener Summenzeile; die Gesamtsumme des Laufs
+ist die Summe aller Dokumente. Über der Tabelle zählen die Rechnungen
+weiter für sich, Storno und Gutschrift haben je eine Zeile mit ihren
+Nummern. Ohne solche Dokumente bleibt die Übersicht wie bisher.

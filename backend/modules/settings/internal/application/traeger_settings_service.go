@@ -122,6 +122,41 @@ func (t *TraegerSettings) Schema(ctx context.Context, organizationID int64, righ
 // Träger print them (ADR 0112, #4669). It joins the caller's Träger
 // transaction; a key without a Träger level is an error.
 func (t *TraegerSettings) TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error) {
+	snapshot, err := t.traegerSnapshot(ctx, organizationID, keys, "traeger_texts")
+	if err != nil {
+		return nil, err
+	}
+	texts := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if texts[key], err = snapshot.String(key); err != nil {
+			return nil, err
+		}
+	}
+	return texts, nil
+}
+
+// TraegerBools reads the effective values of Träger-level switches of a
+// Träger: its own value or the registry default. The Elternabrechnung asks
+// whether the Träger enters the debtor number when it confirms a holiday
+// registration (#5621). It joins the caller's Träger transaction; a key
+// without a Träger level is an error.
+func (t *TraegerSettings) TraegerBools(ctx context.Context, organizationID int64, keys []string) (map[string]bool, error) {
+	snapshot, err := t.traegerSnapshot(ctx, organizationID, keys, "traeger_bools")
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		if values[key], err = snapshot.Bool(key); err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
+// traegerSnapshot reads the Träger values of keys in the caller's Träger
+// transaction, layered over the registry defaults.
+func (t *TraegerSettings) traegerSnapshot(ctx context.Context, organizationID int64, keys []string, operation string) (*config.SettingsSnapshot, error) {
 	definitions := t.traegerKeys()
 	for _, key := range keys {
 		if definitions[key] == nil {
@@ -135,19 +170,9 @@ func (t *TraegerSettings) TraegerTexts(ctx context.Context, organizationID int64
 		return findErr
 	})
 	if err != nil {
-		return nil, &config.SettingsError{Op: "traeger_texts", Err: err}
+		return nil, &config.SettingsError{Op: operation, Err: err}
 	}
-	snapshot, err := config.NewLayeredSettingsSnapshot(t.deps.Registry, 0, keys, nil, stored)
-	if err != nil {
-		return nil, err
-	}
-	texts := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if texts[key], err = snapshot.String(key); err != nil {
-			return nil, err
-		}
-	}
-	return texts, nil
+	return config.NewLayeredSettingsSnapshot(t.deps.Registry, 0, keys, nil, stored)
 }
 
 func (t *TraegerSettings) resolve(key string, definition *config.Definition, snapshot *config.SettingsSnapshot, rights []string) (*config.ResolvedSetting, error) {

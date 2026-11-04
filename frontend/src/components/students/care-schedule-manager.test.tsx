@@ -1093,14 +1093,20 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" />);
     await screen.findByText("Betreuungszeiten");
 
-    const mismatchMarker = screen.getAllByText(
-      "Andere Zeit als im Angebot „Ganztag“",
-    )[0];
-    expect(mismatchMarker).toHaveClass("max-w-full", "truncate");
-    expect(mismatchMarker).toHaveAttribute(
+    // Montag: 14:30 von Hand verdeckt die gebuchten 16:00. Die Woche zeigt
+    // die gebuchte Zeit als Warnung und sagt, welche Zeit gilt.
+    const mismatchMarkers = screen.getAllByText("Gebucht 16:00 Uhr");
+    expect(mismatchMarkers.length).toBeGreaterThan(0);
+    expect(mismatchMarkers[0]).toHaveAttribute(
       "title",
-      "Andere Zeit als im Angebot „Ganztag“",
+      "Von Hand eingetragen: 14:30 Uhr. Gebucht im Angebot „Ganztag“: 16:00 Uhr.",
     );
+    expect(
+      screen.getAllByText(
+        "Von Hand eingetragen, gilt statt der gebuchten Zeit.",
+      ).length,
+    ).toBe(mismatchMarkers.length);
+    // Dienstag: dieselbe Zeit wie gebucht, nur die Herkunft, keine Warnung.
     expect(screen.getAllByText("von Hand").length).toBeGreaterThan(0);
   });
 

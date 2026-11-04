@@ -57,6 +57,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["timetable/betreuungsplan/export", "POST"],
   ["timetable/lists/export", "POST"],
   ["traeger/access-log/export", "GET"],
+  ["traeger/billing-runs/[id]/cost-takeovers/[costBearerId]/export", "GET"],
   ["traeger/billing-runs/[id]/documents/[documentId]/letter", "GET"],
   ["traeger/billing-runs/[id]/export", "GET"],
   ["traeger/billing-runs/[id]/letters/preview", "POST"],

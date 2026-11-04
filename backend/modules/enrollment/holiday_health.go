@@ -19,7 +19,8 @@ import (
 // HolidayConsentVersionHostHealth is the version of the consent texts of the
 // public registration that names the hosting OGS as a reader of the health
 // information, from when on and until when. A registration submitted under
-// an earlier version (stored as none) shares no health information.
+// an earlier version (stored as none) shares no health information; every
+// later version, such as HolidayConsentVersionCurrent, shares it too.
 const HolidayConsentVersionHostHealth = 2
 
 // ErrHolidayHealthUnreadable reports a sealed value that does not open: a

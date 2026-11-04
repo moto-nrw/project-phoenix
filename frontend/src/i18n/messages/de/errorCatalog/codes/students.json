@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
   "pickup_proof_not_found": "Zu dieser Anfrage gibt es keine Unterschrift.",
   "pickup_reset_requires_offering": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "pickup_reset_still_needed": "Die gebuchte Abholzeit können Sie erst ab {possible_from} übernehmen. Bis {needed_until} gilt an diesem Wochentag noch die eingetragene Zeit.",
   "reason_required": "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
   "request_not_decided": "{object} ist noch nicht entschieden. Bitte entscheiden Sie zuerst.",
   "request_not_past": "Die Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",

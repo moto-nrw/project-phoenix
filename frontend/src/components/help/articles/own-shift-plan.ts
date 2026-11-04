@@ -22,6 +22,7 @@ export function ownShiftPlanTopic(): HelpTopic {
       "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
       "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
       "Das Soll ist dasselbe wie in der Zeiterfassung. Feiertage und Schließtage sind schon eingerechnet.",
+      "Ist eine Woche leer, nennt die Seite Ihre nächste Schicht. `Zur nächsten Schicht` bringt Sie zu dieser Woche.",
     ],
     differences: [
       "Auf dem Handy finden Sie `Mein Dienstplan` unten unter `Mehr`. Dort stehen die Schichten als Liste je Tag statt im Wochenraster.",

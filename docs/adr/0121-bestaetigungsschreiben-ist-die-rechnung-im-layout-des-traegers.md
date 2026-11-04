@@ -139,3 +139,123 @@ Design von moto drucken, aber keinen Brief.
 - Alle Schreiben eines Laufs gesammelt drucken (Story 79) fehlt noch.
 - Mit dem Zahler kommen Anschrift und Kundennummer ins Anschriftfeld; Storno
   und Neuausstellung (Story 72) bekommen eigene Schreiben.
+
+## Nachtrag 2026-11-03: Anschrift aus der Ferienanmeldung (#5625)
+
+Nach der Rückmeldung der Gemeinde vom 03.11.2026 ersetzt dieser Nachtrag die
+Anschrift-Regel in Punkt 5 und die verworfene Option „Anschrift in der
+Ferienanmeldung ergänzen“:
+
+- **Schaltbar je Formularversion.** Das Anmeldeformular eines Zeitraums hat
+  den festen Baustein „Anschrift“ mit „Nicht abfragen“, „Freiwillig“ und
+  „Pflicht“ (`enrollment.holiday_period_forms.address_requirement`, Standard
+  `off`). Er ist keine Frage des Baukastens, weil die Abrechnung die
+  Anschrift als feste Struktur braucht. Bestehende Versionen fragen nichts
+  ab. Ob der Fachdienst Finanzen die Anschrift braucht, klärt der Termin am
+  11.11.2026; bis dahin steht der Schalter für neue Zeiträume auf „Nicht
+  abfragen“.
+- **An der Anmeldung.** Straße und Hausnummer, PLZ (fünf Ziffern) und Ort
+  stehen an `enrollment.holiday_registrations`, alle drei oder keine (CHECK).
+  Der Server prüft gegen die Version, mit der die Anmeldung kommt. Die
+  Anschrift geht mit der Anmeldung nach 92 Tagen (ADR 0118 Punkt 1).
+- **Kopie in der Rechnung.** Die Freigabe kopiert die Anschrift wie Name und
+  E-Mail in `parent_billing.documents.recipient_address_*` (ADR 0118
+  Punkt 2, ADR 0119); derselbe CHECK gilt, der Trigger gegen Änderungen
+  bleibt. Die Elternabrechnung liest sie über den Port
+  `HolidayBillingRegistrations`, den die Wurzel an Enrollments
+  `ListHolidayRegistrationRecipients` bindet; der Lesezugriff steht wie die
+  Liste im Protokoll des Zeitraums (ADR 0114).
+- **Anschriftfeld.** Hat die Rechnung eine Anschrift, nennt das Feld
+  „Familie Nachname“, Vor- und Nachname, Straße und Hausnummer, PLZ und Ort.
+  Sonst bleibt es bei den zwei Zeilen. Der Renderer bleibt unverändert
+  (Punkt 6); `TestConfirmationLetterFollowsTheBissendorfTemplate` deckt
+  beide Fälle ab. Schon erzeugte Schreiben und ausgestellte Rechnungen
+  bleiben, wie sie sind (Punkt 3).
+- **Nicht in diesem Schritt:** keine Vorbefüllung aus den Stammdaten
+  (ADR 0113), keine Anschrift der zweiten sorgeberechtigten Person, keine
+  Auslandsanschrift und kein Adresszusatz. Der Zahler mit eigener Anschrift
+  und Kundennummer kommt weiter mit der Elternabrechnung (ADR 0088 §4).
+  Teilnehmerliste der OGS (ADR 0116), Feriengast-Kopie (ADR 0120) und
+  Eingangsbestätigung bekommen keine Anschrift.
+
+## Nachtrag 2026-11-03: Debitorennummer beim Bestätigen (#5621)
+
+Die Gemeinde Bissendorf ordnet Zahlungen über die Debitorennummer der Familie
+zu (sie nennt sie auch Adressnummer). Dieser Nachtrag ersetzt die Regel
+„Adressnummer“ in Punkt 5 für Träger, die die Nummer abfragen:
+
+- **Schalter je Träger.** Die Träger-Einstellung
+  `parent_billing.debtor_number_on_confirm` („Debitorennummer beim Bestätigen
+  abfragen“, Ebene `traeger`, Standard aus) entscheidet, ob das Träger-Büro
+  die Nummer beim Bestätigen einträgt. Die Elternabrechnung liest den Schalter
+  über ihren Port `HolidayBillingSettings` in der Träger-Transaktion; die
+  Wurzel bindet ihn an `TraegerSettings.TraegerBools`.
+- **An der Anmeldung, nicht am Kind und nicht an einer Familie.**
+  `enrollment.holiday_registrations.debtor_number` (höchstens 35 Zeichen,
+  getrimmt, ohne Zeilenumbruch, kein Format; CHECK). Geschwister teilen die
+  Nummer, Feriengäste haben in moto kein Kind (ADR 0120), und eine Familie
+  über mehrere Zeiträume gibt es nicht. Die Nummer geht mit der Anmeldung
+  nach 92 Tagen (ADR 0118 Punkt 1).
+- **Bestätigen.** Ist der Schalter an, lehnt die Bestätigung ohne Nummer mit
+  400 und Feldfehler `debtor_number` ab, bevor etwas geschrieben ist
+  (`parent_billing.debtor_number_invalid`). Ist er aus, ist die Nummer
+  freiwillig. Bestätigung und Nummer sind ein Eintrag „confirm“ im Protokoll
+  der Anmeldung (ADR 0114), mit der Nummer vorher und nachher.
+- **Ändern bis zur Rechnung.** Das Träger-Büro ändert die Nummer einer
+  bestätigten Anmeldung unter `/traeger/holiday-contributions`, solange keine
+  ausgestellte Rechnung sie abrechnet; danach 409
+  (`parent_billing.debtor_number_locked`). Einfrieren und Wiederöffnen
+  spielen keine Rolle. Jede Änderung ist ein Eintrag „debtor_number“ mit der
+  Nummer vorher und nachher. Freigabe und Änderung nehmen dieselbe
+  Transaktionssperre je Träger, Leistung und Zeitraum; die Freigabe kopiert
+  also die Nummer vor oder nach einer laufenden Änderung, nie eine, die die
+  Änderung danach noch überschreibt.
+- **Kopie in der Rechnung.** Die Freigabe kopiert die Nummer in
+  `parent_billing.documents.debtor_number` (ADR 0118 Punkt 2, ADR 0119); der
+  Trigger gegen Änderungen bleibt. Ist der Schalter an und hat eine
+  Rechnung der Vorschau keine Nummer, nennt die Seite des Laufs die Zahl;
+  die Freigabe bleibt möglich.
+- **Schreiben.** Hat die Rechnung eine Nummer, steht sie im Infoblock unter
+  der Rechnungsnummer als „Debitorennummer“, und der Zahlungssatz lautet
+  „Geben Sie als Verwendungszweck Ihre Debitorennummer … an.“ Ohne Nummer
+  bleibt der Satz mit der Rechnungsnummer. Schon erzeugte Schreiben bleiben
+  (Punkt 3).
+- **Nicht in diesem Schritt:** kein Vorschlag aus einer früheren Anmeldung,
+  kein Import aus dem Finanzverfahren, keine Prüfung des Formats, kein frei
+  einstellbarer Zahlungstext. Die Kundennummer des Zahlers für alle
+  Leistungen kommt weiter mit #4689.
+
+## Nachtrag 2026-11-03: Zahlungstext des Trägers (#5622)
+
+Das bisherige Schreiben der Gemeinde Bissendorf bittet zusätzlich Familien mit
+SEPA-Lastschriftmandat, nicht zu überweisen. Wer ein Mandat erteilt hat, weiß
+nur der Fachdienst Finanzen; der Satz steht deshalb in jedem Schreiben. Dieser
+Nachtrag ändert Punkt 5 („Ein Satz zum Lastschriftmandat fehlt“) und Punkt 6:
+
+- **Text des Trägers.** Der Zahlungssatz ist ein Text des Trägers mit festen
+  Platzhaltern: die Träger-Einstellung `parent_billing.payment_text`
+  („Zahlungstext im Schreiben“, Ebene `traeger`, Typ `textarea`, Recht
+  „Einstellungen“, Reiter „Ferienbetreuung“ neben dem Schalter aus #5621).
+  Die Elternabrechnung liest ihn wie die Texte des Briefkopfs über
+  `TraegerTexts` in der Träger-Transaktion (`Letterhead.PaymentText`).
+- **Platzhalter.** `{Betrag}`, `{Zahlungsfrist}`, `{Rechnungsnummer}` und
+  `{Debitorennummer}`, in der Schreibweise der Rechnungsnummern-Muster.
+  Betrag und Datum haben das Format des eingebauten Satzes. Andere Texte in
+  geschweiften Klammern, eine offene Klammer und mehr als 600 Zeichen lehnt
+  das Speichern ab (`Validation.Pattern` mit `AllowEmpty`, neu
+  `Validation.MaxLength`). Jede Änderung steht in
+  `config.traeger_setting_audit`.
+- **Leer heißt eingebaut.** Ohne eigenen Text bleibt der Satz aus Punkt 5 mit
+  der Regel aus #5621. Bei 0 € bleibt „Sie müssen für diese Betreuung nichts
+  bezahlen.“, auch mit eigenem Text. Der Satz bleibt fett.
+- **Keine Lücke.** Nennt der Text `{Debitorennummer}` und hat eine Rechnung
+  des Laufs mit Betrag keine Nummer, lehnen Vorschau und Erstellen der
+  Schreiben mit 409 ab (`parent_billing.payment_text_debtor_number_missing`,
+  in `details` die Zahl und die Rechnungsnummern); nichts wird gespeichert.
+- **Fertige Schreiben bleiben** (Punkt 3). Ein neuer Text gilt für die nächsten
+  erstellten Schreiben.
+- **Vorgriff, kein Ersatz.** Das ist ein kleiner Vorgriff auf die Vorlagen je
+  Träger (#4677, Story 91), die den Text später in ihre Vorlagenverwaltung
+  übernehmen. Ein Satz je Familie nach Mandat kommt mit den Mandaten je Zahler
+  (#4695) und dem Zahlungsweg je Familie (#4689); einen Zahlungstext je Lauf
+  gibt es nicht.

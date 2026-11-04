@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -390,25 +391,26 @@ export function FilterPanel({
     <>
       {/* Click-outside backdrop. Transparent so the page content stays
           visible behind it — Stripe / Linear pattern. The panel itself
-          dominates focus via shadow + border. Sits at z-[45]: above the
-          page's floating actions (bottom nav z-30, FABs z-40) so any tap
-          outside the panel closes it instead of leaking through to a FAB
-          or nav action, and below the panel itself (z-50). */}
+          dominates focus via shadow + border. Sits at Z_LAYER.panelBackdrop:
+          above the page's floating actions (Z_LAYER.nav, Z_LAYER.fab) so any
+          tap outside the panel closes it instead of leaking through to a FAB
+          or nav action, and below the panel itself (Z_LAYER.sheet). */}
       <button
         type="button"
         onClick={onClose}
         aria-label="Filter schließen"
-        className="fixed inset-0 z-[45] cursor-default bg-transparent"
+        className={`fixed inset-0 ${Z_LAYER.panelBackdrop} cursor-default bg-transparent`}
       />
 
       {/* Panel. When an anchor is provided by the search row, the portaled
           panel opens just below the trigger instead of covering it. The
           non-anchored branch keeps the legacy bottom-sheet fallback for
-          standalone tests or older consumers. The panel sits at z-50 so it
-          paints above page-level floating actions (FABs at z-40, e.g. the
-          Activities create FAB or the binary-mode SchoolCheckinFab) instead
-          of letting them cover the lower filter fields. It does NOT cover the
-          mobile bottom nav (z-30): the height calculation reserves that nav
+          standalone tests or older consumers. The panel sits at
+          Z_LAYER.sheet so it paints above page-level floating actions
+          (Z_LAYER.fab, e.g. the Activities create FAB or the binary-mode
+          SchoolCheckinFab) instead of letting them cover the lower filter
+          fields. It does NOT cover the mobile bottom nav (Z_LAYER.nav): the
+          height calculation reserves that nav
           area (MOBILE_BOTTOM_NAV_CLEARANCE), so the panel never reaches it
           geometrically — z-index only resolves the FAB overlap. */}
       <div
@@ -418,7 +420,7 @@ export function FilterPanel({
         aria-label="Filter"
         data-testid={testId}
         style={panelStyle}
-        className={`z-50 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${panelPositionClass}`}
+        className={`${Z_LAYER.sheet} flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${panelPositionClass}`}
       >
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {useSections ? (
@@ -478,9 +480,9 @@ export function FilterPanel({
 
   // Portal to <body> so the panel escapes the page's `relative z-10` content
   // stacking context (app-shell.tsx). At the body level the transparent
-  // backdrop sits at z-[45] (above the bottom nav z-30 and FABs z-40 so an
-  // outside tap closes the panel rather than firing a FAB/nav action), while
-  // the panel itself is z-50 so it paints above the backdrop. The panel still
+  // backdrop sits at Z_LAYER.panelBackdrop (above the bottom nav and FABs so
+  // an outside tap closes the panel rather than firing a FAB/nav action),
+  // while the panel itself is Z_LAYER.sheet so it paints above the backdrop. The panel still
   // never geometrically covers the bottom nav (MOBILE_BOTTOM_NAV_CLEARANCE).
   if (typeof document !== "undefined") {
     return createPortal(panel, document.body);

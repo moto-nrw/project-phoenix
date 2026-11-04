@@ -784,6 +784,15 @@ richtet: eine Rechnung, ein Gebührenbescheid oder ein Bestätigungsschreiben.
 Welche Art es ist, legt der Träger je Leistung fest.
 _Vermeiden_: Rechnung als Oberbegriff (ein Bescheid ist keine Rechnung).
 
+## Storno und Gutschrift
+
+Ein ausgestelltes Beitragsdokument ändert sich nie. Ein **Storno** nimmt es
+ganz zurück, eine **Gutschrift** erlässt einen Teil davon. Beide sind eigene
+Dokumente mit eigener Nummer aus demselben Nummernkreis, Begründung und Bezug
+auf das Dokument. Nach einem Storno stellt der nächste Lauf eine neue
+Rechnung aus, die die stornierte ersetzt (**Neuausstellung**).
+_Vermeiden_: Rechnung ändern, Rechnung löschen.
+
 ## Rechnungssteller
 
 Der **Rechnungssteller** ist die Stelle, die ein Beitragsdokument ausstellt und

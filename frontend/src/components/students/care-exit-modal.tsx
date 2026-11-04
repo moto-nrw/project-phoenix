@@ -14,8 +14,8 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { InfoCard } from "~/components/ui/info-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -459,10 +459,7 @@ function CareExitPreviewList({
         </div>
       ) : null}
       {ready.length > 0 ? (
-        <InfoCard
-          title="Folgen des Austritts"
-          icon={<LogOut className="h-5 w-5 text-gray-600" aria-hidden="true" />}
-        >
+        <SectionCard title="Folgen des Austritts" icon={LogOut}>
           <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
             <li>
               Die Anmeldung zur Betreuung endet. Das Kind erscheint danach nicht
@@ -483,7 +480,7 @@ function CareExitPreviewList({
               geplant werden.
             </li>
           </ul>
-        </InfoCard>
+        </SectionCard>
       ) : null}
     </div>
   );

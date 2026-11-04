@@ -4,6 +4,8 @@
   "emptyTitle": "Noch keine Dokumente",
   "emptyDescription": "Schickt Ihnen der Träger ein Schreiben, finden Sie es hier. Sie bekommen es auch per Mail.",
   "confirmationLetter": "Bestätigungsschreiben {period}",
+  "cancellationLetter": "Storno {period}",
+  "creditLetter": "Gutschrift {period}",
   "sender": "Von {traeger}",
   "children": "Für",
   "amount": "Betrag",
