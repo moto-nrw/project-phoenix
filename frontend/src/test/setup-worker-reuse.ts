@@ -403,12 +403,14 @@ interface MockRegistry {
 function mockRegistry(): MockRegistry {
   const forEach = Set.prototype.forEach;
   let registered: Set<unknown> | undefined;
+  // oxlint-disable-next-line no-extend-native -- stubbed for this one call, restored below
   Set.prototype.forEach = function (this: Set<unknown>) {
     registered = this;
   };
   try {
     vi.clearAllMocks();
   } finally {
+    // oxlint-disable-next-line no-extend-native -- restores the original method
     Set.prototype.forEach = forEach;
   }
   const probe = vi.fn();
