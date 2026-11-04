@@ -46,6 +46,10 @@ func harnessRuntime(db *bun.DB) schoolsetuphttp.Runtime {
 			account, _ := ctx.Value(accountKey{}).(int64)
 			return tenant.FromContext(ctx), account
 		},
+		ViaTraeger: func(ctx context.Context) bool {
+			viaTraeger, _ := ctx.Value(viaTraegerKey{}).(bool)
+			return viaTraeger
+		},
 		Respond: func(w http.ResponseWriter, _ *http.Request, status int, data any, _ string) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(status)
@@ -62,14 +66,23 @@ func harnessRuntime(db *bun.DB) schoolsetuphttp.Runtime {
 // from the session principal.
 type accountKey struct{}
 
+// viaTraegerKey marks the request as coming through the Absprung.
+type viaTraegerKey struct{}
+
 // do sends one request as the account and decodes a 200 body into the status.
 func (h *harness) do(t *testing.T, accountID int64, method, path string, body any) (*httptest.ResponseRecorder, schoolsetup.Status) {
+	t.Helper()
+	return h.doIn(t, testpkg.Ctx(t), accountID, method, path, body)
+}
+
+// doIn is do in a given school and session context.
+func (h *harness) doIn(t *testing.T, base context.Context, accountID int64, method, path string, body any) (*httptest.ResponseRecorder, schoolsetup.Status) {
 	t.Helper()
 	var payload bytes.Buffer
 	if body != nil {
 		require.NoError(t, json.NewEncoder(&payload).Encode(body))
 	}
-	ctx := context.WithValue(testpkg.Ctx(t), accountKey{}, accountID)
+	ctx := context.WithValue(base, accountKey{}, accountID)
 	request := httptest.NewRequest(method, path, &payload).WithContext(ctx)
 	recorder := httptest.NewRecorder()
 	h.router.ServeHTTP(recorder, request)
