@@ -39,6 +39,25 @@ function amountText(carried: BillingCarriedCorrection): string {
     : `${source}. Hier ${formatEuro(carried.amountCents)}, weil der Betrag nicht unter 0 € fällt`;
 }
 
+// Proposals apply in order and each may lower the amount only to zero. Rebuild
+// that sequence without the removed proposal so the confirmation matches the
+// resulting backend preview.
+function totalAfterRemovingCarriedCorrection(
+  child: BillingChild,
+  removedPositionID: string,
+): number {
+  let totalCents = child.totalCents;
+  for (const carried of child.carriedCorrections) {
+    totalCents -= carried.amountCents;
+  }
+  for (const carried of child.carriedCorrections) {
+    if (carried.positionId !== removedPositionID) {
+      totalCents += Math.max(carried.sourceAmountCents, -totalCents);
+    }
+  }
+  return totalCents;
+}
+
 export function BillingCarriedCorrectionsCard({
   run,
   onChange,
@@ -162,7 +181,10 @@ export function BillingCarriedCorrectionsCard({
               {formatEuro(removing.carried.amountCents)} für{" "}
               {removing.child.firstName} nicht mehr. Der Betrag wird{" "}
               {formatEuro(
-                removing.child.totalCents - removing.carried.amountCents,
+                totalAfterRemovingCarriedCorrection(
+                  removing.child,
+                  removing.carried.positionId,
+                ),
               )}
               . In diesem Lauf lässt sich das nicht rückgängig machen.
             </p>

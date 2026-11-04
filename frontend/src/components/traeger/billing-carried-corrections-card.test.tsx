@@ -25,12 +25,15 @@ const CARRIED: BillingCarriedCorrection = {
   reason: "Erster Tag krank",
 };
 
-function child(carried: BillingCarriedCorrection[]): BillingChild {
+function child(
+  carried: BillingCarriedCorrection[],
+  totalCents = 4750,
+): BillingChild {
   return {
     childId: "7",
     firstName: "Lia",
     lastName: "Muster",
-    totalCents: 4750,
+    totalCents,
     corrections: [],
     carriedCorrections: carried,
     positions: [],
@@ -40,6 +43,7 @@ function child(carried: BillingCarriedCorrection[]): BillingChild {
 function documentOf(
   carried: BillingCarriedCorrection[],
   replacedCredits: BillingDocument["replacedCredits"] = [],
+  childTotalCents = 4750,
 ): BillingDocument {
   return {
     id: "",
@@ -57,7 +61,7 @@ function documentOf(
     debtorNumber: "",
     serviceFrom: "2027-07-05",
     serviceUntil: "2027-07-16",
-    children: [child(carried)],
+    children: [child(carried, childTotalCents)],
     totalCents: 4750,
   };
 }
@@ -104,9 +108,9 @@ function renderCard(run: BillingRunDetail) {
 
 function openMenu() {
   fireEvent.click(
-    screen.getByRole("button", {
+    screen.getAllByRole("button", {
       name: /^Aktionen für die Korrektur von Lia über /,
-    }),
+    })[0]!,
   );
 }
 
@@ -160,6 +164,38 @@ describe("BillingCarriedCorrectionsCard", () => {
     );
     await waitFor(() => expect(mockRemove).toHaveBeenCalledWith("9", "61"));
     await waitFor(() => expect(onRemoved).toHaveBeenCalledWith(updated));
+  });
+
+  it("recalculates a later proposal that was limited at zero", async () => {
+    renderCard(
+      runOf([
+        documentOf(
+          [
+            {
+              ...CARRIED,
+              positionId: "61",
+              amountCents: -10000,
+              sourceAmountCents: -10000,
+            },
+            {
+              ...CARRIED,
+              positionId: "62",
+              amountCents: 0,
+              sourceAmountCents: -5000,
+            },
+          ],
+          [],
+          0,
+        ),
+      ]),
+    );
+
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Entfernen" }));
+
+    expect(
+      await screen.findByText(/Der Betrag wird 50,00/),
+    ).toBeInTheDocument();
   });
 
   it("names a credit of the cancelled invoice only as a notice", () => {
