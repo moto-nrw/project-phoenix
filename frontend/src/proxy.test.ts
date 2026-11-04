@@ -1297,12 +1297,20 @@ describe("proxy", () => {
     it.each([
       ["/accounts", "/einstellungen/mitglieder"],
       ["/traeger/accounts", "/einstellungen/mitglieder"],
+      ["/accounts/", "/einstellungen/mitglieder"],
+      ["/traeger/accounts/", "/einstellungen/mitglieder"],
       ["/access-log", "/einstellungen/zugriffsprotokoll"],
       ["/traeger/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/access-log/", "/einstellungen/zugriffsprotokoll"],
+      ["/traeger/access-log/", "/einstellungen/zugriffsprotokoll"],
       ["/briefkopf", "/einstellungen/briefkopf"],
       ["/traeger/briefkopf", "/einstellungen/briefkopf"],
+      ["/briefkopf/", "/einstellungen/briefkopf"],
+      ["/traeger/briefkopf/", "/einstellungen/briefkopf"],
       ["/beitraege", "/einstellungen/abrechnung"],
       ["/traeger/beitraege", "/einstellungen/abrechnung"],
+      ["/beitraege/", "/einstellungen/abrechnung"],
+      ["/traeger/beitraege/", "/einstellungen/abrechnung"],
     ])("redirects the old path %s to %s (#5685)", (from, to) => {
       const res = proxy(
         makeRequest(

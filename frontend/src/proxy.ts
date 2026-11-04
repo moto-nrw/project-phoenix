@@ -625,7 +625,7 @@ const TRAEGER_MOVED_PATHS: ReadonlyArray<readonly [from: string, to: string]> =
   ];
 
 function traegerMovedTarget(pathname: string): string | null {
-  const page = pathname.replace(/^\/traeger(?=\/|$)/, "");
+  const page = pathname.replace(/^\/traeger(?=\/|$)/, "").replace(/\/$/, "");
   const moved = TRAEGER_MOVED_PATHS.find(([from]) => page === from);
   return moved ? moved[1] : null;
 }
@@ -666,7 +666,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
   const movedTarget = traegerMovedTarget(pathname);
   if (movedTarget) {
-    const url = request.nextUrl.clone();
+    const url = new URL(request.url);
     url.pathname = movedTarget;
     return withSecurityHeaders(NextResponse.redirect(url, 308));
   }
