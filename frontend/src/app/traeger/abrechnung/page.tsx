@@ -1,7 +1,7 @@
 "use client";
 
-// Abrechnung des Trägers (#4668): Rechnungsnummern und Abrechnungsläufe der
-// Ferienbetreuung. Ein Lauf rechnet einen Ferienzeitraum im Voraus ab; nach
+// Abrechnung des Trägers (#4668): Abrechnungsläufe der Ferienbetreuung. Das
+// Muster der Rechnungsnummern liegt in den Abrechnungsvorgaben (#5685). Ein Lauf rechnet einen Ferienzeitraum im Voraus ab; nach
 // der Prüfung gibt die Abrechnung ihn frei. Nur die Rolle mit dem Recht
 // „Abrechnung“ sieht die Seite.
 
@@ -15,7 +15,6 @@ import {
 } from "~/components/traeger/billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
-import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -30,8 +29,6 @@ import {
   type BillingRun,
   fetchBillingPeriods,
   fetchBillingRuns,
-  fetchHolidayNumberRange,
-  type NumberRange,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -83,7 +80,6 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
 interface PageData {
   readonly runs: BillingRun[];
   readonly periods: BillingPeriod[];
-  readonly numberRange: NumberRange;
 }
 
 export default function TraegerAbrechnungPage() {
@@ -95,12 +91,11 @@ export default function TraegerAbrechnungPage() {
 
   const load = useCallback(async () => {
     try {
-      const [runs, periods, numberRange] = await Promise.all([
+      const [runs, periods] = await Promise.all([
         fetchBillingRuns(),
         fetchBillingPeriods(),
-        fetchHolidayNumberRange(),
       ]);
-      setData({ runs, periods, numberRange });
+      setData({ runs, periods });
       clearLoadError();
     } catch (err) {
       logger.error("traeger_billing_runs_load_failed", {
@@ -180,7 +175,7 @@ export default function TraegerAbrechnungPage() {
             <Alert
               id="billing-run-needs-period"
               type="info"
-              message="Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf braucht einen. Ferienzeiträume legt die Verwaltung unter „Ferien“ an."
+              message="Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf braucht einen. Ferienzeiträume legt die Verwaltung unter „Ferienbetreuung“ an."
             />
           ) : null}
           <DataTable
@@ -197,7 +192,6 @@ export default function TraegerAbrechnungPage() {
               />
             }
           />
-          <NumberRangeCard numberRange={data.numberRange} onChanged={load} />
         </>
       ) : null}
     </TenantPage>

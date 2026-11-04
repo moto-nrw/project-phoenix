@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import {
@@ -207,16 +208,23 @@ describe("HolidayRegistrationStatusCard", () => {
   });
 
   it("names the missing rule when the parents state benefits", () => {
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
+    _resetTraegerHostCache();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+      _resetTraegerHostCache();
+    });
     renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
       ...HOLIDAY_CONTRIBUTION,
       exemptionAvailable: false,
     });
 
     expect(
-      screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.",
-      ),
+      screen.getByText(/Für eine Befreiung braucht es eine Regel unter/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("href", "/einstellungen/abrechnung");
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
     expect(screen.queryByRole("radio")).toBeNull();
   });

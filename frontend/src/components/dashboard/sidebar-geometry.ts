@@ -130,6 +130,3 @@ export const PORTAL_ICON_CLASSES =
 export function portalSidebarRowClasses(isActive: boolean): string {
   return `${PORTAL_ROW} ${isActive ? PORTAL_ROW_ACTIVE : PORTAL_ROW_IDLE}`;
 }
-
-/** Align portal child links with the header label at each desktop width. */
-export const PORTAL_SUB_ITEM_CLASSES = `flex items-center rounded-lg py-1.5 pr-3 pl-11 text-sm ${ROW_TRANSITION} motion-safe:active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:pl-13 xl:pl-11`;

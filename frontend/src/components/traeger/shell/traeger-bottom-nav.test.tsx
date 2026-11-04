@@ -33,6 +33,7 @@ function bar() {
 
 describe("TraegerBottomNav", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     mockPathname.mockReturnValue("/");
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
     _resetTraegerHostCache();
@@ -44,40 +45,76 @@ describe("TraegerBottomNav", () => {
     sessionUser.permissions = [];
   });
 
-  it("shows every page in the bar while they fit", () => {
-    sessionUser.permissions = ["traeger_overview:read"];
+  it("follows the sidebar: main navigation, then Hilfe and Einstellungen (#5685)", () => {
+    sessionUser.permissions = ALL_RIGHTS;
     render(<TraegerBottomNav />);
 
-    for (const name of ["Schulen", "Briefkopf", "Einstellungen", "Hilfe"]) {
-      expect(bar().getByRole("link", { name })).toBeInTheDocument();
-    }
+    expect(
+      bar()
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("aria-label")),
+    ).toEqual([
+      "Schulen",
+      "Ferienbetreuung",
+      "Abrechnung",
+      "Hilfe",
+      "Einstellungen",
+    ]);
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+    expect(bar().getByRole("link", { name: "Einstellungen" })).toHaveAttribute(
+      "href",
+      "/einstellungen",
+    );
     expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
   });
 
-  it("moves the pages that do not fit behind Mehr", async () => {
+  it("shows the settings with the way back, the rest behind Mehr (#5685)", async () => {
     sessionUser.permissions = ALL_RIGHTS;
-    mockPathname.mockReturnValue("/briefkopf");
+    sessionStorage.setItem("traeger-settings-return-path", "/abrechnung");
+    mockPathname.mockReturnValue("/einstellungen/abrechnung");
     render(<TraegerBottomNav />);
 
-    expect(bar().getAllByRole("link")).toHaveLength(4);
-    expect(bar().queryByRole("link", { name: "Briefkopf" })).toBeNull();
+    expect(
+      bar()
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("aria-label")),
+    ).toEqual([
+      "Zurück zur App",
+      "Allgemein",
+      "Mitglieder und Rollen",
+      "Briefkopf und Vorlagen",
+    ]);
+    expect(bar().getByRole("link", { name: "Zurück zur App" })).toHaveAttribute(
+      "href",
+      "/abrechnung",
+    );
     const more = bar().getByRole("button", { name: "Mehr" });
     // A page behind Mehr is open: Mehr carries the mark.
     expect(more).toHaveAttribute("data-active", "true");
 
     fireEvent.click(more);
     const drawer = within(await screen.findByRole("dialog"));
-    expect(drawer.getByRole("link", { name: "Briefkopf" })).toHaveAttribute(
+    expect(
+      drawer.getByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      drawer.getByRole("link", { name: "Zugriffsprotokoll" }),
+    ).toHaveAttribute("href", "/einstellungen/zugriffsprotokoll");
+  });
+
+  it("shows only the settings the rights open, all in the bar while they fit", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    mockPathname.mockReturnValue("/einstellungen");
+    render(<TraegerBottomNav />);
+
+    expect(bar().getAllByRole("link")).toHaveLength(4);
+    expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
+    expect(bar().getByRole("link", { name: "Allgemein" })).toHaveAttribute(
       "aria-current",
       "page",
-    );
-    expect(drawer.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
-      "href",
-      "/help?role=traeger",
     );
   });
 });

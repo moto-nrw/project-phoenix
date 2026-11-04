@@ -10,7 +10,7 @@
 // ändert sie, bis die Rechnung ausgestellt ist; danach hält die Rechnung sie
 // fest.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -19,6 +19,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
@@ -28,6 +29,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   changeHolidayDebtorNumber,
   confirmHolidayRegistration,
@@ -60,12 +62,24 @@ function statusText(registration: HolidayRegistrationDetail): string {
 function benefitsText(
   registration: HolidayRegistrationDetail,
   contribution: HolidayContribution | null,
-): string | null {
+): ReactNode {
   if (!registration.benefitsDeclared) return null;
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.";
+  return (
+    <>
+      Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung
+      braucht es eine Regel unter{" "}
+      <NavigationLink
+        href={traegerPath("/traeger/einstellungen/abrechnung")}
+        className="font-medium underline"
+      >
+        Abrechnungsvorgaben
+      </NavigationLink>
+      .
+    </>
+  );
 }
 
 /** The hint under the debtor number, at the confirmation and at a change. */

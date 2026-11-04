@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/briefkopf` (#4653): Logo, Absender und Bankverbindungen. */
+/** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechpartner und Bankverbindungen. */
 export function traegerBriefkopfTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerBriefkopf,
@@ -17,7 +17,8 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Logo hochladen",
         steps: [
-          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Briefkopf`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Briefkopf und Vorlagen`.",
           "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
           "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
         ],
@@ -25,6 +26,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Absender, Farbe und Fußzeile eintragen",
         steps: [
+          "Wählen Sie in den Einstellungen `Briefkopf und Vorlagen`.",
           "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
           "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
           "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
@@ -35,6 +37,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Ansprechpartner eintragen",
         steps: [
+          "Wählen Sie in den Einstellungen `Allgemein` und dann den Bereich `Kontakt`.",
           "Tragen Sie bei `Ansprechpartner` Name, Telefon und E-Mail-Adresse ein.",
           "Wählen Sie `Speichern`.",
         ],
@@ -42,6 +45,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Bankverbindung hinzufügen",
         steps: [
+          "Wählen Sie in den Einstellungen `Abrechnungsvorgaben`.",
           "Wählen Sie bei `Bankverbindungen` den Knopf `Bankverbindung hinzufügen`.",
           "Geben Sie eine Bezeichnung ein, zum Beispiel Elternbeiträge.",
           "Geben Sie Kontoinhaber und IBAN ein. BIC und Bank sind freiwillig.",
@@ -51,7 +55,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
     ],
     steps: [],
     result:
-      "Die `Vorschau` oben auf der Seite zeigt, wie Kopf und Fuß eines Briefs aussehen.",
+      "Die `Vorschau` oben auf der Seite `Briefkopf und Vorlagen` zeigt, wie Kopf und Fuß eines Briefs aussehen.",
     notes: [
       "Eine Bankverbindung ist der `Standard`. Sie steht auf allen Briefen und Rechnungen.",
       "Eine andere Bankverbindung machen Sie im Menü der Zeile mit `Als Standard festlegen` zum Standard.",
@@ -59,7 +63,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
     ],
     differences: [
-      "Auf dem Handy steht `Briefkopf` in der Leiste unten oder unter `Mehr`.",
+      "Auf dem Handy öffnen Sie zuerst `Einstellungen` in der Leiste unten. `Abrechnungsvorgaben` steht dann unter `Mehr`.",
       "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
     ],
     troubleshootingDetails: [

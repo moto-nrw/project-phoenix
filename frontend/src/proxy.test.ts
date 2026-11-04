@@ -1249,17 +1249,6 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /access-log to /traeger/access-log (#4655)", () => {
-      const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/access-log`, TRAEGER_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/access-log",
-      );
-    });
-
     it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
       for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
         const res = proxy(
@@ -1287,14 +1276,44 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /beitraege to /traeger/beitraege (#4664)", () => {
+    it("rewrites the settings pages to /traeger/einstellungen/… (#5685)", () => {
+      for (const path of [
+        "/einstellungen/mitglieder",
+        "/einstellungen/briefkopf",
+        "/einstellungen/abrechnung",
+        "/einstellungen/zugriffsprotokoll",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
+    it.each([
+      ["/accounts", "/einstellungen/mitglieder"],
+      ["/traeger/accounts", "/einstellungen/mitglieder"],
+      ["/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/traeger/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/briefkopf", "/einstellungen/briefkopf"],
+      ["/traeger/briefkopf", "/einstellungen/briefkopf"],
+      ["/beitraege", "/einstellungen/abrechnung"],
+      ["/traeger/beitraege", "/einstellungen/abrechnung"],
+    ])("redirects the old path %s to %s (#5685)", (from, to) => {
       const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/beitraege`, TRAEGER_HOSTNAME),
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}${from}?von=mail`,
+          TRAEGER_HOSTNAME,
+        ),
       );
 
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/beitraege",
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe(
+        `http://${TRAEGER_HOSTNAME}${to}?von=mail`,
       );
     });
 

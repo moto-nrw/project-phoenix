@@ -8,7 +8,24 @@ import type {
 } from "~/lib/traeger-contributions-api";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { api } = vi.hoisted(() => ({
+const { billingApi, masterApi, session, api } = vi.hoisted(() => ({
+  session: {
+    permissions: [
+      "traeger_overview:read",
+      "traeger_billing:manage",
+      "traeger_settings:manage",
+    ],
+  },
+  billingApi: {
+    fetchHolidayNumberRange: vi.fn(),
+    saveHolidayNumberRange: vi.fn(),
+  },
+  masterApi: {
+    fetchTraegerMasterData: vi.fn(),
+    createTraegerBankAccount: vi.fn(),
+    updateTraegerBankAccount: vi.fn(),
+    deleteTraegerBankAccount: vi.fn(),
+  },
   api: {
     fetchContributionRules: vi.fn(),
     createContributionRule: vi.fn(),
@@ -21,8 +38,16 @@ const { api } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-contributions-api", () => api);
+vi.mock("~/lib/traeger-billing-api", () => billingApi);
+vi.mock("~/lib/traeger-api", () => masterApi);
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", permissions: session.permissions } },
+    status: "authenticated",
+  }),
+}));
 
-import TraegerBeitraegePage from "./page";
+import TraegerAbrechnungsvorgabenPage from "./page";
 
 const SIBLING: ContributionRule = {
   id: "3",
@@ -44,19 +69,52 @@ const YOUTH_OFFICE: CostBearer = {
   inUse: true,
 };
 
+const MASTER_DATA = {
+  contact: { name: "", phone: "", email: "" },
+  logo: null,
+  bankAccounts: [
+    {
+      id: "7",
+      label: "Elternbeiträge",
+      accountHolder: "Ganztag im Quartier e.V.",
+      iban: "DE89370400440532013000",
+      bic: "COBADEFFXXX",
+      bankName: "Commerzbank",
+      isDefault: true,
+    },
+  ],
+};
+
 function renderPage() {
   render(
     <ToastProvider>
-      <TraegerBeitraegePage />
+      <TraegerAbrechnungsvorgabenPage />
     </ToastProvider>,
   );
 }
 
-describe("TraegerBeitraegePage", () => {
+describe("TraegerAbrechnungsvorgabenPage", () => {
   beforeEach(() => {
-    for (const fn of Object.values(api)) fn.mockReset();
+    for (const fn of [
+      ...Object.values(api),
+      ...Object.values(billingApi),
+      ...Object.values(masterApi),
+    ]) {
+      fn.mockReset();
+    }
+    session.permissions = [
+      "traeger_overview:read",
+      "traeger_billing:manage",
+      "traeger_settings:manage",
+    ];
     api.fetchContributionRules.mockResolvedValue([SIBLING]);
     api.fetchCostBearers.mockResolvedValue([]);
+    billingApi.fetchHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "FE-{JJJJ}-{NNNN}",
+      example: "FE-2026-0001",
+    });
+    masterApi.fetchTraegerMasterData.mockResolvedValue(MASTER_DATA);
   });
 
   it("lists the rules by kind and names the kind without a rule", async () => {
@@ -283,5 +341,165 @@ describe("TraegerBeitraegePage", () => {
     expect(
       screen.queryByRole("form", { name: "Jugendamt Musterstadt ändern" }),
     ).toBeNull();
+  });
+
+  it("shows bank accounts, number range, rules and cost bearers together (#5685)", async () => {
+    renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+    expect(screen.getByText("Geschwister")).toBeInTheDocument();
+    expect(screen.getByText("Kostenträger")).toBeInTheDocument();
+  });
+
+  it("shows only the read-only bank accounts without the right Abrechnung (#5685)", async () => {
+    session.permissions = ["traeger_overview:read"];
+    renderPage();
+
+    expect(
+      (await screen.findAllByText("Elternbeiträge"))[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Bankverbindungen können Sie nur ansehen/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/pflegt die Rolle „Abrechnung“/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bankverbindung hinzufügen" }),
+    ).not.toBeInTheDocument();
+    expect(api.fetchContributionRules).not.toHaveBeenCalled();
+    expect(api.fetchCostBearers).not.toHaveBeenCalled();
+    expect(billingApi.fetchHolidayNumberRange).not.toHaveBeenCalled();
+  });
+
+  it("lets the Verwaltung change bank accounts without the right Abrechnung (#5685)", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
+    ).toBeInTheDocument();
+    expect(api.fetchContributionRules).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed load and retries", async () => {
+    billingApi.fetchHolidayNumberRange.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Abrechnungsvorgaben"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+  });
+
+  it("asks for a pattern before the first release and saves it", async () => {
+    billingApi.fetchHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "",
+      example: "",
+    });
+    billingApi.saveHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "R-{NNN}",
+      example: "R-001",
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(/Ohne Muster können Sie keinen Lauf freigeben/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Muster festlegen" }));
+    fireEvent.change(
+      await screen.findByLabelText("Muster der Rechnungsnummer"),
+      { target: { value: "R-{NNN}" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(billingApi.saveHolidayNumberRange).toHaveBeenCalledWith("R-{NNN}"),
+    );
+    await waitFor(() =>
+      expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("adds a bank account and reads the master data again", async () => {
+    masterApi.createTraegerBankAccount.mockResolvedValue({
+      ...MASTER_DATA.bankAccounts[0],
+      id: "9",
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
+    );
+    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.change(screen.getByLabelText(/Kontoinhaber/), {
+      target: { value: "Ganztag im Quartier e.V." },
+    });
+    fireEvent.change(screen.getByLabelText(/^IBAN/), {
+      target: { value: "GB82 WEST 1234 5698 7654 32" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(masterApi.createTraegerBankAccount).toHaveBeenCalledWith({
+        label: "Mensa",
+        accountHolder: "Ganztag im Quartier e.V.",
+        iban: "GB82 WEST 1234 5698 7654 32",
+        bic: "",
+        bankName: "",
+        isDefault: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(masterApi.fetchTraegerMasterData).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("shows a refused IBAN at its field", async () => {
+    masterApi.createTraegerBankAccount.mockRejectedValue(
+      new ApiError("invalid", 400, {
+        code: "traeger.master_data_invalid",
+        errors: [{ field: "iban", reason: "is not a valid IBAN" }],
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
+    );
+    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.change(screen.getByLabelText(/Kontoinhaber/), {
+      target: { value: "Träger e.V." },
+    });
+    fireEvent.change(screen.getByLabelText(/^IBAN/), {
+      target: { value: "DE00 1234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("traeger.master_data_invalid", "die Bankverbindung"),
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^IBAN/)).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
   });
 });

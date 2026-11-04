@@ -14,14 +14,31 @@ import { ApiError } from "~/lib/api-error";
 import type { ResolvedSetting, SettingsSchema } from "~/lib/settings-api";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchSchema, mockSave, mockClear } = vi.hoisted(() => ({
-  mockFetchSchema: vi.fn(),
-  mockSave: vi.fn(),
-  mockClear: vi.fn(),
-}));
+const { mockFetchSchema, mockFetchMasterData, mockSave, mockClear } =
+  vi.hoisted(() => ({
+    mockFetchSchema: vi.fn(),
+    mockFetchMasterData: vi.fn(),
+    mockSave: vi.fn(),
+    mockClear: vi.fn(),
+  }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
+        permissions: ["traeger_overview:read", "traeger_settings:manage"],
+      },
+    },
+    status: "authenticated",
+  }),
+}));
 vi.mock("~/lib/traeger-api", () => ({
+  saveTraegerContact: vi.fn(),
   fetchTraegerSettingsSchema: () => mockFetchSchema(),
+  fetchTraegerMasterData: () => mockFetchMasterData(),
   saveTraegerSettingValue: (key: string, value: unknown) =>
     mockSave(key, value),
   clearTraegerSettingValue: (key: string) => mockClear(key),
@@ -87,6 +104,7 @@ function renderPage() {
 describe("TraegerSettingsPage", () => {
   beforeEach(() => {
     mockFetchSchema.mockReset();
+    mockFetchMasterData.mockReset();
     mockSave.mockReset().mockResolvedValue(undefined);
     mockClear.mockReset().mockResolvedValue(undefined);
   });
@@ -156,10 +174,10 @@ describe("TraegerSettingsPage", () => {
     ).toBeInTheDocument();
     // Die Erklärung steht hinter dem Info-Knopf am Titel (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Erklärung zu Einstellungen" }),
+      screen.getByRole("button", { name: "Erklärung zu Allgemein" }),
     );
     expect(
-      screen.getByRole("dialog", { name: "Erklärung zu Einstellungen" }),
+      screen.getByRole("dialog", { name: "Erklärung zu Allgemein" }),
     ).toHaveTextContent(
       "Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen.",
     );
@@ -378,7 +396,54 @@ describe("TraegerSettingsPage", () => {
     });
   });
 
-  it("leaves the branding to the page Briefkopf (#4653)", async () => {
+  it("reads the contact only when its area opens and shows it there (#5685)", async () => {
+    mockFetchSchema.mockResolvedValue(schema([item({})]));
+    mockFetchMasterData.mockResolvedValue({
+      contact: { name: "Petra Lindner", phone: "", email: "" },
+      logo: null,
+      bankAccounts: [],
+    });
+    render(
+      <ToastProvider>
+        <TraegerSettingsPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Kontakt" }));
+    expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
+    expect(mockFetchMasterData).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failed contact load in its area and retries", async () => {
+    mockFetchSchema.mockResolvedValue(schema([item({})]));
+    mockFetchMasterData
+      .mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue({
+        contact: { name: "Petra Lindner", phone: "", email: "" },
+        logo: null,
+        bankAccounts: [],
+      });
+    render(
+      <ToastProvider>
+        <TraegerSettingsPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Kontakt" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Kontaktdaten"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
+  });
+
+  it("leaves the branding to the letterhead page (#4653)", async () => {
     mockFetchSchema.mockResolvedValue({
       tabs: [
         ...schema([STAFF_NAME_DEFAULT]).tabs,

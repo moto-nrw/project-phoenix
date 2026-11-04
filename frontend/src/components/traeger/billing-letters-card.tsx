@@ -52,12 +52,19 @@ export function BillingLettersCard({
         }
       >
         <p className="text-sm text-gray-700">
-          Logo, Absender, Fußzeile und Bankverbindung kommen aus dem{" "}
+          Logo, Absender und Fußzeile kommen aus{" "}
           <NavigationLink
-            href={traegerPath("/traeger/briefkopf")}
+            href={traegerPath("/traeger/einstellungen/briefkopf")}
             className="font-medium underline"
           >
-            Briefkopf
+            Briefkopf und Vorlagen
+          </NavigationLink>
+          . Die Bankverbindung kommt aus den{" "}
+          <NavigationLink
+            href={traegerPath("/traeger/einstellungen/abrechnung")}
+            className="font-medium underline"
+          >
+            Abrechnungsvorgaben
           </NavigationLink>
           . Ohne Bankverbindung lassen sich keine Schreiben erstellen; sie legt
           die Verwaltung fest.

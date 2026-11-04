@@ -20,7 +20,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       {
         title: "Ferienzeitraum anlegen",
         steps: [
-          "Wählen Sie in der Navigation `Ferien`.",
+          "Wählen Sie in der Navigation `Ferienbetreuung`.",
           "Wählen Sie `Ferienzeitraum anlegen`.",
           "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
           "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
@@ -41,7 +41,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       {
         title: "Veröffentlichen",
         steps: [
-          "Öffnen Sie den Ferienzeitraum in der Liste `Ferien`.",
+          "Öffnen Sie den Ferienzeitraum in der Liste `Ferienbetreuung`.",
           "Wählen Sie oben `Veröffentlichen`.",
           "Bestätigen Sie mit `Veröffentlichen`.",
         ],
@@ -52,10 +52,10 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
     notes: [
       "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
       "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
-      "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Ermäßigungen` fest.",
+      "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
     ],
     troubleshootingDetails: [
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",

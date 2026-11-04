@@ -241,8 +241,8 @@ export function ContributionRuleModal({
                   ariaLabel="Für welche Kinder"
                 />
                 <p className="text-sm text-gray-600">
-                  Das erste Kind zahlt voll. Welches das ist, steht unter
-                  Einstellungen im Bereich Ferienbetreuung.
+                  Das erste Kind zahlt voll. Welches das ist, steht in den
+                  Einstellungen unter Allgemein im Bereich Ferienbetreuung.
                 </p>
               </div>
               <div className="space-y-2">

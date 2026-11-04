@@ -18,13 +18,19 @@ import {
   portalBottomNavItemClassName,
 } from "~/components/ui/portal-bottom-nav";
 import { traegerPath } from "~/lib/traeger-url";
-import { isTraegerNavActive } from "./traeger-nav-active";
 import {
+  isTraegerNavActive,
+  isTraegerSettingsPath,
+} from "./traeger-nav-active";
+import {
+  TRAEGER_BACK_NAV,
   TRAEGER_HELP_NAV,
-  traegerNavItemsFor,
+  TRAEGER_SETTINGS_NAV,
+  traegerNavGroupsFor,
   traegerSettingsNavItemsFor,
   type TraegerNavItem,
 } from "./traeger-nav-items";
+import { useTraegerReturnHref } from "./traeger-return-path";
 import { moreConcept } from "~/lib/concepts/more";
 
 const PADDING = "px-4";
@@ -38,19 +44,27 @@ const LABEL =
  */
 const MAX_SLOTS = 5;
 
-type BottomNavItem = Omit<TraegerNavItem, "right"> & { readonly help?: true };
+type BottomNavItem = Omit<TraegerNavItem, "right"> & {
+  readonly help?: true;
+  /** Das Ziel ist schon eine fertige Adresse und nie die aktuelle Seite. */
+  readonly direct?: true;
+};
 
-const HELP_ITEM: BottomNavItem = { ...TRAEGER_HELP_NAV, help: true };
+const HELP_ITEM: BottomNavItem = {
+  ...TRAEGER_HELP_NAV,
+  help: true,
+  direct: true,
+};
 
 /**
  * Die mobile Hauptnavigation des Träger-Portals (#5145): die geteilte
  * `PortalBottomNav` des Schul-Portals mit den Zielen, die die Rechte der
- * Person öffnen. Die Unterpunkte der Einstellungen, die die Seitenleiste
- * unten einklappt (#5242), stehen hier hinter den Arbeitsbereichen.
+ * Person öffnen. Sie folgt der Seitenleiste (#5685): erst die Hauptnavigation
+ * mit Hilfe und Einstellungen, in den Einstellungen deren Einträge mit dem
+ * Rückweg zur App vorne.
  *
- * Wie im Schul-Portal trägt nur das aktive Ziel seinen Namen. Eine Person mit
- * allen Rechten hat acht Seiten und die Hilfe, das passt nicht in eine
- * Zeile: dann stehen die ersten vier Ziele in der Leiste und der Rest hinter
+ * Wie im Schul-Portal trägt nur das aktive Ziel seinen Namen. Passen die Ziele
+ * nicht in eine Zeile, stehen die ersten vier in der Leiste und der Rest hinter
  * „Mehr", wie in der Eltern-App.
  */
 export function TraegerBottomNav() {
@@ -58,19 +72,30 @@ export function TraegerBottomNav() {
   const { data: session } = useSession();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const items: readonly BottomNavItem[] = [
-    ...traegerNavItemsFor(session ?? null),
-    ...traegerSettingsNavItemsFor(session ?? null),
-    HELP_ITEM,
-  ];
+  const returnHref = useTraegerReturnHref();
+
+  const settingsItems = traegerSettingsNavItemsFor(session ?? null);
+  const settingsEntry = settingsItems[0];
+  const items: readonly BottomNavItem[] = isTraegerSettingsPath(pathname)
+    ? [
+        { ...TRAEGER_BACK_NAV, href: returnHref, direct: true },
+        ...settingsItems,
+      ]
+    : [
+        ...traegerNavGroupsFor(session ?? null).flatMap((group) => group.items),
+        HELP_ITEM,
+        ...(settingsEntry
+          ? [{ ...TRAEGER_SETTINGS_NAV, href: settingsEntry.href }]
+          : []),
+      ];
   const crowded = items.length > MAX_SLOTS;
   const barItems = crowded ? items.slice(0, MAX_SLOTS - 1) : items;
   const moreItems = crowded ? items.slice(MAX_SLOTS - 1) : [];
 
   const isActive = (item: BottomNavItem) =>
-    item.help !== true && isTraegerNavActive(item.href, pathname);
+    item.direct !== true && isTraegerNavActive(item.href, pathname);
   const linkProps = (item: BottomNavItem) => ({
-    href: item.help ? item.href : traegerPath(item.href),
+    href: item.direct ? item.href : traegerPath(item.href),
     label: item.label,
     concept: item.concept,
     active: isActive(item),
@@ -79,7 +104,7 @@ export function TraegerBottomNav() {
   });
 
   // „Mehr" leuchtet auch, wenn eine seiner Seiten offen ist; sonst stünde
-  // man auf „Briefkopf" vor einer Leiste, in der nichts markiert ist.
+  // man auf „Zugriffsprotokoll" vor einer Leiste, in der nichts markiert ist.
   const moreActive = moreOpen || moreItems.some(isActive);
 
   return (

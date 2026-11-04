@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/beitraege` (#4664, #5627): Regeln des Ferienbeitrags und Kostenträger. */
+/** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export function traegerHolidayContributionTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerHolidayContribution,
@@ -13,7 +13,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
     audience: "traeger",
     icon: "Landmark",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Ermäßigungen`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht unter `Abrechnungsvorgaben` die Ermäßigungen.",
     ],
     steps: [],
     instructionGroups: [
@@ -26,7 +26,8 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       {
         title: "Geschwisterregel anlegen",
         steps: [
-          "Wählen Sie in der Navigation `Ermäßigungen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Abrechnungsvorgaben`.",
           "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
@@ -48,14 +49,16 @@ export function traegerHolidayContributionTopic(): HelpTopic {
         description:
           "Das erste Kind zahlt den vollen Preis. Für die anderen Kinder gilt die Ermäßigung.",
         steps: [
-          "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Allgemein` und dann den Bereich `Ferienbetreuung`.",
           "Wählen Sie bei `Welches Kind ist das erste Kind?`: `Das Kind mit dem höchsten Beitrag` oder `Das älteste Kind`.",
         ],
       },
       {
         title: "Einstellen, was ein Kostenträger bezahlt",
         steps: [
-          "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Allgemein` und dann den Bereich `Ferienbetreuung`.",
           "Wählen Sie bei `Was bezahlt ein Kostenträger?`: `Betrag nach der Ermäßigung` oder `Vollen Preis`. Beim vollen Preis gilt die Ermäßigung nur für die anderen Kinder.",
         ],
       },
@@ -85,7 +88,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Ermäßigungen`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen unter `Abrechnungsvorgaben` keine Ermäßigungen? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
     ],
     troubleshootingDetails: [
       "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",

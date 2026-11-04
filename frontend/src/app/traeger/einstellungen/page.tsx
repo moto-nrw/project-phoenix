@@ -1,8 +1,9 @@
 "use client";
 
-// Einstellungen des Trägers (#4652, ADR 0086): Werte, die für alle Schulen
-// des Trägers gelten. Eine Schule kann abweichen, wo die Einstellung das
-// erlaubt; Schul-Abweichungen ändert nur die Schule selbst.
+// Allgemeine Einstellungen des Trägers (#4652, ADR 0086, #5685): Werte, die
+// für alle Schulen des Trägers gelten, und die Kontaktdaten. Eine Schule kann
+// abweichen, wo die Einstellung das erlaubt; Schul-Abweichungen ändert nur die
+// Schule selbst.
 
 import { useCallback, useState } from "react";
 import { SettingsCategory } from "~/components/settings/settings-category";
@@ -21,6 +22,7 @@ import {
 } from "~/lib/traeger-api";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
+import { TraegerContactSection } from "~/components/traeger/traeger-contact-section";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   DEBTOR_NUMBER_ON_CONFIRM_KEY,
@@ -30,6 +32,9 @@ import {
 } from "~/lib/traeger-payment-text";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
+
+/** Der Bereich mit den Kontaktdaten; er liegt nicht im Einstellungs-Schema. */
+const CONTACT_TAB = "kontakt";
 
 function tabItem(tab: SchemaTab, key: string): ResolvedSetting | undefined {
   return tab.categories
@@ -75,13 +80,15 @@ export default function TraegerSettingsPage() {
     [refresh],
   );
 
-  // The branding has its own page "Briefkopf" with the preview (#4653).
+  // The branding has its own page with the preview (#4653).
   const tabs = (schema?.tabs ?? []).filter(
     (tab) => tab.key !== TRAEGER_BRANDING_TAB,
   );
 
-  const activeTab =
-    tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null;
+  const contactOpen = selectedTab === CONTACT_TAB;
+  const activeTab = contactOpen
+    ? null
+    : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
   // The holiday tab shows the payment sentence with example values (#5622).
   const paymentText =
     activeTab?.key === TRAEGER_HOLIDAY_TAB
@@ -93,16 +100,14 @@ export default function TraegerSettingsPage() {
     .filter((item) => item.source === "traeger").length;
   return (
     <TenantPage
-      title="Einstellungen"
+      title="Allgemein"
       info="Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen."
       stats={
         tabs.length > 0 ? (
           <TenantPageStats
             items={[
-              {
-                value: tabs.length,
-                label: tabs.length === 1 ? "Bereich" : "Bereiche",
-              },
+              // Die Bereiche der Einstellungen und „Kontakt“.
+              { value: tabs.length + 1, label: "Bereiche" },
               { value: fromTraeger, label: "vom Träger festgelegt" },
             ]}
           />
@@ -110,36 +115,31 @@ export default function TraegerSettingsPage() {
       }
       statsLoading={loading && !schema}
       tabs={
-        activeTab
+        schema
           ? {
-              value: activeTab.key,
+              value: activeTab?.key ?? CONTACT_TAB,
               onChange: setSelectedTab,
               label: "Einstellungsbereiche",
-              items: tabs.map((tab) => ({
-                value: tab.key,
-                label: displayTabLabel(tab),
-              })),
+              items: [
+                ...tabs.map((tab) => ({
+                  value: tab.key,
+                  label: displayTabLabel(tab),
+                })),
+                { value: CONTACT_TAB, label: "Kontakt" },
+              ],
             }
           : undefined
       }
       error={loadError}
       loading={loading && !schema}
-      empty={
-        !loading && schema && tabs.length === 0
-          ? {
-              title: "Es gibt noch keine Einstellungen für den Träger.",
-              description:
-                "Die Schulen legen ihre Einstellungen bis dahin selbst fest.",
-            }
-          : null
-      }
     >
-      {schema && tabs.length > 0 && !hasWritableSetting(schema) ? (
+      {schema && activeTab && !hasWritableSetting(schema) ? (
         <Alert
           type="info"
           message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
+      {schema && !activeTab ? <TraegerContactSection /> : null}
       {activeTab?.categories.map((category) => (
         <SettingsCategory
           key={category.key}

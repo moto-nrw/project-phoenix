@@ -396,7 +396,7 @@ export default function TraegerHolidayRegistrationPage() {
           {contribution?.siblings?.length ? (
             <SectionCard
               title="Geschwister"
-              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht unter Einstellungen im Bereich Ferienbetreuung."
+              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
                 contribution.siblingsInvoiced ? undefined : (
                   <Button
