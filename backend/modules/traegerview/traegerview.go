@@ -86,6 +86,22 @@ type SchoolFigures struct {
 	AsOf            time.Time `json:"as_of"`
 }
 
+// SchoolToday is one school of the Träger with its figures in the overview
+// over all schools (#4674). It carries no personal data.
+type SchoolToday struct {
+	School
+	Figures SchoolFigures `json:"figures"`
+}
+
+// SchoolsToday are the figures of every school of the Träger and their sum
+// (#4674). Total adds up the counts of all schools; its CareRatio is the
+// present children of all schools per present staff member of all schools,
+// nil without present staff.
+type SchoolsToday struct {
+	Schools []SchoolToday `json:"schools"`
+	Total   SchoolFigures `json:"total"`
+}
+
 // SchoolRosters is who a school counts, at School Membership: the children
 // with their memberships and the staff members. It joins the projection's
 // administrative transaction and reads only the given schools, as the other
@@ -166,6 +182,9 @@ type Overview interface {
 	// School returns one school of the Träger with its figures. Any other
 	// school is ErrSchoolOutsideTraeger.
 	School(ctx context.Context, organizationID, schoolID int64) (SchoolView, error)
+	// SchoolsToday returns every school of the Träger with its figures and
+	// their sum, ordered by name.
+	SchoolsToday(ctx context.Context, organizationID int64) (SchoolsToday, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to

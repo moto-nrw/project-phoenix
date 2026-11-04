@@ -8,6 +8,7 @@ describe("isTraegerNavActive", () => {
     expect(isTraegerNavActive("/traeger", "/schulen/2")).toBe(true);
     expect(isTraegerNavActive("/traeger", "/traeger/schulen/2")).toBe(true);
     expect(isTraegerNavActive("/traeger", "/ferien")).toBe(false);
+    expect(isTraegerNavActive("/traeger", "/uebersicht")).toBe(false);
     expect(isTraegerNavActive("/traeger", "/traeger/ferien")).toBe(false);
   });
 

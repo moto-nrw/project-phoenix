@@ -210,6 +210,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/login",
   "/reset-password",
   "/schulen/:id",
+  "/uebersicht",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */

@@ -57,7 +57,7 @@ export interface TraegerSchool {
 }
 
 /** Live figures of one school; numbers only, no names (#5686). */
-interface TraegerSchoolFigures {
+export interface TraegerSchoolFigures {
   readonly childrenTotal: number;
   readonly childrenPresent: number;
   readonly childrenSick: number;
@@ -76,20 +76,39 @@ export interface TraegerSchoolView extends TraegerSchool {
   readonly figures: TraegerSchoolFigures;
 }
 
+/** One school with its figures in the overview over all schools (#4674). */
+export interface TraegerSchoolToday extends TraegerSchool {
+  readonly figures: TraegerSchoolFigures;
+}
+
+/** Every school of the Träger with its figures and their sum (#4674). */
+export interface TraegerSchoolsToday {
+  readonly schools: readonly TraegerSchoolToday[];
+  /** Sums of all schools; the ratio is over all present staff. */
+  readonly total: TraegerSchoolFigures;
+}
+
+interface BackendSchoolFigures {
+  children_total: number;
+  children_present: number;
+  children_sick: number;
+  staff_total: number;
+  staff_present: number;
+  care_ratio: number | null;
+  as_of: string;
+}
+
 interface BackendSchoolView extends BackendSchool {
   address?: string | null;
   zip?: string | null;
   phone?: string | null;
   email?: string | null;
-  figures: {
-    children_total: number;
-    children_present: number;
-    children_sick: number;
-    staff_total: number;
-    staff_present: number;
-    care_ratio: number | null;
-    as_of: string;
-  };
+  figures: BackendSchoolFigures;
+}
+
+interface BackendSchoolsToday {
+  schools: (BackendSchool & { figures: BackendSchoolFigures })[] | null;
+  total: BackendSchoolFigures;
 }
 
 interface BackendSchool {
@@ -190,13 +209,56 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
   }
   const schools = ((data as { data?: BackendSchool[] } | null)?.data ??
     []) as BackendSchool[];
-  return schools.map((school) => ({
+  return schools.map(toTraegerSchool);
+}
+
+function toTraegerSchool(school: BackendSchool): TraegerSchool {
+  return {
     id: String(school.id),
     name: school.name,
     slug: school.slug,
     subdomain: school.subdomain,
     city: school.city ?? "",
-  }));
+  };
+}
+
+function toSchoolFigures(figures: BackendSchoolFigures): TraegerSchoolFigures {
+  return {
+    childrenTotal: figures.children_total,
+    childrenPresent: figures.children_present,
+    childrenSick: figures.children_sick,
+    staffTotal: figures.staff_total,
+    staffPresent: figures.staff_present,
+    careRatio: figures.care_ratio,
+    asOf: figures.as_of,
+  };
+}
+
+/**
+ * Every school of the Träger with its figures of now and their sum (#4674):
+ * numbers only, no names.
+ */
+export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
+  const response = await transportFetch("/api/traeger/schools/today", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const today = (data as { data: BackendSchoolsToday }).data;
+  return {
+    schools: (today.schools ?? []).map((school) => ({
+      ...toTraegerSchool(school),
+      figures: toSchoolFigures(school.figures),
+    })),
+    total: toSchoolFigures(today.total),
+  };
 }
 
 /** One school of the Träger with its contact data and figures (#5686). */
@@ -217,24 +279,12 @@ export async function fetchTraegerSchool(
   }
   const school = (data as { data: BackendSchoolView }).data;
   return {
-    id: String(school.id),
-    name: school.name,
-    slug: school.slug,
-    subdomain: school.subdomain,
-    city: school.city ?? "",
+    ...toTraegerSchool(school),
     address: school.address ?? "",
     zip: school.zip ?? "",
     phone: school.phone ?? "",
     email: school.email ?? "",
-    figures: {
-      childrenTotal: school.figures.children_total,
-      childrenPresent: school.figures.children_present,
-      childrenSick: school.figures.children_sick,
-      staffTotal: school.figures.staff_total,
-      staffPresent: school.figures.staff_present,
-      careRatio: school.figures.care_ratio,
-      asOf: school.figures.as_of,
-    },
+    figures: toSchoolFigures(school.figures),
   };
 }
 

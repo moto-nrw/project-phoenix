@@ -38,6 +38,7 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/today", rs.schoolsToday)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/{id}", rs.getSchool)
 	})
 	return r
@@ -122,5 +123,26 @@ func (rs *Resource) getSchool(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	default:
 		common.Respond(w, r, http.StatusOK, view, "School retrieved successfully")
+	}
+}
+
+// schoolsToday answers GET /traeger/schools/today: every school of the Träger
+// of the session with its figures and their sum (#4674). Figures are
+// aggregated numbers, so the read is not written to the access log (ADR 0084
+// section 7).
+func (rs *Resource) schoolsToday(w http.ResponseWriter, r *http.Request) {
+	principal, err := common.CurrentPrincipal(r.Context())
+	if err != nil || principal.OrganizationID() <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	today, err := rs.overview.SchoolsToday(r.Context(), principal.OrganizationID())
+	switch {
+	case errors.Is(err, traegerview.ErrTraegerUnavailable):
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+	case err != nil:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	default:
+		common.Respond(w, r, http.StatusOK, today, "School figures retrieved successfully")
 	}
 }

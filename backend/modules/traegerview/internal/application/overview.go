@@ -93,6 +93,51 @@ func (o *Overview) School(ctx context.Context, organizationID, schoolID int64) (
 	return view, nil
 }
 
+// SchoolsToday returns every school of the Träger with its figures and their
+// sum (#4674). The figures of all schools come from one read per owner, so the
+// overview costs the same statements for 3 and for 100 schools. Figures are
+// aggregated numbers, so the read is not written to the access log (ADR 0084
+// section 7).
+func (o *Overview) SchoolsToday(ctx context.Context, organizationID int64) (traegerview.SchoolsToday, error) {
+	if organizationID <= 0 {
+		return traegerview.SchoolsToday{}, traegerview.ErrTraegerRequired
+	}
+	var today traegerview.SchoolsToday
+	err := o.read(ctx, organizationID, func(adminCtx context.Context, ids []int64) error {
+		schools, err := o.rows.Schools(adminCtx, ids)
+		if err != nil {
+			return err
+		}
+		figures, err := o.schoolFigures(adminCtx, ids)
+		if err != nil {
+			return err
+		}
+		today = schoolsToday(schools, figures, o.now())
+		return nil
+	})
+	if err != nil {
+		return traegerview.SchoolsToday{}, err
+	}
+	return today, nil
+}
+
+// schoolsToday pairs each school with its figures and adds them up.
+func schoolsToday(schools []traegerview.School, figures map[int64]traegerview.SchoolFigures, now time.Time) traegerview.SchoolsToday {
+	today := traegerview.SchoolsToday{Schools: make([]traegerview.SchoolToday, 0, len(schools)), Total: traegerview.SchoolFigures{AsOf: now}}
+	for _, school := range schools {
+		row := traegerview.SchoolToday{School: school, Figures: figures[school.ID]}
+		row.Figures.AsOf = now
+		today.Schools = append(today.Schools, row)
+		today.Total.ChildrenTotal += row.Figures.ChildrenTotal
+		today.Total.ChildrenPresent += row.Figures.ChildrenPresent
+		today.Total.ChildrenSick += row.Figures.ChildrenSick
+		today.Total.StaffTotal += row.Figures.StaffTotal
+		today.Total.StaffPresent += row.Figures.StaffPresent
+	}
+	today.Total.CareRatio = careRatio(today.Total.ChildrenPresent, today.Total.StaffPresent)
+	return today
+}
+
 // schoolView reads one school the caller has checked against the Träger.
 func (o *Overview) schoolView(ctx context.Context, schoolID int64) (traegerview.SchoolView, error) {
 	scope := []int64{schoolID}
@@ -103,54 +148,69 @@ func (o *Overview) schoolView(ctx context.Context, schoolID int64) (traegerview.
 	if len(contacts) == 0 {
 		return traegerview.SchoolView{}, traegerview.ErrSchoolOutsideTraeger
 	}
-	figures, err := o.schoolFigures(ctx, schoolID)
+	figures, err := o.schoolFigures(ctx, scope)
 	if err != nil {
 		return traegerview.SchoolView{}, err
 	}
-	return traegerview.SchoolView{SchoolContact: contacts[0], Figures: figures}, nil
+	return traegerview.SchoolView{SchoolContact: contacts[0], Figures: figures[schoolID]}, nil
 }
 
-// schoolFigures reads the figures of one school at its owners and applies the
-// definitions of traegerview.SchoolFigures: only children and staff members
-// the school counts enter the sick and on-site figures.
-func (o *Overview) schoolFigures(ctx context.Context, schoolID int64) (traegerview.SchoolFigures, error) {
+// schoolFigures reads the figures of the schools at their owners, one read per
+// owner for the whole set, and applies the definitions of
+// traegerview.SchoolFigures: only children and staff members the school
+// counts enter the sick and on-site figures. The caller has checked the
+// schools against the Träger.
+func (o *Overview) schoolFigures(ctx context.Context, scope []int64) (map[int64]traegerview.SchoolFigures, error) {
+	result := make(map[int64]traegerview.SchoolFigures, len(scope))
+	if len(scope) == 0 {
+		return result, nil
+	}
 	now := o.now()
-	scope := []int64{schoolID}
 	students, err := o.rosters.ActiveStudentMembershipsByTenant(ctx, scope, now)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
 	staff, err := o.rosters.ActiveStaffIDsByTenant(ctx, scope, now)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
 	present, err := o.present.PresentStudentIDsByTenant(ctx, scope, now)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
 	sickDays, err := o.sick.SickDayStudentIDsByTenant(ctx, scope, now)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
 	sickFlags, err := o.sick.SickFlagMembershipIDsByTenant(ctx, scope)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
 	onSite, err := o.onSite.OnSiteStaffIDsByTenant(ctx, scope, now)
 	if err != nil {
-		return traegerview.SchoolFigures{}, err
+		return nil, err
 	}
-	figures := traegerview.SchoolFigures{
-		ChildrenTotal: len(students[schoolID]), ChildrenPresent: countStudents(students[schoolID], present[schoolID]),
-		ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID]),
-		StaffTotal:   len(staff[schoolID]), StaffPresent: countMembers(staff[schoolID], onSite[schoolID]),
-		AsOf: now,
+	for _, schoolID := range scope {
+		figures := traegerview.SchoolFigures{
+			ChildrenTotal: len(students[schoolID]), ChildrenPresent: countStudents(students[schoolID], present[schoolID]),
+			ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID]),
+			StaffTotal:   len(staff[schoolID]), StaffPresent: countMembers(staff[schoolID], onSite[schoolID]),
+			AsOf: now,
+		}
+		figures.CareRatio = careRatio(figures.ChildrenPresent, figures.StaffPresent)
+		result[schoolID] = figures
 	}
-	if figures.StaffPresent > 0 {
-		ratio := float64(figures.ChildrenPresent) / float64(figures.StaffPresent)
-		figures.CareRatio = &ratio
+	return result, nil
+}
+
+// careRatio is the present children per present staff member; nil without
+// present staff.
+func careRatio(childrenPresent, staffPresent int) *float64 {
+	if staffPresent <= 0 {
+		return nil
 	}
-	return figures, nil
+	ratio := float64(childrenPresent) / float64(staffPresent)
+	return &ratio
 }
 
 // countStudents counts the present children who belong to the active roster.
