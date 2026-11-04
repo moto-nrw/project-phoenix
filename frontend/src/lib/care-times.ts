@@ -41,8 +41,8 @@ export interface CareTimeDay {
   deviation_minutes: number | null;
   early_minutes: number;
   late_minutes: number;
-  /** Die Minuten dieses Tages lassen Zeit im Unterricht aus (#5656). */
-  went_to_class?: boolean;
+  /** Zeiten im Unterricht (#5656), nur als Hinweis; sie ändern keine Minuten. */
+  class_times?: { start: string | null; end: string | null }[];
 }
 
 export interface StudentCareTimes {
@@ -173,6 +173,15 @@ export function formatDeviation(minutes: number | null): string {
   if (minutes === null) return "–";
   if (minutes > 0) return `+${minutes} Min.`;
   return `${minutes} Min.`;
+}
+
+/** „Zum Unterricht: 08:30–13:00“; ohne Rückkehr „Zum Unterricht: ab 08:30“. */
+export function classTimesHint(day: CareTimeDay): string | null {
+  if (!day.class_times?.length) return null;
+  const spans = day.class_times.map(({ start, end }) =>
+    formatClockSpan(start, end),
+  );
+  return `Zum Unterricht: ${spans.join(", ")}`;
 }
 
 /** Warum ein Tag als Überschreitung zählt, in Worten. */

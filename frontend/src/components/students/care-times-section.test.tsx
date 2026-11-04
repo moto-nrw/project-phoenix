@@ -149,18 +149,28 @@ describe("Soll und Ist je Kind (#4774)", () => {
     expect(within(overruns as HTMLElement).getByText("2")).toBeInTheDocument();
   });
 
-  it("sagt, dass Zeit im Unterricht nicht mitzählt", async () => {
+  it("nennt die Zeit im Unterricht als Hinweis mit Uhrzeit", async () => {
     mockFetch.mockResolvedValue(
       result([
-        day({ date: "2026-09-07", went_to_class: true, actual_end: "08:30" }),
+        day({
+          date: "2026-09-07",
+          actual_end: "08:30",
+          deviation_minutes: -450,
+          class_times: [{ start: "08:30", end: null }],
+        }),
+        day({
+          date: "2026-09-08",
+          class_times: [{ start: "08:30", end: "13:00" }],
+        }),
       ]),
     );
     render(<StudentCareTimesSection studentId="7" active />);
 
     const table = within(await screen.findByRole("table"));
-    expect(
-      await table.findByText("Zeit im Unterricht zählt nicht mit."),
-    ).toBeInTheDocument();
+    // Ohne Rückkehr liest sich -450 als Unterricht, nicht als Heimgang.
+    expect(await table.findByText("-450 Min.")).toBeInTheDocument();
+    expect(table.getByText("Zum Unterricht: ab 08:30")).toBeInTheDocument();
+    expect(table.getByText("Zum Unterricht: 08:30–13:00")).toBeInTheDocument();
   });
 
   it("zeigt einen Ladefehler mit Katalogtext und lädt auf Wiederholen neu", async () => {

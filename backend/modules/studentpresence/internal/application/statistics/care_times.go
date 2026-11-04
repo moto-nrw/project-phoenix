@@ -152,13 +152,13 @@ type careTimeInputs struct {
 }
 
 // attendanceSpan is the Ist of one child-day: the first check-in and the last
-// check-out, nil while any attendance row of the day is still open. classGaps
+// check-out, nil while any attendance row of the day is still open. classTimes
 // are the stretches the child spent in class (#5656).
 type attendanceSpan struct {
 	firstCheckIn time.Time
 	lastCheckOut *time.Time
 	open         bool
-	classGaps    []minuteWindow
+	classTimes   []studentpresence.CareTimeClassTime
 }
 
 // compareCareTimes compares every child-day from the later of from and the
@@ -272,13 +272,14 @@ func attendanceSpans(rows []*ports.Attendance) map[dayKey]attendanceSpan {
 		}
 		spans[key] = span
 	}
-	addClassGaps(spans, rows)
+	addClassTimes(spans, rows)
 	return spans
 }
 
-// addClassGaps records the time in class of each day: from a checkout to class
-// to the next check-in, or to the end of the day when the child does not return.
-func addClassGaps(spans map[dayKey]attendanceSpan, rows []*ports.Attendance) {
+// addClassTimes records the time in class of each day: from a checkout to class
+// to the next check-in, open when the child did not come back. It is shown next
+// to the comparison and takes nothing off either side of it (#4774, #5656).
+func addClassTimes(spans map[dayKey]attendanceSpan, rows []*ports.Attendance) {
 	checkIns := make(map[dayKey][]time.Time, len(spans))
 	for _, row := range rows {
 		if row != nil {
@@ -291,37 +292,26 @@ func addClassGaps(spans map[dayKey]attendanceSpan, rows []*ports.Attendance) {
 			continue
 		}
 		key := dayKey{row.StudentID, row.Date}
-		gap := minuteWindow{start: minutesOnDay(*row.CheckOutTime, row.Date), end: 24 * 60}
+		var back *time.Time
 		for _, checkIn := range checkIns[key] {
-			if checkIn.After(*row.CheckOutTime) {
-				gap.end = min(gap.end, minutesOnDay(checkIn, row.Date))
+			if checkIn.After(*row.CheckOutTime) && (back == nil || checkIn.Before(*back)) {
+				back = &checkIn
 			}
 		}
+		classTime := studentpresence.CareTimeClassTime{Start: *wallClock(*row.CheckOutTime)}
+		if back != nil {
+			classTime.End = wallClock(*back)
+		}
 		span := spans[key]
-		span.classGaps = append(span.classGaps, gap)
+		span.classTimes = append(span.classTimes, classTime)
 		spans[key] = span
 	}
-}
-
-// classOverlap is how many minutes of the stretch from start to end the child
-// spent in class.
-func classOverlap(gaps []minuteWindow, start, end int) int {
-	total := 0
-	for _, gap := range gaps {
-		total += max(0, min(gap.end, end)-max(gap.start, start))
+	for key, span := range spans {
+		sort.Slice(span.classTimes, func(i, j int) bool {
+			return clockMinutes(span.classTimes[i].Start) < clockMinutes(span.classTimes[j].Start)
+		})
+		spans[key] = span
 	}
-	return total
-}
-
-// minutesOutsideClass is the length of a span without the time in class. It is
-// nil when the span has no start or end.
-func minutesOutsideClass(start, end *calendar.WallClock, gaps []minuteWindow) *int {
-	length := spanMinutes(start, end)
-	if length == nil {
-		return nil
-	}
-	outside := *length - classOverlap(gaps, clockMinutes(*start), clockMinutes(*end))
-	return &outside
 }
 
 // classifyCareTimeDay applies the definitions to one child-day. It reports
@@ -329,15 +319,13 @@ func minutesOutsideClass(start, end *calendar.WallClock, gaps []minuteWindow) *i
 func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCareDay, span *attendanceSpan, status string, careDay bool) (studentpresence.CareTimeDay, bool) {
 	day := studentpresence.CareTimeDay{Date: date}
 	present := span != nil
-	var classGaps []minuteWindow
 	if present {
-		classGaps = span.classGaps
-		day.WentToClass = len(classGaps) > 0
+		day.ClassTimes = span.classTimes
 		day.ActualStart = wallClock(span.firstCheckIn)
 		if span.lastCheckOut != nil && !span.open {
 			day.ActualEnd = wallClock(*span.lastCheckOut)
 		}
-		day.ActualMinutes = minutesOutsideClass(day.ActualStart, day.ActualEnd, classGaps)
+		day.ActualMinutes = spanMinutes(day.ActualStart, day.ActualEnd)
 	}
 	switch {
 	case planned.NoPlan, planned.Expected && planned.Arrival == nil && planned.Pickup == nil && present:
@@ -347,9 +335,9 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 		return day, present
 	case planned.Expected:
 		day.PlannedStart, day.PlannedEnd = planned.Arrival, planned.Pickup
-		day.PlannedMinutes = minutesOutsideClass(day.PlannedStart, day.PlannedEnd, classGaps)
+		day.PlannedMinutes = spanMinutes(day.PlannedStart, day.PlannedEnd)
 		if present {
-			classifyAttendedBookedDay(&day, classGaps)
+			classifyAttendedBookedDay(&day)
 		} else {
 			classifyMissedBookedDay(&day, status, careDay)
 		}
@@ -367,14 +355,12 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 	return day, true
 }
 
-func classifyAttendedBookedDay(day *studentpresence.CareTimeDay, classGaps []minuteWindow) {
+func classifyAttendedBookedDay(day *studentpresence.CareTimeDay) {
 	if day.PlannedStart != nil {
-		start, planned := clockMinutes(*day.ActualStart), clockMinutes(*day.PlannedStart)
-		day.EarlyMinutes = max(0, planned-start-classOverlap(classGaps, start, planned))
+		day.EarlyMinutes = max(0, clockMinutes(*day.PlannedStart)-clockMinutes(*day.ActualStart))
 	}
 	if day.PlannedEnd != nil && day.ActualEnd != nil {
-		planned, end := clockMinutes(*day.PlannedEnd), clockMinutes(*day.ActualEnd)
-		day.LateMinutes = max(0, end-planned-classOverlap(classGaps, planned, end))
+		day.LateMinutes = max(0, clockMinutes(*day.ActualEnd)-clockMinutes(*day.PlannedEnd))
 	}
 	if day.PlannedMinutes != nil && day.ActualMinutes != nil {
 		deviation := *day.ActualMinutes - *day.PlannedMinutes
