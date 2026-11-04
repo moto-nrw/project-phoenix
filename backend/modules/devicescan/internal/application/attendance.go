@@ -129,11 +129,13 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *devicescan.P
 		return nil, classifyPresenceFailure(err)
 	}
 
+	// The action names the checkout on record, which can differ from the
+	// destination when the child was already checked out (#5656).
 	message := "Tschüss " + person.FirstName + "!"
-	switch destination {
-	case devicescan.DestinationTransit:
+	switch action {
+	case devicescan.ScanActionCheckedOut:
 		message = "Viel Spaß!"
-	case devicescan.DestinationClass:
+	case devicescan.ScanActionCheckedOutClass:
 		message = "Bis später, " + person.FirstName + "!"
 	}
 	result := &devicescan.AttendanceToggleResult{

@@ -70,6 +70,7 @@ const (
 	ScanActionCheckedIn               = "checked_in"
 	ScanActionCheckedOut              = "checked_out"
 	ScanActionCheckedOutDaily         = "checked_out_daily"
+	ScanActionCheckedOutClass         = "checked_out_class"
 	ScanActionTransferred             = "transferred"
 	ScanActionNoAction                = "no_action"
 	ScanActionSupervisorAuthenticated = "supervisor_authenticated"
