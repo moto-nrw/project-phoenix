@@ -15,8 +15,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// reopenWindow is how long a completed block may be reopened.
+// reopenWindow is how long a completed block may at least be reopened.
 const reopenWindow = 5 * time.Minute
+
+// reopenDeadline is when a completed block stops being reopenable: five
+// minutes after the completion, or the block's planned end when that is
+// later. A block ended by mistake before its planned end can be reopened
+// until it would have ended anyway (#5676). A spontaneous block has no real
+// planned end, so it keeps the five minutes.
+func reopenDeadline(instance *scheduleModel.ActivityInstance, completedAt time.Time) time.Time {
+	deadline := completedAt.Add(reopenWindow)
+	if instance.IsSpontaneous {
+		return deadline
+	}
+	plannedEnd := timetable.LifecycleBoundary(calendar.Date(instance.Date), instance.EndTime)
+	if plannedEnd.After(deadline) {
+		return plannedEnd
+	}
+	return deadline
+}
 
 func (s *InstanceLifecycleService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
 	if !s.deps.EnforceTimePolicy || instance.IsSpontaneous {
@@ -83,7 +100,7 @@ func (s *InstanceLifecycleService) complete(ctx context.Context, instanceID int6
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
 	}
-	instance.MarkCompleted(completedAt, completedAt.Add(reopenWindow), timetable.LifecycleActor(ctx))
+	instance.MarkCompleted(completedAt, reopenDeadline(instance, completedAt), timetable.LifecycleActor(ctx))
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ports.ScheduleError{Op: "complete instance: update", Err: err}
 	}

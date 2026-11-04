@@ -116,7 +116,7 @@ export function activeSupervisionTopic(
       },
     ],
     result:
-      "Die Aufsicht ist abgeschlossen. Ein selbst beendeter Termin kann für kurze Zeit über `Rückgängig` wieder geöffnet werden.",
+      "Die Aufsicht ist abgeschlossen. Aus Versehen beendet? Wählen Sie `Rückgängig`. Später öffnen Sie den Termin unter `Beendete und abgelaufene Blöcke` mit `Wieder öffnen`. Das geht bis zum geplanten Ende, mindestens fünf Minuten lang.",
     differences: [
       "Bei einem laufenden Termin können weitere Betreuungskräfte der Aufsicht beitreten.",
       "Ein geplanter Termin hat feste Zeiten. Vorher sind Start oder Ende möglicherweise gesperrt.",
@@ -124,6 +124,8 @@ export function activeSupervisionTopic(
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
+      // #5676: Wieder öffnen bis zum geplanten Ende.
+      "Fehlt `Wieder öffnen`? Dann ist das geplante Ende vorbei. Oder eine andere Person hat beendet. Wieder öffnen kann nur sie oder die Leitung.",
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",

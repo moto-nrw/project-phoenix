@@ -153,6 +153,58 @@ describe("PastBlocksSection", () => {
     expect(titles).toEqual(["Lernzeit", "Aufsicht 2B"]);
   });
 
+  it("offers to reopen a block ended by mistake until its deadline (#5676)", async () => {
+    plannedNowMock.mockResolvedValue([
+      pastBlock({
+        canReopen: true,
+        reopenUntil: "2026-08-16T12:30:00Z",
+      }),
+      pastBlock({ id: "instance-2", title: "Lernzeit", startTime: "10:00" }),
+    ]);
+    const onReopen = vi.fn().mockResolvedValue(undefined);
+
+    render(<PastBlocksSection onReopen={onReopen} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
+    );
+
+    const reopen = await screen.findByRole("button", {
+      name: "Aufsicht 2B wieder öffnen",
+    });
+    expect(
+      screen.getByText(
+        "Aus Versehen beendet? Sie können den Block bis 14:30 Uhr wieder öffnen.",
+      ),
+    ).toBeInTheDocument();
+    // Only the block the backend announces carries the action.
+    expect(screen.getAllByRole("button", { name: /wieder öffnen$/ })).toEqual([
+      reopen,
+    ]);
+
+    fireEvent.click(reopen);
+
+    expect(onReopen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "instance-1" }),
+    );
+  });
+
+  it("stays display only without a reopen handler", async () => {
+    plannedNowMock.mockResolvedValue([
+      pastBlock({ canReopen: true, reopenUntil: "2026-08-16T12:30:00Z" }),
+    ]);
+
+    render(<PastBlocksSection />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
+    );
+
+    await screen.findByText("Aufsicht 2B");
+    expect(screen.getByText("Beendet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /wieder öffnen$/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an empty state when nothing has finished yet", async () => {
     plannedNowMock.mockResolvedValue([]);
 

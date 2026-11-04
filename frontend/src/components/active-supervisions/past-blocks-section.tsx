@@ -20,6 +20,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { berlinClockFromISO } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -33,9 +34,10 @@ import type {
 
 const logger = createLogger({ component: "PastBlocksSection" });
 
-// Read-only end-of-day review (#2335): today's completed blocks plus planned
-// blocks whose end time passed without a start. Everything here is display
-// only — no start button, no attendance actions.
+// End-of-day review (#2335): today's completed blocks plus planned blocks
+// whose end time passed without a start. No start button, no attendance
+// actions. The one action is „Wieder öffnen“ on a block that was ended by
+// mistake and can still be reopened (#5676).
 
 // Deliberately local, not shared with planned-now-section's rosterStatusLabel:
 // that one describes the LIVE state of an upcoming block ("Erwartet"), these
@@ -63,7 +65,17 @@ function pastRosterDotColor(row: TimetableRosterRow): string {
   return LOCATION_COLORS.NOT_ARRIVAL;
 }
 
-export function PastBlocksSection() {
+interface PastBlocksSectionProps {
+  /**
+   * Reopens a finished block and shows its own failure; without it the
+   * review stays display only.
+   */
+  readonly onReopen?: (block: PlannedTimetableInstance) => Promise<void>;
+}
+
+export function PastBlocksSection({
+  onReopen,
+}: Readonly<PastBlocksSectionProps> = {}) {
   const [expanded, setExpanded] = useState(false);
   const [blocks, setBlocks] = useState<PlannedTimetableInstance[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -136,7 +148,7 @@ export function PastBlocksSection() {
       ) : blocks !== null ? (
         <div className="grid gap-3 xl:grid-cols-2">
           {blocks.map((block) => (
-            <PastBlockCard key={block.id} block={block} />
+            <PastBlockCard key={block.id} block={block} onReopen={onReopen} />
           ))}
         </div>
       ) : null}
@@ -146,7 +158,12 @@ export function PastBlocksSection() {
 
 function PastBlockCard({
   block,
-}: Readonly<{ block: PlannedTimetableInstance }>) {
+  onReopen,
+}: Readonly<{
+  block: PlannedTimetableInstance;
+  onReopen?: (block: PlannedTimetableInstance) => Promise<void>;
+}>) {
+  const [isReopening, setIsReopening] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [roster, setRoster] = useState<TimetableRoster | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -156,6 +173,10 @@ function PastBlockCard({
     clear: clearLoadError,
   } = useApiLoadError();
   const completed = block.status === "completed";
+  const reopenUntil =
+    completed && block.canReopen && onReopen && block.reopenUntil
+      ? berlinClockFromISO(block.reopenUntil)
+      : "";
   // „Wiederholen“ lädt die Kinderliste dieses Blocks erneut.
   const reloadRef = useRef<() => void>(() => undefined);
 
@@ -274,6 +295,29 @@ function PastBlockCard({
           {block.assignedStaffIds.length === 1 ? "Betreuer" : "Betreuende"}
         </span>
       </div>
+      {reopenUntil && onReopen ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-700">
+            Aus Versehen beendet? Sie können den Block bis {reopenUntil} Uhr
+            wieder öffnen.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => {
+              setIsReopening(true);
+              void onReopen(block).finally(() => setIsReopening(false));
+            }}
+            isLoading={isReopening}
+            loadingText="Öffne wieder …"
+            disabled={isReopening}
+            aria-label={`${block.title} wieder öffnen`}
+          >
+            Wieder öffnen
+          </Button>
+        </div>
+      ) : null}
     </SectionCard>
   );
 }

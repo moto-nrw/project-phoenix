@@ -61,6 +61,12 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		if err != nil {
 			return nil, err
 		}
+		if opts.Scope == timetable.PlannedNowScopePast {
+			if plannedReopenable(candidate, accountID, isAdmin, now) {
+				mapped.CanReopen = true
+				mapped.ReopenUntil = candidate.instance.ReopenUntil.Format(time.RFC3339)
+			}
+		}
 		out = append(out, mapped)
 	}
 	if opts.Scope == timetable.PlannedNowScopeDay {
@@ -69,6 +75,22 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		}
 	}
 	return out, nil
+}
+
+// plannedReopenable reports whether the caller may reopen a finished block
+// from the end-of-day review (#5676): the planner list's gate, and no slot
+// written after the completion, which Reopen would refuse.
+func plannedReopenable(candidate plannedNowCandidate, accountID int64, isAdmin bool, now time.Time) bool {
+	inst := candidate.instance
+	if !timetable.CanReopenInstance(ScheduledInstanceOf(inst), accountID, isAdmin, now) || inst.CompletedAt == nil {
+		return false
+	}
+	for _, row := range candidate.studentRows {
+		if row.UpdatedAt.After(*inst.CompletedAt) {
+			return false
+		}
+	}
+	return true
 }
 
 // plannedNowAccess resolves the caller's staff profile and overview rights.
