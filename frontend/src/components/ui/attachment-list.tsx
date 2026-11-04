@@ -1,9 +1,10 @@
 "use client";
 
 import { Download, ExternalLink, X } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
+import { cn } from "~/lib/utils";
 
 /**
  * One attached file, in the shape both the staff and the parents side use.
@@ -29,7 +30,18 @@ interface AttachmentListProps {
   removeLabel?: string;
   downloadLabel?: string;
   openLabel?: string;
+  /**
+   * Shows „Öffnen“ and „Herunterladen“ as actions at the end of the row, the
+   * same way the PDFs of a form show them (#5684).
+   */
+  fileActions?: boolean;
 }
+
+const FILE_ACTION_CLASS = buttonClassName({
+  variant: "ghost",
+  size: "md",
+  className: "gap-2",
+});
 
 /**
  * The list of files attached to something, with one link per row: a file the
@@ -51,6 +63,7 @@ export function AttachmentList({
   removeLabel = "Anhang entfernen",
   downloadLabel = "Herunterladen",
   openLabel = "Im Browser öffnen",
+  fileActions = false,
 }: AttachmentListProps) {
   if (attachments.length === 0) return null;
 
@@ -65,21 +78,52 @@ export function AttachmentList({
         return (
           <li
             key={attachment.id}
-            className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+            className={
+              fileActions
+                ? "moto-content-surface flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-3 py-2"
+                : "flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+            }
           >
             <FileTypeIcon contentType={attachment.content_type} />
             <a
               href={href}
               title={viewable ? openLabel : downloadLabel}
               {...(viewable ? { target: "_blank", rel: "noopener" } : {})}
-              className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 hover:underline"
+              className={cn(
+                "min-w-0 flex-1 truncate text-sm font-medium text-gray-900 hover:underline",
+                fileActions && "basis-40",
+              )}
             >
               {attachment.filename}
             </a>
             <span className="shrink-0 text-xs text-gray-500">
               {formatBytes(attachment.size_bytes)}
             </span>
-            {onRemove ? (
+            {fileActions ? (
+              <div className="flex flex-wrap gap-2">
+                {viewable ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener"
+                    aria-label={`${attachment.filename} öffnen`}
+                    className={FILE_ACTION_CLASS}
+                  >
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    Öffnen
+                  </a>
+                ) : null}
+                <a
+                  href={downloadHref}
+                  download={attachment.filename}
+                  aria-label={`${attachment.filename} herunterladen`}
+                  className={FILE_ACTION_CLASS}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  Herunterladen
+                </a>
+              </div>
+            ) : onRemove ? (
               <Button
                 type="button"
                 variant="ghost"

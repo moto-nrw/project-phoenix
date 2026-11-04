@@ -95,7 +95,7 @@ function TimeModelRow({
             stacks, so the button names what it removes. */}
         <Button
           type="button"
-          variant="ghost"
+          variant="ghost_danger"
           size="compact"
           aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
           onClick={onRemove}
@@ -154,11 +154,11 @@ export function HolidayWeekEditor({
     // trennt eine Linie wie die Zeitmodelle darunter.
     <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
         <Button
           type="button"
-          variant="outline"
-          size="compact"
+          variant="outline_danger"
+          size="md"
           onClick={onRemove}
         >
           Woche entfernen
@@ -252,8 +252,9 @@ export function HolidayWeekEditor({
           {week.timeModels.length < MAX_TIME_MODELS_PER_WEEK ? (
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
+              variant="outline"
+              size="md"
+              className="gap-2"
               onClick={() =>
                 onChange({
                   ...week,

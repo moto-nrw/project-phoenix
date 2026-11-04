@@ -184,13 +184,15 @@ export function HolidayPeriodForm({
     >
       <FormErrorAlert message={errorPath.error} />
 
-      {/* Locked while saving: the answer replaces the draft, so an edit made
-          meanwhile would be lost. */}
-      <fieldset
-        disabled={saving}
-        className="compact:space-y-4 min-w-0 space-y-6 max-sm:space-y-3"
+      <SectionCard
+        title="Anmeldung und Wochen"
+        footer={
+          <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
+        }
       >
-        <SectionCard title="Anmeldung">
+        {/* Locked while saving: the answer replaces the draft, so an edit made
+            meanwhile would be lost. */}
+        <fieldset disabled={saving} className="min-w-0 space-y-6">
           <div className="space-y-4">
             <Input
               controlSize="compact"
@@ -256,13 +258,14 @@ export function HolidayPeriodForm({
               }
             />
           </div>
-        </SectionCard>
 
-        <SectionCard
-          title="Wochen"
-          description="Jede Woche findet an einer Schule Ihres Trägers statt."
-        >
-          <div className="space-y-4">
+          <div className="space-y-4 border-t border-gray-200 pt-6">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Wochen</h3>
+              <p className="text-sm text-gray-600">
+                Jede Woche findet an einer Schule Ihres Trägers statt.
+              </p>
+            </div>
             {draft.weeks.length === 0 ? (
               <p className="text-sm text-gray-600">
                 Noch keine Woche. Zum Veröffentlichen braucht der Ferienzeitraum
@@ -303,6 +306,7 @@ export function HolidayPeriodForm({
                 type="button"
                 variant="outline"
                 size="md"
+                className="gap-2"
                 onClick={() =>
                   setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
                 }
@@ -316,10 +320,8 @@ export function HolidayPeriodForm({
               </p>
             )}
           </div>
-        </SectionCard>
-      </fieldset>
-
-      <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
+        </fieldset>
+      </SectionCard>
     </form>
   );
 }

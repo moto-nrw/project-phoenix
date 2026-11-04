@@ -32,6 +32,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   buildFieldsByKey,
@@ -51,6 +52,7 @@ import {
 import {
   EDIT_HINT,
   editableQuestions,
+  EDIT_TITLE,
 } from "./holiday-registration-edit-fields";
 
 const logger = createLogger({ component: "HolidayRegistrationEdit" });
@@ -113,10 +115,13 @@ function EditForm({
   registration,
   onSaved,
   onCancel,
+  description,
   edit,
   children,
 }: HolidayRegistrationEditorProps &
   Readonly<{
+    /** Der Bereich, den dieser Bearbeiten-Zustand ändert. */
+    description: string;
     edit: () => HolidayRegistrationEdit;
     children: (fieldError: (name: string) => string | undefined) => ReactNode;
   }>) {
@@ -142,23 +147,27 @@ function EditForm({
   };
 
   return (
-    <form
-      ref={formRef}
-      noValidate
-      className="space-y-4"
-      onSubmit={(event) => void submit(event)}
-    >
-      <FormErrorAlert message={errors.error} />
-      <p className="text-sm text-gray-700">{EDIT_HINT}</p>
-      {children(fieldError)}
-      <EditActions
-        onCancel={() => {
-          errors.clear();
-          onCancel();
-        }}
-        saving={saving}
-        saveLabel="Änderung speichern"
-      />
+    <form ref={formRef} noValidate onSubmit={(event) => void submit(event)}>
+      <SectionCard
+        title={EDIT_TITLE}
+        description={description}
+        footer={
+          <EditActions
+            onCancel={() => {
+              errors.clear();
+              onCancel();
+            }}
+            saving={saving}
+            saveLabel="Änderung speichern"
+          />
+        }
+      >
+        <div className="space-y-4">
+          <FormErrorAlert message={errors.error} />
+          <p className="text-sm text-gray-700">{EDIT_HINT}</p>
+          {children(fieldError)}
+        </div>
+      </SectionCard>
     </form>
   );
 }
@@ -306,6 +315,7 @@ export function GuardiansEditor(
   return (
     <EditForm
       {...props}
+      description="Eltern"
       edit={() => ({
         guardians: {
           guardian,
@@ -518,6 +528,7 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   return (
     <EditForm
       {...props}
+      description="Notfallkontakte und Abholung"
       edit={() => {
         const keptEmergency = filled(emergency);
         const keptPickup = filled(pickup);
@@ -628,7 +639,11 @@ export function FamilyAnswersEditor(props: HolidayRegistrationEditorProps) {
     ...registration.answers,
   });
   return (
-    <EditForm {...props} edit={() => ({ answers })}>
+    <EditForm
+      {...props}
+      description="Allgemeine Angaben"
+      edit={() => ({ answers })}
+    >
       {(fieldError) => (
         <Questions
           questions={editableQuestions(fields, false)}
@@ -676,6 +691,7 @@ export function ChildEditor(
   return (
     <EditForm
       {...props}
+      description={`${props.child.firstName} ${props.child.lastName}`}
       edit={() => ({
         child: {
           id: child.id,

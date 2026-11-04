@@ -88,11 +88,12 @@ export function HolidayRegistrationProofCard({
               type="button"
               variant="outline"
               size="md"
+              className="gap-2"
               isLoading={uploading}
               loadingText="Lädt hoch …"
               onClick={() => fileRef.current?.click()}
             >
-              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+              <Upload className="h-4 w-4" aria-hidden="true" />
               Nachweis hochladen
             </Button>
           </>
@@ -111,6 +112,7 @@ export function HolidayRegistrationProofCard({
             holidayProofHref(periodId, registration.id, proofId)
           }
           openLabel="In neuem Tab öffnen"
+          fileActions
         />
       ) : (
         <p className="text-sm text-gray-700">{emptyText(registration)}</p>
