@@ -4,7 +4,7 @@ import {
   NavigationProgressBar,
   NavigationProgressProvider,
 } from "~/components/ui/navigation-progress";
-import { NavigationScrollReset } from "~/components/ui/navigation-scroll-reset";
+import { NavigationScrollPosition } from "~/components/ui/navigation-scroll-position";
 
 /**
  * Das gemeinsame Gerüst aller vier Portale: gepunkteter Hintergrund,
@@ -50,7 +50,7 @@ export function PortalShell({
 }: PortalShellProps) {
   return (
     <NavigationProgressProvider>
-      <NavigationScrollReset />
+      <NavigationScrollPosition />
       {/*
        * Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
        * Zeile aus Seitenleiste und <main> immer bis zur Unterkante des

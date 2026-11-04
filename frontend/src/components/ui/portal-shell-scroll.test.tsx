@@ -1,6 +1,10 @@
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { releaseFakeTimers } from "~/test/clock";
+import { expectIdleRenderBudget } from "~/test/render-budget";
+
+import { NavigationScrollPosition } from "./navigation-scroll-position";
 import { PortalShell } from "./portal-shell";
 
 const route = vi.hoisted(() => ({ pathname: "/ferien" }));
@@ -87,6 +91,7 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it("beginnt eine neu angesteuerte Seite oben", () => {
@@ -101,8 +106,11 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     const view = renderShellAt("/access-log");
 
     commitRoute(view, "/access-log");
-
     expect(scrollTo).not.toHaveBeenCalled();
+
+    // Anker: Die Hülle reagiert auf denselben Weg, sobald der Pfad wechselt.
+    commitRoute(view, "/ferien");
+    expect(scrollTo).toHaveBeenCalledOnce();
   });
 
   it("setzt nicht an den Anfang, wenn `popstate` vor dem Commit kommt", () => {
@@ -113,8 +121,11 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     route.pathname = "/access-log";
     view.rerender(shell());
 
-    expect(window.location.pathname).toBe("/access-log");
     expect(scrollTo).not.toHaveBeenCalled();
+
+    // Anker: Der nächste Link-Wechsel setzt wieder an den Anfang.
+    commitRoute(view, "/ferien");
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
 
   it("holt die Position auch nach, wenn `popstate` vor dem Commit kommt", async () => {
@@ -196,10 +207,11 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     firePopState();
     await nextFrame();
     await nextFrame();
-    vi.restoreAllMocks();
-
-    expect(window.location.pathname).toBe("/access-log");
     expect(scrollTo).not.toHaveBeenCalled();
+
+    // Anker: Der nächste Link-Wechsel setzt wieder an den Anfang.
+    commitRoute(view, "/abrechnung");
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
 
   it("zählt ein Zurück innerhalb derselben Seite nicht für den nächsten Link-Wechsel", () => {
@@ -209,5 +221,14 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     commitRoute(view, "/abrechnung");
 
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
+  });
+
+  it("rendert im Leerlauf nicht von selbst neu", async () => {
+    vi.useFakeTimers();
+    try {
+      await expectIdleRenderBudget(<NavigationScrollPosition />);
+    } finally {
+      releaseFakeTimers();
+    }
   });
 });

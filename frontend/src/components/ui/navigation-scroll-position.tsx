@@ -71,7 +71,7 @@ function restoreScrollPosition(top: number): () => void {
  * vor denen der Seite, und eine Seite oder Next darf danach gezielt woanders
  * hinscrollen (etwa zu einer Sprungmarke in der Adresse).
  */
-export function NavigationScrollReset() {
+export function NavigationScrollPosition() {
   const pathname = usePathname();
   const committedPathname = useRef(pathname);
   const lastCommitAt = useRef(Number.NEGATIVE_INFINITY);
