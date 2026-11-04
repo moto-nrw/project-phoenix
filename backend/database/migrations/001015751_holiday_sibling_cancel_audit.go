@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidaySiblingCancelAuditVersion = "1.15.747"
+const holidaySiblingCancelAuditVersion = "1.15.751"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidaySiblingCancelAuditVersion,
 		Description: "Ferienanmeldung: Verlaufseintrag, wenn eine Stornierung die Geschwistergruppe löst (#5662)",
 		DependsOn: []string{
-			holidaySiblingGroupsVersion, // the last migration before this one; its audit actions this keeps
+			attendanceCheckOutReasonVersion, // the last migration before this one
+			holidaySiblingGroupsVersion,     // its audit actions this keeps
 		},
 	})
 	Migrations.MustRegister(holidaySiblingCancelAuditUp, holidaySiblingCancelAuditDown)
