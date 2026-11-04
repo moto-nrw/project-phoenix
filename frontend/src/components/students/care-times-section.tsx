@@ -100,11 +100,17 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
     render: (day) => {
       const { label, tone } = CARE_TIME_DAY_LABELS[day.kind];
       const reason = overrunReason(day);
+      const inClass = day.went_to_class
+        ? "Zeit im Unterricht zählt nicht mit."
+        : null;
       return (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge label={label} tone={tone} compact />
           {reason ? (
             <span className="text-xs text-gray-600">{reason}</span>
+          ) : null}
+          {inClass ? (
+            <span className="text-xs text-gray-600">{inClass}</span>
           ) : null}
         </div>
       );
@@ -176,7 +182,7 @@ export function StudentCareTimesSection({
   return (
     <SectionCard
       title="Soll und Ist"
-      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
+      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht zählt nicht mit. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
       actions={
         <DateRangePicker
           value={range}

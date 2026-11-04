@@ -143,6 +143,7 @@ type careTimeDayResponse struct {
 	DeviationMinutes *int    `json:"deviation_minutes"`
 	EarlyMinutes     int     `json:"early_minutes"`
 	LateMinutes      int     `json:"late_minutes"`
+	WentToClass      bool    `json:"went_to_class"`
 }
 
 type studentCareTimesResponse struct {
@@ -196,7 +197,7 @@ func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studen
 			PlannedStart: formatClock(day.PlannedStart), PlannedEnd: formatClock(day.PlannedEnd),
 			ActualStart: formatClock(day.ActualStart), ActualEnd: formatClock(day.ActualEnd),
 			PlannedMinutes: day.PlannedMinutes, ActualMinutes: day.ActualMinutes, DeviationMinutes: day.DeviationMinutes,
-			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes,
+			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes, WentToClass: day.WentToClass,
 		})
 	}
 	return studentCareTimesResponse{

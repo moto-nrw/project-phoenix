@@ -41,6 +41,8 @@ export interface CareTimeDay {
   deviation_minutes: number | null;
   early_minutes: number;
   late_minutes: number;
+  /** Die Minuten dieses Tages lassen Zeit im Unterricht aus (#5656). */
+  went_to_class?: boolean;
 }
 
 export interface StudentCareTimes {

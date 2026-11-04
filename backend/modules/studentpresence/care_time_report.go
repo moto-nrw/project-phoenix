@@ -15,6 +15,8 @@ import (
 //     the source is a port so a contract in the Träger module can replace
 //     it, #4683)
 //   - Ist = first check-in to last check-out of the day (active.attendance)
+//   - time in class (#5656) counts on neither side: it runs from a checkout to
+//     class to the next check-in, or to the end of the day without a return
 //   - overrun = Ist start earlier than Soll start or Ist end later than Soll
 //     end by more than CareTimeToleranceMinutes, or attendance on a day
 //     without a booking
@@ -84,6 +86,8 @@ type CareTimeDay struct {
 	// the planned start and after the planned end; zero when it did not.
 	EarlyMinutes int
 	LateMinutes  int
+	// WentToClass marks a day whose minutes leave out time in class (#5656).
+	WentToClass bool
 }
 
 // CareTimeSummary totals the comparison of one child over the window.

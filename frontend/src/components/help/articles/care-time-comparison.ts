@@ -44,6 +44,7 @@ export function careTimeComparisonTopic(): HelpTopic {
     notes: [
       "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
       "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
+      "Zeit im Unterricht zählt weder bei `Gebucht` noch bei `Tatsächlich`. Kommt das Kind nicht zurück, gilt das bis zum Ende des Tages.",
       "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht, oder ein Tag ohne Buchung.",
       "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht als zu kurz.",
       "War das Kind an einem abgemeldeten Tag doch da, steht dort `Da ohne Buchung`.",
