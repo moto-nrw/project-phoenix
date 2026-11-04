@@ -7,7 +7,9 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -234,8 +236,20 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 	assert.Nil(t, list.HomeSchools[1].SchoolID)
 	assert.Equal(t, "Feriengäste", list.HomeSchools[1].Name)
 	rec := f.get(t, host, fmt.Sprintf("/%d/participants", week))
-	for _, private := range []string{"Erdnüsse", "eva.muster@example.org", "Oma Muster", "0151"} {
-		assert.NotContains(t, rec.Body.String(), private, "only the minimum fields leave the Träger")
+	// Inspect every JSON string, including unknown fields and escaped values.
+	// Numeric IDs can contain the phone prefix without exposing a phone number.
+	decoder := json.NewDecoder(strings.NewReader(rec.Body.String()))
+	for {
+		value, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		if text, ok := value.(string); ok {
+			for _, private := range []string{"Erdnüsse", "eva.muster@example.org", "Oma Muster", "0151"} {
+				assert.NotContains(t, text, private, "only the minimum fields leave the Träger")
+			}
+		}
 	}
 
 	other := f.staffOf(t, sued, permissions.ConfigRead)
