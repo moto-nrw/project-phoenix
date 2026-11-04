@@ -31,6 +31,30 @@ const (
 	// LineCostTakeover (cost_bearers.go) is what a cost bearer pays.
 )
 
+// How a Träger ranks siblings and when a cost bearer takes over (#5664). The
+// values are those of the settings parent_billing.sibling_rank and
+// parent_billing.cost_takeover_order.
+const (
+	// SiblingRankHighestContribution makes the child with the highest base
+	// price the first child: the default.
+	SiblingRankHighestContribution = "highest_contribution"
+	// SiblingRankOldestChild makes the oldest child the first child.
+	SiblingRankOldestChild = "oldest_child"
+	// CostTakeoverAfterDiscount lets a cost bearer pay what is left after the
+	// sibling discount: the default.
+	CostTakeoverAfterDiscount = "after_discount"
+	// CostTakeoverBeforeDiscount lets a cost bearer pay the full base price;
+	// the discount reaches only the other children.
+	CostTakeoverBeforeDiscount = "before_discount"
+)
+
+// HolidayChainSettings are the two choices of a Träger in the chain. A frozen
+// contribution keeps those it was computed with (#5664).
+type HolidayChainSettings struct {
+	SiblingRank       string
+	CostTakeoverOrder string
+}
+
 // States of a registration as the Holiday registrations port reports them.
 const (
 	HolidayRegistrationConfirmed = "confirmed"
@@ -116,6 +140,9 @@ type HolidayContribution struct {
 	// SiblingsInvoiced reports that an issued invoice bills a registration
 	// of the group, which then neither merges nor splits (#5628).
 	SiblingsInvoiced bool `json:"siblings_invoiced,omitempty"`
+	// Chain names how the contribution was computed (#5664). A frozen one
+	// keeps it, so a later change of the settings does not reach it.
+	Chain HolidayChainSettings `json:"-"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -139,11 +166,15 @@ type HolidayBooking struct {
 
 // HolidayChild is a child of a registration with its bookings. Position is
 // its place in the form; the names show only in the Träger-Büro (#5628).
+// BirthDate ranks the children of a registration when the Träger ranks by
+// age; a quote knows no date and carries AgeRank instead (#5664).
 type HolidayChild struct {
 	ID        int64
 	Position  int
 	FirstName string
 	LastName  string
+	BirthDate calendar.Date
+	AgeRank   int
 	Bookings  []HolidayBooking
 }
 
@@ -229,6 +260,10 @@ type HolidayBillingSettings interface {
 	// letter with its placeholders, empty for the built-in sentence: its
 	// value of parent_billing.payment_text or the default (#5622).
 	PaymentText(ctx context.Context, organizationID int64) (string, error)
+	// HolidayChain is how the Träger ranks siblings and when a cost bearer
+	// takes over: its values of parent_billing.sibling_rank and
+	// parent_billing.cost_takeover_order or the defaults (#5664).
+	HolidayChain(ctx context.Context, organizationID int64) (HolidayChainSettings, error)
 }
 
 // HolidayConfirmationSettings is what the Träger-Büro needs to know before
@@ -262,9 +297,13 @@ type HolidayQuoteBooking struct {
 	TimeModelID int64
 }
 
-// HolidayQuoteChild is a child of the public form by its bookings.
+// HolidayQuoteChild is a child of the public form by its bookings and its
+// place among the children by age: 1 for the oldest, the same number for the
+// same date of birth, 0 when the form knows no date yet (#5664). The quote
+// needs no date of birth to rank them.
 type HolidayQuoteChild struct {
 	Bookings []HolidayQuoteBooking
+	AgeRank  int
 }
 
 // HolidayContributions computes, shows and freezes the holiday contribution

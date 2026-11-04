@@ -851,6 +851,11 @@
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
     },
     {
+      "decision": "0115",
+      "id": "api/parentBillingSettings.HolidayChain",
+      "reason": "ADR 0115 addendum (#5664): Consumer-port adapter of the Elternabrechnung's settings port; it reads how the Träger ranks siblings and when a cost bearer takes over through the Settings Platform's Träger level in the caller's Träger transaction and translates the two keys into the chain settings of the Elternabrechnung."
+    },
+    {
       "decision": "0121",
       "id": "api/parentBillingSettings.PaymentText",
       "reason": "ADR 0121 addendum (#5622): Consumer-port adapter of the Elternabrechnung's settings port; it reads the payment text of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."

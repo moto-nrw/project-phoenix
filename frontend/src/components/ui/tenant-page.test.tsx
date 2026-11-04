@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
@@ -593,6 +600,189 @@ describe("TenantPage", () => {
     fireEvent.keyDown(panel, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
+  });
+
+  describe("Info-Knopf mit der Maus (#5682)", () => {
+    const renderInfoPage = () =>
+      render(
+        <>
+          <button type="button">Daneben</button>
+          <TenantPage
+            title="Schulen"
+            info={
+              <p>
+                Alle Schulen. <Link href="/traeger/hilfe">Mehr dazu</Link>
+              </p>
+            }
+          >
+            <p>Inhalt</p>
+          </TenantPage>
+        </>,
+      );
+    const infoButton = () =>
+      screen.getByRole("button", { name: "Erklärung zu Schulen" });
+    const findPanel = () =>
+      screen.findByRole("dialog", { name: "Erklärung zu Schulen" });
+
+    it("öffnet den Hinweis beim Darüberfahren, ohne den Fokus zu nehmen", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      const elsewhere = screen.getByRole("button", { name: "Daneben" });
+      elsewhere.focus();
+
+      await user.hover(infoButton());
+
+      const panel = await findPanel();
+      expect(panel).toHaveTextContent("Alle Schulen.");
+      expect(infoButton()).toHaveAttribute("aria-expanded", "true");
+      expect(infoButton()).toHaveAttribute("aria-controls", panel.id);
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it("schließt nach dem Verlassen erst mit Verzögerung", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      await user.hover(infoButton());
+      await findPanel();
+
+      await user.unhover(infoButton());
+
+      // Noch offen: der Weg vom Knopf in den Hinweis darf ihn nicht schließen.
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(infoButton()).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("hält den Link im Hinweis per Maus erreichbar", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      await user.hover(infoButton());
+      const panel = await findPanel();
+
+      await user.unhover(infoButton());
+      await user.hover(panel);
+      // Länger warten, als das Schließen dauern würde.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(
+        within(screen.getByRole("dialog")).getByRole("link", {
+          name: "Mehr dazu",
+        }),
+      ).toBeInTheDocument();
+      await user.unhover(panel);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("öffnet nichts, wenn die Maus nur kurz vorbeifährt", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+
+      await user.hover(infoButton());
+      await user.unhover(infoButton());
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Anker: die Seite steht, nur der Hinweis ist zu; dass er per Darüberfahren
+      // öffnen kann, zeigt der erste Test dieses Blocks mit demselben Query.
+      expect(infoButton()).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("hält einen per Darüberfahren geöffneten Hinweis beim Klick fest", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      await user.hover(infoButton());
+      const panel = await findPanel();
+
+      await user.click(infoButton());
+
+      expect(screen.getByRole("dialog")).toBe(panel);
+      expect(panel.contains(document.activeElement)).toBe(true);
+      await user.unhover(infoButton());
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(screen.getByRole("dialog")).toBe(panel);
+
+      // Der zweite Klick schließt wie bisher.
+      await user.click(infoButton());
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("lässt einen per Klick geöffneten Hinweis beim Verlassen offen", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+
+      await user.click(infoButton());
+      const panel = screen.getByRole("dialog");
+      expect(panel.contains(document.activeElement)).toBe(true);
+      await user.unhover(infoButton());
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(screen.getByRole("dialog")).toBe(panel);
+    });
+
+    it("gibt den Fokus bei Escape nur zurück, wenn der Hinweis ihn hatte", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      const elsewhere = screen.getByRole("button", { name: "Daneben" });
+      elsewhere.focus();
+      await user.hover(infoButton());
+      await findPanel();
+
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it("hält den Hinweis fest, sobald der Fokus hineinkommt", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+      await user.hover(infoButton());
+      const panel = await findPanel();
+
+      within(panel).getByRole("link", { name: "Mehr dazu" }).focus();
+      await user.unhover(infoButton());
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(screen.getByRole("dialog")).toBe(panel);
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(infoButton()).toHaveFocus();
+    });
+
+    it("öffnet per Tastatur wie bisher und nicht schon beim Fokus", async () => {
+      const user = userEvent.setup();
+      renderInfoPage();
+
+      infoButton().focus();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Anker: der Knopf hat den Fokus, der Hinweis öffnet erst bei Enter.
+      expect(infoButton()).toHaveFocus();
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      await user.keyboard("{Enter}");
+      const panel = screen.getByRole("dialog");
+      expect(panel.contains(document.activeElement)).toBe(true);
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(infoButton()).toHaveFocus();
+
+      await user.keyboard(" ");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("öffnet bei Touch erst durch das Tippen", async () => {
+      renderInfoPage();
+
+      fireEvent.pointerEnter(infoButton(), { pointerType: "touch" });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Anker: der Knopf steht, der Hinweis öffnet erst beim Tippen darunter.
+      expect(infoButton()).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      fireEvent.click(infoButton());
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
   });
 
   it("zeigt ohne Erklärung keinen Info-Knopf", () => {

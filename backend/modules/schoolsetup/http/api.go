@@ -25,8 +25,11 @@ type Runtime struct {
 	// staff first steps do not use it.
 	RequireWrite Middleware
 	// Actor returns the school and account of the request.
-	Actor   func(context.Context) (tenantID, accountID int64)
-	Respond func(w http.ResponseWriter, r *http.Request, status int, data any, message string)
+	Actor func(context.Context) (tenantID, accountID int64)
+	// ViaTraeger reports a session opened through the Absprung from the
+	// Träger-Portal. The staff first steps do not use it.
+	ViaTraeger func(context.Context) bool
+	Respond    func(w http.ResponseWriter, r *http.Request, status int, data any, message string)
 	// Failure renders 400, 403, 404, 409 or 500.
 	Failure func(w http.ResponseWriter, r *http.Request, status int, err error)
 }
@@ -42,7 +45,7 @@ type Resource struct {
 
 // NewResource builds the resource.
 func NewResource(service Service, runtime Runtime) *Resource {
-	if service == nil || runtime.Protected == nil || runtime.RequireWrite == nil || runtime.Actor == nil || runtime.Respond == nil || runtime.Failure == nil {
+	if service == nil || runtime.Protected == nil || runtime.RequireWrite == nil || runtime.Actor == nil || runtime.ViaTraeger == nil || runtime.Respond == nil || runtime.Failure == nil {
 		panic("school setup http: service and runtime are required")
 	}
 	return &Resource{service: service, runtime: runtime}
@@ -75,12 +78,7 @@ func (rs *Resource) status(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	status, err := rs.service.Status(r.Context(), tenantID, accountID)
-	if err != nil {
-		rs.fail(w, r, err)
-		return
-	}
-	rs.runtime.Respond(w, r, http.StatusOK, status, "")
+	rs.respondStatus(w, r, tenantID, accountID)
 }
 
 func (rs *Resource) skipStep(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +121,11 @@ func (rs *Resource) dismiss(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
 		return
 	}
-	if err := rs.service.SetDismissed(r.Context(), tenantID, accountID, req.Dismissed); err != nil {
+	dismiss := rs.service.SetDismissed
+	if rs.runtime.ViaTraeger(r.Context()) {
+		dismiss = rs.service.SetDismissedViaTraeger
+	}
+	if err := dismiss(r.Context(), tenantID, accountID, req.Dismissed); err != nil {
 		rs.fail(w, r, err)
 		return
 	}
@@ -133,7 +135,11 @@ func (rs *Resource) dismiss(w http.ResponseWriter, r *http.Request) {
 // respondStatus answers every write with the fresh wizard state, so the client
 // renders one source of truth.
 func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, tenantID, accountID int64) {
-	status, err := rs.service.Status(r.Context(), tenantID, accountID)
+	read := rs.service.Status
+	if rs.runtime.ViaTraeger(r.Context()) {
+		read = rs.service.StatusViaTraeger
+	}
+	status, err := read(r.Context(), tenantID, accountID)
 	if err != nil {
 		rs.fail(w, r, err)
 		return

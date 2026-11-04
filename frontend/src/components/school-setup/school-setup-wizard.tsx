@@ -80,10 +80,12 @@ export function SchoolSetupWizard() {
   const shell = useShellAuthSafe();
   // Ohne Konto oder in der Vorschau einer Mitarbeiter-Ansicht: kein Assistent.
   if (!shell?.user || shell.isPreview) return null;
-  return <SchoolSetupWizardForAdmin />;
+  return <SchoolSetupWizardForAdmin viaTraeger={shell.isViaTraeger ?? false} />;
 }
 
-function SchoolSetupWizardForAdmin() {
+function SchoolSetupWizardForAdmin({
+  viaTraeger,
+}: Readonly<{ viaTraeger: boolean }>) {
   const [view, setView] = useState<View>("beacon");
   const { state, accountID, refresh, replace } = useSchoolSetup(
     view === "checklist",
@@ -291,8 +293,10 @@ function SchoolSetupWizardForAdmin() {
         loadingText="Wird ausgeblendet…"
       >
         <p className="text-sm text-gray-700">
-          Die Checkliste verschwindet für Sie. Sie können sie nicht wieder
-          einblenden.
+          {viaTraeger
+            ? "Die Checkliste verschwindet für Sie in allen OGS Ihres Trägers."
+            : "Die Checkliste verschwindet für Sie."}{" "}
+          Sie können sie nicht wieder einblenden.
         </p>
         <p className="mt-2 text-sm text-gray-700">
           Die Anleitungen zu allen Schritten finden Sie weiter unter „Hilfe“.

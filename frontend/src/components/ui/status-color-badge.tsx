@@ -1,9 +1,11 @@
+import { StatusPillBase, type StatusBadgeSize } from "./status-badge";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 
-// Generic label+color status pill following the DataTableStatusBadge recipe
-// (gray-50 pill, label tinted via inline style). Use it whenever a status/type
-// chip's color is data-driven from LOCATION_COLORS instead of hand-rolling
-// tinted Tailwind pills; for a fixed set of semantic tones use StatusBadge.
+// The kit pill (StatusPillBase, #5584) for a data-driven colour from
+// LOCATION_COLORS, e.g. an amber status: color={LOCATION_COLORS.WARNING}. Use
+// it whenever a status/type chip's color comes from data instead of
+// hand-rolling tinted pills; for a fixed set of semantic tones use
+// StatusBadge.
 //
 // The label carries the accessible shade of the color: the palette hexes are
 // fills, and at this size (12px) several of them miss the text minimum on the
@@ -18,21 +20,23 @@ import { getLocationBadgeTone } from "~/lib/location-helper";
 export function StatusColorBadge({
   label,
   color,
+  title,
+  size,
 }: {
   readonly label: string;
   readonly color: string;
+  readonly title?: string;
+  readonly size?: StatusBadgeSize;
 }) {
   const tone = getLocationBadgeTone(color);
 
   return (
-    <span
-      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap"
-      style={{
-        backgroundColor: tone.backgroundColor,
-        color: tone.textColor,
-      }}
-    >
-      {label}
-    </span>
+    <StatusPillBase
+      label={label}
+      title={title}
+      size={size}
+      backgroundColor={tone.backgroundColor}
+      textColor={tone.textColor}
+    />
   );
 }

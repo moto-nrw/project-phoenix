@@ -9,10 +9,11 @@ import {
   type ReactNode,
 } from "react";
 
-import { getAccessibleTextColor, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
 
@@ -1002,13 +1003,7 @@ export function DataTableStatusBadge({
     : active
       ? LOCATION_COLORS.GROUP_ROOM
       : LOCATION_COLORS.DANGER;
-  const textColor = getAccessibleTextColor(color, "#F9FAFB");
-  return (
-    <span
-      className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1 text-xs font-medium"
-      style={{ color: textColor }}
-    >
-      {label}
-    </span>
-  );
+  // Same pill as StatusBadge and StatusColorBadge (#5584): the tint of the
+  // state's colour with its accessible text shade.
+  return <StatusColorBadge label={label} color={color} />;
 }

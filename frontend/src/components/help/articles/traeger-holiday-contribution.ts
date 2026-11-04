@@ -44,6 +44,22 @@ export function traegerHolidayContributionTopic(): HelpTopic {
         ],
       },
       {
+        title: "Einstellen, welches Kind das erste Kind ist",
+        description:
+          "Das erste Kind zahlt den vollen Preis. Für die anderen Kinder gilt die Ermäßigung.",
+        steps: [
+          "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+          "Wählen Sie bei `Welches Kind ist das erste Kind?`: `Das Kind mit dem höchsten Beitrag` oder `Das älteste Kind`.",
+        ],
+      },
+      {
+        title: "Einstellen, was ein Kostenträger bezahlt",
+        steps: [
+          "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+          "Wählen Sie bei `Was bezahlt ein Kostenträger?`: `Betrag nach der Ermäßigung` oder `Vollen Preis`. Beim vollen Preis gilt die Ermäßigung nur für die anderen Kinder.",
+        ],
+      },
+      {
         title: "Kostenträger anlegen",
         description:
           "Ein Kostenträger bezahlt den Beitrag für eine Familie, zum Beispiel das Jugendamt bei Leistungsbezug. Sie fordern den Betrag dann beim Kostenträger an.",
@@ -58,11 +74,14 @@ export function traegerHolidayContributionTopic(): HelpTopic {
     result:
       "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
     notes: [
-      "Geschwister sind Kinder derselben Ferienanmeldung oder von Anmeldungen, die das Träger-Büro als Geschwister zusammengeführt hat. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
+      "Geschwister sind Kinder derselben Ferienanmeldung oder von Anmeldungen, die das Träger-Büro als Geschwister zusammengeführt hat. Das erste Kind zahlt voll. Am Anfang ist das das Kind mit dem höchsten Preis. Sie können auch das älteste Kind wählen.",
+      "Haben zwei Kinder denselben Rang, zählt die früher eingegangene Anmeldung. Danach zählt die Reihenfolge im Formular.",
+      "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
       "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
       "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
       "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen.",
-      "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag nach der Geschwisterermäßigung.",
+      "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",
+      "Bezahlt der Kostenträger den vollen Preis, zählt sein Kind weiter als Geschwisterkind. Die anderen Kinder behalten ihre Ermäßigung.",
       "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
     ],
     differences: [

@@ -97,11 +97,13 @@ type holidayQuoteBookingRequest struct {
 
 type holidayQuoteChildRequest struct {
 	Bookings []holidayQuoteBookingRequest `json:"bookings"`
+	AgeRank  int                          `json:"age_rank"`
 }
 
 // HolidayQuoteRequest is the body of POST /traeger/holiday-quotes/{token}:
-// the bookings of every child of the form and the parents' statement on
-// benefits. It carries no personal data.
+// the bookings of every child of the form, the order of the children by age
+// and the parents' statement on benefits. It carries no personal data: the
+// form sends the order, not the date of birth (#5664).
 type HolidayQuoteRequest struct {
 	Children         []holidayQuoteChildRequest `json:"children"`
 	BenefitsDeclared bool                       `json:"benefits_declared"`
@@ -117,7 +119,7 @@ func (req *HolidayQuoteRequest) children() []capability.HolidayQuoteChild {
 		for j, booking := range child.Bookings {
 			bookings[j] = capability.HolidayQuoteBooking(booking)
 		}
-		children[i] = capability.HolidayQuoteChild{Bookings: bookings}
+		children[i] = capability.HolidayQuoteChild{Bookings: bookings, AgeRank: child.AgeRank}
 	}
 	return children
 }

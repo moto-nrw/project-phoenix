@@ -31,6 +31,8 @@ type holidayContributionRow struct {
 	HolidayRegistrationChildID int64     `bun:"holiday_registration_child_id"`
 	TotalCents                 int64     `bun:"total_cents"`
 	Version                    int       `bun:"version"`
+	SiblingRank                string    `bun:"sibling_rank"`
+	CostTakeoverOrder          string    `bun:"cost_takeover_order"`
 	ConfirmedAt                time.Time `bun:"confirmed_at,nullzero,default:current_timestamp"`
 	ConfirmedByAccountID       *int64    `bun:"confirmed_by_account_id"`
 }
@@ -86,6 +88,7 @@ func (s *Store) HolidayContributions(ctx context.Context, organizationID, regist
 	confirmedAt := rows[0].ConfirmedAt
 	contribution := parentbilling.HolidayContribution{
 		Children: make([]parentbilling.HolidayChildContribution, len(rows)), Frozen: true, ConfirmedAt: &confirmedAt,
+		Chain: parentbilling.HolidayChainSettings{SiblingRank: rows[0].SiblingRank, CostTakeoverOrder: rows[0].CostTakeoverOrder},
 	}
 	for _, lines := range byContribution {
 		for _, line := range lines {
@@ -135,6 +138,7 @@ func (s *Store) InsertHolidayContributions(ctx context.Context, organizationID, 
 		rows[i] = holidayContributionRow{
 			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: registrationID,
 			HolidayRegistrationChildID: child.ChildID, TotalCents: child.TotalCents, Version: version, ConfirmedByAccountID: &accountID,
+			SiblingRank: contribution.Chain.SiblingRank, CostTakeoverOrder: contribution.Chain.CostTakeoverOrder,
 		}
 		if confirmedAt != nil {
 			rows[i].ConfirmedAt = *confirmedAt

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolSetupHTTP "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
@@ -59,8 +60,9 @@ func schoolSetupRuntime() schoolSetupHTTP.Runtime {
 			}
 			return principal.TenantID(), principal.AccountID()
 		},
-		Respond: apiCommon.Respond,
-		Failure: renderSchoolSetupFailure,
+		ViaTraeger: func(ctx context.Context) bool { return sessiontoken.ClaimsFromCtx(ctx).ViaTraeger },
+		Respond:    apiCommon.Respond,
+		Failure:    renderSchoolSetupFailure,
 	}
 }
 

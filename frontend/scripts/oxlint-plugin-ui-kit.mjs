@@ -4,6 +4,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -83,6 +84,12 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     grey or tinted h-8…h-12 square/circle),
 //                                     also inside src/components/ui/; use
 //                                     IconTile or ConceptIconTile
+//
+// Three more are the shrink-only pill ratchet (#5584):
+//
+//   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
+//   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
+//   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
 //
 // One more keeps select fields on one look (#5580):
 //
@@ -1856,9 +1863,9 @@ function buttonRatchetImports(node, bindings) {
   }
 }
 
-function splitAllowlistedFindings(rule, key, findings) {
+function splitAllowlistedFindings(rule, key, findings, allowlist) {
   const allowances = new Map();
-  for (const entry of buttonRatchetAllowlist) {
+  for (const entry of allowlist) {
     if (entry.rule !== rule || entry.file !== key) continue;
     for (const line of entry.lines) {
       allowances.set(line, (allowances.get(line) ?? 0) + 1);
@@ -1884,7 +1891,16 @@ function splitAllowlistedFindings(rule, key, findings) {
  * baseline at Program:exit. With UI_KIT_BUTTON_RATCHET=count every finding
  * is reported on its own; the baseline generator subtracts the allowlist.
  */
-function makeButtonRatchetRule({ ruleName, description, message, detect }) {
+function makeRatchetRule({
+  ruleName,
+  description,
+  message,
+  detect,
+  baselines = buttonRatchetBaseline,
+  allowlist = buttonRatchetAllowlist,
+  countEnv = "UI_KIT_BUTTON_RATCHET",
+  kitFile = BUTTON_KIT_FILE,
+}) {
   return {
     meta: {
       type: "problem",
@@ -1899,7 +1915,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
       const key = fileKey(context);
       if (
         EXEMPT_FILE_RE.test(key) ||
-        key.endsWith(BUTTON_KIT_FILE) ||
+        key.endsWith(kitFile) ||
         key.includes("src/test/")
       ) {
         return {};
@@ -1912,7 +1928,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
         navigationRows: new Set(NAVIGATION_ROWS),
       };
       const findings = [];
-      const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
+      const countMode = process.env[countEnv] === "count";
       return {
         Program(node) {
           for (const statement of node.body) {
@@ -1930,14 +1946,16 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
           classText: (node) => classText(node, constants),
           found: (node) => findings.push(node),
           bindings,
+          constants,
         }),
         "Program:exit"() {
           const { allowlisted, remaining } = splitAllowlistedFindings(
             ruleName,
             key,
             findings,
+            allowlist,
           );
-          const baseline = buttonRatchetBaseline[ruleName]?.[key] ?? 0;
+          const baseline = baselines[ruleName]?.[key] ?? 0;
           const allowed = allowlisted + baseline;
           if (countMode) {
             for (const node of findings) {
@@ -1965,7 +1983,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
   };
 }
 
-const noHandRolledButton = makeButtonRatchetRule({
+const noHandRolledButton = makeRatchetRule({
   ruleName: "no-hand-rolled-button",
   description:
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
@@ -1986,7 +2004,7 @@ const noHandRolledButton = makeButtonRatchetRule({
   }),
 });
 
-const noButtonOverride = makeButtonRatchetRule({
+const noButtonOverride = makeRatchetRule({
   ruleName: "no-button-override",
   description:
     "Keep size and look of kit buttons in the kit; className carries layout only.",
@@ -2092,7 +2110,7 @@ function hasGreyRestFill(text) {
   });
 }
 
-const noGreyButtonFill = makeButtonRatchetRule({
+const noGreyButtonFill = makeRatchetRule({
   ruleName: "no-grey-button-fill",
   description:
     "Disallow a light-grey resting fill on buttons; neutral actions are outline, surface or ghost.",
@@ -2120,6 +2138,147 @@ const noGreyButtonFill = makeButtonRatchetRule({
       }
       const value = classNameProperty(node.arguments[0]);
       if (value && hasGreyRestFill(textOf(value))) found(node);
+    },
+  }),
+});
+
+// --- Pillen-Ratchet (#5584) --------------------------------------------------
+
+const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
+const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
+const PILL_TEXT_RE = /^text-(?:xs|\[10px\]|\[11px\])$/;
+const DOT_SIZE_RE = /^(?:h|w|size)-(?:1|1\.5|2|2\.5)$/;
+const HEX_ALPHA_RE = /^[0-9a-fA-F]{2}$/;
+const BACKGROUND_KEYS = new Set(["background", "backgroundColor"]);
+
+function pillTokens(text) {
+  return unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+}
+
+function isPillShape(text) {
+  const tokens = pillTokens(text);
+  return (
+    tokens.some((token) => PILL_RADIUS_RE.test(token)) &&
+    tokens.some((token) => token.startsWith("px-")) &&
+    tokens.some((token) => token.startsWith("py-")) &&
+    tokens.some((token) => PILL_TEXT_RE.test(token))
+  );
+}
+
+function isDot(text) {
+  const tokens = pillTokens(text);
+  return (
+    tokens.includes("rounded-full") &&
+    (tokens.some((token) => /^size-/.test(token) && DOT_SIZE_RE.test(token)) ||
+      (tokens.some((token) => token.startsWith("h-") && DOT_SIZE_RE.test(token)) &&
+        tokens.some(
+          (token) => token.startsWith("w-") && DOT_SIZE_RE.test(token),
+        )))
+  );
+}
+
+function propertyName(property) {
+  if (property.type !== "Property") return null;
+  if (property.key.type === "Identifier") return property.key.name;
+  if (property.key.type === "Literal") return String(property.key.value);
+  return null;
+}
+
+function styleBackgroundValues(openingElement, constants) {
+  const value = jsxAttribute(openingElement, "style")?.value;
+  if (value?.type !== "JSXExpressionContainer") return [];
+  let object = value.expression;
+  if (object.type === "Identifier") object = constants.get(object.name);
+  if (object?.type !== "ObjectExpression") return [];
+  return object.properties
+    .filter((property) => BACKGROUND_KEYS.has(propertyName(property) ?? ""))
+    .map((property) => property.value);
+}
+
+function hasHexAlphaTemplate(node) {
+  if (!node || typeof node !== "object") return false;
+  if (node.type === "TemplateLiteral") {
+    return node.quasis.some(
+      (quasi, index) => index > 0 && HEX_ALPHA_RE.test(quasi.value.raw.trim()),
+    );
+  }
+  if (node.type === "ConditionalExpression") {
+    return hasHexAlphaTemplate(node.consequent) || hasHexAlphaTemplate(node.alternate);
+  }
+  if (node.type === "LogicalExpression") {
+    return hasHexAlphaTemplate(node.left) || hasHexAlphaTemplate(node.right);
+  }
+  return false;
+}
+
+function pillClassText(node, textOf) {
+  if (jsxName(node.name) !== "span") return null;
+  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip") return null;
+  const className = jsxAttribute(node, "className");
+  if (!className?.value) return null;
+  const text = textOf(className.value);
+  return isPillShape(text) ? text : null;
+}
+
+function makePillRatchetRule(options) {
+  return makeRatchetRule({
+    ...options,
+    baselines: pillRatchetBaseline,
+    allowlist: [],
+    countEnv: "UI_KIT_PILL_RATCHET",
+    kitFile: PILL_KIT_FILE,
+  });
+}
+
+const noHandRolledPill = makePillRatchetRule({
+  ruleName: "no-hand-rolled-pill",
+  description:
+    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
+  message:
+    "Keine eigene Pille: StatusBadge (Töne blue, green, orange, red, gray, purple, cyan, outline; size xs für dichte Raster) oder StatusColorBadge (Farbe aus LOCATION_COLORS, amber über LOCATION_COLORS.WARNING) nehmen (#5584, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, constants }) => ({
+    JSXOpeningElement(node) {
+      const text = pillClassText(node, textOf);
+      if (text === null) return;
+      const surface =
+        pillTokens(text).some((token) => BG_COLOR_RE.test(token)) ||
+        styleBackgroundValues(node, constants).length > 0;
+      if (surface) found(node);
+    },
+  }),
+});
+
+const noPillDot = makePillRatchetRule({
+  ruleName: "no-pill-dot",
+  description: "Disallow a decorative dot inside a status pill (#2476).",
+  message:
+    "Kein Punkt in einer Pille: Tönung und Text nennen den Status schon (#2476, #5584). Punkte nur über StatusDot in Legenden und Plänen.",
+  detect: ({ classText: textOf, found }) => ({
+    JSXOpeningElement(node) {
+      if (pillClassText(node, textOf) === null) return;
+      for (const child of node.parent?.children ?? []) {
+        if (child.type !== "JSXElement") continue;
+        const className = jsxAttribute(child.openingElement, "className");
+        if (className?.value && isDot(textOf(className.value))) {
+          found(child.openingElement);
+        }
+      }
+    },
+  }),
+});
+
+const noHexAlphaTint = makePillRatchetRule({
+  ruleName: "no-hex-alpha-tint",
+  description:
+    "Disallow `${color}1A`-style hex alpha tints in a pill's style; the kit tone carries the tint.",
+  message:
+    "Keine Tönung per Hex-Alpha (`${…}1A`) im style einer Pille: StatusColorBadge color={…} tönt mit lesbarem Text (#5584).",
+  detect: ({ classText: textOf, found, constants }) => ({
+    JSXOpeningElement(node) {
+      if (pillClassText(node, textOf) === null) return;
+      if (styleBackgroundValues(node, constants).some(hasHexAlphaTemplate)) {
+        found(node);
+      }
     },
   }),
 });
@@ -2536,8 +2695,11 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
+    "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-hex-alpha-tint": noHexAlphaTint,
     "no-important-override": noImportantOverride,
+    "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
     "no-raw-z-index": noRawZIndex,
     "no-select-override": noSelectOverride,

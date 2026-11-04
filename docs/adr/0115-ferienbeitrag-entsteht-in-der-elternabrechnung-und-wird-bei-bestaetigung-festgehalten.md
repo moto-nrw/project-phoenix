@@ -253,3 +253,43 @@ Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).
 Storniert Enrollment eine bestätigte Anmeldung der Gruppe, rechnet die
 Elternabrechnung die übrigen erst beim nächsten Zusammenführen, Trennen oder
 Bestätigen neu; das Büro trennt die stornierte Anmeldung dafür.
+
+## Nachtrag 2026-11-04: Rang und Kostenübernahme je Träger einstellbar (#5664)
+
+Die Kita-Satzung der Gemeinde Bissendorf nennt das ältere Kind als erstes, und
+ob der Landkreis den vollen Preis erstattet, ist offen. Beide Regeln der Kette
+werden deshalb zu Einstellungen des Trägers. Die Standardwerte sind die feste
+Kette von vorher.
+
+1. **Einstellungen statt Beitragsregeln.** `parent_billing.sibling_rank`
+   (`highest_contribution`, `oldest_child`) und
+   `parent_billing.cost_takeover_order` (`after_discount`, `before_discount`)
+   sind Träger-Einstellungen (ADR 0086, ADR 0107) unter Einstellungen →
+   Ferienbetreuung, mit dem Recht „Einstellungen“. Sie sind Wahlen in der
+   Kette, keine Regelart mit Gültigkeit (Punkt 2). Ein unbekannter Wert oder
+   ein Lesefehler lehnt die Rechnung ab; es gibt keinen Rückfall auf den
+   Standard.
+2. **Ältestes Kind zuerst.** Das Geburtsdatum liest die Elternabrechnung aus
+   der Anmeldung über den Port `HolidayRegistrations`; es steht im Protokoll
+   wie jeder Lesezugriff (ADR 0114 Punkt 6). Sie speichert es nicht. Bei
+   gleichem Datum gilt die frühere Anmeldung, dann die Reihenfolge im Formular.
+3. **Öffentliche Zusammenfassung (zu Punkt 7).** Das Formular schickt je Kind
+   nur den Platz nach Alter (`age_rank`), nicht das Geburtsdatum. Die Anfrage
+   trägt weiter keine personenbezogenen Daten, und der Browser rechnet keinen
+   Beitrag.
+4. **Vor dem Rabatt (zu Punkt 3).** Der Kostenträger übernimmt den vollen Preis
+   der Kinder seiner Anmeldung. Sie behalten ihren Rang und zählen weiter als
+   Geschwister, bekommen aber keine Ermäßigung; die Ermäßigung der übrigen
+   Kinder ändert sich nicht. Die Befreiung folgt weiter nach der Ermäßigung.
+5. **Festhalten (zu Punkt 5).** Jeder festgehaltene Beitrag hält beide Werte
+   (`holiday_contributions.sibling_rank`, `.cost_takeover_order`, Migration
+   1.15.749). Eine Gruppe mit festgehaltenem Beitrag rechnet mit dessen Werten,
+   auch beim Bestätigen einer weiteren Anmeldung, beim Zusammenführen und beim
+   Trennen: Eine spätere Umstellung ändert keinen festgehaltenen Beitrag.
+   Vorschau und Bestätigung nehmen dieselben Werte. Nur wenn Anmeldungen mit
+   verschiedenen Werten zusammenkommen, gelten für die Gruppe die aktuellen;
+   jede Anmeldung, deren Werte oder Beträge sich dadurch ändern, bekommt eine
+   neue Fassung.
+
+Offen bleibt die Entscheidung der Gemeinde vom 11.11.2026. Sie ändert nur, was
+Bissendorf einstellt, nicht diesen Code.
