@@ -157,7 +157,7 @@ describe("PastBlocksSection", () => {
     plannedNowMock.mockResolvedValue([
       pastBlock({
         canReopen: true,
-        reopenUntil: "2026-08-16T12:30:00Z",
+        reopenUntil: "2026-09-09T12:30:00Z",
       }),
       pastBlock({ id: "instance-2", title: "Lernzeit", startTime: "10:00" }),
     ]);
@@ -188,9 +188,68 @@ describe("PastBlocksSection", () => {
     );
   });
 
+  it("reloads the list after a reopen so the block leaves it (#5676)", async () => {
+    plannedNowMock
+      .mockResolvedValueOnce([
+        pastBlock({ canReopen: true, reopenUntil: "2026-09-09T12:30:00Z" }),
+      ])
+      .mockResolvedValueOnce([]);
+    const onReopen = vi.fn().mockResolvedValue(undefined);
+
+    render(<PastBlocksSection onReopen={onReopen} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aufsicht 2B wieder öffnen" }),
+    );
+
+    await waitFor(() => expect(plannedNowMock).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText(
+        "Heute sind noch keine Blöcke beendet oder abgelaufen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the reopen action once its deadline has passed (#5676)", async () => {
+    plannedNowMock.mockResolvedValue([
+      // Testuhr 12:00 Berlin; die Frist lief um 11:59 ab.
+      pastBlock({ canReopen: true, reopenUntil: "2026-09-09T09:59:00Z" }),
+      pastBlock({
+        id: "instance-2",
+        title: "Lernzeit",
+        startTime: "10:00",
+        canReopen: true,
+        // 300 ms nach der Testuhr: läuft ab, während die Liste offen ist.
+        reopenUntil: "2026-09-09T10:00:00.300Z",
+      }),
+    ]);
+
+    render(<PastBlocksSection onReopen={vi.fn()} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Lernzeit wieder öffnen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Aufsicht 2B")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aufsicht 2B wieder öffnen" }),
+    ).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Lernzeit wieder öffnen" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Lernzeit")).toBeInTheDocument();
+  });
+
   it("stays display only without a reopen handler", async () => {
     plannedNowMock.mockResolvedValue([
-      pastBlock({ canReopen: true, reopenUntil: "2026-08-16T12:30:00Z" }),
+      pastBlock({ canReopen: true, reopenUntil: "2026-09-09T12:30:00Z" }),
     ]);
 
     render(<PastBlocksSection />);

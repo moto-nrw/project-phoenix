@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -84,8 +85,20 @@ export function PastBlocksSection({
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
-  // Erhöht von „Wiederholen“: lädt die Liste erneut.
+  // Erhöht von „Wiederholen“ und nach „Wieder öffnen“: lädt die Liste erneut.
   const [attempt, setAttempt] = useState(0);
+  // Nach dem Wiederöffnen gehört der Block nicht mehr hierher; scheitert es,
+  // zeigt die neue Liste, ob er sich noch öffnen lässt (#5676).
+  const reopenAndReload = useMemo(
+    () =>
+      onReopen
+        ? async (block: PlannedTimetableInstance) => {
+            await onReopen(block);
+            setAttempt((value) => value + 1);
+          }
+        : undefined,
+    [onReopen],
+  );
 
   // Lazy: the list loads when the section opens, and reloads on every open so
   // a block that ended in the meantime shows up without a page refresh.
@@ -148,7 +161,11 @@ export function PastBlocksSection({
       ) : blocks !== null ? (
         <div className="grid gap-3 xl:grid-cols-2">
           {blocks.map((block) => (
-            <PastBlockCard key={block.id} block={block} onReopen={onReopen} />
+            <PastBlockCard
+              key={block.id}
+              block={block}
+              onReopen={reopenAndReload}
+            />
           ))}
         </div>
       ) : null}
@@ -164,6 +181,29 @@ function PastBlockCard({
   onReopen?: (block: PlannedTimetableInstance) => Promise<void>;
 }>) {
   const [isReopening, setIsReopening] = useState(false);
+  const reopenDeadline =
+    block.status === "completed" && block.canReopen && block.reopenUntil
+      ? Date.parse(block.reopenUntil)
+      : Number.NaN;
+  const [reopenExpired, setReopenExpired] = useState(
+    () => Number.isFinite(reopenDeadline) && reopenDeadline <= Date.now(),
+  );
+  // Die Frist läuft auch ab, während die Liste offen bleibt: dann nimmt das
+  // Backend das Wiederöffnen nicht mehr an (#5676).
+  useEffect(() => {
+    if (!Number.isFinite(reopenDeadline)) return;
+    const remainingMs = reopenDeadline - Date.now();
+    if (remainingMs <= 0) {
+      setReopenExpired(true);
+      return;
+    }
+    setReopenExpired(false);
+    const timeoutId = window.setTimeout(
+      () => setReopenExpired(true),
+      remainingMs,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [reopenDeadline]);
   const [expanded, setExpanded] = useState(false);
   const [roster, setRoster] = useState<TimetableRoster | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -174,7 +214,11 @@ function PastBlockCard({
   } = useApiLoadError();
   const completed = block.status === "completed";
   const reopenUntil =
-    completed && block.canReopen && onReopen && block.reopenUntil
+    completed &&
+    block.canReopen &&
+    onReopen &&
+    block.reopenUntil &&
+    !reopenExpired
       ? berlinClockFromISO(block.reopenUntil)
       : "";
   // „Wiederholen“ lädt die Kinderliste dieses Blocks erneut.
