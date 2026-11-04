@@ -255,14 +255,17 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    `/traeger/holiday-periods` entfällt. Sie nimmt dieselben Sperren wie ein
    Zusammenführen und liest die Gruppe erst danach. In derselben
    Transaktion nimmt sie die stornierte Anmeldung aus der Gruppe und rechnet
-   jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3).
-   Eine ausgestellte Rechnung hält die Stornierung nicht auf: Die Anmeldung,
-   die sie abrechnet, behält ihren Beitrag. Rangiert sie mit Geschwistern
-   (Geschwisterzeile oder Gruppe) und gibt ihre Gruppe heute einen anderen
-   Beitrag, meldet ihre Einzelansicht `correction_needed`; korrigiert wird
-   mit Storno oder Gutschrift
-   (#4690). Jede betroffene Anmeldung bekommt den Eintrag `sibling_cancel`
-   mit den anderen Anmeldungen.
+   jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3),
+   auch eine, die eine ausgestellte Rechnung abrechnet: Die Rechnung behält
+   ihre eigenen Positionen (ADR 0119), und nach ihrem Storno stellt der
+   nächste Lauf den neuen Beitrag aus. Solange die gültige Rechnung ohne die
+   Korrekturen des Laufs einen anderen Betrag abrechnet als der Beitrag,
+   meldet die Einzelansicht `correction_needed`; korrigiert wird mit Storno
+   oder Gutschrift
+   (#4690). Eine festgehaltene Befreiung, die keine Regel mehr erlaubt,
+   behält ihren Beitrag, statt die Stornierung abzulehnen. Jede betroffene
+   Anmeldung bekommt den Eintrag `sibling_cancel` mit den anderen
+   Anmeldungen.
 
 Nicht in diesem Nachtrag: das Alter als Rang, Stufenregeln, Geschwister über
 Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).

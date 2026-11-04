@@ -146,10 +146,9 @@ type HolidayContribution struct {
 	// Chain names how the contribution was computed (#5664). A frozen one
 	// keeps it, so a later change of the settings does not reach it.
 	Chain HolidayChainSettings `json:"-"`
-	// CorrectionNeeded reports that an issued invoice bills the frozen
-	// contribution of a registration that ranks with siblings, but its group
-	// now gives another one, for example after a sibling was cancelled
-	// (#5662). The invoice keeps its amount; the
+	// CorrectionNeeded reports that the issued invoice billed another
+	// amount than the frozen contribution has now, for example after a
+	// sibling was cancelled (#5662). The invoice keeps its amount; the
 	// Träger-Büro corrects it with a cancellation or credit note (#4690).
 	CorrectionNeeded bool `json:"correction_needed,omitempty"`
 }
@@ -357,8 +356,8 @@ type HolidayContributions interface {
 	// in the caller's Träger transaction (#5662). In a sibling group it
 	// takes the registration out of the group and computes the frozen
 	// contribution of every other confirmed registration of the group again,
-	// under the locks of a merge; a registration an issued invoice bills
-	// keeps its own. A cancelled registration is
+	// under the locks of a merge, also of one an issued invoice bills, which
+	// keeps its own positions. A cancelled registration is
 	// ErrHolidayRegistrationStateConflict, one after the deadline
 	// ErrHolidayRegistrationFrozen.
 	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayCancellation, error)

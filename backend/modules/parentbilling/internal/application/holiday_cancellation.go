@@ -17,15 +17,18 @@ import (
 // in Enrollment like a merge, then reads the group, cancels the
 // registration through Enrollment, takes it out of its group and freezes
 // the contribution of every other confirmed registration of the group
-// again. A registration an issued invoice bills keeps its contribution; its
-// page shows that a correction may be needed. Every registration of the
+// again, also one an issued invoice bills: the invoice keeps its own
+// positions, and the page of the registration shows that it billed another
+// amount. A registration whose frozen exemption no rule allows any more
+// keeps its contribution, so no rule of another registration stops the
+// cancellation. Every registration of the
 // group records the change in its audit trail. The caller rolls the
 // transaction back when this fails after the cancellation.
 func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayCancellation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayCancellation{}, errTraegerRequired
 	}
-	groups, issued, err := h.lockSiblings(ctx, reviewer, periodID)
+	groups, _, err := h.lockSiblings(ctx, reviewer, periodID)
 	if err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
@@ -46,7 +49,10 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	if err := h.store.RemoveHolidaySibling(ctx, reviewer.OrganizationID, registration.ID); err != nil {
 		return parentbilling.HolidayCancellation{}, fmt.Errorf("parent billing: take the cancelled registration out of its group: %w", err)
 	}
-	if err := h.refreezeSiblings(ctx, reviewer, periodID, rest, issued); err != nil {
+	// An issued invoice keeps its own positions, so a registration it bills
+	// gets its new contribution too: the next run bills it once the
+	// Träger-Büro cancels the invoice. Its page shows the difference.
+	if err := h.refreeze(ctx, reviewer, periodID, rest, nil, true); err != nil {
 		return parentbilling.HolidayCancellation{}, err
 	}
 	left := []siblingMember{{registration: registration}}

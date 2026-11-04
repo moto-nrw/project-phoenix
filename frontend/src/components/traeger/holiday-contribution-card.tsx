@@ -2,9 +2,9 @@
 
 // Ferienbeitrag einer Anmeldung (#4664): je Kind die Positionen der
 // Regelkette, vor der Bestätigung als Vorschau, danach festgehalten. Die
-// Karte zeigt nur; bestätigt wird in der Karte „Status“. Stimmt der Betrag
-// einer schon ausgestellten Rechnung nicht mehr zu den Geschwistern, etwa
-// nach einem Storno, sagt sie, dass eine Korrektur nötig sein kann (#5662).
+// Karte zeigt nur; bestätigt wird in der Karte „Status“. Hat eine schon
+// ausgestellte Rechnung einen anderen Betrag als der Beitrag, etwa nach dem
+// Storno eines Geschwisters, sagt sie, wie das Büro das korrigiert (#5662).
 
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { Alert } from "~/components/ui/alert";
@@ -50,7 +50,7 @@ export function HolidayContributionCard({
           type="warning"
           className="mb-4"
           title="Rechnung prüfen"
-          message="Die Geschwister dieser Anmeldung haben sich geändert, zum Beispiel durch ein Storno. Der Betrag auf der Rechnung stimmt vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen."
+          message="Der Beitrag hat sich geändert, zum Beispiel durch ein Storno bei den Geschwistern. Die Rechnung zeigt noch den alten Betrag. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus."
         />
       ) : null}
       <ContributionBreakdown

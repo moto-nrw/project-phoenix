@@ -352,6 +352,13 @@ func groupChain(members []siblingMember, current parentbilling.HolidayChainSetti
 // changes. A registration an issued invoice bills keeps its own. An
 // exemption it froze stays only while a rule allows it.
 func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool) error {
+	return h.refreeze(ctx, reviewer, periodID, members, issued, false)
+}
+
+// refreeze is refreezeSiblings; with keepExemptions a registration whose
+// frozen exemption no rule allows any more keeps its contribution instead
+// of refusing: an exempt family pays nothing either way (#5662).
+func (h *HolidayContributions) refreeze(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool, keepExemptions bool) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -366,6 +373,9 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 			continue
 		}
 		if member.frozen.BenefitsExemption && !next.BenefitsExemption {
+			if keepExemptions {
+				continue
+			}
 			return parentbilling.ErrBenefitsExemptionUnavailable
 		}
 		if sameContribution(*member.frozen, next) && member.frozen.Chain == next.Chain {

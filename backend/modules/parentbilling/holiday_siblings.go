@@ -17,8 +17,9 @@ import (
 // frozen contribution of each confirmed registration of the group again
 // and store it as a new version, until an issued invoice bills one of them.
 // A cancellation takes the registration out of its group and does the same
-// for the rest of the group; a registration an issued invoice bills keeps
-// its contribution and shows that a correction may be needed (#5662).
+// for the rest of the group, also for a registration an issued invoice
+// bills; the invoice keeps its positions, and the registration shows that
+// it billed another amount (#5662).
 
 // Actions of a sibling change in the audit trail of a registration.
 const (

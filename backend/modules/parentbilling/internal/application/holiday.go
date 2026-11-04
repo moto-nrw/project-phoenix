@@ -18,6 +18,9 @@ type HolidayStore interface {
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// IssuedContributionTotals names them with the contribution their
+	// invoice billed, without the corrections of the run (#5662).
+	IssuedContributionTotals(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]int64, error)
 	// LockPeriodBilling holds the invoices of the service and period until
 	// the transaction ends, so the release of a run and a change of what it
 	// copies run one after another.
@@ -123,8 +126,8 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 }
 
 // memberContribution is the frozen contribution of the registration with
-// whether an issued invoice bills it and whether that invoice needs a
-// correction (#5662), or else its preview across its group
+// whether an issued invoice bills it and whether that invoice billed
+// another amount (#5662), or else its preview across its group
 // with the exemption or the cost bearer the Träger-Büro is about to choose.
 func (h *HolidayContributions) memberContribution(ctx context.Context, organizationID, periodID int64, members []siblingMember,
 	registration parentbilling.HolidayRegistration, benefitsExemption *bool, bearer *parentbilling.CostBearer,
@@ -133,18 +136,14 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 		if member.id() != registration.ID || member.frozen == nil {
 			continue
 		}
-		issued, err := h.store.IssuedRegistrations(ctx, organizationID, parentbilling.ServiceHoliday, periodID)
+		billed, err := h.store.IssuedContributionTotals(ctx, organizationID, parentbilling.ServiceHoliday, periodID)
 		if err != nil {
 			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
 		}
 		frozen := *member.frozen
-		frozen.Invoiced = issued[registration.ID]
-		if frozen.Invoiced {
-			frozen.CorrectionNeeded, err = h.correctionNeeded(ctx, organizationID, members, frozen, registration)
-			if err != nil {
-				return parentbilling.HolidayContribution{}, err
-			}
-		}
+		total, invoiced := billed[registration.ID]
+		frozen.Invoiced = invoiced
+		frozen.CorrectionNeeded = invoiced && total != frozen.TotalCents
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared && bearer == nil
@@ -358,32 +357,4 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		}
 	}
 	return priced, nil
-}
-
-// correctionNeeded reports whether an issued invoice of a confirmed
-// registration that ranks with siblings bills another contribution than its
-// group gives now (#5662), for example after a sibling was cancelled. A
-// registration without a sibling line and without a group never ranks with
-// siblings, so a later rule change alone raises no hint for it.
-func (h *HolidayContributions) correctionNeeded(ctx context.Context, organizationID int64, members []siblingMember, frozen parentbilling.HolidayContribution, registration parentbilling.HolidayRegistration) (bool, error) {
-	if registration.Status != parentbilling.HolidayRegistrationConfirmed || (len(members) < 2 && !hasSiblingLine(frozen)) {
-		return false, nil
-	}
-	computed, err := h.computeSiblings(ctx, organizationID, members, nil)
-	if err != nil {
-		return false, err
-	}
-	next, ok := computed[registration.ID]
-	return ok && !sameContribution(frozen, next), nil
-}
-
-func hasSiblingLine(contribution parentbilling.HolidayContribution) bool {
-	for _, child := range contribution.Children {
-		for _, line := range child.Lines {
-			if line.Kind == parentbilling.LineSibling {
-				return true
-			}
-		}
-	}
-	return false
 }

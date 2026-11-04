@@ -226,7 +226,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       expect(await screen.findByText("Rechnung prüfen")).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Die Geschwister dieser Anmeldung haben sich geändert, zum Beispiel durch ein Storno. Der Betrag auf der Rechnung stimmt vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen.",
+          "Der Beitrag hat sich geändert, zum Beispiel durch ein Storno bei den Geschwistern. Die Rechnung zeigt noch den alten Betrag. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
         ),
       ).toBeInTheDocument();
     });

@@ -1,8 +1,8 @@
 // Router-level tests for a cancellation in a sibling group (#5662, ADR 0115
 // addendum): the cancelled registration leaves its group at once, the rest
 // of the group gets its frozen contribution computed again in the same
-// transaction, a registration an issued invoice bills keeps its own and
-// shows that a correction may be needed, every registration of the group
+// transaction, also one an issued invoice bills, which keeps its own
+// positions and shows that it billed another amount, every registration of the group
 // records the change, and the cancellation holds the period like a merge.
 package api
 
@@ -108,7 +108,7 @@ func TestCancellationKeepsTheRestOfALargerGroupTogether(t *testing.T) {
 	assert.Equal(t, []any{float64(second), float64(third)}, siblings, "the cancelled registration names the rest of its group")
 }
 
-func TestCancellationKeepsAnInvoicedSiblingAndShowsTheCorrection(t *testing.T) {
+func TestCancellationComputesAnInvoicedSiblingAgainAndShowsTheCorrection(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Geschwister Storno Rechnung")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
@@ -127,14 +127,57 @@ func TestCancellationKeepsAnInvoicedSiblingAndShowsTheCorrection(t *testing.T) {
 
 	rec = f.cancel(t, f.office.token, first)
 	require.Equal(t, http.StatusOK, rec.Code, "an issued invoice does not stop a cancellation: %s", rec.Body.String())
-	assert.Equal(t, []int64{2250}, f.contributionVersions(t, second), "the invoiced registration keeps its contribution")
+	assert.Equal(t, []int64{2250, 4500}, f.contributionVersions(t, second),
+		"the invoiced registration gets its new contribution; the invoice keeps its own positions")
 	invoiced := f.cancelledContribution(t, second)
 	assert.True(t, invoiced.Invoiced)
-	assert.Equal(t, int64(2250), invoiced.TotalCents)
-	assert.True(t, invoiced.CorrectionNeeded, "the page shows that the invoice may need a correction")
+	assert.Equal(t, int64(4500), invoiced.TotalCents)
+	assert.True(t, invoiced.CorrectionNeeded, "the invoice billed 22,50 €, the contribution is 45,00 € now")
 	assert.Empty(t, f.siblingGroups(t))
 	action, _ := f.lastHistory(t, second)
 	assert.Equal(t, "sibling_cancel", action)
+
+	// Review of #5671: the Träger-Büro cancels the invoice, as the page
+	// asks, and the next run bills the new contribution.
+	var invoice int64
+	for _, document := range correctedRun(t, f, billing, run.ID).Documents {
+		if document.Kind == "invoice" && document.RegistrationID == second {
+			invoice = document.ID
+		}
+	}
+	require.NotZero(t, invoice)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, cancellationPath(run.ID, invoice), map[string]any{"reason": "Geschwister storniert"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.False(t, f.cancelledContribution(t, second).CorrectionNeeded, "no valid invoice, nothing to check")
+	next := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	assert.Equal(t, 1, next.PreviewCount)
+	assert.Equal(t, int64(4500), next.PreviewCents, "the replacement invoice bills the full price")
+}
+
+// TestCancellationKeepsALostExemptionOfASibling pins the review of #5671: a
+// sibling's frozen exemption whose rule is gone does not stop the
+// cancellation of another registration of the group; the exempt
+// registration keeps its contribution.
+func TestCancellationKeepsALostExemptionOfASibling(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Storno Befreiung")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	createContributionRule(t, f, billing, siblingHalf())
+	exemption := createContributionRule(t, f, billing, benefitsExemption())
+	first := f.submitChild(t, f.period, f.offer, "mama.befreit@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.befreit@example.org", "Tom", 0)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, nil).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, second, map[string]any{"benefits_exemption": true}).Code)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodDelete, fmt.Sprintf("%s/%d", contributionRulesPath, exemption.ID), nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	versions := f.contributionVersions(t, second)
+
+	rec = f.cancel(t, f.office.token, first)
+	require.Equal(t, http.StatusOK, rec.Code, "the lost exemption of the sibling does not stop the cancellation: %s", rec.Body.String())
+	assert.Equal(t, versions, f.contributionVersions(t, second), "the exempt registration keeps its contribution")
+	assert.True(t, f.cancelledContribution(t, second).BenefitsExemption)
+	assert.Empty(t, f.siblingGroups(t))
 }
 
 func TestCancellationRouteKeepsItsRightAndTraeger(t *testing.T) {

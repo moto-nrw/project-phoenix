@@ -60,9 +60,8 @@ export interface HolidayContribution {
   /** An issued invoice bills a registration of the group; it stays. */
   readonly siblingsInvoiced?: boolean;
   /**
-   * The issued invoice bills another amount than the sibling group gives
-   * now, after a sibling was cancelled (#5662): a cancellation or credit
-   * note may be needed.
+   * The issued invoice billed another amount than the contribution has
+   * now, for example after a sibling was cancelled (#5662).
    */
   readonly correctionNeeded?: boolean;
 }

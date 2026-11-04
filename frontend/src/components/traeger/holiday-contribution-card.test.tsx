@@ -69,7 +69,7 @@ describe("HolidayContributionCard", () => {
 
     expect(screen.getByText("Rechnung prüfen")).toBeInTheDocument();
     expect(
-      screen.getByText(/Die Geschwister dieser Anmeldung haben sich geändert/),
+      screen.getByText(/Die Rechnung zeigt noch den alten Betrag\./),
     ).toBeInTheDocument();
     expect(screen.getByText("90,00 €")).toBeInTheDocument();
   });
