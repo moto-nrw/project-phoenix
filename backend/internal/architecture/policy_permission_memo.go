@@ -1,79 +1,83 @@
 package architecture
 
-// policyPermissionMemo reuses pure rule-selection decisions within one import
+// policyPermissionMemo reuses pure source-rule selection within one import
 // comparison. Its policy must remain immutable. Exact package selectors make
 // paths part of a permission point; equal owner/role pairs need not share reach.
-// Unselected paths still share an owner/role cache key: all package-restricted
-// rules reject them. One narrow rule must not expand the cache to every path pair.
+// Cache only source shortlists, not the Cartesian product of source/target
+// points: most pairs are denied, and retaining them costs more than checking
+// the few rules selected by the source.
 type policyPermissionMemo struct {
 	policy         *Policy
-	firstParty     map[firstPartyPermissionKey]bool
-	external       map[externalPermissionKey]bool
+	sources        map[sourcePermissionKey][]*Rule
 	sourcePackages map[string]struct{}
-	targetPackages map[string]struct{}
 }
 
-type firstPartyPermissionKey struct {
-	scope                   Scope
-	sourceOwner, sourceRole string
-	sourcePath              string
-	targetOwner, targetRole string
-	targetPath              string
-}
-
-type externalPermissionKey struct {
-	scope                   Scope
-	sourceOwner, sourceRole string
-	sourcePath              string
-	targetClass             string
+type sourcePermissionKey struct {
+	scope       Scope
+	owner, role string
+	path        string
 }
 
 func newPolicyPermissionMemo(policy *Policy) *policyPermissionMemo {
 	memo := &policyPermissionMemo{
 		policy:         policy,
-		firstParty:     make(map[firstPartyPermissionKey]bool),
-		external:       make(map[externalPermissionKey]bool),
+		sources:        make(map[sourcePermissionKey][]*Rule),
 		sourcePackages: make(map[string]struct{}),
-		targetPackages: make(map[string]struct{}),
 	}
 	for _, rule := range policy.Rules {
 		if rule.SourcePackage != "" {
 			memo.sourcePackages[rule.SourcePackage] = struct{}{}
 		}
-		if rule.TargetPackage != "" {
-			memo.targetPackages[rule.TargetPackage] = struct{}{}
-		}
 	}
 	return memo
 }
 
+// sourceRules receives the scope-adjusted source. Unselected paths share a
+// key because every package-restricted source rule rejects all of them.
+func (m *policyPermissionMemo) sourceRules(scope Scope, source Package) []*Rule {
+	key := sourcePermissionKey{scope: scope, owner: source.Owner, role: source.Role}
+	if _, selected := m.sourcePackages[source.Path]; selected {
+		key.path = source.Path
+	}
+	if rules, exists := m.sources[key]; exists {
+		return rules
+	}
+	var rules []*Rule
+	for i := range m.policy.Rules {
+		rule := &m.policy.Rules[i]
+		if m.policy.matchesSource(*rule, source) && ruleHasScope(*rule, scope) {
+			rules = append(rules, rule)
+		}
+	}
+	m.sources[key] = rules
+	return rules
+}
+
 func (m *policyPermissionMemo) allowsFirstParty(scope Scope, source, target Package) bool {
-	scoped := source.inScope(scope)
-	key := firstPartyPermissionKey{scope: scope, sourceOwner: scoped.Owner, sourceRole: scoped.Role, targetOwner: target.Owner, targetRole: target.Role}
-	if _, selected := m.sourcePackages[scoped.Path]; selected {
-		key.sourcePath = scoped.Path
+	source = source.inScope(scope)
+	matched := false
+	for _, rule := range m.sourceRules(scope, source) {
+		if rule.TargetClass != "" || !m.policy.matchesTarget(*rule, source, target) {
+			continue
+		}
+		if matched {
+			return false // An overlap is denied, just like decideRules.
+		}
+		matched = true
 	}
-	if _, selected := m.targetPackages[target.Path]; selected {
-		key.targetPath = target.Path
-	}
-	if allowed, exists := m.firstParty[key]; exists {
-		return allowed
-	}
-	allowed := policyAllowsFirstParty(m.policy, scope, source, target)
-	m.firstParty[key] = allowed
-	return allowed
+	return matched
 }
 
 func (m *policyPermissionMemo) allowsExternal(scope Scope, source Package, target ExternalPackage) bool {
-	scoped := source.inScope(scope)
-	key := externalPermissionKey{scope: scope, sourceOwner: scoped.Owner, sourceRole: scoped.Role, targetClass: target.Class}
-	if _, selected := m.sourcePackages[scoped.Path]; selected {
-		key.sourcePath = scoped.Path
+	matched := false
+	for _, rule := range m.sourceRules(scope, source.inScope(scope)) {
+		if rule.TargetClass != target.Class {
+			continue
+		}
+		if matched {
+			return false
+		}
+		matched = true
 	}
-	if allowed, exists := m.external[key]; exists {
-		return allowed
-	}
-	allowed := policyAllowsExternal(m.policy, scope, source, target)
-	m.external[key] = allowed
-	return allowed
+	return matched
 }
