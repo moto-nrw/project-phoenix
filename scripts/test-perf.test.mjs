@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { inventory, compare, goInventory, goInventoryFile } from './test-perf.mjs';
+import { inventory, compare, goInventory, goInventoryFile, parsePgSample } from './test-perf.mjs';
 import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 
 const frontend = '/repo/frontend';
@@ -455,4 +455,11 @@ test('backend trial without inherited TEST_DB_DSN fails before dispatch', t => {
   assert.equal(fixture.summary.valid, false);
   assert.match(fixture.summary.error, /require inherited TEST_DB_DSN/);
   assert.equal(fixture.summary.exit, undefined);
+});
+
+test('Postgres samples count resident anon and shared buffers, not page cache alone', () => {
+  assert.deepEqual(parsePgSample('current 300\nanon 20\nshmem 60\n'), { current: 300, anon: 80 });
+  const partial = parsePgSample('current 300\n');
+  assert.equal(partial.current, 300);
+  assert.ok(Number.isNaN(partial.anon));
 });
