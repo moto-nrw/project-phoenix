@@ -1,6 +1,10 @@
 # Test-Performance: Experimentjournal
 
-## Aktueller Stand, 3. November 2026
+## Aktueller Stand, 4. November 2026
+
+Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte.
+
+## Stand, 3. November 2026
 
 Lauf „Tests und Test-Support“ abgeschlossen: Frontend-Vollsuite 177,05 → 158,75 s (1,115×), Backend-Vollsuite 451,1 → 321,65 s (1,402×), gepaart n=2. 15 Kandidaten mit Endstatus, siehe [Neuer Lauf](#neuer-lauf-tests-und-test-support-3-november-2026). Verworfen in diesem Lauf: Overhead-Paket F-overhead (lucide pro Icon, jest-dom lazy; −3 %), B-mig (OwnTenantRows-Cleanup; −1,4 %), B-test-Paketvariante (AST-Dedup; −6,6 %), Fake-Timer für timetable-event-modal (−7 %).
 
@@ -981,3 +985,16 @@ Ziel: CPU-Sekunden und Peak-RAM von `full` und `backend-full` (inklusive Postgre
 - Frontend `full` n=2: Wand 214,3 / 200,2 s, CPU 912,9 / 913,9 s, RSS 3507 / 3533 MB. Summierte Testdauer 215 s von 1547 Dateien: rund ¾ der CPU ist Overhead pro Datei.
 - Backend `backend-full` n=2: Wand 349,0 / 329,1 s; CPU Prozessbaum 741 / 705 s + Postgres 406 / 386 s = 1147 / 1090 s; RSS Baum 6343 / 6387 MB + Postgres 1053 / 794 MB = 7396 / 7181 MB. Paketsumme 521 s bei `-p 2`.
 - Warmlauf Frontend brach mit SIGSEGV ab (Node 26.13.0, V8 `KeyedLoadIC_Megamorphic` in `MessagePort::OnMessage`; vier Crashreports seit 3.11.). Bestehende Instabilität, Lauf ungültig und nicht gewertet.
+
+### Integrierte Runden (Delegates, je eigener Worktree und eigener Postgres-Port)
+- Frontend Worker-Wiederverwendung: Worker laufen über Dateien weiter, Reset pro Datei (Globals, Konstruktoren, Prototypen, ab `aae0e7ec4d` auch alle Node-Builtins); Makrotask nach jedem Test gibt happy-dom-WeakRef-Knoten frei (Heap pro Datei 713 → 86 MB); zehn aufgedeckte Wettläufe in Tests auf Endzustand umgestellt.
+- Frontend RAM: Vite lädt in Tests keine PostCSS/Tailwind-Konfiguration, gecachte Sourcemaps ohne `sourcesContent`, Modulgraph eines grünen Projekts freigegeben. Risiko: Haken in Vite-Interna (`updateModuleTransformResult`).
+- Isolationsleck gefunden und behoben: gepatchtes `ServerResponse.prototype.writeHead` überlebte Dateigrenzen; mit alter Isolation grün, mit Wiederverwendung reihenfolgeabhängig rot. Nach Fix volle Suite mit vier Shuffle-Seeds grün.
+- Backend: `STRATEGY FILE_COPY`, Sweep-Aggregation einmal, leere Heaps ohne Snapshot, `shared_buffers=32MB`, `wal_level=minimal`, `-ldflags=-w`, `GOGC=50` und `GOMAXPROCS=1` für die Vollsuite, Link-Cache für unveränderte Testbinaries (Schlüssel: Link-Action-Hash plus Build-IDs aller Archive; 315 → 0 Links), Architekturpaket indiziert, Quell-/AST-Wiederverwendung in Ratchets, Schema-Cache nur für den unveränderlichen Paket-Clone.
+- Verworfen: `-p 1` (Wand 840 s), hartes GOMEMLIMIT (CPU ×2), `-parallel 1` (Deadlock), UNION statt XML, Policy-Shortcut, `GOGC=100` (+675 MiB), `cacheFs`, Haupt-GC im Takt (+47 CPU-s), Worker-GC per Schwelle, Young-Gen 16 MB.
+
+### Abschlussvergleich, gepaart, Baseline 27596d40fb gegen Kandidat 8ec48d9c88
+- Je Seite Warmlauf, dann B/C abwechselnd, private Postgres-Instanz pro Seite aus dem jeweiligen Compose-File neu erzeugt.
+- Frontend `full`: Wand 161,3 / 161,2 → 104,8 / 110,9 s (−33 %); CPU 776,2 / 776,4 → 249,9 / 260,2 s (−67 %); Peak 3484 / 3479 → 1536 / 1593 MB (−55 %). Inventar 1547 Dateien / 24976 Tests identisch.
+- Backend `backend-full` (CPU und RAM inkl. Postgres-Container): Wand 335,4 / 354,4 → 269,9 / 313,7 s (−11 %); CPU 1103,3 / 1117,3 → 593,3 / 610,9 s (−46 %); Peak 7005 / 7060 → 2515 / 2384 MB (−65 %). Inventar 32878 Tests / 30 bestehende Skips identisch.
+- Ziel verfehlt nur bei Backend-CPU: ≈47 CPU-s über der Hälfte. Rest: Postgres ≈280 CPU-s (Test-SQL und Clone/Drop), Testbinaries ≈310 CPU-s, davon Architekturpaket ≈130. Ein erster Kandidatenblock war rot (Komplexitäts-Ratchet nach Integration), behoben in `8ec48d9c88` und vollständig neu gemessen.
