@@ -2,7 +2,7 @@
 
 ## Aktueller Stand, 4. November 2026
 
-Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte.
+Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte. Folgerunde 5. November: Frontend-Vollsuite gegen 6c6935d85c CPU −17 %, Peak −17 %, Wand −11 % mit warmem Transform-Cache (siehe [Folgerunde](#folgerunde-frontend-mock-register-und-transform-cache-5-november-2026)).
 
 ## Stand, 3. November 2026
 
@@ -1083,3 +1083,10 @@ Caching mutable project loads was rejected without a performance trial: source a
 - Raw profiles, all variant timings, exact mutant sources/logs, pair snapshots and comparison reports: `tmp/architecture-perf/`. Full run IDs are the directory names in the table’s source summaries under `tmp/test-perf/`: `static-base-backend-full-VpAaVq`, `static-candidate-backend-full-stvuQG`, `static-candidate-confirm-backend-full-PbMhTV`.
 
 Setup/control failures were not counted as benchmarks: missing Devbox toolchain (installed, rerun), initial Compose readiness before initialization finished (later healthy without timeout edits), a zero-test warm-up missing `./...`, and a proof runner using zsh’s read-only `status` variable (fixed). Private credentials were never printed. Only queued task-owned PID 98534 was terminated; no process-pattern kills, shared database operations or cache cleanup were used.
+### Folgerunde Frontend: Mock-Register und Transform-Cache, 5. November 2026
+- Profil der Vollsuite (`--cpu-prof`, 2 Worker): Hauptprozess 25 CPU-s, davon Transform (vite, rolldown) ≈12; Worker-Threads 186 CPU-s. Größte vermeidbare Posten: `vi.clearAllMocks` 11 CPU-s, weil `@vitest/spy` jede Mock-Funktion in einem Set pro Worker behält; 21 Worker-Threads durch Heap-Recycling.
+- Integriert: Der Reset pro Datei stellt die Spies der Datei wieder her und entfernt ihre Mocks aus dem Register (Zugriff auf das nicht exportierte Set über den Empfänger von `Set.prototype.forEach`, geprüft mit einer Probe-Mock-Funktion). `@vitest/spy` 11,0 → 1,3 CPU-s, Worker-Threads 21 → 12.
+- Integriert: `experimental.fsModuleCache`. Warmer Cache: Hauptprozess 26 → 9 CPU-s. Kalter Cache (leer, wie in CI oder frischem Worktree) kostet das Schreiben von ≈4800 Dateien / 80 MB.
+- Wettlauf aufgedeckt: `calendar-periods-editor.test.tsx` las die Statuszeile nach dem Fund eines Knopfs, der schon während des Ladens steht; mit einer um 20 ms verzögerten Mock-Antwort auch auf der Baseline rot. Jetzt `findByText`.
+- Gepaart n=2, Baseline 6c6935d85c gegen 317de5f815, je ein Warmlauf: CPU 288,9 / 294,9 → 239,0 / 248,3 s (−17 %), Peak 1649 / 1573 → 1393 / 1297 MB (−17 %), Wand 118,1 / 122,4 → 102,5 / 112,4 s (−11 %). Mit vor jedem Lauf geleertem Transform-Cache: CPU 264,9 / 273,4 s, Peak 1521 / 1457 MB, Wand 114,3 / 117,3 s. Inventar 1547 Dateien / 24976 Tests identisch, vier Shuffle-Seeds grün, Lastmittel 9–18 (geteilte Maschine).
+- Nicht verfolgt: Projekte zusammenlegen (die Projekte teilen kaum Module über die Vite-Umgebung `ssr`/`client` hinaus, Transform gesamt nur ≈12 CPU-s); React-Owner-Stacks (`jsxDEV`, ≈10 CPU-s) sind Dev-Verhalten, das Tests sehen; das Snapshot-Restore pro Datei (≈7 CPU-s) ist zum größten Teil echte `defineProperty`-Arbeit.
