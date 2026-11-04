@@ -106,6 +106,7 @@
     "email": "Podaj prawidłowy adres e-mail.",
     "school": "Wybierz szkołę dziecka.",
     "weeks": "Wybierz co najmniej jeden tydzień.",
+    "weeksOverlap": "Dwa z tych tygodni nakładają się na siebie. Wybierz tylko jeden z nich.",
     "privacy": "Wyraź zgodę. Inaczej organizator nie może rozpatrzyć zgłoszenia.",
     "health": "Wyraź zgodę albo usuń informacje o zdrowiu.",
     "binding": "Potwierdź, że zgłoszenie jest wiążące.",

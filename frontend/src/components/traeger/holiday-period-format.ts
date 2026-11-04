@@ -1,7 +1,7 @@
 /** Display helpers of the holiday periods (#4659). */
 
 import { formatDate } from "~/lib/date-helpers";
-import { groupParallelWeeks, weekGroupDates } from "~/lib/holiday-week-groups";
+import { groupParallelWeeks } from "~/lib/holiday-week-groups";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 
 /** "02.11.2026 bis 04.12.2026". */
@@ -20,8 +20,13 @@ export function formatWeeks(period: HolidayPeriod): string {
   const count = groups.length === 1 ? "1 Woche" : `${groups.length} Wochen`;
   const schools = new Set(weeks.map((week) => week.hostSchoolId)).size;
   const where = groups.length < weeks.length ? ` an ${schools} Schulen` : "";
-  const { startsOn, endsOn } = weekGroupDates(weeks);
-  return `${count}${where}: ${formatDateRange(startsOn, endsOn)}`;
+  const firstDay = weeks.map((week) => week.startsOn).sort()[0] ?? "";
+  const lastDay =
+    weeks
+      .map((week) => week.endsOn)
+      .sort()
+      .at(-1) ?? "";
+  return `${count}${where}: ${formatDateRange(firstDay, lastDay)}`;
 }
 
 export function holidayStatusLabel(period: HolidayPeriod): string {

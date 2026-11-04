@@ -600,7 +600,7 @@ func holidayWeekOffers(week enrollment.HolidayWeek, timeModelID int64) bool {
 func holidayBookingOverlaps(week enrollment.HolidayWeek, earlier []enrollment.HolidayBookingInput, weeks map[int64]enrollment.HolidayWeek) bool {
 	return slices.ContainsFunc(earlier, func(booking enrollment.HolidayBookingInput) bool {
 		other, ok := weeks[booking.WeekID]
-		return ok && other.ID != week.ID && !week.StartsOn.After(other.EndsOn) && !other.StartsOn.After(week.EndsOn)
+		return ok && other.ID != week.ID && holidayDaysOverlap(week.StartsOn, week.EndsOn, other.StartsOn, other.EndsOn)
 	})
 }
 

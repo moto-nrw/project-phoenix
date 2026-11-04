@@ -15,6 +15,7 @@ import {
   InfoText,
 } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -36,10 +37,9 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  bookedWeeksOverlap,
   groupParallelWeeks,
-  sharesDates,
   weekGroupBooking,
-  weekGroupDates,
   withWeekGroupBooking,
 } from "~/lib/holiday-week-groups";
 import {
@@ -49,7 +49,6 @@ import {
 import {
   childSchoolLabel,
   formatHolidayWeek,
-  holidayBookingOption,
 } from "./holiday-registration-format";
 
 const logger = createLogger({ component: "HolidayRegistrationChildCard" });
@@ -151,7 +150,9 @@ export function HolidayRegistrationChildCard({
             onSave={() => void save()}
             saving={saving}
             disabled={
-              bookings.length === 0 || !rebookingChanged(child, bookings)
+              bookings.length === 0 ||
+              !rebookingChanged(child, bookings) ||
+              (draft !== null && weeksOverlap(period, draft))
             }
           />
         ) : undefined
@@ -269,6 +270,16 @@ function ChildAnswers({
   );
 }
 
+function weeksOverlap(
+  period: HolidayPeriod,
+  draft: HolidayRebookingDraft,
+): boolean {
+  return bookedWeeksOverlap(
+    period.weeks,
+    rebookingBookings(period, draft).map((booking) => booking.weekId),
+  );
+}
+
 function RebookingEditor({
   period,
   draft,
@@ -286,39 +297,35 @@ function RebookingEditor({
     <div className="space-y-3">
       <FormErrorAlert message={error} />
       <p className="text-sm text-gray-700">
-        Wählen Sie je Woche ein Zeitmodell. Mindestens eine Woche bleibt
+        Wählen Sie je Woche ein Zeitmodell. Gibt es eine Woche an mehreren
+        Schulen, wählen Sie auch die Schule. Mindestens eine Woche bleibt
         gebucht.
       </p>
       <ul className="space-y-3">
         {groupParallelWeeks(period.weeks).map((group) => {
           const schoolOf = (week: (typeof group)[number]) =>
             names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden";
-          const dates = weekGroupDates(group);
-          const range = formatHolidayWeek(dates.startsOn, dates.endsOn);
-          const single = group.length === 1 ? group[0] : undefined;
-          const label = single ? `${range}, ${schoolOf(single)}` : range;
-          const sameDates = sharesDates(group);
+          const first = group[0]!;
+          const range = formatHolidayWeek(first.startsOn, first.endsOn);
+          const parallel = group.length > 1;
+          const label = parallel ? range : `${range}, ${schoolOf(first)}`;
           return (
             <li
-              key={group[0]?.id ?? range}
+              key={first.id ?? range}
               className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
             >
               <span className="text-sm text-gray-900">{label}</span>
               <CustomSelect
                 value={weekGroupBooking(draft, group)}
-                wrapLabels={!single}
+                wrapLabels={parallel}
                 options={[
                   { value: "", label: "Nicht angemeldet" },
                   ...group.flatMap((week) =>
                     week.timeModels.map((model) => ({
                       value: model.id ?? "",
-                      label: holidayBookingOption(
-                        model.name,
-                        single ? "" : schoolOf(week),
-                        sameDates
-                          ? ""
-                          : formatHolidayWeek(week.startsOn, week.endsOn),
-                      ),
+                      label: parallel
+                        ? `${schoolOf(week)}: ${model.name}`
+                        : model.name,
                     })),
                   ),
                 ]}
@@ -332,6 +339,14 @@ function RebookingEditor({
           );
         })}
       </ul>
+      <FieldErrorHint
+        id="holiday-rebooking-overlap"
+        message={
+          weeksOverlap(period, draft)
+            ? "Zwei dieser Wochen überschneiden sich. Bitte wählen Sie nur eine davon."
+            : null
+        }
+      />
     </div>
   );
 }

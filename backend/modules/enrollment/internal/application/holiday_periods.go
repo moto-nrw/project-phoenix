@@ -12,6 +12,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
@@ -379,7 +380,11 @@ func overlappingHolidayWeeks(weeks []enrollment.HolidayWeekInput) map[int]int {
 }
 
 func holidayWeeksOverlap(a, b enrollment.HolidayWeekInput) bool {
-	return !a.StartsOn.After(b.EndsOn) && !b.StartsOn.After(a.EndsOn)
+	return holidayDaysOverlap(a.StartsOn, a.EndsOn, b.StartsOn, b.EndsOn)
+}
+
+func holidayDaysOverlap(startsOn, endsOn, otherStartsOn, otherEndsOn calendar.Date) bool {
+	return !startsOn.After(otherEndsOn) && !otherStartsOn.After(endsOn)
 }
 
 func holidayWeekDatesValid(week enrollment.HolidayWeekInput) bool {

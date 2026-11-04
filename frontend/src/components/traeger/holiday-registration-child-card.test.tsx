@@ -167,6 +167,30 @@ describe("HolidayRegistrationChildCard", () => {
     );
   });
 
+  it("refuses weeks that share only some days (#5689)", async () => {
+    const [first, second] = HOLIDAY_PERIOD.weeks;
+    const partly = {
+      ...HOLIDAY_PERIOD,
+      weeks: [first!, { ...second!, startsOn: first!.endsOn }],
+    };
+    renderCard(HOLIDAY_REGISTRATION, 1, vi.fn(), false, partly);
+
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "bis 16 Uhr" }));
+
+    expect(
+      screen.getByText(
+        "Zwei dieser Wochen überschneiden sich. Bitte wählen Sie nur eine davon.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
   it("says how a frozen registration is rebooked", () => {
     renderCard({ ...HOLIDAY_REGISTRATION, frozen: true }, 0);
 

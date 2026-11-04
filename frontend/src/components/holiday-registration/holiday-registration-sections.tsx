@@ -24,9 +24,7 @@ import {
 import type { HolidayFormField } from "~/lib/holiday-form-field";
 import {
   groupParallelWeeks,
-  sharesDates,
   weekGroupBooking,
-  weekGroupDates,
   withWeekGroupBooking,
 } from "~/lib/holiday-week-groups";
 import type {
@@ -57,7 +55,7 @@ export function useWeekLabels() {
       currency: "EUR",
     });
     return {
-      range: (week: Pick<HolidayRegistrationWeek, "startsOn" | "endsOn">) =>
+      range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
           ends: formatDate(week.endsOn, false, locale),
@@ -82,7 +80,7 @@ export function useWeekLabels() {
 }
 
 /**
- * One choice for the weeks that share a day (#5689): a single week offers its
+ * One choice for the weeks on the same days (#5689): a single week offers its
  * time models, parallel weeks offer those of all their schools, so a child
  * takes part in only one of them.
  */
@@ -104,22 +102,18 @@ function WeekChoice({
   const first = group[0];
   if (!first) return null;
   const parallel = group.length > 1;
-  const sameDates = sharesDates(group);
   const optionLabel = (
     week: HolidayRegistrationWeek,
     model: HolidayRegistrationTimeModel,
   ) => {
     const priced = labels.pricedTimeModel(model);
-    if (!parallel) return priced;
-    return sameDates
-      ? `${week.hostSchoolName}: ${priced}`
-      : `${labels.range(week)}, ${week.hostSchoolName}: ${priced}`;
+    return parallel ? `${week.hostSchoolName}: ${priced}` : priced;
   };
   const labelId = `${prefix}-week-${first.id}`;
   return (
     <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
       <span id={labelId} className="text-sm text-gray-900">
-        {labels.range(weekGroupDates(group))}
+        {labels.range(first)}
         <span className="block text-xs text-gray-500">
           {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
         </span>

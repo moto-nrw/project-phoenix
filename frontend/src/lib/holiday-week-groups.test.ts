@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  bookedWeeksOverlap,
   groupParallelWeeks,
-  sharesDates,
   weekGroupBooking,
   withWeekGroupBooking,
 } from "./holiday-week-groups";
@@ -19,7 +19,7 @@ const later = week("3", "2027-01-11", "2027-01-15");
 const partly = week("4", "2027-01-08", "2027-01-12");
 
 describe("groupParallelWeeks", () => {
-  it("keeps weeks without a shared day apart", () => {
+  it("keeps weeks on other days apart", () => {
     expect(groupParallelWeeks([nord, later])).toEqual([[nord], [later]]);
   });
 
@@ -30,17 +30,24 @@ describe("groupParallelWeeks", () => {
     ]);
   });
 
-  it("joins weeks that share only one day", () => {
-    expect(groupParallelWeeks([later, nord, partly])).toEqual([
-      [nord, partly, later],
+  it("keeps weeks that share only some days apart, so no booking hides", () => {
+    expect(groupParallelWeeks([nord, partly, later])).toEqual([
+      [nord],
+      [partly],
+      [later],
     ]);
   });
 });
 
-describe("sharesDates", () => {
-  it("tells identical days from partly shared days", () => {
-    expect(sharesDates([nord, sued])).toBe(true);
-    expect(sharesDates([nord, partly])).toBe(false);
+describe("bookedWeeksOverlap", () => {
+  const weeks = [nord, partly, later];
+
+  it("finds booked weeks that share a day", () => {
+    expect(bookedWeeksOverlap(weeks, ["1", "4"])).toBe(true);
+  });
+
+  it("accepts booked weeks without a shared day", () => {
+    expect(bookedWeeksOverlap(weeks, ["1", "3"])).toBe(false);
   });
 });
 

@@ -1,8 +1,8 @@
 /**
- * Weeks of a holiday period that share a day (#5689). The same days can run at
- * several schools; a child takes part in only one of those weeks, so a group
- * has one choice. Weeks joined only through a third week also form one group:
- * a rare plan, and the simpler choice stays correct for the child.
+ * Weeks of a holiday period at several schools (#5689). Weeks on exactly the
+ * same days form one choice: a child takes part at one school. Weeks that
+ * share only some days stay separate choices, so a booking never disappears
+ * from view; bookedWeeksOverlap names that case.
  */
 
 interface DatedWeek {
@@ -14,42 +14,36 @@ interface DatedWeek {
 
 type Bookings = Readonly<Record<string, string>>;
 
+/** The weeks by their days, in the order of the first week of each group. */
 export function groupParallelWeeks<T extends DatedWeek>(
   weeks: readonly T[],
 ): T[][] {
-  const sorted = [...weeks].sort((a, b) =>
-    a.startsOn.localeCompare(b.startsOn),
-  );
-  const groups: T[][] = [];
-  let groupEnd = "";
-  for (const week of sorted) {
-    const current = groups.at(-1);
-    if (current && week.startsOn <= groupEnd) {
-      current.push(week);
-      if (week.endsOn > groupEnd) groupEnd = week.endsOn;
-    } else {
-      groups.push([week]);
-      groupEnd = week.endsOn;
-    }
+  const groups = new Map<string, T[]>();
+  for (const week of weeks) {
+    const days = `${week.startsOn}/${week.endsOn}`;
+    const group = groups.get(days);
+    if (group) group.push(week);
+    else groups.set(days, [week]);
   }
-  return groups;
+  return [...groups.values()];
 }
 
-/** Whether all weeks of a group run on exactly the same days. */
-export function sharesDates(group: readonly DatedWeek[]): boolean {
-  return group.every(
-    (week) =>
-      week.startsOn === group[0]?.startsOn && week.endsOn === group[0]?.endsOn,
+/** Whether two of the booked weeks share a day. */
+export function bookedWeeksOverlap(
+  weeks: readonly DatedWeek[],
+  bookedWeekIds: readonly string[],
+): boolean {
+  const booked = weeks.filter(
+    (week) => week.id && bookedWeekIds.includes(week.id),
   );
-}
-
-/** The first and last day of a group. */
-export function weekGroupDates(group: readonly DatedWeek[]): {
-  readonly startsOn: string;
-  readonly endsOn: string;
-} {
-  const ends = group.map((week) => week.endsOn).sort();
-  return { startsOn: group[0]?.startsOn ?? "", endsOn: ends.at(-1) ?? "" };
+  return booked.some((week, index) =>
+    booked
+      .slice(0, index)
+      .some(
+        (other) =>
+          week.startsOn <= other.endsOn && other.startsOn <= week.endsOn,
+      ),
+  );
 }
 
 /** The time model booked in the group, "" when none is. */

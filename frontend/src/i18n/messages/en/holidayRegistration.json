@@ -106,6 +106,7 @@
     "email": "Please enter a valid e-mail address.",
     "school": "Please choose your child's school.",
     "weeks": "Please choose at least one week.",
+    "weeksOverlap": "Two of these weeks overlap. Please choose only one of them.",
     "privacy": "Please agree. Otherwise the provider cannot process the registration.",
     "health": "Please agree or delete the health information.",
     "binding": "Please confirm that the registration is binding.",

@@ -2,6 +2,7 @@
 // Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
 // vom Server am selben Feld landen wie die eigene Prüfung.
 
+import { bookedWeeksOverlap } from "~/lib/holiday-week-groups";
 import {
   buildFieldsByKey,
   type ConditionContext,
@@ -119,6 +120,7 @@ export type FieldErrorKey =
   | "phone"
   | "school"
   | "weeks"
+  | "weeksOverlap"
   | "privacy"
   | "health"
   | "binding"
@@ -534,8 +536,16 @@ export function validateRegistration(
     requireText(errors, `${prefix}.last_name`, child.lastName);
     requireText(errors, `${prefix}.birth_date`, child.birthDate);
     if (child.school === "") errors[`${prefix}.home_school_id`] = "school";
-    if (bookedWeeks(child, offer).length === 0) {
+    const booked = bookedWeeks(child, offer);
+    if (booked.length === 0) {
       errors[`${prefix}.bookings`] = "weeks";
+    } else if (
+      bookedWeeksOverlap(
+        offer.weeks,
+        booked.map((booking) => booking.weekId),
+      )
+    ) {
+      errors[`${prefix}.bookings`] = "weeksOverlap";
     }
     requireAnswers(
       errors,

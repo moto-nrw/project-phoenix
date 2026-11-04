@@ -391,7 +391,7 @@ func holidayRegistrationFilterLabels(period capability.HolidayPeriod, filter cap
 	}
 	for _, week := range period.Weeks {
 		if week.ID == filter.WeekID {
-			labels = append(labels, "Woche: "+week.StartsOn.Format("02.01.")+" bis "+week.EndsOn.Format("02.01.2006"))
+			labels = append(labels, "Woche: "+week.StartsOn.Format("02.01.")+" bis "+week.EndsOn.Format("02.01.2006")+", "+schoolName(week.HostSchoolID))
 		}
 	}
 	if filter.TimeModel != "" {
