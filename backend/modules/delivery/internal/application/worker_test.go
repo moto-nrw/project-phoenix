@@ -407,3 +407,25 @@ func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
 	}}, first.stats)
 	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, Retried: 2}, second.stats)
 }
+
+// Sentry BACKEND-15: a push service rejection no retry can change (403) was
+// retried until the attempt limit. It dead-letters on the first attempt.
+func TestWorkerDeadLettersPermanentRejectionWithoutRetry(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{
+		claimed:       []domain.Intent{claimedEmail(0)},
+		renewed:       true,
+		failureResult: domain.FinalizeResult{Finalized: true, State: string(domain.StateDeadLetter)},
+	}
+	providerErr := fmt.Errorf("push service returned 403 Forbidden: %w", deliveryContract.ErrPermanent)
+	_, mapped := ProviderResult(deliveryContract.ProviderResult{}, providerErr)
+	worker := NewWorker(store, &workerProvider{err: mapped}, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.DeadLettered)
+	assert.Zero(t, stats.Retried)
+	assert.Equal(t, 1, store.failureAttempts)
+	assert.Equal(t, 1, store.failureMaxAttempts, "a permanent rejection must not be retried")
+}
