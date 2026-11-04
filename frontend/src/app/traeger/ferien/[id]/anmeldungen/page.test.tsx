@@ -93,11 +93,12 @@ describe("TraegerHolidayRegistrationsPage", () => {
   it("lists the registrations with status, schools, weeks and the duplicate hint", async () => {
     renderPage();
 
-    expect(
-      await screen.findByText(
-        "2 Anmeldungen · 1 eingegangen · 0 bestätigt · 1 storniert",
-      ),
-    ).toBeInTheDocument();
+    // Anker: die Zahlen stehen einzeln, ohne Trennpunkte dazwischen (#5684).
+    expect(await screen.findByText("2 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("1 eingegangen")).toBeInTheDocument();
+    expect(screen.getByText("0 bestätigt")).toBeInTheDocument();
+    expect(screen.getByText("1 storniert")).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
     const table = within(screen.getByRole("table"));
     expect(table.getByText("Eva Muster")).toBeInTheDocument();
     expect(table.getByText("Lia Muster")).toBeInTheDocument();

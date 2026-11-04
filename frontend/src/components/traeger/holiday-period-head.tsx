@@ -46,13 +46,27 @@ export function holidayPeriodTabs(
   };
 }
 
+/**
+ * Die Angaben einer Statuszeile im Ferienbereich: einzeln mit Abstand, ohne
+ * Trennpunkte dazwischen (#5684).
+ */
+export function HolidayHeadFacts({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+      {children}
+    </span>
+  );
+}
+
 /** Statuszeile: Status des Zeitraums und seine Anmeldefrist. */
 export function HolidayPeriodStatusLine({
   period,
   children,
 }: Readonly<{ period: HolidayPeriod; children?: ReactNode }>) {
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+    <HolidayHeadFacts>
       <StatusBadge
         label={holidayStatusLabel(period)}
         tone={period.status === "published" ? "green" : "gray"}
@@ -65,6 +79,6 @@ export function HolidayPeriodStatusLine({
         )}
       </span>
       {children}
-    </span>
+    </HolidayHeadFacts>
   );
 }

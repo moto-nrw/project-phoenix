@@ -48,7 +48,18 @@ export function HolidayPeriodPublishCard({
 
   if (period.status === "published") {
     return (
-      <SectionCard title="Veröffentlicht">
+      <SectionCard
+        title="Veröffentlicht"
+        action={
+          <ButtonLink
+            href={traegerPath(`/traeger/ferien/${period.id}/anmeldungen`)}
+            variant="outline"
+            size="md"
+          >
+            Anmeldungen prüfen
+          </ButtonLink>
+        }
+      >
         <div className="space-y-4 text-sm text-gray-700">
           <p>
             {period.publishedAt
@@ -57,16 +68,7 @@ export function HolidayPeriodPublishCard({
             Änderungen gelten sofort nach dem Speichern.
           </p>
           <HolidayRegistrationLink period={period} />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p>{registrationCountText(period.registrationCount)}</p>
-            <ButtonLink
-              href={traegerPath(`/traeger/ferien/${period.id}/anmeldungen`)}
-              variant="outline"
-              size="md"
-            >
-              Anmeldungen prüfen
-            </ButtonLink>
-          </div>
+          <p>{registrationCountText(period.registrationCount)}</p>
         </div>
       </SectionCard>
     );
@@ -96,7 +98,7 @@ export function HolidayPeriodPublishCard({
       action={
         <Button
           type="button"
-          variant="primary"
+          variant="outline"
           size="md"
           disabled={blocker !== null}
           aria-describedby={blocker ? "holiday-publish-blocker" : undefined}
