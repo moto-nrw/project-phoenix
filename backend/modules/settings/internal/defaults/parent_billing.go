@@ -74,7 +74,7 @@ var parentBillingDefinitions = []config.Definition{
 		Key:             config.KeyParentBillingCostTakeoverOrder,
 		Levels:          config.LevelTraeger,
 		Label:           "Was bezahlt ein Kostenträger?",
-		Description:     "Gilt, wenn ein Kostenträger den Beitrag eines Kindes übernimmt. Bestätigte Beiträge bleiben, wie sie sind.",
+		Description:     "Gilt, wenn ein Kostenträger den Beitrag eines Kindes übernimmt. Beim vollen Preis gilt die Ermäßigung nur für die anderen Kinder. Bestätigte Beiträge bleiben, wie sie sind.",
 		Type:            config.FieldSelect,
 		Default:         "after_discount",
 		ReadPermission:  "config:read",
@@ -84,8 +84,8 @@ var parentBillingDefinitions = []config.Definition{
 		SortOrder:       40,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Den Betrag nach der Geschwisterermäßigung", Value: "after_discount"},
-				{Label: "Den vollen Preis, die Ermäßigung gilt nur für die anderen Kinder", Value: "before_discount"},
+				{Label: "Betrag nach der Ermäßigung", Value: "after_discount"},
+				{Label: "Vollen Preis", Value: "before_discount"},
 			},
 		},
 	},

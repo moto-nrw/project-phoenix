@@ -56,7 +56,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
         title: "Einstellen, was ein Kostenträger bezahlt",
         steps: [
           "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
-          "Wählen Sie bei `Was bezahlt ein Kostenträger?`: `Den Betrag nach der Geschwisterermäßigung` oder `Den vollen Preis, die Ermäßigung gilt nur für die anderen Kinder`.",
+          "Wählen Sie bei `Was bezahlt ein Kostenträger?`: `Betrag nach der Ermäßigung` oder `Vollen Preis`. Beim vollen Preis gilt die Ermäßigung nur für die anderen Kinder.",
         ],
       },
       {
