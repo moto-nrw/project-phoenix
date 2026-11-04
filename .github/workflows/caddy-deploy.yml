@@ -69,7 +69,10 @@ jobs:
           mkdir -p /tmp/caddy
           cp deploy/caddy/Caddyfile /tmp/caddy/Caddyfile.new
           git show HEAD^1:deploy/caddy/Caddyfile > /tmp/caddy/Caddyfile.previous 2>/dev/null || : > /tmp/caddy/Caddyfile.previous
-          git log --first-parent --format=%H HEAD -- deploy/caddy/Caddyfile | while read -r commit; do
+          # Every commit reachable from main, not only its first parents: the
+          # versions merged in through a release (and rolled out by hand before
+          # #5098) sit on development's side of the release merge.
+          git log --format=%H HEAD -- deploy/caddy/Caddyfile | while read -r commit; do
             git cat-file -e "$commit:deploy/caddy/Caddyfile" 2>/dev/null || continue
             git show "$commit:deploy/caddy/Caddyfile" | sha256sum | cut -d' ' -f1
           done | sort -u > /tmp/caddy/known.sha256

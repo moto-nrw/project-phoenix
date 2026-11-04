@@ -919,6 +919,65 @@ describe.concurrent("ui-kit/no-raw-input", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-select-override", () => {
+  it("reports frame, fill, height and radius classes on kit selects", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      import { MultiSelect } from "~/components/ui/multi-select";
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      const TRIGGER = "moto-content-surface h-9 w-56";
+      export function Probe() {
+        return <form>
+          <CustomSelect value="" options={[]} onChange={() => {}} className={TRIGGER} />
+          <MultiSelect value={[]} options={[]} onChange={() => {}} className="border-gray-200 bg-gray-50" />
+          <ListboxDropdown value="" options={[]} onChange={() => {}} menuClassName="rounded-lg shadow-lg" />
+        </form>;
+      }
+    `);
+    const output = result.output;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-select-override\)/g)).toHaveLength(3);
+  });
+
+  it("rejects unstyledTrigger outside the kit", async () => {
+    const result = await lintSource(`
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe() {
+        return <ListboxDropdown value="" options={[]} onChange={() => {}} unstyledTrigger />;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-select-override)");
+  });
+
+  it("allows size and layout classes", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      export function Probe() {
+        return <CustomSelect value="" options={[]} onChange={() => {}} controlSize="compact" className="w-full md:w-56 font-medium" menuClassName="min-w-48" />;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-select-override");
+  });
+
+  it("leaves the kit itself alone", async () => {
+    const result = await lintSource(
+      `
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Chip() {
+        return <ListboxDropdown value="" options={[]} onChange={() => {}} unstyledTrigger className="rounded-xl bg-white" />;
+      }
+    `,
+      "src/components/ui/page-header/chip.tsx",
+    );
+
+    expect(result.output).not.toContain("no-select-override");
+  });
+});
+
 // #5531: Button-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
 // je Datei fest und darf nur sinken, bewusste Ausnahmen stehen begründet in
 // der Allowlist.

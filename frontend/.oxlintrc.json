@@ -63,6 +63,7 @@
     "ui-kit/no-rounded-3xl": "error",
     "ui-kit/no-shadcn-tokens": "error",
     "ui-kit/no-raw-z-index": "error",
+    "ui-kit/no-select-override": "error",
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-hand-rolled-page-card": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",

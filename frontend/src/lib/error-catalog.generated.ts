@@ -606,7 +606,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
-        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
@@ -1938,7 +1938,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
-        "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+        "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
       "identity.mfa_blocked":
@@ -2394,7 +2394,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
-        "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+        "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.mfa_blocked":
@@ -2821,7 +2821,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
-        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.mfa_blocked":
@@ -3238,7 +3238,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
-        "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+        "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.mfa_blocked":
@@ -3660,7 +3660,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
-        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.mfa_blocked":
@@ -4074,7 +4074,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
-        "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+        "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.mfa_blocked":

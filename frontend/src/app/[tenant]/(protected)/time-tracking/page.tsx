@@ -40,7 +40,6 @@ import { DataField } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
-import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -2816,7 +2815,7 @@ function EditSessionModal({
                         />
                       )}
                     </div>
-                    <ListboxDropdown
+                    <CustomSelect
                       {...absenceTypeSelect}
                       id="edit-abs-type"
                       ariaLabelledBy="edit-abs-type-label"
@@ -3053,7 +3052,7 @@ function CreateAbsenceModal({
               />
             )}
           </div>
-          <ListboxDropdown
+          <CustomSelect
             {...absenceTypeSelect}
             id="absence-type"
             ariaLabelledBy="absence-type-label"

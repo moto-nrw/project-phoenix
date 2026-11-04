@@ -268,7 +268,7 @@ describe("TraegerAccessLogPage", () => {
     // Auslöser nennt die gewählte Person.
     fireEvent.click(screen.getByRole("button", { name: "Alle Personen" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Lena Leitung" }),
+      await screen.findByRole("option", { name: "Lena Leitung" }),
     );
     await waitFor(() =>
       expect(mockFetchLog).toHaveBeenLastCalledWith(
