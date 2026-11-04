@@ -9,7 +9,7 @@
 // ohne zweite Anfrage.
 
 import { Download, ExternalLink, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackAction } from "~/components/ui/back-link";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -60,13 +60,24 @@ export function BillingLetterPreview({
   const file = loaded?.documentId === documentId ? loaded.file : null;
   const url = useObjectUrl(file?.blob ?? null);
   const title = billingDocumentTitle(document);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // Below xl the chosen row is hidden with the list: the reader continues
+  // at the heading of the letter, on a desk too.
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, [documentId]);
 
   useEffect(() => {
     let current = true;
     clearLoadError();
     downloadBillingLetter(runId, documentId).then(
       (next) => {
-        if (current) setLoaded({ documentId, file: next });
+        if (!current) return;
+        // The frame and the tab show the file as a PDF whatever type the
+        // response named, so nothing else ever renders on this origin.
+        const blob = new Blob([next.blob], { type: "application/pdf" });
+        setLoaded({ documentId, file: { blob, filename: next.filename } });
       },
       (err: unknown) => {
         if (!current) return;
@@ -85,7 +96,7 @@ export function BillingLetterPreview({
   }, [runId, documentId, attempt, clearLoadError, showLoadError]);
 
   return (
-    <section aria-label={`Schreiben zur ${title}`} className="space-y-4">
+    <section aria-label={`Vorschau: ${title}`} className="space-y-4">
       <BackAction
         onClick={onClose}
         label="Zurück zu den Rechnungen"
@@ -94,7 +105,11 @@ export function BillingLetterPreview({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-900">
+            <h3
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-base font-semibold text-gray-900 outline-none"
+            >
               {BILLING_DOCUMENT_KIND_LABELS[document.kind]}{" "}
               <span className="font-mono">{document.number}</span>
             </h3>

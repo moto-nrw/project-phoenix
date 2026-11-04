@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -151,11 +158,17 @@ function row(name: string): HTMLElement {
   return cell!.closest("tr")!;
 }
 
-/** The blob the preview frame of the letter currently shows. */
-async function shownLetter(title: string): Promise<Blob | undefined> {
+/** The content of a blob behind an object URL, always typed as a PDF. */
+async function pdfAt(url: string): Promise<string | undefined> {
+  const blob = urls.get(url);
+  expect(blob?.type).toBe("application/pdf");
+  return blob?.text();
+}
+
+/** What the preview frame of the letter currently shows. */
+async function shownLetter(title: string): Promise<string | undefined> {
   const frame = await screen.findByTitle(title);
-  const src = frame.getAttribute("src") ?? "";
-  return urls.get(src.replace(/#.*$/, ""));
+  return pdfAt((frame.getAttribute("src") ?? "").replace(/#.*$/, ""));
 }
 
 describe("BillingRunOverviewCard letter preview (#5692)", () => {
@@ -168,18 +181,18 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
 
     fireEvent.click(row("Muster, Eva"));
     const first = screen.getByRole("region", {
-      name: "Schreiben zur Rechnung FE-0001",
+      name: "Vorschau: Rechnung FE-0001",
     });
     expect(within(first).getByText("Eva Muster")).toBeInTheDocument();
-    expect(await shownLetter("Rechnung FE-0001")).toBe(LETTERS["51"]!.blob);
+    expect(await shownLetter("Rechnung FE-0001")).toBe("%PDF FE-0001");
     expect(row("Muster, Eva")).toHaveAttribute("aria-current", "true");
     expect(api.downloadBillingLetter).toHaveBeenLastCalledWith("9", "51");
 
     fireEvent.click(row("Beispiel, Jonas"));
     expect(
-      screen.getByRole("region", { name: "Schreiben zur Rechnung FE-0002" }),
+      screen.getByRole("region", { name: "Vorschau: Rechnung FE-0002" }),
     ).toBeInTheDocument();
-    expect(await shownLetter("Rechnung FE-0002")).toBe(LETTERS["52"]!.blob);
+    expect(await shownLetter("Rechnung FE-0002")).toBe("%PDF FE-0002");
     expect(row("Beispiel, Jonas")).toHaveAttribute("aria-current", "true");
     expect(row("Muster, Eva")).not.toHaveAttribute("aria-current");
     expect(api.downloadBillingLetter).toHaveBeenLastCalledWith("9", "52");
@@ -199,13 +212,13 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
 
     fireEvent.click(row("Muster, Eva"));
     fireEvent.click(row("Beispiel, Jonas"));
-    expect(await shownLetter("Rechnung FE-0002")).toBe(LETTERS["52"]!.blob);
+    expect(await shownLetter("Rechnung FE-0002")).toBe("%PDF FE-0002");
 
     await act(async () => {
       finishFirst(LETTERS["51"]!);
       await Promise.resolve();
     });
-    expect(await shownLetter("Rechnung FE-0002")).toBe(LETTERS["52"]!.blob);
+    expect(await shownLetter("Rechnung FE-0002")).toBe("%PDF FE-0002");
     expect(screen.queryByTitle("Rechnung FE-0001")).not.toBeInTheDocument();
   });
 
@@ -217,10 +230,10 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Rechnung FE-0002 herunterladen" }),
     );
-    expect(downloadBlob).toHaveBeenCalledWith(
-      LETTERS["52"]!.blob,
-      "bestaetigung-fe-0002.pdf",
-    );
+    expect(downloadBlob).toHaveBeenCalledTimes(1);
+    const [saved, filename] = downloadBlob.mock.calls[0] as [Blob, string];
+    expect(filename).toBe("bestaetigung-fe-0002.pdf");
+    expect(await saved.text()).toBe("%PDF FE-0002");
     // The download takes the file already loaded, without a second read.
     expect(api.downloadBillingLetter).toHaveBeenCalledTimes(1);
 
@@ -228,7 +241,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
       name: "Rechnung FE-0002 in neuem Tab öffnen",
     });
     expect(tab).toHaveAttribute("target", "_blank");
-    expect(urls.get(tab.getAttribute("href") ?? "")).toBe(LETTERS["52"]!.blob);
+    expect(await pdfAt(tab.getAttribute("href") ?? "")).toBe("%PDF FE-0002");
   });
 
   it("releases the object URL of a letter once another one shows", async () => {
@@ -261,9 +274,27 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     );
     await shownLetter("Rechnung FE-0001");
 
+    // The reader continues at the letter, and returns to the row menu.
+    expect(
+      screen.getByRole("heading", { name: "Rechnung FE-0001" }),
+    ).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Vorschau schließen" }));
     expect(screen.getByText("Noch kein Schreiben gewählt")).toBeInTheDocument();
     expect(row("Muster, Eva")).not.toHaveAttribute("aria-current");
+    await waitFor(() => expect(menu).toHaveFocus());
+  });
+
+  it("shows a response of another type only as a PDF", async () => {
+    api.downloadBillingLetter.mockResolvedValue({
+      blob: new Blob(["<script>alert(1)</script>"], { type: "text/html" }),
+      filename: "bestaetigung-fe-0001.pdf",
+    });
+    renderCard();
+    fireEvent.click(row("Muster, Eva"));
+
+    expect(await shownLetter("Rechnung FE-0001")).toBe(
+      "<script>alert(1)</script>",
+    );
   });
 
   it("names a letter that fails to load and loads it again", async () => {
@@ -274,7 +305,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     fireEvent.click(row("Muster, Eva"));
 
     fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
-    expect(await shownLetter("Rechnung FE-0001")).toBe(LETTERS["51"]!.blob);
+    expect(await shownLetter("Rechnung FE-0001")).toBe("%PDF FE-0001");
     expect(api.downloadBillingLetter).toHaveBeenCalledTimes(2);
   });
 

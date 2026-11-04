@@ -55,6 +55,10 @@ const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "csv",
 ]);
 
+function rowMenuLabel(document: BillingDocument): string {
+  return `Aktionen für die Rechnung an ${recipientName(document)}`;
+}
+
 /** A draft has no ID yet; its registration names it. */
 function rowKey(document: BillingDocument): string {
   return document.id || `draft-${document.registrationId}`;
@@ -80,7 +84,7 @@ function leftForChild(
   return left;
 }
 
-function rechnungenDescription(released: boolean, canPreview: boolean) {
+function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
     return "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile.";
   }
@@ -94,15 +98,12 @@ function rechnungenDescription(released: boolean, canPreview: boolean) {
 /** The empty letter frame beside the list before a row is chosen. */
 function LetterPreviewPlaceholder() {
   return (
-    <div className="flex aspect-[210/297] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 p-8 text-center">
-      <FileText className="h-10 w-10 text-gray-400" aria-hidden="true" />
-      <p className="text-sm font-semibold text-gray-900">
-        Noch kein Schreiben gewählt
-      </p>
-      <p className="max-w-xs text-sm text-gray-500">
-        Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit
-        Nummer, Beträgen und Gestaltung.
-      </p>
+    <div className="flex aspect-[210/297] w-full items-center justify-center rounded-xl border border-dashed border-gray-300 p-8">
+      <EmptyState
+        icon={<FileText className="h-10 w-10" aria-hidden="true" />}
+        title="Noch kein Schreiben gewählt"
+        description="Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit Nummer, Beträgen und Gestaltung."
+      />
     </div>
   );
 }
@@ -155,13 +156,37 @@ export function BillingRunOverviewCard({
 
   // Below xl the letter takes the place of the list; a long list may have
   // scrolled the card's top out of view, so the letter starts in view.
+  const previewedId = previewed?.id ?? null;
   useEffect(() => {
-    if (!previewed) return;
+    if (!previewedId) return;
     const pane = previewRef.current;
     if (pane && pane.getBoundingClientRect().top < 0) {
       pane.scrollIntoView({ block: "start" });
     }
-  }, [previewed]);
+  }, [previewedId]);
+
+  const openPreview = (document: BillingDocument) => {
+    if (document.id) setPreviewId(document.id);
+  };
+  // Back from the letter, the reader continues at the menu of its row, which
+  // shows again with the list on the next frame.
+  const closePreview = () => {
+    const label = previewed ? rowMenuLabel(previewed) : null;
+    const area = previewRef.current?.parentElement;
+    setPreviewId(null);
+    if (!label || !area) return;
+    requestAnimationFrame(() => {
+      const triggers = [
+        ...area.querySelectorAll<HTMLElement>(
+          `[aria-label="${CSS.escape(label)}"]`,
+        ),
+      ];
+      const trigger =
+        triggers.find((element) => element.getClientRects().length > 0) ??
+        triggers[0];
+      trigger?.focus({ preventScroll: true });
+    });
+  };
 
   const exportFile = async (format: BillingRunExportFormat) => {
     setExporting(format);
@@ -283,7 +308,7 @@ export function BillingRunOverviewCard({
       stackedLabel: false,
       render: (document) => (
         <OverflowMenu
-          ariaLabel={`Aktionen für die Rechnung an ${recipientName(document)}`}
+          ariaLabel={rowMenuLabel(document)}
           triggerSize="sm"
           items={[
             {
@@ -294,7 +319,7 @@ export function BillingRunOverviewCard({
               ? [
                   {
                     label: "Schreiben ansehen",
-                    onClick: () => setPreviewId(document.id),
+                    onClick: () => openPreview(document),
                   },
                 ]
               : []),
@@ -324,13 +349,7 @@ export function BillingRunOverviewCard({
       columns={columns}
       rows={[...run.documents]}
       getRowKey={rowKey}
-      onRowClick={
-        canPreview
-          ? (document) => {
-              if (document.id) setPreviewId(document.id);
-            }
-          : undefined
-      }
+      onRowClick={canPreview ? openPreview : undefined}
       activeRowKey={previewed ? rowKey(previewed) : null}
       rowHasInteractiveControls
       stackedOnMobile
@@ -346,7 +365,7 @@ export function BillingRunOverviewCard({
   return (
     <SectionCard
       title="Rechnungen"
-      description={rechnungenDescription(released, canPreview)}
+      description={invoicesDescription(released, canPreview)}
       actions={
         released && run.documents.length > 0 ? (
           <OverflowMenu
@@ -380,7 +399,7 @@ export function BillingRunOverviewCard({
               <BillingLetterPreview
                 runId={run.id}
                 document={previewed}
-                onClose={() => setPreviewId(null)}
+                onClose={closePreview}
               />
             ) : (
               <LetterPreviewPlaceholder />
