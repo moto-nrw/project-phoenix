@@ -73,56 +73,75 @@ function TotalFigures({
   total,
   schoolCount,
 }: Readonly<{ total: TraegerSchoolFigures | null; schoolCount: number }>) {
+  // Ohne Zahlen keine Sätze mit Zahlen: „0 %" während des Ladens wäre falsch.
   const loading = total === null;
   const share = total ? presentShare(total) : 0;
   const ratio = total?.careRatio ?? null;
   return (
-    <div className="grid grid-cols-2 gap-4 max-sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
-      <StatCard
-        label="Kinder gesamt"
-        value={total?.childrenTotal ?? 0}
-        hint={
-          schoolCount === 1
-            ? "Alle Kinder, die Ihre Schule gerade betreut."
-            : `Alle Kinder, die Ihre ${schoolCount} Schulen gerade betreuen.`
-        }
-        icon={<MotoConceptIcon concept={childrenConcept} />}
-        loading={loading}
-        tone="neutral"
-      />
-      <StatCard
-        label="Jetzt anwesend"
-        value={total?.childrenPresent ?? 0}
-        hint={`${percentFormat.format(share)} aller Kinder sind gerade in der Schule.`}
-        progressPct={share * 100}
-        icon={<MotoConceptIcon concept={presentConcept} />}
-        loading={loading}
-        tone="green"
-      />
-      <StatCard
-        label="Heute krank"
-        value={total?.childrenSick ?? 0}
-        hint="Kinder mit einer Krankmeldung für heute."
-        icon={<MotoConceptIcon concept={sickConcept} />}
-        loading={loading}
-        tone="neutral"
-      />
-      <StatCard
-        label="Betreuungskräfte anwesend"
-        value={total ? `${total.staffPresent} von ${total.staffTotal}` : 0}
-        hint="Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht."
-        icon={<MotoConceptIcon concept={staffConcept} />}
-        loading={loading}
-        tone="neutral"
-      />
-      <div className="max-md:col-span-2">
+    // Oben die Kinder, darunter das Personal: zwei Reihen statt fünf schmaler
+    // Kacheln, in denen die langen Labels umbrechen.
+    <div className="grid grid-cols-2 gap-4 max-sm:gap-3 lg:grid-cols-6">
+      <div className="col-span-2 sm:col-span-1 lg:col-span-2">
+        <StatCard
+          label="Kinder gesamt"
+          value={total?.childrenTotal ?? 0}
+          hint={
+            loading
+              ? undefined
+              : schoolCount === 1
+                ? "Alle Kinder, die Ihre Schule gerade betreut."
+                : `Alle Kinder, die Ihre ${schoolCount} Schulen gerade betreuen.`
+          }
+          icon={<MotoConceptIcon concept={childrenConcept} />}
+          loading={loading}
+          tone="neutral"
+        />
+      </div>
+      <div className="lg:col-span-2">
+        <StatCard
+          label="Jetzt anwesend"
+          value={total?.childrenPresent ?? 0}
+          hint={
+            loading
+              ? undefined
+              : `${percentFormat.format(share)} aller Kinder sind gerade in der Schule.`
+          }
+          progressPct={loading ? undefined : share * 100}
+          icon={<MotoConceptIcon concept={presentConcept} />}
+          loading={loading}
+          tone="green"
+        />
+      </div>
+      <div className="lg:col-span-2">
+        <StatCard
+          label="Heute krank"
+          value={total?.childrenSick ?? 0}
+          hint="Kinder mit einer Krankmeldung für heute."
+          icon={<MotoConceptIcon concept={sickConcept} />}
+          loading={loading}
+          tone="neutral"
+        />
+      </div>
+      <div className="col-span-2 sm:col-span-1 lg:col-span-3">
+        <StatCard
+          label="Betreuungskräfte anwesend"
+          value={total ? `${total.staffPresent} von ${total.staffTotal}` : 0}
+          hint="Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht."
+          icon={<MotoConceptIcon concept={staffConcept} />}
+          loading={loading}
+          tone="neutral"
+        />
+      </div>
+      <div className="col-span-2 sm:col-span-1 lg:col-span-3">
         <StatCard
           label="Betreuungsschlüssel"
           value={formatRatio(ratio)}
           hint={
-            ratio === null
-              ? "Gerade ist an keiner Schule eine Betreuungskraft in der Zeiterfassung angemeldet."
-              : "Eine anwesende Betreuungskraft kommt im Schnitt auf so viele anwesende Kinder."
+            loading
+              ? undefined
+              : ratio === null
+                ? "Gerade ist an keiner Schule eine Betreuungskraft in der Zeiterfassung angemeldet."
+                : "Eine anwesende Betreuungskraft kommt im Schnitt auf so viele anwesende Kinder."
           }
           icon={<MotoConceptIcon concept={supervisionConcept} />}
           loading={loading}
