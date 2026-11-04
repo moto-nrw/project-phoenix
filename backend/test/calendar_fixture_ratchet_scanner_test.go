@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/token"
 	"io/fs"
-	"os"
 	pathpkg "path"
 	"path/filepath"
 	"sort"
@@ -128,7 +127,7 @@ func skipCalendarFixtureDir(entry fs.DirEntry) bool {
 }
 
 func scanCalendarFixtureFile(root, path string, fset *token.FileSet, helpers calendarPackageHelpers) ([]calendarClockFinding, error) {
-	source, err := os.ReadFile(path)
+	source, err := readGoSource(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -439,7 +438,7 @@ func indexCalendarHelperCandidates(candidates map[string][]calendarHelperCandida
 }
 
 func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates map[string][]calendarHelperCandidate, helpers calendarPackageHelpers) error {
-	source, err := os.ReadFile(path)
+	source, err := readGoSource(path)
 	if err != nil {
 		return fmt.Errorf("read %s while finding calendar helpers: %w", path, err)
 	}
@@ -1431,10 +1430,14 @@ func findDirectCalendarBoundaryCalls(fn *ast.FuncDecl, rel string, fset *token.F
 }
 
 func findLiveWeekdayHelperCalls(fn *ast.FuncDecl, rel string, fset *token.FileSet, weekdayHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+	if len(weekdayHelpers) == 0 {
+		return nil
+	}
+	receiverTypes := calendarReceiverTypes(fn)
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
-		if !ok || !weekdayHelpers[calendarCalledHelper(call, calendarReceiverTypes(fn))] {
+		if !ok || !weekdayHelpers[calendarCalledHelper(call, receiverTypes)] {
 			return true
 		}
 		findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live clock feeds a weekday fixture"))
