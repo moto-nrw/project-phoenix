@@ -60,7 +60,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -681,7 +681,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         onChange: () => undefined,
         options: [],
         render: (
-          <MultiCheckboxSelect
+          <MultiSelect
             id="enrollment-offering-filter"
             ariaLabel="Berücksichtigte Angebote"
             value={displayedOfferingIds}
@@ -696,9 +696,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                     : undefined,
               }),
             )}
-            emptyLabel="Keine Angebote"
+            placeholder="Keine Angebote"
             unavailableLabel="Keine Angebote verfügbar"
-            multipleLabel={(count) => `${count} Angebote`}
+            summaryLabel={(count) => `${count} Angebote`}
           />
         ),
       },

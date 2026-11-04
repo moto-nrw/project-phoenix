@@ -22,6 +22,8 @@ const (
 	openRunIndex = "uq_runs_calculated_period"
 	// invoiceNumberConstraint keeps the numbers of a Träger unique.
 	invoiceNumberConstraint = "uq_documents_number"
+	// cancellationIndex cancels an invoice at most once (#4690).
+	cancellationIndex = "uq_documents_cancellation"
 )
 
 type runRow struct {
@@ -116,6 +118,12 @@ type documentRow struct {
 	ServiceFrom           calendar.Date `bun:"service_from,type:date"`
 	ServiceUntil          calendar.Date `bun:"service_until,type:date"`
 	TotalCents            int64         `bun:"total_cents"`
+	Kind                  string        `bun:"kind"`
+	ReferenceDocumentID   *int64        `bun:"reference_document_id"`
+	Reason                string        `bun:"reason"`
+	// ReferenceNumber is the number of the referenced document, read with
+	// the row (#4690).
+	ReferenceNumber string `bun:"reference_number,scanonly"`
 }
 
 type documentPositionRow struct {
@@ -139,6 +147,8 @@ type documentPositionRow struct {
 	DiscountBasisPoints        *int           `bun:"discount_basis_points"`
 	DiscountCents              *int64         `bun:"discount_cents"`
 	Note                       string         `bun:"note"`
+	CostBearerID               *int64         `bun:"cost_bearer_id"`
+	CostBearerName             string         `bun:"cost_bearer_name"`
 }
 
 // ListBillingRuns lists the runs of the Träger, newest first.
@@ -207,8 +217,8 @@ func (s *Store) selectRun(ctx context.Context, organizationID, runID int64, lock
 	return row.run(), nil
 }
 
-// PeriodContributions reads the frozen contributions of a period with
-// their lines, by registration and in the order of the form.
+// PeriodContributions reads the newest frozen contributions of a period
+// with their lines, by registration and in the order of the form.
 func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodID int64) (map[int64]parentbilling.HolidayContribution, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -216,7 +226,7 @@ func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodI
 	}
 	var rows []holidayContributionRow
 	if err := db.NewSelect().Model(&rows).
-		Where("organization_id = ?", organizationID).Where("holiday_period_id = ?", periodID).
+		Where("organization_id = ?", organizationID).Where("holiday_period_id = ?", periodID).Where(currentVersion).
 		OrderExpr("holiday_registration_id, holiday_registration_child_id").Scan(ctx); err != nil {
 		return nil, err
 	}
@@ -245,15 +255,17 @@ func (s *Store) PeriodContributions(ctx context.Context, organizationID, periodI
 }
 
 // IssuedRegistrations names the registrations of the period an invoice of
-// the service bills.
+// the service bills: an invoice that is not cancelled (#4690).
 func (s *Store) IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var ids []int64
-	if err := db.NewSelect().TableExpr("parent_billing.documents").Column("holiday_registration_id").
-		Where("organization_id = ?", organizationID).Where("service = ?", service).Where("holiday_period_id = ?", periodID).
+	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").Column("document.holiday_registration_id").
+		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
+		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
+		Where(notCancelledSQL).
 		Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
@@ -381,22 +393,36 @@ func (s *Store) ReserveNumbers(ctx context.Context, organizationID int64, servic
 
 // IssueDocuments stores the invoices of a release with their positions.
 func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) error {
+	_, err := s.insertDocuments(ctx, organizationID, run, year, first, documents)
+	return err
+}
+
+// insertDocuments stores numbered documents with their positions and
+// returns their IDs in order.
+func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) ([]int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(documents) == 0 {
-		return nil
+		return nil, nil
 	}
 	rows := make([]documentRow, len(documents))
 	for i, document := range documents {
 		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
-		if constraintOf(err) == invoiceNumberConstraint {
-			return parentbilling.ErrInvoiceNumberTaken
+		switch constraintOf(err) {
+		case invoiceNumberConstraint:
+			return nil, parentbilling.ErrInvoiceNumberTaken
+		case cancellationIndex:
+			return nil, parentbilling.ErrInvoiceCancelled
 		}
-		return err
+		return nil, err
+	}
+	ids := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
 	}
 	var positions []documentPositionRow
 	for i, document := range documents {
@@ -411,15 +437,18 @@ func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run pa
 					WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn, TimeModelName: position.TimeModelName,
 					ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 					DiscountCents: position.DiscountCents, Note: position.Note,
+					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
 				})
 			}
 		}
 	}
 	if len(positions) == 0 {
-		return nil
+		return ids, nil
 	}
-	_, err = db.NewInsert().Model(&positions).Exec(ctx)
-	return err
+	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // MarkRunReleased closes a calculated run with its issue date and sums.
@@ -442,16 +471,32 @@ func (s *Store) MarkRunReleased(ctx context.Context, organizationID, runID int64
 	return row.run(), nil
 }
 
-// RunDocuments reads the issued invoices of a run in the order of their
-// numbers, the positions grouped by child.
+// RunDocuments reads the issued documents of a run in the order they were
+// issued, the positions grouped by child: its invoices in the order of their
+// numbers, then the cancellations and credits issued later (#4690). The
+// order is not the number order: a pattern without a year counts from 1 and
+// would sort a later credit before its invoice.
 func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, error) {
+	return s.selectDocuments(ctx, organizationID, func(query *bun.SelectQuery) *bun.SelectQuery {
+		return query.Where("document_row.run_id = ?", runID)
+	})
+}
+
+// selectDocuments reads the documents of the Träger that where selects, in
+// the order they were issued (the IDs: a release inserts its invoices in the
+// order of their numbers), with the number of the document each one
+// references.
+func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where func(*bun.SelectQuery) *bun.SelectQuery) ([]parentbilling.BillingDocument, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []documentRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("number_sequence, id").Scan(ctx); err != nil {
+	query := db.NewSelect().Model(&rows).ColumnExpr("?TableColumns").
+		ColumnExpr(`(SELECT reference.number FROM parent_billing.documents AS reference
+			WHERE reference.organization_id = document_row.organization_id AND reference.id = document_row.reference_document_id) AS reference_number`).
+		Where("document_row.organization_id = ?", organizationID)
+	if err := where(query).OrderExpr("document_row.id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	documents := make([]parentbilling.BillingDocument, len(rows))
@@ -475,10 +520,11 @@ func (s *Store) RunDocuments(ctx context.Context, organizationID, runID int64) (
 	for i, row := range rows {
 		issuedOn := row.IssuedOn
 		documents[i] = parentbilling.BillingDocument{
-			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, RegistrationID: row.HolidayRegistrationID,
+			ID: row.ID, RunID: row.RunID, Number: row.Number, IssuedOn: &issuedOn, RegistrationID: row.HolidayRegistrationID,
 			RecipientFirstName: row.RecipientFirstName, RecipientLastName: row.RecipientLastName, RecipientEmail: row.RecipientEmail,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, Children: issuedChildren(byDocument[row.ID]),
 			TotalCents: row.TotalCents, RecipientAddress: row.recipientAddress(),
+			Kind: row.Kind, ReferenceDocumentID: row.ReferenceDocumentID, ReferenceNumber: row.ReferenceNumber, Reason: row.Reason,
 		}
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
@@ -496,7 +542,11 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 		HolidayPeriodID: run.HolidayPeriodID, HolidayRegistrationID: document.RegistrationID,
 		RecipientFirstName: document.RecipientFirstName, RecipientLastName: document.RecipientLastName,
 		RecipientEmail: document.RecipientEmail, ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil,
-		TotalCents: document.TotalCents,
+		TotalCents: document.TotalCents, Kind: document.Kind, ReferenceDocumentID: document.ReferenceDocumentID,
+		Reason: document.Reason,
+	}
+	if row.Kind == "" {
+		row.Kind = parentbilling.DocumentInvoice
 	}
 	if address := document.RecipientAddress; address != nil {
 		row.RecipientStreet, row.RecipientPostalCode, row.RecipientCity = &address.Street, &address.PostalCode, &address.City
@@ -535,6 +585,7 @@ func issuedChildren(positions []documentPositionRow) []parentbilling.BillingChil
 			Kind: position.Kind, AmountCents: position.AmountCents, WeekStartsOn: position.WeekStartsOn, WeekEndsOn: position.WeekEndsOn,
 			TimeModelName: position.TimeModelName, ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 			DiscountCents: position.DiscountCents, Note: position.Note,
+			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
 		})
 		children[at].TotalCents += position.AmountCents
 	}

@@ -4,6 +4,8 @@ package common
 const CodeParentBillingBankAccountMissing = "parent_billing.bank_account_missing"
 const CodeParentBillingBenefitsExemptionUnavailable = "parent_billing.benefits_exemption_unavailable"
 const CodeParentBillingBillingCorrectionInvalid = "parent_billing.billing_correction_invalid"
+const CodeParentBillingBillingDocumentCorrectionInvalid = "parent_billing.billing_document_correction_invalid"
+const CodeParentBillingBillingDocumentNotFound = "parent_billing.billing_document_not_found"
 const CodeParentBillingBillingFamilyNotFound = "parent_billing.billing_family_not_found"
 const CodeParentBillingBillingLetterNotFound = "parent_billing.billing_letter_not_found"
 const CodeParentBillingBillingLettersExist = "parent_billing.billing_letters_exist"
@@ -18,9 +20,16 @@ const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
+const CodeParentBillingCostBearerInUse = "parent_billing.cost_bearer_in_use"
+const CodeParentBillingCostBearerInactive = "parent_billing.cost_bearer_inactive"
+const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
+const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
+const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
+const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
+const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
 const CodeParentBillingInvoiceNumberTaken = "parent_billing.invoice_number_taken"
 const CodeParentBillingLetterMailPending = "parent_billing.letter_mail_pending"
 const CodeParentBillingLetterheadTooLong = "parent_billing.letterhead_too_long"
@@ -29,11 +38,16 @@ const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
+const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
+const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
+const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
 	{CodeParentBillingBenefitsExemptionUnavailable, "business_rejection"},
 	{CodeParentBillingBillingCorrectionInvalid, "input"},
+	{CodeParentBillingBillingDocumentCorrectionInvalid, "input"},
+	{CodeParentBillingBillingDocumentNotFound, "business_rejection"},
 	{CodeParentBillingBillingFamilyNotFound, "business_rejection"},
 	{CodeParentBillingBillingLetterNotFound, "business_rejection"},
 	{CodeParentBillingBillingLettersExist, "business_rejection"},
@@ -48,9 +62,16 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},
+	{CodeParentBillingCostBearerInUse, "business_rejection"},
+	{CodeParentBillingCostBearerInactive, "business_rejection"},
+	{CodeParentBillingCostBearerInvalid, "input"},
+	{CodeParentBillingCostBearerNotFound, "business_rejection"},
+	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
+	{CodeParentBillingInvoiceCancelled, "business_rejection"},
+	{CodeParentBillingInvoiceCredited, "business_rejection"},
 	{CodeParentBillingInvoiceNumberTaken, "business_rejection"},
 	{CodeParentBillingLetterMailPending, "business_rejection"},
 	{CodeParentBillingLetterheadTooLong, "business_rejection"},
@@ -59,6 +80,9 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
+	{CodeParentBillingSiblingGroupInvalid, "input"},
+	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
+	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},
 }
 
 func init() {

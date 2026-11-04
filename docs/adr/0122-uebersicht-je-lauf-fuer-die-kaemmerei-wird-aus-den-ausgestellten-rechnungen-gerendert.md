@@ -97,3 +97,14 @@ PDF, Excel und CSV, auf den Zeilen der Positionen und der Summe je Rechnung.
 Wie die Anschriftspalten erscheint sie nur, wenn mindestens eine Rechnung
 des Laufs eine Nummer hat; eine Rechnung ohne Nummer lässt die Zelle leer.
 Hat der Lauf beides, steht die Debitorennummer vor der Anschrift.
+
+## Nachtrag 2026-11-03: Storno und Gutschrift (#4690)
+
+Hat ein Lauf einen Storno oder eine Gutschrift oder ersetzt eine Rechnung
+eine stornierte (ADR 0119 Nachtrag vom 03.11.2026), heißt die erste Spalte
+„Nummer“, und nach ihr stehen „Art“ (Rechnung, Storno, Gutschrift) und
+„Bezug“ („zu FE-…“, „ersetzt FE-…“). Storno und Gutschrift sind eigene
+Zeilen mit Minusbetrag und eigener Summenzeile; die Gesamtsumme des Laufs
+ist die Summe aller Dokumente. Über der Tabelle zählen die Rechnungen
+weiter für sich, Storno und Gutschrift haben je eine Zeile mit ihren
+Nummern. Ohne solche Dokumente bleibt die Übersicht wie bisher.

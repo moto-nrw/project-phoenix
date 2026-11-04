@@ -186,9 +186,17 @@ type HolidayGuests interface {
 	// ErrHolidayGuestNotFound for a child that is no guest or whose access
 	// has ended.
 	HolidayGuestSheet(ctx context.Context, host HolidayHost, studentID int64) (HolidayGuestSheet, error)
+	HolidayGuestBadgeList
+}
+
+// HolidayGuestBadgeList lists the hints „Gast aus …“ of a hosting school,
+// in the tenant transaction of the school. The school portal and the
+// tablet (PyrePortal#499) read it.
+type HolidayGuestBadgeList interface {
 	// HolidayGuestBadges lists the hint of every guest the school cares for
 	// today, from the first to the last day of its week, so group,
-	// check-in, child list and supervision name its home school (#5630).
+	// check-in, child list, supervision and the tablet name its home school
+	// (#5630).
 	HolidayGuestBadges(ctx context.Context, schoolID int64) ([]HolidayGuestBadge, error)
 }
 

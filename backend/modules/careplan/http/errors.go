@@ -1,6 +1,7 @@
 package careplanhttp
 
 import (
+	"errors"
 	http "net/http"
 
 	render "github.com/go-chi/render"
@@ -69,7 +70,28 @@ var pickupResetErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: ErrPickupResetNoOffering, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsPickupResetRequiresOffering)
 	}},
+	{Match: func(err error) bool {
+		var stillNeeded *careplan.PickupResetStillNeededError
+		return errors.As(err, &stillNeeded)
+	}, Render: renderPickupResetStillNeeded},
 }, common.ErrorInternalServer)
+
+// renderPickupResetStillNeeded names the last day that still needs the stored
+// pickup time and the first day the reset works (#5643).
+func renderPickupResetStillNeeded(err error) render.Renderer {
+	var stillNeeded *careplan.PickupResetStillNeededError
+	if !errors.As(err, &stillNeeded) {
+		return common.ErrorInternalServer(err)
+	}
+	return common.ErrorConflictWithDetails(err, common.CodeStudentsPickupResetStillNeeded, map[string]any{
+		"needed_until":  stillNeeded.NeededUntil.Format(pickupResetDateLayout),
+		"possible_from": stillNeeded.PossibleFrom.Format(pickupResetDateLayout),
+	})
+}
+
+// pickupResetDateLayout is the German date the catalog text shows; the
+// catalog inserts details verbatim (as timetable.RefusalDateLayout).
+const pickupResetDateLayout = "02.01.2006"
 
 // renderExceptionWriteError maps the sentinel errors a pickup/arrival exception
 // write transaction to precise HTTP statuses through the shared declarative

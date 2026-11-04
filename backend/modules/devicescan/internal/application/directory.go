@@ -29,18 +29,21 @@ type DirectoryActivities interface {
 type directory struct {
 	activities DirectoryActivities
 	people     DirectoryPeople
+	guests     devicescan.HolidayGuestSchools
 	principals devicescan.PrincipalReader
 	logger     *slog.Logger
 }
 
-func NewDirectory(people DirectoryPeople, activities DirectoryActivities, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
+// NewDirectory builds the kiosk roster; guests names the home school of its
+// holiday guests (PyrePortal#499), nil leaves them without the hint.
+func NewDirectory(people DirectoryPeople, activities DirectoryActivities, guests devicescan.HolidayGuestSchools, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
 	if people == nil || principals == nil {
 		panic("kiosk directory: people and principals are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &directory{people: people, activities: activities, principals: principals, logger: logger}
+	return &directory{people: people, activities: activities, guests: guests, principals: principals, logger: logger}
 }
 
 func (d *directory) Activities(ctx context.Context) ([]devicescan.DirectoryActivity, error) {
@@ -100,16 +103,35 @@ func (d *directory) Students(ctx context.Context, teacherIDs []int64) ([]devices
 		d.logger.WarnContext(ctx, "failed to batch-find students for teachers", slog.String("error", err.Error()))
 		return []devicescan.DirectoryStudent{}, nil
 	}
-	if teacherIDs == nil {
-		return students, nil
+	result := students
+	if teacherIDs != nil {
+		unique := make(map[int64]devicescan.DirectoryStudent, len(students))
+		for _, student := range students {
+			unique[student.StudentID] = student
+		}
+		result = make([]devicescan.DirectoryStudent, 0, len(unique))
+		for _, student := range unique {
+			result = append(result, student)
+		}
 	}
-	unique := make(map[int64]devicescan.DirectoryStudent, len(students))
-	for _, student := range students {
-		unique[student.StudentID] = student
-	}
-	result := make([]devicescan.DirectoryStudent, 0, len(unique))
-	for _, student := range unique {
-		result = append(result, student)
-	}
+	d.nameHolidayGuestSchools(ctx, device.TenantID, result)
 	return result, nil
+}
+
+// nameHolidayGuestSchools sets the school of every holiday guest on the
+// roster, in one read for the whole school and none for an empty roster.
+// The hint is optional: when the read fails, the roster stays usable and
+// the guests keep their class „Feriengast“.
+func (d *directory) nameHolidayGuestSchools(ctx context.Context, schoolID int64, students []devicescan.DirectoryStudent) {
+	if d.guests == nil || len(students) == 0 {
+		return
+	}
+	schools, err := d.guests(ctx, schoolID)
+	if err != nil {
+		d.logger.WarnContext(ctx, "failed to name the schools of the holiday guests", slog.String("error", err.Error()))
+		return
+	}
+	for i := range students {
+		students[i].HolidayGuestSchool = schools[students[i].StudentID]
+	}
 }

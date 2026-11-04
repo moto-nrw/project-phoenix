@@ -87,6 +87,7 @@ const CodeEnrollmentHolidayHostSchoolOutsideTraeger = "enrollment.holiday_host_s
 const CodeEnrollmentHolidayPeriodIncomplete = "enrollment.holiday_period_incomplete"
 const CodeEnrollmentHolidayPeriodInvalid = "enrollment.holiday_period_invalid"
 const CodeEnrollmentHolidayPeriodNotFound = "enrollment.holiday_period_not_found"
+const CodeEnrollmentHolidayProofLimit = "enrollment.holiday_proof_limit"
 const CodeEnrollmentHolidayRegistrationClosed = "enrollment.holiday_registration_closed"
 const CodeEnrollmentHolidayRegistrationEntryNotFound = "enrollment.holiday_registration_entry_not_found"
 const CodeEnrollmentHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
@@ -231,6 +232,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayPeriodIncomplete, "business_rejection"},
 	{CodeEnrollmentHolidayPeriodInvalid, "input"},
 	{CodeEnrollmentHolidayPeriodNotFound, "business_rejection"},
+	{CodeEnrollmentHolidayProofLimit, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationClosed, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationEntryNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationFormChanged, "business_rejection"},

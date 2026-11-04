@@ -13,7 +13,7 @@
   "invalid_credentials": "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
   "invitation_account_login_required": "Dla tego adresu e-mail istnieje już konto. Najpierw zaloguj się na nie, a potem ponownie otwórz zaproszenie.",
   "invitation_account_mismatch": "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
-  "invitation_expired": "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+  "invitation_expired": "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
   "invitation_not_found": "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
   "mfa_blocked": "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
   "mfa_code_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

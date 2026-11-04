@@ -34,6 +34,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}:                     notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings"}: notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}:                     notCaptured,
 	{http.MethodPost, "/traeger/school-sessions/"}:                                                               notCaptured,
 	{http.MethodDelete, "/traeger/settings/values/{key}"}:                                                        notCaptured,
 	{http.MethodPut, "/traeger/settings/values/{key}"}:                                                           notCaptured,
@@ -59,6 +60,16 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The debtor number of a confirmed registration (#5621) belongs to the
 	// Träger as well.
 	{http.MethodPut, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number"}: notCaptured,
+	// The cost bearers of a Träger and the cost takeover (#5627) belong to
+	// the Träger too, and so does the proof the Träger-Büro uploads.
+	{http.MethodPost, "/traeger/cost-bearers/"}:                                              notCaptured,
+	{http.MethodPut, "/traeger/cost-bearers/{id}"}:                                           notCaptured,
+	{http.MethodDelete, "/traeger/cost-bearers/{id}"}:                                        notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/proofs"}: notCaptured,
+	// The siblings of separate holiday registrations (#5628) belong to the
+	// Träger too.
+	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/sibling-groups"}:                                  notCaptured,
+	{http.MethodDelete, "/traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{registrationId}"}: notCaptured,
 	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
 	// Träger: no school to count it for.
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
@@ -72,6 +83,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
 	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
+	// Storno and Gutschrift of an issued invoice (#4690) belong to the
+	// Träger as well.
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/cancellation"}: notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
 }
 
 func init() {

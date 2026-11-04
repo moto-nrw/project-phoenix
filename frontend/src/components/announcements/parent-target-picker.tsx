@@ -9,7 +9,7 @@ import type { FormError } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
@@ -230,33 +230,37 @@ export function ParentTargetPicker({
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <span className={fieldLabel}>Klassen</span>
-              <MultiCheckboxSelect
+              <MultiSelect
                 ariaLabel="Klassen auswählen"
                 value={selectedClasses}
                 options={schoolClasses.map((c) => ({ value: c, label: c }))}
                 onChange={(values) => setCategory("class", values)}
-                emptyLabel="Keine ausgewählt"
+                placeholder="Keine ausgewählt"
                 unavailableLabel="Keine Klassen"
+                summaryLabel={(count) => `${count} ausgewählt`}
                 searchable
+                selectAll
                 searchPlaceholder="Klasse suchen…"
               />
             </div>
             <div>
               <span className={fieldLabel}>Gruppen</span>
-              <MultiCheckboxSelect
+              <MultiSelect
                 ariaLabel="Gruppen auswählen"
                 value={selectedGroups}
                 options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 onChange={(values) => setCategory("group", values)}
-                emptyLabel="Keine ausgewählt"
+                placeholder="Keine ausgewählt"
                 unavailableLabel="Keine Gruppen"
+                summaryLabel={(count) => `${count} ausgewählt`}
                 searchable
+                selectAll
                 searchPlaceholder="Gruppe suchen…"
               />
             </div>
             <div>
               <span className={fieldLabel}>AGs / Betreuung</span>
-              <MultiCheckboxSelect
+              <MultiSelect
                 ariaLabel="AGs auswählen"
                 value={selectedActivities}
                 options={activities.map((a) => ({
@@ -264,9 +268,11 @@ export function ParentTargetPicker({
                   label: a.name,
                 }))}
                 onChange={(values) => setCategory("activity_group", values)}
-                emptyLabel="Keine ausgewählt"
+                placeholder="Keine ausgewählt"
                 unavailableLabel="Keine AGs"
+                summaryLabel={(count) => `${count} ausgewählt`}
                 searchable
+                selectAll
                 searchPlaceholder="AG suchen…"
               />
             </div>

@@ -1,4 +1,5 @@
 import {
+  holidayAddressRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -34,7 +35,14 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
-  HolidayRegistrationAction | "confirm" | "rebook" | "debtor_number";
+  | HolidayRegistrationAction
+  | "confirm"
+  | "rebook"
+  | "debtor_number"
+  | "edit"
+  | "proof_upload"
+  | "sibling_merge"
+  | "sibling_split";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -167,6 +175,10 @@ export interface HolidayRegistrationEvent {
     readonly before: string;
     readonly after: string;
   } | null;
+  /** The fields an edit changed, as paths like "guardian.phone" (#5629). */
+  readonly fields: readonly string[];
+  /** The other registrations of a sibling merge or split (#5628). */
+  readonly siblings: readonly string[];
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -309,6 +321,8 @@ interface BackendDetail extends BackendSummary {
           before?: BackendBookingChange[] | null;
           after?: BackendBookingChange[] | null;
           debtor_number?: { before: string; after: string } | null;
+          fields?: string[] | null;
+          siblings?: number[] | null;
         } | null;
       }[]
     | null;
@@ -316,6 +330,7 @@ interface BackendDetail extends BackendSummary {
   form?: {
     version: number;
     fields?: HolidayFormField[] | null;
+    address_requirement?: string | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
   } | null;
   custom_data?: Record<string, unknown> | null;
@@ -414,12 +429,17 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
       debtorNumber: event.details?.debtor_number ?? null,
+      fields: event.details?.fields ?? [],
+      siblings: (event.details?.siblings ?? []).map(String),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
       legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
       version: registration.form?.version ?? 0,
       fields: registration.form?.fields ?? [],
+      addressRequirement: holidayAddressRequirement(
+        registration.form?.address_requirement,
+      ),
     },
     answers: registration.custom_data ?? {},
     childAnswers: Object.fromEntries(
@@ -444,6 +464,35 @@ export function holidayProofHref(
   proofId: string,
 ): string {
   return `${registrationPath(periodId, registrationId)}/proofs/${encodeURIComponent(proofId)}`;
+}
+
+/**
+ * Uploads a proof of benefits the family brought on paper (#5627) and
+ * returns the registration with its proofs. The backend checks type, size
+ * and content like the parents' upload.
+ */
+export async function uploadHolidayProof(
+  periodId: string,
+  registrationId: string,
+  file: File,
+): Promise<HolidayRegistrationDetail> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await transportFetch(
+    `${registrationPath(periodId, registrationId)}/proofs`,
+    { method: "POST", body, credentials: "include" },
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    data?: BackendDetail;
+  } | null;
+  if (!response.ok || !payload?.data) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      payload,
+    );
+  }
+  return detailFromBackend(payload.data);
 }
 
 /** The query string of a filter, empty values left out. */
@@ -578,6 +627,125 @@ export async function rebookHolidayChild(
   );
 }
 
+/** A person of the registration as the Träger-Büro edits it (#5629). */
+export interface HolidayRegistrationPersonEdit {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email: string;
+  readonly phone: string;
+}
+
+/** The postal address of the parent who registered (#5625). */
+interface HolidayRegistrationAddressEdit {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+}
+
+/** An emergency contact or a person allowed to collect the children. */
+export interface HolidayRegistrationContactEdit {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+/** The details of one child; a null school makes it a holiday guest. */
+interface HolidayRegistrationChildEdit {
+  readonly id: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: string;
+  readonly homeSchoolId: string | null;
+  readonly guestSchoolName: string;
+  /** Its answers to the questions without health information. */
+  readonly answers: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One change of the details (#5629). A section that is absent stays as it
+ * is; a null `secondGuardian` removes the second guardian.
+ */
+export interface HolidayRegistrationEdit {
+  readonly guardians?: {
+    readonly guardian: HolidayRegistrationPersonEdit;
+    /** Null removes the address; the form version decides whether it is asked. */
+    readonly address: HolidayRegistrationAddressEdit | null;
+    readonly secondGuardian: HolidayRegistrationPersonEdit | null;
+  };
+  readonly child?: HolidayRegistrationChildEdit;
+  readonly contacts?: {
+    readonly emergency: readonly HolidayRegistrationContactEdit[];
+    readonly pickup: readonly HolidayRegistrationContactEdit[];
+  };
+  /** The family's answers to the questions without health information. */
+  readonly answers?: Readonly<Record<string, unknown>>;
+}
+
+function personBody(person: HolidayRegistrationPersonEdit) {
+  return {
+    first_name: person.firstName,
+    last_name: person.lastName,
+    email: person.email,
+    phone: person.phone,
+  };
+}
+
+/** The request body; the field names are those of the public form. */
+function holidayRegistrationEditBody(
+  edit: HolidayRegistrationEdit,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (edit.guardians) {
+    body.guardian = personBody(edit.guardians.guardian);
+    const address = edit.guardians.address;
+    body.guardian_address = address
+      ? {
+          street: address.street,
+          postal_code: address.postalCode,
+          city: address.city,
+        }
+      : null;
+    body.second_guardian = edit.guardians.secondGuardian
+      ? personBody(edit.guardians.secondGuardian)
+      : null;
+  }
+  if (edit.child) {
+    body.children = [
+      {
+        id: Number(edit.child.id),
+        first_name: edit.child.firstName,
+        last_name: edit.child.lastName,
+        birth_date: edit.child.birthDate,
+        home_school_id: edit.child.homeSchoolId
+          ? Number(edit.child.homeSchoolId)
+          : 0,
+        guest_school_name: edit.child.guestSchoolName,
+        custom_data: edit.child.answers,
+      },
+    ];
+  }
+  if (edit.contacts) {
+    body.emergency_contacts = edit.contacts.emergency;
+    body.pickup_persons = edit.contacts.pickup;
+  }
+  if (edit.answers) body.custom_data = edit.answers;
+  return body;
+}
+
+/** Changes the details a family entered (#5629). */
+export async function editHolidayRegistration(
+  periodId: string,
+  registrationId: string,
+  edit: HolidayRegistrationEdit,
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/details`,
+      { method: "PUT", body: holidayRegistrationEditBody(edit) },
+    ),
+  );
+}
+
 /** The export of a filter as CSV or Excel, with the backend's file name. */
 export async function downloadHolidayRegistrations(
   periodId: string,
@@ -613,14 +781,29 @@ export async function downloadHolidayRegistrations(
  * contributions client, because the list reads it for its column too and
  * should not load that client.
  */
+/** An active cost bearer the confirmation offers (#5627). */
+export interface CostBearerChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
 export interface HolidayConfirmationSettings {
   /** The Träger asks for the debtor number of the family. */
   readonly debtorNumberRequired: boolean;
+  /** The active cost bearers of the Träger, by name (#5627). */
+  readonly costBearers?: readonly CostBearerChoice[];
 }
 
 export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
-  const settings = await traegerRequest<{ debtor_number_required: boolean }>(
-    "/api/traeger/holiday-contributions/confirmation-settings",
-  );
-  return { debtorNumberRequired: settings.debtor_number_required };
+  const settings = await traegerRequest<{
+    debtor_number_required: boolean;
+    cost_bearers?: { id: number; name: string }[] | null;
+  }>("/api/traeger/holiday-contributions/confirmation-settings");
+  return {
+    debtorNumberRequired: settings.debtor_number_required,
+    costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
+      id: String(bearer.id),
+      name: bearer.name,
+    })),
+  };
 }

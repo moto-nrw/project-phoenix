@@ -1169,7 +1169,8 @@ function CareOfferingToolbar({
             ariaLabel="Anmeldephase"
             value={selectedPhaseId}
             onChange={onPhaseChange}
-            className="h-9 min-w-0 sm:w-auto sm:max-w-md"
+            controlSize="compact"
+            className="min-w-0 sm:w-auto sm:max-w-md"
             options={phases.map((phase) => ({
               value: phase.id,
               label: `${phase.name} (${KIND_LABELS[phase.kind]})${
@@ -1573,7 +1574,7 @@ function CareOfferingTemplateField({
             onChange({ activity_group_id: value ? Number(value) : null })
           }
           disabled={selectorDisabled}
-          className="mt-1 border-gray-200 bg-white"
+          className="mt-1"
           invalid={templateError !== undefined}
           ariaDescribedBy={
             templateError ? "care-offering-template-error" : undefined

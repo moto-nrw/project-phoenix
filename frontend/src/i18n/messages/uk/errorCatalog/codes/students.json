@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_proof_not_found": "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
   "pickup_reset_requires_offering": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "pickup_reset_still_needed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "reason_required": "Не вказано причину: {object}. Вкажіть її.",
   "request_not_decided": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "request_not_past": "Не вдалося змінити: {object}. Перевірте поточний стан.",

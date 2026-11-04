@@ -2450,7 +2450,9 @@ export interface ParentDocument {
   readonly id: string;
   readonly organization_id: string;
   readonly traeger_name: string;
-  readonly kind: "confirmation_letter";
+  /** The confirmation letter, or the letter of its Storno or Gutschrift (#4690). */
+  readonly kind:
+    "confirmation_letter" | "cancellation_letter" | "credit_letter";
   readonly number: string;
   readonly period_name: string;
   readonly service_from: string;

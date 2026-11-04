@@ -84,6 +84,13 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     also inside src/components/ui/; use
 //                                     IconTile or ConceptIconTile
 //
+// One more keeps select fields on one look (#5580):
+//
+//   ui-kit/no-select-override       — no frame, fill, height or radius
+//                                     classes on CustomSelect, MultiSelect
+//                                     or ListboxDropdown outside the kit;
+//                                     pick controlSize, pass layout only
+//
 // Two more keep SectionCard the only card head (#5581):
 //
 //   ui-kit/no-important-override   — no `!` utility on a kit component; the
@@ -1151,7 +1158,7 @@ src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@299 text-[11px]@305
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@300 text-[11px]@306
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
@@ -2255,6 +2262,118 @@ const noHandRolledIconTile = {
   },
 };
 
+// --- ui-kit/no-select-override (#5580) --------------------------------------
+//
+// Auswahlfelder bringen ihre Optik aus dem Kit mit: ListboxDropdown zeichnet
+// Auslöser, Menü, Option und Kästchen, CustomSelect und MultiSelect setzen
+// darauf auf. Ein Aufrufer wählt `controlSize`/`size` und gibt nur Layout
+// (Breite, flex, Schriftgewicht) in className/menuClassName. Rahmen-,
+// Hintergrund-, Höhen- und Radiusklassen sowie die Flächen-Utilities sind
+// dort verboten, ebenso `unstyledTrigger` außerhalb des Kits. Hart null.
+
+const SELECT_COMPONENT_MODULES = new Map([
+  ["~/components/ui/custom-select", "CustomSelect"],
+  ["@/components/ui/custom-select", "CustomSelect"],
+  ["~/components/ui/multi-select", "MultiSelect"],
+  ["@/components/ui/multi-select", "MultiSelect"],
+  ["~/components/ui/listbox-dropdown", "ListboxDropdown"],
+  ["@/components/ui/listbox-dropdown", "ListboxDropdown"],
+]);
+const SELECT_COMPONENTS = new Set(["CustomSelect", "MultiSelect", "ListboxDropdown"]);
+const SELECT_CLASS_PROPS = [
+  "className",
+  "triggerClassName",
+  "menuClassName",
+  "containerClassName",
+];
+const SELECT_OVERRIDE_RES = [
+  /^border(?:-|$)/,
+  /^bg-/,
+  /^(?:min-|max-)?h-/,
+  /^size-/,
+  /^rounded(?:-|$)/,
+  /^moto-(?:content|popover)-surface$/,
+];
+
+function selectOverrideTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) =>
+      SELECT_OVERRIDE_RES.some((re) => re.test(bareToken(token))),
+    );
+}
+
+const noSelectOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep frame, fill, height and radius of select fields in the kit; class props carry layout only.",
+    },
+    messages: {
+      override:
+        "Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize=\"compact\" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).",
+      unstyled:
+        "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    const constants = new Map();
+    const selects = new Set();
+    const pending = [];
+    return {
+      ImportDeclaration(node) {
+        const source =
+          node.source.type === "Literal" ? String(node.source.value) : "";
+        const exported = SELECT_COMPONENT_MODULES.get(source);
+        if (!exported) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== "ImportSpecifier") continue;
+          const imported =
+            specifier.imported.type === "Identifier"
+              ? specifier.imported.name
+              : String(specifier.imported.value);
+          if (SELECT_COMPONENTS.has(imported)) {
+            selects.add(specifier.local.name);
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        if (!selects.has(jsxName(node.name) ?? "")) return;
+        pending.push(node);
+      },
+      "Program:exit"() {
+        for (const node of pending) {
+          if (jsxAttribute(node, "unstyledTrigger")) {
+            context.report({ node, messageId: "unstyled" });
+          }
+          const tokens = SELECT_CLASS_PROPS.flatMap((name) => {
+            const attribute = jsxAttribute(node, name);
+            if (!attribute?.value) return [];
+            return selectOverrideTokens(classText(attribute.value, constants));
+          });
+          if (tokens.length > 0) {
+            context.report({
+              node,
+              messageId: "override",
+              data: { tokens: [...new Set(tokens)].join(" ") },
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
 //
 // Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
@@ -2421,6 +2540,7 @@ export default {
     "no-important-override": noImportantOverride,
     "no-raw-input": noRawInput,
     "no-raw-z-index": noRawZIndex,
+    "no-select-override": noSelectOverride,
     "no-rounded-3xl": noRounded3xl,
     "no-section-card-bleed": noSectionCardBleed,
     "no-shadcn-tokens": noShadcnTokens,
