@@ -318,7 +318,7 @@ func (p groupLivePresence) Snapshot(ctx context.Context, studentIDs []int64, dat
 	for _, attendance := range attendances {
 		snapshot.Attendances[attendance.StudentID] = &studentpresence.DailyAttendanceStatus{
 			StudentID: attendance.StudentID, Date: day, Status: attendance.Status,
-			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
+			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, ArrivalTime: attendance.ArrivalTime, YardSince: attendance.YardSince,
 			CheckOutReason: attendance.CheckOutReason,
 		}
 	}
@@ -368,7 +368,7 @@ func (s groupLiveLocations) Attendance(studentID int64) (grouplive.Attendance, b
 	}
 	return grouplive.Attendance{
 		Recorded: true, Present: status.IsCurrentlyPresent(),
-		CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime,
+		CheckInTime: status.Arrival(), CheckOutTime: status.CheckOutTime,
 		InClass: status.IsInClass(),
 	}, true
 }

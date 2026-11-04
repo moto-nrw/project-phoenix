@@ -74,6 +74,9 @@ type DailyAttendanceStatus struct {
 	Date         calendar.Date `json:"date"`
 	CheckInTime  *time.Time    `json:"check_in_time"`
 	CheckOutTime *time.Time    `json:"check_out_time"`
+	// ArrivalTime is when the child arrived: CheckInTime, except that a return
+	// from class keeps the arrival before it (#5656). Read it through Arrival.
+	ArrivalTime *time.Time `json:"-"`
 	// YardSince, when non-nil, marks the moment the student moved to the
 	// schoolyard without checking out. Only meaningful while Status == "on_yard".
 	YardSince    *time.Time `json:"yard_since,omitempty"`
@@ -92,6 +95,18 @@ type DailyAttendanceStatus struct {
 	// CheckOutReason is CheckoutReasonClass when the child went to class and
 	// is expected back (#5656). Only set on a checked-out status.
 	CheckOutReason *string `json:"check_out_reason,omitempty"`
+}
+
+// Arrival is when the child arrived today. It stays the same across a return
+// from class, so that the return does not read as a late arrival (#5656).
+func (s *DailyAttendanceStatus) Arrival() *time.Time {
+	if s == nil {
+		return nil
+	}
+	if s.ArrivalTime != nil {
+		return s.ArrivalTime
+	}
+	return s.CheckInTime
 }
 
 // PickupTime is when the child left for the day. Leaving for class is no pickup

@@ -204,11 +204,25 @@ type AttendanceStatus struct {
 	Date         string
 	CheckInTime  *time.Time
 	CheckOutTime *time.Time
+	// ArrivalTime is when the child arrived: CheckInTime, except that a return
+	// from class keeps the arrival before it (#5656). Read it through Arrival.
+	ArrivalTime  *time.Time
 	YardSince    *time.Time
 	CheckedInBy  string
 	CheckedOutBy string
 	// CheckOutReason is CheckoutReasonClass when the child went to class (#5656).
 	CheckOutReason *string
+}
+
+// Arrival is when the child arrived today, across a return from class (#5656).
+func (s *AttendanceStatus) Arrival() *time.Time {
+	if s == nil {
+		return nil
+	}
+	if s.ArrivalTime != nil {
+		return s.ArrivalTime
+	}
+	return s.CheckInTime
 }
 
 // PickupTime is when the child left for the day. Leaving for class is no pickup.

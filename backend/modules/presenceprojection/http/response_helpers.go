@@ -533,7 +533,7 @@ func applyActualTimesFromAttendance(response *StudentResponse, status *studentpr
 		return
 	}
 
-	response.ActualArrivalTime = calendar.FormatBerlinClock(status.CheckInTime)
+	response.ActualArrivalTime = calendar.FormatBerlinClock(status.Arrival())
 	response.ActualPickupTime = calendar.FormatBerlinClock(status.PickupTime())
 	if status.PickupTime() != nil {
 		response.ActualPickupNote = status.CheckOutNote

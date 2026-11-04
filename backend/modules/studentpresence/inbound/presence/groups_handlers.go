@@ -428,7 +428,7 @@ func visitActualTimes(studentID int64, attendanceStatuses map[int64]*studentpres
 	var actualPickup *string
 	if access.HasFullAccess() {
 		if attendanceStatus, ok := attendanceStatuses[studentID]; ok && attendanceStatus != nil {
-			actualArrival = calendar.FormatBerlinClock(attendanceStatus.CheckInTime)
+			actualArrival = calendar.FormatBerlinClock(attendanceStatus.Arrival())
 			actualPickup = calendar.FormatBerlinClock(attendanceStatus.PickupTime())
 		}
 	}

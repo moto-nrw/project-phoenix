@@ -143,7 +143,7 @@ func attendanceStatus(status *AttendanceStatus) *studentpresence.AttendanceStatu
 	}
 	return &studentpresence.AttendanceStatus{
 		StudentID: status.StudentID, Status: status.Status, Date: status.Date.String(),
-		CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime, YardSince: status.YardSince,
+		CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime, ArrivalTime: status.ArrivalTime, YardSince: status.YardSince,
 		CheckedInBy: status.CheckedInBy, CheckedOutBy: status.CheckedOutBy, CheckOutReason: status.CheckOutReason,
 	}
 }
