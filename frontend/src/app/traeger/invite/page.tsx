@@ -52,7 +52,7 @@ const SHELL_COPY = {
   // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
   eyebrowClassName: "text-moto-blue",
   title: "Einladung ins Träger-Büro",
-  subtitle: "Nehmen Sie die Einladung an. Danach sind Sie angemeldet.",
+  subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;
 
 /**
