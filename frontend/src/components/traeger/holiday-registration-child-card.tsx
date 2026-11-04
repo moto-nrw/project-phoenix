@@ -36,12 +36,20 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  groupParallelWeeks,
+  sharesDates,
+  weekGroupBooking,
+  weekGroupDates,
+  withWeekGroupBooking,
+} from "~/lib/holiday-week-groups";
+import {
   answeredQuestions,
   HolidayRegistrationAnswers,
 } from "./holiday-registration-answers";
 import {
   childSchoolLabel,
   formatHolidayWeek,
+  holidayBookingOption,
 } from "./holiday-registration-format";
 
 const logger = createLogger({ component: "HolidayRegistrationChildCard" });
@@ -282,25 +290,41 @@ function RebookingEditor({
         gebucht.
       </p>
       <ul className="space-y-3">
-        {period.weeks.map((week) => {
-          const weekId = week.id ?? "";
-          const label = `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}`;
+        {groupParallelWeeks(period.weeks).map((group) => {
+          const schoolOf = (week: (typeof group)[number]) =>
+            names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden";
+          const dates = weekGroupDates(group);
+          const range = formatHolidayWeek(dates.startsOn, dates.endsOn);
+          const single = group.length === 1 ? group[0] : undefined;
+          const label = single ? `${range}, ${schoolOf(single)}` : range;
+          const sameDates = sharesDates(group);
           return (
             <li
-              key={weekId}
+              key={group[0]?.id ?? range}
               className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
             >
               <span className="text-sm text-gray-900">{label}</span>
               <CustomSelect
-                value={draft[weekId] ?? ""}
+                value={weekGroupBooking(draft, group)}
+                wrapLabels={!single}
                 options={[
                   { value: "", label: "Nicht angemeldet" },
-                  ...week.timeModels.map((model) => ({
-                    value: model.id ?? "",
-                    label: model.name,
-                  })),
+                  ...group.flatMap((week) =>
+                    week.timeModels.map((model) => ({
+                      value: model.id ?? "",
+                      label: holidayBookingOption(
+                        model.name,
+                        single ? "" : schoolOf(week),
+                        sameDates
+                          ? ""
+                          : formatHolidayWeek(week.startsOn, week.endsOn),
+                      ),
+                    })),
+                  ),
                 ]}
-                onChange={(value) => onChange({ ...draft, [weekId]: value })}
+                onChange={(value) =>
+                  onChange(withWeekGroupBooking(draft, group, value))
+                }
                 ariaLabel={`Zeitmodell ${label}`}
                 className="w-full sm:w-56"
               />

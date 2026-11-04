@@ -38,6 +38,7 @@
   "weeksTitle": "Weeks",
   "weeksText": "For each week, choose how long your child stays.",
   "notBooked": "Not registered",
+  "parallelWeeksHint": "This week is offered at several schools. Choose one school and the time.",
   "weekRange": "{starts} to {ends}",
   "timeModel": "{name} ({startsAt} to {endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt} to {endsAt})",

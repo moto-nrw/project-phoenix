@@ -25,6 +25,19 @@ export const HOLIDAY_REGISTRATION_STATUS_TONES: Readonly<
 };
 
 /** "04.01. bis 08.01.2027". */
+/**
+ * The text of a time model at the choice among parallel weeks: school and,
+ * where the days differ, the days come first.
+ */
+export function holidayBookingOption(
+  timeModel: string,
+  school: string,
+  days: string,
+): string {
+  const where = [days, school].filter(Boolean).join(", ");
+  return where ? `${where}: ${timeModel}` : timeModel;
+}
+
 export function formatHolidayWeek(startsOn: string, endsOn: string): string {
   return `${formatDate(startsOn).slice(0, 6)} bis ${formatDate(endsOn)}`;
 }

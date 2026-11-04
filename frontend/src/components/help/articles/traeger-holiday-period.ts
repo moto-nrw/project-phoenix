@@ -8,7 +8,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
     title: "Ferienzeitraum anlegen",
     question: "Wie plane ich Ferienbetreuung für mehrere Schulen?",
     summary:
-      "Ein Ferienzeitraum hat buchbare Wochen. Jede Woche findet an einer Schule Ihres Trägers statt.",
+      "Ein Ferienzeitraum hat buchbare Wochen. Jede Woche findet an einer Schule Ihres Trägers statt. Dieselbe Zeit kann es an mehreren Schulen geben.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "SunHorizon",
@@ -35,6 +35,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
           "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
           "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
           "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
+          "Dieselbe Zeit an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
           "Wählen Sie `Speichern`.",
         ],
       },

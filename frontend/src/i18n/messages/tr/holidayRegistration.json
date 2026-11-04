@@ -38,6 +38,7 @@
   "weeksTitle": "Haftalar",
   "weeksText": "Her hafta için çocuğunuzun ne kadar kalacağını seçin.",
   "notBooked": "Kayıt yok",
+  "parallelWeeksHint": "Bu hafta birkaç okulda sunuluyor. Bir okul ve saat seçin.",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",

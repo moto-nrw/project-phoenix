@@ -287,6 +287,7 @@ func TestTraegerHolidayPeriodValidatesAndPublishesOnlyWhenComplete(t *testing.T)
 	invalid.RegistrationClosesOn = "2026-10-01"
 	invalid.Weeks[1].StartsOn = "2027-01-08"
 	invalid.Weeks[1].EndsOn = "2027-01-12"
+	invalid.Weeks[1].HostSchoolID = invalid.Weeks[0].HostSchoolID
 	invalid.Weeks[0].TimeModels[1].EndsAt = "07:00"
 	invalid.Weeks[0].TimeModels[0].PriceCents = -1
 	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/holiday-periods/", invalid)

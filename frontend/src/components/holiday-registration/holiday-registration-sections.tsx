@@ -22,6 +22,13 @@ import {
   isFieldVisible,
 } from "~/lib/enrollment-field-visibility";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
+import {
+  groupParallelWeeks,
+  sharesDates,
+  weekGroupBooking,
+  weekGroupDates,
+  withWeekGroupBooking,
+} from "~/lib/holiday-week-groups";
 import type {
   HolidayKnownChild,
   HolidayRegistrationOffer,
@@ -50,7 +57,7 @@ export function useWeekLabels() {
       currency: "EUR",
     });
     return {
-      range: (week: HolidayRegistrationWeek) =>
+      range: (week: Pick<HolidayRegistrationWeek, "startsOn" | "endsOn">) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
           ends: formatDate(week.endsOn, false, locale),
@@ -72,6 +79,71 @@ export function useWeekLabels() {
         }),
     };
   }, [locale, t]);
+}
+
+/**
+ * One choice for the weeks that share a day (#5689): a single week offers its
+ * time models, parallel weeks offer those of all their schools, so a child
+ * takes part in only one of them.
+ */
+function WeekChoice({
+  group,
+  prefix,
+  value,
+  invalid,
+  onChange,
+}: Readonly<{
+  group: readonly HolidayRegistrationWeek[];
+  prefix: string;
+  value: string;
+  invalid: boolean;
+  onChange: (timeModelId: string) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const labels = useWeekLabels();
+  const first = group[0];
+  if (!first) return null;
+  const parallel = group.length > 1;
+  const sameDates = sharesDates(group);
+  const optionLabel = (
+    week: HolidayRegistrationWeek,
+    model: HolidayRegistrationTimeModel,
+  ) => {
+    const priced = labels.pricedTimeModel(model);
+    if (!parallel) return priced;
+    return sameDates
+      ? `${week.hostSchoolName}: ${priced}`
+      : `${labels.range(week)}, ${week.hostSchoolName}: ${priced}`;
+  };
+  const labelId = `${prefix}-week-${first.id}`;
+  return (
+    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
+      <span id={labelId} className="text-sm text-gray-900">
+        {labels.range(weekGroupDates(group))}
+        <span className="block text-xs text-gray-500">
+          {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
+        </span>
+      </span>
+      <CustomSelect
+        name={`${prefix}.bookings`}
+        wrapLabels
+        ariaLabelledBy={labelId}
+        value={value}
+        invalid={invalid}
+        ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
+        options={[
+          { value: "", label: t("notBooked") },
+          ...group.flatMap((week) =>
+            week.timeModels.map((model) => ({
+              value: model.id,
+              label: optionLabel(week, model),
+            })),
+          ),
+        ]}
+        onChange={onChange}
+      />
+    </div>
+  );
 }
 
 export function ChildCard({
@@ -99,7 +171,6 @@ export function ChildCard({
 }>) {
   const t = useTranslations("holidayRegistration");
   const dateOfBirth = useTranslations("enrollmentForm");
-  const labels = useWeekLabels();
   const prefix = `children.${index}`;
   const guest = child.school === OTHER_SCHOOL;
   const set = (patch: Partial<ChildDraft>) => onChange({ ...child, ...patch });
@@ -212,44 +283,23 @@ export function ChildCard({
           <p className="text-sm text-gray-600">
             {`${t("weeksText")} ${t("weeksPriceText")}`}
           </p>
-          {offer.weeks.map((week) => (
-            <div
-              key={week.id}
-              className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2"
-            >
-              <span
-                id={`${prefix}-week-${week.id}`}
-                className="text-sm text-gray-900"
-              >
-                {labels.range(week)}
-                <span className="block text-xs text-gray-500">
-                  {week.hostSchoolName}
-                </span>
-              </span>
-              <CustomSelect
-                name={`${prefix}.bookings`}
-                wrapLabels
-                ariaLabelledBy={`${prefix}-week-${week.id}`}
-                value={child.bookings[week.id] ?? ""}
-                invalid={Boolean(bookingsError)}
-                ariaDescribedBy={
-                  bookingsError ? `${prefix}-bookings-error` : undefined
-                }
-                options={[
-                  { value: "", label: t("notBooked") },
-                  ...week.timeModels.map((model) => ({
-                    value: model.id,
-                    label: labels.pricedTimeModel(model),
-                  })),
-                ]}
-                onChange={(timeModelId) => {
-                  const bookings = { ...child.bookings };
-                  if (timeModelId) bookings[week.id] = timeModelId;
-                  else delete bookings[week.id];
-                  set({ bookings });
-                }}
-              />
-            </div>
+          {groupParallelWeeks(offer.weeks).map((group) => (
+            <WeekChoice
+              key={group[0]?.id}
+              group={group}
+              prefix={prefix}
+              value={weekGroupBooking(child.bookings, group)}
+              invalid={Boolean(bookingsError)}
+              onChange={(timeModelId) =>
+                set({
+                  bookings: withWeekGroupBooking(
+                    child.bookings,
+                    group,
+                    timeModelId,
+                  ),
+                })
+              }
+            />
           ))}
           <FieldErrorHint
             id={`${prefix}-bookings-error`}

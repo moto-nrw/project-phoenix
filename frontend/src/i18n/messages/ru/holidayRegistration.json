@@ -38,6 +38,7 @@
   "weeksTitle": "Недели",
   "weeksText": "Выберите для каждой недели, как долго ребёнок остаётся.",
   "notBooked": "Без записи",
+  "parallelWeeksHint": "Эта неделя предлагается в нескольких школах. Выберите одну школу и время.",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",

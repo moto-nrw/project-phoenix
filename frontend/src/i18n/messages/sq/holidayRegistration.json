@@ -38,6 +38,7 @@
   "weeksTitle": "Javët",
   "weeksText": "Zgjidhni për çdo javë sa gjatë qëndron fëmija.",
   "notBooked": "Pa regjistrim",
+  "parallelWeeksHint": "Kjo javë ofrohet në disa shkolla. Zgjidhni një shkollë dhe kohën.",
   "weekRange": "{starts} deri më {ends}",
   "timeModel": "{name} ({startsAt} deri {endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt} deri {endsAt})",
