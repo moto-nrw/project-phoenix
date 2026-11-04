@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -35,7 +34,8 @@ type directory struct {
 	logger     *slog.Logger
 }
 
-// NewDirectory builds the kiosk roster without the hints on holiday guests.
+// NewDirectory builds the kiosk roster without the hints on holiday guests,
+// for focused tests of the roster.
 func NewDirectory(people DirectoryPeople, activities DirectoryActivities, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
 	return newDirectory(people, activities, nil, principals, logger)
 }
@@ -127,24 +127,24 @@ func (d *directory) Students(ctx context.Context, teacherIDs []int64) ([]devices
 			result = append(result, student)
 		}
 	}
-	if err := d.nameHolidayGuestSchools(ctx, device.TenantID, result); err != nil {
-		return nil, err
-	}
+	d.nameHolidayGuestSchools(ctx, device.TenantID, result)
 	return result, nil
 }
 
 // nameHolidayGuestSchools sets the school of every holiday guest on the
 // roster, in one read for the whole school and none for an empty roster.
-func (d *directory) nameHolidayGuestSchools(ctx context.Context, schoolID int64, students []devicescan.DirectoryStudent) error {
+// The hint is optional: when the read fails, the roster stays usable and
+// the guests keep their class „Feriengast“.
+func (d *directory) nameHolidayGuestSchools(ctx context.Context, schoolID int64, students []devicescan.DirectoryStudent) {
 	if d.guests == nil || len(students) == 0 {
-		return nil
+		return
 	}
 	schools, err := d.guests(ctx, schoolID)
 	if err != nil {
-		return fmt.Errorf("kiosk directory: name the schools of the holiday guests: %w", err)
+		d.logger.WarnContext(ctx, "failed to name the schools of the holiday guests", slog.String("error", err.Error()))
+		return
 	}
 	for i := range students {
 		students[i].HolidayGuestSchool = schools[students[i].StudentID]
 	}
-	return nil
 }

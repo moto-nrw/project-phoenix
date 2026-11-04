@@ -65,6 +65,8 @@ type HolidayGuests struct {
 	log     enrollment.HolidayGuestAccessLog
 	today   func() calendar.Date
 	logger  *slog.Logger
+	// HolidayGuestBadgeList serves the hints of the school's lists (#5630).
+	HolidayGuestBadgeList
 }
 
 var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
@@ -84,7 +86,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 		today = calendar.TodayDate
 	}
 	return &HolidayGuests{store: store, people: people, schools: schools, care: care, health: health, log: log, today: today,
-		logger: slog.Default().With("service", "holiday-guests")}
+		logger: slog.Default().With("service", "holiday-guests"), HolidayGuestBadgeList: NewHolidayGuestBadgeList(store, today)}
 }
 
 // AssignHolidayGuestGroup stores the group of the week and copies the
@@ -572,12 +574,6 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 		sheet.Answers = []enrollment.HolidayHostAnswer{}
 	}
 	return sheet
-}
-
-// HolidayGuestBadges lists the hint of every guest the school cares for
-// today (#5630).
-func (h *HolidayGuests) HolidayGuestBadges(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestBadge, error) {
-	return HolidayGuestBadgeList{store: h.store, today: h.today}.HolidayGuestBadges(ctx, schoolID)
 }
 
 // HolidayGuestCurrentGuests is the slice of the holiday guest store the

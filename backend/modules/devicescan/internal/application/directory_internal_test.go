@@ -95,3 +95,50 @@ func TestDirectoryPreservesFilteredLookupFailureAndDeduplication(t *testing.T) {
 		t.Fatalf("filtered roster must deduplicate with the last row winning: %v, %v", filtered, err)
 	}
 }
+
+// The hint „Gast aus …“ (PyrePortal#499) names the school of the device's
+// tenant only, and a failed read leaves the roster usable without it.
+func TestDirectoryNamesHolidayGuestSchoolsAndSurvivesAFailedRead(t *testing.T) {
+	t.Parallel()
+	people := &directoryPeopleFake{students: []devicescan.DirectoryStudent{
+		{StudentID: testStudentID, SchoolClass: "Feriengast"}, {StudentID: testStudentID + 1, SchoolClass: "2b"},
+	}}
+	var asked []int64
+	var failure error
+	guests := func(_ context.Context, schoolID int64) (map[int64]string, error) {
+		asked = append(asked, schoolID)
+		return map[int64]string{testStudentID: "Grundschule Melle"}, failure
+	}
+	device := testDevice()
+	device.TenantID = 4242
+	directory := NewHolidayGuestDirectory(people, nil, guests, fakePrincipals{device: device}, nil)
+	for _, filter := range [][]int64{nil, {testStaffID}} {
+		students, err := directory.Students(context.Background(), filter)
+		if err != nil || len(students) != 2 {
+			t.Fatalf("filter %v: unexpected roster %+v, %v", filter, students, err)
+		}
+		hints := map[int64]string{}
+		for _, student := range students {
+			hints[student.StudentID] = student.HolidayGuestSchool
+		}
+		if hints[testStudentID] != "Grundschule Melle" || hints[testStudentID+1] != "" {
+			t.Fatalf("filter %v: unexpected hints %v", filter, hints)
+		}
+	}
+	if len(asked) != 2 || asked[0] != device.TenantID || asked[1] != device.TenantID {
+		t.Fatalf("hints must be read once per roster for the device's school, got %v", asked)
+	}
+
+	failure = errors.New("hints unavailable")
+	people.students = []devicescan.DirectoryStudent{{StudentID: testStudentID}, {StudentID: testStudentID + 1}}
+	students, err := directory.Students(context.Background(), nil)
+	if err != nil || len(students) != 2 || students[0].HolidayGuestSchool != "" || students[1].HolidayGuestSchool != "" {
+		t.Fatalf("a failed hint read must keep the roster without hints: %+v, %v", students, err)
+	}
+
+	people.students = nil
+	asked = nil
+	if _, err := directory.Students(context.Background(), nil); err != nil || len(asked) != 0 {
+		t.Fatalf("an empty roster reads no hints: asked=%v, err=%v", asked, err)
+	}
+}

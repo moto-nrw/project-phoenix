@@ -28,10 +28,9 @@ type Teacher struct {
 	DisplayName string `json:"display_name"`
 }
 
-// HolidayGuestSchools names, by student, the school the hint „Gast aus …“
-// on a holiday guest names (#5630), for every guest the school cares for
-// today. A guest without a named school is absent. It runs in the tenant
-// transaction of the school.
+// HolidayGuestSchools maps the student ID of each holiday guest the school
+// cares for today to the name of its home school (#5630). A guest without a
+// named school is absent. It runs in the tenant transaction of the school.
 type HolidayGuestSchools func(ctx context.Context, schoolID int64) (map[int64]string, error)
 
 // DirectoryStudent is the minimal student projection used for kiosk selection

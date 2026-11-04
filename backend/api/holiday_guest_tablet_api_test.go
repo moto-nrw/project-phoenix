@@ -5,6 +5,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -86,8 +87,20 @@ func TestTabletListNamesTheSchoolAHolidayGuestComesFrom(t *testing.T) {
 
 	// Other schools see no hint, neither of the same Träger nor of another.
 	testpkg.CreateTestStudentForTenant(t, f.db, sued.ID, "Kind", "Sued", "3a")
-	for id, hint := range f.tabletHints(t, sued.ID) {
+	suedHints := f.tabletHints(t, sued.ID)
+	require.NotEmpty(t, suedHints)
+	for id, hint := range suedHints {
 		assert.Nil(t, hint, "the OGS Süd sees no hint, child %d", id)
+	}
+	foreign := testpkg.CreateTestOrganization(t, f.db, &testpkg.Organization{
+		Name: "Fremder Träger Tablet", Slug: fmt.Sprintf("fremder-traeger-tablet-%d", testpkg.UniqueTestTenantID(t)),
+	}).ID
+	foreignSchool := testpkg.CreateTestSchoolInOrganization(t, f.db, foreign, "OGS eines fremden Trägers")
+	testpkg.CreateTestStudentForTenant(t, f.db, foreignSchool, "Kind", "Fremd", "1a")
+	foreignHints := f.tabletHints(t, foreignSchool)
+	require.NotEmpty(t, foreignHints)
+	for id, hint := range foreignHints {
+		assert.Nil(t, hint, "a school of another Träger sees no hint, child %d", id)
 	}
 
 	f.today.Store(calendar.NewDate(2099, 7, 11))
