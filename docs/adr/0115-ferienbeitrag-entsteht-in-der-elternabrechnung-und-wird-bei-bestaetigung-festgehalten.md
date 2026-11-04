@@ -259,10 +259,9 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    auch eine, die eine ausgestellte Rechnung abrechnet: Die Rechnung behält
    ihre eigenen Positionen (ADR 0119), und nach ihrem Storno stellt der
    nächste Lauf den neuen Beitrag aus. Solange die gültige Rechnung ohne die
-   Korrekturen des Laufs einen anderen Betrag abrechnet als der Beitrag,
-   meldet die Einzelansicht `correction_needed`; korrigiert wird mit Storno
-   oder Gutschrift
-   (#4690). Eine festgehaltene Befreiung, die keine Regel mehr erlaubt,
+   Korrekturen des Laufs der Familie oder dem Kostenträger einen anderen
+   Betrag abrechnet als der Beitrag, meldet die Einzelansicht
+   `correction_needed`; korrigiert wird mit Storno oder Gutschrift (#4690). Eine festgehaltene Befreiung, die keine Regel mehr erlaubt,
    behält ihren Beitrag, statt die Stornierung abzulehnen. Jede betroffene
    Anmeldung bekommt den Eintrag `sibling_cancel` mit den anderen
    Anmeldungen.

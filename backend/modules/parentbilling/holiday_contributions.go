@@ -146,11 +146,20 @@ type HolidayContribution struct {
 	// Chain names how the contribution was computed (#5664). A frozen one
 	// keeps it, so a later change of the settings does not reach it.
 	Chain HolidayChainSettings `json:"-"`
-	// CorrectionNeeded reports that the issued invoice billed another
-	// amount than the frozen contribution has now, for example after a
+	// CorrectionNeeded reports that the issued invoice billed the family or
+	// the cost bearer another amount than the frozen contribution has now,
+	// for example after a
 	// sibling was cancelled (#5662). The invoice keeps its amount; the
 	// Träger-Büro corrects it with a cancellation or credit note (#4690).
 	CorrectionNeeded bool `json:"correction_needed,omitempty"`
+}
+
+// IssuedContribution is what the issued invoice of a registration billed,
+// without the corrections of its run (#5662): TotalCents the family pays and
+// CostTakeoverCents the cost bearer pays.
+type IssuedContribution struct {
+	TotalCents        int64
+	CostTakeoverCents int64
 }
 
 // HolidayCancellation is a cancelled registration (#5662).

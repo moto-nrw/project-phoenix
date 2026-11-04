@@ -154,6 +154,36 @@ func TestCancellationComputesAnInvoicedSiblingAgainAndShowsTheCorrection(t *test
 	assert.Equal(t, int64(4500), next.PreviewCents, "the replacement invoice bills the full price")
 }
 
+// TestCancellationShowsTheCorrectionOfACostTakeover pins the review of
+// #5671: with a full cost takeover the family pays nothing before and after
+// the cancellation, but the cost bearer pays more, so the invoice needs a
+// correction too.
+func TestCancellationShowsTheCorrectionOfACostTakeover(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Storno Kostenträger")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	createContributionRule(t, f, billing, siblingHalf())
+	bearer := createCostBearer(t, f, billing, youthOffice())
+	first := f.submitChild(t, f.period, f.offer, "mama.traeger@example.org", "Mia", 0)
+	second := f.submitChild(t, f.period, f.offer, "papa.traeger@example.org", "Tom", 0)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, nil).Code)
+	rec := f.confirmWith(t, second, map[string]any{"cost_bearer_id": bearer.ID})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.True(t, f.cancelledContribution(t, second).Invoiced)
+	assert.False(t, f.cancelledContribution(t, second).CorrectionNeeded, "the invoice bills what the group ranks")
+
+	require.Equal(t, http.StatusOK, f.cancel(t, f.office.token, first).Code)
+	taken := f.cancelledContribution(t, second)
+	assert.Equal(t, int64(0), taken.TotalCents, "the family still pays nothing")
+	assert.True(t, taken.CorrectionNeeded, "the cost bearer paid 22,50 € on the invoice and pays 45,00 € now")
+}
+
 // TestCancellationKeepsALostExemptionOfASibling pins the review of #5671: a
 // sibling's frozen exemption whose rule is gone does not stop the
 // cancellation of another registration of the group; the exempt
