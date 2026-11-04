@@ -207,6 +207,16 @@ type AttendanceStatus struct {
 	YardSince    *time.Time
 	CheckedInBy  string
 	CheckedOutBy string
+	// CheckOutReason is CheckoutReasonClass when the child went to class (#5656).
+	CheckOutReason *string
+}
+
+// PickupTime is when the child left for the day. Leaving for class is no pickup.
+func (s *AttendanceStatus) PickupTime() *time.Time {
+	if s == nil || isClassReason(s.CheckOutReason) {
+		return nil
+	}
+	return s.CheckOutTime
 }
 
 // CheckoutOutcome is the outcome of an explicit school checkout.
