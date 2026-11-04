@@ -529,6 +529,7 @@ const (
 func (s *service) applyAtSchool(state *buildState, student *Student, decision DayDecision, attendance Attendance) {
 	if student.Location == inClassLocation && !s.deps.Planning.InClassUntilCareDayEnd(state.careDayEnd, s.deps.Calendar.Now()) {
 		student.Location = absentLocation
+		student.LocationSince = nil
 		return
 	}
 	if student.Location != absentLocation {

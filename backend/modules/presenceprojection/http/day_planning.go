@@ -229,6 +229,7 @@ func applyAtSchoolLocation(
 		response := &responses[i]
 		if response.Location == studentpresence.InClassLocationLabel && !careplan.InClassUntilCareDayEnd(careDayEnd, now) {
 			response.Location = studentpresence.AbsentLocationLabel
+			response.LocationSince = nil
 			continue
 		}
 		if !response.HasFullAccess || response.Location != studentpresence.AbsentLocationLabel {

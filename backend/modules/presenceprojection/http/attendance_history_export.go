@@ -222,9 +222,13 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	notes := checkOutNotesByInstant(attendanceRows)
 	coverageByDate := make(map[calendar.Date][]slotCoverage, len(slots))
+	slotCheckOuts := make(map[int64]bool, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
+		}
+		if row.Attendance.CheckedOutAt != nil {
+			slotCheckOuts[row.Attendance.CheckedOutAt.UnixNano()] = true
 		}
 		coverage := slotCoverage{
 			present:    row.Attendance.Status == studentpresence.SessionAttendancePresent,
@@ -244,7 +248,8 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) {
+		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) &&
+			!classStayLostFromSlots(attendance, slotCheckOuts) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
@@ -289,6 +294,13 @@ func attendanceStayNote(row *studentpresence.Attendance) string {
 		return attendanceWentToClassNote
 	}
 	return optionalString(row.CheckOutNote)
+}
+
+// classStayLostFromSlots reports a stay that ended in class but whose checkout
+// no slot row shows. A return into the same slot overwrites the slot's times, so
+// this stay needs its own row or the export would hide the class (#5656).
+func classStayLostFromSlots(row *studentpresence.Attendance, slotCheckOuts map[int64]bool) bool {
+	return row.LeftForClass() && row.CheckOutTime != nil && !slotCheckOuts[row.CheckOutTime.UnixNano()]
 }
 
 func slotCheckOutNote(row *studentpresence.HistorySlot, notes map[int64]string) string {
