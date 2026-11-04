@@ -183,7 +183,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1302, 1503, 1538],
+    lines: [1327, 1528, 1563],
     reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
@@ -301,7 +301,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1538],
+    lines: [1563],
     reason:
       "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
   },

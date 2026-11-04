@@ -99,7 +99,11 @@ export function NavigationScrollPosition() {
     committedUrl.current = currentUrl();
     const handleScroll = () => {
       lastScrollY.current = window.scrollY;
-      if (!isRestoring.current) {
+      // Nach einem Wechsel kann Next den Zielpfad schon bestätigen, bevor ein
+      // spätes `popstate` den Verlaufsschritt kennzeichnet. Ein dann noch
+      // eintreffendes Scroll-Ereignis gehört zur verlassenen Seite und darf
+      // deren gemerkte Position nicht unter dem Zielpfad überschreiben.
+      if (!isRestoring.current && !awaitingPathTraversal.current) {
         scrollPositions.current.set(
           committedPathname.current,
           lastScrollY.current,

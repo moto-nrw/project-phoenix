@@ -751,7 +751,9 @@ Backend paths in this section are relative to `backend/`:
   `organization_id`) to the school's `audit.auth_events` in the mint
   transaction. Ending the Träger's or the member's Träger sessions also deletes
   these sessions; the Träger logout revokes them through the switch lineage,
-  and an Absprung whose Träger family is gone is refused (#5422).
+  and an Absprung whose Träger family is gone is refused (#5422). Only a
+  session with `via_traeger` shows the link back to the Träger portal in the
+  school's navigation (#5687); it changes neither session.
 - Every account session, in every portal, is minted after the mint
   transaction stamped `last_login` on the live account under its row lock
   (`prepareSessionMint`; refresh locks the live account first). An account the
