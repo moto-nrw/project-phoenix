@@ -1,3 +1,4 @@
+import { builtinModules } from "node:module";
 import { promisify } from "node:util";
 
 import { afterAll, vi } from "vitest";
@@ -13,8 +14,10 @@ import { afterAll, vi } from "vitest";
  * - every module the Vite module runner evaluated, including its fetched
  *   meta and automock cache, and every vi.mock registration;
  * - own properties of globalThis, of every global constructor and its
- *   prototype, of the window's prototype chains, and the string keys of
- *   document, html, head, body, navigator, location, history and screen;
+ *   prototype, of Node's builtin modules with their exported classes,
+ *   functions and prototypes, of the window's prototype chains, and the
+ *   string keys of document, html, head, body, navigator, location, history
+ *   and screen;
  * - process.env, timer mode, the DOM tree and its attributes, cookies, URL
  *   and viewport;
  * - listeners added to window, document, html, head and body;
@@ -123,8 +126,54 @@ function ownDescriptors(target: object, stringKeysOnly: boolean): Descriptors {
   return descriptors;
 }
 
+/**
+ * Builtins left out of the snapshot: `_http_server` and the other internal
+ * aliases export what their public modules export, `node:test` and the other
+ * prefix-only modules are special or experimental, `punycode`, `sys` and
+ * `wasi` warn when loaded, and worker threads do not offer `trace_events`.
+ */
+const UNSNAPSHOTTED_BUILTINS = new Set([
+  "punycode",
+  "sys",
+  "trace_events",
+  "wasi",
+]);
+
+/**
+ * Node's builtin modules, their exported classes and functions and those
+ * prototypes. A builtin is loaded once per worker, like the natively loaded
+ * packages; a file that patches one (the session cookie exit lock wraps
+ * `ServerResponse.prototype.writeHead`, a test spies on `fs.readFileSync`)
+ * would hand its patch, with the file's own module instances in its closure,
+ * to every later file. Only descriptors are read: deprecated getters such
+ * as `fs.F_OK` warn when called.
+ */
+const builtinNames = new WeakMap<object, string>();
+
+function builtinTargets(): object[] {
+  const targets: object[] = [];
+  for (const name of builtinModules) {
+    if (name.startsWith("_") || name.startsWith("node:")) continue;
+    if (UNSNAPSHOTTED_BUILTINS.has(name)) continue;
+    const exports = process.getBuiltinModule(name) as object;
+    builtinNames.set(exports, `node:${name}`);
+    targets.push(exports);
+    for (const key of Reflect.ownKeys(exports)) {
+      const value: unknown = Reflect.getOwnPropertyDescriptor(
+        exports,
+        key,
+      )?.value;
+      if (typeof value !== "function") continue;
+      targets.push(value);
+      const prototype: unknown = value.prototype;
+      if (prototype && typeof prototype === "object") targets.push(prototype);
+    }
+  }
+  return targets;
+}
+
 function snapshotTargets(): ObjectSnapshot[] {
-  const targets = new Set<object>([globalThis]);
+  const targets = new Set<object>([globalThis, ...builtinTargets()]);
   for (const key of Reflect.ownKeys(globalThis)) {
     let value: unknown;
     try {
@@ -215,6 +264,8 @@ function restoreObject({
 
 function describeTarget(target: object): string {
   if (target === globalThis) return "globalThis";
+  const builtin = builtinNames.get(target);
+  if (builtin) return builtin;
   if (typeof target === "function") return target.name || "function";
   const owner = (target as { constructor?: { name?: string } }).constructor;
   return Object.hasOwn(target, "constructor")

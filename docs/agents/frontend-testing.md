@@ -36,7 +36,9 @@ It runs first (`groupOrder` 0), then `api-node` and `logic-node`, then
 All projects run with `isolate: false`: one worker thread (a process for
 `school-date-dom`) runs many test files. `src/test/setup-worker-reuse.ts`, the
 first setup file, resets after every file what a fresh worker would not have:
-evaluated modules and `vi.mock` registrations, globals and prototypes, the DOM
+evaluated modules and `vi.mock` registrations, globals and prototypes, Node's
+builtin modules with their exported classes and prototypes (a patched
+`ServerResponse.prototype` kept the previous file's module instances), the DOM
 with cookies, URL and viewport, listeners on window/document/html/head/body,
 pending Node and window timers, and `process.env`. A property it cannot restore
 fails the file. `src/test/reused-threads-pool.ts` bounds each thread's heap and
