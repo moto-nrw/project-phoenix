@@ -998,3 +998,88 @@ Ziel: CPU-Sekunden und Peak-RAM von `full` und `backend-full` (inklusive Postgre
 - Frontend `full`: Wand 161,3 / 161,2 → 104,8 / 110,9 s (−33 %); CPU 776,2 / 776,4 → 249,9 / 260,2 s (−67 %); Peak 3484 / 3479 → 1536 / 1593 MB (−55 %). Inventar 1547 Dateien / 24976 Tests identisch.
 - Backend `backend-full` (CPU und RAM inkl. Postgres-Container): Wand 335,4 / 354,4 → 269,9 / 313,7 s (−11 %); CPU 1103,3 / 1117,3 → 593,3 / 610,9 s (−46 %); Peak 7005 / 7060 → 2515 / 2384 MB (−65 %). Inventar 32878 Tests / 30 bestehende Skips identisch.
 - Ziel verfehlt nur bei Backend-CPU: ≈47 CPU-s über der Hälfte. Rest: Postgres ≈280 CPU-s (Test-SQL und Clone/Drop), Testbinaries ≈310 CPU-s, davon Architekturpaket ≈130. Ein erster Kandidatenblock war rot (Komplexitäts-Ratchet nach Integration), behoben in `8ec48d9c88` und vollständig neu gemessen.
+
+## Fortsetzung: Architektur-CPU und Peak-RAM, 4./5. November 2026
+
+Base: `6c6935d85c6c01235f60318cb2d17f61e55697c5`. Retained changes are confined to the Architecture Check tooling owner. No policy, baseline, import scope, assertion, skip, timeout or dependency changed. Existing AST/source reuse and policy-once remain unchanged.
+
+### Profile and retained changes
+
+- Pinned Go 1.27.3, `GOMAXPROCS=1`, `-parallel=8`, `-tags=testhooks`, test `GOGC=50`. The initial architecture CPU/memory profile passed 988 test events. Its parent sampled 32.63 CPU-s; `os.CopyFS` used 5.90 cumulative seconds and removal 6.57. The parent allocated 3160 MiB, including 638 MiB in package loading/type checking and 547 MiB in parsing. Child tools are outside that CPU profile.
+- `loadCompositionExternalTypes` now requests `NeedName | NeedTypes | NeedImports`, without `NeedDeps`. x/tools v0.52.0 disables compiler export loading when `NeedDeps` is set without `NeedExportFile`. The scanner reads only directly imported packages’ exported type objects, not dependency syntax or bodies. Every first-party semantic/body check remains unchanged.
+- Each immutable Git repository template is packed once with `git repack -adq --threads=1` before copying. Tests still copy the complete working tree and `.git`, with independent objects, refs and indexes. No alternates or hard links were introduced.
+
+### Alternating package pairs
+
+Fresh `go test -count=1` executions, base then candidate for each pair, after warming both variants. `/usr/bin/time -l` wraps `go test`; package pairs also use suite-equivalent `-ldflags=-w`. CPU is user plus system time including child tools; RSS is the reported maximum, not summed tree RSS.
+
+| Pair | Base CPU-s | Candidate CPU-s | Base RSS MiB | Candidate RSS MiB | Base wall-s | Candidate wall-s |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 137.84 | 119.30 | 715.5 | 432.7 | 50.73 | 36.03 |
+| 2 | 134.46 | 127.76 | 527.3 | 445.3 | 67.24 | 54.26 |
+| 3 | 120.95 | 114.80 | 702.9 | 446.3 | 45.02 | 34.08 |
+| Mean | 131.08 | 120.62 | 648.6 | 441.4 | 54.33 | 41.46 |
+
+CPU fell 8.0%, peak RSS 31.9%, wall 23.7%. Each pair improved all three. This does not halve architecture CPU or establish a whole-suite halving. All six runs exited 0.
+
+### Full-suite measurements, including the private PostgreSQL container
+
+Each side ran `scripts/run-go-toolchain.sh node scripts/test-perf.mjs run backend-full <label> --cache-state warm` after a full warm-up, using only Compose project `project-phoenix-testdb-5543`. All execution inventories are exactly equal: 501 packages, 32878 named tests, 32848 passed and 30 existing skips. `test-perf.mjs compare` accepted both comparisons.
+
+| Run | Process CPU-s | PG CPU-s | cpuTotalSeconds | Tree peak MiB | PG peak MiB | peakTotalMB | Wall-s | Queue-s |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Base | 358.4 | 345.9 | 704.3 | 1706 | 793 | 2499 | 331.3 | 2.9 |
+| Candidate, first | 425.8 | 293.8 | 719.6 | 2739 | 574 | 3313 | 346.1 | 62.5 |
+| Candidate, confirmation | 336.4 | 316.4 | 652.8 | 1644 | 781 | 2425 | 301.9 | 26.5 |
+
+The first candidate regressed despite faster test execution: summed package wall fell 601.60 → 526.18 s and architecture 47.758 → 38.177 s. It is retained, not discarded. A bounded confirmation on the same warm candidate did not reproduce the extra driver CPU/RSS. A separate process observer placed its peak mainly in `backend/test` (1334.6 MiB), alongside the Go driver (190.6 MiB) and a `care.test` binary (60.9 MiB). Its wider observer tree peaked at 1719.7 MiB; that is not the official meter’s 1644 MiB tree.
+
+The cause of the first driver/RSS increase remains unproven. A 100-second read-only snapshot found no shared link-cache key churn; timestamps also ruled out overlap between `backend/test` and the export suite in either primary run. Shared load and build/link activity remain possible contributors. No cache, worker, GC, timeout or runner setting was changed to obtain the confirmation. The original run remains valid and demonstrates full-suite noise; only the paired package reduction is established.
+
+### Failure-detection proofs
+
+Unchanged assertions checked deliberate changes to production fixture source. Both base and the final code exited 1 at the same test with the same violation:
+
+| Mutation | Unchanged test | Diagnostic on both sides |
+|---|---|---|
+| Add `s.reader = nil` to `Service.Record(t *time.Time)` in `services/wiring.go` | `TestCompositionSurfaceResolvesCrossFileDependenciesAndTestScopes/timestamp_state` | `production\|setter\|services\|Service.Record->Service.reader` at `services/wiring.go:3:54` |
+| Add `source/unexpected.go` importing `example.test/architecture-fixture/linuxonly` before committing/copying the Git template | `TestCheckResolvesRelativeProjectPathsForBaseComparison` | `production\|imports.forbidden\|example.test/architecture-fixture/source\|example.test/architecture-fixture/linuxonly` at `source/unexpected.go:2` |
+
+Base/checker source and mutant test arrangements were selected with Go overlays; candidate proofs used the retained code. The mutations, assertions and expected diagnostics are recorded under `tmp/architecture-perf/`. No mutant or expectation change is committed. An initial import probe targeted an initializer unused by its selected test and stayed green, so it was excluded; the corrected test reaches the copied repository and rejects the import.
+
+### Five other CPU hotspots screened
+
+Warm full-suite `-json` output plus a per-binary `/usr/bin/time -l` exec wrapper provided this CPU ranking, excluding architecture (136.15 CPU-s):
+
+| Package | CPU-s | Screen result |
+|---|---:|---|
+| `test` | 32.61 | Separate CPU/memory profile: 36.66 CPU-s including build, 1340.3 MiB RSS. Source and AST caches already operate. Lexical function splitting used only 0.93 sampled CPU-s; no broad cache rewrite or weakened scan. |
+| `api` | 24.28 | Cheap Argon2 params already active. Leading tests cover the full production router and transactional MFA outbox, not repeated static loads. |
+| `modules/presenceprojection/http` | 8.98 | Leading case checks query growth at two fixture sizes. Both sizes and real SQL checks retained. |
+| `modules/careplan/http` | 8.36 | Protected-router pickup and deletion-under-lock behavior; no cheap repeated static load found. |
+| `modules/organizationtenancy/compose` | 7.15 | Export tests cover every catalog table, two tenants and repeated byte-identical exports. Do not batch away their isolation/determinism assertions; earlier batching rejection was not redone. |
+
+### Rejected alternatives
+
+Exploratory full architecture runs, one per variant; these are not the final paired estimates:
+
+| Variant | CPU-s | RSS MiB | Wall-s | Decision |
+|---|---:|---:|---:|---|
+| Control | 139.38 | 685.9 | 49.36 | Reference |
+| Export types only | 127.42 | 439.8 | 35.91 | Retained |
+| Pack templates only | 132.02 | 681.8 | 47.90 | Retained |
+| Both | 121.34 | 432.3 | 37.61 | Retained |
+| Keep `NeedDeps` and add `NeedExportFile` | 129.09 | 432.0 | 40.63 | More CPU/wall than loading only the needed exported roots; no need to populate the full dependency graph |
+| Both plus a restricted `go list -json=<fields>` | 121.10 | 451.0 | 36.41 | 0.2% CPU difference is noise; RSS rose 4.3%. Extra production change not justified. |
+
+Caching mutable project loads was rejected without a performance trial: source and policy rewrites must remain visible. Existing AST reuse, policy-once and earlier GC/worker experiments were not repeated.
+
+### Verification and artifacts
+
+- Required lint: `cd backend && golangci-lint run --timeout 10m`, exit 0, `0 issues.`
+- `scripts/backend-architecture.sh check`, exit 0; no policy/baseline/inventory edits.
+- `scripts/check-deadcode.sh`, exit 0, no unexpected dead code.
+- Affected package pairs and candidate `scripts/test-backend.sh -count=1 ./...` warm-up/measurements all exited 0. The changed-code check is recorded separately in `tmp/architecture-perf/checks/check-changed.*` after this journal entry is finalized.
+- Raw profiles, all variant timings, exact mutant sources/logs, pair snapshots and comparison reports: `tmp/architecture-perf/`. Full run IDs are the directory names in the table’s source summaries under `tmp/test-perf/`: `static-base-backend-full-VpAaVq`, `static-candidate-backend-full-stvuQG`, `static-candidate-confirm-backend-full-PbMhTV`.
+
+Setup/control failures were not counted as benchmarks: missing Devbox toolchain (installed, rerun), initial Compose readiness before initialization finished (later healthy without timeout edits), a zero-test warm-up missing `./...`, and a proof runner using zsh’s read-only `status` variable (fixed). Private credentials were never printed. Only queued task-owned PID 98534 was terminated; no process-pattern kills, shared database operations or cache cleanup were used.

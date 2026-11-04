@@ -226,8 +226,10 @@ func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot)
 		return result, nil
 	}
 	cgoEnabled := false
+	// Only exported types of these imports are inspected. NeedDeps disables
+	// compiler export loading and rechecks dependency source on every call.
 	loaded, err := packages.Load(&packages.Config{
-		Dir: project, Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
+		Dir: project, Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports,
 		Env: fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled}),
 	}, paths...)
 	if err != nil {
