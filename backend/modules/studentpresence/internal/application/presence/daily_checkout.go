@@ -137,13 +137,7 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 		return nil, err
 	}
 
-	action := "checked_out_daily"
-	switch destination {
-	case "unterwegs":
-		action = "checked_out"
-	case "unterricht":
-		action = "checked_out_class"
-	}
+	action := dailyCheckoutAction(currentStatus, destination)
 
 	s.getLogger().InfoContext(ctx, "daily checkout confirmed",
 		slog.Int64("student_id", studentID),
@@ -152,6 +146,24 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 	)
 
 	return &DailyCheckoutResult{Action: action}, nil
+}
+
+// dailyCheckoutAction names what the confirmation left recorded. A child already
+// checked out keeps its checkout, so the answer follows that checkout and not the
+// destination asked for (#5656).
+func dailyCheckoutAction(status *AttendanceStatus, destination string) string {
+	switch {
+	case destination == "unterwegs":
+		return "checked_out"
+	case status.Status == "checked_out" && status.IsInClass():
+		return "checked_out_class"
+	case status.Status == "checked_out":
+		return "checked_out_daily"
+	case destination == "unterricht":
+		return "checked_out_class"
+	default:
+		return "checked_out_daily"
+	}
 }
 
 // closeForDailyCheckout closes the open stay for the two destinations that end

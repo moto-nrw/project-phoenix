@@ -259,7 +259,9 @@ The change is additive: `zuhause` and `unterwegs` keep their actions, messages
 and codes, and an unknown destination stays a 400 `general.input`. `GET` status
 responses keep reading `checked_out`, so a kiosk that does not know the
 destination scans the child back in as before. A repeat on a closed stay
-changes nothing and cannot relabel a home checkout. Deploy the backend first.
+changes nothing and cannot relabel a checkout: the action names what is recorded,
+so `unterricht` for a child already home answers `checked_out_daily` and `zuhause`
+for a child already in class answers `checked_out_class`. Deploy the backend first.
 
 ### Destination choice into released rooms (#3067)
 

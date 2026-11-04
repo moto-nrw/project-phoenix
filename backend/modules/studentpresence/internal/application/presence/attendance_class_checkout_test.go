@@ -130,3 +130,35 @@ func TestConfirmDailyCheckout_DestinationClass(t *testing.T) {
 	require.NotNil(t, status.CheckOutReason)
 	assert.Equal(t, studentpresence.CheckoutReasonClass, *status.CheckOutReason)
 }
+
+// A confirmation on a closed stay changes nothing, so its answer names the
+// checkout on record and not the destination asked for.
+func TestConfirmDailyCheckout_RepeatAnswersWhatIsRecorded(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	staff := testpkg.CreateTestStaff(t, db, "Klasse", "Wiederholung")
+	device := testpkg.CreateTestDevice(t, db, "class-checkout-device-005")
+
+	home := testpkg.CreateTestStudent(t, db, "Klasse", "Daheim", "2e")
+	testpkg.CreateTestAttendance(t, db, home.ID, staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
+	_, err := service.ConfirmDailyCheckout(ctx, home.ID, device.ID, "zuhause")
+	require.NoError(t, err)
+	result, err := service.ConfirmDailyCheckout(ctx, home.ID, device.ID, "unterricht")
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out_daily", result.Action)
+
+	inClass := testpkg.CreateTestStudent(t, db, "Klasse", "Unterricht", "2e")
+	testpkg.CreateTestAttendance(t, db, inClass.ID, staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
+	_, err = service.ConfirmDailyCheckout(ctx, inClass.ID, device.ID, "unterricht")
+	require.NoError(t, err)
+	result, err = service.ConfirmDailyCheckout(ctx, inClass.ID, device.ID, "zuhause")
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out_class", result.Action)
+	result, err = service.ConfirmDailyCheckout(ctx, inClass.ID, device.ID, "unterwegs")
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out", result.Action, "unterwegs keeps its answer")
+}
