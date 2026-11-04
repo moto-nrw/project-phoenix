@@ -34,22 +34,9 @@ type directory struct {
 	logger     *slog.Logger
 }
 
-// NewDirectory builds the kiosk roster without the hints on holiday guests,
-// for focused tests of the roster.
-func NewDirectory(people DirectoryPeople, activities DirectoryActivities, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
-	return newDirectory(people, activities, nil, principals, logger)
-}
-
-// NewHolidayGuestDirectory builds the kiosk roster whose holiday guests name
-// the school they come from (PyrePortal#499).
-func NewHolidayGuestDirectory(people DirectoryPeople, activities DirectoryActivities, guests devicescan.HolidayGuestSchools, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
-	if guests == nil {
-		panic("kiosk directory: holiday guests are required")
-	}
-	return newDirectory(people, activities, guests, principals, logger)
-}
-
-func newDirectory(people DirectoryPeople, activities DirectoryActivities, guests devicescan.HolidayGuestSchools, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
+// NewDirectory builds the kiosk roster; guests names the home school of its
+// holiday guests (PyrePortal#499), nil leaves them without the hint.
+func NewDirectory(people DirectoryPeople, activities DirectoryActivities, guests devicescan.HolidayGuestSchools, principals devicescan.PrincipalReader, logger *slog.Logger) devicescan.Directory {
 	if people == nil || principals == nil {
 		panic("kiosk directory: people and principals are required")
 	}

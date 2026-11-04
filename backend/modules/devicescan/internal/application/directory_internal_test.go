@@ -28,7 +28,7 @@ func TestDirectoryOmitsIncompleteTeacherRecords(t *testing.T) {
 		{StaffID: testStaffID, Person: &ports.Person{ID: testPersonID, FirstName: "Legacy", LastName: "Teacher"}},
 		{StaffID: testStaffID + 1},
 	}}
-	directory := NewDirectory(people, nil, fakePrincipals{device: testDevice()}, nil)
+	directory := NewDirectory(people, nil, nil, fakePrincipals{device: testDevice()}, nil)
 	teachers, err := directory.Teachers(context.Background())
 	if err != nil || len(teachers) != 1 || teachers[0].StaffID != testStaffID || teachers[0].PersonID != testPersonID || teachers[0].DisplayName != "Legacy Teacher" {
 		t.Fatalf("unexpected kiosk teacher roster: %+v, %v", teachers, err)
@@ -44,7 +44,7 @@ func (p *directoryPeopleFake) Students(_ context.Context, filter []int64) ([]dev
 func TestDirectoryRejectsUnauthenticatedReads(t *testing.T) {
 	t.Parallel()
 	people := &directoryPeopleFake{}
-	directory := NewDirectory(people, nil, fakePrincipals{}, nil)
+	directory := NewDirectory(people, nil, nil, fakePrincipals{}, nil)
 	if _, err := directory.Teachers(context.Background()); !errors.Is(err, devicescan.ErrDeviceUnauthorized) {
 		t.Fatalf("teachers: expected missing-device rejection, got %v", err)
 	}
@@ -59,7 +59,7 @@ func TestDirectoryRejectsUnauthenticatedReads(t *testing.T) {
 func TestDirectoryDistinguishesAbsentAndEmptyTeacherFilter(t *testing.T) {
 	t.Parallel()
 	people := &directoryPeopleFake{students: []devicescan.DirectoryStudent{{StudentID: testStudentID}}}
-	directory := NewDirectory(people, nil, fakePrincipals{device: testDevice()}, nil)
+	directory := NewDirectory(people, nil, nil, fakePrincipals{device: testDevice()}, nil)
 	all, err := directory.Students(context.Background(), nil)
 	if err != nil || len(all) != 1 || people.calls != 1 || people.filter != nil {
 		t.Fatalf("absent filter did not select all students: result=%v, error=%v, calls=%d", all, err, people.calls)
@@ -74,7 +74,7 @@ func TestDirectoryPreservesFilteredLookupFailureAndDeduplication(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("roster unavailable")
 	people := &directoryPeopleFake{err: failure}
-	directory := NewDirectory(people, nil, fakePrincipals{device: testDevice()}, nil)
+	directory := NewDirectory(people, nil, nil, fakePrincipals{device: testDevice()}, nil)
 	if _, err := directory.Students(context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatalf("unfiltered lookup must propagate failure: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestDirectoryNamesHolidayGuestSchoolsAndSurvivesAFailedRead(t *testing.T) {
 	}
 	device := testDevice()
 	device.TenantID = 4242
-	directory := NewHolidayGuestDirectory(people, nil, guests, fakePrincipals{device: device}, nil)
+	directory := NewDirectory(people, nil, guests, fakePrincipals{device: device}, nil)
 	for _, filter := range [][]int64{nil, {testStaffID}} {
 		students, err := directory.Students(context.Background(), filter)
 		if err != nil || len(students) != 2 {

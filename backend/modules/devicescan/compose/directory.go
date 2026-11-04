@@ -24,7 +24,7 @@ func NewDirectory(persons PersonDirectory, activities devicescan.ActivityDirecto
 	if activities != nil {
 		catalog = activities
 	}
-	return application.NewHolidayGuestDirectory(directoryPeople{persons}, catalog, guests, principal, logger)
+	return application.NewDirectory(directoryPeople{persons}, catalog, guests, principal, logger)
 }
 
 type directoryPeople struct{ PersonDirectory }
