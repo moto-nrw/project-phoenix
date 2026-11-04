@@ -69,7 +69,7 @@ describe("HolidayContributionCard", () => {
 
     expect(screen.getByText("Rechnung prüfen")).toBeInTheDocument();
     expect(
-      screen.getByText(/Eine Geschwister-Anmeldung wurde storniert\./),
+      screen.getByText(/Die Geschwister dieser Anmeldung haben sich geändert/),
     ).toBeInTheDocument();
     expect(screen.getByText("90,00 €")).toBeInTheDocument();
   });

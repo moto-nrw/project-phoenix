@@ -359,3 +359,31 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 	}
 	return priced, nil
 }
+
+// correctionNeeded reports whether an issued invoice of a confirmed
+// registration that ranks with siblings bills another contribution than its
+// group gives now (#5662), for example after a sibling was cancelled. A
+// registration without a sibling line and without a group never ranks with
+// siblings, so a later rule change alone raises no hint for it.
+func (h *HolidayContributions) correctionNeeded(ctx context.Context, organizationID int64, members []siblingMember, frozen parentbilling.HolidayContribution, registration parentbilling.HolidayRegistration) (bool, error) {
+	if registration.Status != parentbilling.HolidayRegistrationConfirmed || (len(members) < 2 && !hasSiblingLine(frozen)) {
+		return false, nil
+	}
+	computed, err := h.computeSiblings(ctx, organizationID, members, nil)
+	if err != nil {
+		return false, err
+	}
+	next, ok := computed[registration.ID]
+	return ok && !sameContribution(frozen, next), nil
+}
+
+func hasSiblingLine(contribution parentbilling.HolidayContribution) bool {
+	for _, child := range contribution.Children {
+		for _, line := range child.Lines {
+			if line.Kind == parentbilling.LineSibling {
+				return true
+			}
+		}
+	}
+	return false
+}

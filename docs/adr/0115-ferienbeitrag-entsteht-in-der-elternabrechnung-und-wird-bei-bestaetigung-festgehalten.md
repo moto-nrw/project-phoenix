@@ -257,9 +257,10 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    Transaktion nimmt sie die stornierte Anmeldung aus der Gruppe und rechnet
    jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3).
    Eine ausgestellte Rechnung hält die Stornierung nicht auf: Die Anmeldung,
-   die sie abrechnet, behält ihren Beitrag. Ihre Einzelansicht meldet
-   `correction_needed`, solange die Gruppe sie heute anders rangiert, als
-   die Rechnung abrechnet; korrigiert wird mit Storno oder Gutschrift
+   die sie abrechnet, behält ihren Beitrag. Rangiert sie mit Geschwistern
+   (Geschwisterzeile oder Gruppe) und gibt ihre Gruppe heute einen anderen
+   Beitrag, meldet ihre Einzelansicht `correction_needed`; korrigiert wird
+   mit Storno oder Gutschrift
    (#4690). Jede betroffene Anmeldung bekommt den Eintrag `sibling_cancel`
    mit den anderen Anmeldungen.
 

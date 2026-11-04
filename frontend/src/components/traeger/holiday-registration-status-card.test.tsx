@@ -56,7 +56,7 @@ function renderCard(
   registration: HolidayRegistrationDetail,
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
-  onConfirmed = vi.fn(() => Promise.resolve()),
+  onReload = vi.fn(() => Promise.resolve()),
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -68,12 +68,12 @@ function renderCard(
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
-        onConfirmed={onConfirmed}
+        onReload={onReload}
         onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
       />
     </ToastProvider>,
   );
-  return { onChanged, onConfirmed, onExemptionChange };
+  return { onChanged, onReload, onExemptionChange };
 }
 
 describe("HolidayRegistrationStatusCard", () => {
@@ -87,7 +87,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
     mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
-    const { onConfirmed, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
+    const { onReload, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
       screen.getByText(
@@ -105,7 +105,7 @@ describe("HolidayRegistrationStatusCard", () => {
     expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    await waitFor(() => expect(onReload).toHaveBeenCalled());
     expect(mockConfirm).toHaveBeenCalledWith("5", "7", false);
     expect(mockChange).not.toHaveBeenCalled();
   });
@@ -142,7 +142,7 @@ describe("HolidayRegistrationStatusCard", () => {
           exemption
           onExemptionChange={vi.fn()}
           onChanged={vi.fn()}
-          onConfirmed={vi.fn(() => Promise.resolve())}
+          onReload={vi.fn(() => Promise.resolve())}
           onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
         />
       </ToastProvider>,
@@ -172,7 +172,7 @@ describe("HolidayRegistrationStatusCard", () => {
       ],
       onCostBearerChange,
       onChanged: vi.fn(),
-      onConfirmed: vi.fn(() => Promise.resolve()),
+      onReload: vi.fn(() => Promise.resolve()),
       onDebtorNumberChanged: vi.fn(() => Promise.resolve()),
     };
     const { rerender } = render(
@@ -228,7 +228,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
   it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {
     mockCancel.mockResolvedValue(undefined);
-    const { onConfirmed, onChanged } = renderCard(HOLIDAY_REGISTRATION);
+    const { onReload, onChanged } = renderCard(HOLIDAY_REGISTRATION);
 
     fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
     expect(mockCancel).not.toHaveBeenCalled();
@@ -242,7 +242,7 @@ describe("HolidayRegistrationStatusCard", () => {
     fireEvent.click(buttons[buttons.length - 1]!);
 
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
     expect(mockChange).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
   });
@@ -331,7 +331,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -385,7 +385,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -410,7 +410,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>
@@ -487,7 +487,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -549,7 +549,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={onDebtorNumberChanged}
           />
         </ToastProvider>,

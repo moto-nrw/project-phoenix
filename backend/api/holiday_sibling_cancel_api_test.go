@@ -8,6 +8,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -195,4 +196,29 @@ func TestCancellationWaitsForTheHeldPeriod(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.holiday_sibling_group_members WHERE holiday_registration_id = ?`,
 		first).Scan(context.Background(), &members))
 	assert.Zero(t, members)
+}
+
+// TestRuleChangeRaisesNoCorrectionHintWithoutSiblings pins the review of
+// #5662: the hint names siblings, so an invoiced registration that never
+// ranked with siblings shows none, even when a later rule change would
+// compute it differently.
+func TestRuleChangeRaisesNoCorrectionHintWithoutSiblings(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Geschwister Storno Regel")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	exemption := createContributionRule(t, f, billing, benefitsExemption())
+	alone := f.submitChild(t, f.period, f.offer, "mama.regel@example.org", "Mia", 0)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, alone, map[string]any{"benefits_exemption": true}).Code)
+
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodDelete, fmt.Sprintf("%s/%d", contributionRulesPath, exemption.ID), nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	invoiced := f.cancelledContribution(t, alone)
+	assert.True(t, invoiced.Invoiced)
+	assert.True(t, invoiced.BenefitsExemption, "the frozen contribution keeps its exemption")
+	assert.False(t, invoiced.CorrectionNeeded, "no sibling, no hint about siblings")
 }

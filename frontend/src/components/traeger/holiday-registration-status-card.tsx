@@ -332,7 +332,7 @@ export function HolidayRegistrationStatusCard({
   costBearerId = null,
   onCostBearerChange,
   onChanged,
-  onConfirmed,
+  onReload,
   onDebtorNumberChanged,
 }: Readonly<{
   periodId: string;
@@ -357,7 +357,7 @@ export function HolidayRegistrationStatusCard({
    * and its contribution again. A cancellation can change the sibling group
    * (#5662).
    */
-  onConfirmed: () => Promise<void>;
+  onReload: () => Promise<void>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
 }>) {
@@ -420,7 +420,7 @@ export function HolidayRegistrationStatusCard({
         debtorNumber.trim(),
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
       );
-      await onConfirmed();
+      await onReload();
     } catch (err) {
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -438,7 +438,7 @@ export function HolidayRegistrationStatusCard({
         // The Elternabrechnung cancels and computes the siblings again
         // (#5662); the page reads both again.
         await cancelHolidayRegistration(periodId, registration.id);
-        await onConfirmed();
+        await onReload();
       } else {
         onChanged(
           await changeHolidayRegistration(periodId, registration.id, action),

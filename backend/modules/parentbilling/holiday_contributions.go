@@ -147,8 +147,9 @@ type HolidayContribution struct {
 	// keeps it, so a later change of the settings does not reach it.
 	Chain HolidayChainSettings `json:"-"`
 	// CorrectionNeeded reports that an issued invoice bills the frozen
-	// contribution, but its group, after the cancellation of a sibling, now
-	// ranks it differently (#5662). The invoice keeps its amount; the
+	// contribution of a registration that ranks with siblings, but its group
+	// now gives another one, for example after a sibling was cancelled
+	// (#5662). The invoice keeps its amount; the
 	// Träger-Büro corrects it with a cancellation or credit note (#4690).
 	CorrectionNeeded bool `json:"correction_needed,omitempty"`
 }

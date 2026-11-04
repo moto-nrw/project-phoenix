@@ -129,7 +129,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann unter `Einstellungen` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
       "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
       "Stornieren Sie eine Anmeldung der Geschwister, gehört sie nicht mehr dazu. moto rechnet den Beitrag der anderen Geschwister sofort neu. Sie müssen nichts trennen.",
-      "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt sein Beitrag gleich. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Korrigieren Sie die Rechnung bei Bedarf mit Storno oder Gutschrift.",
+      "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt sein Beitrag gleich. Passt er nicht mehr zu den Geschwistern, steht unter `Ferienbeitrag` dann `Rechnung prüfen`. Korrigieren Sie die Rechnung bei Bedarf mit Storno oder Gutschrift.",
       "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
       "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
     ],

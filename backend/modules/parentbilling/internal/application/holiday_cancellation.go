@@ -58,18 +58,3 @@ func (h *HolidayContributions) CancelHolidayRegistration(ctx context.Context, re
 	}
 	return cancelled, nil
 }
-
-// correctionNeeded reports whether the group of an invoiced, confirmed
-// registration now ranks it differently from the contribution its invoice
-// bills (#5662): a sibling was cancelled after the invoice.
-func (h *HolidayContributions) correctionNeeded(ctx context.Context, organizationID int64, members []siblingMember, frozen parentbilling.HolidayContribution, registration parentbilling.HolidayRegistration) (bool, error) {
-	if registration.Status != parentbilling.HolidayRegistrationConfirmed {
-		return false, nil
-	}
-	computed, err := h.computeSiblings(ctx, organizationID, members, nil)
-	if err != nil {
-		return false, err
-	}
-	next, ok := computed[registration.ID]
-	return ok && !sameContribution(frozen, next), nil
-}

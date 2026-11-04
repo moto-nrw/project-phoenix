@@ -226,7 +226,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       expect(await screen.findByText("Rechnung prüfen")).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Eine Geschwister-Anmeldung wurde storniert. Der Betrag auf der Rechnung stimmt deshalb vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen.",
+          "Die Geschwister dieser Anmeldung haben sich geändert, zum Beispiel durch ein Storno. Der Betrag auf der Rechnung stimmt vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen.",
         ),
       ).toBeInTheDocument();
     });

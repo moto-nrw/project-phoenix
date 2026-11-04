@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -13,14 +14,8 @@ import (
 // the group names the cancellation. A demo server that refuses the
 // registration keeps the group as it is.
 func seedHolidaySiblingCancellation(rt *Runtime, auth AuthRef, token string, periodID int64, sibling map[string]any, siblings int64) error {
-	fourth := map[string]any{}
-	for key, value := range sibling {
-		fourth[key] = value
-	}
-	child := map[string]any{}
-	for key, value := range sibling["children"].([]map[string]any)[0] {
-		child[key] = value
-	}
+	fourth := maps.Clone(sibling)
+	child := maps.Clone(sibling["children"].([]map[string]any)[0])
 	child["first_name"], child["birth_date"] = "Paul", "2019-05-14"
 	fourth["children"] = []map[string]any{child}
 	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, fourth)
