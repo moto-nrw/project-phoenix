@@ -308,8 +308,8 @@ type offeringPreviewResponse struct {
 	OtherOfferings []offeringPreviewAlternativeResponse `json:"other_offerings"`
 }
 
-func offeringPreviewAlternatives(filter timetable.OfferingSourceFilter, bookings []timetable.OfferingWeekdayBooking, changes []timetable.OfferingSourceWeekdayChange) []offeringPreviewAlternativeResponse {
-	alternatives := timetable.DroppedChildrenAlternatives(filter, bookings, changes)
+func offeringPreviewAlternatives(kind timetable.RosterOfferingKind, filter timetable.OfferingSourceFilter, bookings []timetable.OfferingWeekdayBooking, changes []timetable.OfferingSourceWeekdayChange) []offeringPreviewAlternativeResponse {
+	alternatives := timetable.DroppedChildrenAlternatives(kind, filter, bookings, changes)
 	result := make([]offeringPreviewAlternativeResponse, 0, len(alternatives))
 	for _, alternative := range alternatives {
 		result = append(result, offeringPreviewAlternativeResponse{
@@ -399,7 +399,7 @@ func (rs *Resource) offeringSourcePreview(ctx context.Context, templateID int64,
 		From:           from.String(),
 		Weekdays:       offeringPreviewWeekdays(changes, names),
 		Segments:       offeringPreviewSegments(segments),
-		OtherOfferings: offeringPreviewAlternatives(filter, bookings, changes),
+		OtherOfferings: offeringPreviewAlternatives(living.OfferingKind, filter, bookings, changes),
 	}, nil
 }
 

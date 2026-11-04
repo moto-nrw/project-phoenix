@@ -213,6 +213,63 @@ func TestDraftOfferingPreviewNamesOtherOfferings(t *testing.T) {
 	}, preview.OtherOfferings, "each dropped child counts once over both days")
 }
 
+func TestOfferingPreviewsUseMensaKindForCombinedCareAndLunch(t *testing.T) {
+	t.Parallel()
+	const (
+		lunchID = rosterReviewOfferingID + 1
+		careID  = rosterReviewOfferingID + 2
+	)
+	sources := &rosterMaintenanceSources{}
+	s := buildRosterReviewModule(t, sources)
+	period := createTemplateTestPeriodRange(t, s.db, "Mensa-Alternatives", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1a", 2)
+	selected := rosterReviewBookings(rosterReviewOfferingID, "Ganztag mit Essen", "1a", class[:1], 1)
+	selected[0].IncludesLunch = true
+	lunch := rosterReviewBookings(lunchID, "Mittagessen", "1a", class[1:], 1)
+	lunch[0].CountsAsCare = false
+	lunch[0].IncludesLunch = true
+	sources.bookings = append(selected, lunch...)
+	sources.bookings = append(sources.bookings, rosterReviewBookings(careID, "Nur Betreuung", "1a", class[1:], 1)...)
+	w := doTemplateJSON(t, s.router, http.MethodPost, "/templates", map[string]any{
+		"name": "Mensa 1a", "type": timetableModule.GroupTypeCare, "list_kind": "mensa",
+		"weekdays": []int{1}, "start_time": "12:00", "end_time": "13:00",
+		"room_id": s.roomID, "category_id": s.category.ID, "calendar_period_id": period.ID,
+		"target_group_type": timetableModule.TargetGroupTypeSchoolClass, "target_school_class": "1a",
+		"student_ids": class, "staff_ids": []int64{s.staffA},
+	})
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	templateID := decodeTemplateData[createTemplateResponse](t, w).TemplateID
+	query := url.Values{
+		"period_id": {fmt.Sprint(period.ID)}, "type": {timetableModule.GroupTypeCare}, "list_kind": {"mensa"},
+		"offering_ids": {fmt.Sprint(rosterReviewOfferingID)}, "school_classes": {"1a"},
+		"roster": {draftRosterParam(1, class)}, "from": {rosterReviewMonday.String()},
+	}
+	for name, path := range map[string]string{
+		"draft": "/offering-sources/preview",
+		"saved": fmt.Sprintf("/templates/%d/offering-preview", templateID),
+	} {
+		t.Run(name, func(t *testing.T) {
+			router := s.router
+			requestQuery := query
+			if name == "draft" {
+				router = s.draftRouter()
+			} else {
+				requestQuery = url.Values{
+					"offering_ids": query["offering_ids"], "school_classes": query["school_classes"], "from": query["from"],
+				}
+			}
+			w := doTemplateJSON(t, router, http.MethodGet, path+"?"+requestQuery.Encode(), nil)
+			require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+			preview := decodeTemplateData[offeringPreviewResponse](t, w)
+			require.Len(t, preview.Weekdays, 1)
+			assert.Len(t, preview.Weekdays[0].Removed, 1)
+			assert.Equal(t, []offeringPreviewAlternativeResponse{
+				{OfferingID: lunchID, Name: "Mittagessen", ChildCount: 1},
+			}, preview.OtherOfferings)
+		})
+	}
+}
+
 // TestDraftOfferingSourceRejectsBadInput: a malformed roster, a weekday
 // outside the week, a missing period or a past from are refused.
 func TestDraftOfferingSourceRejectsBadInput(t *testing.T) {

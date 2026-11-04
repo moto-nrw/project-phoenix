@@ -270,6 +270,7 @@ export function ConnectOfferingModal({
                 ) : null}
                 <OfferingPreviewList
                   preview={preview}
+                  disabled={saving}
                   onAddOfferings={(ids) =>
                     setOfferingIds((current) => [
                       ...current,

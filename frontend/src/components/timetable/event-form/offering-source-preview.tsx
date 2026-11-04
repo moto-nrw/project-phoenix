@@ -92,6 +92,7 @@ export function DraftOfferingSourcePreview({
     formOfferingSelection(form),
     roster,
     from,
+    { type: form.type, listKind: form.listKind },
   );
   return (
     <PreviewPanel

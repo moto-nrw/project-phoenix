@@ -22,6 +22,7 @@ func TestDroppedChildrenAlternatives(t *testing.T) {
 	roster := classRoster([]int{1, 3}, studentRange(1001, 5), "1a")
 	inPhase := func(b timetable.OfferingWeekdayBooking, phase int64) timetable.OfferingWeekdayBooking {
 		b.PhaseID = phase
+		b.CountsAsCare = true
 		return b
 	}
 	holiday := inPhase(booking(holidayID, "Ferien", 1005, "1a", 1, 3), 7)
@@ -44,7 +45,7 @@ func TestDroppedChildrenAlternatives(t *testing.T) {
 	filter := timetable.OfferingSourceFilter{OfferingIDs: []int64{randstundeID}, SchoolClasses: []string{"1a"}}
 	changes := timetable.PreviewOfferingSource(roster, filter, bookings)
 
-	alternatives := timetable.DroppedChildrenAlternatives(filter, bookings, changes)
+	alternatives := timetable.DroppedChildrenAlternatives(timetable.RosterOfferingCare, filter, bookings, changes)
 
 	assert.Equal(t, []timetable.OfferingSourceAlternative{
 		{OfferingID: ganztagID, OfferingName: "Ganztag bis 14.30", ChildCount: 1},
@@ -76,7 +77,7 @@ func TestDroppedChildrenAlternativesKeepTheKind(t *testing.T) {
 		care(booking(ganztagID, "OGS Ganztag", 1002, "1b", 1)),
 		lunch(booking(lunchID, "Mittagessen", 1002, "1b", 1)),
 		booking(courseID, "Fußball-AG", 1002, "1b", 1),
-		lunch(booking(mealID, "Mittagessen spät", 1001, "1b", 1)),
+		care(lunch(booking(mealID, "Ganztag mit Mittagessen", 1001, "1b", 1))),
 	}
 
 	t.Run("care selection", func(t *testing.T) {
@@ -85,7 +86,7 @@ func TestDroppedChildrenAlternativesKeepTheKind(t *testing.T) {
 		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
 		assert.Equal(t, []timetable.OfferingSourceAlternative{
 			{OfferingID: ganztagID, OfferingName: "OGS Ganztag", ChildCount: 1},
-		}, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+		}, timetable.DroppedChildrenAlternatives(timetable.RosterOfferingCare, filter, bookings, changes))
 	})
 
 	t.Run("lunch selection", func(t *testing.T) {
@@ -94,7 +95,7 @@ func TestDroppedChildrenAlternativesKeepTheKind(t *testing.T) {
 		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
 		assert.Equal(t, []timetable.OfferingSourceAlternative{
 			{OfferingID: lunchID, OfferingName: "Mittagessen", ChildCount: 1},
-		}, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+		}, timetable.DroppedChildrenAlternatives(timetable.RosterOfferingLunch, filter, bookings, changes))
 	})
 }
 
@@ -111,7 +112,7 @@ func TestDroppedChildrenAlternativesNone(t *testing.T) {
 		filter := timetable.OfferingSourceFilter{OfferingIDs: []int64{randstundeID}}
 		bookings := []timetable.OfferingWeekdayBooking{keep, other}
 		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
-		assert.Empty(t, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+		assert.Empty(t, timetable.DroppedChildrenAlternatives(timetable.RosterOfferingCare, filter, bookings, changes))
 	})
 
 	t.Run("selection books nobody", func(t *testing.T) {
@@ -119,6 +120,6 @@ func TestDroppedChildrenAlternativesNone(t *testing.T) {
 		filter := timetable.OfferingSourceFilter{OfferingIDs: []int64{randstundeID}}
 		bookings := []timetable.OfferingWeekdayBooking{other}
 		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
-		assert.Empty(t, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+		assert.Empty(t, timetable.DroppedChildrenAlternatives(timetable.RosterOfferingCare, filter, bookings, changes))
 	})
 }

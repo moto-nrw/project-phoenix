@@ -19,16 +19,15 @@ type OfferingSourceAlternative struct {
 // school could not see that a second offering of the same phase was missing
 // from the selection. Only offerings of the selection's phase qualify, as a
 // combined source must stay within one phase, never a holiday phase, only of
-// the selection's kind (care, lunch or course: a Randstunde is never kept by
+// the roster's kind (care, lunch or course: a Randstunde is never kept by
 // the lunch or an AG), and only bookings the selection's Klassen or Jahrgang
 // filter admits. Ordered by child count, then name.
-func DroppedChildrenAlternatives(filter OfferingSourceFilter, bookings []OfferingWeekdayBooking, changes []OfferingSourceWeekdayChange) []OfferingSourceAlternative {
+func DroppedChildrenAlternatives(kind RosterOfferingKind, filter OfferingSourceFilter, bookings []OfferingWeekdayBooking, changes []OfferingSourceWeekdayChange) []OfferingSourceAlternative {
 	dropped := droppedSlots(changes)
 	phases := selectionPhases(filter, bookings)
 	if len(dropped) == 0 || len(phases) == 0 {
 		return []OfferingSourceAlternative{}
 	}
-	kind := selectionKind(filter, bookings)
 	names := make(map[int64]string)
 	children := make(map[int64]map[int64]bool)
 	for _, booking := range bookings {
@@ -89,23 +88,4 @@ func selectionPhases(filter OfferingSourceFilter, bookings []OfferingWeekdayBook
 		}
 	}
 	return phases
-}
-
-// selectionKind is the kind of offering the selection stands for: care when
-// one selected offering counts as care, else lunch when one includes lunch,
-// else a course.
-func selectionKind(filter OfferingSourceFilter, bookings []OfferingWeekdayBooking) RosterOfferingKind {
-	kind := RosterOfferingCourse
-	for _, booking := range bookings {
-		if !slices.Contains(filter.OfferingIDs, booking.OfferingID) {
-			continue
-		}
-		if booking.CountsAsCare {
-			return RosterOfferingCare
-		}
-		if booking.IncludesLunch {
-			kind = RosterOfferingLunch
-		}
-	}
-	return kind
 }

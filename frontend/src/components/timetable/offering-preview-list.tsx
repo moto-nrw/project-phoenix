@@ -22,10 +22,12 @@ function names(children: readonly OfferingPreviewChild[]): string {
 export function OfferingPreviewList({
   preview,
   onAddOfferings,
+  disabled = false,
 }: Readonly<{
   preview: OfferingPreview;
   /** Adds the named offerings to the selection; without it, no button. */
   onAddOfferings?: (offeringIds: string[]) => void;
+  disabled?: boolean;
 }>) {
   const changed = preview.weekdays.some(
     (day) => day.added.length > 0 || day.removed.length > 0,
@@ -54,6 +56,7 @@ export function OfferingPreviewList({
                 type="button"
                 variant="surface"
                 size="compact"
+                disabled={disabled}
                 onClick={() =>
                   onAddOfferings(
                     otherOfferings.map((offering) => offering.offeringId),
