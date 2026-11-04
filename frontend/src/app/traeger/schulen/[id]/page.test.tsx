@@ -141,7 +141,9 @@ describe("TraegerSchoolPage", () => {
     renderPage();
     await screen.findByText("1 : 8,5");
     expect(
-      screen.queryByRole("button", { name: "Schul-App öffnen" }),
+      screen.queryByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -158,7 +160,9 @@ describe("TraegerSchoolPage", () => {
     renderPage();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Schul-App öffnen" }),
+      await screen.findByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
     );
     expect(openSpy).toHaveBeenCalledWith("", "_blank");
     expect(mockStartSession).toHaveBeenCalledWith("2");

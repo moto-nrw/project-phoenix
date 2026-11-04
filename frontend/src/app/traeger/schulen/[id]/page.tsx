@@ -4,6 +4,7 @@
 // Stammdaten, ohne die Träger-Navigation zu verlassen. Nur Zahlen, keine Namen.
 // Die Schul-App öffnet sich als eigene Aktion in einem neuen Tab.
 
+import { ExternalLink } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
@@ -170,10 +171,19 @@ export default function TraegerSchoolPage() {
           <Button
             type="button"
             variant="surface"
+            aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+            title="Öffnet in einem neuen Tab"
             disabled={opening !== null}
             onClick={() => void open(school)}
           >
-            {opening === null ? TRAEGER_HANDOFF_OPEN : "Wird geöffnet …"}
+            {opening === null ? (
+              <>
+                {TRAEGER_HANDOFF_OPEN}
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </>
+            ) : (
+              "Wird geöffnet …"
+            )}
           </Button>
         ) : null
       }

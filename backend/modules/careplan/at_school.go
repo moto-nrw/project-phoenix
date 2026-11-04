@@ -22,6 +22,17 @@ type AtSchoolInputs struct {
 	Now            time.Time
 }
 
+// InClassUntilCareDayEnd reports whether a child checked out with "Geht zum
+// Unterricht" still reads "Im Unterricht" (#5656). A child who goes home straight
+// from class never scans back in, so the status ends with the school's care day
+// and the child reads "Zuhause" again. The child's own pickup time does not end
+// it: an early-care child can be planned to leave before class even starts.
+// Without a configured end the status holds for the rest of the day.
+func InClassUntilCareDayEnd(careDayEnd string, now time.Time) bool {
+	end := strings.TrimSpace(careDayEnd)
+	return end == "" || now.In(calendar.Berlin).Format("15:04") < end
+}
+
 // IsAtSchoolBeforeCheckIn reports whether a child should read "Schule"
 // instead of "Zuhause": the plan expects the child today, nothing has been
 // recorded yet, and the child's care day is not over.

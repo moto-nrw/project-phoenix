@@ -67,6 +67,10 @@ vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: vi.fn(),
 }));
 
+vi.mock("~/env.client", () => ({
+  clientEnv: { NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.test" },
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -2174,6 +2178,45 @@ describe("Sidebar", () => {
       expect(mockRouterPush).toHaveBeenCalledWith(
         "/test-tenant/active-supervisions?session=1",
       );
+    });
+  });
+
+  describe("way back to the Träger portal (#5687)", () => {
+    const viaTraeger = () =>
+      mockUseShellAuth.mockReturnValue({
+        ...mockUseShellAuth(),
+        isViaTraeger: true,
+      });
+
+    it("shows the way back in a session opened through the Träger", () => {
+      viaTraeger();
+      render(<Sidebar />);
+
+      const link = screen.getByRole("link", {
+        name: "Zurück zur Träger-App",
+      });
+      expect(link).toHaveAttribute("href", "http://traeger.test/");
+      expect(link).not.toHaveAttribute("target");
+    });
+
+    it("names the way back in the collapsed sidebar", () => {
+      viaTraeger();
+      localStorage.setItem("sidebar-collapsed", "true");
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("link", { name: "Zurück zur Träger-App" }),
+      ).toHaveAttribute("title", "Zurück zur Träger-App");
+    });
+
+    it("shows nothing to a school user without the Träger origin", () => {
+      render(<Sidebar />);
+
+      // Anker: die geladene Navigation derselben Leiste.
+      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Zurück zur Träger-App" }),
+      ).toBeNull();
     });
   });
 

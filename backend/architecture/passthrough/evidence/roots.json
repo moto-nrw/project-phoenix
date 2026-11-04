@@ -1437,7 +1437,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p supervisionPresence) AttendanceTimes(ctx context.Context, studentIDs []int64) (map[int64]supervisiondashboard.Attendance, error) {\n\tstatuses, err := p.active.GetStudentsAttendanceStatuses(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]supervisiondashboard.Attendance, len(statuses))\n\tfor id, status := range statuses {\n\t\tif status == nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult[id] = supervisiondashboard.Attendance{CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime}\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (p supervisionPresence) AttendanceTimes(ctx context.Context, studentIDs []int64) (map[int64]supervisiondashboard.Attendance, error) {\n\tstatuses, err := p.active.GetStudentsAttendanceStatuses(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]supervisiondashboard.Attendance, len(statuses))\n\tfor id, status := range statuses {\n\t\tif status == nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult[id] = supervisiondashboard.Attendance{CheckInTime: status.Arrival(), CheckOutTime: status.PickupTime()}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/supervisionPresence.AttendanceTimes",
       "owner": "roots"
@@ -6099,7 +6099,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r parentAttendanceReader) ListAttendance(ctx context.Context, filter parentportal.AttendanceFilter) ([]parentportal.Attendance, error) {\n\trows, err := r.reader.ListAttendance(ctx, parentAttendanceFilter(filter))\n\tif err != nil || rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]parentportal.Attendance, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = parentportal.Attendance{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}\n\t}\n\treturn out, nil\n}",
+      "evidence": "func (r parentAttendanceReader) ListAttendance(ctx context.Context, filter parentportal.AttendanceFilter) ([]parentportal.Attendance, error) {\n\trows, err := r.reader.ListAttendance(ctx, parentAttendanceFilter(filter))\n\tif err != nil || rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]parentportal.Attendance, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = parentportal.Attendance{LeftForClass: row.LeftForClass(), CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentAttendanceReader.ListAttendance",
       "owner": "roots"

@@ -212,7 +212,7 @@ describe("TraegerSchoolsPage", () => {
     expect(screen.queryByText(/nur mit der Rolle/)).not.toBeInTheDocument();
     fireEvent.click(
       within(table).getByRole("button", {
-        name: "Schul-App öffnen: OGS Am Bach",
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
       }),
     );
     // Die Aktion öffnet nur den Tab, die Liste bleibt stehen.
@@ -246,7 +246,7 @@ describe("TraegerSchoolsPage", () => {
     const table = await screen.findByRole("table");
     fireEvent.click(
       within(table).getByRole("button", {
-        name: "Schul-App öffnen: OGS Am Bach",
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
       }),
     );
 

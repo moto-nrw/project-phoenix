@@ -18,6 +18,8 @@ export const TRAEGER_HANDOFF_FAILED_TITLE =
 export const TRAEGER_HANDOFF_FAILED_TEXT =
   "Der Link gilt nur kurz und nur einmal. Bitte öffnen Sie die Schule noch einmal im Träger-Portal.";
 export const TRAEGER_HANDOFF_BACK = "Zum Träger-Portal";
+/** The way back in the school's navigation (#5687). */
+export const TRAEGER_RETURN_LABEL = "Zurück zur Träger-App";
 
 /** Whether the path is the entry page, on the school's host or by path. */
 export function isTraegerHandoffPath(

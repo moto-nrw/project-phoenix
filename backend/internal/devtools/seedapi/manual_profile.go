@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -398,30 +399,36 @@ func seedManualAttendance(rt *Runtime, students map[string]SeedStudent) error {
 	}
 	for index, key := range keys[:8] {
 		student := students[key]
-		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
+		if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", nil); err != nil {
 			return err
 		}
-		if index >= 4 {
-			// One checkout carries the optional early-checkout note (#3324),
-			// so the detail header and the day log show it on every dev machine.
-			note := ""
-			if index == 4 {
-				note = "Arzttermin, die Mutter hat früher abgeholt"
-			}
-			if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", note); err != nil {
-				return err
-			}
+		if err := checkOutManualStudent(rt, student.ID, index); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus, note string) error {
+// checkOutManualStudent leaves the first four children present. One child goes to
+// class (#5656), one checkout carries the optional early-checkout note (#3324),
+// so "Im Unterricht", the detail header and the day log show on every dev machine.
+func checkOutManualStudent(rt *Runtime, studentID int64, index int) error {
+	switch {
+	case index < 4:
+		return nil
+	case index == 4:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", map[string]any{"note": "Arzttermin, die Mutter hat früher abgeholt"})
+	case index == 5:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", map[string]any{"reason": "class"})
+	default:
+		return postSchoolAttendance(rt, studentID, "out", "checked_out", nil)
+	}
+}
+
+func postSchoolAttendance(rt *Runtime, studentID int64, action, expectedStatus string, extra map[string]any) error {
 	path := fmt.Sprintf("/api/students/%d/school-checkin", studentID)
 	body := map[string]any{"action": action}
-	if note != "" {
-		body["note"] = note
-	}
+	maps.Copy(body, extra)
 	raw, err := rt.Client.Post(path, body)
 	if err != nil {
 		return fmt.Errorf("record web attendance for student %d: %w", studentID, err)
@@ -527,6 +534,9 @@ func verifyManualStudentRows(rows []struct {
 			if student.ActualPickupAt != nil {
 				checkedOut++
 			}
+		case student.Location == "Im Unterricht":
+			// Left for class (#5656). After the care day's end the same child
+			// reads "Abwesend" without a pickup, so it counts in neither figure.
 		case student.Location == "Schule":
 			// Expected today but not checked in yet (#3260); the profile keeps
 			// the care day open until 23:59, so these rows stay "Schule".

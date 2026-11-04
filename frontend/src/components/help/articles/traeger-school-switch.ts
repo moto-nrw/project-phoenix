@@ -18,7 +18,7 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
       "Wählen Sie bei der Schule `Schul-App öffnen`. Das geht auch in der Ansicht der Schule.",
     ],
     result:
-      "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule.",
+      "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit `Zurück zur Träger-App` kommen Sie zurück zur Liste Ihrer Schulen.",
     notes: [
       "Sie können mehrere Schulen in mehreren Tabs offen haben.",
       "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
@@ -26,6 +26,7 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
       "Jedes Öffnen steht im Protokoll der Schule.",
     ],
     differences: [
+      "Auf Handy und Tablet steht `Zurück zur Träger-App` unter `Mehr`.",
       "Sie sehen kein `Schul-App öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
     ],
     troubleshootingDetails: [

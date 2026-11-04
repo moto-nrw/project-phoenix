@@ -47,7 +47,7 @@ type AttendanceGroupInfo struct {
 type AttendanceToggleRequest struct {
 	RFID        string  `json:"rfid"`
 	Action      string  `json:"action"`                // "confirm", "cancel", or "confirm_daily_checkout"
-	Destination *string `json:"destination,omitempty"` // "zuhause" or "unterwegs" (required for confirm_daily_checkout)
+	Destination *string `json:"destination,omitempty"` // "zuhause", "unterwegs" or "unterricht" (required for confirm_daily_checkout)
 }
 
 // Bind validates the attendance toggle request
@@ -66,8 +66,10 @@ func (req *AttendanceToggleRequest) Bind(_ *http.Request) error {
 		if req.Destination == nil || *req.Destination == "" {
 			return errors.New("destination is required for confirm_daily_checkout")
 		}
-		if *req.Destination != devicescan.DestinationHome && *req.Destination != devicescan.DestinationTransit {
-			return errors.New("destination must be 'zuhause' or 'unterwegs'")
+		switch *req.Destination {
+		case devicescan.DestinationHome, devicescan.DestinationTransit, devicescan.DestinationClass:
+		default:
+			return errors.New("destination must be 'zuhause', 'unterwegs' or 'unterricht'")
 		}
 	}
 
@@ -76,7 +78,7 @@ func (req *AttendanceToggleRequest) Bind(_ *http.Request) error {
 
 // AttendanceToggleResponse represents the response after toggling attendance
 type AttendanceToggleResponse struct {
-	Action          string                `json:"action"` // "checked_in", "checked_out", "cancelled"
+	Action          string                `json:"action"` // "checked_in", "checked_out", "checked_out_daily", "checked_out_class", "cancelled"
 	Student         AttendanceStudentInfo `json:"student"`
 	Attendance      AttendanceInfo        `json:"attendance"`
 	Message         string                `json:"message"`                    // User-friendly message for RFID device display

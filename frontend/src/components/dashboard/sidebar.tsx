@@ -26,6 +26,8 @@ import {
   type SupervisedRoom,
 } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useTraegerReturnHref } from "~/lib/hooks/use-traeger-return-href";
+import { TRAEGER_RETURN_LABEL } from "~/lib/traeger-handoff";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
@@ -675,6 +677,7 @@ function SidebarContent({
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
+  const traegerReturnHref = useTraegerReturnHref();
   const demoBannerShown = isDemoBannerShown({ mode, isPreview });
   const eveningRow = useDemoEveningActive() && demoBannerShown;
   const changeRequestAccess = useChangeRequestAccess();
@@ -1872,6 +1875,39 @@ function SidebarContent({
           eveningRow,
         )}
       >
+        {/* Rückweg ins Träger-Portal (#5687): nur in einer Sitzung, die über
+            das Träger-Büro kam. Außerhalb der Rollfläche, damit er immer
+            sichtbar bleibt. */}
+        {traegerReturnHref ? (
+          <nav
+            aria-label="Rückweg"
+            className={`border-b border-gray-200 ${SIDEBAR_NAV_PADDING}`}
+          >
+            <NavLink
+              href={traegerReturnHref}
+              className={sidebarRowClasses({ isActive: false })}
+              {...(collapsed
+                ? {
+                    title: TRAEGER_RETURN_LABEL,
+                    "aria-label": TRAEGER_RETURN_LABEL,
+                  }
+                : {})}
+            >
+              <MotoNavIcon
+                scene
+                concept={organizationsConcept}
+                active={false}
+                className={SIDEBAR_ICON_CLASSES}
+              />
+              {labelsMounted && (
+                <span className={sidebarLabelClasses(labelsVisible)}>
+                  {TRAEGER_RETURN_LABEL}
+                </span>
+              )}
+            </NavLink>
+          </nav>
+        ) : null}
+
         {/* Main navigation, scrollable.
             Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
             einzige Hinweis, dass unten noch Einträge folgen. Nur im

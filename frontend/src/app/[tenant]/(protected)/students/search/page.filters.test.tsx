@@ -1430,6 +1430,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
       "all",
       "anwesend",
       "schule",
+      "unterricht",
       "abwesend",
       "unterwegs",
       "schulhof",

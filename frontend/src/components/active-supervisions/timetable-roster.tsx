@@ -902,7 +902,10 @@ function TimetableRosterHeader({
         // Kinder im Raum heißen hier wie die Liste darunter (#3921).
         <div className="grid grid-cols-2 gap-2 p-4">
           <RosterSummaryStat label="Teilnehmende" value={summary.unplanned} />
-          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat
+            label="Nicht mehr im Raum"
+            value={summary.departed}
+          />
         </div>
       ) : showTimetableCounts ? (
         <div
@@ -919,7 +922,10 @@ function TimetableRosterHeader({
             />
           ) : null}
           <RosterSummaryStat label="Abwesend" value={summary.absent} />
-          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat
+            label="Nicht mehr im Raum"
+            value={summary.departed}
+          />
           <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
         </div>
       ) : null}

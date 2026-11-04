@@ -7,6 +7,7 @@ import {
   LOCATION_STATUSES,
   getLocationBadgeTone,
   isAtSchoolLocation,
+  isInClassLocation,
   isNotCheckedInLocation,
   isSchoolyardLocation,
   parseLocation,
@@ -144,6 +145,12 @@ function resolveBadgeStyle(
         return {
           label: LOCATION_STATUSES.AT_SCHOOL,
           color: LOCATION_COLORS.AT_SCHOOL,
+        };
+      }
+      if (isInClassLocation(student.current_location)) {
+        return {
+          label: LOCATION_STATUSES.IN_CLASS,
+          color: LOCATION_COLORS.IN_CLASS,
         };
       }
       return { label: LOCATION_STATUSES.HOME, color: LOCATION_COLORS.HOME };

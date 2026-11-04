@@ -15,6 +15,9 @@ import (
 //     the source is a port so a contract in the Träger module can replace
 //     it, #4683)
 //   - Ist = first check-in to last check-out of the day (active.attendance)
+//   - time in class (#5656) stays inside Soll and Ist and is only shown next to
+//     them: it runs from a checkout to class to the next check-in, open without
+//     a return, so that a day ending at the checkout reads as class, not as home
 //   - overrun = Ist start earlier than Soll start or Ist end later than Soll
 //     end by more than CareTimeToleranceMinutes, or attendance on a day
 //     without a booking
@@ -28,6 +31,13 @@ const CareTimeToleranceMinutes = 15
 // ErrCareTimeStudentNotFound is returned when the child is not enrolled in
 // the caller's school during the window.
 var ErrCareTimeStudentNotFound = errors.New("care time student not found")
+
+// CareTimeClassTime is one stretch in class. End is nil when the child did not
+// come back that day.
+type CareTimeClassTime struct {
+	Start calendar.WallClock
+	End   *calendar.WallClock
+}
 
 // CareTimeDayKind classifies one child-day of the comparison.
 type CareTimeDayKind string
@@ -84,6 +94,9 @@ type CareTimeDay struct {
 	// the planned start and after the planned end; zero when it did not.
 	EarlyMinutes int
 	LateMinutes  int
+	// ClassTimes are the stretches in class of the day, earliest first (#5656).
+	// They explain the day and change none of its minutes.
+	ClassTimes []CareTimeClassTime
 }
 
 // CareTimeSummary totals the comparison of one child over the window.

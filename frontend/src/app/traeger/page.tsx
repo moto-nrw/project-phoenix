@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { School } from "lucide-react";
+import { ExternalLink, School } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -79,7 +79,8 @@ export default function TraegerSchoolsPage() {
                   type="button"
                   variant="surface"
                   size="compact"
-                  aria-label={`Schul-App öffnen: ${school.name}`}
+                  aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+                  title="Öffnet in einem neuen Tab"
                   disabled={opening !== null}
                   onClick={(event) => {
                     // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
@@ -87,9 +88,14 @@ export default function TraegerSchoolsPage() {
                     void open(school);
                   }}
                 >
-                  {opening === school.id
-                    ? "Wird geöffnet …"
-                    : TRAEGER_HANDOFF_OPEN}
+                  {opening === school.id ? (
+                    "Wird geöffnet …"
+                  ) : (
+                    <>
+                      {TRAEGER_HANDOFF_OPEN}
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </>
+                  )}
                 </Button>
               ),
             },
@@ -106,7 +112,7 @@ export default function TraegerSchoolsPage() {
           Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu. Ein
           Klick auf eine Schule zeigt ihre Zahlen und Stammdaten.
           {canOpen &&
-            " „Schul-App öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule."}
+            " „Schul-App öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit „Zurück zur Träger-App“ kommen Sie wieder hierher."}
         </>
       }
       stats={

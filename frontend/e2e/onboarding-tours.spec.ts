@@ -114,6 +114,21 @@ function stopAt(
   return stop;
 }
 
+/** Eine Station erst übernehmen, wenn Nummer und Titel zusammenpassen. */
+async function currentTourStop(
+  page: Page,
+  tour: SetupTour,
+): Promise<{
+  position: { index: number; total: number };
+  stop: SetupTourStop;
+} | null> {
+  const position = await tourPosition(page);
+  if (!position) return null;
+  const stop = stopAt(tour, position);
+  const title = await tourBubble(page).getAttribute("aria-label");
+  return title === stop.title ? { position, stop } : null;
+}
+
 /**
  * Markiert die Stelle unter dem grünen Rahmen, wenn sie den Selektor der
  * Station trifft. Der Rahmen steht 6 px um die Stelle (coach-mark.tsx);
@@ -183,13 +198,18 @@ async function walkTour(
     await expect(bubble, "Die Tour zeigt keine Sprechblase.").toBeVisible({
       timeout: 30_000,
     });
-    const position = await tourPosition(page);
-    if (!position) throw new Error("Die Sprechblase zeigt keine Station.");
-    const stop = stopAt(tour, position);
+    const station = await currentTourStop(page, tour);
+    // Eine bedingte Station kann genau zwischen dem Fortschritt und ihrem
+    // Titel zum nächsten Schritt springen. Dann die neue, vollständige
+    // Station abwarten statt den alten Fortschritt zu prüfen.
+    if (!station) {
+      await page.waitForTimeout(100);
+      continue;
+    }
+    const { position, stop } = station;
     const label = `Station ${position.index + 1} von ${position.total} „${stop.title}“`;
     visited.push(stop.title);
 
-    await expect(bubble, label).toHaveAttribute("aria-label", stop.title);
     await expect(
       page.locator("div.ring-2.ring-moto-green"),
       `${label}: kein grüner Rahmen, die Stelle ${stop.target} fehlt.`,
