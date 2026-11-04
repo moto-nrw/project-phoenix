@@ -142,11 +142,10 @@ describe("TraegerInvitePage", () => {
         catalogText("identity.invitation_expired", "die Einladung"),
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
-      ),
-    ).toBeInTheDocument();
+    // #5670: the Träger office has no school; the one message names who
+    // invited the person and is not repeated below.
+    expect(screen.getAllByText(/eingeladen hat/)).toHaveLength(1);
+    expect(screen.queryByText(/Ihre Schule/)).not.toBeInTheDocument();
   });
 
   // Quorum #4937: the link is spent once accepted; a failed sign-in must not
