@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -145,6 +151,52 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(onConnected).not.toHaveBeenCalled();
+  });
+
+  it("locks alternative offerings until the pending connection finishes", async () => {
+    mockPreview.mockResolvedValue({
+      ...preview,
+      otherOfferings: [{ offeringId: "4", name: "Ganztag", childCount: 2 }],
+    });
+    let finishSave!: () => void;
+    mockConnect.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishSave = resolve;
+      }),
+    );
+    const onClose = vi.fn();
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        deviation={deviation}
+        onClose={onClose}
+        onConnected={vi.fn()}
+      />,
+    );
+    const add = await screen.findByRole("button", {
+      name: "Angebot dazunehmen",
+    });
+    expect(add).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verbinden" }));
+
+    try {
+      expect(add).toBeDisabled();
+      fireEvent.click(add);
+      expect(
+        screen.getByRole("button", { name: "Angebote" }),
+      ).toHaveTextContent("Randstunde");
+      expect(mockConnect).toHaveBeenCalledWith(
+        "9",
+        { offeringIds: ["3"], gradeLevels: [], schoolClasses: ["1b"] },
+        preview.from,
+      );
+      expect(mockPreview).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => finishSave());
+    }
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("preselects no offering when several fit equally and previews the chosen one (#5138)", async () => {

@@ -823,6 +823,7 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
       { offeringIds: ["7"], gradeLevels: [], schoolClasses: ["1b"] },
       { 1: ["11", "12", "13"], 3: ["11", "12", "13"] },
       "2026-09-14",
+      { type: "care", listKind: "edge_hours" },
     );
     expect(screen.queryByText(suggestionLine)).not.toBeInTheDocument();
   });

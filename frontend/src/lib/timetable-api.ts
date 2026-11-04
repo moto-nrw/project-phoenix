@@ -552,9 +552,10 @@ class TimetableService {
     selection: OfferingSelection,
     roster: DraftRoster,
     from?: string,
+    template?: Pick<OfferingSuggestionQuery, "type" | "listKind">,
   ): Promise<OfferingPreview> {
     const response = await transportFetch(
-      `/api/timetable/offering-sources/preview?${draftPreviewQuery(periodId, selection, roster, from)}`,
+      `/api/timetable/offering-sources/preview?${draftPreviewQuery(periodId, selection, roster, from, template)}`,
       {
         method: "GET",
         headers: { Accept: "application/json" },
