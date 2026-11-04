@@ -118,7 +118,7 @@ describe("TraegerBeitraegePage", () => {
 
     expect(
       screen.getAllByText(
-        "Die Regel gilt für alle Familien mit Leistungsbezug. Diese Familien zahlen nichts. Ob eine Familie Leistungen bezieht, wählen Sie beim Bestätigen ihrer Anmeldung.",
+        "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung. Befreite Familien zahlen nichts.",
       )[0],
     ).toBeInTheDocument();
     fireEvent.click(
@@ -131,7 +131,7 @@ describe("TraegerBeitraegePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen ihrer Anmeldung.",
+        "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
       ),
     ).toBeInTheDocument();
     expect(

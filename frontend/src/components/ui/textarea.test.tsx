@@ -25,3 +25,26 @@ describe("Textarea label association", () => {
     );
   });
 });
+
+describe("Textarea hint", () => {
+  it("describes the field with the hint before the error", () => {
+    render(
+      <Textarea
+        id="note"
+        label="Vermerk"
+        hint="Steht auf dem Beitrag."
+        error="Bitte geben Sie den Vermerk an."
+      />,
+    );
+
+    const field = screen.getByLabelText("Vermerk");
+    expect(field).toHaveAccessibleDescription(
+      "Steht auf dem Beitrag. Bitte geben Sie den Vermerk an.",
+    );
+    const hint = screen.getByText("Steht auf dem Beitrag.");
+    const error = screen.getByText("Bitte geben Sie den Vermerk an.");
+    expect(
+      hint.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

@@ -24,6 +24,13 @@ import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
 const logger = createLogger({ component: "ContributionRuleModal" });
 
+/**
+ * Who the exemption rule is for and when it reaches a registration (#5690):
+ * the card and the dialog say it with the same words.
+ */
+export const EXEMPTION_RULE_SCOPE =
+  "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.";
+
 /** Which rule the modal writes: a new one of a kind or an existing one. */
 export type ContributionRuleEdit =
   | { readonly kind: "create"; readonly ruleKind: ContributionRuleKind }
@@ -215,10 +222,7 @@ export function ContributionRuleModal({
           {sibling ? null : (
             // The rule is the Träger's, not a family's (#5690): it applies
             // to a registration once the office picks the exemption there.
-            <p className="text-sm text-gray-600">
-              Die Regel gilt für alle Familien mit Leistungsbezug. Welche
-              Familie befreit ist, wählen Sie beim Bestätigen ihrer Anmeldung.
-            </p>
+            <p className="text-sm text-gray-600">{EXEMPTION_RULE_SCOPE}</p>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <ISODateInput
@@ -291,25 +295,17 @@ export function ContributionRuleModal({
               </div>
             </>
           ) : (
-            <div className="space-y-1">
-              <Textarea
-                id="contribution-rule-note"
-                name="note"
-                label="Vermerk auf dem Beitrag"
-                placeholder="Die Familie bezieht Leistungen für Bildung und Teilhabe."
-                value={draft.note}
-                maxLength={300}
-                aria-describedby="contribution-rule-note-hint"
-                error={formErrors.fieldError("note") ?? undefined}
-                onChange={(event) => set({ note: event.target.value })}
-              />
-              <p
-                id="contribution-rule-note-hint"
-                className="text-sm text-gray-600"
-              >
-                Der Vermerk steht beim Beitrag jeder befreiten Familie.
-              </p>
-            </div>
+            <Textarea
+              id="contribution-rule-note"
+              name="note"
+              label="Vermerk auf dem Beitrag"
+              placeholder="Die Familie bezieht Leistungen für Bildung und Teilhabe."
+              value={draft.note}
+              maxLength={300}
+              hint="Der Vermerk steht beim Beitrag jeder befreiten Familie."
+              error={formErrors.fieldError("note") ?? undefined}
+              onChange={(event) => set({ note: event.target.value })}
+            />
           )}
         </form>
       ) : null}

@@ -66,7 +66,7 @@ function benefitsText(
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung legen Sie unter „Ermäßigungen“ eine Befreiungsregel an.";
+  return "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Sie legen sie unter „Ermäßigungen“ an.";
 }
 
 /** The hint under the debtor number, at the confirmation and at a change. */
@@ -248,7 +248,7 @@ function PayerChoice({
     options.push({
       value: "exemption",
       label: "Von der Zahlung befreien (Leistungsbezug)",
-      description: "Die Befreiungsregel gilt. Niemand bezahlt den Betrag.",
+      description: "Dann gilt die Befreiungsregel. Niemand bezahlt den Betrag.",
     });
   }
   if (costBearers.length > 0) {

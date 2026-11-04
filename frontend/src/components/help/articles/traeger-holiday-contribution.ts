@@ -37,7 +37,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       {
         title: "Befreiungsregel anlegen",
         description:
-          "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen ihrer Anmeldung.",
+          "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
         steps: [
           "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel hinzufügen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
@@ -81,7 +81,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
       "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
       "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
-      "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen. Für die Befreiung wählt es dort `Von der Zahlung befreien (Leistungsbezug)`. Diese Wahl gibt es nur, wenn am ersten gebuchten Tag der Anmeldung eine Befreiungsregel gilt.",
+      "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen. Für die Befreiung wählt es dort `Von der Zahlung befreien (Leistungsbezug)`. Diese Wahl gibt es nur, wenn eine Befreiungsregel gilt. Es zählt der erste gebuchte Tag.",
       "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",
       "Bezahlt der Kostenträger den vollen Preis, zählt sein Kind weiter als Geschwisterkind. Die anderen Kinder behalten ihre Ermäßigung.",
       "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
