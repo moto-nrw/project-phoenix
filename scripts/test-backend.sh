@@ -81,8 +81,16 @@ if "$link_cache"; then
   go_cache=$(go env GOCACHE)
   # cmd/go's quoted argument parser cannot represent paths containing both
   # quote types. Conservatively leave apostrophe-containing paths uncached.
-  if [[ "$repo_root$go_cache" != *"'"* ]]; then
-    CONCURRENCY+=(-toolexec "'$repo_root/scripts/go-test-link-cache.sh' '$go_cache/phoenix-test-links-v1'")
+  if [[ "$repo_root$go_cache" != *"'"* && ${CGO_ENABLED:-} == 0 ]]; then
+    link_cache_root="$go_cache/phoenix-test-links-v2"
+    key_source="$repo_root/scripts/go-test-link-key.go"
+    key_tool="$link_cache_root/key-$(git hash-object --no-filters -- "$key_source")"
+    # Build one small native helper, not a go process per archive or link.
+    # Cache preparation must never prevent the actual tests from running.
+    if mkdir -p "$link_cache_root" 2>/dev/null &&
+      GOOS= GOARCH= CGO_ENABLED=0 go build -o "$key_tool" "$key_source" >/dev/null 2>&1; then
+      CONCURRENCY+=(-toolexec "'$repo_root/scripts/go-test-link-cache.sh' '$link_cache_root' '$key_tool'")
+    fi
   fi
 fi
 

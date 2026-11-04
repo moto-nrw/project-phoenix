@@ -9,23 +9,24 @@
 # One action per package bounds flag/source churn; eviction races are misses.
 set -euo pipefail
 cache_root=$1
-tool=$2
-shift 2
+key_tool=$2
+tool=$3
+shift 3
 if [[ ${tool##*/} != link || ${1:-} == -V=full || ${CGO_ENABLED:-} != 0 ]]; then
   exec "$tool" "$@"
 fi
 args=("$@")
-output= build_id= ids=0 outputs=0 imports=0 archives=0 unsafe=false
+importcfg= main_archive= output= build_id= ids=0 outputs=0 imports=0 archives=0 unsafe=false
 while (($#)); do
   case $1 in
     -o) output=${2:-}; outputs=$((outputs + 1)); shift ;;
-    -importcfg) imports=$((imports + 1)); shift ;;
+    -importcfg) importcfg=${2:-}; imports=$((imports + 1)); shift ;;
     -s|-w|-s=*|-w=*|-buildmode=exe|-buildmode=pie|-linkmode=internal|-extld=*|-X=*) ;;
     -X|-installsuffix) shift ;;
     -buildid=*) build_id=${1#*=}; ids=$((ids + 1)) ;;
     -buildid) build_id=${2:-}; ids=$((ids + 1)); shift ;;
     -*) unsafe=true ;;
-    *) archives=$((archives + 1)) ;;
+    *) main_archive=$1; archives=$((archives + 1)) ;;
   esac
   if (($#)); then shift; fi
 done
@@ -39,7 +40,11 @@ if [[ $cache_root != /* || ${GO_EXTLINK_ENABLED:-} == 1 ||
   ${TOOLEXEC_IMPORTPATH:-} == *..* ]]; then
   exec "$tool" "${args[@]}"
 fi
-key=${build_id%%/*}
+# Normalize cold temporary paths and warm cache paths to full archive IDs.
+# This also invalidates comment-only edits, unlike cmd/go's content IDs alone.
+config_id=$("$key_tool" "$importcfg" "$main_archive" 2>/dev/null) || exec "$tool" "${args[@]}"
+if [[ ! $config_id =~ ^[a-f0-9]{64}$ ]]; then exec "$tool" "${args[@]}"; fi
+key=${build_id%%/*}-$config_id
 slot="$cache_root/$TOOLEXEC_IMPORTPATH"
 cached="$slot/$key.test"
 if [[ -f $cached ]] && cp "$cached" "$output" 2>/dev/null; then exit 0; fi

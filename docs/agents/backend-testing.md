@@ -64,8 +64,10 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   source lines and stacks.
 - The full wrapper caches silent native test links under Go's build cache,
   independently of test results: `-count=1` still executes every test. The key
-  is cmd/go's link action hash, covering toolchain, flags and transitive object
-  contents, rather than source timestamps. It keeps one binary per package;
+  includes cmd/go's link action hash and every input archive's full build ID,
+  covering toolchain, flags and source contents, including comment-only edits.
+  Cold temporary paths normalize to the same IDs as warm cached objects.
+  It keeps one binary per package;
   concurrent eviction is a cache miss. CGO/race, unknown linker flags, forced
   rebuilds and caller-owned tool adapters retain native behavior. The changed
   wrapper and CI test invocation remain unchanged; CI runs the cache adapter's

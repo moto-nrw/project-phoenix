@@ -197,6 +197,7 @@ jobs:
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/go-test-link-cache.sh'
+              - 'scripts/go-test-link-key.go'
               - 'scripts/go-test-link-cache_test.sh'
               - 'scripts/backend-test-matrix.sh'
               - 'scripts/backend-test-matrix_test.sh'

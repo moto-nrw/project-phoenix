@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CGO_ENABLED=0
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test-helpers/git-fixture.sh"
 repo_root=$(git rev-parse --show-toplevel)
@@ -19,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend/scripts}
-for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh go-test-link-cache.sh; do
+for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh go-test-link-cache.sh go-test-link-key.go; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
 cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
@@ -84,6 +85,12 @@ case "$*" in
   'run ./internal/testdb/cmd/sweep')
     echo sweep >>"$TEST_CHANGED_CALL_LOG"
     exit "${PHX_FIXTURE_SWEEP_STATUS:-0}"
+    ;;
+  build\ -o\ *)
+    [ "$#" -eq 4 ] && [ "$2" = -o ] && [[ "$4" = */scripts/go-test-link-key.go ]]
+    mkdir -p "$(dirname "$3")"
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$3"
+    chmod +x "$3"
     ;;
   'tool gotestsum --help')
     exit "${PHX_FIXTURE_GOTESTSUM_STATUS:-1}"
@@ -200,7 +207,8 @@ assert_calls() {
 
 fixture_repo_root=$(git -C "$fixture" rev-parse --show-toplevel)
 full_runtime_options="-ldflags=-w -exec env GOGC=${GOGC-50}"
-full_cache_options="-toolexec '$fixture_repo_root/scripts/go-test-link-cache.sh' '$fixture/go-cache/phoenix-test-links-v1'"
+key_source_hash=$(git hash-object --no-filters -- "$repo_root/scripts/go-test-link-key.go")
+full_cache_options="-toolexec '$fixture_repo_root/scripts/go-test-link-cache.sh' '$fixture/go-cache/phoenix-test-links-v2' '$fixture/go-cache/phoenix-test-links-v2/key-$key_source_hash'"
 go_test_call() {
   local wrapper=$1 workers=$2
   shift 2

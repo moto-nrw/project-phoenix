@@ -8,6 +8,7 @@ mkdir -p "$fixture/bin" "$fixture/dep"
 export CACHE_PROBE_ROOT="$fixture/cache" CACHE_PROBE_HELPER="$repo_root/scripts/go-test-link-cache.sh"
 export CACHE_PROBE_LOG="$fixture/links" CACHE_PROBE_BIN="$fixture/bin" CACHE_PROBE_EXEC="$fixture/runs"
 export CGO_ENABLED=0 GOMAXPROCS=1
+export CACHE_PROBE_KEY_TOOL="$fixture/link-key"
 version=$(awk '$1 == "go" {print $2; exit}' "$repo_root/backend/go.mod")
 printf 'module linkcacheprobe\n\ngo %s\n' "$version" >"$fixture/go.mod"
 printf 'package dep\nconst Value = "one"\n' >"$fixture/dep/value.go"
@@ -40,7 +41,7 @@ set -euo pipefail
 if [[ ${1##*/} == link ]]; then
  export CACHE_PROBE_REAL_LINK=$1
  shift
- exec "$CACHE_PROBE_HELPER" "$CACHE_PROBE_ROOT" "$CACHE_PROBE_BIN/link" "$@"
+ exec "$CACHE_PROBE_HELPER" "$CACHE_PROBE_ROOT" "$CACHE_PROBE_KEY_TOOL" "$CACHE_PROBE_BIN/link" "$@"
 fi
 exec "$@"
 EOF
@@ -59,6 +60,7 @@ exec "$CACHE_PROBE_REAL_LINK" "$@"
 EOF
 chmod +x "$fixture/tool" "$fixture/bin/link"
 go_bin=$(command -v go)
+"$go_bin" build -o "$CACHE_PROBE_KEY_TOOL" "$repo_root/scripts/go-test-link-key.go"
 cd "$fixture"
 links() { if [[ -f $CACHE_PROBE_LOG ]]; then wc -l <"$CACHE_PROBE_LOG" | tr -d ' '; else echo 0; fi; }
 executions() { if [[ -f $CACHE_PROBE_EXEC ]]; then wc -l <"$CACHE_PROBE_EXEC" | tr -d ' '; else echo 0; fi; }
@@ -78,6 +80,14 @@ cached=$(find "$fixture/cache" -name '*.test' -type f)
 checksum=$(cksum <"$cached")
 run 0 0
 [[ $(executions) == 2 && $(cksum <"$cached") == "$checksum" ]]
+# Comment-only production and test edits must also relink. The next warm run
+# must hit even though cmd/go moved cold objects from temporary to cache paths.
+printf '\n// production source changed\n' >> dep/value.go
+run 0 1
+run 0 0
+printf '\n// test source changed\n' >> probe_test.go
+run 0 1
+run 0 0
 sed 's/one/two/' dep/value.go > dep/new
 mv dep/new dep/value.go
 run 0 1
