@@ -241,19 +241,23 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 }
 
 func sharedTableStatesDB(ctx context.Context, db sqlExecutor, predicates map[string]string) (map[string]sharedTableState, error) {
-	// One round trip for ~300 tables instead of ~300: the per-table counts are
-	// pushed into the server as query_to_xml sub-selects. The sweep runs this
-	// once per clone (~160 per suite run), so the difference is minutes.
+	// One round trip for all tables. Materialize the XML once per table:
+	// query_to_xml is volatile, so two xpath expressions otherwise execute
+	// the same count/fingerprint query twice. Both values must share one scan.
 	values, args := sharedCountValues(predicates)
 	if len(args) == 0 {
 		return map[string]sharedTableState{}, nil
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT v.tbl,
-			(xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint,
-			(xpath('/row/f/text()', query_to_xml(v.q, false, true, '')))[1]::text
-		FROM (VALUES `+values+`) AS v(tbl, q)`, args...)
+		WITH counts AS MATERIALIZED (
+			SELECT v.tbl, query_to_xml(v.q, false, true, '') AS state
+			FROM (VALUES `+values+`) AS v(tbl, q)
+		)
+		SELECT tbl,
+			(xpath('/row/c/text()', state))[1]::text::bigint,
+			(xpath('/row/f/text()', state))[1]::text
+		FROM counts`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot table rows: %w", err)
 	}
