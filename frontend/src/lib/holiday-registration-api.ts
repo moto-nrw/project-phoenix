@@ -280,18 +280,23 @@ export type HolidayQuoteChild = readonly {
 
 /**
  * The contribution of the form before it is sent (#4664): computed by the
- * Träger's rules from the bookings alone, stored nowhere.
+ * Träger's rules from the bookings and the order of the children by age,
+ * stored nowhere.
  */
 export async function quoteHolidayContribution(
   token: string,
   children: readonly HolidayQuoteChild[],
   benefitsDeclared: boolean,
+  ageRanks: readonly number[] = [],
 ): Promise<HolidayContribution> {
   const response = await request(`${registrationPath(token)}/contribution`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      children: children.map((bookings) => ({ bookings })),
+      children: children.map((bookings, index) => ({
+        bookings,
+        age_rank: ageRanks[index] ?? 0,
+      })),
       benefits_declared: benefitsDeclared,
     }),
   });

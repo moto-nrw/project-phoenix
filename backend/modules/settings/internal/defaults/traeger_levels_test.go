@@ -30,7 +30,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
-		config.KeyParentBillingDebtorNumberOnConfirm, config.KeyParentBillingPaymentText,
+		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 	}
 	var got, gotTraeger []string
 	for key, definition := range config.DefaultRegistry().AllDefinitions() {

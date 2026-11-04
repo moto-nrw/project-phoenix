@@ -4,12 +4,14 @@ import type {
   HolidayRegistrationOffer,
 } from "~/lib/holiday-registration-api";
 import {
+  type ChildDraft,
   emptyChild,
   emptyContact,
   emptyRegistration,
   hasRoomForKnownChild,
   OTHER_SCHOOL,
   payloadFromDraft,
+  quoteAgeRanks,
   type RegistrationDraft,
   registrationFromFamily,
   toggleKnownChild,
@@ -567,5 +569,25 @@ describe("postal address of the parent (#5625)", () => {
       postal_code: "01234",
       city: "Bissendorf",
     });
+  });
+});
+
+describe("order of the children by age for the quote (#5664)", () => {
+  const born = (birthDate: string) => ({ birthDate }) as ChildDraft;
+
+  it("names the oldest child first and keeps the place in the form", () => {
+    expect(
+      quoteAgeRanks([
+        born("2018-03-01"),
+        born("2016-09-12"),
+        born("2017-01-20"),
+      ]),
+    ).toEqual([3, 1, 2]);
+  });
+
+  it("gives twins one place and a child without a date none", () => {
+    expect(
+      quoteAgeRanks([born("2017-05-05"), born("2017-05-05"), born("")]),
+    ).toEqual([1, 1, 0]);
   });
 });
