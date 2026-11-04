@@ -7,9 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -44,7 +42,7 @@ func runSchoolStaffRecipientsBudget(t *testing.T, populated bool) {
 	testpkg.EnsureAccountTenant(t, db, viewer.ID, testpkg.Tenant(t))
 	testpkg.AssignLehrkraftSystemRole(t, db, viewer.ID, testpkg.Tenant(t))
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
-	router := schoolStaffRecipientsRouter(module)
+	router := module.SchoolStaffMessagingRouterForTests()
 	claims := sessiontoken.AppClaims{ID: int(viewer.ID), Sub: viewer.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 	token := testutil.MintTestJWT(t, claims) // No permission is required on this public school-scope surface.
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -85,20 +83,13 @@ func runSchoolStaffRecipientsBudget(t *testing.T, populated bool) {
 	}
 }
 
-func schoolStaffRecipientsRouter(module api.StaffMessagingTestModule) chi.Router {
-	router := chi.NewRouter()
-	router.Use(common.ProblemResponseMiddleware)
-	router.Mount("/school/staff-messages", staffmessaging.NewResource(module.StaffMessaging).SchoolRouter(api.ProtectedSchoolRoutes))
-	return router
-}
-
 func TestSchoolStaffRecipientsScopeErrors(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	module, _, err := api.NewStaffMessagingTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	_, viewer := testpkg.CreateTestStaffWithAccount(t, db, "School", "Viewer")
-	router := schoolStaffRecipientsRouter(module)
+	router := module.SchoolStaffMessagingRouterForTests()
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	counter.Stop()
 	for _, scope := range []string{tenant.ScopeTenant, tenant.ScopeParent, tenant.ScopeOrg, tenant.ScopePlatform, tenant.ScopeCaterer} {
@@ -131,7 +122,7 @@ func TestSchoolStaffRecipientsDisabledError(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 	counter.Reset()
 	counter.Start()
-	rec := testutil.ExecuteRequestForTest(t, schoolStaffRecipientsRouter(module), req)
+	rec := testutil.ExecuteRequestForTest(t, module.SchoolStaffMessagingRouterForTests(), req)
 	counter.Stop()
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
