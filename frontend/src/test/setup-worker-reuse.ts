@@ -13,6 +13,8 @@ import { afterAll, vi } from "vitest";
  *
  * - every module the Vite module runner evaluated, including its fetched
  *   meta and automock cache, and every vi.mock registration;
+ * - the file's vi.spyOn spies (restored) and its mocks in the registry of
+ *   vi.clearAllMocks and vi.resetAllMocks;
  * - own properties of globalThis, of every global constructor and its
  *   prototype, of Node's builtin modules with their exported classes,
  *   functions and prototypes, of the window's prototype chains, and the
@@ -49,6 +51,7 @@ interface WorkerBaseline {
   listeners: Array<[EventTarget, string, unknown, unknown]>;
   /** Node timers a test file started and that have not run or been cleared. */
   timers: Set<NodeJS.Timeout | NodeJS.Immediate>;
+  mocks: MockRegistry;
   /** setImmediate as it was before tracking, for the reset itself. */
   untrackedImmediate: typeof setImmediate;
   clearTimers?: () => void;
@@ -378,6 +381,45 @@ function keepDefinitionsRemovable(restored: WeakSet<object>) {
     reflectDefine(target, key, configurable(target, key, descriptor));
 }
 
+interface MockRegistry {
+  /** Every mock function the worker created and has not dropped yet. */
+  registered: Set<unknown>;
+  /** Members of `registered` that predate the first test file. */
+  baseline: Set<unknown>;
+}
+
+/**
+ * @vitest/spy keeps every mock function it creates in one module-level set,
+ * which vi.clearAllMocks and vi.resetAllMocks walk. The package is loaded once
+ * per worker, so in a reused worker the set holds the mocks of every earlier
+ * file: each clearAllMocks call (most files call it before every test) walks
+ * all of them, and the set keeps their recorded calls and the earlier files'
+ * module instances in their closures alive. A fresh worker has none of them.
+ *
+ * The set is not exported; clearAllMocks hands it over as the receiver of
+ * Set.prototype.forEach, which is stubbed for that one call so no mock is
+ * cleared.
+ */
+function mockRegistry(): MockRegistry {
+  const forEach = Set.prototype.forEach;
+  let registered: Set<unknown> | undefined;
+  Set.prototype.forEach = function (this: Set<unknown>) {
+    registered = this;
+  };
+  try {
+    vi.clearAllMocks();
+  } finally {
+    Set.prototype.forEach = forEach;
+  }
+  const probe = vi.fn();
+  if (!registered?.delete(probe)) {
+    throw new Error(
+      "setup-worker-reuse: vi.clearAllMocks no longer walks the mock registry with Set.prototype.forEach; update mockRegistry()",
+    );
+  }
+  return { registered, baseline: new Set(registered) };
+}
+
 interface WindowTimers {
   runningTimers: NodeJS.Timeout[];
 }
@@ -503,6 +545,7 @@ async function createBaseline(): Promise<WorkerBaseline> {
     dom: null,
     listeners: [],
     timers: new Set(),
+    mocks: mockRegistry(),
     untrackedImmediate: setImmediate,
   };
   // React's scheduler keeps its timer functions from the first load on.
@@ -588,8 +631,19 @@ async function settleImports(nextMacrotask: typeof setImmediate) {
   }
 }
 
+function dropFileMocks({ registered, baseline }: MockRegistry) {
+  for (const mock of registered) {
+    if (!baseline.has(mock)) registered.delete(mock);
+  }
+}
+
 function resetWorker(baseline: WorkerBaseline) {
   baseline.clearTimers?.();
+  // Spied globals and builtins return to their baseline below anyway;
+  // restoring the spies also undoes those on natively loaded packages,
+  // which the snapshot does not cover.
+  vi.restoreAllMocks();
+  dropFileMocks(baseline.mocks);
   for (const [target, type, listener, options] of baseline.listeners.splice(
     0,
   )) {
