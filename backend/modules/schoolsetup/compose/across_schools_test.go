@@ -154,9 +154,9 @@ func TestStaffFirstStepsFollowThePersonThroughTheTraegerSession(t *testing.T) {
 	worker := testpkg.CreateTestAccount(t, h.db, "first-steps-traeger-session")
 	testpkg.CreateTestTraegerMember(t, h.db, traeger, worker.ID)
 
-	var mappings int
-	require.NoError(t, h.db.NewRaw(`SELECT COUNT(*) FROM auth.account_tenants WHERE account_id = ?`, worker.ID).Scan(context.Background(), &mappings))
-	require.Zero(t, mappings, "a Träger session has no school membership mapping")
+	var selectedSchoolMappings int
+	require.NoError(t, h.db.NewRaw(`SELECT COUNT(*) FROM auth.account_tenants WHERE account_id = ? AND tenant_id IN (?, ?)`, worker.ID, schoolA, schoolB).Scan(context.Background(), &selectedSchoolMappings))
+	require.Zero(t, selectedSchoolMappings, "a Träger session has no mapping for either selected school")
 
 	response, _ := staff.doIn(t, inTenant(t, schoolA), worker.ID, http.MethodPut, "/steps/students", map[string]any{"state": "done"})
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
