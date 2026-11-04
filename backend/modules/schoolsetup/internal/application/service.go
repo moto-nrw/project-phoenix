@@ -68,6 +68,21 @@ func (s *Service) Status(ctx context.Context, tenantID, accountID int64) (school
 	return status, nil
 }
 
+// StatusViaTraeger returns the wizard for a person who came through the
+// Absprung. The wizard's progress stays the school's; only hiding it follows
+// the person across the Träger (#5659).
+func (s *Service) StatusViaTraeger(ctx context.Context, tenantID, accountID int64) (schoolsetup.Status, error) {
+	status, err := s.Status(ctx, tenantID, accountID)
+	if err != nil || status.Dismissed {
+		return status, err
+	}
+	status.Dismissed, err = s.DismissedInTraeger(ctx, accountID)
+	if err != nil {
+		return schoolsetup.Status{}, err
+	}
+	return status, nil
+}
+
 // SetStepSkipped skips a step or takes the skip back.
 func (s *Service) SetStepSkipped(ctx context.Context, tenantID, accountID int64, key string, skipped bool) error {
 	step, ok := schoolsetup.ParseStepKey(key)

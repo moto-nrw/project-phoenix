@@ -16,6 +16,10 @@ import (
 // Service drives the wizard of one school for the calling person.
 type Service interface {
 	Status(ctx context.Context, tenantID, accountID int64) (Status, error)
+	// StatusViaTraeger is Status for a person who came through the Absprung:
+	// hiding the wizard in one school of the Träger hides it in all of them
+	// for that person (#5659).
+	StatusViaTraeger(ctx context.Context, tenantID, accountID int64) (Status, error)
 	// SetStepSkipped skips a step or takes the skip back; an unknown step
 	// key returns ErrUnknownStep.
 	SetStepSkipped(ctx context.Context, tenantID, accountID int64, step string, skipped bool) error
@@ -155,6 +159,9 @@ type Store interface {
 	StoreSetup(ctx context.Context, state *State) error
 	// IsDismissed reports whether the account hid the wizard.
 	IsDismissed(ctx context.Context, accountID int64) (bool, error)
+	// DismissedInTraeger reports whether the account hid the wizard in any
+	// school of the Träger of the ambient school.
+	DismissedInTraeger(ctx context.Context, accountID int64) (bool, error)
 	// SetDismissed hides or shows the wizard for the account.
 	SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error
 }

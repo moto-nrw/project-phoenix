@@ -21,13 +21,14 @@ const (
 // fakeSchoolSetupStore keeps the state of one school in memory. The tenant is
 // implicit, as it is in the repository, where RLS supplies it.
 type fakeSchoolSetupStore struct {
-	setup     *schoolsetup.State
-	dismissed map[int64]bool
-	upserts   int
+	setup              *schoolsetup.State
+	dismissed          map[int64]bool
+	dismissedInTraeger map[int64]bool
+	upserts            int
 }
 
 func newFakeSchoolSetupStore() *fakeSchoolSetupStore {
-	return &fakeSchoolSetupStore{dismissed: map[int64]bool{}}
+	return &fakeSchoolSetupStore{dismissed: map[int64]bool{}, dismissedInTraeger: map[int64]bool{}}
 }
 
 func (f *fakeSchoolSetupStore) SetupOfSchool(context.Context) (*schoolsetup.State, error) {
@@ -48,6 +49,10 @@ func (f *fakeSchoolSetupStore) StoreSetup(_ context.Context, setup *schoolsetup.
 
 func (f *fakeSchoolSetupStore) IsDismissed(_ context.Context, accountID int64) (bool, error) {
 	return f.dismissed[accountID], nil
+}
+
+func (f *fakeSchoolSetupStore) DismissedInTraeger(_ context.Context, accountID int64) (bool, error) {
+	return f.dismissedInTraeger[accountID], nil
 }
 
 func (f *fakeSchoolSetupStore) SetDismissed(_ context.Context, _, accountID int64, dismissed bool) error {
@@ -219,6 +224,25 @@ func TestSchoolSetupIsClosedAfterCompletion(t *testing.T) {
 	require.ErrorIs(t, f.service.Complete(ctx, setupTenant, setupAdmin), schoolsetup.ErrCompleted)
 	assert.Zero(t, f.store.upserts)
 	assert.Zero(t, f.progress.reads, "a finished school reads no progress")
+}
+
+func TestSchoolSetupViaTraegerFollowsADismissalInTheTraeger(t *testing.T) {
+	t.Parallel()
+	f := newSetupFixture(t)
+	ctx := context.Background()
+	f.store.dismissedInTraeger[setupAdmin] = true
+
+	viaTraeger, err := f.service.StatusViaTraeger(ctx, setupTenant, setupAdmin)
+	require.NoError(t, err)
+	assert.True(t, viaTraeger.Dismissed, "hidden in a sibling school: hidden here for the Absprung")
+
+	own, err := f.service.Status(ctx, setupTenant, setupAdmin)
+	require.NoError(t, err)
+	assert.False(t, own.Dismissed, "an own access to the school keeps its own dismissal")
+
+	colleague, err := f.service.StatusViaTraeger(ctx, setupTenant, setupColleague)
+	require.NoError(t, err)
+	assert.False(t, colleague.Dismissed, "the dismissal stays personal")
 }
 
 func TestSchoolSetupDismissalIsPersonal(t *testing.T) {

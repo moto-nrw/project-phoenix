@@ -91,12 +91,14 @@ func (s *StaffOnboarding) update(ctx context.Context, tenantID, accountID int64,
 	}
 	if state == nil {
 		state = &schoolsetup.StaffState{
-			TenantID:     tenantID,
 			AccountID:    accountID,
 			DoneSteps:    []string{},
 			SkippedSteps: []string{},
 		}
 	}
+	// The person's whole state moves into the school of the request; its row
+	// is the newest and so the state every school of the person reads (#5659).
+	state.TenantID = tenantID
 	change(state)
 	return s.store.StoreStaffOnboarding(ctx, state)
 }

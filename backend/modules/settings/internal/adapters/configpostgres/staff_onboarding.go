@@ -8,12 +8,7 @@ import (
 	"time"
 )
 
-const (
-	tableStaffOnboardings = "config.staff_onboardings"
-	// The alias must match the row struct's name: bun qualifies the selected
-	// columns with the model alias it derives from it.
-	tableStaffOnboardingsAlias = `config.staff_onboardings AS "staff_onboarding_row"`
-)
+const tableStaffOnboardings = "config.staff_onboardings"
 
 // staffOnboardingRow is one config.staff_onboardings row (#3748).
 type staffOnboardingRow struct {
@@ -25,6 +20,14 @@ type staffOnboardingRow struct {
 	DismissedAt  *time.Time `bun:"dismissed_at"`
 	CreatedAt    time.Time  `bun:"created_at,notnull,default:now()"`
 	UpdatedAt    time.Time  `bun:"updated_at,notnull,default:now()"`
+}
+
+// staffOnboardingAcrossSchools is one row of
+// config.staff_onboarding_across_schools.
+type staffOnboardingAcrossSchools struct {
+	DoneSteps    []string   `bun:"done_steps,array"`
+	SkippedSteps []string   `bun:"skipped_steps,array"`
+	DismissedAt  *time.Time `bun:"dismissed_at"`
 }
 
 // staffOnboarding is one person's stored first-steps progress.
@@ -52,9 +55,9 @@ type StaffOnboardingState interface {
 // StaffOnboardingRepository stores the first steps of care workers. The
 // table belongs to Settings Platform, next to the school wizard's tables.
 //
-// Tenant scoping comes from the runtime's tenant transaction and the RLS
-// policy on the table; the account is the only key this package supplies
-// itself.
+// Writes are tenant scoped by the runtime's tenant transaction and the RLS
+// policy on the table. The read crosses the person's schools through a function
+// that checks the person's access to the school of the transaction (#5659).
 type StaffOnboardingRepository[S StaffOnboardingState] struct {
 	runtime Runtime
 }
@@ -64,23 +67,22 @@ func NewStaffOnboardingRepository[S StaffOnboardingState](runtime Runtime) *Staf
 	return &StaffOnboardingRepository[S]{runtime: runtime}
 }
 
-// StaffOnboardingOf returns the person's state, or (nil, nil) if the person
-// has not started.
+// StaffOnboardingOf returns the person's state across all their schools, or
+// (nil, nil) if the person has not started anywhere (#5659). The returned state
+// names no school: the caller stores it in the school of the request.
 func (r *StaffOnboardingRepository[S]) StaffOnboardingOf(ctx context.Context, accountID int64) (*S, error) {
 	if accountID <= 0 {
 		return nil, errors.New("account ID is required")
 	}
-	stored := new(staffOnboardingRow)
-	ambientDB1, databaseErr1 := r.runtime.DB(ctx)
-	if databaseErr1 != nil {
-		return *new(*S), databaseErr1
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
 	}
-	err := ambientDB1.NewSelect().
-		Model(stored).
-		ModelTableExpr(tableStaffOnboardingsAlias).
-		Where(`"staff_onboarding_row".account_id = ?`, accountID).
-		Limit(1).
-		Scan(ctx)
+	stored := new(staffOnboardingAcrossSchools)
+	err = db.NewRaw(
+		`SELECT done_steps, skipped_steps, dismissed_at FROM config.staff_onboarding_across_schools(?)`,
+		accountID,
+	).Scan(ctx, stored)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -88,8 +90,7 @@ func (r *StaffOnboardingRepository[S]) StaffOnboardingOf(ctx context.Context, ac
 		return nil, fmt.Errorf("find staff onboarding: %w", err)
 	}
 	state := S(staffOnboarding{
-		TenantID:     stored.TenantID,
-		AccountID:    stored.AccountID,
+		AccountID:    accountID,
 		DoneSteps:    stored.DoneSteps,
 		SkippedSteps: stored.SkippedSteps,
 		DismissedAt:  stored.DismissedAt,
