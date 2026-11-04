@@ -14549,6 +14549,76 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "reason": "Roster counts invoke the existing read/value target github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID through Timetable StudentAlumni/StudentNames bindings in roots/owners/timetable_repositories.go, as GetEnrolledStudents does. No persistent write, locking read or scope effect; directory failures remain observable.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetGroupSupervisors",
       "classification": "query",
       "effect": "query",

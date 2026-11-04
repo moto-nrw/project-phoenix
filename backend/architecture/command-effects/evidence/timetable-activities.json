@@ -11041,6 +11041,62 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "5e9b7778d16ad3ce5b1725ee0523b5e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "296cb42e362cdd433ac81debaf7500cf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "77c1553af9eb366c3233eacf263699b4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "b91ebe2abbad34e99a468839b552a61a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "45f9bf0244c9358ad546ab9fc349275f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "b695db2e331d6127d3569a3beaf02b74",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetEnrollmentCounts",
+      "binding_digest": "c043fcc0bc0ddc43f4c2f40e1ebc6cda",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetEnrollmentCounts",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.GetGroupSupervisors",
       "binding_digest": "87654355629183615f741aff5f33f49b",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetGroupSupervisors",
