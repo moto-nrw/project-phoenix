@@ -4,7 +4,6 @@ package account_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,11 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -45,13 +42,10 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	require.Zero(t, session.Generation)
 	require.Nil(t, session.RotatedAt)
 
-	var observations []common.TenantRequestEvent
-	router := chi.NewRouter()
-	router.Use(common.TenantRequestObserverMiddleware(func(event common.TenantRequestEvent) {
+	var observations []api.TenantRequestEventForTests
+	f.router = api.NewTenantRequestObservedRouterForTests(f.router, func(event api.TenantRequestEventForTests) {
 		observations = append(observations, event)
-	}))
-	router.Mount("/", f.router)
-	f.router = router
+	})
 
 	system := testpkg.CreateTestSystemRole(t, f.db, "rbac-platform-system")
 	foreign := testpkg.CreateTestRoleForTenant(t, f.db, "rbac-platform-foreign", tenant.FromContext(f.foreign))
@@ -183,11 +177,11 @@ func rbacPlatformClaims(t *testing.T, token string, operatorID int64) string {
 }
 
 type rbacPlatformReadback struct {
-	Catalogue     rbacBudgetState
-	GlobalRoles   []identityaccess.Role
-	Operator      identityaccess.Operator
-	Session       identityaccess.OperatorSession
-	PrivateDigest [32]byte `json:"-"`
+	Catalogue        rbacBudgetState
+	GlobalRoles      []identityaccess.Role
+	Operator         identityaccess.Operator
+	Session          identityaccess.OperatorSession
+	PrivateStateJSON string `json:"-"`
 }
 
 func rbacPlatformState(t *testing.T, f *rbacBudgetFixture, operatorID int64, family string) rbacPlatformReadback {
@@ -205,9 +199,10 @@ func rbacPlatformState(t *testing.T, f *rbacBudgetFixture, operatorID int64, fam
 	require.NoError(t, err)
 	private, err := json.Marshal([]any{state.Operator, state.Session})
 	require.NoError(t, err)
-	state.PrivateDigest = sha256.Sum256(private)
-	// These readbacks preserve all public metadata without archiving even
-	// test credential hashes or recovery material in the evidence logs.
+	state.PrivateStateJSON = string(private)
+	// Keep the complete credential-bearing JSON only in unlogged memory.
+	// Boolean equality below never formats it, and json:"-" excludes it
+	// from the public evidence snapshots.
 	state.Operator.PasswordHash = ""
 	state.Session.Token, state.Session.TokenHash = "", ""
 	state.Session.ReplacementTokenHash, state.Session.RecoveryProofHash = nil, nil
@@ -246,7 +241,7 @@ func rbacPlatformGet(t *testing.T, f *rbacBudgetFixture, path, token string, ope
 	require.ElementsMatch(t, before.GlobalRoles, after.GlobalRoles)
 	require.Equal(t, before.Operator, after.Operator)
 	require.Equal(t, before.Session, after.Session)
-	require.True(t, before.PrivateDigest == after.PrivateDigest, "credential-bearing state must also remain unchanged")
+	require.True(t, before.PrivateStateJSON == after.PrivateStateJSON, "credential-bearing state must also remain unchanged")
 	for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
 		require.Empty(t, f.counter.Operation(operation))
 	}
@@ -254,7 +249,7 @@ func rbacPlatformGet(t *testing.T, f *rbacBudgetFixture, path, token string, ope
 	return rr, queries
 }
 
-func rbacPlatformDenied(t *testing.T, f *rbacBudgetFixture, rr *httptest.ResponseRecorder, events []common.TenantRequestEvent) {
+func rbacPlatformDenied(t *testing.T, f *rbacBudgetFixture, rr *httptest.ResponseRecorder, events []api.TenantRequestEventForTests) {
 	t.Helper()
 	rbacBudgetProblem(t, rr, http.StatusForbidden, "general.permission", "Forbidden", "anleitung-zugriff-pruefen")
 	require.Len(t, events, 1)
