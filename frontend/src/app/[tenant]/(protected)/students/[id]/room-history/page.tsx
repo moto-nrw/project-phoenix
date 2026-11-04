@@ -366,15 +366,13 @@ function HistoryTable({
 
   return (
     <>
-      {/* bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
-          ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante. */}
+      {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
+          bis zur Kartenkante. */}
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="section" />
-        }
-        bodyClassName="mt-4 -mx-5 -mb-5"
+        concept={changeHistoryConcept}
+        flush
       >
         {days.length === 0 ? null : (
           <>
@@ -823,9 +821,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}

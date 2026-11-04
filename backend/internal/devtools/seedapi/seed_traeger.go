@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -146,7 +147,8 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	runID, err := seedHolidayBillingRun(rt.Client, auth, periodID)
+	costBearerID, _ := rt.Values[seedCostBearerKey].(int64)
+	runID, err := seedHolidayBillingRun(rt.Client, auth, periodID, costBearerID)
 	if err != nil {
 		return err
 	}
@@ -266,8 +268,9 @@ func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error 
 // proof (#5238). The Träger-Büro asks for the debtor number at the
 // confirmation (#5621), reviews the list and confirms the siblings'
 // registration with their invented debtor number (#4663), which freezes its
-// contribution (#4664); the duplicate stays received and has no debtor
-// number yet. The form shows the siblings' contribution before it is sent.
+// contribution (#4664); it confirms the duplicate with the cost takeover by
+// a cost bearer (#5627). The form shows the siblings' contribution before
+// it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	if err := seedHolidayAddressForm(rt.Client, auth, periodID); err != nil {
 		return "", err
@@ -297,8 +300,13 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if err != nil {
 		return "", err
 	}
-	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration, proof)); err != nil {
+	raw, err = rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration, proof))
+	if err != nil {
 		return "", fmt.Errorf("register the possible duplicate: %w", err)
+	}
+	duplicate, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return "", fmt.Errorf("read the possible duplicate: %w", err)
 	}
 	registrations := fmt.Sprintf("/traeger/holiday-periods/%d/registrations", periodID)
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
@@ -314,9 +322,130 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
-	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number, a possible duplicate waits for review")
+	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number")
+	if err := seedHolidayAfterConfirmation(rt, auth, token, periodID, siblings, duplicate, registration); err != nil {
+		return "", err
+	}
 	return token, nil
 }
+
+// seedHolidaySiblingGroup lets the second parent register a third sibling
+// in a form of their own, and the Träger-Büro merges it with the siblings'
+// registration (#5628): the third child pays the sibling price although it
+// stands in another registration. A demo server that refuses the order
+// keeps the period without the group.
+func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID int64, registration map[string]any, siblings int64) error {
+	children := registration["children"].([]map[string]any)
+	guestBookings := children[1]["bookings"].([]map[string]any)
+	sibling := map[string]any{}
+	for key, value := range registration {
+		sibling[key] = value
+	}
+	delete(sibling, "second_guardian")
+	sibling["guardian"] = map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"}
+	sibling["declaration_name"] = "Thomas Ferienkind"
+	sibling["children"] = []map[string]any{{
+		"first_name": "Mila", "last_name": "Ferienkind", "birth_date": "2020-02-21", "home_school_id": children[0]["home_school_id"],
+		"bookings": guestBookings[len(guestBookings)-1:],
+	}}
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, sibling)
+	var refused *APIError
+	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
+		fmt.Printf("  Ferienanmeldung: third sibling refused (%s), no sibling group\n", refused.Code)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("register the third sibling: %w", err)
+	}
+	third, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return fmt.Errorf("read the third sibling's registration: %w", err)
+	}
+	merge := fmt.Sprintf("/traeger/holiday-contributions/%d/sibling-groups", periodID)
+	if _, err := rt.Client.PostWithAuth(auth, merge, map[string]any{"registration_ids": []int64{siblings, third}}); err != nil {
+		return fmt.Errorf("merge the siblings of two registrations: %w", err)
+	}
+	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
+	return nil
+}
+
+// seedHolidayAfterConfirmation corrects the confirmed siblings' details
+// (#5629), confirms the second registration with the cost takeover by a
+// cost bearer (#5627) and merges a third sibling's registration with the
+// siblings (#5628).
+func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, periodID, siblings, duplicate int64, registration map[string]any) error {
+	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
+		return err
+	}
+	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
+		return err
+	}
+	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
+}
+
+// seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
+// registration (#5629): the family called with a new phone number and an
+// added emergency contact. Name, e-mail and address stay those of the
+// registration, so the confirmation letter still reaches the seeded
+// parent's inbox with its address. The history then shows the change by its
+// fields.
+func seedHolidayRegistrationEdit(rt *Runtime, auth AuthRef, periodID, registrationID int64, registration map[string]any) error {
+	guardian := map[string]any{}
+	if registered, ok := registration["guardian"].(map[string]any); ok {
+		maps.Copy(guardian, registered)
+	}
+	guardian["phone"] = "0151 0000009"
+	path := fmt.Sprintf("/traeger/holiday-periods/%d/registrations/%d/details", periodID, registrationID)
+	if _, err := rt.Client.PutWithAuth(auth, path, map[string]any{
+		"guardian":         guardian,
+		"guardian_address": registration["guardian_address"],
+		"second_guardian":  registration["second_guardian"],
+		"emergency_contacts": []map[string]any{
+			{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"},
+			{"name": "Karin Ferienkind", "phone": "05402 000003", "relationship": "Tante"},
+		},
+		"pickup_persons": []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
+	}); err != nil {
+		return fmt.Errorf("change the details of the holiday registration: %w", err)
+	}
+	fmt.Println("  Träger-Büro: changed the phone number and added an emergency contact")
+	return nil
+}
+
+// seedCostBearerKey keeps the ID of the seeded cost bearer for the list of
+// the billing run (#5627).
+const seedCostBearerKey = "traeger.cost_bearer_id"
+
+// seedHolidayCostTakeover lets the Abrechnung keep an invented youth office
+// as cost bearer and the Träger-Büro confirm the second parent's
+// registration, which states benefits with a proof, with the cost takeover
+// by that office (#5627): the family pays 0 €, the office pays the rest.
+func seedHolidayCostTakeover(rt *Runtime, auth AuthRef, periodID, registrationID int64) error {
+	raw, err := rt.Client.PostWithAuth(auth, "/traeger/cost-bearers/", map[string]any{
+		"name": "Fachdienst Jugend des Landkreises Musterstadt", "address": "Am Kreishaus 1\n12345 Musterstadt",
+		"file_reference": "FJ 51-2027", "active": true,
+	})
+	if err != nil {
+		return fmt.Errorf("keep the cost bearer: %w", err)
+	}
+	costBearerID, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return fmt.Errorf("read the cost bearer: %w", err)
+	}
+	rt.Values[seedCostBearerKey] = costBearerID
+	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, registrationID)
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{
+		"benefits_exemption": false, "cost_bearer_id": costBearerID, "debtor_number": seedCostTakeoverDebtorNumber,
+	}); err != nil {
+		return fmt.Errorf("confirm the holiday registration with the cost takeover: %w", err)
+	}
+	fmt.Println("  Träger-Büro: second registration confirmed, the cost bearer pays its contribution")
+	return nil
+}
+
+// seedCostTakeoverDebtorNumber is the invented debtor number of the family
+// whose contribution the cost bearer pays.
+const seedCostTakeoverDebtorNumber = "10 4712"
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
 // number of the family at the confirmation (#5621); the demo Träger works

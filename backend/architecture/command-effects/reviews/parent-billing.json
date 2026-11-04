@@ -175,6 +175,17 @@
       "target_owner": "enrollment"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayProofRegistrations",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayProofRegistrations",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients without a status filter: Enrollment checks the period of the session's Träger, reads every registration of the period with whether a proof of benefits exists (#5627), whatever its status, and appends the list read to the period's audit trail (ADR 0114) in the caller's Träger transaction before the Elternabrechnung renders the list of a cost bearer; the route rolls back on any later refusal.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.AsksDebtorNumber",
       "classification": "query",
       "effect": "query",
@@ -182,6 +193,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the session's Träger enters the debtor number at the confirmation of a holiday registration (its value of parent_billing.debtor_number_on_confirm or the registry default), read in its Träger transaction before a confirmation, a change of the number or the preview of a billing run (ADR 0121 addendum, #5621).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.PaymentText",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.PaymentText",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the payment text of the session's Träger (its value of parent_billing.payment_text or the registry default), read in its Träger transaction for the preview of a billing run, which counts the invoices whose letter the text would refuse after the release (#5622).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
     },
     {
@@ -193,6 +214,17 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.ConfirmHolidayRegistration: Enrollment checks the debtor number, locks the period and the registration, confirms it with the number and appends one audit entry in the caller's Träger transaction (#5621); the Elternabrechnung freezes the contribution from the returned bookings in the same unit and the route rolls back on any later refusal (ADR 0115).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ConfirmHolidayRegistration",
+      "target_owner": "enrollment"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HoldHolidayPeriod",
+      "reason": "Owner-provided locking read/gate, never labelled query. Target modules/enrollment.HolidayRegistrationReview.HoldHolidayPeriod: Enrollment checks the period of the session's Träger and locks it (SELECT FOR UPDATE) in the caller's Träger transaction, the lock every change of one of its registrations takes first; the Elternabrechnung takes it after its period billing lock and before it reads and decides on a sibling group, so no cancellation or rebooking commits between the read and the merge, split or confirmation (#5628). It reads no personal data and writes nothing.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.HoldHolidayPeriod",
       "target_owner": "enrollment"
     },
     {
@@ -214,6 +246,17 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer",
+      "target_owner": "enrollment"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RecordHolidaySiblings",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RecordHolidaySiblings",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.RecordHolidaySiblings: Enrollment checks the action, locks the period and the registration and appends the sibling merge or split with the other registrations to the registration's audit trail in the caller's Träger transaction (#5628); the Elternabrechnung has written its sibling group and the new contribution versions under its period billing lock in the same unit and the route rolls back on any refusal (ADR 0115 addendum).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RecordHolidaySiblings",
       "target_owner": "enrollment"
     },
     {

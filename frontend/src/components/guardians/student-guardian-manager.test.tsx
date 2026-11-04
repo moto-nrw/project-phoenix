@@ -518,8 +518,9 @@ describe("StudentGuardianManager", () => {
         expect(screen.getByText("Erziehungsberechtigte")).toBeInTheDocument();
       });
 
+      // SectionCard: Titelzeile → Textblock → davor das Symbolfeld.
       const iconSurface = screen.getByText("Erziehungsberechtigte")
-        .parentElement?.previousElementSibling;
+        .parentElement?.parentElement?.previousElementSibling;
       expect(iconSurface).toHaveClass("bg-gray-100", "rounded-xl");
       expect(
         iconSurface?.querySelector('[data-moto-duotone-tone="blue"]'),

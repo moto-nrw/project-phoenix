@@ -28,8 +28,16 @@ type Teacher struct {
 	DisplayName string `json:"display_name"`
 }
 
+// HolidayGuestSchools maps the student ID of each holiday guest the school
+// cares for today to the name of its home school (#5630). A guest without a
+// named school is absent. It runs in the tenant transaction of the school.
+type HolidayGuestSchools func(ctx context.Context, schoolID int64) (map[int64]string, error)
+
 // DirectoryStudent is the minimal student projection used for kiosk selection
 // and bracelet assignment. IDs remain JSON numbers for the established wire.
+// HolidayGuestSchool is the school a holiday guest comes from, only during
+// its week at the hosting school (PyrePortal#499); empty otherwise and for
+// a guest without a named school, whose class stays „Feriengast“.
 type DirectoryStudent struct {
 	StudentID   int64  `json:"student_id"`
 	PersonID    int64  `json:"person_id"`
@@ -38,4 +46,7 @@ type DirectoryStudent struct {
 	SchoolClass string `json:"school_class"`
 	GroupName   string `json:"group_name"`
 	RFIDTag     string `json:"rfid_tag,omitempty"`
+	// HolidayGuestSchool is omitted when empty, so an older tablet sees the
+	// established wire.
+	HolidayGuestSchool string `json:"holiday_guest_school,omitempty"`
 }

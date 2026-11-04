@@ -39,6 +39,8 @@ export function contributionLineLabel(line: ContributionLine): string {
       return `Geschwister: ${line.childRank ?? ""}. Kind, ${discountText(line.discountBasisPoints, line.discountCents)}`;
     case "benefits_exemption":
       return `Befreiung bei Leistungsbezug: ${line.note}`;
+    case "cost_takeover":
+      return `Kosten übernimmt: ${line.costBearerName ?? ""}`;
   }
 }
 

@@ -331,7 +331,12 @@ async function readBounded(
 export function proxyUpload(
   endpoint: string | ((params: Record<string, unknown>) => string),
   maxFileBytes: number,
-  options: { method?: "PUT" | "POST"; tooLargeCode?: ErrorCode } = {},
+  options: {
+    method?: "PUT" | "POST";
+    tooLargeCode?: ErrorCode;
+    /** Values the catalog text of tooLargeCode names, like max_mb. */
+    tooLargeDetails?: Record<string, unknown>;
+  } = {},
 ) {
   return withTraegerAuth(async (request: NextRequest, context) => {
     try {
@@ -348,12 +353,14 @@ export function proxyUpload(
       if (declared > limit) {
         throw bffError(400, "Upload too large", {
           code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
       const body = await readBounded(request, limit);
       if (body === null) {
         throw bffError(400, "Upload too large", {
           code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
 

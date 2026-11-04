@@ -5,7 +5,8 @@
  * portal's client.
  */
 
-type ContributionLineKind = "base" | "sibling" | "benefits_exemption";
+type ContributionLineKind =
+  "base" | "sibling" | "benefits_exemption" | "cost_takeover";
 
 export interface ContributionLine {
   readonly kind: ContributionLineKind;
@@ -18,6 +19,8 @@ export interface ContributionLine {
   readonly discountBasisPoints: number | null;
   readonly discountCents: number | null;
   readonly note: string;
+  /** Cost takeover (#5627): the copied name of the cost bearer. */
+  readonly costBearerName?: string;
 }
 
 interface ChildContribution {
@@ -36,6 +39,9 @@ export interface HolidayContribution {
   readonly exemptionAvailable: boolean;
   /** The exemption applies. */
   readonly benefitsExemption: boolean;
+  /** The cost bearer that pays instead of the family (#5627); null if none. */
+  readonly costBearerId?: string | null;
+  readonly costBearerName?: string;
   /** Frozen at the confirmation; a preview otherwise. */
   readonly frozen: boolean;
   readonly confirmedAt: string | null;
@@ -44,6 +50,21 @@ export interface HolidayContribution {
    * (#5621). Only the Träger read of a frozen contribution sets it.
    */
   readonly invoiced?: boolean;
+  /**
+   * The other registrations of the sibling group (#5628), with their
+   * children; empty outside a group and in a quote.
+   */
+  readonly siblings?: readonly HolidaySibling[];
+  /** The debtor number the sibling group already has. */
+  readonly siblingDebtorNumber?: string;
+  /** An issued invoice bills a registration of the group; it stays. */
+  readonly siblingsInvoiced?: boolean;
+}
+
+interface HolidaySibling {
+  readonly registrationId: string;
+  readonly cancelled: boolean;
+  readonly children: readonly { readonly id: string; readonly name: string }[];
 }
 
 interface BackendLine {
@@ -56,6 +77,7 @@ interface BackendLine {
   discount_basis_points: number | null;
   discount_cents: number | null;
   note: string;
+  cost_bearer_name?: string;
 }
 
 export interface BackendContribution {
@@ -70,9 +92,21 @@ export interface BackendContribution {
   total_cents: number;
   exemption_available: boolean;
   benefits_exemption: boolean;
+  cost_bearer_id?: number | null;
+  cost_bearer_name?: string;
   frozen: boolean;
   confirmed_at: string | null;
   invoiced?: boolean;
+  siblings?:
+    | {
+        registration_id: number;
+        status: string;
+        children?:
+          { id: number; first_name: string; last_name: string }[] | null;
+      }[]
+    | null;
+  sibling_debtor_number?: string;
+  siblings_invoiced?: boolean;
 }
 
 /** Maps a contribution of the backend. */
@@ -94,13 +128,28 @@ export function contributionFromBackend(
         discountBasisPoints: line.discount_basis_points,
         discountCents: line.discount_cents,
         note: line.note,
+        costBearerName: line.cost_bearer_name ?? "",
       })),
     })),
     totalCents: contribution.total_cents,
     exemptionAvailable: contribution.exemption_available,
     benefitsExemption: contribution.benefits_exemption,
+    costBearerId: contribution.cost_bearer_id
+      ? String(contribution.cost_bearer_id)
+      : null,
+    costBearerName: contribution.cost_bearer_name ?? "",
     frozen: contribution.frozen,
     confirmedAt: contribution.confirmed_at,
     invoiced: contribution.invoiced ?? false,
+    siblings: (contribution.siblings ?? []).map((sibling) => ({
+      registrationId: String(sibling.registration_id),
+      cancelled: sibling.status === "cancelled",
+      children: (sibling.children ?? []).map((child) => ({
+        id: String(child.id),
+        name: `${child.first_name} ${child.last_name}`,
+      })),
+    })),
+    siblingDebtorNumber: contribution.sibling_debtor_number ?? "",
+    siblingsInvoiced: contribution.siblings_invoiced ?? false,
   };
 }

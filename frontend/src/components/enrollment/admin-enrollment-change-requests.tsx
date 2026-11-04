@@ -223,7 +223,7 @@ export function AdminEnrollmentChangeRequestDetail({
       backHref="/anfragen"
       backLabel="Zurück zu Anfragen"
       stats={statusLine}
-      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <ChangeRequestStatusBadge status={data.status} />

@@ -797,13 +797,28 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingBillingRegistrations.HolidayProofRegistrations",
+      "reason": "ADR 0115 addendum (#5627): Consumer-port adapter of the billing run's holiday registrations; it reads every registration of the period through Enrollment's review without a status filter, which checks the period of the Träger and records the read, keeps whether each has a proof of benefits for the list of a cost bearer, and translates Enrollment's refusals into the Elternabrechnung's vocabulary."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
       "reason": "ADR 0115 (#4664), ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it confirms with the debtor number through Enrollment's review in the caller's Träger transaction and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it locks the period through Enrollment's review in the caller's Träger transaction before a sibling group is read and translates Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.HolidayRegistration",
       "reason": "ADR 0115 (#4664): Consumer-port adapter of the Elternabrechnung's holiday registrations; it reads through Enrollment's review, which checks the Träger and records the read, and translates the registration and Enrollment's refusals."
+    },
+    {
+      "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
+      "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
     {
       "decision": "0115",
@@ -834,6 +849,11 @@
       "decision": "0121",
       "id": "api/parentBillingSettings.AsksDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
+    },
+    {
+      "decision": "0121",
+      "id": "api/parentBillingSettings.PaymentText",
+      "reason": "ADR 0121 addendum (#5622): Consumer-port adapter of the Elternabrechnung's settings port; it reads the payment text of the Träger through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed text into the port's answer."
     },
     {
       "decision": "0113",

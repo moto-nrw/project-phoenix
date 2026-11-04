@@ -226,6 +226,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (r *SchoolSetupRepository[S]) RestoreDismissedInTraeger(ctx context.Context, accountID int64) error {\n\tif accountID \u003c= 0 {\n\t\treturn errors.New(\"account ID is required\")\n\t}\n\tdb, err := r.runtime.DB(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(`SELECT config.restore_school_setup_dismissals_in_traeger(?)`, accountID).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"restore school setup in Träger: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/adapters/configpostgres/SchoolSetupRepository[S].RestoreDismissedInTraeger",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StaffOnboardingRepository[S]) LockStaffOnboarding(ctx context.Context, accountID int64) error {\n\tif accountID \u003c= 0 {\n\t\treturn errors.New(\"account ID is required\")\n\t}\n\tdb, err := r.runtime.DB(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, fmt.Sprintf(\"staff-onboarding:%d\", accountID)).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"lock staff onboarding: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/adapters/configpostgres/StaffOnboardingRepository[S].LockStaffOnboarding",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (r StoredOverrideReader) StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error) {\n\tvalue, err := r.values.FindByTenantAndKey(ctx, tenantID, key)\n\tif err != nil || value == nil {\n\t\treturn nil, false, err\n\t}\n\treturn value.Value, true, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/internal/adapters/configpostgres/StoredOverrideReader.StoredOverride",

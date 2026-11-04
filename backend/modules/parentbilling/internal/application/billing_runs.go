@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -36,8 +37,20 @@ type RunStore interface {
 	// registration.
 	PeriodContributions(ctx context.Context, organizationID, periodID int64) (map[int64]parentbilling.HolidayContribution, error)
 	// IssuedRegistrations names the registrations of the period that an
-	// invoice of the service already bills.
+	// invoice of the service already bills: one that is not cancelled.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// CancelledInvoices names per registration the cancelled invoice of the
+	// period that no invoice replaces yet (#4690).
+	CancelledInvoices(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.BillingDocumentLink, error)
+	// ReferencingDocuments reads the cancellations, credits and replacing
+	// invoices of the given documents (#4690).
+	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
+	// InvoiceCorrections reads the correction positions of the invoices,
+	// RunCorrectionDismissals the proposals of them a run no longer makes and
+	// InsertRunCorrectionDismissal adds one (#5663).
+	InvoiceCorrections(ctx context.Context, organizationID int64, invoiceIDs []int64) ([]parentbilling.BillingCarriedCorrection, error)
+	RunCorrectionDismissals(ctx context.Context, organizationID, runID int64) (map[int64]bool, error)
+	InsertRunCorrectionDismissal(ctx context.Context, organizationID, runID, positionID, accountID int64) error
 	// LockPeriodBilling holds the invoices of the service and period until
 	// the transaction ends (#5621).
 	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
@@ -59,6 +72,12 @@ type RunStore interface {
 	// RunLetters reads the letters of a released run; nil before they are
 	// created (#4669).
 	RunLetters(ctx context.Context, organizationID, runID int64) (*parentbilling.BillingLetters, error)
+	// CostBearer reads one cost bearer; a missing one is
+	// ErrCostBearerNotFound (#5627).
+	CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error)
+	// RegistrationConfirmations names when each registration of the period
+	// with a frozen contribution was confirmed (#5627).
+	RegistrationConfirmations(ctx context.Context, organizationID, periodID int64) (map[int64]time.Time, error)
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -232,7 +251,7 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err := b.store.LockPeriodBilling(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID); err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
 	}
-	pattern, err := b.numberPattern(ctx, reviewer.OrganizationID, run.Service)
+	pattern, err := numberPatternOf(ctx, b.store, reviewer.OrganizationID, run.Service)
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
@@ -264,8 +283,12 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: release billing run: %w", err)
 	}
+	carried, err := b.recordCarriedCorrections(ctx, reviewer, run, documents)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
 	if err := b.store.InsertRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
-		map[string]any{"document_count": len(documents), "total_cents": current.total()}); err != nil {
+		map[string]any{"document_count": len(documents), "total_cents": current.total(), "carried_corrections": carried}); err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: record release: %w", err)
 	}
 	return b.detail(ctx, reviewer, released)
@@ -338,8 +361,15 @@ func (b *BillingRuns) lockCalculated(ctx context.Context, organizationID, runID 
 	return run, nil
 }
 
-func (b *BillingRuns) numberPattern(ctx context.Context, organizationID int64, service string) (string, error) {
-	ranges, err := b.store.ListNumberRanges(ctx, organizationID)
+// numberRangeReader reads the number ranges of a Träger.
+type numberRangeReader interface {
+	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
+}
+
+// numberPatternOf is the pattern of the service the invoices, the
+// cancellations and the credits take their numbers from.
+func numberPatternOf(ctx context.Context, store numberRangeReader, organizationID int64, service string) (string, error) {
+	ranges, err := store.ListNumberRanges(ctx, organizationID)
 	if err != nil {
 		return "", fmt.Errorf("parent billing: read number range: %w", err)
 	}
@@ -370,8 +400,17 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, fmt.Errorf("parent billing: read corrections: %w", err)
 	}
+	replaces, err := b.store.CancelledInvoices(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID)
+	if err != nil {
+		return preview{}, fmt.Errorf("parent billing: read cancelled invoices: %w", err)
+	}
+	replaced, err := b.replacedInvoices(ctx, reviewer.OrganizationID, run.ID, replaces)
+	if err != nil {
+		return preview{}, err
+	}
 	return buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
+		replaces: replaces, replaced: replaced,
 	}), nil
 }
 
@@ -380,17 +419,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (parentbilling.BillingRunDetail, error) {
 	detail := parentbilling.BillingRunDetail{BillingRun: run, BilledInAdvance: run.Service == parentbilling.ServiceHoliday}
 	if run.Status == parentbilling.RunReleased {
-		documents, err := b.store.RunDocuments(ctx, reviewer.OrganizationID, run.ID)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read invoices: %w", err)
-		}
-		corrections, err := b.store.RunCorrections(ctx, reviewer.OrganizationID, run.ID)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read corrections: %w", err)
-		}
-		detail.Documents = withHistory(documents, corrections)
-		if detail.Letters, err = b.store.RunLetters(ctx, reviewer.OrganizationID, run.ID); err != nil {
-			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read letters: %w", err)
+		var err error
+		if detail.Documents, detail.Letters, err = b.issued(ctx, reviewer.OrganizationID, run.ID); err != nil {
+			return parentbilling.BillingRunDetail{}, err
 		}
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
@@ -398,15 +429,19 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.BillingRunDetail{}, err
 		}
 		detail.Documents, detail.Unbilled = current.documents, current.unbilled
-		if detail.MissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
+		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
 	}
 	for _, document := range detail.Documents {
-		detail.PreviewCount++
+		// A cancellation and a credit lower the sum, but are no invoice
+		// (#4690).
+		if document.Kind == parentbilling.DocumentInvoice {
+			detail.PreviewCount++
+		}
 		detail.PreviewCents += document.TotalCents
 	}
-	pattern, err := b.numberPattern(ctx, reviewer.OrganizationID, run.Service)
+	pattern, err := numberPatternOf(ctx, b.store, reviewer.OrganizationID, run.Service)
 	switch {
 	case errors.Is(err, parentbilling.ErrNumberRangeMissing):
 	case err != nil:
@@ -415,6 +450,28 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		detail.NumberPattern, detail.NumberRangeSet = pattern, true
 	}
 	return detail, nil
+}
+
+// issued reads the documents of a released run with the corrections of the
+// run and the history of every invoice (#4690), and its letters.
+func (b *BillingRuns) issued(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, *parentbilling.BillingLetters, error) {
+	documents, err := b.store.RunDocuments(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read invoices: %w", err)
+	}
+	corrections, err := b.store.RunCorrections(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read corrections: %w", err)
+	}
+	documents, err = withDocumentHistory(ctx, b.store, organizationID, withHistory(documents, corrections))
+	if err != nil {
+		return nil, nil, err
+	}
+	letters, err := b.store.RunLetters(ctx, organizationID, runID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parent billing: read letters: %w", err)
+	}
+	return documents, letters, nil
 }
 
 // withHistory adds the corrections of the run to the children of the issued
@@ -441,21 +498,12 @@ func withHistory(documents []parentbilling.BillingDocument, corrections []parent
 // negative and a reason.
 func normalizeCorrection(input parentbilling.BillingCorrectionInput) (parentbilling.BillingCorrectionInput, error) {
 	input.Reason = strings.TrimSpace(input.Reason)
-	errs := validation.Errors{}
+	errs := correctionAmountErrors(input.TotalCents, input.Reason)
 	if input.RegistrationID <= 0 {
 		errs["registration_id"] = errors.New("is required")
 	}
 	if input.ChildID <= 0 {
 		errs["child_id"] = errors.New("is required")
-	}
-	if input.TotalCents < 0 || input.TotalCents > parentbilling.MaxDiscountCents {
-		errs["total_cents"] = errors.New("must be an amount in cent, not negative")
-	}
-	switch {
-	case input.Reason == "":
-		errs["reason"] = errors.New("is required")
-	case len([]rune(input.Reason)) > parentbilling.MaxCorrectionReasonLength:
-		errs["reason"] = errors.New("is too long")
 	}
 	if len(errs) > 0 {
 		return input, errs
@@ -463,21 +511,42 @@ func normalizeCorrection(input parentbilling.BillingCorrectionInput) (parentbill
 	return input, nil
 }
 
+// correctionAmountErrors checks the new amount and the trimmed reason of a
+// correction.
+func correctionAmountErrors(totalCents int64, reason string) validation.Errors {
+	errs := validation.Errors{}
+	if totalCents < 0 || totalCents > parentbilling.MaxDiscountCents {
+		errs["total_cents"] = errors.New("must be an amount in cent, not negative")
+	}
+	switch {
+	case reason == "":
+		errs["reason"] = errors.New("is required")
+	case len([]rune(reason)) > parentbilling.MaxCorrectionReasonLength:
+		errs["reason"] = errors.New("is too long")
+	}
+	return errs
+}
+
 // missingDebtorNumbers counts the draft invoices without a debtor number
-// when the Träger asks for one (#5621); the release stays possible.
-func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (int, error) {
+// when the Träger asks for one (#5621), and the draft invoices whose letter
+// the payment text would refuse once the release has copied them without a
+// number (#5622). The release stays possible: the page warns before it.
+func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID int64, documents []parentbilling.BillingDocument) (asked, forPaymentText int, err error) {
 	required, err := b.settings.AsksDebtorNumber(ctx, organizationID)
 	if err != nil {
-		return 0, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
+		return 0, 0, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
 	}
-	if !required {
-		return 0, nil
+	paymentText, err := b.settings.PaymentText(ctx, organizationID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parent billing: read the payment text of the Träger: %w", err)
 	}
-	missing := 0
 	for _, document := range documents {
-		if document.DebtorNumber == "" {
-			missing++
+		if required && document.DebtorNumber == "" {
+			asked++
+		}
+		if lacksDebtorNumberForPaymentText(paymentText, document) {
+			forPaymentText++
 		}
 	}
-	return missing, nil
+	return asked, forPaymentText, nil
 }

@@ -24,7 +24,8 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { DataField } from "~/components/ui/data-field";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -260,47 +261,41 @@ export function RolloverForm({
       <FormErrorAlert message={formErrors.error} />
 
       {loadingPreview ? (
-        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
-          {null}
-        </InfoCard>
+        <SectionCard title="Vorschau" icon={Check} loading />
       ) : previewLoad.error ? (
         <LoadErrorAlert error={previewLoad.error} />
       ) : preview ? (
-        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <InfoItem label="Werden übernommen" value={preview.carried_count} />
-            <InfoItem
-              label="Manuell zu prüfen"
-              value={
-                <>
-                  {preview.review_count}
-                  {reviewDetails && (
-                    <span className="mt-1 block text-xs font-normal text-gray-500">
-                      {reviewDetails}
-                    </span>
-                  )}
-                </>
-              }
-            />
-            <InfoItem
-              label="Nicht übernommen"
-              value={
-                <>
-                  {preview.excluded_count}
-                  {excludedDetails && (
-                    <span className="mt-1 block text-xs font-normal text-gray-500">
-                      {excludedDetails}
-                    </span>
-                  )}
-                </>
-              }
-            />
-          </div>
+        <SectionCard
+          title="Vorschau"
+          icon={Check}
+          bodyClassName="compact:mt-3 mt-4 space-y-3"
+        >
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <DataField label="Werden übernommen">
+              {preview.carried_count}
+            </DataField>
+            <DataField label="Manuell zu prüfen">
+              {preview.review_count}
+              {reviewDetails && (
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  {reviewDetails}
+                </span>
+              )}
+            </DataField>
+            <DataField label="Nicht übernommen">
+              {preview.excluded_count}
+              {excludedDetails && (
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  {excludedDetails}
+                </span>
+              )}
+            </DataField>
+          </dl>
           <p className="text-xs text-gray-500">
             Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
             abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
           </p>
-        </InfoCard>
+        </SectionCard>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -490,9 +485,7 @@ export function RolloverForm({
         backLabel="Zurück zu den Anmeldephasen"
         stats={statusLine}
         statsLoading={loadingPreview}
-        leading={
-          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       >
         {form}
       </TenantPage>

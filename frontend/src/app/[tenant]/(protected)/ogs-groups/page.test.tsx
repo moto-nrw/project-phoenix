@@ -340,6 +340,7 @@ vi.mock("~/components/students/student-card", () => ({
       {extraContent && <div data-testid="extra-content">{extraContent}</div>}
     </div>
   ),
+  SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   StudentInfoRow: ({
     children,
     icon,
@@ -495,6 +496,15 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
 
 const mockTenantMutate = vi.hoisted(() => vi.fn());
 
+// The hint „Gast aus …“ (#5630) loads in its own hook, tested in
+// src/lib/hooks/use-holiday-guest-labels.test.tsx.
+const { holidayGuestLabelMock } = vi.hoisted(() => ({
+  holidayGuestLabelMock: vi.fn(),
+}));
+vi.mock("~/lib/hooks/use-holiday-guest-labels", () => ({
+  useHolidayGuestLabels: () => holidayGuestLabelMock,
+}));
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
@@ -559,6 +569,7 @@ function wireStudent(
 }
 
 beforeEach(() => {
+  holidayGuestLabelMock.mockReset();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(useSession)
@@ -734,6 +745,37 @@ describe("OGSGroupPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
+  });
+
+  it("names the home school of a holiday guest instead of the class Feriengast (#5630)", async () => {
+    holidayGuestLabelMock.mockImplementation((student: { id: string }) =>
+      student.id === "5" ? "Gast aus OGS Am Park" : undefined,
+    );
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 5,
+            first_name: "Ben",
+            last_name: "Muster",
+            current_location: "Raum 101",
+            school_class: "Feriengast",
+          }),
+        ],
+        roomStatus: { "5": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(await screen.findByText("Gast aus OGS Am Park")).toBeInTheDocument();
+    expect(holidayGuestLabelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "5", school_class: "Feriengast" }),
+    );
   });
 
   it("shows sick and excused counts in the selected group summary", async () => {

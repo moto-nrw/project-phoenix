@@ -49,6 +49,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.cost_bearers",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.document_positions",
       "write_owner": "parent-billing"
     },
@@ -73,11 +77,23 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.holiday_sibling_group_members",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_sibling_groups",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.number_range_counters",
       "write_owner": "parent-billing"
     },
     {
       "name": "parent_billing.number_ranges",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_correction_dismissals",
       "write_owner": "parent-billing"
     },
     {

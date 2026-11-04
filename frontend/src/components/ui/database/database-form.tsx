@@ -3,7 +3,7 @@
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -249,7 +249,7 @@ export interface FormSection {
   concept?: MotoConcept;
 }
 
-/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */
+/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie der SectionCard-Kopf. */
 function SectionTitle({
   level,
   className,
@@ -914,12 +914,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
               className="mb-6 rounded-lg bg-gray-50 p-3 md:mb-8 md:p-4"
             >
               {section.concept ? (
-                <ConceptSectionHeader
+                // Nur der Kopf: der graue Abschnitt ist schon die Fläche.
+                <SectionCard
+                  bare
                   className="mb-2.5 md:mb-3"
-                  level={sectionLevel}
+                  headingLevel={sectionLevel}
                   title={section.title}
                   concept={section.concept}
-                  subtitle={section.subtitle}
+                  description={section.subtitle}
                 />
               ) : (
                 <>

@@ -25,7 +25,6 @@ import { createLogger } from "~/lib/logger";
 import { displayEmail } from "~/lib/demo-build";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { feedbackConcept } from "~/lib/concepts/feedback";
 import { messagesConcept } from "~/lib/concepts/messages";
@@ -654,36 +653,22 @@ function RoleField({
     );
   }
   return (
-    <div>
-      <label
-        id="konto-role-label"
-        htmlFor="konto-role"
-        className={`mb-2 block text-sm font-medium ${error ? "text-moto-red-strong" : "text-gray-700"}`}
-      >
-        Rolle
-      </label>
-      <CustomSelect
-        id="konto-role"
-        name="role_id"
-        ariaLabelledBy="konto-role-label"
-        ariaDescribedBy={
-          error ? "konto-role-hint konto-role-error" : "konto-role-hint"
-        }
-        value={value}
-        onChange={onChange}
-        options={(assignment?.options ?? []).map((option) => ({
-          value: String(option.id),
-          label: option.name,
-        }))}
-        placeholder={assignment ? "Rolle auswählen…" : "Rollen werden geladen…"}
-        invalid={Boolean(error)}
-        disabled={disabled || !assignment}
-      />
-      <p id="konto-role-hint" className="mt-1 text-xs text-gray-600">
-        Bestimmt, was die Person in moto darf.
-      </p>
-      <FieldErrorHint id="konto-role-error" message={error} live />
-    </div>
+    <CustomSelect
+      id="konto-role"
+      name="role_id"
+      label="Rolle"
+      hint="Bestimmt, was die Person in moto darf."
+      error={error}
+      errorLive
+      value={value}
+      onChange={onChange}
+      options={(assignment?.options ?? []).map((option) => ({
+        value: String(option.id),
+        label: option.name,
+      }))}
+      placeholder={assignment ? "Rolle auswählen…" : "Rollen werden geladen…"}
+      disabled={disabled || !assignment}
+    />
   );
 }
 

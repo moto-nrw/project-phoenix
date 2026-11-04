@@ -1366,6 +1366,7 @@ export const caregiverFirstStepsTopic =
         "Einen erledigten Schritt sehen Sie sich mit `Noch einmal zeigen` wieder an.",
         "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
         "Die Tour zeigt nur. Sie meldet kein Kind an und stempelt Sie nicht ein.",
+        "Arbeiten Sie in mehreren OGS? Ihr Stand gilt in allen. Was Sie in einer OGS erledigt haben, ist auch in den anderen erledigt.",
       ],
       differences: [
         "Welche Schritte Sie sehen, hängt von Ihrer OGS ab. Ohne feste Gruppen fehlt zum Beispiel `Meine Gruppe ansehen`.",
@@ -1374,7 +1375,7 @@ export const caregiverFirstStepsTopic =
       troubleshootingDetails: [
         "Die Checkliste erscheint nicht? Sie kommt erst, wenn Ihre OGS eine Gruppe oder ein Kind in moto hat. Wer schon vor der Checkliste mit moto gearbeitet hat, bekommt sie nicht.",
         "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
-        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen stehen hier in der Hilfe.",
+        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt in keiner Ihrer OGS wieder. Die Anleitungen stehen hier in der Hilfe.",
       ],
       related: [
         HELP_TOPICS.appOverview,
@@ -2065,7 +2066,9 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
       "Fehlt `Bearbeiten` oder `Wochenplan`? Fragen Sie Ihre Leitung nach den nötigen Rechten.",
       // #5618: care-schedule-manager.tsx (hiddenBookedPickup), Knopf im Tagesdialog.
-      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt für diesen Wochentag in jeder Woche.",
+      // #5643: Braucht ein früherer Tag die Zeit noch, lehnt das Backend ab
+      // (students.pickup_reset_still_needed) und nennt den Tag.
+      "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt ab sofort für diesen Wochentag in jeder Woche, auch vor dem gewählten Tag. Braucht ein früherer Tag die eingetragene Zeit noch, nennt moto den Tag, ab dem das Übernehmen geht.",
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
@@ -2787,6 +2790,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
       "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen zu jedem Schritt stehen hier in der Hilfe, zum Beispiel unter `Weitere Themen`.",
+      "Sie wechseln aus dem Träger-Portal in die OGS und sehen keine Checkliste? Wer `Nicht mehr anzeigen` einmal gewählt hat, sieht sie in keiner OGS des Trägers mehr. Die Leitungen vor Ort sehen sie weiter.",
     ],
     related: [
       HELP_TOPICS.leadGoLive,
@@ -3033,9 +3037,10 @@ export const holidayGuestGroupTopic =
         "Wählen Sie `Feriengäste übernehmen`.",
       ],
       result:
-        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
+        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
+        "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
         "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
       ],
@@ -3053,7 +3058,9 @@ export const holidayGuestGroupTopic =
  * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
  * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
  * Abholung, die Antworten, die der Träger freigibt (#5202), und die
- * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
+ * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Der Hinweis
+ * „Gast aus …“ nennt die Heimatschule, und Gäste stehen erst ab dem ersten
+ * Tag ihrer Woche in den Listen (#5630).
  */
 export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
   return {
@@ -3071,10 +3078,10 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
-      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste noch nicht in der Gruppe.",
+      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste in keiner Liste, auch nicht unter `Alle Kinder`.",
     ],
     steps: [
-      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht `Feriengast`.",
+      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht seine Schule, zum Beispiel `Gast aus Grundschule am See`.",
       "Melden Sie Feriengäste an und ab wie jedes andere Kind.",
       "Öffnen Sie die Karte eines Feriengasts.",
       "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
@@ -3085,6 +3092,7 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     result:
       "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
     notes: [
+      "Denselben Hinweis `Gast aus …` sehen Sie unter `Alle Kinder`, in der Aufsicht und auf der Karte des Kindes. Steht nur `Feriengast` da, haben die Eltern keine Schule genannt.",
       "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
       "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
@@ -9699,7 +9707,7 @@ export const traegerBillingRunTopic =
       title: "Ferien abrechnen",
       question: "Wie stelle ich die Rechnungen für die Ferien aus?",
       summary:
-        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien.",
+        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "FileText",
@@ -9770,6 +9778,34 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Rechnung stornieren und neu ausstellen",
+          description:
+            "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+            "Wählen Sie `Rechnung stornieren`.",
+            "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
+            "Wählen Sie `Stornieren`.",
+            "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+            "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
+            "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
+            "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",
+            "Prüfen Sie die Rechnung und wählen Sie `Lauf freigeben`. Die neue Rechnung bekommt eine neue Nummer.",
+          ],
+        },
+        {
+          title: "Einen Betrag gutschreiben",
+          description:
+            "Mit einer Gutschrift wird ein Teil der Rechnung erlassen, zum Beispiel für einen Krankheitstag. Sie ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
+          steps: [
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+            "Wählen Sie `Gutschrift für …` beim Kind.",
+            "Tragen Sie den Betrag und eine Begründung ein.",
+            "Wählen Sie `Gutschreiben`.",
+          ],
+        },
+        {
           title: "Übersicht für die Kämmerei herunterladen",
           description: "Das geht, sobald der Lauf freigegeben ist.",
           steps: [
@@ -9779,22 +9815,42 @@ export const traegerBillingRunTopic =
             "Geben Sie die Datei an die Kämmerei weiter.",
           ],
         },
+        {
+          title: "Liste für die Erstattung herunterladen",
+          description:
+            "Das geht, sobald der Lauf freigegeben ist und ein Kostenträger Beiträge übernimmt.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Die Karte `Kostenübernahme` zeigt je Kostenträger die Zahl der Rechnungen und den Betrag.",
+            "Wählen Sie in der Zeile des Kostenträgers das Menü mit den drei Punkten.",
+            "Wählen Sie unter `Liste für die Erstattung` das Format: `PDF`, `Excel` oder `CSV`.",
+            "Schicken Sie die Liste an den Kostenträger. Sie nennt je Kind die Wochen, den Grundbetrag, die Geschwisterermäßigung, den übernommenen Betrag, ob ein Nachweis vorlag und den Tag der Bestätigung.",
+          ],
+        },
       ],
       result:
-        "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme.",
+        "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme. Storno und Gutschrift stehen dort als eigene Zeilen mit Minusbetrag und der Nummer der Rechnung.",
       notes: [
+        "Bezahlt ein Kostenträger, bekommt die Familie eine Rechnung über 0 €. Im Schreiben steht, wer die Kosten übernimmt. Die Übersicht für die Kämmerei nennt unter der Gesamtsumme je Kostenträger den Betrag, den er übernimmt.",
         "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
         "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Familie. Hat die Anmeldung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie unter `Einstellungen` im Bereich `Ferienbetreuung`.",
         "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Sie steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+        "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
+        "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
+        "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
+        "Eine übernommene Korrektur senkt den Betrag höchstens auf 0 €. Ist der Beitrag jetzt niedriger als auf der alten Rechnung, steht das bei der Korrektur.",
+        "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
         "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
+        "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
         "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab, und diese Anmeldungen wurden ohne Nummer bestätigt. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
+        "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn unter `Einstellungen` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
       ],
       troubleshootingDetails: [
         "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
@@ -9880,7 +9936,7 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
-/** `/traeger/beitraege` (#4664): Regeln des Ferienbeitrags. */
+/** `/traeger/beitraege` (#4664, #5627): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
     return {
@@ -9888,7 +9944,7 @@ export const traegerHolidayContributionTopic =
       title: "Ferienbeitrag festlegen",
       question: "Wie rechnet moto den Ferienbeitrag?",
       summary:
-        "Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Geschwister zahlen weniger, Familien mit Leistungsbezug nichts.",
+        "Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Geschwister zahlen weniger. Bei Leistungsbezug zahlt die Familie nichts.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Landmark",
@@ -9923,14 +9979,27 @@ export const traegerHolidayContributionTopic =
             "Wählen Sie `Speichern`.",
           ],
         },
+        {
+          title: "Kostenträger anlegen",
+          description:
+            "Ein Kostenträger bezahlt den Beitrag für eine Familie, zum Beispiel das Jugendamt bei Leistungsbezug. Sie fordern den Betrag dann beim Kostenträger an.",
+          steps: [
+            "Wählen Sie bei `Kostenträger` den Knopf `Kostenträger hinzufügen`.",
+            "Tragen Sie den `Name` ein. `Anschrift` und `Ihr Aktenzeichen beim Kostenträger` sind freiwillig.",
+            "Wählen Sie `Speichern`.",
+            "Gibt es den Kostenträger nicht mehr, wählen Sie im Menü der Zeile `Ausschalten`. Beim Bestätigen steht er dann nicht mehr zur Wahl.",
+          ],
+        },
       ],
       result:
         "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
       notes: [
-        "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
+        "Geschwister sind Kinder derselben Ferienanmeldung oder von Anmeldungen, die das Träger-Büro als Geschwister zusammengeführt hat. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
         "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
-        "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
+        "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen.",
+        "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag nach der Geschwisterermäßigung.",
+        "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ermäßigungen`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -10127,9 +10196,10 @@ export const traegerHolidayRegistrationReviewTopic =
     return {
       id: HELP_TOPICS.traegerHolidayRegistrationReview,
       title: "Ferienanmeldungen prüfen",
-      question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
+      question:
+        "Wie bestätige, ändere, storniere und buche ich Ferienanmeldungen um?",
       summary:
-        "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+        "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
       image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
       imageAlt:
         "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -10158,7 +10228,9 @@ export const traegerHolidayRegistrationReviewTopic =
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
+            "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
+            "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
             "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
@@ -10172,6 +10244,36 @@ export const traegerHolidayRegistrationReviewTopic =
             "Öffnen Sie die bestätigte Anmeldung.",
             "Wählen Sie unter `Status` den Knopf `Debitorennummer eintragen` oder `Debitorennummer ändern`.",
             "Das Feld `Debitorennummer` öffnet sich in der Karte. Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Angaben ändern",
+          description:
+            "Zum Beispiel eine neue Telefonnummer oder ein falsch geschriebener Name.",
+          steps: [
+            "Wählen Sie bei der Karte `Ändern`: bei `Eltern`, beim Kind, bei `Notfallkontakte und Abholung` oder bei `Allgemeine Angaben`.",
+            "Ändern Sie die Angaben. Es gelten dieselben Regeln wie im Formular der Eltern. Fragt das Formular nach der Anschrift, ändern Sie sie bei `Eltern`.",
+            "Wählen Sie `Änderung speichern`.",
+          ],
+        },
+        {
+          title: "Geschwister zusammenführen",
+          description:
+            "Eltern melden Geschwister manchmal in zwei Anmeldungen an. Führen Sie die Anmeldungen zusammen, zählen die Kinder beim Ferienbeitrag zusammen. moto führt nie von selbst zusammen.",
+          steps: [
+            "In der Spalte `Geschwister` steht ein Hinweis wie `Vielleicht Geschwister: gleiche E-Mail` oder `Vielleicht Geschwister: gleicher Nachname`. Der Hinweis ändert nichts.",
+            "Prüfen Sie, ob die Kinder wirklich Geschwister sind.",
+            "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie.",
+            "Wählen Sie `Als Geschwister zusammenführen`.",
+            "In der Spalte `Geschwister` steht jetzt `Geschwister` mit den Nummern der anderen Anmeldungen.",
+          ],
+        },
+        {
+          title: "Geschwister trennen",
+          steps: [
+            "Öffnen Sie die Anmeldung.",
+            "Wählen Sie in der Karte `Geschwister` den Knopf `Trennen`.",
+            "Bestätigen Sie mit `Trennen`.",
           ],
         },
         {
@@ -10199,7 +10301,7 @@ export const traegerHolidayRegistrationReviewTopic =
         },
       ],
       result:
-        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher.",
+        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort.",
       notes: [
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -10211,15 +10313,26 @@ export const traegerHolidayRegistrationReviewTopic =
         "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
         "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
+        "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
+        "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
+        "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
+        "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Bei gleichem Beitrag zählt die früher eingegangene Anmeldung zuerst.",
+        "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
+        "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
+        "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
       differences: [
         "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
+        "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn unter `Ermäßigungen` an.",
         "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie unter `Einstellungen` im Bereich `Ferienbetreuung` fest.",
       ],
       troubleshootingDetails: [
         "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
         "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
         "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
+        "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
+        "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",
+        "Eine stornierte Anmeldung können Sie nicht zusammenführen. Trennen geht.",
       ],
       related: [
         HELP_TOPICS.traegerHolidayRegistration,
@@ -10295,16 +10408,20 @@ export const traegerInvitationTopic =
         "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
         "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
         "Wählen Sie `Einladung annehmen`.",
+        "moto öffnet die Anmeldung des Träger-Portals. Melden Sie sich mit Ihrer E-Mail-Adresse und dem Passwort an.",
+        "Beim ersten Anmelden richten Sie den Code ein. Wählen Sie `Code an meine E-Mail senden`.",
+        "Öffnen Sie die E-Mail von moto. Geben Sie den sechsstelligen Code ein.",
+        "Wählen Sie `Weiter zum Dashboard`.",
       ],
       result:
-        "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
+        "moto öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
       notes: [
         "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
         "Ein Konto in einer Schule brauchen Sie dafür nicht.",
       ],
       troubleshootingDetails: [
         "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
-        "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
+        "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Wählen Sie in der Anmeldung des Träger-Portals `Passwort vergessen?`.",
       ],
       related: [HELP_TOPICS.traegerLogin],
     };
@@ -10357,7 +10474,7 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
-      "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
+      "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein. Wählen Sie `Weiter zum Dashboard`.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
       "`Briefkopf`, `Einstellungen` und `Zugriffsprotokoll` stehen am Computer links unten unter `Einstellungen`. Ein Klick darauf klappt sie auf.",

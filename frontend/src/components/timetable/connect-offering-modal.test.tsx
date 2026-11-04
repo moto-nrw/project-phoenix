@@ -179,9 +179,7 @@ describe("ConnectOfferingModal (#5103)", () => {
     expect(mockPreview).not.toHaveBeenCalled();
 
     fireEvent.click(select);
-    fireEvent.click(
-      await screen.findByRole("checkbox", { name: "Randstunde" }),
-    );
+    fireEvent.click(await screen.findByRole("option", { name: "Randstunde" }));
 
     await waitFor(() =>
       expect(mockPreview).toHaveBeenCalledWith("9", {
@@ -224,8 +222,8 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     fireEvent.click(select);
     // Anker: the open menu carries the field name.
-    expect(screen.getByRole("dialog", { name: "Angebote" })).toBeVisible();
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
+    expect(screen.getByRole("listbox", { name: "Angebote" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("option", { name: "Ganztag" }));
     expect(duplicateIds()).toEqual([]);
 
     expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
@@ -283,12 +281,8 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     // Every offering of the period can be added; another phase cannot.
     fireEvent.click(screen.getByRole("button", { name: "Angebote" }));
-    expect(
-      await screen.findByRole("checkbox", { name: "Ferien" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("checkbox", { name: "Nachmeldung" }),
-    ).toBeDisabled();
+    expect(await screen.findByRole("option", { name: "Ferien" })).toBeEnabled();
+    expect(screen.getByRole("option", { name: "Nachmeldung" })).toBeDisabled();
     expect(
       screen.getByText(
         "Angebote anderer Anmeldephasen sind ausgegraut, solange ein Angebot gewählt ist.",

@@ -76,12 +76,21 @@ func (d Date) IsZero() bool {
 	return d == ""
 }
 
-// Compare returns -1 if d is before o, 0 if equal, +1 if after.
+// Compare returns -1 if d is before o, 0 if equal, +1 if after. AddDays
+// past 9999-12-31 yields a five-digit year, which sorts as text before
+// "9999"; the longer value is the later date, so day loops still end.
 func (d Date) Compare(o Date) int {
+	if d != "" && o != "" && len(d) != len(o) {
+		return compareOrdered(len(d), len(o))
+	}
+	return compareOrdered(d, o)
+}
+
+func compareOrdered[T ~int | ~string](a, b T) int {
 	switch {
-	case d < o:
+	case a < b:
 		return -1
-	case d > o:
+	case a > b:
 		return 1
 	default:
 		return 0

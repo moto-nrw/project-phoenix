@@ -34,6 +34,7 @@ import {
 } from "~/lib/pickup-schedule-helpers";
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
+import { IconTile } from "~/components/ui/icon-tile";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -491,14 +492,16 @@ export function CarePlanEditorModal({
               pickupDay.offeringSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
                 // Der Dialog gilt sonst nur für diesen Tag; das Übernehmen
-                // ändert aber den Wochenplan. Der Satz sagt das und nennt die
-                // gebuchte Zeit (#5618).
+                // ändert aber den Wochenplan ab sofort, also auch vor diesem
+                // Tag. Der Satz sagt das und nennt die gebuchte Zeit (#5618).
+                // Braucht ein früherer Tag die Zeit noch, lehnt moto ab und
+                // nennt den Tag, ab dem es geht (#5643).
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-gray-600">
                     Gebucht:{" "}
                     {formatPickupTime(pickupDay.offeringSchedule.pickupTime)}{" "}
-                    Uhr. Übernehmen gilt {weeklyAdverb(pickupDay.weekday)},
-                    nicht nur an diesem Tag.
+                    Uhr. Übernehmen gilt ab sofort{" "}
+                    {weeklyAdverb(pickupDay.weekday)}, nicht nur an diesem Tag.
                   </p>
                   <Button
                     type="button"
@@ -622,9 +625,7 @@ function LegSection({
   return (
     <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-          {icon}
-        </span>
+        <IconTile size="sm" icon={icon} />
         <div>
           <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
           <p className="text-xs text-gray-500">{regularLabel}</p>

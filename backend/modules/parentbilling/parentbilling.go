@@ -81,12 +81,22 @@ type ContributionRuleInput struct {
 	Note                string
 }
 
-// ContributionRules lets the Abrechnung of a Träger keep its rules. Every
-// operation names the Träger of the session and runs in its Träger
-// transaction, which the caller opens.
+// ContributionRules lets the Abrechnung of a Träger keep its rules and its
+// cost bearers, the payers of ADR 0088 section 4 (#5627). Every operation
+// names the Träger of the session and runs in its Träger transaction, which
+// the caller opens.
 type ContributionRules interface {
 	ListContributionRules(ctx context.Context, organizationID int64) ([]ContributionRule, error)
 	CreateContributionRule(ctx context.Context, organizationID int64, input ContributionRuleInput) (ContributionRule, error)
 	UpdateContributionRule(ctx context.Context, organizationID, ruleID int64, input ContributionRuleInput) (ContributionRule, error)
 	DeleteContributionRule(ctx context.Context, organizationID, ruleID int64) error
+	// ListCostBearers lists the cost bearers by name, each with whether a
+	// frozen contribution or an invoice names it.
+	ListCostBearers(ctx context.Context, organizationID int64) ([]CostBearer, error)
+	// SaveCostBearer creates a cost bearer when costBearerID is zero and
+	// changes that one otherwise; a missing one is ErrCostBearerNotFound.
+	SaveCostBearer(ctx context.Context, organizationID, costBearerID int64, input CostBearerInput) (CostBearer, error)
+	// DeleteCostBearer deletes a cost bearer nothing names; otherwise it is
+	// ErrCostBearerInUse.
+	DeleteCostBearer(ctx context.Context, organizationID, costBearerID int64) error
 }

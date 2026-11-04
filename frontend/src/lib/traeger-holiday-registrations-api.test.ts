@@ -8,6 +8,7 @@ import {
   fetchHolidayRegistrationHealth,
   withHolidayHealthAnswers,
   fetchHolidayRegistrations,
+  editHolidayRegistration,
   rebookHolidayChild,
 } from "./traeger-holiday-registrations-api";
 
@@ -201,6 +202,8 @@ describe("traeger-holiday-registrations-api", () => {
         before: [{ weekId: "52", timeModelId: "63" }],
         after: [{ weekId: "51", timeModelId: "61" }],
         debtorNumber: null,
+        fields: [],
+        siblings: [],
       },
       {
         action: "confirm",
@@ -210,6 +213,8 @@ describe("traeger-holiday-registrations-api", () => {
         before: [],
         after: [],
         debtorNumber: null,
+        fields: [],
+        siblings: [],
       },
     ]);
   });
@@ -286,7 +291,12 @@ describe("traeger-holiday-registrations-api", () => {
 
     const detail = await fetchHolidayRegistration("5", "7");
 
-    expect(detail.form).toEqual({ version: 0, fields: [], legalBlocks: [] });
+    expect(detail.form).toEqual({
+      version: 0,
+      fields: [],
+      legalBlocks: [],
+      addressRequirement: "off",
+    });
     expect(detail.answers).toEqual({});
     expect(detail.childAnswers).toEqual({});
   });
@@ -314,6 +324,98 @@ describe("traeger-holiday-registrations-api", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       bookings: [{ week_id: 51, time_model_id: 61 }],
     });
+  });
+
+  it("puts only the edited sections of the details with the field names of the public form (#5629)", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(200, {
+          status: "success",
+          data: {
+            ...BACKEND_DETAIL,
+            history: [
+              {
+                action: "edit",
+                occurred_at: "2026-11-06T09:00:00Z",
+                details: { fields: ["guardian.phone", "second_guardian"] },
+              },
+            ],
+          },
+        }),
+      ),
+    );
+
+    const detail = await editHolidayRegistration("5", "7", {
+      guardians: {
+        guardian: {
+          firstName: "Eva",
+          lastName: "Muster",
+          email: "eva@example.org",
+          phone: "0151 9999999",
+        },
+        address: {
+          street: "Neue Straße 3",
+          postalCode: "49143",
+          city: "Bissendorf",
+        },
+        secondGuardian: null,
+      },
+    });
+    await editHolidayRegistration("5", "7", {
+      child: {
+        id: "9",
+        firstName: "Ben",
+        lastName: "Muster",
+        birthDate: "2016-09-12",
+        homeSchoolId: null,
+        guestSchoolName: "Grundschule Melle",
+        answers: { lieblingsessen: "Nudeln" },
+      },
+      contacts: {
+        emergency: [{ name: "Oma Muster", phone: "05402 1", relationship: "" }],
+        pickup: [],
+      },
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/7/details",
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PUT");
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      guardian: {
+        first_name: "Eva",
+        last_name: "Muster",
+        email: "eva@example.org",
+        phone: "0151 9999999",
+      },
+      guardian_address: {
+        street: "Neue Straße 3",
+        postal_code: "49143",
+        city: "Bissendorf",
+      },
+      second_guardian: null,
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      children: [
+        {
+          id: 9,
+          first_name: "Ben",
+          last_name: "Muster",
+          birth_date: "2016-09-12",
+          home_school_id: 0,
+          guest_school_name: "Grundschule Melle",
+          custom_data: { lieblingsessen: "Nudeln" },
+        },
+      ],
+      emergency_contacts: [
+        { name: "Oma Muster", phone: "05402 1", relationship: "" },
+      ],
+      pickup_persons: [],
+    });
+    expect(detail.history[0]?.fields).toEqual([
+      "guardian.phone",
+      "second_guardian",
+    ]);
   });
 
   it("turns a refused change into an ApiError with its code", async () => {

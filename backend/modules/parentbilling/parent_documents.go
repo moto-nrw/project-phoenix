@@ -26,8 +26,13 @@ const PushKindBillingDocument = "parent_billing_document"
 const PushRelatedBillingDocument = "parent_billing_document"
 
 // ParentDocumentKindConfirmationLetter is the kind of a confirmation letter
-// that is the invoice of a holiday registration (ADR 0121).
-const ParentDocumentKindConfirmationLetter = "confirmation_letter"
+// that is the invoice of a holiday registration (ADR 0121); the letters of
+// its Storno and its Gutschrift have kinds of their own (#4690).
+const (
+	ParentDocumentKindConfirmationLetter = "confirmation_letter"
+	ParentDocumentKindCancellationLetter = "cancellation_letter"
+	ParentDocumentKindCreditLetter       = "credit_letter"
+)
 
 // ErrParentDocumentNotFound reports a document that is not in the inbox of
 // the account: unknown, never sent, or addressed to someone else.

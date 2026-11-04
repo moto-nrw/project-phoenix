@@ -25,6 +25,7 @@ import {
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -176,22 +177,28 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   if (isAccepted) {
     return (
       <div className="flex flex-col items-center py-12">
-        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
-          <svg
-            className="h-6 w-6 text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </div>
+        <IconTile
+          size="page"
+          shape="round"
+          tone="inverse"
+          className="mb-6"
+          icon={
+            <svg
+              className="text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          }
+        />
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           {t("acceptedTitle")}
         </h3>

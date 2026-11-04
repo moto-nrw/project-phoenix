@@ -34,6 +34,12 @@ type LetterStore interface {
 	// reports a missing one as ErrBillingLetterNotFound.
 	DocumentLetter(ctx context.Context, organizationID, runID, documentID int64) (parentbilling.BillingLetterFile, error)
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
+	// The numbering and storing of a cancellation or a credit (#4690).
+	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
+	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
+	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
+	IssueDocument(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, sequence int64, document parentbilling.BillingDocument) (int64, error)
+	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
 }
 
 // BillingLetters serves parentbilling.BillingLetterService. The layout of
@@ -85,7 +91,7 @@ func (b *BillingLetters) CreateBillingLetters(ctx context.Context, reviewer pare
 		return parentbilling.BillingLetters{}, err
 	}
 	for _, document := range documents {
-		file, err := b.render(letterContent{run: run, document: document, input: input, letterhead: head})
+		file, err := b.render(runLetterContent(run, documents, document, input, head))
 		if err != nil {
 			return parentbilling.BillingLetters{}, err
 		}
@@ -101,7 +107,9 @@ func (b *BillingLetters) CreateBillingLetters(ctx context.Context, reviewer pare
 }
 
 // PreviewBillingLetter renders the letter of the first invoice of a
-// released run with the input and stores nothing but the read.
+// released run with the input and stores nothing but the read. It picks an
+// invoice, never a Storno or a Gutschrift, and builds the letter as the
+// creation does, so preview and letter agree (#4690).
 func (b *BillingLetters) PreviewBillingLetter(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, input parentbilling.BillingLetterInput) (parentbilling.BillingLetterFile, error) {
 	input, err := b.prepare(reviewer, input)
 	if err != nil {
@@ -115,11 +123,15 @@ func (b *BillingLetters) PreviewBillingLetter(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	file, err := b.render(letterContent{run: run, document: documents[0], input: input, letterhead: head})
+	invoice, ok := firstInvoice(documents)
+	if !ok {
+		return parentbilling.BillingLetterFile{}, parentbilling.ErrBillingRunEmpty
+	}
+	file, err := b.render(runLetterContent(run, documents, invoice, input, head))
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	if err := b.recordRead(ctx, reviewer, run.ID, documents[0].ID, "preview"); err != nil {
+	if err := b.recordRead(ctx, reviewer, run.ID, invoice.ID, "preview"); err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
 	return file, nil
@@ -155,6 +167,16 @@ func (b *BillingLetters) prepare(reviewer parentbilling.HolidayReviewer, input p
 		return input, err
 	}
 	return normalizeLetterInput(input, b.today())
+}
+
+// firstInvoice is the first invoice among the documents of a run.
+func firstInvoice(documents []parentbilling.BillingDocument) (parentbilling.BillingDocument, bool) {
+	for _, document := range documents {
+		if document.Kind == parentbilling.DocumentInvoice || document.Kind == "" {
+			return document, true
+		}
+	}
+	return parentbilling.BillingDocument{}, false
 }
 
 // releasedRun reads a run that has issued its invoices; lock holds it.
@@ -204,12 +226,9 @@ func (b *BillingLetters) material(ctx context.Context, reviewer parentbilling.Ho
 // prints a gap where the reference to pay with belongs (#5622). An invoice
 // of 0 € prints the fixed sentence without a reference.
 func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []parentbilling.BillingDocument) error {
-	if !strings.Contains(head.PaymentText, placeholderDebtorNumber) {
-		return nil
-	}
 	var missing []string
 	for _, document := range documents {
-		if document.TotalCents != 0 && strings.TrimSpace(document.DebtorNumber) == "" {
+		if lacksDebtorNumberForPaymentText(head.PaymentText, document) {
 			missing = append(missing, document.Number)
 		}
 	}
@@ -219,8 +238,25 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 	return nil
 }
 
+// lacksDebtorNumberForPaymentText reports whether the payment text names the
+// debtor number while the invoice asks for payment without one. The billing
+// run counts these invoices before the release, which copies the number and
+// locks it (#5621, #5622). A cancellation or a credit asks for no payment
+// (#4690).
+func lacksDebtorNumberForPaymentText(paymentText string, document parentbilling.BillingDocument) bool {
+	return document.TotalCents > 0 && strings.TrimSpace(document.DebtorNumber) == "" &&
+		strings.Contains(paymentText, placeholderDebtorNumber)
+}
+
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {
-	file, err := b.renderer.RenderLetter(confirmationLetter(content), "bestaetigung-"+content.document.Number)
+	letter, prefix := confirmationLetter(content), "bestaetigung-"
+	switch content.document.Kind {
+	case parentbilling.DocumentCancellation:
+		letter, prefix = cancellationLetter(content), "storno-"
+	case parentbilling.DocumentCredit:
+		letter, prefix = creditLetter(content), "gutschrift-"
+	}
+	file, err := b.renderer.RenderLetter(letter, prefix+content.document.Number)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render letter: %w", err)
 	}

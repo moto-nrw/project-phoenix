@@ -7,7 +7,7 @@ import { runInNewContext } from "node:vm";
 import { parse } from "yaml";
 
 import { readBaseComparison } from "./perf/bundle-measurement.mjs";
-import { compareBudgets } from "./perf/bundle-policy.mjs";
+import { compareBundles, GROWTH_APPROVAL_LABEL } from "./perf/bundle-policy.mjs";
 
 function workflow(name) {
   return parse(
@@ -68,17 +68,15 @@ test("release development -> main prepares no delta reference and never builds t
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const base = readBaseComparison(directory);
   assert.equal(base.routes, null);
-  const approved = new Map([
-    ["/traeger", { referenceBytes: 1_000_000, maxBytes: 1_300_000 }],
-  ]);
+  const ceilings = new Map([["/traeger", 1_300_000]]);
   const releaseGrowth = new Map([["/traeger", 1_289_707]]);
   assert.deepEqual(
-    compareBudgets(approved, releaseGrowth, base.routes).failures,
+    compareBundles(ceilings, releaseGrowth, base.routes).failures,
     [],
-    "a release cycle's 289707 B growth is not a feature PR delta",
+    "a release cycle's growth is not a feature PR delta",
   );
   assert.equal(
-    compareBudgets(approved, new Map([["/traeger", 1_300_001]]), base.routes)
+    compareBundles(ceilings, new Map([["/traeger", 1_300_001]]), base.routes)
       .failures.length,
     1,
     "absolute ceilings still block releases",
@@ -219,10 +217,20 @@ test("bundle builds need no artifact-read token and do not persist checkout cred
           "github.event_name == 'pull_request' && github.base_ref != 'main'",
     ),
   );
-  assert.equal(
-    build.steps.some((step) => step.env?.GH_TOKEN || step.env?.GITHUB_TOKEN),
-    false,
+  const tokenSteps = build.steps.filter(
+    (step) => step.env?.GH_TOKEN || step.env?.GITHUB_TOKEN,
   );
+  assert.deepEqual(
+    tokenSteps.map((step) => step.id),
+    ["bundle-approval"],
+    "only the label read sees a token",
+  );
+  assert.equal(build.steps[0].id, "bundle-approval", "it runs before PR code");
+  assert.equal(build.steps[0].uses, undefined);
+  assert.deepEqual(build.permissions, {
+    contents: "read",
+    "pull-requests": "read",
+  });
   for (const [name, job] of Object.entries(called.jobs)) {
     if (name !== "frontend-build") {
       assert.equal(
@@ -245,11 +253,47 @@ test("bundle builds need no artifact-read token and do not persist checkout cred
         "read",
         `${name} must permit source access`,
       );
+      assert.equal(
+        job.permissions["pull-requests"],
+        "read",
+        `${name} must permit the approval label read`,
+      );
     }
     assert.equal(
       caller.permissions.actions,
       undefined,
       "no workflow-wide permission expansion",
+    );
+  }
+});
+
+test("the approval label is read fresh on feature PRs only and reaches the ratchet", () => {
+  const steps = workflow("lint.yml").jobs["frontend-build"].steps;
+  const approval = steps.find((step) => step.id === "bundle-approval");
+  const ratchet = steps.find(
+    (step) => step.run === "pnpm run perf:bundle-ratchet",
+  );
+  assert.ok(approval.run.includes(`'${GROWTH_APPROVAL_LABEL}'`));
+  assert.match(approval.run, /gh api "repos\/\$REPOSITORY\/issues\/\$PR_NUMBER\/labels"/);
+  for (const baseRef of ["development", "feature/stack-base"])
+    assert.equal(
+      expression(approval.if, bundleContext("pull_request", baseRef)),
+      true,
+    );
+  assert.equal(
+    expression(approval.if, bundleContext("pull_request", "main")),
+    false,
+  );
+  for (const [approved, expected] of [
+    ["true", true],
+    ["false", false],
+    [undefined, false],
+  ]) {
+    assert.equal(
+      expression(ratchet.env.BUNDLE_GROWTH_APPROVED, {
+        steps: { "bundle-approval": { outputs: { approved } } },
+      }),
+      expected,
     );
   }
 });

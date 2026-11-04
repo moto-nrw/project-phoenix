@@ -49,7 +49,8 @@ export function SchoolPeriodSelect({
       ariaLabel={ariaLabel}
       placeholder="Nach Schulstunde"
       disabled={disabled}
-      triggerClassName="moto-content-surface h-8 w-full text-xs"
+      controlSize="compact"
+      className="text-xs"
     />
   );
 }

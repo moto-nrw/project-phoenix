@@ -51,7 +51,8 @@ type HolidayGuestContact struct {
 // its name: the care it booked, its emergency contacts and who may collect
 // it, and the answers the Träger shares (#5202). A nil HomeSchoolID marks a
 // child without a school of the Träger; GuestSchoolName is the school its
-// parents named, if any.
+// parents named, if any. SchoolName is the school the hint „Gast aus …“
+// names (#5630).
 type HolidayGuestSheet struct {
 	StudentID       int64                 `json:"student_id"`
 	WeekID          int64                 `json:"week_id"`
@@ -62,6 +63,7 @@ type HolidayGuestSheet struct {
 	TimeModelEnds   string                `json:"time_model_ends_at"`
 	HomeSchoolID    *int64                `json:"home_school_id"`
 	GuestSchoolName string                `json:"guest_school_name"`
+	SchoolName      string                `json:"school_name"`
 	Emergency       []HolidayGuestContact `json:"emergency_contacts"`
 	Pickup          []HolidayGuestContact `json:"pickup_contacts"`
 	Answers         []HolidayHostAnswer   `json:"answers"`
@@ -71,6 +73,25 @@ type HolidayGuestSheet struct {
 	// ReadOnly is true after the last day of the week: the guest is no
 	// longer cared for and the sheet stays only for questions afterwards.
 	ReadOnly bool `json:"read_only"`
+}
+
+// HolidayGuestSchoolName is the school the hint on a guest names (#5630),
+// by the rule of the participant list: the home school of the Träger, or the
+// school the parents named for a child without one. Empty means the hint
+// says „Feriengast“: a child without any school, or a home school that no
+// longer exists.
+func HolidayGuestSchoolName(homeSchoolID *int64, homeSchoolName, guestSchoolName string) string {
+	if homeSchoolID != nil {
+		return homeSchoolName
+	}
+	return guestSchoolName
+}
+
+// HolidayGuestBadge is the hint on a guest in the school's lists (#5630):
+// the child and the school „Gast aus …“ names, empty for „Feriengast“.
+type HolidayGuestBadge struct {
+	StudentID  int64  `json:"student_id"`
+	SchoolName string `json:"school_name"`
 }
 
 // HolidayGuestTransfer is the result of picking the group of a hosted week:
@@ -165,6 +186,18 @@ type HolidayGuests interface {
 	// ErrHolidayGuestNotFound for a child that is no guest or whose access
 	// has ended.
 	HolidayGuestSheet(ctx context.Context, host HolidayHost, studentID int64) (HolidayGuestSheet, error)
+	HolidayGuestBadgeList
+}
+
+// HolidayGuestBadgeList lists the hints „Gast aus …“ of a hosting school,
+// in the tenant transaction of the school. The school portal and the
+// tablet (PyrePortal#499) read it.
+type HolidayGuestBadgeList interface {
+	// HolidayGuestBadges lists the hint of every guest the school cares for
+	// today, from the first to the last day of its week, so group,
+	// check-in, child list, supervision and the tablet name its home school
+	// (#5630).
+	HolidayGuestBadges(ctx context.Context, schoolID int64) ([]HolidayGuestBadge, error)
 }
 
 // HolidayHostGroup is the group a school picked for the guests of a week,
@@ -190,11 +223,14 @@ type HolidayGuestWeek struct {
 // second guardian among the emergency contacts) and its shared answers, as
 // the Träger's registration holds it.
 type HolidayGuestSource struct {
-	ChildID         int64
-	FirstName       string
-	LastName        string
-	BirthDate       calendar.Date
-	HomeSchoolID    *int64
+	ChildID      int64
+	FirstName    string
+	LastName     string
+	BirthDate    calendar.Date
+	HomeSchoolID *int64
+	// HomeSchoolName is the name of the home school the service looked up
+	// for the copy (#5630); empty without one or for a school gone.
+	HomeSchoolName  string
 	GuestSchoolName string
 	TimeModelName   string
 	TimeModelStarts string
@@ -221,6 +257,7 @@ type HolidayGuest struct {
 	EndsOn          calendar.Date
 	EndedOn         *calendar.Date
 	HomeSchoolID    *int64
+	HomeSchoolName  string
 	GuestSchoolName string
 	TimeModelName   string
 	TimeModelStarts string

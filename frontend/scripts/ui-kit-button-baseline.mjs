@@ -40,9 +40,10 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [171],
-    reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
+    file: "src/components/ui/listbox-dropdown.tsx",
+    lines: [1010],
+    reason:
+      "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
   },
   {
     rule: "no-hand-rolled-button",
@@ -113,7 +114,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [360],
+    lines: [361],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -125,7 +126,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3150],
+    lines: [3140],
     reason: "Schalter (role=switch)",
   },
   {
@@ -163,7 +164,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [376],
+    lines: [377],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -224,7 +225,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-plan-view.tsx",
-    lines: [507],
+    lines: [503],
     reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
@@ -236,7 +237,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1562],
+    lines: [1560],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -248,25 +249,25 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [138],
+    lines: [135],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [947],
+    lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1176],
+    lines: [1166],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/time-tracking/betreuungsplan-heute-card.tsx",
-    lines: [386],
+    lines: [394],
     reason:
       "Zeile „Betreuungsplan heute“, verlinkt auf Heute: Navigationszeile",
   },

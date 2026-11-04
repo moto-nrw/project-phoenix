@@ -1,353 +1,156 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
-  BUDGET_FORMAT,
-  compareBudgets,
-  legacyCeiling,
+  CEILINGS_FORMAT,
+  compareBundles,
+  deltaTolerance,
+  GROWTH_APPROVAL_LABEL,
   NEAR_CEILING_BYTES,
-  readBudgets,
+  readCeilings,
 } from "./bundle-policy.mjs";
 
 const source = dirname(fileURLToPath(import.meta.url));
-const approved = new Map([
-  [
-    "/parents/children",
-    { referenceBytes: 100_000, maxBytes: legacyCeiling(100_000) },
-  ],
-]);
+const route = "/parents/children";
+const none = new Map();
+const ceilings = new Map([[route, 110_240]]);
 
-/**
- * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
- * #5260 room detail (logout safeguards) and #5399: the parents'
- * Elternsprechtag page (#4801) was budgeted without room for the
- * session-end barrier every signed-in page carries.
- */
-const increases = new Map([
-  ["/[tenant]/rooms/[id]", 2_048],
-  ["/parents/children/[id]/elternsprechtag", 1_024],
-]);
-
-test("bundle policy retains migration ceilings except the explicit increases", () => {
-  const budgets = readBudgets(join(source, "bundle-budgets"));
-  assert.ok(budgets.size > 0);
-  assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
-    referenceBytes: 1_026_710,
-    maxBytes: 1_049_292,
-  });
-  for (const [route, budget] of budgets) {
-    assert.equal(
-      budget.maxBytes,
-      legacyCeiling(budget.referenceBytes) + (increases.get(route) ?? 0),
-      route,
-    );
+test("the checked-in ceilings stay a short list with each entry enforced to the byte", () => {
+  const checkedIn = readCeilings(join(source, "bundle-ceilings.json"));
+  assert.ok(checkedIn.size > 0 && checkedIn.size <= 12, "few hot routes only");
+  for (const [hot, maxBytes] of checkedIn) {
+    const measured = new Map(checkedIn);
+    assert.deepEqual(compareBundles(checkedIn, measured).failures, [], hot);
+    measured.set(hot, maxBytes + 1);
+    assert.equal(compareBundles(checkedIn, measured).failures.length, 1, hot);
   }
 });
 
-test("each policy still rejects one byte over its ceiling", () => {
-  const budgets = readBudgets(join(source, "bundle-budgets"));
-  for (const [route, { maxBytes }] of budgets) {
-    assert.deepEqual(
-      compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
-      [],
-      route,
-    );
-    assert.equal(
-      compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
-      1,
-      route,
-    );
-  }
-});
-
-test("a significant improvement passes without lowering an observation baseline", () => {
+test("PR delta accepts the tolerance, rejects one byte more and passes improvements", () => {
+  const base = new Map([[route, 100_000]]);
+  assert.equal(deltaTolerance(100_000), 10_240);
+  assert.equal(deltaTolerance(1_000_000), 20_000);
   assert.deepEqual(
-    compareBudgets(approved, new Map([["/parents/children", 60_000]])).failures,
+    compareBundles(none, new Map([[route, 110_240]]), base).failures,
+    [],
+  );
+  const over = compareBundles(none, new Map([[route, 110_241]]), base);
+  assert.equal(over.failures.length, 1);
+  assert.match(over.failures[0], /PR-Zuwachs 10241 Bytes/);
+  assert.ok(over.failures[0].includes(GROWTH_APPROVAL_LABEL));
+  assert.deepEqual(
+    compareBundles(none, new Map([[route, 60_000]]), base).failures,
     [],
   );
 });
 
-test("retired routes do not require cleanup of old observations", () => {
-  const policies = new Map([
-    ...approved,
-    ["/parents/retired", { referenceBytes: 100_000, maxBytes: 110_240 }],
+test("the approval label turns delta failures into warnings", () => {
+  const result = compareBundles(
+    none,
+    new Map([[route, 200_000]]),
+    new Map([[route, 100_000]]),
+    { growthApproved: true },
+  );
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /Freigegeben/);
+});
+
+test("routes without a ceiling need no policy entry, also when new", () => {
+  const measured = new Map([
+    [route, 100_000],
+    ["/parents/new", 5_000_000],
   ]);
   assert.deepEqual(
-    compareBudgets(policies, new Map([["/parents/children", 100_000]]))
-      .failures,
+    compareBundles(ceilings, measured, new Map([[route, 100_000]])).failures,
     [],
   );
 });
 
-test("the absolute ceiling still fails when a rolling PR delta is tiny", () => {
-  // The base keeps more than NEAR_CEILING_BYTES of headroom (cap 110 240).
-  const measured = new Map([["/parents/children", 110_300]]);
-  const base = new Map([["/parents/children", 109_000]]);
-  const result = compareBudgets(approved, measured, base);
-  assert.equal(result.rows[0].delta, 1_300);
+test("a ceiling fails one byte over, also with a tiny PR delta and with the label", () => {
+  assert.deepEqual(
+    compareBundles(ceilings, new Map([[route, 110_240]])).failures,
+    [],
+  );
+  // The base keeps more than NEAR_CEILING_BYTES of headroom.
+  const result = compareBundles(
+    ceilings,
+    new Map([[route, 110_241]]),
+    new Map([[route, 109_000]]),
+    { growthApproved: true },
+  );
   assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /Obergrenze/);
+  assert.match(result.failures[0], /Obergrenze 110240/);
+  assert.match(result.failures[0], /Label gilt hier nicht/);
 });
 
 test("a base within NEAR_CEILING_BYTES of its ceiling leaves PRs to their own delta (#5396)", () => {
-  const route = "/parents/children";
-  const limit = approved.get(route).maxBytes;
-  const over = new Map([[route, limit + 13]]);
-  const near = compareBudgets(
-    approved,
+  const over = new Map([[route, 110_240 + 13]]);
+  const near = compareBundles(
+    ceilings,
     over,
-    new Map([[route, limit - NEAR_CEILING_BYTES + 1]]),
+    new Map([[route, 110_240 - NEAR_CEILING_BYTES + 1]]),
   );
   assert.deepEqual(near.failures, []);
   assert.equal(near.warnings.length, 1);
-  assert.match(near.warnings[0], /eigenes Delta/);
-  const intact = compareBudgets(
-    approved,
-    over,
-    new Map([[route, limit - NEAR_CEILING_BYTES]]),
+  assert.match(near.warnings[0], /eigener Zuwachs/);
+  assert.equal(
+    compareBundles(
+      ceilings,
+      over,
+      new Map([[route, 110_240 - NEAR_CEILING_BYTES]]),
+    ).failures.length,
+    1,
   );
-  assert.equal(intact.failures.length, 1);
-  assert.match(intact.failures[0], /Obergrenze/);
   // Development pushes, the nightly and release PRs compare without a base.
-  assert.equal(compareBudgets(approved, over).failures.length, 1);
+  assert.equal(compareBundles(ceilings, over).failures.length, 1);
   // The own delta still blocks next to the ceiling.
   assert.ok(
-    compareBudgets(
-      approved,
-      new Map([[route, limit + 11_000]]),
-      new Map([[route, limit - 100]]),
-    ).failures.some((failure) => /eigenes PR-Delta/.test(failure)),
+    compareBundles(
+      ceilings,
+      new Map([[route, 110_240 + 11_000]]),
+      new Map([[route, 110_240 - 100]]),
+    ).failures.some((failure) => /PR-Zuwachs/.test(failure)),
   );
 });
 
-test("own PR delta over tolerance fails even with plenty of absolute headroom", () => {
-  const policies = new Map([
-    ["/parents/children", { referenceBytes: 100_000, maxBytes: 200_000 }],
-  ]);
-  const result = compareBudgets(
-    policies,
-    new Map([["/parents/children", 110_241]]),
-    new Map([["/parents/children", 100_000]]),
-  );
+test("a ceiling whose route is no longer measured fails instead of silently guarding nothing", () => {
+  const result = compareBundles(ceilings, new Map([["/parents", 1]]));
   assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /eigenes PR-Delta/);
+  assert.match(result.failures[0], /ohne gemessene Route/);
 });
 
-test("historical baseline drift plus 512 B own growth passes (#5181/#5213)", () => {
-  const route = "/[tenant]/home";
-  const policies = new Map([
-    [route, { referenceBytes: 1_058_646, maxBytes: legacyCeiling(1_058_646) }],
-  ]);
-  const result = compareBudgets(
-    policies,
-    new Map([[route, 1_079_590 + 512]]),
-    new Map([[route, 1_079_590]]),
-  );
-  assert.equal(result.rows[0].delta, 512);
-  // The base sat 229 B under the ceiling: the crossing warns on the PR and
-  // stays red on development until the ceiling is reset (#5396).
-  assert.deepEqual(result.failures, []);
-  assert.equal(result.warnings.length, 1);
-  assert.match(result.warnings[0], /Obergrenze/);
-  policies.get(route).maxBytes = 1_100_000;
-  assert.deepEqual(
-    compareBudgets(
-      policies,
-      new Map([[route, 1_079_590 + 512]]),
-      new Map([[route, 1_079_590]]),
-    ).failures,
-    [],
-  );
-});
-
-test("only inherited absolute excess warns on PRs but remains red on development", () => {
-  const measured = new Map([["/parents/children", 120_512]]);
-  const result = compareBudgets(
-    approved,
-    measured,
-    new Map([["/parents/children", 120_000]]),
-  );
-  assert.deepEqual(result.failures, []);
-  assert.equal(result.warnings.length, 1);
-  assert.match(result.warnings[0], /Obergrenze/);
-  assert.equal(compareBudgets(approved, measured).failures.length, 1);
-  assert.ok(
-    compareBudgets(
-      approved,
-      new Map([["/parents/children", 131_000]]),
-      new Map([["/parents/children", 120_000]]),
-    ).failures.some((failure) => /eigenes PR-Delta/.test(failure)),
-  );
-});
-
-test("PR delta accepts equality, rejects one byte more and secures improvements automatically", () => {
-  const policies = new Map([
-    ["/parents/children", { referenceBytes: 100_000, maxBytes: 200_000 }],
-  ]);
-  const base = new Map([["/parents/children", 100_000]]);
-  assert.deepEqual(
-    compareBudgets(policies, new Map([["/parents/children", 110_240]]), base)
-      .failures,
-    [],
-  );
-  assert.equal(
-    compareBudgets(policies, new Map([["/parents/children", 110_241]]), base)
-      .failures.length,
-    1,
-  );
-  assert.deepEqual(
-    compareBudgets(policies, new Map([["/parents/children", 60_000]]), base)
-      .failures,
-    [],
-  );
-  assert.equal(
-    compareBudgets(policies, base, new Map([["/parents/children", 60_000]]))
-      .failures.length,
-    1,
-  );
-});
-
-test("a cached observation cannot grant a budget to a new route", () => {
-  const route = "/parents/new";
-  const result = compareBudgets(
-    approved,
-    new Map([[route, 1]]),
-    new Map([[route, 1]]),
-  );
-  assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /ohne genehmigtes Bundle-Budget/);
-});
-
-test("equality at the approved ceiling passes but one more byte fails", () => {
-  const limit = approved.get("/parents/children").maxBytes;
-  assert.equal(
-    compareBudgets(approved, new Map([["/parents/children", limit]])).failures
-      .length,
-    0,
-  );
-  assert.equal(
-    compareBudgets(approved, new Map([["/parents/children", limit + 1]]))
-      .failures.length,
-    1,
-  );
-});
-
-test("missing, unreadable and malformed budget policy fail closed", () => {
-  const directory = mkdtempSync(join(tmpdir(), "moto-bundle-policy-"));
+test("missing, unreadable and malformed ceiling policy fail closed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "moto-bundle-ceilings-"));
+  const file = join(directory, "bundle-ceilings.json");
   try {
-    assert.throws(() => readBudgets(join(directory, "absent")));
-    mkdirSync(join(directory, "parents"));
-    writeFileSync(join(directory, "parents", "children.json"), "invalid-json");
-    assert.throws(() => readBudgets(directory));
-    writeFileSync(
-      join(directory, "parents", "children.json"),
-      JSON.stringify({
-        format: BUDGET_FORMAT,
-        routes: { "/parents/children": { referenceBytes: 100, maxBytes: -1 } },
-      }),
-    );
-    assert.throws(() => readBudgets(directory), /Invalid byte budget/);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("portal ownership is enforced instead of silently accepting another fragment", () => {
-  const directory = mkdtempSync(join(tmpdir(), "moto-bundle-policy-"));
-  try {
-    mkdirSync(join(directory, "tenant"));
-    writeFileSync(
-      join(directory, "tenant", "children.json"),
-      JSON.stringify({
-        format: BUDGET_FORMAT,
-        routes: { "/parents/children": { referenceBytes: 100, maxBytes: 200 } },
-      }),
-    );
-    assert.throws(
-      () => readBudgets(directory),
-      /belongs in parents\/children.json/,
-    );
+    assert.throws(() => readCeilings(file));
+    writeFileSync(file, "invalid-json");
+    assert.throws(() => readCeilings(file));
+    for (const routes of [{}, [], { [route]: -1 }, { relative: 1 }]) {
+      writeFileSync(file, JSON.stringify({ format: CEILINGS_FORMAT, routes }));
+      assert.throws(() => readCeilings(file), /bundle ceiling/i);
+    }
+    writeFileSync(file, JSON.stringify({ format: "other", routes: { [route]: 1 } }));
+    assert.throws(() => readCeilings(file), /Invalid bundle ceiling policy/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
 test("invalid observations and empty measurements fail closed", () => {
-  assert.throws(() => compareBudgets(approved, new Map()), /No measured/);
+  assert.throws(() => compareBundles(ceilings, new Map()), /No measured/);
   for (const bytes of [-1, 1.5, Number.NaN])
     assert.throws(
-      () => compareBudgets(approved, new Map([["/parents/children", bytes]])),
+      () => compareBundles(ceilings, new Map([[route, bytes]])),
       /Invalid measured/,
     );
-});
-
-test("--update is rejected before analysis rather than turning measurements into policy", () => {
-  const result = spawnSync(
-    process.execPath,
-    [join(source, "bundle-ratchet.mjs"), "--update"],
-    { encoding: "utf8" },
-  );
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /cannot approve bundle budgets/);
-});
-
-test("stale references warn strictly below 95 percent, without changing policy", () => {
-  const route = "/parents/children";
-  for (const bytes of [100_001, 100_000, 95_001, 95_000]) {
-    assert.deepEqual(
-      compareBudgets(approved, new Map([[route, bytes]])).warnings,
-      [],
-    );
-  }
-  for (const base of [null, new Map([[route, 94_999]])]) {
-    const result = compareBudgets(approved, new Map([[route, 94_999]]), base);
-    assert.deepEqual(result.failures, []);
-    assert.equal(result.warnings.length, 1);
-    assert.match(result.warnings[0], /Referenz.*100000.*94999.*nach unten/);
-  }
-  assert.deepEqual(approved.get(route), {
-    referenceBytes: 100_000,
-    maxBytes: legacyCeiling(100_000),
-  });
-});
-
-test("stale-reference warning cannot forgive own growth or an absolute violation", () => {
-  const route = "/parents/children";
-  const result = compareBudgets(
-    approved,
-    new Map([[route, 94_999]]),
-    new Map([[route, 60_000]]),
-  );
-  assert.equal(result.warnings.length, 1);
-  assert.equal(result.failures.length, 1);
-  assert.match(result.failures[0], /eigenes PR-Delta/);
-  assert.equal(
-    compareBudgets(approved, new Map([[route, 110_241]])).failures.length,
-    1,
-  );
-});
-
-test("zero references and byte rounding do not produce stale-reference false positives", () => {
-  const route = "/tiny";
-  assert.deepEqual(
-    compareBudgets(
-      new Map([[route, { referenceBytes: 0, maxBytes: 10_240 }]]),
-      new Map([[route, 0]]),
-    ).warnings,
-    [],
-  );
-  const budgets = new Map([[route, { referenceBytes: 101, maxBytes: 10_341 }]]);
-  assert.deepEqual(
-    compareBudgets(budgets, new Map([[route, 96]])).warnings,
-    [],
-  );
-  assert.equal(
-    compareBudgets(budgets, new Map([[route, 95]])).warnings.length,
-    1,
+  assert.throws(
+    () => compareBundles(none, new Map([[route, 1]]), new Map([[route, -1]])),
+    /Invalid base/,
   );
 });

@@ -34,6 +34,9 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (original) => ({
   fetchHolidayConfirmationSettings: () =>
     Promise.resolve({ debtorNumberRequired: false }),
 }));
+vi.mock("~/lib/traeger-sibling-groups-api", () => ({
+  fetchHolidaySiblingGroups: () => Promise.resolve([]),
+}));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
 }));

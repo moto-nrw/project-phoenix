@@ -50,8 +50,9 @@ export interface DataTableColumn<T> {
  * Row selection of a DataTable (#3834): a checkbox column in front, with an
  * "alle auswählen" box in the header that covers every row of the table, not
  * only the rows paged in so far. The caller owns the selection; the table
- * only reports changes. Keys are `String(getRowKey(row))`. The "row"
- * stacked phone layout shows the row checkboxes too, without the header box.
+ * only reports changes. Keys are `String(getRowKey(row))`. The "row" and
+ * "lines" stacked phone layouts show the row checkboxes too, without the
+ * header box.
  */
 interface DataTableSelection<T> {
   readonly selectedKeys: ReadonlySet<string>;
@@ -264,6 +265,36 @@ const STACKED_ROW_PADDING: Record<"lines" | "row" | "form", string> = {
 const STACKED_ROW_CONTROL = "[data-row-control]";
 
 /**
+ * The checkbox of a phone row. The row ignores clicks from this label
+ * (STACKED_ROW_CONTROL): the checkbox marks the row, it must not also open
+ * it.
+ */
+function StackedRowCheckbox<T>({
+  row,
+  rowKey,
+  selection,
+}: Readonly<{
+  row: T;
+  rowKey: string;
+  selection: DataTableSelection<T>;
+}>) {
+  const selected = selection.selectedKeys.has(rowKey);
+  return (
+    <label
+      data-row-control=""
+      className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
+    >
+      <Checkbox
+        checked={selected}
+        disabled={selection.disabled}
+        onChange={() => selection.onChange([rowKey], !selected)}
+      />
+      <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
+    </label>
+  );
+}
+
+/**
  * The phone list row (#3834): one entry per line. Optional checkbox, the
  * title with one chosen detail column under it, the meta value at the
  * right. Every other column stays off the phone: a list that grows back
@@ -284,23 +315,10 @@ function RowStackedRow<T>({
   detail: DataTableColumn<T> | undefined;
   selection?: DataTableSelection<T>;
 }>) {
-  const selected = selection?.selectedKeys.has(rowKey) ?? false;
   return (
     <div className="flex min-h-8 items-center gap-3">
       {selection ? (
-        // The row ignores clicks from this label (STACKED_ROW_CONTROL):
-        // the checkbox marks the row, it must not also open it.
-        <label
-          data-row-control=""
-          className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
-        >
-          <Checkbox
-            checked={selected}
-            disabled={selection.disabled}
-            onChange={() => selection.onChange([rowKey], !selected)}
-          />
-          <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
-        </label>
+        <StackedRowCheckbox row={row} rowKey={rowKey} selection={selection} />
       ) : null}
       {/* The title keeps at least 5rem and the meta value at most 9.5rem
           (one badge): a second badge wraps below the first instead of
@@ -491,7 +509,14 @@ function StackedRows<T>({
               ) : (
                 <>
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0">{title?.render(row)}</span>
+                    {selection ? (
+                      <StackedRowCheckbox
+                        row={row}
+                        rowKey={String(getRowKey(row))}
+                        selection={selection}
+                      />
+                    ) : null}
+                    <span className="min-w-0 flex-1">{title?.render(row)}</span>
                     {meta ? (
                       <span className="shrink-0 text-xs text-gray-500">
                         {meta.render(row)}

@@ -5,8 +5,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { studentsConfig } from "./students.config";
 
-// Mock location-helper
-vi.mock("@/lib/location-helper", () => ({
+// Mock location-helper; the kit's colour tables (MOTO_COLOR_PALETTE, used by
+// StatusBadge inside the select menus) stay real.
+vi.mock("@/lib/location-helper", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/location-helper")>()),
   LOCATION_STATUSES: {
     HOME: "home",
     PRESENT: "present",

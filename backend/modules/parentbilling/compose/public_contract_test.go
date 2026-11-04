@@ -43,11 +43,23 @@ func (c confirmedRegistration) SetHolidayDebtorNumber(context.Context, parentbil
 	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
 }
 
+func (c confirmedRegistration) HoldHolidayPeriod(context.Context, parentbilling.HolidayReviewer, int64) error {
+	return nil
+}
+
+func (c confirmedRegistration) RecordHolidaySiblings(context.Context, parentbilling.HolidayReviewer, int64, int64, string, []int64) error {
+	return nil
+}
+
 // settingsDouble is the Träger's switch for the debtor number (#5621).
 type settingsDouble struct{ asksDebtorNumber bool }
 
 func (s settingsDouble) AsksDebtorNumber(context.Context, int64) (bool, error) {
 	return s.asksDebtorNumber, nil
+}
+
+func (s settingsDouble) PaymentText(context.Context, int64) (string, error) {
+	return "", nil
 }
 
 func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) {
@@ -93,13 +105,13 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, ""); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {
 			return err
 		}
-		later, err = contributions.HolidayContribution(txCtx, reviewer, period, registration, nil)
+		later, err = contributions.HolidayContribution(txCtx, reviewer, period, registration, nil, 0)
 		return err
 	}))
 

@@ -154,3 +154,51 @@ func TestBillingLettersWithPaymentTextNeedTheDebtorNumberItNames(t *testing.T) {
 		assert.Equal(t, before[document.ID], rec.Body.Bytes(), "a finished letter keeps its payment text")
 	}
 }
+
+// TestBillingRunCountsTheInvoicesThePaymentTextWouldRefuse is the warning
+// before the release: once a release copies an invoice without a debtor
+// number, the number can no longer be entered, so the run counts the
+// invoices with an amount whose letter the payment text would refuse,
+// whatever the switch for the debtor number says. 0 € prints the fixed
+// sentence and does not count.
+func TestBillingRunCountsTheInvoicesThePaymentTextWouldRefuse(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Zahlungstext Warnung")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, nil).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	require.Len(t, run.Documents, 2)
+	assert.Zero(t, run.PaymentTextMissingDebtorNumbers, "the built-in sentence names the invoice number")
+
+	setPaymentText(t, f, "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist}. Verwendungszweck: {Rechnungsnummer}.")
+	assert.Zero(t, billingRun(t, f, billing, run.ID).PaymentTextMissingDebtorNumbers, "a text without the placeholder needs no number")
+
+	setPaymentText(t, f, bissendorfPaymentText)
+	run = billingRun(t, f, billing, run.ID)
+	assert.Equal(t, 2, run.PaymentTextMissingDebtorNumbers, "the text counts without the switch")
+	assert.Zero(t, run.MissingDebtorNumbers, "the hint of the switch stays off")
+
+	for _, document := range run.Documents {
+		if document.RegistrationID != f.again {
+			continue
+		}
+		for _, child := range document.Children {
+			correction := map[string]any{"registration_id": f.again, "child_id": child.ChildID, "total_cents": 0, "reason": "Härtefall"}
+			rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/corrections"), correction)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		}
+	}
+	run = billingRun(t, f, billing, run.ID)
+	assert.Equal(t, 1, run.PaymentTextMissingDebtorNumbers, "an invoice of 0 € prints the fixed sentence")
+
+	askForDebtorNumber(t, f, true)
+	run = billingRun(t, f, billing, run.ID)
+	assert.Equal(t, 2, run.MissingDebtorNumbers, "the switch counts every invoice without a number")
+	assert.Equal(t, 1, run.PaymentTextMissingDebtorNumbers)
+
+	rec := f.changeDebtorNumber(t, f.office.token, f.siblings, "10 4711")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Zero(t, billingRun(t, f, billing, run.ID).PaymentTextMissingDebtorNumbers, "the number entered before the release ends the warning")
+}

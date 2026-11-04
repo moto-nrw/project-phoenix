@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { Check, X } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   listPendingApprovals,
   approveGuardianInvitation,
@@ -38,6 +37,7 @@ import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { settingsConcept } from "~/lib/concepts/settings";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
 
@@ -109,16 +109,12 @@ function ApprovalsEmptyState({
     <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
-          <span
+          <ConceptIconTile
             data-testid="approvals-empty-icon"
             data-concept={configuredAway ? "settings" : "accounts"}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100"
-          >
-            <MotoConceptIcon
-              concept={configuredAway ? settingsConcept : accountsConcept}
-              size={28}
-            />
-          </span>
+            concept={configuredAway ? settingsConcept : accountsConcept}
+            size="page"
+          />
         }
         title={title}
         description={description}

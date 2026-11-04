@@ -5,6 +5,7 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -77,11 +78,33 @@ import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 //   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
 //                                     levels come from Z_LAYER
 //
-// Three more are the shrink-only pill ratchet at the end of this file (#5584):
+// One more keeps icon tiles on the kit (#5582):
+//
+//   ui-kit/no-hand-rolled-icon-tile — no hand-built icon tile (symbol on a
+//                                     grey or tinted h-8…h-12 square/circle),
+//                                     also inside src/components/ui/; use
+//                                     IconTile or ConceptIconTile
+//
+// Three more are the shrink-only pill ratchet (#5584):
 //
 //   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
 //   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
+//
+// One more keeps select fields on one look (#5580):
+//
+//   ui-kit/no-select-override       — no frame, fill, height or radius
+//                                     classes on CustomSelect, MultiSelect
+//                                     or ListboxDropdown outside the kit;
+//                                     pick controlSize, pass layout only
+//
+// Two more keep SectionCard the only card head (#5581):
+//
+//   ui-kit/no-important-override   — no `!` utility on a kit component; the
+//                                     missing prop goes into the kit
+//                                     (shrink-only baseline per file)
+//   ui-kit/no-section-card-bleed   — no negative margin in a SectionCard
+//                                     bodyClassName; use flush or footer
 //
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
@@ -583,11 +606,11 @@ const noHandRolledSurface = {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (InfoCard, SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (InfoCard, SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -1113,36 +1136,36 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@193
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1336 text-[11px]@1336 text-[10px]@1340 text-[10px]@1349 text-[11px]@1349
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@232 text-[11px]@276
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970 text-[11px]@989
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@768 text-[11px]@773
+src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@742 text-[11px]@807
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@229 text-[11px]@233
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1392 text-[11px]@1481 text-[11px]@1491 text-[11px]@1521
-src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
+src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
+src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@299 text-[11px]@305
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@300 text-[11px]@306
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
@@ -2120,23 +2143,6 @@ const noGreyButtonFill = makeRatchetRule({
 });
 
 // --- Pillen-Ratchet (#5584) --------------------------------------------------
-//
-// Eine Pille: StatusBadge (feste Töne), StatusColorBadge (Farbe aus Daten,
-// auch amber über LOCATION_COLORS.WARNING) und DataTableStatusBadge teilen
-// StatusPillBase in src/components/ui/status-badge.tsx. Drei Regeln, je ein
-// Fund je Element:
-//
-//   no-hand-rolled-pill — `span` mit rounded-full/-md, px-*, py-*, kleiner
-//     Schrift (text-xs, text-[10px], text-[11px]) und einer Fläche
-//     (bg-Farbe oder background im style).
-//   no-pill-dot         — Punkt-Kind (rounded-full, h-/w-/size- 1 bis 2.5)
-//     in einer Pille (#2476).
-//   no-hex-alpha-tint   — `${farbe}1A`-Tönung im style einer Pille; die
-//     Tönung kommt aus dem Ton des Kits.
-//
-// Shrink-only Baseline je Datei in ui-kit-pill-baseline.json, neu erzeugen
-// mit `pnpm run ui-kit:pill-baseline`. Die Teil-Issues von #5584 senken sie
-// je Bereich; bei null werden die Regeln hart null.
 
 const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
 const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
@@ -2178,7 +2184,6 @@ function propertyName(property) {
   return null;
 }
 
-/** Background values of a static `style={{ … }}` (same-file constant too). */
 function styleBackgroundValues(openingElement, constants) {
   const value = jsxAttribute(openingElement, "style")?.value;
   if (value?.type !== "JSXExpressionContainer") return [];
@@ -2194,15 +2199,11 @@ function hasHexAlphaTemplate(node) {
   if (!node || typeof node !== "object") return false;
   if (node.type === "TemplateLiteral") {
     return node.quasis.some(
-      (quasi, index) =>
-        index > 0 && HEX_ALPHA_RE.test(quasi.value.raw.trim()),
+      (quasi, index) => index > 0 && HEX_ALPHA_RE.test(quasi.value.raw.trim()),
     );
   }
   if (node.type === "ConditionalExpression") {
-    return (
-      hasHexAlphaTemplate(node.consequent) ||
-      hasHexAlphaTemplate(node.alternate)
-    );
+    return hasHexAlphaTemplate(node.consequent) || hasHexAlphaTemplate(node.alternate);
   }
   if (node.type === "LogicalExpression") {
     return hasHexAlphaTemplate(node.left) || hasHexAlphaTemplate(node.right);
@@ -2212,10 +2213,7 @@ function hasHexAlphaTemplate(node) {
 
 function pillClassText(node, textOf) {
   if (jsxName(node.name) !== "span") return null;
-  // Ein Tooltip hat die Form einer Pille, ist aber eine Sprechblase.
-  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip") {
-    return null;
-  }
+  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip") return null;
   const className = jsxAttribute(node, "className");
   if (!className?.value) return null;
   const text = textOf(className.value);
@@ -2285,6 +2283,405 @@ const noHexAlphaTint = makePillRatchetRule({
   }),
 });
 
+// --- ui-kit/no-hand-rolled-icon-tile (#5582) --------------------------------
+//
+// Eine Icon-Kachel (zentriertes Symbol auf grauer oder getönter Fläche) kommt
+// aus `IconTile` / `ConceptIconTile`. Erkannt wird die Klassenkette
+// `flex h-(8–12) w-(8–12)` (oder `size-(8–12)`) `items-center justify-center
+// rounded-(lg|xl|2xl|full) bg-(gray|moto)-…` an einem Element, dessen Kind ein Symbol ist. Kreise mit
+// Initialen oder Schrittnummern (Text als Kind) und Schaltflächen bleiben frei.
+
+const ICON_TILE_FILE = "src/components/ui/icon-tile.tsx";
+// `size-10` steht für `h-10 w-10`; `inline-flex` baut dieselbe Kachel.
+const ICON_TILE_BOX_RE =
+  /(?:^|\s)(?:size-(?:8|9|10|11|12)|h-(?:8|9|10|11|12)\s(?:\S+\s)*?w-(?:8|9|10|11|12)|w-(?:8|9|10|11|12)\s(?:\S+\s)*?h-(?:8|9|10|11|12))(?=\s|$)/;
+const ICON_TILE_TOKENS = [
+  /(?:^|\s)(?:inline-)?flex(?=\s|$)/,
+  ICON_TILE_BOX_RE,
+  /(?:^|\s)items-center(?=\s|$)/,
+  /(?:^|\s)justify-center(?=\s|$)/,
+  /(?:^|\s)rounded-(?:lg|xl|2xl|full)(?=\s|$)/,
+  /(?:^|\s)bg-(?:gray|moto)-\S+/,
+];
+const INTERACTIVE_ELEMENTS = new Set([
+  "button",
+  "a",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+  "Button",
+  "ButtonLink",
+  "label",
+]);
+
+const isIconTileCombo = (text) =>
+  ICON_TILE_TOKENS.every((token) => token.test(text));
+
+function expressionNamesIcon(expression) {
+  if (!expression) return false;
+  if (expression.type === "Identifier") return /icon/i.test(expression.name);
+  if (expression.type === "MemberExpression") {
+    return (
+      expression.property?.type === "Identifier" &&
+      /icon/i.test(expression.property.name)
+    );
+  }
+  if (expression.type === "JSXElement")
+    return elementNamesIcon(expression) || hasIconChild(expression);
+  if (expression.type === "JSXFragment")
+    return hasIconChild(expression);
+  if (expression.type === "ConditionalExpression") {
+    return (
+      expressionNamesIcon(expression.consequent) ||
+      expressionNamesIcon(expression.alternate)
+    );
+  }
+  if (expression.type === "LogicalExpression") {
+    return expressionNamesIcon(expression.right);
+  }
+  return false;
+}
+
+function elementNamesIcon(element) {
+  const name = element.openingElement?.name;
+  if (name?.type !== "JSXIdentifier") return false;
+  if (name.name === "svg" || /icon/i.test(name.name)) return true;
+  return /^[A-Z]/.test(name.name) && (element.children?.length ?? 0) === 0;
+}
+
+/** Ein Symbol als Kind, kein Text: Initialen und Schrittnummern sind keine Kachel. */
+function hasIconChild(element) {
+  let icon = false;
+  for (const child of element.children ?? []) {
+    if (child.type === "JSXText") {
+      if (child.value.trim() !== "") return false;
+      continue;
+    }
+    if (child.type === "JSXElement") {
+      if (elementNamesIcon(child)) icon = true;
+      else if (hasIconChild(child)) icon = true;
+      else return false;
+      continue;
+    }
+    if (child.type === "JSXExpressionContainer") {
+      if (child.expression.type === "JSXEmptyExpression") continue;
+      if (expressionNamesIcon(child.expression)) icon = true;
+      else return false;
+    }
+  }
+  return icon;
+}
+
+const noHandRolledIconTile = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-rolled icon tiles; use IconTile or ConceptIconTile from the kit.",
+    },
+    messages: {
+      handRolledIconTile:
+        "Handgebaute Icon-Kachel. IconTile (~/components/ui/icon-tile) mit size, shape und tone nehmen, für ein fachliches Konzept ConceptIconTile (#5582, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key === ICON_TILE_FILE) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
+
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === null || INTERACTIVE_ELEMENTS.has(name)) return;
+        const classAttribute = node.attributes.find(
+          (attribute) =>
+            attribute.type === "JSXAttribute" &&
+            attribute.name.type === "JSXIdentifier" &&
+            attribute.name.name === "className",
+        );
+        if (!classAttribute?.value) return;
+        const combos = classCombinations(
+          classAttribute.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [
+          (() => {
+            const chunks = [];
+            collectStaticStrings(classAttribute.value, chunks);
+            return chunks.join(" ");
+          })(),
+        ];
+        if (!combos.some(isIconTileCombo)) return;
+        if (!hasIconChild(node.parent)) return;
+        context.report({ node, messageId: "handRolledIconTile" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-select-override (#5580) --------------------------------------
+//
+// Auswahlfelder bringen ihre Optik aus dem Kit mit: ListboxDropdown zeichnet
+// Auslöser, Menü, Option und Kästchen, CustomSelect und MultiSelect setzen
+// darauf auf. Ein Aufrufer wählt `controlSize`/`size` und gibt nur Layout
+// (Breite, flex, Schriftgewicht) in className/menuClassName. Rahmen-,
+// Hintergrund-, Höhen- und Radiusklassen sowie die Flächen-Utilities sind
+// dort verboten, ebenso `unstyledTrigger` außerhalb des Kits. Hart null.
+
+const SELECT_COMPONENT_MODULES = new Map([
+  ["~/components/ui/custom-select", "CustomSelect"],
+  ["@/components/ui/custom-select", "CustomSelect"],
+  ["~/components/ui/multi-select", "MultiSelect"],
+  ["@/components/ui/multi-select", "MultiSelect"],
+  ["~/components/ui/listbox-dropdown", "ListboxDropdown"],
+  ["@/components/ui/listbox-dropdown", "ListboxDropdown"],
+]);
+const SELECT_COMPONENTS = new Set(["CustomSelect", "MultiSelect", "ListboxDropdown"]);
+const SELECT_CLASS_PROPS = [
+  "className",
+  "triggerClassName",
+  "menuClassName",
+  "containerClassName",
+];
+const SELECT_OVERRIDE_RES = [
+  /^border(?:-|$)/,
+  /^bg-/,
+  /^(?:min-|max-)?h-/,
+  /^size-/,
+  /^rounded(?:-|$)/,
+  /^moto-(?:content|popover)-surface$/,
+];
+
+function selectOverrideTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) =>
+      SELECT_OVERRIDE_RES.some((re) => re.test(bareToken(token))),
+    );
+}
+
+const noSelectOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep frame, fill, height and radius of select fields in the kit; class props carry layout only.",
+    },
+    messages: {
+      override:
+        "Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize=\"compact\" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).",
+      unstyled:
+        "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    const constants = new Map();
+    const selects = new Set();
+    const pending = [];
+    return {
+      ImportDeclaration(node) {
+        const source =
+          node.source.type === "Literal" ? String(node.source.value) : "";
+        const exported = SELECT_COMPONENT_MODULES.get(source);
+        if (!exported) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== "ImportSpecifier") continue;
+          const imported =
+            specifier.imported.type === "Identifier"
+              ? specifier.imported.name
+              : String(specifier.imported.value);
+          if (SELECT_COMPONENTS.has(imported)) {
+            selects.add(specifier.local.name);
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        if (!selects.has(jsxName(node.name) ?? "")) return;
+        pending.push(node);
+      },
+      "Program:exit"() {
+        for (const node of pending) {
+          if (jsxAttribute(node, "unstyledTrigger")) {
+            context.report({ node, messageId: "unstyled" });
+          }
+          const tokens = SELECT_CLASS_PROPS.flatMap((name) => {
+            const attribute = jsxAttribute(node, name);
+            if (!attribute?.value) return [];
+            return selectOverrideTokens(classText(attribute.value, constants));
+          });
+          if (tokens.length > 0) {
+            context.report({
+              node,
+              messageId: "override",
+              data: { tokens: [...new Set(tokens)].join(" ") },
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
+//
+// Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
+// außen mit `!` überstimmt (`<SectionCard className="!p-0">`). Die Regel
+// prüft jedes className-Attribut (auch bodyClassName, titleClassName …) an
+// Elementen, die aus ~/components/ui/ importiert sind. Button und ButtonLink
+// gehören der Button-Ratsche (no-button-override) mit ihrer Baseline.
+//
+// no-section-card-bleed fällt auf einen Negativrand im bodyClassName einer
+// SectionCard: `-mx-5 -mb-5` hob das Kartenpolster für einen randlosen Rumpf
+// wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
+// Dafür gibt es `flush` und `footer`. Hart null.
+//
+// no-important-override startet mit einer shrink-only Baseline je Datei
+// (ui-kit-important-override-baseline.mjs).
+
+const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
+const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
+const NEGATIVE_MARGIN_RE = /^-m[xytrblse]?-/;
+
+function kitComponentNames(program) {
+  const names = new Set();
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration") continue;
+    const source =
+      statement.source.type === "Literal" ? String(statement.source.value) : "";
+    if (!KIT_IMPORT_RE.test(source)) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportNamespaceSpecifier") continue;
+      const imported =
+        specifier.type === "ImportSpecifier"
+          ? specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : String(specifier.imported.value)
+          : "default";
+      if (IMPORTANT_OWNED_ELSEWHERE.has(imported)) continue;
+      names.add(specifier.local.name);
+    }
+  }
+  return names;
+}
+
+/** Utility without its variant prefixes (`md:hover:!p-0` → `!p-0`). */
+function bareUtility(token) {
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < token.length; index += 1) {
+    const char = token[index];
+    if (char === "[") depth += 1;
+    else if (char === "]") depth -= 1;
+    else if (char === ":" && depth === 0) start = index + 1;
+  }
+  return token.slice(start);
+}
+
+function isImportantUtility(token) {
+  const utility = bareUtility(token);
+  if (utility.length < 2) return false;
+  return (
+    (utility.startsWith("!") && /^[-a-z[]/.test(utility.slice(1))) ||
+    (utility.endsWith("!") && /^-?[a-z]/.test(utility))
+  );
+}
+
+function classAttributes(node) {
+  return node.attributes.filter(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      /^(?:className|[a-z]\w*ClassName)$/.test(attribute.name.name) &&
+      attribute.value,
+  );
+}
+
+function makeKitClassRule({
+  description,
+  messageId,
+  message,
+  detect,
+  baseline = {},
+}) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { [messageId]: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return {};
+      const constants = new Map();
+      const findings = [];
+      let kitNames = new Set();
+      return {
+        Program(node) {
+          kitNames = kitComponentNames(node);
+        },
+        "Program:exit"() {
+          // count: jeden Fund melden, damit der Test die Baseline gegen den
+          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
+          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
+          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
+          for (const node of findings) context.report({ node, messageId });
+        },
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        JSXOpeningElement(node) {
+          const name = jsxName(node.name);
+          if (!name || !kitNames.has(name)) return;
+          for (const attribute of classAttributes(node)) {
+            const tokens = classText(attribute.value, constants)
+              .split(/\s+/)
+              .filter(Boolean);
+            if (detect({ name, attribute: attribute.name.name, tokens })) {
+              findings.push(attribute);
+            }
+          }
+        },
+      };
+    },
+  };
+}
+
+const noImportantOverride = makeKitClassRule({
+  description:
+    "Do not override a kit component with important utilities; add the missing prop to the kit.",
+  messageId: "important",
+  message:
+    'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
+  detect: ({ tokens }) => tokens.some(isImportantUtility),
+  baseline: importantOverrideBaseline,
+});
+
+const noSectionCardBleed = makeKitClassRule({
+  description:
+    "Do not undo the SectionCard padding with negative margins; use flush or footer.",
+  messageId: "bleed",
+  message:
+    "Kein Negativrand im Rumpf einer SectionCard: `flush` lässt den Rumpf bis an die Kante laufen, `footer` ergibt eine randlose Fußzone (#5581).",
+  detect: ({ name, attribute, tokens }) =>
+    name === "SectionCard" &&
+    attribute === "bodyClassName" &&
+    tokens.some((token) => NEGATIVE_MARGIN_RE.test(bareUtility(token))),
+});
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -2295,15 +2692,19 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-pill": noHandRolledPill,
-    "no-hex-alpha-tint": noHexAlphaTint,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-hex-alpha-tint": noHexAlphaTint,
+    "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
     "no-raw-z-index": noRawZIndex,
+    "no-select-override": noSelectOverride,
     "no-rounded-3xl": noRounded3xl,
+    "no-section-card-bleed": noSectionCardBleed,
     "no-shadcn-tokens": noShadcnTokens,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,

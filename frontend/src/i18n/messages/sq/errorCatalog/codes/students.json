@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_proof_not_found": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
   "pickup_reset_requires_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "pickup_reset_still_needed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "reason_required": "Mungon arsyeja: {object}. Ju lutemi shkruani një.",
   "request_not_decided": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "request_not_past": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

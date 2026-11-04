@@ -80,6 +80,7 @@ import {
   type SlotListSource,
   type SlotListTarget,
 } from "~/lib/slot-lists-api";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "SlotListsPage" });
 
@@ -2265,17 +2266,20 @@ export default function SlotListsPage() {
                   option.id === "slots" ? "col-span-2 lg:col-span-3" : ""
                 }`}
               >
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-100 ${
-                    selected
-                      ? "bg-moto-green/20 text-moto-green-strong"
-                      : available || !hasAvailability
-                        ? "text-gray-500"
-                        : "text-gray-400"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" aria-hidden />
-                </span>
+                <IconTile
+                  size="sm"
+                  tone={selected ? "green" : "neutral"}
+                  icon={
+                    <Icon
+                      className={
+                        selected || available || !hasAvailability
+                          ? undefined
+                          : "text-gray-400"
+                      }
+                      aria-hidden
+                    />
+                  }
+                />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-gray-950">
                     {label}

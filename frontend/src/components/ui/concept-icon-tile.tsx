@@ -1,56 +1,33 @@
+import type { ComponentProps } from "react";
+
+import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
-import { cn } from "~/lib/utils";
 
-type ConceptIconTileVariant = "section" | "page" | "display";
-
-const CONCEPT_ICON_TILE_VARIANTS: Record<
-  ConceptIconTileVariant,
-  { readonly tile: string; readonly iconSize: number }
-> = {
-  section: {
-    tile: "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10",
-    iconSize: 22,
-  },
-  page: {
-    tile: "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-12 sm:w-12",
-    iconSize: 26,
-  },
-  display: {
-    tile: "flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-100",
-    iconSize: 30,
-  },
-};
-
-interface ConceptIconTileProps {
+interface ConceptIconTileProps extends Omit<
+  ComponentProps<typeof IconTile>,
+  "icon"
+> {
   readonly concept: MotoConcept;
-  readonly variant: ConceptIconTileVariant;
-  readonly tone?: MotoDuotoneTone;
-  readonly className?: string;
+  /** Abweichender Symbolton, wenn eine Fläche die Symbole bewusst angleicht. */
+  readonly iconTone?: MotoDuotoneTone;
 }
 
 /**
- * Shared gray icon tile for fachliche Konzepte (see Header-Muster in
- * concept-section-header.tsx). Consolidates the repeated
- * "rounded-xl bg-gray-100 tile + MotoConceptIcon" markup so the tile size,
- * rounding and icon size stay in one place per variant.
- *
- * - "section": 36 to 40 px tile, used in section/card headers.
- * - "page": 44 to 48 px tile, used in page headers.
- * - "display": 56 px tile, used on the public display panels.
+ * `IconTile` mit dem Symbol eines fachlichen Konzepts (siehe `SectionCard`
+ * und `ConceptPageHeader`). Größe, Form, Fläche und Lage-Klassen gehen
+ * unverändert an `IconTile`.
  */
 export function ConceptIconTile({
   concept,
-  variant,
-  tone,
-  className,
+  iconTone,
+  ...tile
 }: ConceptIconTileProps) {
-  const { tile, iconSize } = CONCEPT_ICON_TILE_VARIANTS[variant];
-
   return (
-    <div className={cn(tile, className)}>
-      <MotoConceptIcon concept={concept} tone={tone} size={iconSize} />
-    </div>
+    <IconTile
+      {...tile}
+      icon={<MotoConceptIcon concept={concept} tone={iconTone} />}
+    />
   );
 }

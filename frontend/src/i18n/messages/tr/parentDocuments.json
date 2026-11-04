@@ -4,6 +4,8 @@
   "emptyTitle": "Henüz belge yok",
   "emptyDescription": "Kurum size bir yazı gönderdiğinde onu burada bulursunuz. Ayrıca e-posta ile de alırsınız.",
   "confirmationLetter": "Onay yazısı: {period}",
+  "cancellationLetter": "İptal yazısı: {period}",
+  "creditLetter": "Alacak dekontu: {period}",
   "sender": "Gönderen: {traeger}",
   "children": "Çocuk",
   "amount": "Tutar",
