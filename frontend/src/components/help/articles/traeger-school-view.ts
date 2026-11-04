@@ -11,7 +11,7 @@ export function traegerSchoolViewTopic(): HelpTopic {
       "Sie sehen die Zahlen und Stammdaten einer Schule, ohne das Träger-Portal zu verlassen.",
     group: "einstieg",
     audience: "traeger",
-    icon: "Building2",
+    icon: "ChartPieSlice",
     steps: [
       "Wählen Sie in der Navigation `Schulen`.",
       "Wählen Sie die Schule in der Liste.",

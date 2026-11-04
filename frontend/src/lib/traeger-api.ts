@@ -57,7 +57,7 @@ export interface TraegerSchool {
 }
 
 /** Live figures of one school; numbers only, no names (#5686). */
-export interface TraegerSchoolFigures {
+interface TraegerSchoolFigures {
   readonly childrenTotal: number;
   readonly childrenPresent: number;
   readonly childrenSick: number;
