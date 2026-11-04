@@ -37,6 +37,9 @@ export const codes = [
   "parent_billing.parent_document_not_found",
   "parent_billing.payment_text_debtor_number_missing",
   "parent_billing.recipient_email_missing",
+  "parent_billing.sibling_group_invalid",
+  "parent_billing.sibling_group_invoiced",
+  "parent_billing.sibling_group_not_found",
 ] as const;
 
 export const classes = {
@@ -77,6 +80,9 @@ export const classes = {
   "parent_billing.parent_document_not_found": "business_rejection",
   "parent_billing.payment_text_debtor_number_missing": "business_rejection",
   "parent_billing.recipient_email_missing": "business_rejection",
+  "parent_billing.sibling_group_invalid": "input",
+  "parent_billing.sibling_group_invoiced": "business_rejection",
+  "parent_billing.sibling_group_not_found": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -117,4 +123,7 @@ export const parameters = {
   "parent_billing.parent_document_not_found": [],
   "parent_billing.payment_text_debtor_number_missing": ["count"],
   "parent_billing.recipient_email_missing": [],
+  "parent_billing.sibling_group_invalid": [],
+  "parent_billing.sibling_group_invoiced": [],
+  "parent_billing.sibling_group_not_found": [],
 } as const;

@@ -77,6 +77,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.holiday_sibling_group_members",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_sibling_groups",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.number_range_counters",
       "write_owner": "parent-billing"
     },

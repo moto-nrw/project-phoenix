@@ -35,5 +35,8 @@
   "number_range_missing": "{object} could not be changed. Please check its current status.",
   "parent_document_not_found": "This document is no longer available. Please reload the page.",
   "payment_text_debtor_number_missing": "{object} could not be changed. Please check its current status.",
-  "recipient_email_missing": "{object} could not be changed. Please check its current status."
+  "recipient_email_missing": "{object} could not be changed. Please check its current status.",
+  "sibling_group_invalid": "{object} could not be saved. Please check your entries.",
+  "sibling_group_invoiced": "{object} could not be changed. Please check its current status.",
+  "sibling_group_not_found": "{object} could not be changed. Please check its current status."
 }

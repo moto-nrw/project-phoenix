@@ -66,6 +66,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/cost-bearers/{id}"}:                                           notCaptured,
 	{http.MethodDelete, "/traeger/cost-bearers/{id}"}:                                        notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/proofs"}: notCaptured,
+	// The siblings of separate holiday registrations (#5628) belong to the
+	// Träger too.
+	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/sibling-groups"}:                                  notCaptured,
+	{http.MethodDelete, "/traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{registrationId}"}: notCaptured,
 	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
 	// Träger: no school to count it for.
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,

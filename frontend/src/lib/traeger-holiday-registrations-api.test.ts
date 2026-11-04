@@ -203,6 +203,7 @@ describe("traeger-holiday-registrations-api", () => {
         after: [{ weekId: "51", timeModelId: "61" }],
         debtorNumber: null,
         fields: [],
+        siblings: [],
       },
       {
         action: "confirm",
@@ -213,6 +214,7 @@ describe("traeger-holiday-registrations-api", () => {
         after: [],
         debtorNumber: null,
         fields: [],
+        siblings: [],
       },
     ]);
   });

@@ -97,7 +97,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	var calls []string
 	var period map[string]any
 	var registrations []map[string]any
-	var correction, release, confirmation, takeover, costBearer map[string]any
+	var correction, release, confirmation, takeover, costBearer, merge map[string]any
 	var proofs int
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
@@ -153,6 +153,11 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			assert.NoError(t, json.Unmarshal(raw, &costBearer))
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":7}}`))
+		case "/traeger/holiday-contributions/5/sibling-groups":
+			raw, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.NoError(t, json.Unmarshal(raw, &merge))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":3,"registration_ids":[9,11]}}`))
 		case "/traeger/billing-runs/9/release":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -190,6 +195,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"PUT /traeger/holiday-periods/5/registrations/9/details Bearer traeger-token",
 		"POST /traeger/cost-bearers/ Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/10/confirm Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		"POST /traeger/holiday-contributions/5/sibling-groups Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		"POST /traeger/billing-runs/ Bearer traeger-token",
 		"GET /traeger/billing-runs/9 Bearer traeger-token",
@@ -213,7 +220,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	require.Len(t, weeks, 2)
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(31), weeks[1].(map[string]any)["host_school_id"], "the profile's school hosts both weeks, never the manual test school")
-	require.Len(t, registrations, 2)
+	require.Len(t, registrations, 3)
 	registration := registrations[0]
 	children, ok := registration["children"].([]any)
 	require.True(t, ok)
@@ -239,6 +246,13 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, true, duplicate["benefits_declared"])
 	assert.Equal(t, []any{"proof-token"}, duplicate["benefits_proof_tokens"], "the registration names the uploaded proof")
 	assert.Nil(t, registration["benefits_proof_tokens"], "the siblings send no proof")
+	third := registrations[2]
+	thirdChildren, ok := third["children"].([]any)
+	require.True(t, ok)
+	require.Len(t, thirdChildren, 1, "the second parent registers a third sibling in a form of its own")
+	assert.Equal(t, "Mila", thirdChildren[0].(map[string]any)["first_name"])
+	assert.Equal(t, map[string]any{"registration_ids": []any{float64(9), float64(11)}}, merge,
+		"the Träger-Büro merges the third sibling's registration with the siblings (#5628)")
 }
 
 // The Träger plans the two Herbstferien weeks the school plans around, under

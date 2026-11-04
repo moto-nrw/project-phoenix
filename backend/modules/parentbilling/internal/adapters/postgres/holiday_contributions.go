@@ -12,7 +12,14 @@ import (
 
 // The frozen holiday contributions (#4664, ADR 0115). The request role may
 // insert and read them, never change or delete them; they go with the child
-// of their registration.
+// of their registration. A merge or split of siblings adds a new version of
+// the contribution of a confirmed registration (#5628); the highest version
+// of a registration is valid, the older ones stay.
+
+// currentVersion keeps the rows of the newest version of their
+// registration.
+const currentVersion = `?TableAlias.version = (SELECT max(newer.version) FROM parent_billing.holiday_contributions AS newer
+	WHERE newer.organization_id = ?TableAlias.organization_id AND newer.holiday_registration_id = ?TableAlias.holiday_registration_id)`
 
 type holidayContributionRow struct {
 	bun.BaseModel `bun:"table:parent_billing.holiday_contributions"`
@@ -23,6 +30,7 @@ type holidayContributionRow struct {
 	HolidayRegistrationID      int64     `bun:"holiday_registration_id"`
 	HolidayRegistrationChildID int64     `bun:"holiday_registration_child_id"`
 	TotalCents                 int64     `bun:"total_cents"`
+	Version                    int       `bun:"version"`
 	ConfirmedAt                time.Time `bun:"confirmed_at,nullzero,default:current_timestamp"`
 	ConfirmedByAccountID       *int64    `bun:"confirmed_by_account_id"`
 }
@@ -55,8 +63,8 @@ func (l holidayContributionLineRow) line() parentbilling.HolidayContributionLine
 	}
 }
 
-// HolidayContributions reads the frozen contributions of a registration
-// with their lines, the children in the order of the form.
+// HolidayContributions reads the newest frozen contributions of a
+// registration with their lines, the children in the order of the form.
 func (s *Store) HolidayContributions(ctx context.Context, organizationID, registrationID int64) (parentbilling.HolidayContribution, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -65,7 +73,7 @@ func (s *Store) HolidayContributions(ctx context.Context, organizationID, regist
 	var rows []holidayContributionRow
 	if err := db.NewSelect().Model(&rows).
 		Where("organization_id = ?", organizationID).Where("holiday_registration_id = ?", registrationID).
-		OrderExpr("holiday_registration_child_id").Scan(ctx); err != nil {
+		Where(currentVersion).OrderExpr("holiday_registration_child_id").Scan(ctx); err != nil {
 		return parentbilling.HolidayContribution{}, false, err
 	}
 	if len(rows) == 0 {
@@ -103,7 +111,9 @@ func (s *Store) HolidayContributions(ctx context.Context, organizationID, regist
 }
 
 // InsertHolidayContributions freezes the contribution of every child of a
-// registration with its lines.
+// registration with its lines, as the next version of the registration's
+// contribution: the first at the confirmation, a further one after a merge
+// or split of siblings (#5628).
 func (s *Store) InsertHolidayContributions(ctx context.Context, organizationID, periodID, registrationID, accountID int64, contribution parentbilling.HolidayContribution) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -112,11 +122,22 @@ func (s *Store) InsertHolidayContributions(ctx context.Context, organizationID, 
 	if len(contribution.Children) == 0 {
 		return nil
 	}
+	// A later version keeps the time of the confirmation; its account is
+	// the one that merged or split the siblings.
+	var version int
+	var confirmedAt *time.Time
+	if err := db.NewRaw(`SELECT COALESCE(max(version), 0) + 1, min(confirmed_at) FROM parent_billing.holiday_contributions
+		WHERE organization_id = ? AND holiday_registration_id = ?`, organizationID, registrationID).Scan(ctx, &version, &confirmedAt); err != nil {
+		return err
+	}
 	rows := make([]holidayContributionRow, len(contribution.Children))
 	for i, child := range contribution.Children {
 		rows[i] = holidayContributionRow{
 			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: registrationID,
-			HolidayRegistrationChildID: child.ChildID, TotalCents: child.TotalCents, ConfirmedByAccountID: &accountID,
+			HolidayRegistrationChildID: child.ChildID, TotalCents: child.TotalCents, Version: version, ConfirmedByAccountID: &accountID,
+		}
+		if confirmedAt != nil {
+			rows[i].ConfirmedAt = *confirmedAt
 		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {

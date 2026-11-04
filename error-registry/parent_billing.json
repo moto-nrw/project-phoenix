@@ -223,6 +223,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.cost_takeover_with_exemption"
+    },
+    {
+      "code": "parent_billing.sibling_group_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_invalid"
+    },
+    {
+      "code": "parent_billing.sibling_group_invoiced",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_invoiced"
+    },
+    {
+      "code": "parent_billing.sibling_group_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sibling_group_not_found"
     }
   ]
 }

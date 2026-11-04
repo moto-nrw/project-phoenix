@@ -40,7 +40,9 @@ type HolidayRegistrationEventAction =
   | "rebook"
   | "debtor_number"
   | "edit"
-  | "proof_upload";
+  | "proof_upload"
+  | "sibling_merge"
+  | "sibling_split";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -175,6 +177,8 @@ export interface HolidayRegistrationEvent {
   } | null;
   /** The fields an edit changed, as paths like "guardian.phone" (#5629). */
   readonly fields: readonly string[];
+  /** The other registrations of a sibling merge or split (#5628). */
+  readonly siblings: readonly string[];
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -318,6 +322,7 @@ interface BackendDetail extends BackendSummary {
           after?: BackendBookingChange[] | null;
           debtor_number?: { before: string; after: string } | null;
           fields?: string[] | null;
+          siblings?: number[] | null;
         } | null;
       }[]
     | null;
@@ -425,6 +430,7 @@ function detailFromBackend(
       after: changesFromBackend(event.details?.after),
       debtorNumber: event.details?.debtor_number ?? null,
       fields: event.details?.fields ?? [],
+      siblings: (event.details?.siblings ?? []).map(String),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
