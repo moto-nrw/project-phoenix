@@ -46,5 +46,12 @@
   "api/traeger/holiday-periods/[id]/form": [
     "GET traeger /traeger/holiday-periods/id%2F1/form",
     "PUT traeger /traeger/holiday-periods/id%2F1/form"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/sibling-group": [
+    "DELETE traeger /traeger/holiday-contributions/id%2F1/sibling-groups/registrations/registrationId%2F1"
+  ],
+  "api/traeger/holiday-periods/[id]/sibling-groups": [
+    "GET traeger /traeger/holiday-contributions/id%2F1/sibling-groups",
+    "POST traeger /traeger/holiday-contributions/id%2F1/sibling-groups"
   ]
 }

@@ -38,6 +38,9 @@ const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
+const CodeParentBillingSiblingGroupInvalid = "parent_billing.sibling_group_invalid"
+const CodeParentBillingSiblingGroupInvoiced = "parent_billing.sibling_group_invoiced"
+const CodeParentBillingSiblingGroupNotFound = "parent_billing.sibling_group_not_found"
 
 var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBankAccountMissing, "business_rejection"},
@@ -77,6 +80,9 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
+	{CodeParentBillingSiblingGroupInvalid, "input"},
+	{CodeParentBillingSiblingGroupInvoiced, "business_rejection"},
+	{CodeParentBillingSiblingGroupNotFound, "business_rejection"},
 }
 
 func init() {

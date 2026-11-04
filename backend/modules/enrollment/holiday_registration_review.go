@@ -55,6 +55,11 @@ const (
 	// HolidayAuditEdit records a change of the details the family entered
 	// (#5629). It names the changed fields, never their values.
 	HolidayAuditEdit = "edit"
+	// HolidayAuditSiblingMerge and HolidayAuditSiblingSplit record that the
+	// Elternabrechnung merged the registration with others as siblings or
+	// took it out of its sibling group (#5628).
+	HolidayAuditSiblingMerge = "sibling_merge"
+	HolidayAuditSiblingSplit = "sibling_split"
 )
 
 // HolidayDebtorNumberMaxLength is the longest debtor number a registration
@@ -186,7 +191,8 @@ type HolidayDebtorNumberChange struct {
 // before a confirmation or cancellation, the child and its bookings before
 // and after a rebooking, the debtor number a confirmation entered or a
 // change changed, the changed fields of an edit as field paths such as
-// "guardian.phone" or "children.0.last_name" (#5629).
+// "guardian.phone" or "children.0.last_name" (#5629), the other
+// registrations of a sibling merge or split (#5628).
 type HolidayRegistrationEventDetails struct {
 	From         string                     `json:"from,omitempty"`
 	ChildID      int64                      `json:"child_id,omitempty"`
@@ -194,6 +200,7 @@ type HolidayRegistrationEventDetails struct {
 	After        []HolidayBookingChange     `json:"after,omitempty"`
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 	Fields       []string                   `json:"fields,omitempty"`
+	Siblings     []int64                    `json:"siblings,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.
@@ -346,11 +353,28 @@ type HolidayReviewer struct {
 	AccountID      int64
 }
 
+// HolidaySiblingTrail is what the review offers the Elternabrechnung for
+// its sibling groups (#5628): it holds the period while a group is read and
+// decided on, and records a merge or split in each registration's trail.
+type HolidaySiblingTrail interface {
+	// HoldHolidayPeriod locks the period of the session's Träger until the
+	// transaction ends, like every change of one of its registrations, so
+	// none changes while the Elternabrechnung reads and decides on several
+	// of them (#5628). It reads no personal data and records nothing.
+	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
+	// RecordHolidaySiblings records a sibling merge or split of the
+	// Elternabrechnung (#5628): action is HolidayAuditSiblingMerge or
+	// HolidayAuditSiblingSplit, siblingIDs the other registrations it
+	// concerns. Any state of the registration takes it.
+	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
+}
+
 // HolidayRegistrationReview lets the Träger-Büro review the registrations of
 // one period. Every operation runs in the Träger transaction of the
 // reviewer's Träger and records itself in the registration's audit trail;
 // a failed audit entry fails the operation.
 type HolidayRegistrationReview interface {
+	HolidaySiblingTrail
 	ListHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64, filter HolidayRegistrationFilter) (HolidayRegistrationList, error)
 	// ListHolidayRegistrationRecipients lists the registrations of the
 	// filter with the postal address of the parent who registered, for the

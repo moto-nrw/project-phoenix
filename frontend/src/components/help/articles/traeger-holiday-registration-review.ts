@@ -9,7 +9,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     question:
       "Wie bestätige, ändere, storniere und buche ich Ferienanmeldungen um?",
     summary:
-      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um.",
+      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
     image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
     imageAlt:
       "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -67,6 +67,26 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         ],
       },
       {
+        title: "Geschwister zusammenführen",
+        description:
+          "Eltern melden Geschwister manchmal in zwei Anmeldungen an. Führen Sie die Anmeldungen zusammen, zählen die Kinder beim Ferienbeitrag zusammen. moto führt nie von selbst zusammen.",
+        steps: [
+          "In der Spalte `Geschwister` steht ein Hinweis wie `Vielleicht Geschwister: gleiche E-Mail` oder `Vielleicht Geschwister: gleicher Nachname`. Der Hinweis ändert nichts.",
+          "Prüfen Sie, ob die Kinder wirklich Geschwister sind.",
+          "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie.",
+          "Wählen Sie `Als Geschwister zusammenführen`.",
+          "In der Spalte `Geschwister` steht jetzt `Geschwister` mit den Nummern der anderen Anmeldungen.",
+        ],
+      },
+      {
+        title: "Geschwister trennen",
+        steps: [
+          "Öffnen Sie die Anmeldung.",
+          "Wählen Sie in der Karte `Geschwister` den Knopf `Trennen`.",
+          "Bestätigen Sie mit `Trennen`.",
+        ],
+      },
+      {
         title: "Umbuchen",
         steps: [
           "Wählen Sie beim Kind `Umbuchen`.",
@@ -91,7 +111,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       },
     ],
     result:
-      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte.",
+      "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort.",
     notes: [
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -106,6 +126,10 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
       "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
       "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
+      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Bei gleichem Beitrag zählt die früher eingegangene Anmeldung zuerst.",
+      "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
+      "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
+      "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
@@ -117,6 +141,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
       "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
       "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
+      "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",
+      "Eine stornierte Anmeldung können Sie nicht zusammenführen. Trennen geht.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayRegistration,

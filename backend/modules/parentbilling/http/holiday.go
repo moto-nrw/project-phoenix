@@ -29,7 +29,7 @@ type HolidayResource struct {
 
 // NewHolidayResource builds the resource. requireManage admits only a
 // session with the Träger right "Anmeldung verwalten", the right that
-// confirms a registration.
+// confirms a registration and merges siblings (#5628).
 func NewHolidayResource(contributions capability.HolidayContributions, requireManage common.Middleware) *HolidayResource {
 	if contributions == nil || requireManage == nil {
 		panic("parent billing http: the holiday contributions and the right check are required")
@@ -48,6 +48,9 @@ func (rs *HolidayResource) TraegerRouter(protectedTraegerRoutes func(chi.Router,
 		manage.Get("/{periodId}/registrations/{registrationId}", rs.contribution)
 		manage.Post("/{periodId}/registrations/{registrationId}/confirm", rs.confirm)
 		manage.Put("/{periodId}/registrations/{registrationId}/debtor-number", rs.changeDebtorNumber)
+		manage.Get("/{periodId}/sibling-groups", rs.listSiblingGroups)
+		manage.Post("/{periodId}/sibling-groups", rs.mergeSiblings)
+		manage.Delete("/{periodId}/sibling-groups/registrations/{registrationId}", rs.splitSibling)
 	})
 	return r
 }
@@ -316,6 +319,12 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCostBearerNotFound))
 	case errors.Is(err, capability.ErrCostBearerInactive):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCostBearerInactive))
+	case errors.Is(err, capability.ErrInvalidHolidaySiblingGroup):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingSiblingGroupInvalid))
+	case errors.Is(err, capability.ErrHolidaySiblingGroupNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingSiblingGroupNotFound))
+	case errors.Is(err, capability.ErrHolidaySiblingsInvoiced):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSiblingGroupInvoiced))
 	case errors.Is(err, capability.ErrInvalidHolidayQuote):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingHolidayQuoteInvalid))
 	default:
