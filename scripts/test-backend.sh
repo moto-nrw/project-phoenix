@@ -19,6 +19,13 @@ cd "$repo_root/backend"
 # shellcheck source=scripts/go-test-workspace.sh
 source "$repo_root/scripts/go-test-workspace.sh"
 
+# The full-suite preset runs package binaries concurrently, but gives each Go
+# process one runtime worker. On macOS this avoids expensive parallel-GC work
+# in links, source ratchets and their child tools. Keep -p and -parallel below:
+# this is not serial package or test execution. Explicit -cpu still controls
+# the test runtime; other pinned commands and the native app loop are unchanged.
+export GOMAXPROCS=1
+
 sweep() {
   status=$?
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
